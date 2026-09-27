@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include <QDate>
 #include <QTableView>
@@ -30,6 +31,7 @@
 #include "containers.h"
 #include "linetypes.h"
 #include "logformatdefinition.h"
+#include "logformattablemodel.h"
 #include "logpresentation.h"
 #include "quickfindmux.h"
 #include "regularexpressionpattern.h"
@@ -40,7 +42,6 @@
 
 class AbstractLogData;
 class LogFilteredData;
-class LogFormatTableModel;
 class LogTableHighlightDelegate;
 class Overview;
 class OverviewWidget;
@@ -63,8 +64,9 @@ class Selection;
 // Table View hands out is a Log Line obtained through it.
 //
 // Shown, it is what the window's QuickFind bar searches, as the Text View is:
-// QuickFind runs from the Log Line of the current Row and its match is shown
-// as that Log Line's Row, selected.
+// QuickFind runs from the characters selected in a cell of the current Row, or
+// else from its whole Log Line, and its match is shown as that Log Line's Row,
+// selected, with the matching characters selected in the cell holding them.
 class LogTableView : public QTableView, public LogPresentation, public SearchableWidgetInterface {
     Q_OBJECT
 
@@ -136,9 +138,9 @@ public:
     // Saves the Log Lines of the selected Rows, in Log Line order.
     void saveSelectedTo( const QString& filename ) override;
 
-    // SearchableWidgetInterface: QuickFind from the Log Line of the current
-    // Row, over every Log Line the Rows show, with the window's QuickFind
-    // pattern. Aborting an incremental search selects the Row it started from.
+    // SearchableWidgetInterface: QuickFind from quickFindStart(), over every
+    // Log Line the Rows show, with the window's QuickFind pattern. Aborting an
+    // incremental search selects the Row it started from.
     void searchForward() override;
     void searchBackward() override;
     void incrementallySearchForward() override;
@@ -242,14 +244,48 @@ private:
     // QuickFind bar to search in the given direction, as the Text View does:
     // the bar keeps the pattern and the direction for its next and previous.
     void findSelected( bool forward );
-    // Where QuickFind starts from: the Log Line of the current Row, whole.
+    // Where QuickFind starts from, as the Text View starts from its
+    // Selection: the characters selected inside a cell of the current Row,
+    // where the Log Format places that cell in the Log Line; otherwise the
+    // Log Line of the current Row, whole.
     Selection quickFindStart() const;
+    // Where the text of each cell of a Row lies in its Log Line: the raw
+    // characters of each column (LogFormatTableModel::columnSpans()), and the
+    // column QuickFind reads each raw character at, with tabs expanded.
+    struct CellsInLogLine {
+        std::vector<std::optional<LogFormatTableModel::TextSpan>> spans;
+        logsquirl::vector<int> displayColumns;
+
+        // The span of a column, null when it shows no characters of the Log
+        // Line.
+        const LogFormatTableModel::TextSpan* spanOf( int column ) const
+        {
+            if ( column < 0 || static_cast<size_t>( column ) >= spans.size() ) {
+                return nullptr;
+            }
+            const auto& span = spans[ static_cast<size_t>( column ) ];
+            return span.has_value() ? &span.value() : nullptr;
+        }
+        int displayColumnOf( int rawColumn ) const
+        {
+            return displayColumns[ static_cast<size_t>( rawColumn ) ];
+        }
+    };
+    // None for a JSON or logfmt Log Format, which places its fields nowhere
+    // in the Log Line.
+    std::optional<CellsInLogLine> cellsInLogLine( int row ) const;
     // Runs search from quickFindStart() with the QuickFind pattern.
     using QuickFindSearch = void ( QuickFind::* )( Selection, QuickFindMatcher );
     void searchUsing( QuickFindSearch search );
     // Selects the Row of the Log Line QuickFind found, and the matching
-    // characters in its first cell holding them.
+    // characters in the cell holding them. A match spanning two cells, or in
+    // text no cell shows, selects no characters. A JSON or logfmt Log Format
+    // places no cell in the Log Line: the first cell the pattern matches is
+    // taken for it.
     void showQuickFindResult( bool hasMatch, const Portion& logLinePortion );
+    // Selects the characters of logLinePortion in the cell of the Row that
+    // holds them all, if a cell does.
+    void selectCellHolding( int row, const CellsInLogLine& cells, const Portion& logLinePortion );
 
     bool handlesMouse() const;
     void repaintIfActive();

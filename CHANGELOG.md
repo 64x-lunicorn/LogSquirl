@@ -177,6 +177,13 @@
 
 ## Bug fixes
 
+- **QuickFind in the Table View goes on from the selected characters**: Find
+  next and previous start from the characters selected in a cell, as they
+  start from the selection in the Text View, so a second match in another
+  column of the same Row is no longer skipped, and a match is shown selected
+  in the cell that holds it rather than in the first cell the pattern
+  matches. A match that runs across two columns, or lies in text no column
+  shows, selects its Row (#547).
 - **A double-click selects the same word in the Table View as in the Text
   View**: a word is letters, numbers and connector punctuation in both, so
   `foo‿bar` is one word in the Table View too, and a double-click on a space

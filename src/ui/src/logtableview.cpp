@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <numeric>
 #include <utility>
 
 #include <QFileDialog>
@@ -774,10 +775,49 @@ Selection LogTableView::quickFindStart() const
 {
     Selection from;
     const auto current = currentIndex();
-    if ( model_ && current.isValid() ) {
-        from.selectLine( rows_->logLineAt( current.row() ) );
+    if ( !model_ || !current.isValid() ) {
+        return from;
     }
+
+    const auto logLine = rows_->logLineAt( current.row() );
+    const auto inCell = state_.selection.inCell();
+    if ( inCell && state_.selection.hasInCellSelection() && inCell->row == current.row() ) {
+        const auto cells = cellsInLogLine( inCell->row );
+        const auto* span = cells ? cells->spanOf( inCell->column ) : nullptr;
+        if ( cells && span ) {
+            const auto start = std::min( inCell->startChar, inCell->endChar );
+            const auto end = std::min( std::max( inCell->startChar, inCell->endChar ),
+                                       span->end - span->start );
+            if ( start < end ) {
+                from.selectPortion( logLine,
+                                    LineColumn{ cells->displayColumnOf( span->start + start ) },
+                                    LineColumn{ cells->displayColumnOf( span->start + end ) - 1 } );
+                return from;
+            }
+        }
+    }
+
+    from.selectLine( logLine );
     return from;
+}
+
+std::optional<LogTableView::CellsInLogLine> LogTableView::cellsInLogLine( int row ) const
+{
+    auto spans = model_->columnSpans( row );
+    if ( !spans ) {
+        return std::nullopt;
+    }
+    const auto rawLine
+        = model_->index( row, 0 ).data( LogFormatTableModel::RawLineRole ).toString();
+
+    // QuickFind reads the Log Line as the Log File expands it: with its tabs
+    // expanded, or as it is when the Log File expands none.
+    auto displayColumns = rawToDisplayColumns( rawLine );
+    const auto expandedLength = logData_->getExpandedLineString( rows_->logLineAt( row ) ).size();
+    if ( expandedLength != displayColumns.back() ) {
+        std::iota( displayColumns.begin(), displayColumns.end(), 0 );
+    }
+    return CellsInLogLine{ std::move( *spans ), std::move( displayColumns ) };
 }
 
 void LogTableView::searchUsing( QuickFindSearch search )
@@ -838,19 +878,52 @@ void LogTableView::showQuickFindResult( bool hasMatch, const Portion& logLinePor
     }
 
     state_.selection.clearInCell();
-    const auto matcher = state_.quickFindPattern->getMatcher();
-    for ( int column = 0; column < model_->columnCount(); ++column ) {
-        const auto cellText = model_->index( *row, column ).data( Qt::DisplayRole ).toString();
-        if ( matcher.isLineMatching( cellText ) ) {
-            const auto [ start, end ] = matcher.getLastMatch();
-            state_.selection.selectInCell( *row, column, static_cast<int>( start.get() ),
-                                           static_cast<int>( end.get() ) + 1 );
-            break;
+    if ( const auto cells = cellsInLogLine( *row ) ) {
+        selectCellHolding( *row, *cells, logLinePortion );
+    }
+    else {
+        // A JSON or logfmt Log Format places its fields nowhere in the Log
+        // Line: the first cell the pattern matches holds the match.
+        const auto matcher = state_.quickFindPattern->getMatcher();
+        for ( int column = 0; column < model_->columnCount(); ++column ) {
+            const auto cellText = model_->index( *row, column ).data( Qt::DisplayRole ).toString();
+            if ( matcher.isLineMatching( cellText ) ) {
+                const auto [ start, end ] = matcher.getLastMatch();
+                state_.selection.selectInCell( *row, column, static_cast<int>( start.get() ),
+                                               static_cast<int>( end.get() ) + 1 );
+                break;
+            }
         }
     }
     showInCellSelection();
 
     showLogLine( logLinePortion.line() );
+}
+
+void LogTableView::selectCellHolding( int row, const CellsInLogLine& cells,
+                                      const Portion& logLinePortion )
+{
+    const auto matchStart = logLinePortion.startColumn().get<int>();
+    const auto matchEnd = logLinePortion.endColumn().get<int>() + 1;
+    for ( int column = 0; column < model_->columnCount(); ++column ) {
+        const auto* span = cells.spanOf( column );
+        if ( span == nullptr || cells.displayColumnOf( span->start ) > matchStart
+             || matchEnd > cells.displayColumnOf( span->end ) ) {
+            continue;
+        }
+        // The characters of the cell the match covers: a match beginning or
+        // ending inside a tab's expansion covers the tab.
+        auto start = span->start;
+        while ( start + 1 < span->end && cells.displayColumnOf( start + 1 ) <= matchStart ) {
+            ++start;
+        }
+        auto end = start + 1;
+        while ( end < span->end && cells.displayColumnOf( end ) < matchEnd ) {
+            ++end;
+        }
+        state_.selection.selectInCell( row, column, start - span->start, end - span->start );
+        return;
+    }
 }
 
 // Copy the selected text: the characters selected inside a cell, or else the

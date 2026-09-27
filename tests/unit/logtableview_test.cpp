@@ -864,6 +864,150 @@ void doubleClickCharacter( LogTableView& view, int row, const QString& text, int
 
 } // namespace
 
+namespace {
+
+// A Log Format of two fields, a and b, each a run of characters other than a
+// space, apart by spaces or tabs. Its columns show them after the timestamp, the elapsed time and
+// the level, which stay empty.
+LogFormatDefinition makeTwoFieldFormat()
+{
+    LogFormatDefinition format;
+    format.setName( "logtableview_test_two_fields" );
+    format.setTitle( "Table View two fields test" );
+
+    QHash<QString, QString> regex;
+    regex[ "basic" ] = R"(^a=(?<a>\S+)\s+b=(?<b>\S+)$)";
+    format.setRegexPatterns( regex );
+
+    QHash<QString, LogFormatValueDef> values;
+    values[ "a" ] = LogFormatValueDef{ "string", false, false };
+    values[ "b" ] = LogFormatValueDef{ "string", false, false };
+    format.setValueDefinitions( values );
+
+    return format;
+}
+
+// A Log File that expands tabs where it hands out the text QuickFind reads,
+// as LogData does.
+class TabExpandingLogData : public FakeLogData {
+public:
+    using FakeLogData::FakeLogData;
+
+protected:
+    QString doGetExpandedLineString( LineNumber line ) const override
+    {
+        return untabify( doGetLineString( line ) );
+    }
+};
+
+int columnOf( const LogTableView& view, const QString& field )
+{
+    for ( int column = 0; column < view.model()->columnCount(); ++column ) {
+        if ( view.model()->headerData( column, Qt::Horizontal ).toString() == field ) {
+            return column;
+        }
+    }
+    FAIL( "no column " << field.toStdString() );
+    return -1;
+}
+
+} // namespace
+
+SCENARIO( "A QuickFind in the Table View starts from the selected characters and lands on the "
+          "cell holding the match",
+          "[logtableview][quickfind]" )
+{
+    const auto format = makeTwoFieldFormat();
+    TabExpandingLogData logData(
+        QStringList{ "a=needle b=needle", "a=other b=needle", "a=foo b=bar", "a=tab\tb=needle" } );
+    InspectedTableView view;
+    QuickFindBar quickFind( view, testSettingsPolicies().quickFind );
+    open( view, format, logData );
+    view.setActive( true );
+    view.show();
+    QCoreApplication::processEvents();
+
+    const auto columnA = columnOf( view, "a" );
+    const auto columnB = columnOf( view, "b" );
+
+    GIVEN( "needle selected in column a of the Row a=needle b=needle" )
+    {
+        doubleClickCharacter( view, 0, "needle", 0 );
+        REQUIRE( view.selectedText() == "needle" );
+        REQUIRE( view.selection().inCell()->column == columnA );
+
+        WHEN( "Find next is chosen" )
+        {
+            choose( *view.createContextMenu( centerOfRow( view, 0 ) ), "Find &next" );
+
+            THEN( "needle in column b of the same Row is selected" )
+            {
+                REQUIRE( QTest::qWaitFor(
+                    [ & ] {
+                        const auto inCell = view.selection().inCell();
+                        return inCell.has_value() && inCell->column == columnB;
+                    },
+                    10000 ) );
+                REQUIRE( view.selection().inCell()->row == 0 );
+                REQUIRE( view.selectedText() == "needle" );
+                REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 0_lnum } );
+            }
+        }
+    }
+
+    GIVEN( "the first Row selected" )
+    {
+        view.showLogLine( 0_lnum );
+        QSignalSpy newSelection( &view, &LogTableView::newSelection );
+
+        WHEN( "the next match of text spanning the fields a and b is found" )
+        {
+            quickFind.pattern->changeSearchPattern( "foo b=bar", false, false );
+            view.searchForward();
+
+            THEN( "its Row is selected, and no cell" )
+            {
+                REQUIRE( ( !newSelection.isEmpty() || newSelection.wait( 10000 ) ) );
+                REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 2_lnum } );
+                REQUIRE_FALSE( view.selection().hasInCellSelection() );
+            }
+        }
+
+        WHEN( "the next match of text no column shows is found" )
+        {
+            quickFind.pattern->changeSearchPattern( "b=", false, false );
+            view.searchForward();
+
+            THEN( "its Row is selected, and no cell" )
+            {
+                REQUIRE( ( !newSelection.isEmpty() || newSelection.wait( 10000 ) ) );
+                REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 1_lnum } );
+                REQUIRE_FALSE( view.selection().hasInCellSelection() );
+            }
+        }
+    }
+
+    GIVEN( "the Row a=foo b=bar selected, before a Row whose fields a tab sets apart" )
+    {
+        view.showLogLine( 2_lnum );
+        QSignalSpy newSelection( &view, &LogTableView::newSelection );
+
+        WHEN( "the next needle is found, which QuickFind reads after the tab's expansion" )
+        {
+            quickFind.pattern->changeSearchPattern( "needle", false, false );
+            view.searchForward();
+
+            THEN( "needle is selected in column b of that Row" )
+            {
+                REQUIRE( ( !newSelection.isEmpty() || newSelection.wait( 10000 ) ) );
+                REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 3_lnum } );
+                REQUIRE( view.selection().inCell()->column == columnB );
+                REQUIRE( view.selectedText() == "needle" );
+            }
+        }
+    }
+}
+
 // The Text View's word rule, which both Presentations follow (#546).
 SCENARIO( "A double-click in the Table View selects a word as the Text View does",
           "[logtableview][word]" )

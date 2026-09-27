@@ -30,6 +30,7 @@
 #include <QStringList>
 
 #include <optional>
+#include <utility>
 
 // Represents the result of extracting fields from a single log line.
 class ExtractedFields {
@@ -92,6 +93,13 @@ public:
     // or nothing when extractFields() calls the line invalid. For a Json or
     // Logfmt format only that key is read, not every field of the line.
     std::optional<QString> extractField( const QString& line, const QString& fieldName ) const;
+
+    // Where each field of a Regex Log Format lies in a raw line: the
+    // characters its capture covers, from the first up to, not including,
+    // the one after the last. A field that captured nothing has no entry.
+    // Nothing when no pattern matches the line. A JSON or logfmt Log Format
+    // places its fields nowhere in the line, and gives nothing either.
+    std::optional<QHash<QString, std::pair<int, int>>> fieldSpans( const QString& line ) const;
 
     // Get the ordered list of column names for table display.
     // Order: timestamp, level, [value fields ordered by definition], body

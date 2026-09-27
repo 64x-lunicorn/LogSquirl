@@ -252,6 +252,67 @@ SCENARIO( "LogFormatTableModel handles non-matching lines", "[logformat][tablemo
     }
 }
 
+SCENARIO( "The table model says where the text of each column lies in the Log Line",
+          "[logformat][tablemodel][columnspans]" )
+{
+    const auto spansOf = []( const LogFormatTableModel& model, int row ) {
+        const auto spans = model.columnSpans( row );
+        REQUIRE( spans.has_value() );
+        std::vector<std::optional<std::pair<int, int>>> ends;
+        for ( const auto& span : *spans ) {
+            ends.push_back( span ? std::optional{ std::pair{ span->start, span->end } }
+                                 : std::nullopt );
+        }
+        return ends;
+    };
+    using Ends = std::vector<std::optional<std::pair<int, int>>>;
+
+    GIVEN( "a table model of a regex Log Format: timestamp, elapsed time, level, host, body" )
+    {
+        auto format = makeTestFormat();
+        FakeLogData logData;
+        LogFormatTableModel model( format, &logData );
+        logData.setLines( { "Jan  1 12:00:00 host1 some message", "no match here" } );
+        model.setLineCount( 2 );
+
+        THEN( "a Log Line it matches has the span of each field's capture in its column, and "
+              "none for the elapsed time and the level, which it did not capture" )
+        {
+            REQUIRE( spansOf( model, 0 )
+                     == Ends{ std::pair{ 0, 15 }, std::nullopt, std::nullopt, std::pair{ 16, 21 },
+                              std::pair{ 22, 34 } } );
+        }
+
+        THEN( "a Log Line it does not match lies whole in the last column" )
+        {
+            REQUIRE( spansOf( model, 1 )
+                     == Ends{ std::nullopt, std::nullopt, std::nullopt, std::nullopt,
+                              std::pair{ 0, 13 } } );
+        }
+
+        THEN( "there is nothing for no Row" )
+        {
+            REQUIRE_FALSE( model.columnSpans( 2 ).has_value() );
+        }
+    }
+
+    GIVEN( "a table model of a JSON Log Format" )
+    {
+        LogFormatDefinition format;
+        format.setName( "test_json" );
+        format.setKind( LogFormatKind::Json );
+        FakeLogData logData;
+        LogFormatTableModel model( format, &logData );
+        logData.setLines( { R"({"timestamp":"2026-01-01","body":"x"})" } );
+        model.setLineCount( 1 );
+
+        THEN( "there is nothing: its fields have no place in the Log Line" )
+        {
+            REQUIRE_FALSE( model.columnSpans( 0 ).has_value() );
+        }
+    }
+}
+
 SCENARIO( "LogFormatTableModel passes Qt model tester", "[logformat][tablemodel]" )
 {
     GIVEN( "A table model with lines" )
