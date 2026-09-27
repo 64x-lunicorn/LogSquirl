@@ -66,6 +66,7 @@
 #include "linemapping.h"
 #include "linessaver.h"
 #include "linetypes.h"
+#include "logfileview.h"
 #include "overviewwidget.h"
 #include "quickfind.h"
 #include "quickfindmux.h"
@@ -112,8 +113,11 @@ class Overview;
 
 // Base class representing the log view widget.
 // It can be either the top (full) or bottom (filtered) view: the two differ
-// only in the LineMapping they are built with.
-class AbstractLogView : public QAbstractScrollArea, public SearchableWidgetInterface {
+// only in the LineMapping they are built with. Either is told what every view
+// of its Log File shows alike through LogFileView.
+class AbstractLogView : public QAbstractScrollArea,
+                        public LogFileView,
+                        public SearchableWidgetInterface {
     Q_OBJECT
 
 public:
@@ -153,7 +157,7 @@ public:
     AbstractLogView& operator=( const AbstractLogView& ) = delete;
     AbstractLogView& operator=( AbstractLogView&& ) = delete;
 
-    void updateFont( const QFont& font );
+    void updateFont( const QFont& font ) override;
 
     // Refresh the widget when the data set has changed, as change says: told
     // that Log Lines were only appended, scrolling keeps what it counted for
@@ -187,24 +191,26 @@ public:
         return scrolling_.textWrap();
     }
 
-    void allowFollowMode( bool allow );
+    void allowFollowMode( bool allow ) override;
 
-    void setSearchPattern( const RegularExpressionPattern& pattern );
+    void setSearchPattern( const RegularExpressionPattern& pattern ) override;
 
     using QuickHighlighters = QStringList;
-    void setQuickHighlighters( const std::vector<QuickHighlighters>& wordHighlighters );
+    void setColorLabels( const std::vector<QuickHighlighters>& wordHighlighters ) override;
 
     // Hand over the settings that color Log Lines. Call it after a settings
     // change: painting reads no setting of its own, so this is the only way
     // a changed one reaches the Viewport.
-    void setDecorationPolicy( const DecorationPolicy& policy );
+    void setDecorationPolicy( const DecorationPolicy& policy ) override;
 
     // Hand over the settings this Presentation shows and scrolls under. Call
     // it when the view is built and again after a settings change: the view
     // reads no setting of its own, so this is the only way a changed one
     // reaches it. Nothing is derived from it and kept, so a change on the
     // Presentation Axis takes effect without the Log File being opened again.
-    void setPresentationPolicy( const PresentationPolicy& policy );
+    // The main view and the Filtered View each show the line numbers the
+    // Policy says for their kind as well.
+    void setPresentationPolicy( const PresentationPolicy& policy ) override;
 
     // Where every Log Line sits in the Viewport and what sits at any point of
     // it, including the Visual Lines the Viewport holds right now. This is what
@@ -224,7 +230,7 @@ public:
     void setLineMapping( std::unique_ptr<const LineMapping> lines );
     const LineMapping& lineMapping() const;
 
-    void registerShortcuts();
+    void registerShortcuts() override;
 
 protected:
     void mousePressEvent( QMouseEvent* mouseEvent ) override;
@@ -359,17 +365,17 @@ public Q_SLOTS:
     // Repaint after how the Log Lines look changed, not their text: Marks,
     // Matches, Highlighters, Color Labels. The Log Lines already read for the
     // Viewport are painted again.
-    void updateDecorations();
+    void updateDecorations() override;
 
     // Read the Log Lines in the Viewport again and repaint: their text may
     // have changed although the Log File's line count did not, as under
     // another Encoding.
-    void rereadLogLines();
+    void rereadLogLines() override;
 
     // Set the overview visibility and update viewport margins accordingly.
     void setOverviewVisible( bool visible );
 
-    void setSearchLimits( LineNumber startLine, LineNumber endLine );
+    void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
 
 private Q_SLOTS:
     void handlePatternUpdated();

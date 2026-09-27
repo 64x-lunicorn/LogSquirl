@@ -44,7 +44,8 @@
 #include "logdata.h"
 #include "logpresentation.h"
 
-// Class implementing the main (top) view widget: the Text View.
+// Class implementing the main (top) view widget: the Text View. It is told
+// what every view of its Log File shows alike as AbstractLogView.
 class LogMainView : public AbstractLogView, public LogPresentation {
     Q_OBJECT
 public:
@@ -52,24 +53,16 @@ public:
                  Overview* overview, OverviewWidget* overview_widget, bool initialTextWrap,
                  QWidget* parent = nullptr );
 
+    // LogFileView, beyond what AbstractLogView does for either text view.
+    // Also shows the Text View's line numbers and the Overview as it says.
+    void setPresentationPolicy( const PresentationPolicy& policy ) override;
+
     // LogPresentation
     QString selectedText() const override;
     OptionalLineNumber logLineAt( const QPoint& pos ) const override;
     void showLogLine( LineNumber line ) override;
     void showLogLinePortion( LineNumber line, LinesCount nLines, LineColumn startCol,
                              LineLength nSymbols ) override;
-    void updateDecorations() override;
-    void rereadLogLines() override;
-    void updateFont( const QFont& font ) override;
-    void registerShortcuts() override;
-    void setDecorationPolicy( const DecorationPolicy& policy ) override;
-    // Also shows the Text View's line numbers and the Overview as it says.
-    void setPresentationPolicy( const PresentationPolicy& policy ) override;
-    void setQuickFindPolicy( const QuickFindPolicy& policy ) override;
-    void allowFollowMode( bool allow ) override;
-    void setColorLabels( const std::vector<QStringList>& labels ) override;
-    void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
-    void setSearchPattern( const RegularExpressionPattern& pattern ) override;
     // Builds the view a new mapping, whose line types color the bullets.
     void setCurrentSearch( const LogFilteredData* search ) override;
     void saveSelectedTo( const QString& filename ) override;

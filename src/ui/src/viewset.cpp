@@ -25,27 +25,33 @@
 #include <algorithm>
 
 template <class Fn>
-void ViewSet::forEachFilteredView( Fn&& fn ) const
+void ViewSet::forEachView( Fn&& fn ) const
 {
-    for ( const auto& view : filteredViews_ ) {
-        if ( !view.isNull() ) {
-            fn( view.data() );
+    for ( const auto& held : views_ ) {
+        if ( !held.isGone() ) {
+            fn( held );
         }
     }
 }
 
-void ViewSet::addPresentation( LogPresentation* presentation )
+void ViewSet::addPresentation( LogPresentation* presentation, LogFileView* view )
 {
     presentations_.push_back( presentation );
-    seed( presentation );
+    views_.push_back( HeldView{ view, std::nullopt } );
+    seed( *view );
+    if ( currentSearch_ != nullptr ) {
+        presentation->setCurrentSearch( currentSearch_ );
+    }
 }
 
 void ViewSet::addFilteredView( FilteredView* view )
 {
-    std::erase_if( filteredViews_, []( const auto& held ) { return held.isNull(); } );
-    filteredViews_.emplace_back( view );
+    std::erase_if( views_, []( const HeldView& held ) { return held.isGone(); } );
+    views_.push_back( HeldView{ view, QPointer<FilteredView>( view ) } );
+    // A Filtered View added is the current Search's, so the search pattern
+    // seeded reaches it.
     currentFilteredView_ = view;
-    seed( view );
+    seed( *view );
 }
 
 void ViewSet::makeSearchCurrent( FilteredView* view, const LogFilteredData* search )
@@ -72,86 +78,50 @@ void ViewSet::setOverview( Overview* overview )
 void ViewSet::setDecorationPolicy( const DecorationPolicy& policy )
 {
     decorationPolicy_ = policy;
-
-    for ( auto* presentation : presentations_ ) {
-        presentation->setDecorationPolicy( policy );
-    }
-    forEachFilteredView( [ & ]( FilteredView* view ) { view->setDecorationPolicy( policy ); } );
+    forEachView( [ & ]( const HeldView& held ) { held.view->setDecorationPolicy( policy ); } );
 }
 
 void ViewSet::setPresentationPolicy( const PresentationPolicy& policy )
 {
     presentationPolicy_ = policy;
-
-    for ( auto* presentation : presentations_ ) {
-        presentation->setPresentationPolicy( policy );
-    }
-    forEachFilteredView( [ & ]( FilteredView* view ) {
-        view->setPresentationPolicy( policy );
-        view->setLineNumbersVisible( policy.filteredLineNumbersVisible );
-    } );
-}
-
-void ViewSet::setQuickFindPolicy( const QuickFindPolicy& policy )
-{
-    quickFindPolicy_ = policy;
-
-    for ( auto* presentation : presentations_ ) {
-        presentation->setQuickFindPolicy( policy );
-    }
+    forEachView( [ & ]( const HeldView& held ) { held.view->setPresentationPolicy( policy ); } );
 }
 
 void ViewSet::setFollowAllowed( bool allowed )
 {
     followAllowed_ = allowed;
-
-    for ( auto* presentation : presentations_ ) {
-        presentation->allowFollowMode( allowed );
-    }
-    forEachFilteredView( [ & ]( FilteredView* view ) { view->allowFollowMode( allowed ); } );
+    forEachView( [ & ]( const HeldView& held ) { held.view->allowFollowMode( allowed ); } );
 }
 
 void ViewSet::setFont( const QFont& font )
 {
     font_ = font;
-
-    for ( auto* presentation : presentations_ ) {
-        presentation->updateFont( font );
-    }
-    forEachFilteredView( [ & ]( FilteredView* view ) { view->updateFont( font ); } );
+    forEachView( [ & ]( const HeldView& held ) { held.view->updateFont( font ); } );
 }
 
 void ViewSet::setColorLabels( const ColorLabels& labels )
 {
     colorLabels_ = labels;
-
-    for ( auto* presentation : presentations_ ) {
-        presentation->setColorLabels( labels );
-    }
-    forEachFilteredView( [ & ]( FilteredView* view ) { view->setQuickHighlighters( labels ); } );
+    forEachView( [ & ]( const HeldView& held ) { held.view->setColorLabels( labels ); } );
 }
 
 void ViewSet::setSearchLimits( LineNumber startLine, LineNumber endLine )
 {
     searchLimits_ = std::make_pair( startLine, endLine );
-
-    for ( auto* presentation : presentations_ ) {
-        presentation->setSearchLimits( startLine, endLine );
-    }
-    forEachFilteredView(
-        [ & ]( FilteredView* view ) { view->setSearchLimits( startLine, endLine ); } );
+    forEachView(
+        [ & ]( const HeldView& held ) { held.view->setSearchLimits( startLine, endLine ); } );
 }
 
 void ViewSet::setSearchPattern( const RegularExpressionPattern& pattern )
 {
     searchPattern_ = pattern;
 
-    for ( auto* presentation : presentations_ ) {
-        presentation->setSearchPattern( pattern );
-    }
-    if ( !currentFilteredView_.isNull() ) {
-        currentFilteredView_->setSearchPattern( pattern );
-    }
+    // A kept Search's Filtered View colors the pattern it ran with.
+    forEachView( [ & ]( const HeldView& held ) {
+        if ( !held.filteredView.has_value() || *held.filteredView == currentFilteredView_ ) {
+            held.view->setSearchPattern( pattern );
+        }
+    } );
 }
 
 void ViewSet::refreshMatchesAndMarks( LinesCount logFileLines, Overview::UpdatePace pace )
@@ -165,9 +135,11 @@ void ViewSet::refreshMatchesAndMarks( LinesCount logFileLines, Overview::UpdateP
     }
 
     // The Presentations draw a bullet for each Match and Mark.
-    for ( auto* presentation : presentations_ ) {
-        presentation->updateDecorations();
-    }
+    forEachView( []( const HeldView& held ) {
+        if ( !held.filteredView.has_value() ) {
+            held.view->updateDecorations();
+        }
+    } );
 }
 
 void ViewSet::applyHighlighterSetChange()
@@ -179,66 +151,34 @@ void ViewSet::applyHighlighterSetChange()
 
     // Every view reads the active Highlighter Sets when it paints, so all a
     // change takes is painting again.
-    for ( auto* presentation : presentations_ ) {
-        presentation->updateDecorations();
-    }
-    forEachFilteredView( []( FilteredView* view ) { view->updateDecorations(); } );
+    forEachView( []( const HeldView& held ) { held.view->updateDecorations(); } );
 }
 
 void ViewSet::registerShortcuts()
 {
-    for ( auto* presentation : presentations_ ) {
-        presentation->registerShortcuts();
-    }
-    forEachFilteredView( []( FilteredView* view ) { view->registerShortcuts(); } );
+    forEachView( []( const HeldView& held ) { held.view->registerShortcuts(); } );
 }
 
 void ViewSet::rereadLogLines()
 {
     // The views keep the Log Lines they read until told otherwise, and every
     // Log Line may read differently now.
-    for ( auto* presentation : presentations_ ) {
-        presentation->rereadLogLines();
-    }
-    forEachFilteredView( []( FilteredView* view ) { view->rereadLogLines(); } );
+    forEachView( []( const HeldView& held ) { held.view->rereadLogLines(); } );
 }
 
-void ViewSet::seed( LogPresentation* presentation ) const
+void ViewSet::seed( LogFileView& view ) const
 {
-    presentation->setPresentationPolicy( presentationPolicy_ );
-    presentation->setQuickFindPolicy( quickFindPolicy_ );
-    presentation->setDecorationPolicy( decorationPolicy_ );
-    presentation->allowFollowMode( followAllowed_ );
+    view.setPresentationPolicy( presentationPolicy_ );
+    view.setDecorationPolicy( decorationPolicy_ );
+    view.allowFollowMode( followAllowed_ );
     if ( font_ ) {
-        presentation->updateFont( *font_ );
+        view.updateFont( *font_ );
     }
-    presentation->setColorLabels( colorLabels_ );
+    view.setColorLabels( colorLabels_ );
     if ( searchLimits_ ) {
-        presentation->setSearchLimits( searchLimits_->first, searchLimits_->second );
+        view.setSearchLimits( searchLimits_->first, searchLimits_->second );
     }
     if ( searchPattern_ ) {
-        presentation->setSearchPattern( *searchPattern_ );
-    }
-    if ( currentSearch_ != nullptr ) {
-        presentation->setCurrentSearch( currentSearch_ );
-    }
-}
-
-void ViewSet::seed( FilteredView* view ) const
-{
-    view->setPresentationPolicy( presentationPolicy_ );
-    view->setLineNumbersVisible( presentationPolicy_.filteredLineNumbersVisible );
-    view->setDecorationPolicy( decorationPolicy_ );
-    view->allowFollowMode( followAllowed_ );
-    if ( font_ ) {
-        view->updateFont( *font_ );
-    }
-    view->setQuickHighlighters( colorLabels_ );
-    if ( searchLimits_ ) {
-        view->setSearchLimits( searchLimits_->first, searchLimits_->second );
-    }
-    // A Filtered View added is the current Search's.
-    if ( searchPattern_ ) {
-        view->setSearchPattern( *searchPattern_ );
+        view.setSearchPattern( *searchPattern_ );
     }
 }

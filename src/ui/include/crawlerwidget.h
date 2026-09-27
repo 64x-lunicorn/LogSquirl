@@ -145,8 +145,8 @@ public:
     bool isTextWrapEnabled() const;
 
     // The Policies this Log File's views show and search under, as last
-    // handed down by the Session. They are held -- the Watch Policy here,
-    // the others by the View Set -- so that a widget can be given what it
+    // handed down by the Session. They are held -- the Watch and QuickFind
+    // Policies here, the others by the View Set -- so that a widget can be given what it
     // needs instead of reaching for the settings itself: every view is
     // handed what it needs from these (#184, #242), and this widget's own
     // settings follow (#185).
@@ -568,7 +568,7 @@ private:
     ChartPanel* chartPanel_ = nullptr;
 
     // Every view of this Log File, and what all of them show alike: the
-    // Decoration, Presentation and QuickFind Policies, the follow allowance,
+    // Decoration and Presentation Policies, the follow allowance,
     // the font, the Color Labels and the Search Limits.
     ViewSet viewSet_;
 
@@ -579,6 +579,10 @@ private:
 
     // Whether this Log File may be followed.
     WatchPolicy watchPolicy_;
+    // How the Search line reads a pattern, and a saved view context's
+    // regexp flag. No view reads it: the window's QuickFind takes it from
+    // the Session (#563).
+    QuickFindPolicy quickFindPolicy_;
 
     // Whom a change the views write themselves is told to: the Session.
     std::function<void( Changed )> changeReport_;

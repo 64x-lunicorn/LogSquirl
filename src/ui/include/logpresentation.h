@@ -19,21 +19,16 @@
 
 #pragma once
 
-#include <vector>
-
-#include <QStringList>
-
 #include "linetypes.h"
-#include "settingspolicies.h"
 
 class LogFilteredData;
-class QFont;
 class QPoint;
 class QString;
-struct RegularExpressionPattern;
 
-// A Presentation, as whoever coordinates a Log File's panes asks and tells it
-// things: the Text View or the Table View. See ADR 0003.
+// A Presentation, as whoever coordinates a Log File's panes asks it things
+// and shows Log Lines in it: the Text View or the Table View. See ADR 0003.
+// What every view of the Log File shows alike, a Presentation is told as
+// every view is, by the View Set, through LogFileView.
 //
 // This is half of what a Presentation is. The other half is the set of
 // signals the Text View emits (newSelection, markLines, addToSearch,
@@ -66,40 +61,6 @@ public:
     virtual void showLogLinePortion( LineNumber line, LinesCount nLines, LineColumn startCol,
                                      LineLength nSymbols ) = 0;
 
-    // Repaint after Marks, Matches, Highlighters or Color Labels changed.
-    virtual void updateDecorations() = 0;
-
-    // Read the Log Lines shown again and repaint: their text changed while
-    // the Log File did not, as under a new Decoding Policy.
-    virtual void rereadLogLines() = 0;
-
-    virtual void updateFont( const QFont& font ) = 0;
-
-    // Register the shortcuts anew, as the settings now say: they have no
-    // Policy, so the Presentation reads them itself.
-    virtual void registerShortcuts() = 0;
-
-    // What every view of the Log File shows alike, handed over by its View
-    // Set. A Presentation reads none of it from the settings.
-
-    // The settings that color Log Lines.
-    virtual void setDecorationPolicy( const DecorationPolicy& policy ) = 0;
-    // What the Presentation shows and scrolls under: its line numbers, and
-    // whether it makes room for the Overview both Presentations share.
-    virtual void setPresentationPolicy( const PresentationPolicy& policy ) = 0;
-    // How the text the user selected is read as a QuickFind pattern. Both
-    // Presentations hand their selection to the window's QuickFind, which
-    // reads the Policy itself, and so ignore it.
-    virtual void setQuickFindPolicy( const QuickFindPolicy& policy ) = 0;
-    // Whether follow may be engaged at all. The Table View follows only as
-    // the Text View does, and so ignores it.
-    virtual void allowFollowMode( bool allow ) = 0;
-    // The words of each Color Label, one list per color slot.
-    virtual void setColorLabels( const std::vector<QStringList>& labels ) = 0;
-    virtual void setSearchLimits( LineNumber startLine, LineNumber endLine ) = 0;
-    // The pattern of the current Search, whose Matches the Presentation
-    // colors.
-    virtual void setSearchPattern( const RegularExpressionPattern& pattern ) = 0;
     // The current Search, whose Marks and Matches the Presentation shows,
     // and repaints with. Not owned: another is handed over before it goes.
     virtual void setCurrentSearch( const LogFilteredData* search ) = 0;

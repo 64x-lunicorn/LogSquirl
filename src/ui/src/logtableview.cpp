@@ -306,12 +306,6 @@ void LogTableView::allowFollowMode( bool )
     // The Table View follows only as the Text View does.
 }
 
-void LogTableView::setQuickFindPolicy( const QuickFindPolicy& )
-{
-    // The selected text goes to the window's QuickFind, which reads the
-    // Policy itself.
-}
-
 void LogTableView::updateFont( const QFont& font )
 {
     setFont( font );

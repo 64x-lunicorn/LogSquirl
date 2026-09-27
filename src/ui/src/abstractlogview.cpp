@@ -1253,8 +1253,7 @@ void AbstractLogView::setSearchPattern( const RegularExpressionPattern& pattern 
     updateDecorations();
 }
 
-void AbstractLogView::setQuickHighlighters(
-    const std::vector<QuickHighlighters>& quickHighlighters )
+void AbstractLogView::setColorLabels( const std::vector<QuickHighlighters>& quickHighlighters )
 {
     quickHighlighters_ = quickHighlighters;
     // The colors are read here, with the words: a repaint builds no

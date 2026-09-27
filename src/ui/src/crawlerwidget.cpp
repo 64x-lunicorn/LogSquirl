@@ -154,7 +154,7 @@ CrawlerWidget::CrawlerWidget( const ViewBuild& build, QWidget* parent )
     // Every view built below starts with these; a view built later, too (#242).
     viewSet_.setDecorationPolicy( build.policies.decoration );
     viewSet_.setPresentationPolicy( build.policies.presentation );
-    viewSet_.setQuickFindPolicy( build.policies.quickFind );
+    quickFindPolicy_ = build.policies.quickFind;
     applyWatchPolicy( build.policies.watch );
 
     setup();
@@ -629,7 +629,7 @@ void CrawlerWidget::doApplyChange( const ViewChange& change )
         // The QuickFind bar and the mux that dispatches to this Log File
         // belong to the window, which takes this Policy from its session:
         // nothing is handed on from here.
-        viewSet_.setQuickFindPolicy( *change.quickFind );
+        quickFindPolicy_ = *change.quickFind;
         searchLine_.setQuickFindPolicy( *change.quickFind );
     }
     if ( change.watch ) {
@@ -669,7 +669,7 @@ const PresentationPolicy& CrawlerWidget::presentationPolicy() const
 
 const QuickFindPolicy& CrawlerWidget::quickFindPolicy() const
 {
-    return viewSet_.quickFindPolicy();
+    return quickFindPolicy_;
 }
 
 const WatchPolicy& CrawlerWidget::watchPolicy() const
@@ -681,7 +681,7 @@ void CrawlerWidget::restoreViewContext( const QString& viewContext )
 {
     LOG_DEBUG << "CrawlerWidget::restoreViewContext: " << viewContext.toLocal8Bit().data();
 
-    const auto context = decodeViewState( viewContext, viewSet_.quickFindPolicy() );
+    const auto context = decodeViewState( viewContext, quickFindPolicy_ );
 
     setSizes( context.sizes );
     searchLine_.setFlags( { .matchCase = !context.ignoreCase,
