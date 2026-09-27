@@ -105,7 +105,7 @@ struct CrawlerWidget::access_by<FormatRecognitionAccess> {
 
     bool isLoadingFinished() const
     {
-        return !crawler->loadingInProgress_;
+        return crawler->lastLoadStatus_.has_value();
     }
 
     LinesCount nbLines() const

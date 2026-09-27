@@ -216,8 +216,9 @@ private Q_SLOTS:
     void updateLoadingProgress( int progress );
     // Instructs the widget to display the 'normal' status bar,
     // without the progress gauge and with file info
-    // or an error recovery when loading is finished
-    void handleLoadingFinished( LoadingStatus status );
+    // or an error recovery when loading is finished: a failed load closes
+    // its tab, and a Failed one is offered to be reported.
+    void handleLoadingFinished( LoadingStatus status, const QString& failure );
 
     // Update quick find searchable
     void handleFilteredViewChanged();

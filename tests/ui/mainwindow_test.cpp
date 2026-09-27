@@ -51,10 +51,12 @@
 #include "mainwindowtext.h"
 #include "optionsdialog.h"
 #include "overviewwidget.h"
+#include "pathline.h"
 #include "quickfindwidget.h"
 #include "session.h"
 #include "settingspolicies.h"
 #include "test_policies.h"
+#include "textencoding.h"
 
 SCENARIO( "Main window tests", "[ui]" )
 {
@@ -424,4 +426,143 @@ SCENARIO( "A changed QuickFind setting reaches the window's QuickFind bar with s
     mainWindow.reset();
     config.setQuickfindRegexpType( quickfindRegexpType );
     config.save();
+}
+
+struct MainWindowLoadAccess;
+
+template <>
+struct CrawlerWidget::access_by<MainWindowLoadAccess> {
+    static OpenLogFile& openLogFile( CrawlerWidget& crawler )
+    {
+        return *crawler.openLogFile_;
+    }
+};
+
+namespace {
+
+using LoadAccess = CrawlerWidget::access_by<MainWindowLoadAccess>;
+
+// Reloads the Log File of crawler with an Encoding the indexing fails on --
+// no converter exists for its name -- and waits until the load has finished
+// Failed. encoding must outlive the Log File, which holds on to it.
+bool failToLoad( CrawlerWidget& crawler, const TextEncoding& encoding )
+{
+    auto& openLogFile = LoadAccess::openLogFile( crawler );
+    bool failed = false;
+    QObject context;
+    QObject::connect( &openLogFile, &OpenLogFile::loadingFinished, &context,
+                      [ &failed ]( const OpenLogFile::LoadFinished& load ) {
+                          failed = load.status == LoadingStatus::Failed;
+                      } );
+    openLogFile.logData()->reload( &encoding );
+    return waitUiState( [ &failed ] { return failed; }, 10000 );
+}
+
+} // namespace
+
+// The window hears only the tab in front. A Log File that failed to load in a
+// background tab keeps that status and replays it when its tab is shown, and
+// the window treats it like a failure it heard live: it offers to report it
+// and closes the tab (#540).
+SCENARIO( "A Log File that failed to load in a background tab says so when its tab is shown",
+          "[ui][loading]" )
+{
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    WindowSession windowSession{ appSession, "Main", 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    QTemporaryFile failingFile{ QDir::temp().filePath( "mainwindow_failing_XXXXXX" ) };
+    QTemporaryFile otherFile{ QDir::temp().filePath( "mainwindow_loaded_XXXXXX" ) };
+    for ( auto* file : { &failingFile, &otherFile } ) {
+        REQUIRE( file->open() );
+        file->write( "first Log Line\nsecond Log Line\n" );
+        file->flush();
+    }
+    const auto failingName = QFileInfo( failingFile.fileName() ).fileName();
+
+    // Outlives the Log Files, which hold on to the Encoding they were reloaded with.
+    const TextEncoding unusableEncoding( -4242, "LogSquirl-Unusable-Encoding", std::nullopt );
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    // Every question the window asks is answered No, so that no issue is
+    // opened in a browser; the ones asked are counted.
+    int questionsAsked = 0;
+    QTimer questionDriver;
+    QObject::connect( &questionDriver, &QTimer::timeout, [ &questionsAsked ] {
+        if ( auto* box = qobject_cast<QMessageBox*>( QApplication::activeModalWidget() ) ) {
+            ++questionsAsked;
+            box->reject();
+        }
+    } );
+    questionDriver.start( 10 );
+
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    const int baseTabCount = tabArea->count();
+    auto* toolBar = mainWindow->findChild<QToolBar*>();
+    REQUIRE( toolBar != nullptr );
+    auto* infoLine = toolBar->findChild<PathLine*>();
+    REQUIRE( infoLine != nullptr );
+
+    mainWindow->loadFileNonInteractive( failingFile.fileName() );
+    REQUIRE( waitUiState( [ & ] { return infoLine->text().contains( failingName ); }, 10000 ) );
+    auto* failing = qobject_cast<CrawlerWidget*>( tabArea->currentWidget() );
+    REQUIRE( failing != nullptr );
+
+    GIVEN( "two Log Files, the one in the background failed to load" )
+    {
+        mainWindow->loadFileNonInteractive( otherFile.fileName() );
+        REQUIRE( waitUiState(
+            [ & ] {
+                return tabArea->count() == baseTabCount + 2
+                       && infoLine->text().contains( QFileInfo( otherFile ).fileName() );
+            },
+            10000 ) );
+        REQUIRE( tabArea->currentWidget() != failing );
+
+        REQUIRE( failToLoad( *failing, unusableEncoding ) );
+        QTest::qWait( 100 );
+        questionsAsked = 0;
+
+        WHEN( "its tab is shown" )
+        {
+            tabArea->setCurrentWidget( failing );
+
+            THEN( "the failure is offered to be reported and the tab is closed" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] { return questionsAsked == 1 && tabArea->count() == baseTabCount + 1; },
+                    10000 ) );
+                REQUIRE( tabArea->indexOf( failing ) < 0 );
+
+                AND_THEN( "the info line does not report the Log File as loaded" )
+                {
+                    REQUIRE_FALSE( infoLine->text().contains( failingName ) );
+                }
+            }
+        }
+    }
+
+    GIVEN( "a Log File in front that fails to load" )
+    {
+        REQUIRE( failToLoad( *failing, unusableEncoding ) );
+
+        THEN( "the failure is offered to be reported and the tab is closed" )
+        {
+            REQUIRE( waitUiState(
+                [ & ] { return questionsAsked == 1 && tabArea->count() == baseTabCount; },
+                10000 ) );
+            REQUIRE_FALSE( infoLine->text().contains( failingName ) );
+        }
+    }
+
+    questionDriver.stop();
+    mainWindow.reset();
 }

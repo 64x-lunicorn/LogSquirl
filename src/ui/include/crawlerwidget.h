@@ -216,8 +216,10 @@ Q_SIGNALS:
     // passing the completion percentage.
     void loadingProgressed( int progress );
     // Sent to the client when the loading has finished
-    // whether successful or not.
-    void loadingFinished( LoadingStatus status );
+    // whether successful or not, with the failure of a Failed load. Sent
+    // again, as are the progress of a load under way, when the tab is
+    // brought to the front (#540).
+    void loadingFinished( LoadingStatus status, QString failure );
     // Sent when follow mode is enabled/disabled
     void followSet( bool checked );
     // Sent when text wrap mode is enabled/disabled
@@ -278,7 +280,7 @@ private Q_SLOTS:
     void markLinesFromMain( const logsquirl::vector<LineNumber>& lines );
 
     // Shows what a finished load brought, as the Open Log File followed it.
-    // A Failed load is offered to be reported.
+    // A Failed load is reported to the window, which offers to report it.
     void loadingFinishedHandler( const OpenLogFile::LoadFinished& load );
     // Shows that the Log File was truncated on disk. A failure to check the
     // file is offered to be reported.
@@ -557,9 +559,12 @@ private:
     // Current number of matches
     LinesCount nbMatches_;
 
-    // Until we have received confirmation loading is finished, we
-    // should consider we are loading something.
-    bool loadingInProgress_ = true;
+    // The status of the last load, which the window hears again when this
+    // tab is brought to the front (#540): none while a load is under way,
+    // whose progress is kept instead, and the failure of a Failed one.
+    std::optional<LoadingStatus> lastLoadStatus_;
+    QString lastLoadFailure_;
+    int loadingProgress_ = 0;
 
     QString encodingText_;
 

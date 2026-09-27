@@ -252,6 +252,11 @@
   the Windows build. The Themes draw check marks, arrows and close buttons
   from SVG files, and the Windows packages lacked Qt's SVG support; the
   installer and the portable zip now ship `Qt6Svg.dll` and its plugins (#427).
+- **A Log File that failed to load in a background tab says so**: When a Log
+  File failed to load while another tab was in front, showing its tab showed
+  an empty Log File as loaded. It now offers to report the failure and closes
+  the tab, as a failure in the tab in front does; a tab still loading shows
+  as loading, not as loaded (#540).
 
 ## Build and packaging
 

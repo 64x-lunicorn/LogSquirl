@@ -251,8 +251,15 @@ std::vector<QObject*> CrawlerWidget::doGetAllSearchables() const
 void CrawlerWidget::doSendAllStateSignals()
 {
     Q_EMIT newSelection( currentLineNumber_, 0_lcount, 0_lcol, 0_length );
-    if ( !loadingInProgress_ )
-        Q_EMIT loadingFinished( LoadingStatus::Successful );
+    // The window heard nothing of this Log File while its tab was not in
+    // front: the last load is replayed as it ended, failed included, and a
+    // load under way as loading (#540).
+    if ( lastLoadStatus_ ) {
+        Q_EMIT loadingFinished( *lastLoadStatus_, lastLoadFailure_ );
+    }
+    else {
+        Q_EMIT loadingProgressed( loadingProgress_ );
+    }
 }
 
 //
@@ -270,6 +277,10 @@ void CrawlerWidget::reload()
     // Log Format again once it has loaded. A reload is loaded from its start
     // like the first load, so the "new data" icon is not triggered.
     cancelTimeLookup();
+    // Loading until the reload has finished, also to a window that shows this
+    // tab later (#540).
+    lastLoadStatus_.reset();
+    loadingProgress_ = 0;
     openLogFile_->reload();
     viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
     printSearchInfoMessage();
@@ -1097,10 +1108,6 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
 {
     LOG_INFO << "file loading finished, status " << static_cast<int>( load.status );
 
-    if ( load.status == LoadingStatus::Failed ) {
-        offerIssueReport( load.failure );
-    }
-
     // We need to refresh the main window because the view lines on the
     // overview have probably changed.
     overview_.updateData( openLogFile_->logData()->getNbLine() );
@@ -1136,7 +1143,8 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
         logMainView_->setFocus();
     }
 
-    loadingInProgress_ = false;
+    lastLoadStatus_ = load.status;
+    lastLoadFailure_ = load.failure;
 
     if ( load.formatRecognized ) {
         showRecognizedFormat();
@@ -1146,7 +1154,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
         logTableView_->updateData( isFollowEnabled() );
     }
 
-    Q_EMIT loadingFinished( load.status );
+    Q_EMIT loadingFinished( load.status, load.failure );
 }
 
 void CrawlerWidget::truncatedHandler( const QString& failure )
@@ -1674,8 +1682,11 @@ void CrawlerWidget::setup()
              &CrawlerWidget::closeFilteredView );
 
     // Sent load file update to MainWindow (for status update)
-    connect( openLogFile_.get(), &OpenLogFile::loadingProgressed, this,
-             &CrawlerWidget::loadingProgressed );
+    connect( openLogFile_.get(), &OpenLogFile::loadingProgressed, this, [ this ]( int progress ) {
+        lastLoadStatus_.reset();
+        loadingProgress_ = progress;
+        Q_EMIT loadingProgressed( progress );
+    } );
     connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this,
              &CrawlerWidget::loadingFinishedHandler );
     connect( openLogFile_.get(), &OpenLogFile::truncated, this, &CrawlerWidget::truncatedHandler );

@@ -83,6 +83,7 @@
 #include <QStringListModel>
 #include <QTemporaryFile>
 #include <QTextBrowser>
+#include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
 #include <QToolTip>
@@ -197,8 +198,8 @@ MainWindow::MainWindow( WindowSession session,
     // Register for progress status bar
     signalMux_.connect( SIGNAL( loadingProgressed( int ) ), this,
                         SLOT( updateLoadingProgress( int ) ) );
-    signalMux_.connect( SIGNAL( loadingFinished( LoadingStatus ) ), this,
-                        SLOT( handleLoadingFinished( LoadingStatus ) ) );
+    signalMux_.connect( SIGNAL( loadingFinished( LoadingStatus, QString ) ), this,
+                        SLOT( handleLoadingFinished( LoadingStatus, QString ) ) );
 
     signalMux_.connect( SIGNAL( statusMessage( QString ) ), this,
                         SLOT( showStatusMessage( QString ) ) );
@@ -2258,7 +2259,7 @@ void MainWindow::updateLoadingProgress( int progress )
     }
 }
 
-void MainWindow::handleLoadingFinished( LoadingStatus status )
+void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& failure )
 {
     LOG_DEBUG << "handleLoadingFinished success=" << ( status == LoadingStatus::Successful );
 
@@ -2298,7 +2299,20 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
             alertBox.exec();
         }
 
-        closeTab( mainTabWidget_.currentIndex(), ActionInitiator::App );
+        // Heard as the load ended, or replayed as its tab is brought to the
+        // front after it failed there (#540): the tab is closed once the
+        // tab switch is done, and a Failed load is offered to be reported.
+        QTimer::singleShot(
+            0, this, [ this, failed = QPointer<CrawlerWidget>( crawler ), status, failure ] {
+                const auto index = failed ? mainTabWidget_.indexOf( failed ) : -1;
+                if ( index < 0 ) {
+                    return;
+                }
+                closeTab( index, ActionInitiator::App );
+                if ( status == LoadingStatus::Failed ) {
+                    IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, failure );
+                }
+            } );
     }
 
     // mainTabWidget_.setEnabled( true );
