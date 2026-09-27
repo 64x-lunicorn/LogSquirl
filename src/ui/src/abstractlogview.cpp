@@ -1657,11 +1657,9 @@ void AbstractLogView::selectPortionAndDisplayLine( LineNumber logLine, LinesCoun
 // subtle: this one always jump, even if the line passed is visible.
 void AbstractLogView::jumpToLine( LineNumber logLine )
 {
-    // Put the selected line in the middle if possible
-    const auto newScrollPosition = ScrollPosition{
-        lines_->nearestPositionOf( logLine ) - LinesCount( getNbVisibleLines().get() / 2 ), 0
-    };
-    applyScroll( scrolling_.scrollTo( newScrollPosition ) );
+    // Its first Visual Line in the middle if possible, counted in Visual
+    // Lines: a long Log Line above it would otherwise push it off (#544).
+    applyScroll( scrolling_.centre( lines_->nearestPositionOf( logLine ) ) );
 }
 
 void AbstractLogView::setLineNumbersVisible( bool lineNumbersVisible )

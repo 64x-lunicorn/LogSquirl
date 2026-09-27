@@ -177,6 +177,10 @@
 
 ## Bug fixes
 
+- **A click on the overview shows the Log Line clicked, with text wrapping on**:
+  The Log Line lands in the middle of the view, its first Visual Line shown,
+  also when a long wrapped Log Line sits just above it; before, that Log Line
+  could push the one clicked out of the view (#544).
 - **The Table View shows the Marks and Matches of the Search in front**: After
   another Filtered View tab is brought to the front, or a Search is kept and a
   new one started, the Table View shows that Search's Marks and Matches instead
