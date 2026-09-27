@@ -200,9 +200,9 @@ They can be given as a time range, or as N minutes around the current Log Line: 
 are converted to Log Lines once, where the Limits are decided (the start is the first Log
 Line with a Timestamp at or after the start time, the end the first at or after the end
 time), and from then on they are ordinary line Limits. They do not follow the Log File as it
-grows: narrowed Limits stay as set and bound a Search that continues over the added Log Lines;
-only Limits that are the whole Log File follow its end. A Log File loaded anew — reloaded or
-truncated — has them become the whole of it again; times are not converted a second time.
+grows or is reloaded: narrowed Limits stay as set, cut back to its end when it shrinks, and
+become the whole Log File only when nothing of them is left; Limits that are the whole Log
+File follow its end. Times are not converted a second time.
 _Avoid_: search range, scope
 
 **Match**:

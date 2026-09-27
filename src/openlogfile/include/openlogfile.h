@@ -50,11 +50,12 @@ class LogFormatCatalog;
 // It carries out what its Load Rule decides growing, truncation and reloading
 // mean. A Search continues over the Log Lines that were added, within the
 // Search Limits, and starts again when the Log File was truncated; a reload
-// by hand drops it. Narrowed Search Limits stay as set while the Log File
-// grows; only Limits that are the whole Log File follow its end. Marks do
-// not survive a truncation or a reload; the Marks saved with the Session are
-// applied once, after the first load. Format Recognition is taken after the
-// first load, and again after a reload or a truncation, never on growth.
+// by hand drops it. Narrowed Search Limits stay as set however the Log File
+// changes, cut back to its end; only Limits that are the whole Log File
+// follow its end. Marks do not survive a truncation or a reload; the Marks
+// saved with the Session are applied once, after the first load. Format
+// Recognition is taken after the first load, and again after a reload or a
+// truncation, never on growth.
 //
 // It tells its users what happened -- the Log File loaded, grew or was
 // truncated, the Search updated -- and they only show it. It knows no widget:
@@ -173,11 +174,12 @@ public:
     const SearchAutoRefresh& searchAutoRefresh() const;
 
     // The Search Limits: the Log Lines a Search runs over, from startLine up
-    // to, not including, endLine. They do not follow a Log File that grows:
-    // narrowed Limits stay as set, and a continuing Search is bounded by
-    // them; only Limits that are the whole Log File follow its end. A load
-    // that brings more than added Log Lines -- the first one, a reload, a
-    // truncation -- makes them the whole Log File again.
+    // to, not including, endLine. They do not follow the Log File as it
+    // grows, is reloaded, truncated or read anew in another Encoding:
+    // narrowed Limits stay as set, cut back to its new end, and bound a
+    // Search that continues or starts again; only when nothing of them is
+    // left do they become the whole Log File. Limits that are the whole Log
+    // File follow its end.
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
     LineNumber searchStartLine() const;
     LineNumber searchEndLine() const;
@@ -194,7 +196,9 @@ public:
 
     // Chooses the Encoding the Log File is read in, by its MIB; none reads it
     // in the one detected. The one the File Access Policy forces is chosen
-    // from the start.
+    // from the start. Only an Encoding this build knows is chosen -- the menu
+    // offers no other, and the Policy is derived with no other (#552); a MIB
+    // it does not know asserts, and is no choice in a build without asserts.
     //
     // The Encoding is settled here and again after every load: the one
     // chosen, else the one detected, else the locale's. The log data and
@@ -203,7 +207,7 @@ public:
     // tells it.
     void setEncoding( std::optional<int> mib );
     std::optional<int> chosenEncoding() const;
-    // The Encoding the Log File is read in, as settled now.
+    // The Encoding the Log File is read in, as settled now; never null.
     const TextEncoding* encoding() const;
 
 Q_SIGNALS:

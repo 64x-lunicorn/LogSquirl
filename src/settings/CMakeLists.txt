@@ -25,5 +25,5 @@ target_link_libraries(
          Qt6::Gui
 )
 # Only to derive a File Access Policy whose default Encoding this build knows
-# (#552): TextEncoding lives in the log data library.
-target_link_libraries(logsquirl_settings PRIVATE logsquirl_logdata)
+# (#552); the engine itself is not linked.
+target_link_libraries(logsquirl_settings PRIVATE logsquirl_textencoding)

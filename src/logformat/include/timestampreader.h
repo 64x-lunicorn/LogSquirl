@@ -60,10 +60,11 @@ public:
                               const QDate& modificationDate = QDate() );
     // A reader of one timestamp format (strftime directives, as a Log Format
     // declares them; empty tries the common formats) with its divisor for
-    // epoch values. It has no Log Format, so it is not available for whole
-    // Log Lines: only parseField() reads.
-    TimestampReader( const QString& timestampFormat, double divisor,
-                     const QDate& modificationDate = QDate(), int referenceYear = 0 );
+    // epoch values; the reference year and the modification date as above.
+    // It has no Log Format, so it is not available for whole Log Lines: only
+    // parseField() reads.
+    TimestampReader( const QString& timestampFormat, double divisor, int referenceYear = 0,
+                     const QDate& modificationDate = QDate() );
     ~TimestampReader();
     TimestampReader( TimestampReader&& ) noexcept;
     TimestampReader& operator=( TimestampReader&& ) noexcept;

@@ -289,6 +289,10 @@ void LogDataWorker::run( const IndexJob& job )
                             indexAll( attach.forcedEncoding, FullIndexRequest::Automatic );
                         }
                         else {
+                            // Null is none forced: the Encoding is detected.
+                            // The Policy forces one this build knows (#552);
+                            // one it does not know is none, as the log data
+                            // takes it too.
                             indexAll( attach.defaultEncodingMib >= 0
                                           ? TextEncoding::forMib( attach.defaultEncodingMib )
                                           : nullptr,
