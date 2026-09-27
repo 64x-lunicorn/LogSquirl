@@ -27,6 +27,7 @@
 
 #include <QDateTime>
 #include <QPainter>
+#include <QTimeZone>
 #include <QToolTip>
 #include <QWheelEvent>
 
@@ -247,10 +248,12 @@ void ChartWidget::drawAxes( QPainter& painter, const QRectF& area ) const
             painter.setPen( axisPen );
             painter.drawText( QRectF( p.x() - 30, area.bottom() + 2, 60, BottomMargin - 2 ),
                               Qt::AlignHCenter | Qt::AlignTop,
-                              xAxisIsTimestamp_
-                                  ? QDateTime::fromMSecsSinceEpoch( static_cast<qint64>( v ) )
-                                        .toString( "HH:mm:ss" )
-                                  : QString::number( static_cast<qint64>( v ) ) );
+                              // A time X is a UTC instant, or a clock time as
+                              // written, as if it were UTC.
+                              xAxisIsTimestamp_ ? QDateTime::fromMSecsSinceEpoch(
+                                                      static_cast<qint64>( v ), QTimeZone::UTC )
+                                                      .toString( "HH:mm:ss" )
+                                                : QString::number( static_cast<qint64>( v ) ) );
         }
     }
 
