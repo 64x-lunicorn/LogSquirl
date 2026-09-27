@@ -18,11 +18,13 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <QDir>
 
 #include "configuration.h"
 #include "settingspolicies.h"
+#include "textencoding.h"
 
 SCENARIO( "A Settings Policy is a value a test can build from literals", "[settingspolicies]" )
 {
@@ -546,6 +548,45 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.fileAccess == enabled.fileAccess );
                 REQUIRE( policies.decoding == enabled.decoding );
             }
+        }
+    }
+}
+
+SCENARIO( "A default Encoding this build does not know is derived as the locale's",
+          "[settingspolicies][encoding]" )
+{
+    GIVEN( "a Configuration whose default Encoding MIB names no Encoding this build knows" )
+    {
+        Configuration config;
+        config.setDefaultEncodingMib( 2013 );
+        REQUIRE( TextEncoding::forMib( 2013 ) == nullptr );
+
+        WHEN( "the Policies are derived from it" )
+        {
+            const auto policies = deriveSettingsPolicies( config );
+
+            THEN( "the File Access Policy forces the Encoding of the locale" )
+            {
+                REQUIRE( policies.fileAccess.defaultEncodingMib
+                         == TextEncoding::forLocale()->mibEnum() );
+            }
+
+            THEN( "the Configuration still says what it said" )
+            {
+                REQUIRE( config.defaultEncodingMib() == 2013 );
+            }
+        }
+    }
+
+    GIVEN( "a Configuration that detects the Encoding, or forces one this build knows" )
+    {
+        Configuration config;
+        const auto mib = GENERATE( -1, 106, 4 );
+        config.setDefaultEncodingMib( mib );
+
+        THEN( "the File Access Policy carries it as it is" )
+        {
+            REQUIRE( deriveSettingsPolicies( config ).fileAccess.defaultEncodingMib == mib );
         }
     }
 }

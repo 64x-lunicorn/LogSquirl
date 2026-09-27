@@ -277,9 +277,13 @@ std::optional<int> OpenLogFile::chosenEncoding() const
 
 const TextEncoding* OpenLogFile::encoding() const
 {
-    const TextEncoding* codec = chosenEncoding_ ? TextEncoding::forMib( *chosenEncoding_ )
-                                                : logData_->getDetectedEncoding();
-    return codec ? codec : TextEncoding::forLocale();
+    // Only an Encoding this build knows is chosen: the menu offers no other,
+    // and the File Access Policy forces no other (#552).
+    if ( chosenEncoding_ ) {
+        return TextEncoding::forMib( *chosenEncoding_ );
+    }
+    const auto* detected = logData_->getDetectedEncoding();
+    return detected ? detected : TextEncoding::forLocale();
 }
 
 bool OpenLogFile::settleEncoding()

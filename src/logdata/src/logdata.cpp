@@ -122,13 +122,7 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
     }
 
     if ( fileAccessPolicy_.defaultEncodingMib >= 0 ) {
-        const auto* defaultEncoding = TextEncoding::forMib( fileAccessPolicy_.defaultEncodingMib );
-        if ( !defaultEncoding ) {
-            LOG_WARNING << "Unknown default encoding " << fileAccessPolicy_.defaultEncodingMib
-                        << ", using the one of the locale";
-            defaultEncoding = TextEncoding::forLocale();
-        }
-        codec_.setCodec( defaultEncoding );
+        codec_.setCodec( TextEncoding::forMib( fileAccessPolicy_.defaultEncodingMib ) );
     }
 }
 
