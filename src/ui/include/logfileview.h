@@ -45,8 +45,8 @@ public:
     // view shows, and whether a Presentation makes room for the Overview the
     // Presentations share.
     virtual void setPresentationPolicy( const PresentationPolicy& policy ) = 0;
-    // Whether follow may be engaged at all. The Table View follows only as
-    // the Text View does, and so ignores it.
+    // Whether follow may be engaged at all. The Table View never engages
+    // follow itself, and so ignores it.
     virtual void allowFollowMode( bool allow ) = 0;
     // The font Log Lines are drawn in.
     virtual void updateFont( const QFont& font ) = 0;

@@ -18,6 +18,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/jsonlogline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfmtlogline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logformattablemodel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/rowmapping.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/timestampreader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/timelookup.cpp
   ${CMAKE_SOURCE_DIR}/Resources/formats/formats.qrc

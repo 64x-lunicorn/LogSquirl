@@ -34,6 +34,7 @@
 #include <list>
 #include <memory>
 #include <optional>
+#include <vector>
 
 class AbstractLogData;
 
@@ -83,6 +84,20 @@ public:
         return column >= 0 && column == elapsedColumn_;
     }
 
+    // A run of characters of a Log Line: from start up to, not including, end.
+    struct TextSpan {
+        int start = 0;
+        int end = 0;
+    };
+
+    // Where the text each column of a Row shows lies in its Log Line, one
+    // entry per column, in the characters of the raw line: none for a column
+    // that shows no characters of it -- the elapsed time, a field that
+    // captured nothing. A Log Line the Log Format does not match shows whole
+    // in the last field's column. Nothing for a JSON or logfmt Log Format,
+    // whose fields have no place in the Log Line, or for no Row.
+    std::optional<std::vector<std::optional<TextSpan>>> columnSpans( int row ) const;
+
     // Notify the model that the Log File now has lineCount Log Lines.
     void setLineCount( int lineCount );
 
@@ -107,6 +122,12 @@ private:
     // Extracts fields from a single line into a row of column values.
     // matched tells whether the line matched the Log Format.
     QVector<QString> extractRow( const QString& line, bool& matched ) const;
+
+    // The model column showing a column of the Log Format's fields.
+    int modelColumn( int fieldColumn ) const
+    {
+        return elapsedColumn_ >= 0 && fieldColumn >= elapsedColumn_ ? fieldColumn + 1 : fieldColumn;
+    }
 
     // The column of the Log Format's fields behind a model column.
     int fieldColumn( int column ) const

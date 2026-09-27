@@ -186,6 +186,23 @@
   whole Log File after the next load: the Log Lines outside them stay subdued
   and an auto-refreshed Search keeps to them. Limits that are the whole Log
   File still reach its new end (#555).
+- **Scrolling up in the Table View leaves follow**: with follow on, moving
+  the Table View away from its last Row -- with the wheel, by dragging the
+  scrollbar, with Page Up or Ctrl+Home -- turns follow off, as it does in the
+  Text View, so the next lines written to the Log File no longer snap the
+  table back to the bottom. Turning follow on while the Table View is shown
+  scrolls it to the last Row (#543).
+- **QuickFind in the Table View goes on from the selected characters**: Find
+  next and previous start from the characters selected in a cell, as they
+  start from the selection in the Text View, so a second match in another
+  column of the same Row is no longer skipped, and a match is shown selected
+  in the cell that holds it rather than in the first cell the pattern
+  matches. A match that runs across two columns, or lies in text no column
+  shows, selects its Row (#547).
+- **A double-click selects the same word in the Table View as in the Text
+  View**: a word is letters, numbers and connector punctuation in both, so
+  `foo‿bar` is one word in the Table View too, and a double-click on a space
+  or another separator selects nothing instead of that one character (#546).
 - **The Table View shows the Marks and Matches of the Search in front**: After
   another Filtered View tab is brought to the front, or a Search is kept and a
   new one started, the Table View shows that Search's Marks and Matches instead

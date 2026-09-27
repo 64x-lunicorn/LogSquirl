@@ -244,6 +244,32 @@ ExtractedFields LogFieldExtractor::extractLogfmtFields( const QString& line ) co
     return result;
 }
 
+std::optional<QHash<QString, std::pair<int, int>>>
+LogFieldExtractor::fieldSpans( const QString& line ) const
+{
+    if ( format_.kind() != LogFormatKind::Regex ) {
+        return std::nullopt;
+    }
+
+    for ( const auto& pattern : compiledPatterns_ ) {
+        const auto match = pattern.regex.match( line );
+        if ( !match.hasMatch() ) {
+            continue;
+        }
+        QHash<QString, std::pair<int, int>> spans;
+        for ( const auto& [ name, index ] : pattern.namedGroups ) {
+            const auto start
+                = index >= 0 ? match.capturedStart( index ) : match.capturedStart( name );
+            const auto end = index >= 0 ? match.capturedEnd( index ) : match.capturedEnd( name );
+            if ( start >= 0 && end > start ) {
+                spans.insert( name, { static_cast<int>( start ), static_cast<int>( end ) } );
+            }
+        }
+        return spans;
+    }
+    return std::nullopt;
+}
+
 ExtractedFields LogFieldExtractor::extractRegexFields( const QString& line ) const
 {
     ExtractedFields result;

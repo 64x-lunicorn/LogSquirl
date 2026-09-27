@@ -87,6 +87,7 @@ add_executable(logsquirl_tests
     viewset_test.cpp
     viewstatecodec_test.cpp
     wrappedstring_test.cpp
+    wordrule_test.cpp
     tests_main.cpp
 )
 

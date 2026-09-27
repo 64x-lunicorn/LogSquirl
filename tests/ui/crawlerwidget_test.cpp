@@ -56,7 +56,6 @@
 #include "highlighterset.h"
 #include "infoline.h"
 #include "logformatdefinition.h"
-#include "logtablehighlightdelegate.h"
 #include "logtableview.h"
 #include "quickfindmux.h"
 #include "quickfindpattern.h"
@@ -129,30 +128,17 @@ struct AbstractLogView::access_by<CrawlerWidgetPrivate> {
 };
 
 template <>
-struct LogTableHighlightDelegate::access_by<CrawlerWidgetPrivate> {
-    static const LogFilteredData* search( const LogTableHighlightDelegate& delegate )
-    {
-        return delegate.filteredData_;
-    }
-};
-
-template <>
 struct LogTableView::access_by<CrawlerWidgetPrivate> {
-    // The Search whose Marks and Matches the Table View shows, and the one
-    // its delegate paints them from.
+    // The Search whose Marks and Matches the Table View shows: its delegate
+    // paints them from the one the view holds.
     static const LogFilteredData* search( const LogTableView& view )
     {
-        return view.filteredData_;
-    }
-    static const LogFilteredData* delegateSearch( const LogTableView& view )
-    {
-        return LogTableHighlightDelegate::access_by<CrawlerWidgetPrivate>::search(
-            *view.delegate_ );
+        return view.state_.currentSearch;
     }
     // What dragging over characters inside a cell does: they are selected.
     static void selectInCell( LogTableView& view, int row, int column, int startChar, int endChar )
     {
-        view.selection_.selectInCell( row, column, startChar, endChar );
+        view.state_.selection.selectInCell( row, column, startChar, endChar );
         view.showInCellSelection();
     }
     // What runs the view's QuickFind searches.
@@ -434,16 +420,10 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         return crawler->openLogFile_->filteredData();
     }
 
-    // The Search the Table View shows the Marks and Matches of, and the one
-    // its delegate paints them from.
+    // The Search the Table View shows the Marks and Matches of.
     const LogFilteredData* tableViewSearch() const
     {
         return LogTableView::access_by<CrawlerWidgetPrivate>::search( *crawler->logTableView_ );
-    }
-    const LogFilteredData* tableViewDelegateSearch() const
-    {
-        return LogTableView::access_by<CrawlerWidgetPrivate>::delegateSearch(
-            *crawler->logTableView_ );
     }
 
     // What the close button of a Filtered View's tab does.
@@ -3497,9 +3477,8 @@ SCENARIO( "Making a kept Search current reaches every view, the Table View inclu
             THEN( "the Table View shows the Matches of the new Search" )
             {
                 REQUIRE( crawlerVisitor.tableViewSearch() == another.lock().get() );
-                REQUIRE( crawlerVisitor.tableViewDelegateSearch() == another.lock().get() );
-                REQUIRE( isMatch( crawlerVisitor.tableViewDelegateSearch(), 7_lnum ) );
-                REQUIRE_FALSE( isMatch( crawlerVisitor.tableViewDelegateSearch(), 3_lnum ) );
+                REQUIRE( isMatch( crawlerVisitor.tableViewSearch(), 7_lnum ) );
+                REQUIRE_FALSE( isMatch( crawlerVisitor.tableViewSearch(), 3_lnum ) );
             }
 
             AND_WHEN( "the kept Search's tab is made current" )
@@ -3510,9 +3489,8 @@ SCENARIO( "Making a kept Search current reaches every view, the Table View inclu
                 {
                     REQUIRE( crawlerVisitor.currentSearch().lock() == kept.lock() );
                     REQUIRE( crawlerVisitor.tableViewSearch() == kept.lock().get() );
-                    REQUIRE( crawlerVisitor.tableViewDelegateSearch() == kept.lock().get() );
-                    REQUIRE( isMatch( crawlerVisitor.tableViewDelegateSearch(), 3_lnum ) );
-                    REQUIRE_FALSE( isMatch( crawlerVisitor.tableViewDelegateSearch(), 7_lnum ) );
+                    REQUIRE( isMatch( crawlerVisitor.tableViewSearch(), 3_lnum ) );
+                    REQUIRE_FALSE( isMatch( crawlerVisitor.tableViewSearch(), 7_lnum ) );
                 }
 
                 AND_WHEN( "the tab of the other Search is closed" )
@@ -3528,7 +3506,6 @@ SCENARIO( "Making a kept Search current reaches every view, the Table View inclu
                         REQUIRE( another.expired() );
                         REQUIRE( crawlerVisitor.filteredViewTabCount() == 1 );
                         REQUIRE( crawlerVisitor.tableViewSearch() == kept.lock().get() );
-                        REQUIRE( crawlerVisitor.tableViewDelegateSearch() == kept.lock().get() );
                     }
                 }
             }
@@ -3546,7 +3523,6 @@ SCENARIO( "Making a kept Search current reaches every view, the Table View inclu
                     REQUIRE( kept.expired() );
                     REQUIRE( crawlerVisitor.currentSearch().lock() == another.lock() );
                     REQUIRE( crawlerVisitor.tableViewSearch() == another.lock().get() );
-                    REQUIRE( crawlerVisitor.tableViewDelegateSearch() == another.lock().get() );
                 }
             }
 
@@ -3562,8 +3538,7 @@ SCENARIO( "Making a kept Search current reaches every view, the Table View inclu
                     REQUIRE( crawlerVisitor.currentSearch().lock() == kept.lock() );
                     REQUIRE( crawlerVisitor.currentFilteredViewTab() == 0 );
                     REQUIRE( crawlerVisitor.tableViewSearch() == kept.lock().get() );
-                    REQUIRE( crawlerVisitor.tableViewDelegateSearch() == kept.lock().get() );
-                    REQUIRE( isMatch( crawlerVisitor.tableViewDelegateSearch(), 3_lnum ) );
+                    REQUIRE( isMatch( crawlerVisitor.tableViewSearch(), 3_lnum ) );
                 }
             }
         }

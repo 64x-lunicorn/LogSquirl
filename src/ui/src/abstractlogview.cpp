@@ -97,6 +97,7 @@
 #include "regularexpressionpattern.h"
 #include "shortcuts.h"
 #include "theme.h"
+#include "wordrule.h"
 #include "wrappedstring.h"
 
 #ifdef Q_OS_WIN
@@ -2064,24 +2065,15 @@ void AbstractLogView::selectWordAtPosition( const FilePosition& pos )
 
     const int clickPos = type_safe::narrow_cast<int>( pos.column().get() );
 
-    const auto isWordSeparator = []( QChar c ) {
-        return !c.isLetterOrNumber() && c.category() != QChar::Punctuation_Connector;
-    };
-
-    if ( line.isEmpty() || isWordSeparator( line[ clickPos ] ) ) {
+    const auto word = wordAt( line, clickPos );
+    if ( !word ) {
         return;
     }
 
-    const auto wordStart
-        = std::find_if( line.rbegin() + line.size() - clickPos, line.rend(), isWordSeparator );
-    const auto selectionStart = LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
-        std::distance( line.begin(), wordStart.base() ) ) };
-
-    const auto wordEnd = std::find_if( line.begin() + clickPos, line.end(), isWordSeparator );
-    const auto selectionEnd = LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
-        std::distance( line.begin(), wordEnd ) - 1 ) };
-
-    selection_.selectPortion( pos.line(), selectionStart, selectionEnd );
+    const auto [ wordStart, wordEnd ] = *word;
+    selection_.selectPortion(
+        pos.line(), LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>( wordStart ) },
+        LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>( wordEnd - 1 ) } );
     updateGlobalSelection();
     updateDecorations();
 }

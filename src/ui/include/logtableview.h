@@ -22,7 +22,9 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <vector>
 
+#include <QDate>
 #include <QTableView>
 
 #include "colorlabelsmanager.h"
@@ -30,16 +32,17 @@
 #include "linetypes.h"
 #include "logfileview.h"
 #include "logformatdefinition.h"
+#include "logformattablemodel.h"
 #include "logpresentation.h"
 #include "quickfindmux.h"
 #include "regularexpressionpattern.h"
 #include "rowmapping.h"
 #include "settingspolicies.h"
 #include "tableviewselection.h"
+#include "tableviewstate.h"
 
 class AbstractLogData;
 class LogFilteredData;
-class LogFormatTableModel;
 class LogTableHighlightDelegate;
 class Overview;
 class OverviewWidget;
@@ -62,8 +65,9 @@ class Selection;
 // Table View hands out is a Log Line obtained through it.
 //
 // Shown, it is what the window's QuickFind bar searches, as the Text View is:
-// QuickFind runs from the Log Line of the current Row and its match is shown
-// as that Log Line's Row, selected.
+// QuickFind runs from the characters selected in a cell of the current Row, or
+// else from its whole Log Line, and its match is shown as that Log Line's Row,
+// selected, with the matching characters selected in the cell holding them.
 class LogTableView : public QTableView,
                      public LogFileView,
                      public LogPresentation,
@@ -87,8 +91,10 @@ public:
 
     // Catch up with the Log File's current Log Lines; with follow, the last
     // Row is scrolled into view. The Marks and Matches are the current
-    // Search's, handed over by setCurrentSearch().
-    void updateData( bool follow );
+    // Search's, handed over by setCurrentSearch(). Timestamps without a year
+    // take the year of modificationDate, when the Log File was last written
+    // (ADR 0010); without one, the current year.
+    void updateData( bool follow, const QDate& modificationDate = {} );
 
     // The Table View positions overviewWidget over its right edge itself, and
     // shows a clicked Log Line.
@@ -126,16 +132,17 @@ public:
     void setDecorationPolicy( const DecorationPolicy& policy ) override;
     // Shows the Overview as it says; the Table View has no line numbers.
     void setPresentationPolicy( const PresentationPolicy& policy ) override;
-    // Ignored: the Table View follows only as the Text View does.
+    // Ignored: the Table View never engages follow itself, and leaves it
+    // however follow was engaged.
     void allowFollowMode( bool allow ) override;
     void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels ) override;
     void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
     // Saves the Log Lines of the selected Rows, in Log Line order.
     void saveSelectedTo( const QString& filename ) override;
 
-    // SearchableWidgetInterface: QuickFind from the Log Line of the current
-    // Row, over every Log Line the Rows show, with the window's QuickFind
-    // pattern. Aborting an incremental search selects the Row it started from.
+    // SearchableWidgetInterface: QuickFind from quickFindStart(), over every
+    // Log Line the Rows show, with the window's QuickFind pattern. Aborting an
+    // incremental search selects the Row it started from.
     void searchForward() override;
     void searchBackward() override;
     void incrementallySearchForward() override;
@@ -148,15 +155,24 @@ public:
     logsquirl::vector<LineNumber> selectedLogLines() const;
 
 public Q_SLOTS:
+    // Follow was turned on or off, as the window's action says. Turned on,
+    // the last Row is scrolled into view; while it is on, updateData() is
+    // told to follow, and the Table View leaves it when the user scrolls away
+    // from the bottom. It never turns follow on itself.
+    void followSet( bool checked );
     void highlightOverviewLine( LineNumber line );
     void removeOverviewHighlight();
 
 Q_SIGNALS:
     // The signals every Presentation emits, named and meant as the Text
     // View's (see LogPresentation). The Table View declares only those it
-    // emits: turning following on or off from the view, zooming with the
-    // wheel and the exit-view shortcut are the Text View's alone, and their
-    // signals are not in the set.
+    // emits: turning following on from the view, zooming with the wheel and
+    // the exit-view shortcut are the Text View's alone, and their signals are
+    // not in the set.
+
+    // Sent, with false, when the user scrolls away from the bottom while
+    // follow is on (#543); never with true.
+    void followModeChanged( bool follow );
 
     // Sent when a new Row is selected: the Log Line of the first selected Row.
     void newSelection( LineNumber startLine, LinesCount nLines, LineColumn startCol,
@@ -232,51 +248,81 @@ private:
     // Pixel X in a cell to the character position there.
     int charAtX( const QModelIndex& index, int pixelX ) const;
     void selectWordAt( const QModelIndex& index, int charPos );
-    // Hand the in-cell selection to the delegate and repaint.
+    // Repaint the in-cell selection.
     void showInCellSelection();
 
     // Makes the selected characters the QuickFind pattern and asks the
     // QuickFind bar to search in the given direction, as the Text View does:
     // the bar keeps the pattern and the direction for its next and previous.
     void findSelected( bool forward );
-    // Where QuickFind starts from: the Log Line of the current Row, whole.
+    // Where QuickFind starts from, as the Text View starts from its
+    // Selection: the characters selected inside a cell of the current Row,
+    // where the Log Format places that cell in the Log Line; otherwise the
+    // Log Line of the current Row, whole.
     Selection quickFindStart() const;
+    // Where the text of each cell of a Row lies in its Log Line: the raw
+    // characters of each column (LogFormatTableModel::columnSpans()), and the
+    // column QuickFind reads each raw character at, with tabs expanded.
+    struct CellsInLogLine {
+        std::vector<std::optional<LogFormatTableModel::TextSpan>> spans;
+        logsquirl::vector<int> displayColumns;
+
+        // The span of a column, null when it shows no characters of the Log
+        // Line.
+        const LogFormatTableModel::TextSpan* spanOf( int column ) const
+        {
+            if ( column < 0 || static_cast<size_t>( column ) >= spans.size() ) {
+                return nullptr;
+            }
+            const auto& span = spans[ static_cast<size_t>( column ) ];
+            return span.has_value() ? &span.value() : nullptr;
+        }
+        int displayColumnOf( int rawColumn ) const
+        {
+            return displayColumns[ static_cast<size_t>( rawColumn ) ];
+        }
+    };
+    // None for a JSON or logfmt Log Format, which places its fields nowhere
+    // in the Log Line.
+    std::optional<CellsInLogLine> cellsInLogLine( int row ) const;
     // Runs search from quickFindStart() with the QuickFind pattern.
     using QuickFindSearch = void ( QuickFind::* )( Selection, QuickFindMatcher );
     void searchUsing( QuickFindSearch search );
     // Selects the Row of the Log Line QuickFind found, and the matching
-    // characters in its first cell holding them.
+    // characters in the cell holding them. A match spanning two cells, or in
+    // text no cell shows, selects no characters. A JSON or logfmt Log Format
+    // places no cell in the Log Line: the first cell the pattern matches is
+    // taken for it.
     void showQuickFindResult( bool hasMatch, const Portion& logLinePortion );
+    // Selects the characters of logLinePortion in the cell of the Row that
+    // holds them all, if a cell does.
+    void selectCellHolding( int row, const CellsInLogLine& cells, const Portion& logLinePortion );
 
     bool handlesMouse() const;
     void repaintIfActive();
+    // Leaves follow if it is on and the Rows are scrolled to position, away
+    // from the bottom: the user moved them there.
+    void leaveFollowAwayFromBottom( int position );
 
     std::shared_ptr<const RowMapping> rows_;
     // Not owned: the coordinator holds the Log Format for as long as it is set
     const LogFormatDefinition* format_ = nullptr;
     AbstractLogData* logData_ = nullptr;
-    // The current Search: supplies the Marks and Matches. Not owned.
-    const LogFilteredData* filteredData_ = nullptr;
+    // What the Table View shows over the text of its Rows; its delegate
+    // paints from it.
+    TableViewState state_;
     LogFormatTableModel* model_ = nullptr;
     LogTableHighlightDelegate* delegate_ = nullptr;
 
     Overview* overview_ = nullptr;
     OverviewWidget* overviewWidget_ = nullptr;
 
-    ColorLabelsManager::QuickHighlightersCollection colorLabels_;
-
-    // The Search Limits last set; without an end, they end with the Log File.
-    LineNumber searchStart_;
-    OptionalLineNumber searchEnd_;
-
-    TableViewSelection selection_;
-
-    std::shared_ptr<QuickFindPattern> quickFindPattern_;
     // Runs the QuickFind searches the window's QuickFind bar asks for, off the
     // UI thread.
     std::unique_ptr<QuickFind> quickFind_;
     bool selectionDragging_ = false;
-    int hoverRow_ = -1;
+    // Whether follow is on, as followSet() said last.
+    bool follow_ = false;
 
     bool active_ = false;
     bool columnsNeedSizing_ = false;
