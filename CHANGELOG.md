@@ -174,6 +174,9 @@
   report and issue report dialogs included. Traditional Chinese, offered but
   never built, now works; Simplified Chinese, half English until now, is
   complete too (#448).
+- **The dashboard setting says when it applies**: The Options Dialog now
+  says beside the dashboard checkbox that turning it on or off applies to
+  windows opened from now on; the windows already open keep theirs (#562).
 
 ## Bug fixes
 
@@ -292,6 +295,17 @@
   once, and only when *Run search on add or replace pattern* is on, as for
   adding a word to the Search; otherwise the pattern waits in the Search line
   for Enter (#538).
+- **Closing every tab reaches the first Log File when the dashboard is off**:
+  With the dashboard turned off the first tab holds a Log File, and Close
+  all, Close others, Close to the left, Close all in group, Merge All Left,
+  a middle click on the first tab and closing the window all skipped it: it
+  stayed open, and a Session with several windows still listed it as open
+  after its window had closed. Every one of them now reaches it; with the
+  dashboard on, none closes the dashboard (#535).
+- **A closed merged tab stops its rebuild**: A merged Log File is rebuilt
+  when one of its sources changes. Closing its tab now stops watching the
+  sources and removes the merged temporary file, which before stayed on disk
+  and kept being rewritten until the window closed (#537).
 
 ## Build and packaging
 
