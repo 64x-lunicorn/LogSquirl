@@ -42,12 +42,9 @@
 #include <memory>
 
 #include "indexjob.h"
+#include "indexjobrunner.h"
 #include "settingspolicies.h"
 #include "synchronization.h"
-
-// Known only where the queue is built and destroyed: whoever holds a queue
-// does not compile the worker (#549).
-class LogDataWorker;
 
 // The job rule: of the index job waiting to run and one that arrives while
 // another runs, the one that waits from now on. Only one waits, and the
@@ -68,8 +65,9 @@ class LogDataWorker;
 // latest request, a later reload's Encoding among them.
 IndexJob waitingIndexJob( IndexJob waiting, IndexJob arriving );
 
-// Hands the index jobs of one Log File to its worker, one at a time: the next
-// starts once the one before is reported finished.
+// Hands the index jobs of one Log File to its runner, one at a time: the next
+// starts once the one before is reported finished. The runner is a port: the
+// log data hands over the index worker, the tests a fake (#550).
 class OperationQueue {
 public:
     OperationQueue();
@@ -80,15 +78,17 @@ public:
     OperationQueue( OperationQueue&& ) = delete;
     OperationQueue& operator=( OperationQueue&& ) = delete;
 
-    void setWorker( std::unique_ptr<LogDataWorker>&& worker );
+    void setRunner( std::unique_ptr<IndexJobRunner>&& runner );
 
-    // Hands a changed Indexing Policy to the worker, if there is one.
+    // Hands a changed Indexing Policy to the runner, if there is one.
     void setIndexingPolicy( const IndexingPolicy& indexingPolicy );
 
     void interrupt();
+    // Interrupts and destroys the runner and drops the index job waiting:
+    // nothing starts any more.
     void shutdown();
 
-    // Hands the index job to the worker, or, while another one runs, has it
+    // Hands the index job to the runner, or, while another one runs, has it
     // meet the one waiting under the job rule.
     void enqueueJob( IndexJob&& job );
 
@@ -108,7 +108,7 @@ private:
     // Decided by waitingIndexJob() whenever another one arrives.
     IndexJob waitingJob_;
 
-    std::unique_ptr<LogDataWorker> worker_;
+    std::unique_ptr<IndexJobRunner> runner_;
 };
 
 #endif
