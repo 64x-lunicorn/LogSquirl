@@ -61,14 +61,16 @@ set(_work_dir "${_binary_dir}/../test_settings/${_case_id}")
 # beside itself: the helper that writes a Log File, the command line tool, the
 # libraries Windows looks for there. A link or nothing -- no run pays for a copy
 # of everything that was built. The settings files are what this is about and
-# are the one thing left behind.
+# are the one thing left behind. So is split debug info, which no case loads:
+# the links stay (#566), and a lasting second link to logsquirl.debug made the
+# Linux packaging's `xz` refuse to compress it.
 set(_linked "${_binary_name}")
 file(GLOB _neighbours "${_binary_dir}/*")
 foreach(_neighbour IN LISTS _neighbours)
   get_filename_component(_neighbour_name "${_neighbour}" NAME)
   if(IS_DIRECTORY "${_neighbour}"
      OR _neighbour_name STREQUAL _binary_name
-     OR _neighbour_name MATCHES "\\.conf$")
+     OR _neighbour_name MATCHES "\\.(conf|debug|pdb)$")
     continue()
   endif()
   list(APPEND _linked "${_neighbour_name}")

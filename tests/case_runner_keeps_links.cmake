@@ -51,6 +51,10 @@ file(MAKE_DIRECTORY "${WORK_DIR}/bin")
 file(WRITE "${WORK_DIR}/source/helper" "#!/bin/sh\n")
 file(COPY "${WORK_DIR}/source/helper" DESTINATION "${WORK_DIR}/bin"
      FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE)
+# Split debug info beside the binaries, as a RelWithDebInfo build on Linux
+# leaves it: no case loads it, and a lasting second link made the packaging's
+# `xz` refuse it (#566).
+file(WRITE "${WORK_DIR}/bin/fake_case.debug" "")
 write_fake_case(1)
 
 function(run_case)
