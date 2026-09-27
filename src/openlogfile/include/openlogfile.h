@@ -48,8 +48,10 @@ class LogFormatCatalog;
 // auto-refresh, its Marks and its Log Format.
 //
 // It carries out what its Load Rule decides growing, truncation and reloading
-// mean. A Search continues over the Log Lines that were added, and starts
-// again when the Log File was truncated; a reload by hand drops it. Marks do
+// mean. A Search continues over the Log Lines that were added, within the
+// Search Limits, and starts again when the Log File was truncated; a reload
+// by hand drops it. Narrowed Search Limits stay as set while the Log File
+// grows; only Limits that are the whole Log File follow its end. Marks do
 // not survive a truncation or a reload; the Marks saved with the Session are
 // applied once, after the first load. Format Recognition is taken after the
 // first load, and again after a reload or a truncation, never on growth.
@@ -71,9 +73,8 @@ class OpenLogFile : public QObject {
 
 public:
     // What a finished load of the Log File brought, once this object has
-    // followed it: the Search refreshed, the Search Limits covering the whole
-    // Log File again, saved Marks applied and Format Recognition taken where
-    // due.
+    // followed it: the Search refreshed, the Search Limits settled, saved
+    // Marks applied and Format Recognition taken where due.
     struct LoadFinished {
         LoadingStatus status = LoadingStatus::Successful;
         // What went wrong, when status is Failed; empty otherwise.
@@ -172,8 +173,11 @@ public:
     const SearchAutoRefresh& searchAutoRefresh() const;
 
     // The Search Limits: the Log Lines a Search runs over, from startLine up
-    // to, not including, endLine. A finished load makes them the whole Log
-    // File again.
+    // to, not including, endLine. They do not follow a Log File that grows:
+    // narrowed Limits stay as set, and a continuing Search is bounded by
+    // them; only Limits that are the whole Log File follow its end. A load
+    // that brings more than added Log Lines -- the first one, a reload, a
+    // truncation -- makes them the whole Log File again.
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
     LineNumber searchStartLine() const;
     LineNumber searchEndLine() const;
@@ -260,6 +264,9 @@ private:
     RegularExpressionPattern searchPattern_;
     LineNumber searchStartLine_;
     LineNumber searchEndLine_;
+    // The Log Lines the last finished load brought: Search Limits that end
+    // there are the whole Log File.
+    LinesCount loadedLineCount_;
 
     RecognitionPolicy recognitionPolicy_;
     std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;

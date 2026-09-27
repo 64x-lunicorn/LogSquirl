@@ -399,9 +399,61 @@ SCENARIO( "An Open Log File follows a Log File that grows", "[openlogfile]" )
                 REQUIRE( logFile.openLogFile.logFormat() != nullptr );
             }
 
-            THEN( "the Search Limits are the whole Log File again" )
+            THEN( "the Search Limits, which were the whole Log File, follow its end" )
             {
+                REQUIRE( logFile.openLogFile.searchStartLine() == 0_lnum );
                 REQUIRE( logFile.openLogFile.searchEndLine() == LineNumber( 2 * FirstLineCount ) );
+            }
+        }
+    }
+
+    GIVEN( "narrowed Search Limits and an auto-refreshed Search over them" )
+    {
+        const auto LimitsStart = LineNumber( 5 );
+        const auto LimitsEnd = LineNumber( 20 );
+        logFile.openLogFile.setSearchLimits( LimitsStart, LimitsEnd );
+        logFile.openLogFile.setAutoRefresh( true );
+        const auto requested
+            = logFile.openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+        REQUIRE( requested.phase != Phase::InvalidPattern );
+        REQUIRE( logFile.waitSearchSettled() );
+        // Lines 6, 9, 12, 15 and 18 say "fizz".
+        const auto MatchesWithinLimits = LinesCount( 5 );
+        REQUIRE( logFile.searchState().matchCount == MatchesWithinLimits );
+
+        WHEN( "Log Lines are added to the Log File" )
+        {
+            REQUIRE( logFile.fileWatch->grow( path, logLines( FirstLineCount, FirstLineCount ) ) );
+            REQUIRE( logFile.observer.waitLoads( 2 ) );
+            REQUIRE( logFile.nbLines() == LinesCount( 2 * FirstLineCount ) );
+            REQUIRE( logFile.waitSearchSettled() );
+
+            THEN( "the Search Limits stay as they were set" )
+            {
+                REQUIRE( logFile.openLogFile.searchStartLine() == LimitsStart );
+                REQUIRE( logFile.openLogFile.searchEndLine() == LimitsEnd );
+            }
+
+            THEN( "the Search stays bounded by them" )
+            {
+                const auto state = logFile.searchState();
+                REQUIRE( state.startLine == LimitsStart );
+                REQUIRE( state.endLine == LimitsEnd );
+                REQUIRE( state.matchCount == MatchesWithinLimits );
+            }
+
+            AND_WHEN( "a Search is requested again" )
+            {
+                logFile.openLogFile.requestSearch( RegularExpressionPattern( "buzz" ) );
+                REQUIRE( logFile.waitSearchSettled() );
+
+                THEN( "it runs over the Search Limits only" )
+                {
+                    const auto state = logFile.searchState();
+                    REQUIRE( state.startLine == LimitsStart );
+                    REQUIRE( state.endLine == LimitsEnd );
+                    REQUIRE( state.matchCount == LinesCount( 10 ) );
+                }
             }
         }
     }

@@ -1119,7 +1119,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     // The Open Log File has settled the Encoding.
     updateEncodingText();
 
-    // The Search Limits are the whole Log File again; every view shows it.
+    // The Search Limits as the load settled them; every view shows them.
     viewSet_.setSearchLimits( openLogFile_->searchStartLine(), openLogFile_->searchEndLine() );
 
     // A lookup over the old lines has nothing to say about a Log File that
