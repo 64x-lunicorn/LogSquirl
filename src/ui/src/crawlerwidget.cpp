@@ -1143,7 +1143,8 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     }
     else {
         // File was updated — refresh table model contents
-        logTableView_->updateData( isFollowEnabled() );
+        logTableView_->updateData( isFollowEnabled(),
+                                   openLogFile_->logData()->getLastModifiedDate().date() );
     }
 
     Q_EMIT loadingFinished( load.status );
@@ -2432,8 +2433,10 @@ void CrawlerWidget::toggleTableView()
 
     if ( showTable ) {
         // Defer model population so the view switch renders immediately
-        QTimer::singleShot( 0, this,
-                            [ this ]() { logTableView_->updateData( isFollowEnabled() ); } );
+        QTimer::singleShot( 0, this, [ this ]() {
+            logTableView_->updateData( isFollowEnabled(),
+                                       openLogFile_->logData()->getLastModifiedDate().date() );
+        } );
     }
 }
 
@@ -2471,7 +2474,8 @@ void CrawlerWidget::showRecognizedFormat()
     if ( recognized == recognizedFormat_ ) {
         // Still the very same Log Format: nothing to switch, only the Table
         // View to bring up to date with what was loaded.
-        logTableView_->updateData( isFollowEnabled() );
+        logTableView_->updateData( isFollowEnabled(),
+                                   openLogFile_->logData()->getLastModifiedDate().date() );
         return;
     }
 
@@ -2489,7 +2493,8 @@ void CrawlerWidget::showRecognizedFormat()
 
     // A reload that recognized a different Log Format while the Table View
     // was shown keeps it shown, with the new columns.
-    logTableView_->updateData( isFollowEnabled() );
+    logTableView_->updateData( isFollowEnabled(),
+                               openLogFile_->logData()->getLastModifiedDate().date() );
     if ( viewSet_.presentationPolicy().autoShowTableView && !tableViewToggle_->isChecked() ) {
         // Automatically activate table view if the user opted in
         tableViewToggle_->setChecked( true );

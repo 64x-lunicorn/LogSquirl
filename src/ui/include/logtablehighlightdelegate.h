@@ -23,14 +23,15 @@
 #include "highlightedmatch.h"
 #include "highlighterset.h"
 #include "linedecorator.h"
-#include "logfiltereddata.h"
 #include "logformattablemodel.h"
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
+#include "tableviewstate.h"
 
 #include <QPainter>
 #include <QStyledItemDelegate>
 
+#include <algorithm>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -39,51 +40,29 @@
 
 // Delegate that applies highlighter-set and search-pattern coloring to table view cells.
 // Also paints portion (in-cell text) selections and hover highlights.
+//
+// What it paints beyond the Highlighter Set, the main search pattern and the
+// Decoration Policy -- the current Search, the Search Limits, the Color
+// Labels, the QuickFind pattern, the Row under the mouse cursor and the
+// in-cell selection -- it reads from the Table View's state when it paints,
+// and is never told of (#561).
 class LogTableHighlightDelegate : public QStyledItemDelegate {
     Q_OBJECT
 
 public:
-    // Lets a test read what the delegate was handed.
-    template <class T>
-    struct access_by;
-
     // Horizontal padding applied on each side of a cell's text, both when
     // painting it and when hit-testing a click against it. The two must
     // agree, so both read this single constant.
     static constexpr int HorizontalTextPadding = 4;
 
-    explicit LogTableHighlightDelegate( QObject* parent = nullptr )
+    // Paints from state, which the Table View holds and changes, and which
+    // must outlive the delegate; each Row shows the Log Line rows maps it onto.
+    LogTableHighlightDelegate( const TableViewState& state, std::shared_ptr<const RowMapping> rows,
+                               QObject* parent = nullptr )
         : QStyledItemDelegate( parent )
+        , state_( state )
+        , rows_( std::move( rows ) )
     {
-    }
-
-    // The current Search, whose Marks and Matches are painted. Not owned.
-    void setFilteredData( const LogFilteredData* data )
-    {
-        filteredData_ = data;
-    }
-
-    // Set which Log Line each Row shows.
-    void setRowMapping( std::shared_ptr<const RowMapping> rows )
-    {
-        rows_ = std::move( rows );
-    }
-
-    // Set the quickfind pattern for incremental search highlighting.
-    void setQuickFindPattern( std::shared_ptr<QuickFindPattern> pattern )
-    {
-        quickFindPattern_ = std::move( pattern );
-        // The Decoration Setup does not own it: this delegate keeps it alive
-        // for as long as it points at it.
-        decorationSetup_.setQuickFindPattern( quickFindPattern_.get() );
-    }
-
-    // Set the color label words (one QStringList per color slot). The color
-    // of each slot comes from the Highlighter Set Collection, so a change to
-    // those colors reaches the cells by setting the words again.
-    void setColorLabelWords( const std::vector<QStringList>& words )
-    {
-        decorationSetup_.setColorLabels( words, colorLabelColors() );
     }
 
     // Set the main search pattern for main-search highlighting.
@@ -98,44 +77,6 @@ public:
     void setDecorationPolicy( const DecorationPolicy& policy )
     {
         decorationSetup_.setPolicy( policy );
-    }
-
-    // Set the Search Limits: rows outside this range are shown subdued. The
-    // end is the Log Line after the last one searched, as the Line Decorator
-    // takes it.
-    void setSearchLimits( LineNumber startLine, LineNumber endLine )
-    {
-        searchLimits_ = SearchLimits{ startLine, endLine };
-    }
-
-    // Set the current portion (in-cell text) selection for painting.
-    void setPortionSelection( int row, int column, int startChar, int endChar )
-    {
-        portionRow_ = row;
-        portionCol_ = column;
-        portionStartChar_ = std::min( startChar, endChar );
-        portionEndChar_ = std::max( startChar, endChar );
-    }
-
-    // Clear the portion selection.
-    void clearPortionSelection()
-    {
-        portionRow_ = -1;
-        portionCol_ = -1;
-        portionStartChar_ = 0;
-        portionEndChar_ = 0;
-    }
-
-    // Set the row currently under the mouse cursor for hover highlighting.
-    void setHoverRow( int row )
-    {
-        hoverRow_ = row;
-    }
-
-    // Clear the hover row.
-    void clearHoverRow()
-    {
-        hoverRow_ = -1;
     }
 
     // Compose the Decoration for one cell given an explicit Line Decorator
@@ -229,10 +170,11 @@ public:
         initStyleOption( &opt, index );
 
         // A portion (in-cell text) selection on this row takes precedence
-        // over the row-level Qt selection state: it is what setPortionSelection()
-        // was told about most recently, and it needs the rest of the row to
-        // keep showing Highlighter colour around it.
-        const bool hasPortionOnRow = ( portionRow_ >= 0 && index.row() == portionRow_ );
+        // over the row-level Qt selection state: it is the one the Table View
+        // holds, and it needs the rest of the row to keep showing Highlighter
+        // colour around it.
+        const auto inCell = state_.selection.inCell();
+        const bool hasPortionOnRow = inCell.has_value() && index.row() == inCell->row;
         const bool isSelectedAsWhole = ( opt.state & QStyle::State_Selected ) && !hasPortionOnRow;
 
         // The Row's base: alternating Rows and the Row under the mouse
@@ -242,7 +184,7 @@ public:
         if ( opt.features & QStyleOptionViewItem::Alternate ) {
             linePalette.base = linePalette.base.darker( 105 );
         }
-        if ( hoverRow_ >= 0 && index.row() == hoverRow_ ) {
+        if ( state_.hoverRow >= 0 && index.row() == state_.hoverRow ) {
             linePalette.base = linePalette.base.darker( 108 );
         }
 
@@ -257,7 +199,8 @@ public:
         // fill the rest of the cell, so a whole-line Highlighter, a Mark or
         // a Match colours the whole row, as this view has no gutter.
         const auto cellText = index.data( Qt::DisplayRole ).toString();
-        const auto selectionSpan = selectionSpanFor( index, cellText, opt, hasPortionOnRow );
+        const auto selectionSpan
+            = hasPortionOnRow ? selectionSpanFor( *inCell, index, cellText, opt ) : std::nullopt;
         const auto decoration = decorationFor( lineDecorator, row.verdict, row.lineNumber,
                                                row.lineType, cellText, selectionSpan );
 
@@ -361,9 +304,11 @@ private:
     // The Line Decorator for a Row of the given palette. The Context the
     // Line Decorator matches every color source against is built by the one
     // module that builds it for either Presentation, once per pass. The
-    // active Highlighter Set is read then, so that switching sets re-colors
-    // the table without this delegate being told. The collection keeps that
-    // set compiled, so every copy of it shares the compiled expression.
+    // active Highlighter Set, the Table View's state and the Theme's colors
+    // of the Color Labels are read then, so that switching sets or Themes
+    // re-colors the table without this delegate being told. The collection
+    // keeps that set compiled, so every copy of it shares the compiled
+    // expression.
     const LineDecorator& decoratorFor( PaintPassState& pass, const LinePalette& linePalette ) const
     {
         for ( const auto& decorator : pass.decorators ) {
@@ -373,9 +318,11 @@ private:
         }
 
         if ( !pass.context.has_value() ) {
+            takeColorLabels();
+            decorationSetup_.setQuickFindPattern( state_.quickFindPattern.get() );
             pass.context = decorationSetup_.context(
-                HighlighterSetCollection::get().currentActiveSet(), searchLimits_, linePalette,
-                LineStatusDisplay::AsBackground );
+                HighlighterSetCollection::get().currentActiveSet(), state_.searchLimits(),
+                linePalette, LineStatusDisplay::AsBackground );
         }
         auto context = *pass.context;
         context.palette = linePalette;
@@ -399,8 +346,7 @@ private:
 
         const auto lineNumber = rows_->logLineAt( index.row() );
         const auto rawLine = index.data( LogFormatTableModel::RawLineRole ).toString();
-        const auto lineType = filteredData_ ? filteredData_->lineTypeByLine( lineNumber )
-                                            : AbstractLogData::LineTypeFlags::Plain;
+        const auto lineType = rows_->lineType( state_.currentSearch, lineNumber );
         auto verdict = lineDecorator.verdictFor( LogLine{ lineNumber, rawLine }, lineType,
                                                  isSelectedAsWhole );
         return pass.rows
@@ -410,23 +356,42 @@ private:
             .first->second;
     }
 
+    // The Color Labels as the Table View's state and the Theme have them now.
+    // The Decoration Setup rebuilds its Highlighters when handed them, so it
+    // is handed them only when they changed.
+    void takeColorLabels() const
+    {
+        auto colors = colorLabelColors();
+        const auto sameColors = std::equal(
+            colors.begin(), colors.end(), colorLabelColors_.begin(), colorLabelColors_.end(),
+            []( const HighlightColor& lhs, const HighlightColor& rhs ) {
+                return lhs.foreColor == rhs.foreColor && lhs.backColor == rhs.backColor;
+            } );
+        if ( sameColors && state_.colorLabelWords == colorLabelWords_ ) {
+            return;
+        }
+        colorLabelWords_ = state_.colorLabelWords;
+        colorLabelColors_ = std::move( colors );
+        decorationSetup_.setColorLabels( colorLabelWords_, colorLabelColors_ );
+    }
+
     // The portion (in-cell text) selection decorate() should overlay on
     // top of everything else for this cell -- the dragged range within
     // this specific cell, already in the cell text's own coordinate space,
     // so it needs no translating. The row-level Qt selection is handled
     // separately in paint() before this is ever reached.
-    std::optional<HighlightedMatch> selectionSpanFor( const QModelIndex& index,
-                                                      const QString& cellText,
-                                                      const QStyleOptionViewItem& opt,
-                                                      bool hasPortionOnRow ) const
+    static std::optional<HighlightedMatch>
+    selectionSpanFor( const TableViewSelection::InCell& inCell, const QModelIndex& index,
+                      const QString& cellText, const QStyleOptionViewItem& opt )
     {
-        if ( !hasPortionOnRow || index.column() != portionCol_
-             || portionStartChar_ >= portionEndChar_ ) {
+        const auto startChar = std::min( inCell.startChar, inCell.endChar );
+        const auto endChar = std::max( inCell.startChar, inCell.endChar );
+        if ( index.column() != inCell.column || startChar >= endChar ) {
             return std::nullopt;
         }
 
-        const auto lo = std::min( portionStartChar_, static_cast<int>( cellText.size() ) );
-        const auto hi = std::min( portionEndChar_, static_cast<int>( cellText.size() ) );
+        const auto lo = std::min( startChar, static_cast<int>( cellText.size() ) );
+        const auto hi = std::min( endChar, static_cast<int>( cellText.size() ) );
         if ( lo >= hi ) {
             return std::nullopt;
         }
@@ -478,27 +443,18 @@ private:
         }
     }
 
-    const LogFilteredData* filteredData_ = nullptr;
-    std::shared_ptr<const RowMapping> rows_ = std::make_shared<OneRowPerLogLine>();
-    std::shared_ptr<QuickFindPattern> quickFindPattern_;
+    // The Table View's: read, never copied.
+    const TableViewState& state_;
+    std::shared_ptr<const RowMapping> rows_;
 
     // The one module that builds the Line Decorator's Context; it holds the
     // Decoration Policy, the main search pattern and the Color Labels, and
-    // caches the Highlighters built from them.
-    DecorationSetup decorationSetup_;
-
-    // Search Limits (set by LogTableView, mirroring what it hands the text
-    // view); until then, none, so no row is subdued.
-    SearchLimits searchLimits_;
-
-    // Portion selection state (set by LogTableView from mouse events)
-    int portionRow_ = -1;
-    int portionCol_ = -1;
-    int portionStartChar_ = 0;
-    int portionEndChar_ = 0;
-
-    // Hover row (set by LogTableView from mouse tracking)
-    int hoverRow_ = -1;
+    // caches the Highlighters built from them. Brought up to date with the
+    // state when a paint pass begins.
+    mutable DecorationSetup decorationSetup_;
+    // The Color Labels the Decoration Setup was last handed.
+    mutable std::vector<QStringList> colorLabelWords_;
+    mutable std::vector<HighlightColor> colorLabelColors_;
 
     // The paint pass open, if any.
     mutable std::optional<PaintPassState> paintPass_;

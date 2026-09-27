@@ -37,7 +37,6 @@
 #include "abstractlogview.h"
 #include "clipboard.h"
 #include "linessaver.h"
-#include "logdata.h"
 #include "logfiltereddata.h"
 #include "logformattablemodel.h"
 #include "logtablehighlightdelegate.h"
@@ -93,23 +92,20 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     // whoever builds this view calls before the first frame and again whenever
     // it changes: this view reads no setting for it.
 
-    // Highlight delegate for match/mark row coloring and text highlighting
-    delegate_ = new LogTableHighlightDelegate( this );
-    delegate_->setRowMapping( rows_ );
+    // Highlight delegate for match/mark row coloring and text highlighting:
+    // it paints from the state this view holds.
+    state_.quickFindPattern = std::make_shared<QuickFindPattern>();
+    delegate_ = new LogTableHighlightDelegate( state_, rows_, this );
     // The settings that color Log Lines reach the delegate through
     // setDecorationPolicy(), which whoever builds this view calls before the
     // first frame and again whenever they change: this view derives no Policy
     // of its own.
     setItemDelegate( delegate_ );
 
-    // The Color Labels follow the Theme, and the delegate was handed their
-    // colors with the words, so they are handed over again here (ADR-0006).
-    Theme::whenApplied( this, [ this ] {
-        delegate_->setColorLabelWords( colorLabels_ );
-        viewport()->update();
-    } );
+    // The Color Labels follow the Theme: the delegate reads their colors as
+    // it paints, so a Theme applied only repaints (ADR-0006).
+    Theme::whenApplied( this, [ this ] { viewport()->update(); } );
 
-    quickFindPattern_ = std::make_shared<QuickFindPattern>();
     quickFind_ = std::make_unique<QuickFind>(
         [ this ]() { return QuickFindLines::everyLogLine( *logData_ ); },
         [ this ]( LineNumber logLine ) {
@@ -159,8 +155,7 @@ void LogTableView::setLogFormat( const LogFormatDefinition* format, AbstractLogD
     logData_ = logData;
     columnsNeedSizing_ = false;
 
-    selection_ = TableViewSelection{};
-    delegate_->clearPortionSelection();
+    state_.selection = TableViewSelection{};
 
     // The overview no longer shows anything valid
     if ( overviewWidget_ ) {
@@ -168,7 +163,7 @@ void LogTableView::setLogFormat( const LogFormatDefinition* format, AbstractLogD
     }
 }
 
-void LogTableView::updateData( bool follow )
+void LogTableView::updateData( bool follow, const QDate& modificationDate )
 {
     if ( !format_ || !logData_ ) {
         updateOverview();
@@ -193,9 +188,7 @@ void LogTableView::updateData( bool follow )
     const auto lineCount = logData_->getNbLine().get();
     const int lineCountInt
         = static_cast<int>( std::min( lineCount, static_cast<uint64_t>( INT_MAX ) ) );
-    if ( const auto* file = dynamic_cast<const LogData*>( logData_ ) ) {
-        model_->setModificationDate( file->getLastModifiedDate().date() );
-    }
+    model_->setModificationDate( modificationDate );
     model_->setLineCount( lineCountInt );
     // New Log Lines may match where QuickFind last found nothing more.
     quickFind_->resetLimits();
@@ -247,14 +240,13 @@ void LogTableView::setActive( bool active )
 
 void LogTableView::setQuickFindPattern( std::shared_ptr<QuickFindPattern> pattern )
 {
-    if ( quickFindPattern_ ) {
-        disconnect( quickFindPattern_.get(), nullptr, this, nullptr );
+    if ( state_.quickFindPattern ) {
+        disconnect( state_.quickFindPattern.get(), nullptr, this, nullptr );
     }
-    quickFindPattern_ = pattern;
+    state_.quickFindPattern = std::move( pattern );
     // A new pattern may match beyond where the last one found nothing more.
-    connect( quickFindPattern_.get(), &QuickFindPattern::patternUpdated, this,
+    connect( state_.quickFindPattern.get(), &QuickFindPattern::patternUpdated, this,
              [ this ]() { quickFind_->resetLimits(); } );
-    delegate_->setQuickFindPattern( std::move( pattern ) );
 }
 
 void LogTableView::setSearchPattern( const RegularExpressionPattern& pattern )
@@ -265,23 +257,20 @@ void LogTableView::setSearchPattern( const RegularExpressionPattern& pattern )
 
 void LogTableView::setCurrentSearch( const LogFilteredData* search )
 {
-    filteredData_ = search;
-    delegate_->setFilteredData( search );
+    state_.currentSearch = search;
     repaintIfActive();
 }
 
 void LogTableView::setSearchLimits( LineNumber startLine, LineNumber endLine )
 {
-    searchStart_ = startLine;
-    searchEnd_ = endLine;
-    delegate_->setSearchLimits( startLine, endLine );
+    state_.searchStart = startLine;
+    state_.searchEnd = endLine;
     repaintIfActive();
 }
 
 void LogTableView::setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels )
 {
-    colorLabels_ = labels;
-    delegate_->setColorLabelWords( labels );
+    state_.colorLabelWords = labels;
     repaintIfActive();
 }
 
@@ -434,7 +423,7 @@ OptionalLineNumber LogTableView::logLineAt( const QPoint& pos ) const
 
 TableViewSelection LogTableView::selection() const
 {
-    auto selection = selection_;
+    auto selection = state_.selection;
     std::vector<int> rows;
     if ( model_ && selectionModel() ) {
         const auto indexes = selectionModel()->selectedRows();
@@ -481,14 +470,6 @@ bool LogTableView::handlesMouse() const
 
 void LogTableView::showInCellSelection()
 {
-    const auto inCell = selection_.inCell();
-    if ( inCell ) {
-        delegate_->setPortionSelection( inCell->row, inCell->column, inCell->startChar,
-                                        inCell->endChar );
-    }
-    else {
-        delegate_->clearPortionSelection();
-    }
     viewport()->update();
 }
 
@@ -507,9 +488,9 @@ void LogTableView::mousePressEvent( QMouseEvent* event )
             // any other click starts a new one
             const bool extended
                 = ( event->modifiers() & Qt::ShiftModifier )
-                  && selection_.extendInCell( index.row(), index.column(), charPos );
+                  && state_.selection.extendInCell( index.row(), index.column(), charPos );
             if ( !extended ) {
-                selection_.startInCell( index.row(), index.column(), charPos );
+                state_.selection.startInCell( index.row(), index.column(), charPos );
             }
             selectionDragging_ = true;
             showInCellSelection();
@@ -527,17 +508,16 @@ void LogTableView::mouseMoveEvent( QMouseEvent* event )
 
         // Hover highlight
         const int newHoverRow = index.isValid() ? index.row() : -1;
-        if ( newHoverRow != hoverRow_ ) {
-            const int oldHoverRow = std::exchange( hoverRow_, newHoverRow );
-            delegate_->setHoverRow( hoverRow_ );
+        if ( newHoverRow != state_.hoverRow ) {
+            const int oldHoverRow = std::exchange( state_.hoverRow, newHoverRow );
             updateRow( oldHoverRow );
-            updateRow( hoverRow_ );
+            updateRow( state_.hoverRow );
         }
 
         // Drag to extend the in-cell selection, within the same cell only
         if ( selectionDragging_ && index.isValid()
-             && selection_.extendInCell( index.row(), index.column(),
-                                         charAtX( index, event->pos().x() ) ) ) {
+             && state_.selection.extendInCell( index.row(), index.column(),
+                                               charAtX( index, event->pos().x() ) ) ) {
             showInCellSelection();
         }
     }
@@ -550,8 +530,8 @@ void LogTableView::mouseReleaseEvent( QMouseEvent* event )
     if ( handlesMouse() && event->button() == Qt::LeftButton && selectionDragging_ ) {
         selectionDragging_ = false;
         // A click without a drag selects no characters
-        if ( !selection_.hasInCellSelection() ) {
-            selection_.clearInCell();
+        if ( !state_.selection.hasInCellSelection() ) {
+            state_.selection.clearInCell();
             showInCellSelection();
         }
     }
@@ -579,9 +559,8 @@ bool LogTableView::viewportEvent( QEvent* event )
         stretchLastColumn();
         updateOverview();
     }
-    else if ( event->type() == QEvent::Leave && handlesMouse() && hoverRow_ >= 0 ) {
-        const int oldHoverRow = std::exchange( hoverRow_, -1 );
-        delegate_->clearHoverRow();
+    else if ( event->type() == QEvent::Leave && handlesMouse() && state_.hoverRow >= 0 ) {
+        const int oldHoverRow = std::exchange( state_.hoverRow, -1 );
         updateRow( oldHoverRow );
     }
 
@@ -696,7 +675,7 @@ void LogTableView::selectWordAt( const QModelIndex& index, int charPos )
         end = std::min( start + 1, textLen );
     }
 
-    selection_.selectInCell( index.row(), index.column(), start, end );
+    state_.selection.selectInCell( index.row(), index.column(), start, end );
     showInCellSelection();
 }
 
@@ -745,11 +724,10 @@ std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
     report.hasUnmarkedLogLines
         = std::any_of( report.selectedLogLines.begin(), report.selectedLogLines.end(),
                        [ this ]( LineNumber line ) {
-                           return !filteredData_
-                                  || !filteredData_->lineTypeByLine( line ).testFlag(
-                                      AbstractLogData::LineTypeFlags::Mark );
+                           return !rows_->lineType( state_.currentSearch, line )
+                                       .testFlag( AbstractLogData::LineTypeFlags::Mark );
                        } );
-    report.colorLabels = colorLabels_;
+    report.colorLabels = state_.colorLabelWords;
 
     PresentationMenu::Entries entries;
     entries.highlightersChange = [ this ]() { Q_EMIT highlightersChange(); };
@@ -766,13 +744,13 @@ std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
     entries.addToSearch = [ this ]() { Q_EMIT addToSearch( selectedText() ); };
     entries.excludeFromSearch = [ this ]() { Q_EMIT excludeFromSearch( selectedText() ); };
     entries.setSearchStart = [ this ]( LineNumber logLine ) {
-        const auto end = searchEnd_.value_or(
+        const auto end = state_.searchEnd.value_or(
             LineNumber( logData_ != nullptr ? logData_->getNbLine().get() : 0 ) );
         Q_EMIT changeSearchLimits( logLine, end );
     };
     // The end is the Log Line after the last one searched.
     entries.setSearchEnd = [ this ]( LineNumber logLine ) {
-        Q_EMIT changeSearchLimits( searchStart_, logLine + 1_lcount );
+        Q_EMIT changeSearchLimits( state_.searchStart, logLine + 1_lcount );
     };
     entries.clearSearchLimits = [ this ]() { Q_EMIT clearSearchLimits(); };
     entries.saveSplitterPosition = [ this ]() { Q_EMIT saveDefaultSplitterSizes(); };
@@ -784,8 +762,8 @@ std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
 
 void LogTableView::findSelected( bool forward )
 {
-    const auto inCell = selection_.inCell();
-    if ( !model_ || !logData_ || !selection_.hasInCellSelection() || !inCell ) {
+    const auto inCell = state_.selection.inCell();
+    if ( !model_ || !logData_ || !state_.selection.hasInCellSelection() || !inCell ) {
         return;
     }
 
@@ -816,7 +794,7 @@ Selection LogTableView::quickFindStart() const
 void LogTableView::searchUsing( QuickFindSearch search )
 {
     if ( model_ && logData_ ) {
-        ( quickFind_.get()->*search )( quickFindStart(), quickFindPattern_->getMatcher() );
+        ( quickFind_.get()->*search )( quickFindStart(), state_.quickFindPattern->getMatcher() );
     }
 }
 
@@ -851,7 +829,7 @@ void LogTableView::incrementalSearchAbort()
 {
     const auto initial = quickFind_->incrementalSearchAbort();
     if ( const auto line = initial.selectedLine() ) {
-        selection_.clearInCell();
+        state_.selection.clearInCell();
         showInCellSelection();
         showLogLine( *line );
     }
@@ -870,14 +848,14 @@ void LogTableView::showQuickFindResult( bool hasMatch, const Portion& logLinePor
         return;
     }
 
-    selection_.clearInCell();
-    const auto matcher = quickFindPattern_->getMatcher();
+    state_.selection.clearInCell();
+    const auto matcher = state_.quickFindPattern->getMatcher();
     for ( int column = 0; column < model_->columnCount(); ++column ) {
         const auto cellText = model_->index( *row, column ).data( Qt::DisplayRole ).toString();
         if ( matcher.isLineMatching( cellText ) ) {
             const auto [ start, end ] = matcher.getLastMatch();
-            selection_.selectInCell( *row, column, static_cast<int>( start.get() ),
-                                     static_cast<int>( end.get() ) + 1 );
+            state_.selection.selectInCell( *row, column, static_cast<int>( start.get() ),
+                                           static_cast<int>( end.get() ) + 1 );
             break;
         }
     }

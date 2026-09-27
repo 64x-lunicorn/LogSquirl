@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 
+#include <QDate>
 #include <QTableView>
 
 #include "colorlabelsmanager.h"
@@ -35,6 +36,7 @@
 #include "rowmapping.h"
 #include "settingspolicies.h"
 #include "tableviewselection.h"
+#include "tableviewstate.h"
 
 class AbstractLogData;
 class LogFilteredData;
@@ -83,8 +85,10 @@ public:
 
     // Catch up with the Log File's current Log Lines; with follow, the last
     // Row is scrolled into view. The Marks and Matches are the current
-    // Search's, handed over by setCurrentSearch().
-    void updateData( bool follow );
+    // Search's, handed over by setCurrentSearch(). Timestamps without a year
+    // take the year of modificationDate, when the Log File was last written
+    // (ADR 0010); without one, the current year.
+    void updateData( bool follow, const QDate& modificationDate = {} );
 
     // The Table View positions overviewWidget over its right edge itself, and
     // shows a clicked Log Line.
@@ -231,7 +235,7 @@ private:
     // Pixel X in a cell to the character position there.
     int charAtX( const QModelIndex& index, int pixelX ) const;
     void selectWordAt( const QModelIndex& index, int charPos );
-    // Hand the in-cell selection to the delegate and repaint.
+    // Repaint the in-cell selection.
     void showInCellSelection();
 
     // Makes the selected characters the QuickFind pattern and asks the
@@ -254,28 +258,19 @@ private:
     // Not owned: the coordinator holds the Log Format for as long as it is set
     const LogFormatDefinition* format_ = nullptr;
     AbstractLogData* logData_ = nullptr;
-    // The current Search: supplies the Marks and Matches. Not owned.
-    const LogFilteredData* filteredData_ = nullptr;
+    // What the Table View shows over the text of its Rows; its delegate
+    // paints from it.
+    TableViewState state_;
     LogFormatTableModel* model_ = nullptr;
     LogTableHighlightDelegate* delegate_ = nullptr;
 
     Overview* overview_ = nullptr;
     OverviewWidget* overviewWidget_ = nullptr;
 
-    ColorLabelsManager::QuickHighlightersCollection colorLabels_;
-
-    // The Search Limits last set; without an end, they end with the Log File.
-    LineNumber searchStart_;
-    OptionalLineNumber searchEnd_;
-
-    TableViewSelection selection_;
-
-    std::shared_ptr<QuickFindPattern> quickFindPattern_;
     // Runs the QuickFind searches the window's QuickFind bar asks for, off the
     // UI thread.
     std::unique_ptr<QuickFind> quickFind_;
     bool selectionDragging_ = false;
-    int hoverRow_ = -1;
 
     bool active_ = false;
     bool columnsNeedSizing_ = false;

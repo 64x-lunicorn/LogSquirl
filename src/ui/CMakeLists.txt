@@ -49,6 +49,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/signalmux.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbedcrawlerwidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tableviewselection.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/tableviewstate.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewinterface.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewstatecodec.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/scratchpad.h

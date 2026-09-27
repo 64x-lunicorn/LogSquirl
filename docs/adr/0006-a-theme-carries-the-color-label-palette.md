@@ -8,7 +8,7 @@ A Color Label the user colored is not touched. A slot follows the Theme only whi
 
 The wiring follows ADR-0004: `HighlighterSetCollection::followTheme()` registers a refresh with `Theme::whenApplied()`, which writes the new colors and saves them. `main()` registers it once, before the first `Theme::apply()` and before any window exists — refreshes run in the order they were registered, so the Color Labels are in place before the views that paint with them refresh. Most switches are between Themes that give the Color Labels the same colors, so the refresh first asks the held copy whether anything would change at all; only a switch that really recolors one syncs the settings store and writes to it.
 
-Both Presentations were handed the colors together with the words and hold them in their Decoration Setup, so each pushes them in again from its own refresh: the Text View and the Table View's delegate alike. The Highlighters Dialog edits a copy of the collection, and that copy follows the Theme too, or pressing OK after a switch would put the colors of the Theme before it back.
+The Text View was handed the colors together with the words and holds them in its Decoration Setup, so it pushes them in again from its own refresh. The Table View's delegate reads the colors when it paints, so the Table View's refresh only repaints (#561). The Highlighters Dialog edits a copy of the collection, and that copy follows the Theme too, or pressing OK after a switch would put the colors of the Theme before it back.
 
 ## Considered Options
 
