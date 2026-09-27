@@ -1129,12 +1129,14 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
 
     logMainView_->updateData( load.onlyAppended ? LinesChange::Appended : LinesChange::Any );
 
-    // A restored Log File stands where it stood once its first load is done,
-    // unless it follows the end of the Log File.
-    if ( const auto restored = std::exchange( scrollPositionToRestore_, {} );
-         restored.has_value() && load.status == LoadingStatus::Successful
-         && !isFollowEnabled() ) {
-        logMainView_->showAtTop( *restored );
+    // A restored Log File stands where it stood once its first successful
+    // load is done, unless it follows the end of the Log File. An interrupted
+    // load keeps the position for the next one, and for the next save.
+    if ( load.status == LoadingStatus::Successful ) {
+        if ( const auto restored = std::exchange( scrollPositionToRestore_, {} );
+             restored.has_value() && !isFollowEnabled() ) {
+            logMainView_->showAtTop( *restored );
+        }
     }
 
     // The Open Log File has refreshed the Search already; one it started
