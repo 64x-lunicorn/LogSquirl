@@ -177,6 +177,12 @@
 
 ## Bug fixes
 
+- **Scrolling up in the Table View leaves follow**: with follow on, moving
+  the Table View away from its last Row -- with the wheel, by dragging the
+  scrollbar, with Page Up or Ctrl+Home -- turns follow off, as it does in the
+  Text View, so the next lines written to the Log File no longer snap the
+  table back to the bottom. Turning follow on while the Table View is shown
+  scrolls it to the last Row (#543).
 - **QuickFind in the Table View goes on from the selected characters**: Find
   next and previous start from the characters selected in a cell, as they
   start from the selection in the Text View, so a second match in another

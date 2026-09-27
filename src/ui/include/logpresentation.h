@@ -43,9 +43,9 @@ struct RegularExpressionPattern;
 // ones, with the same arguments and meaning, and the coordinator connects
 // each Presentation to the same slots. Nothing but convention keeps the two
 // halves in step, so a signal added to one Presentation is added to all.
-// What only the Text View does (turning following on or off, zooming with
-// the wheel, the exit-view shortcut) signals outside the set, and only the
-// Text View declares it.
+// What only the Text View does (turning following on, zooming with the
+// wheel, the exit-view shortcut) signals outside the set, and only the Text
+// View declares it; leaving following, both do (#543).
 //
 // Everything a Presentation hands out, or is handed, is a Log Line, never a
 // position in its own widget.
@@ -91,8 +91,8 @@ public:
     // Presentations hand their selection to the window's QuickFind, which
     // reads the Policy itself, and so ignore it.
     virtual void setQuickFindPolicy( const QuickFindPolicy& policy ) = 0;
-    // Whether follow may be engaged at all. The Table View follows only as
-    // the Text View does, and so ignores it.
+    // Whether follow may be engaged at all. The Table View never engages
+    // follow itself, and so ignores it.
     virtual void allowFollowMode( bool allow ) = 0;
     // The words of each Color Label, one list per color slot.
     virtual void setColorLabels( const std::vector<QStringList>& labels ) = 0;

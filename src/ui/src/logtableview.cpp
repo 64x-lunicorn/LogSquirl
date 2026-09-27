@@ -131,6 +131,12 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     // Move the overview's current-view indicator along when scrolling
     connect( verticalScrollBar(), &QScrollBar::valueChanged, this,
              [ this ]() { updateOverview(); } );
+
+    // The wheel, a drag and the scrollbar's own steps and pages move the
+    // slider before its value: where it is moved to says whether the user
+    // leaves the bottom.
+    connect( verticalScrollBar(), &QAbstractSlider::actionTriggered, this,
+             [ this ]() { leaveFollowAwayFromBottom( verticalScrollBar()->sliderPosition() ); } );
 }
 
 LogTableView::~LogTableView()
@@ -294,7 +300,24 @@ void LogTableView::setPresentationPolicy( const PresentationPolicy& policy )
 
 void LogTableView::allowFollowMode( bool )
 {
-    // The Table View follows only as the Text View does.
+    // The Table View never engages follow itself.
+}
+
+void LogTableView::followSet( bool checked )
+{
+    follow_ = checked;
+    // Following starts at the bottom, as in the Text View.
+    if ( follow_ && model_ && model_->rowCount() > 0 ) {
+        scrollToBottom();
+    }
+}
+
+void LogTableView::leaveFollowAwayFromBottom( int position )
+{
+    if ( follow_ && position < verticalScrollBar()->maximum() ) {
+        follow_ = false;
+        Q_EMIT followModeChanged( false );
+    }
 }
 
 void LogTableView::setQuickFindPolicy( const QuickFindPolicy& )
@@ -611,6 +634,7 @@ void LogTableView::keyPressEvent( QKeyEvent* event )
         if ( event->key() == Qt::Key_Home && event->modifiers() == Qt::ControlModifier ) {
             if ( model_ && model_->rowCount() > 0 ) {
                 scrollToTop();
+                leaveFollowAwayFromBottom( verticalScrollBar()->value() );
                 selectRow( 0 );
             }
             return;
@@ -625,6 +649,8 @@ void LogTableView::keyPressEvent( QKeyEvent* event )
     }
 
     QTableView::keyPressEvent( event );
+    // Page Up, the arrow keys and Home may have moved the Rows.
+    leaveFollowAwayFromBottom( verticalScrollBar()->value() );
 }
 
 void LogTableView::paintEvent( QPaintEvent* event )

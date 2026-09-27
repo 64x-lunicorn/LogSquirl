@@ -131,7 +131,8 @@ public:
     // Ignored: the selected text goes to the window's QuickFind, which reads
     // the Policy itself, as for the Text View.
     void setQuickFindPolicy( const QuickFindPolicy& policy ) override;
-    // Ignored: the Table View follows only as the Text View does.
+    // Ignored: the Table View never engages follow itself, and leaves it
+    // however follow was engaged.
     void allowFollowMode( bool allow ) override;
     void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels ) override;
     void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
@@ -153,15 +154,24 @@ public:
     logsquirl::vector<LineNumber> selectedLogLines() const;
 
 public Q_SLOTS:
+    // Follow was turned on or off, as the window's action says. Turned on,
+    // the last Row is scrolled into view; while it is on, updateData() is
+    // told to follow, and the Table View leaves it when the user scrolls away
+    // from the bottom. It never turns follow on itself.
+    void followSet( bool checked );
     void highlightOverviewLine( LineNumber line );
     void removeOverviewHighlight();
 
 Q_SIGNALS:
     // The signals every Presentation emits, named and meant as the Text
     // View's (see LogPresentation). The Table View declares only those it
-    // emits: turning following on or off from the view, zooming with the
-    // wheel and the exit-view shortcut are the Text View's alone, and their
-    // signals are not in the set.
+    // emits: turning following on from the view, zooming with the wheel and
+    // the exit-view shortcut are the Text View's alone, and their signals are
+    // not in the set.
+
+    // Sent, with false, when the user scrolls away from the bottom while
+    // follow is on (#543); never with true.
+    void followModeChanged( bool follow );
 
     // Sent when a new Row is selected: the Log Line of the first selected Row.
     void newSelection( LineNumber startLine, LinesCount nLines, LineColumn startCol,
@@ -289,6 +299,9 @@ private:
 
     bool handlesMouse() const;
     void repaintIfActive();
+    // Leaves follow if it is on and the Rows are scrolled to position, away
+    // from the bottom: the user moved them there.
+    void leaveFollowAwayFromBottom( int position );
 
     std::shared_ptr<const RowMapping> rows_;
     // Not owned: the coordinator holds the Log Format for as long as it is set
@@ -307,6 +320,8 @@ private:
     // UI thread.
     std::unique_ptr<QuickFind> quickFind_;
     bool selectionDragging_ = false;
+    // Whether follow is on, as followSet() said last.
+    bool follow_ = false;
 
     bool active_ = false;
     bool columnsNeedSizing_ = false;

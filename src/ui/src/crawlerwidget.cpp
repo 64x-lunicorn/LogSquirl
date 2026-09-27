@@ -693,7 +693,9 @@ void CrawlerWidget::restoreViewContext( const QString& viewContext )
     // Manually call the handler as it is not called when changing the state programmatically
     searchRefreshChangedHandler( context.autoRefresh );
 
-    logMainView_->followSet( context.followFile && watchPolicy_.anyWatchEnabled() );
+    const bool follow = context.followFile && watchPolicy_.anyWatchEnabled();
+    logMainView_->followSet( follow );
+    logTableView_->followSet( follow );
 
     // Saving and restoring Marks with the Session is the user interface's;
     // when they are applied is the Open Log File's.
@@ -1656,15 +1658,19 @@ void CrawlerWidget::setup()
     connect( logTableView_, &LogTableView::countValuesRequested, this,
              &CrawlerWidget::countFieldValues );
 
-    // What only the Text View lets the user do: leave following by moving
-    // away from the bottom, or start it at the bottom, and zoom with the
-    // wheel. The Table View has neither, and so no such signals.
+    // Leaving following by moving away from the bottom, which both
+    // Presentations let the user do (#543). What only the Text View lets the
+    // user do: start following at the bottom, and zoom with the wheel.
     connect( logMainView_, &LogMainView::followModeChanged, this,
+             &CrawlerWidget::followModeChanged );
+    connect( logTableView_, &LogTableView::followModeChanged, this,
              &CrawlerWidget::followModeChanged );
     connect( logMainView_, &LogMainView::changeFontSize, this, &CrawlerWidget::changeFontSize );
 
-    // Follow option (down): the Text View follows
+    // Follow option (down): the Text View follows, and the Table View knows
+    // to leave it
     connect( this, &CrawlerWidget::followSet, logMainView_, &LogMainView::followSet );
+    connect( this, &CrawlerWidget::followSet, logTableView_, &LogTableView::followSet );
 
     connect( this, &CrawlerWidget::textWrapSet, logMainView_, &LogMainView::textWrapSet );
 
