@@ -445,11 +445,12 @@ std::vector<WindowSession> Session::windowSessions()
 void WindowSession::save(
     const std::vector<std::tuple<const ViewInterface*, uint64_t,
                                  std::shared_ptr<const ViewContextInterface>>>& view_list,
-    const QByteArray& geometry, int sidebarWidth )
+    const ViewInterface* currentView, const QByteArray& geometry, int sidebarWidth )
 {
     LOG_DEBUG << "Session::save";
 
     std::vector<SessionInfo::OpenFile> session_files;
+    auto currentFile = -1;
     for ( const auto& view : view_list ) {
         const ViewInterface* view_object;
         uint64_t top_line;
@@ -464,11 +465,14 @@ void WindowSession::save(
         }
 
         LOG_DEBUG << "Saving " << file->fileName.toLocal8Bit().data() << " in session.";
+        if ( view_object == currentView ) {
+            currentFile = logsquirl::isize( session_files );
+        }
         session_files.emplace_back( file->fileName, top_line, view_context->toString() );
     }
 
     auto& session = SessionInfo::getSynced();
-    session.setOpenFiles( windowId_, session_files );
+    session.setOpenFiles( windowId_, session_files, currentFile );
     session.setGeometry( windowId_, geometry );
     session.setSidebarWidth( windowId_, sidebarWidth );
     session.save();
@@ -505,8 +509,13 @@ OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* cur
     LOG_DEBUG << "Session returned " << session_files.size();
     OpenedFilesList result;
 
-    // The current file is the last one.
-    const auto currentFile = logsquirl::isize( session_files ) - 1;
+    // The current file is the one whose tab was in front; a Session stored
+    // before that was saved makes it the last one (#542).
+    const auto savedCurrentFile = session.currentFile( windowId_ );
+    const auto currentFile
+        = savedCurrentFile >= 0 && savedCurrentFile < logsquirl::isize( session_files )
+              ? savedCurrentFile
+              : logsquirl::isize( session_files ) - 1;
 
     {
         // No queued Log File starts before the current one has, whatever its
@@ -541,7 +550,7 @@ OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* cur
     // Starts only if the current file has already finished loading, or failed.
     appSession_->startNextQueuedLoad();
 
-    *currentFileIndex = logsquirl::isize( result ) - 1;
+    *currentFileIndex = result.empty() ? -1 : currentFile;
 
     return result;
 }

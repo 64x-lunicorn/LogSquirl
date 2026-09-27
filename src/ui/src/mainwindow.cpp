@@ -83,6 +83,7 @@
 #include <QStringListModel>
 #include <QTemporaryFile>
 #include <QTextBrowser>
+#include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
 #include <QToolTip>
@@ -198,8 +199,8 @@ MainWindow::MainWindow( WindowSession session,
     // Register for progress status bar
     signalMux_.connect( SIGNAL( loadingProgressed( int ) ), this,
                         SLOT( updateLoadingProgress( int ) ) );
-    signalMux_.connect( SIGNAL( loadingFinished( LoadingStatus ) ), this,
-                        SLOT( handleLoadingFinished( LoadingStatus ) ) );
+    signalMux_.connect( SIGNAL( loadingFinished( LoadingStatus, QString ) ), this,
+                        SLOT( handleLoadingFinished( LoadingStatus, QString ) ) );
 
     signalMux_.connect( SIGNAL( statusMessage( QString ) ), this,
                         SLOT( showStatusMessage( QString ) ) );
@@ -282,12 +283,13 @@ MainWindow::MainWindow( WindowSession session,
         }
     } );
 
-    // Route filter panel selections to the active crawler widget and auto-search
+    // Route filter panel selections to the active crawler widget. Its Search
+    // line decides whether the Search runs now, as for adding a word to it:
+    // starting it here as well ran every Search twice (#538).
     connect( &filtersPanel_, &FiltersPanel::filtersChanged, this,
              [ this ]( const QList<PredefinedFilter>& filters ) {
                  if ( auto crawler = currentCrawlerWidget() ) {
                      crawler->setSearchPatternFromPredefinedFilters( filters );
-                     crawler->startNewSearch();
                  }
              } );
 
@@ -2266,7 +2268,7 @@ void MainWindow::updateLoadingProgress( int progress )
     }
 }
 
-void MainWindow::handleLoadingFinished( LoadingStatus status )
+void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& failure )
 {
     LOG_DEBUG << "handleLoadingFinished success=" << ( status == LoadingStatus::Successful );
 
@@ -2306,7 +2308,20 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
             alertBox.exec();
         }
 
-        closeTab( mainTabWidget_.currentIndex(), ActionInitiator::App );
+        // Heard as the load ended, or replayed as its tab is brought to the
+        // front after it failed there (#540): the tab is closed once the
+        // tab switch is done, and a Failed load is offered to be reported.
+        QTimer::singleShot(
+            0, this, [ this, failed = QPointer<CrawlerWidget>( crawler ), status, failure ] {
+                const auto index = failed ? mainTabWidget_.indexOf( failed ) : -1;
+                if ( index < 0 ) {
+                    return;
+                }
+                closeTab( index, ActionInitiator::App );
+                if ( status == LoadingStatus::Failed ) {
+                    IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, failure );
+                }
+            } );
     }
 
     // mainTabWidget_.setEnabled( true );
@@ -3288,7 +3303,7 @@ void MainWindow::writeSettings()
     if ( sidebarWidthApplied_ && sidebarDock_->isVisible() && !sidebarDock_->isFloating() ) {
         sidebarWidth_ = sidebarDock_->width();
     }
-    session_.save( widget_list, saveGeometry(), sidebarWidth_ );
+    session_.save( widget_list, currentCrawlerWidget(), saveGeometry(), sidebarWidth_ );
 }
 
 // Read settings from permanent storage

@@ -173,7 +173,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     bool isLoadingFinished()
     {
-        return !crawler->loadingInProgress_;
+        return crawler->lastLoadStatus_.has_value();
     }
 
     LinesCount getLogNbLines()
@@ -3780,6 +3780,68 @@ SCENARIO( "QuickFind searches the Presentation shown, never the hidden one",
                 REQUIRE( waitUiState(
                     [ & ]() { return lastSearchResult( textSearches ) == 13_lnum; } ) );
                 REQUIRE( tableSearches.isEmpty() );
+            }
+        }
+    }
+}
+
+// The window hears only the tab in front, so a tab replays the status of its
+// last load when it is brought to the front: a load still under way is
+// replayed as loading, never as loaded (#540).
+SCENARIO( "A Log File replays the status of its last load to the window", "[ui][loading]" )
+{
+    QTemporaryFile file{ "crawler_replay_test_XXXXXX" };
+    REQUIRE( generateDataFiles( file ) );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    auto& crawler = *crawlerVisitor.crawler;
+
+    REQUIRE( waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); }, 10000 ) );
+
+    QSignalSpy finished( &crawler, &CrawlerWidget::loadingFinished );
+    QSignalSpy progressed( &crawler, &CrawlerWidget::loadingProgressed );
+
+    GIVEN( "a Log File that has loaded" )
+    {
+        WHEN( "its state is replayed" )
+        {
+            crawler.sendAllStateSignals();
+
+            THEN( "it replays a successful load" )
+            {
+                REQUIRE( finished.count() == 1 );
+                REQUIRE( finished.first().at( 0 ).value<LoadingStatus>()
+                         == LoadingStatus::Successful );
+            }
+        }
+
+        WHEN( "it is reloaded and its state is replayed while the load is under way" )
+        {
+            crawler.reload();
+            crawler.sendAllStateSignals();
+
+            THEN( "it replays loading, not loaded" )
+            {
+                REQUIRE( finished.isEmpty() );
+                REQUIRE( progressed.count() == 1 );
+            }
+
+            AND_WHEN( "the load has finished and its state is replayed" )
+            {
+                REQUIRE( finished.wait( 10000 ) );
+                finished.clear();
+                crawler.sendAllStateSignals();
+
+                THEN( "it replays a successful load" )
+                {
+                    REQUIRE( finished.count() == 1 );
+                    REQUIRE( finished.first().at( 0 ).value<LoadingStatus>()
+                             == LoadingStatus::Successful );
+                }
             }
         }
     }

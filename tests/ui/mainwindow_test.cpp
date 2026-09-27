@@ -18,6 +18,7 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <QSignalSpy>
 #include <QTemporaryFile>
@@ -44,17 +45,22 @@
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "filteredview.h"
+#include "filterspanel.h"
 #include "log.h"
+#include "logfiltereddata.h"
 #include "logformatcatalog.h"
 #include "logmainview.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
 #include "optionsdialog.h"
 #include "overviewwidget.h"
+#include "pathline.h"
 #include "quickfindwidget.h"
 #include "session.h"
+#include "sessioninfo.h"
 #include "settingspolicies.h"
 #include "test_policies.h"
+#include "textencoding.h"
 
 SCENARIO( "Main window tests", "[ui]" )
 {
@@ -424,4 +430,291 @@ SCENARIO( "A changed QuickFind setting reaches the window's QuickFind bar with s
     mainWindow.reset();
     config.setQuickfindRegexpType( quickfindRegexpType );
     config.save();
+}
+
+struct MainWindowLoadAccess;
+
+template <>
+struct CrawlerWidget::access_by<MainWindowLoadAccess> {
+    static OpenLogFile& openLogFile( CrawlerWidget& crawler )
+    {
+        return *crawler.openLogFile_;
+    }
+
+    // The Search line, whose drop-down list shows the Search history.
+    static QComboBox& searchLine( CrawlerWidget& crawler )
+    {
+        return *crawler.searchLineEdit_;
+    }
+};
+
+namespace {
+
+using LoadAccess = CrawlerWidget::access_by<MainWindowLoadAccess>;
+
+// Reloads the Log File of crawler with an Encoding the indexing fails on --
+// no converter exists for its name -- and waits until the load has finished
+// Failed. encoding must outlive the Log File, which holds on to it.
+bool failToLoad( CrawlerWidget& crawler, const TextEncoding& encoding )
+{
+    auto& openLogFile = LoadAccess::openLogFile( crawler );
+    bool failed = false;
+    QObject context;
+    QObject::connect( &openLogFile, &OpenLogFile::loadingFinished, &context,
+                      [ &failed ]( const OpenLogFile::LoadFinished& load ) {
+                          failed = load.status == LoadingStatus::Failed;
+                      } );
+    openLogFile.logData()->reload( &encoding );
+    return waitUiState( [ &failed ] { return failed; }, 10000 );
+}
+
+} // namespace
+
+// The window hears only the tab in front. A Log File that failed to load in a
+// background tab keeps that status and replays it when its tab is shown, and
+// the window treats it like a failure it heard live: it offers to report it
+// and closes the tab (#540).
+SCENARIO( "A Log File that failed to load in a background tab says so when its tab is shown",
+          "[ui][loading]" )
+{
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    WindowSession windowSession{ appSession, "Main", 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    QTemporaryFile failingFile{ QDir::temp().filePath( "mainwindow_failing_XXXXXX" ) };
+    QTemporaryFile otherFile{ QDir::temp().filePath( "mainwindow_loaded_XXXXXX" ) };
+    for ( auto* file : { &failingFile, &otherFile } ) {
+        REQUIRE( file->open() );
+        file->write( "first Log Line\nsecond Log Line\n" );
+        file->flush();
+    }
+    const auto failingName = QFileInfo( failingFile.fileName() ).fileName();
+
+    // Outlives the Log Files, which hold on to the Encoding they were reloaded with.
+    const TextEncoding unusableEncoding( -4242, "LogSquirl-Unusable-Encoding", std::nullopt );
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    // Every question the window asks is answered No, so that no issue is
+    // opened in a browser; the ones asked are counted.
+    int questionsAsked = 0;
+    QTimer questionDriver;
+    QObject::connect( &questionDriver, &QTimer::timeout, [ &questionsAsked ] {
+        if ( auto* box = qobject_cast<QMessageBox*>( QApplication::activeModalWidget() ) ) {
+            ++questionsAsked;
+            box->reject();
+        }
+    } );
+    questionDriver.start( 10 );
+
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    const int baseTabCount = tabArea->count();
+    auto* toolBar = mainWindow->findChild<QToolBar*>();
+    REQUIRE( toolBar != nullptr );
+    auto* infoLine = toolBar->findChild<PathLine*>();
+    REQUIRE( infoLine != nullptr );
+
+    mainWindow->loadFileNonInteractive( failingFile.fileName() );
+    REQUIRE( waitUiState( [ & ] { return infoLine->text().contains( failingName ); }, 10000 ) );
+    auto* failing = qobject_cast<CrawlerWidget*>( tabArea->currentWidget() );
+    REQUIRE( failing != nullptr );
+
+    GIVEN( "two Log Files, the one in the background failed to load" )
+    {
+        mainWindow->loadFileNonInteractive( otherFile.fileName() );
+        REQUIRE( waitUiState(
+            [ & ] {
+                return tabArea->count() == baseTabCount + 2
+                       && infoLine->text().contains( QFileInfo( otherFile ).fileName() );
+            },
+            10000 ) );
+        REQUIRE( tabArea->currentWidget() != failing );
+
+        REQUIRE( failToLoad( *failing, unusableEncoding ) );
+        QTest::qWait( 100 );
+        questionsAsked = 0;
+
+        WHEN( "its tab is shown" )
+        {
+            tabArea->setCurrentWidget( failing );
+
+            THEN( "the failure is offered to be reported and the tab is closed" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] { return questionsAsked == 1 && tabArea->count() == baseTabCount + 1; },
+                    10000 ) );
+                REQUIRE( tabArea->indexOf( failing ) < 0 );
+
+                AND_THEN( "the info line does not report the Log File as loaded" )
+                {
+                    REQUIRE_FALSE( infoLine->text().contains( failingName ) );
+                }
+            }
+        }
+    }
+
+    GIVEN( "a Log File in front that fails to load" )
+    {
+        REQUIRE( failToLoad( *failing, unusableEncoding ) );
+
+        THEN( "the failure is offered to be reported and the tab is closed" )
+        {
+            REQUIRE( waitUiState(
+                [ & ] { return questionsAsked == 1 && tabArea->count() == baseTabCount; },
+                10000 ) );
+            REQUIRE_FALSE( infoLine->text().contains( failingName ) );
+        }
+    }
+
+    questionDriver.stop();
+    mainWindow.reset();
+}
+
+// Choosing Predefined Filters in the Filters panel edits the Search line's
+// pattern, and the Search line answers whether the Search runs now, as it does
+// for adding a word, excluding one or replacing the pattern: the window does
+// not start the Search again itself (#538).
+SCENARIO( "One Filters-panel click runs one Search", "[ui][search]" )
+{
+    const auto autoRun = GENERATE( true, false );
+
+    auto policies = testSettingsPolicies();
+    policies.quickFind.autoRunSearchOnPatternChange = autoRun;
+    auto appSession = std::make_shared<Session>( policies, std::make_shared<LogFormatCatalog>() );
+    WindowSession windowSession{ appSession, "Main", 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    QTemporaryFile file{ QDir::temp().filePath( "mainwindow_filters_XXXXXX" ) };
+    REQUIRE( file.open() );
+    file.write( "alpha Log Line\nbeta Log Line\n" );
+    file.flush();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    auto* filtersPanel = mainWindow->findChild<FiltersPanel*>();
+    REQUIRE( filtersPanel != nullptr );
+
+    mainWindow->loadFileNonInteractive( file.fileName() );
+    CrawlerWidget* crawler = nullptr;
+    REQUIRE( waitUiState(
+        [ & ] {
+            crawler = qobject_cast<CrawlerWidget*>( tabArea->currentWidget() );
+            return crawler != nullptr
+                   && LoadAccess::openLogFile( *crawler ).logData()->getNbLine().get() == 2;
+        },
+        10000 ) );
+    QTest::qWait( 100 );
+
+    // Every Search started clears the one before, and shows the Search
+    // history it saved in the Search line's drop-down list.
+    int searchesStarted = 0;
+    QObject context;
+    QObject::connect( LoadAccess::openLogFile( *crawler ).filteredData().get(),
+                      &LogFilteredData::searchStateChanged, &context,
+                      [ &searchesStarted ]( const SearchSession::State& state ) {
+                          if ( state.phase == SearchSession::Phase::Idle ) {
+                              ++searchesStarted;
+                          }
+                      } );
+    auto& searchLine = LoadAccess::searchLine( *crawler );
+    QSignalSpy historyShown( searchLine.model(), &QAbstractItemModel::rowsInserted );
+
+    GIVEN( ( autoRun ? "a Search line that runs the Search as its pattern changes"
+                     : "a Search line that waits for Enter as its pattern changes" ) )
+    {
+        WHEN( "a Predefined Filter is chosen in the Filters panel" )
+        {
+            Q_EMIT filtersPanel->filtersChanged( { { "beta", "beta", false } } );
+            QTest::qWait( 300 );
+
+            THEN( "the Search line shows its pattern" )
+            {
+                REQUIRE( searchLine.currentText() == "beta" );
+            }
+
+            if ( autoRun ) {
+                THEN( "exactly one Search is started, and the Search history saved once" )
+                {
+                    REQUIRE( searchesStarted == 1 );
+                    REQUIRE( historyShown.count() == 1 );
+                }
+            }
+            else {
+                THEN( "no Search is started" )
+                {
+                    REQUIRE( searchesStarted == 0 );
+                    REQUIRE( historyShown.isEmpty() );
+                }
+            }
+        }
+    }
+
+    mainWindow.reset();
+}
+
+// A window restored from the Session shows the tab that was in front when the
+// Session was saved, not the last one (#542).
+SCENARIO( "A restored window shows the tab that was in front", "[ui][session]" )
+{
+    const auto windowId = QStringLiteral( "mainwindow_test_window_542" );
+
+    QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_restore_first_XXXXXX" ) };
+    QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_restore_second_XXXXXX" ) };
+    for ( auto* file : { &firstFile, &secondFile } ) {
+        REQUIRE( file->open() );
+        file->write( "first Log Line\nsecond Log Line\n" );
+        file->flush();
+    }
+
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    // Stored after the Session was built, which reads the settings store.
+    auto& stored = SessionInfo::get();
+    stored.add( windowId );
+    stored.setOpenFiles( windowId,
+                         { { QFileInfo( firstFile ).absoluteFilePath(), 0, QString{} },
+                           { QFileInfo( secondFile ).absoluteFilePath(), 0, QString{} } },
+                         0 );
+    WindowSession windowSession{ appSession, windowId, 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    WHEN( "the window's Session is restored with its first tab saved in front" )
+    {
+        mainWindow->reloadSession();
+
+        THEN( "the first tab is in front" )
+        {
+            auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+            REQUIRE( tabArea != nullptr );
+            REQUIRE( tabArea->findChildren<CrawlerWidget*>().size() == 2 );
+            // The Log Files' tabs are the last two, in the order they were
+            // saved; a Dashboard tab, if any, comes before them.
+            REQUIRE( tabArea->currentIndex() == tabArea->count() - 2 );
+        }
+    }
+
+    mainWindow.reset();
+    // Leave the in-memory Session info as the settings store has it.
+    SessionInfo::getSynced();
 }
