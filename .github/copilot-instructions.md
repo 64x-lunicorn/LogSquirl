@@ -142,6 +142,7 @@ src/
 ├── openlogfile/          # Open Log File: follows a Log File, its Searches and Marks (no Widgets)
 ├── regex/                # Regular expression engine abstraction
 ├── settings/             # Configuration and persistence
+├── textencoding/         # Text Encodings a Log File is read with (below log data and settings)
 ├── textviewscrolling/    # How a text view scrolls: Scroll Position, follow (no Widgets)
 ├── ui/                   # Qt UI components (MainWindow, dialogs, views)
 ├── utils/                # Shared utilities and containers
