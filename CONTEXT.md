@@ -482,7 +482,8 @@ _Avoid_: category, group, domain
 
 **Session**:
 The set of Log Files currently open, their tabs, and the position and view state restored
-for each on the next start.
+for each on the next start. The position is part of the view state: the Log Line of the text
+view's Scroll Position, where the Log File stands again once its first load is done.
 It builds the views of every Log File it opens in one call, from one value: the Open Log
 File, the QuickFind pattern, the Policies, the saved Searches and the view state to restore,
 if any — opening a Log File by hand and restoring it on start take the same path. After that

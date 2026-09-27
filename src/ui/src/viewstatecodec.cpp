@@ -118,6 +118,9 @@ ViewState decodeJson( const QString& json, bool useRegexpByPolicy )
     }
     state.chartVisible = properties.value( "CV" ).toBool();
 
+    // Absent from a view state saved before it was part of one: the top.
+    state.scrollPosition = properties.value( "SP" ).toULongLong();
+
     return state;
 }
 
@@ -149,6 +152,10 @@ QString encodeViewState( const ViewState& state )
             QJsonDocument( state.chartSeries ).toJson( QJsonDocument::Compact ) );
     }
     properties[ "CV" ] = state.chartVisible;
+    // Left out at the top, where a view state without it restores to.
+    if ( state.scrollPosition != 0 ) {
+        properties[ "SP" ] = static_cast<qulonglong>( state.scrollPosition );
+    }
 
     return QJsonDocument::fromVariant( properties ).toJson( QJsonDocument::Compact );
 }

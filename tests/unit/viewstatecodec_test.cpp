@@ -52,6 +52,7 @@ ViewState everyFieldSet()
         QJsonObject{ { "name", "errors" }, { "pattern", "ERROR" } },
     };
     state.chartVisible = true;
+    state.scrollPosition = 4711;
     return state;
 }
 
@@ -89,6 +90,7 @@ SCENARIO( "A tab's view state survives being saved and read back", "[viewstateco
                 REQUIRE( decoded.marks == state.marks );
                 REQUIRE( decoded.chartSeries == state.chartSeries );
                 REQUIRE( decoded.chartVisible == state.chartVisible );
+                REQUIRE( decoded.scrollPosition == state.scrollPosition );
                 REQUIRE( decoded == state );
             }
         }
@@ -138,6 +140,11 @@ SCENARIO( "A view state saved by the current release reads back unchanged", "[vi
                          == QJsonArray{ QJsonObject{ { "name", "latency" },
                                                      { "pattern", "took (\\d+) ms" } } } );
                 REQUIRE( state.chartVisible );
+            }
+
+            AND_THEN( "the text view stands at the top: no Scroll Position was saved (#559)" )
+            {
+                REQUIRE( state.scrollPosition == 0 );
             }
 
             AND_THEN( "encoding it again gives the same text" )
@@ -208,6 +215,7 @@ SCENARIO( "A view state in the legacy format reads back", "[viewstatecodec]" )
                 REQUIRE( state.marks.isEmpty() );
                 REQUIRE( state.chartSeries.isEmpty() );
                 REQUIRE_FALSE( state.chartVisible );
+                REQUIRE( state.scrollPosition == 0 );
             }
         }
     }
@@ -235,6 +243,7 @@ SCENARIO( "A malformed or empty view state reads as defaults", "[viewstatecodec]
                 REQUIRE( state.marks.isEmpty() );
                 REQUIRE( state.chartSeries.isEmpty() );
                 REQUIRE_FALSE( state.chartVisible );
+                REQUIRE( state.scrollPosition == 0 );
             }
         }
     }

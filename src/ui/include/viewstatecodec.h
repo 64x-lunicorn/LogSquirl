@@ -51,6 +51,11 @@ struct ViewState {
     QJsonArray chartSeries;
     bool chartVisible = false;
 
+    // The Log Line of the text view's Scroll Position: the one at the top of
+    // its Viewport. Only the Log Line; which of its Visual Lines was first
+    // depends on a width the next start need not have (#559).
+    LineNumber::UnderlyingType scrollPosition = 0;
+
     bool operator==( const ViewState& ) const = default;
 };
 

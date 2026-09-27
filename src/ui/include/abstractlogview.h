@@ -360,6 +360,10 @@ public Q_SLOTS:
     // Make the view jump to the specified Log Line, regardless of it
     // being on the screen or not. (does NOT Q_EMIT followDisabled() )
     void jumpToLine( LineNumber line );
+    // Moves the Scroll Position to the first Visual Line of logLine -- the
+    // nearest one shown, when it is not -- as far as the bottom Scroll
+    // Position allows: a restored Log File stands where it stood (#559).
+    void showAtTop( LineNumber logLine );
 
     // Configure the setting of whether to show line number margin
     void setLineNumbersVisible( bool lineNumbersVisible );

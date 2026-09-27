@@ -1665,6 +1665,11 @@ void AbstractLogView::jumpToLine( LineNumber logLine )
     applyScroll( scrolling_.centre( lines_->nearestPositionOf( logLine ) ) );
 }
 
+void AbstractLogView::showAtTop( LineNumber logLine )
+{
+    applyScroll( scrolling_.scrollTo( ScrollPosition{ lines_->nearestPositionOf( logLine ), 0 } ) );
+}
+
 void AbstractLogView::setLineNumbersVisible( bool lineNumbersVisible )
 {
     if ( lineNumbersVisible_ == lineNumbersVisible ) {

@@ -318,11 +318,10 @@ SCENARIO( "Restoring a Session reads the settings store once, at startup, not pe
     auto& readAtStartup = SessionInfo::get();
     readAtStartup.add( windowId );
     // The first tab was in front when the Session was saved (#542).
-    readAtStartup.setOpenFiles(
-        windowId,
-        { { files.first.fileName(), 0, QStringLiteral( "first context" ) },
-          { files.second.fileName(), 0, QStringLiteral( "second context" ) } },
-        0 );
+    readAtStartup.setOpenFiles( windowId,
+                                { { files.first.fileName(), QStringLiteral( "first context" ) },
+                                  { files.second.fileName(), QStringLiteral( "second context" ) } },
+                                0 );
 
     WindowSession window{ appSession, windowId, 0 };
     OpenedViews views;
@@ -398,9 +397,9 @@ struct ThreeTabSession {
         auto& readAtStartup = SessionInfo::get();
         readAtStartup.add( windowId );
         readAtStartup.setOpenFiles( windowId,
-                                    { { large.fileName(), 0, QString{} },
-                                      { small.fileName(), 0, QString{} },
-                                      { current.fileName(), 0, QString{} } },
+                                    { { large.fileName(), QString{} },
+                                      { small.fileName(), QString{} },
+                                      { current.fileName(), QString{} } },
                                     2 );
     }
 
@@ -564,7 +563,7 @@ SCENARIO( "A restored Session opens on the tab that was in front", "[ui][session
         for ( const auto* file : { &files.large, &files.small, &files.current } ) {
             const auto* view
                 = window.open( file->fileName(), RecordingViews::factory( views.built ) );
-            tabs.emplace_back( view, 0, view->context() );
+            tabs.emplace_back( view, view->context() );
         }
 
         // The first of the three tabs is in front.
@@ -653,6 +652,85 @@ SCENARIO( "A stored Session without the tab in front restores the last tab", "[u
             REQUIRE( !appSession->isLoadQueued( restored[ 2 ].second ) );
             REQUIRE( appSession->isLoadQueued( restored[ 0 ].second ) );
             REQUIRE( appSession->isLoadQueued( restored[ 1 ].second ) );
+        }
+    }
+}
+
+// The top line the Session saved for every Log File was always zero and
+// restored nothing; where a Log File stands is its view state's Scroll
+// Position now. The Session writes no top line, and still reads a Session
+// stored with one (#559).
+SCENARIO( "The Session saves no top line, and reads a Session stored with one", "[ui][session]" )
+{
+    const auto windowId = QStringLiteral( "session_test_window_559" );
+    QTemporaryDir storeDir;
+    REQUIRE( storeDir.isValid() );
+
+    GIVEN( "a window with a Log File open" )
+    {
+        SessionInfo info;
+        info.add( windowId );
+        info.setOpenFiles( windowId, { SessionInfo::OpenFile{ "/logs/a.log", R"({"SP":42})" } },
+                           0 );
+
+        WHEN( "it is saved" )
+        {
+            QSettings store( storeDir.filePath( "saved.ini" ), QSettings::IniFormat );
+            info.saveToStorage( store );
+
+            THEN( "no top line is written, the file and its view state are" )
+            {
+                const auto keys = store.allKeys();
+                REQUIRE( std::none_of( keys.cbegin(), keys.cend(), []( const QString& key ) {
+                    return key.endsWith( "topLine" );
+                } ) );
+
+                SessionInfo reread;
+                reread.retrieveFromStorage( store );
+                const auto files = reread.openFiles( windowId );
+                REQUIRE( files.size() == 1 );
+                REQUIRE( files.front().fileName == "/logs/a.log" );
+                REQUIRE( files.front().viewContext == R"({"SP":42})" );
+            }
+        }
+    }
+
+    GIVEN( "a Session stored with a top line" )
+    {
+        const auto fixturePath = storeDir.filePath( "stored.ini" );
+        {
+            QFile fixture( fixturePath );
+            REQUIRE( fixture.open( QIODevice::WriteOnly | QIODevice::Text ) );
+            QTextStream out( &fixture );
+            out << "[Window]\n"
+                << "version=1\n"
+                << "windows\\size=1\n"
+                << "windows\\1\\id=" << windowId << "\n"
+                << "windows\\1\\OpenFiles\\version=1\n"
+                << "windows\\1\\OpenFiles\\openFiles\\size=2\n"
+                << "windows\\1\\OpenFiles\\openFiles\\1\\fileName=/logs/a.log\n"
+                << "windows\\1\\OpenFiles\\openFiles\\1\\topLine=0\n"
+                << "windows\\1\\OpenFiles\\openFiles\\1\\viewContext=S400:100:IC0:AR0:FF0\n"
+                << "windows\\1\\OpenFiles\\openFiles\\2\\fileName=/logs/b.log\n"
+                << "windows\\1\\OpenFiles\\openFiles\\2\\topLine=0\n"
+                << "windows\\1\\OpenFiles\\openFiles\\2\\viewContext=\n";
+        }
+
+        WHEN( "it is read" )
+        {
+            QSettings fixture( fixturePath, QSettings::IniFormat );
+            SessionInfo info;
+            info.retrieveFromStorage( fixture );
+
+            THEN( "every Log File and its view state are there" )
+            {
+                const auto files = info.openFiles( windowId );
+                REQUIRE( files.size() == 2 );
+                REQUIRE( files[ 0 ].fileName == "/logs/a.log" );
+                REQUIRE( files[ 0 ].viewContext == "S400:100:IC0:AR0:FF0" );
+                REQUIRE( files[ 1 ].fileName == "/logs/b.log" );
+                REQUIRE( files[ 1 ].viewContext.isEmpty() );
+            }
         }
     }
 }
