@@ -120,7 +120,7 @@ struct ViewWithLabelledWord {
 
         std::vector<AbstractLogView::QuickHighlighters> words( ColorLabelCount );
         words[ 0 ] = QStringList{ "ERROR" };
-        view.setQuickHighlighters( words );
+        view.setColorLabels( words );
         QCoreApplication::processEvents();
     }
 

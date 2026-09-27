@@ -1253,8 +1253,7 @@ void AbstractLogView::setSearchPattern( const RegularExpressionPattern& pattern 
     updateDecorations();
 }
 
-void AbstractLogView::setQuickHighlighters(
-    const std::vector<QuickHighlighters>& quickHighlighters )
+void AbstractLogView::setColorLabels( const std::vector<QuickHighlighters>& quickHighlighters )
 {
     quickHighlighters_ = quickHighlighters;
     // The colors are read here, with the words: a repaint builds no
@@ -1657,11 +1656,9 @@ void AbstractLogView::selectPortionAndDisplayLine( LineNumber logLine, LinesCoun
 // subtle: this one always jump, even if the line passed is visible.
 void AbstractLogView::jumpToLine( LineNumber logLine )
 {
-    // Put the selected line in the middle if possible
-    const auto newScrollPosition = ScrollPosition{
-        lines_->nearestPositionOf( logLine ) - LinesCount( getNbVisibleLines().get() / 2 ), 0
-    };
-    applyScroll( scrolling_.scrollTo( newScrollPosition ) );
+    // Its first Visual Line in the middle if possible, counted in Visual
+    // Lines: a long Log Line above it would otherwise push it off (#544).
+    applyScroll( scrolling_.centre( lines_->nearestPositionOf( logLine ) ) );
 }
 
 void AbstractLogView::setLineNumbersVisible( bool lineNumbersVisible )

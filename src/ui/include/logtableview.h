@@ -28,6 +28,7 @@
 #include "colorlabelsmanager.h"
 #include "containers.h"
 #include "linetypes.h"
+#include "logfileview.h"
 #include "logformatdefinition.h"
 #include "logpresentation.h"
 #include "quickfindmux.h"
@@ -63,7 +64,10 @@ class Selection;
 // Shown, it is what the window's QuickFind bar searches, as the Text View is:
 // QuickFind runs from the Log Line of the current Row and its match is shown
 // as that Log Line's Row, selected.
-class LogTableView : public QTableView, public LogPresentation, public SearchableWidgetInterface {
+class LogTableView : public QTableView,
+                     public LogFileView,
+                     public LogPresentation,
+                     public SearchableWidgetInterface {
     Q_OBJECT
 
 public:
@@ -97,7 +101,7 @@ public:
     // Place the Overview strip and its current-view indicator anew.
     void updateOverview();
 
-    // LogPresentation
+    // LogFileView and LogPresentation
     void setSearchPattern( const RegularExpressionPattern& pattern ) override;
     // Its delegate paints the Search's Marks and Matches.
     void setCurrentSearch( const LogFilteredData* search ) override;
@@ -122,9 +126,6 @@ public:
     void setDecorationPolicy( const DecorationPolicy& policy ) override;
     // Shows the Overview as it says; the Table View has no line numbers.
     void setPresentationPolicy( const PresentationPolicy& policy ) override;
-    // Ignored: the selected text goes to the window's QuickFind, which reads
-    // the Policy itself, as for the Text View.
-    void setQuickFindPolicy( const QuickFindPolicy& policy ) override;
     // Ignored: the Table View follows only as the Text View does.
     void allowFollowMode( bool allow ) override;
     void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels ) override;

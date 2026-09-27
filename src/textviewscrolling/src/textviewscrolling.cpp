@@ -360,6 +360,25 @@ ScrollAnswer TextViewScrolling::scrollTo( ScrollPosition position )
     return answer( true );
 }
 
+ScrollAnswer TextViewScrolling::centre( LineNumber line )
+{
+    const ViewportLayout layout{ layoutInput() };
+    // Half the Log Lines the Viewport shows, its partly shown last one
+    // included, as Visual Lines above the first of line. Every line passed
+    // is at least one Visual Line, so no more lines are read than that.
+    const auto half = static_cast<std::int64_t>( layout.visibleLines().get() / 2 );
+    const ScrollPosition target{ line, 0 };
+    if ( !textWrap_ ) {
+        return scrollTo(
+            moveScrollPosition( target, -half, target, []( LineNumber ) { return size_t{ 1 }; } ) );
+    }
+    const auto mostLines = static_cast<std::uint64_t>( half );
+    BatchedVisualLineCounter counter{ text_, layout.visibleColumns(), /* downwards */ false,
+                                      mostLines, mostLines };
+    return scrollTo( moveScrollPosition(
+        target, -half, target, [ &counter ]( LineNumber above ) { return counter( above ); } ) );
+}
+
 ScrollAnswer TextViewScrolling::scrollByVisualLines( std::int64_t visualLines )
 {
     const auto columns = ViewportLayout{ layoutInput() }.visibleColumns();
