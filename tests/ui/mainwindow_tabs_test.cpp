@@ -18,8 +18,8 @@
  */
 
 // The main window's tabs: which of them hold a Log File, whether or not the
-// window shows the Dashboard (#535), the merged Log File whose rebuild ends
-// with its tab (#537), and the Dashboard setting, which reaches the windows
+// window shows the dashboard (#535), the merged Log File whose rebuild ends
+// with its tab (#537), and the dashboard setting, which reaches the windows
 // opened after it changes (#562).
 
 #include <catch2/catch_test_macros.hpp>
@@ -87,7 +87,7 @@ bool writeLines( const QString& path, const QByteArray& lines, QIODevice::OpenMo
 }
 
 // A main window over a Session of its own, shown and active. It is built with
-// the Dashboard on or off in the settings when one is given, else as the
+// the dashboard on or off in the settings when one is given, else as the
 // settings have it.
 struct TabsWindow {
     explicit TabsWindow( std::optional<bool> showDashboard = {} )
@@ -226,11 +226,11 @@ struct ThreeLogFiles {
 
 } // namespace
 
-// With the Dashboard off the first tab holds a Log File, and every path that
-// closes tabs in bulk reaches it; with the Dashboard on, none closes the
-// Dashboard (#535).
+// With the dashboard off the first tab holds a Log File, and every path that
+// closes tabs in bulk reaches it; with the dashboard on, none closes the
+// dashboard (#535).
 SCENARIO( "Every bulk close reaches the first Log File whether or not the window shows the "
-          "Dashboard",
+          "dashboard",
           "[ui][tabs]" )
 {
     const bool showDashboard = GENERATE( true, false );
@@ -352,7 +352,7 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
             QTest::mouseClick( tabBar, Qt::MiddleButton, {}, tabBar->tabRect( 0 ).center() );
             QTest::qWait( 50 );
 
-            THEN( "it is closed when it holds a Log File, and stays when it is the Dashboard" )
+            THEN( "it is closed when it holds a Log File, and stays when it is the dashboard" )
             {
                 if ( showDashboard ) {
                     REQUIRE( window.showsDashboard() );
@@ -461,9 +461,9 @@ SCENARIO( "A merged Log File's rebuild ends with its tab", "[ui][tabs][merge]" )
     }
 }
 
-// The Dashboard setting is read when a window is built, so the Options Dialog
+// The dashboard setting is read when a window is built, so the Options Dialog
 // says it applies to the windows opened from then on (#562).
-SCENARIO( "The Dashboard setting reaches the windows opened after it changes", "[ui][tabs]" )
+SCENARIO( "The dashboard setting reaches the windows opened after it changes", "[ui][tabs]" )
 {
     const bool showDashboard = GENERATE( true, false );
     CAPTURE( showDashboard );
@@ -478,7 +478,7 @@ SCENARIO( "The Dashboard setting reaches the windows opened after it changes", "
         OptionsDialog dialog( catalog );
         dialog.show();
 
-        THEN( "a hint beside the Dashboard checkbox says it applies to new windows" )
+        THEN( "a hint beside the dashboard checkbox says it applies to new windows" )
         {
             REQUIRE( dialog.showDashboardHintLabel->isVisible() );
             REQUIRE_FALSE( dialog.showDashboardHintLabel->text().isEmpty() );
@@ -495,12 +495,12 @@ SCENARIO( "The Dashboard setting reaches the windows opened after it changes", "
             REQUIRE( hintRow == checkBoxRow );
         }
 
-        WHEN( "the Dashboard is turned on or off there and the dialog is confirmed" )
+        WHEN( "the dashboard is turned on or off there and the dialog is confirmed" )
         {
             dialog.showDashboardCheckBox->setChecked( showDashboard );
             dialog.buttonBox->button( QDialogButtonBox::Ok )->click();
 
-            THEN( "a window opened afterwards shows the Dashboard or not, as set" )
+            THEN( "a window opened afterwards shows the dashboard or not, as set" )
             {
                 REQUIRE( Configuration::get().showDashboard() == showDashboard );
                 TabsWindow window;
