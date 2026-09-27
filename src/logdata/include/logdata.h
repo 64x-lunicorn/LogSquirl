@@ -56,13 +56,14 @@
 #include <vector>
 
 #include "abstractlogdata.h"
+#include "encodingdetector.h"
 #include "fileholder.h"
 #include "loadingstatus.h"
 #include "logdataoperation.h"
-#include "logdataworker.h"
 #include "searchblocksource.h"
 #include "settingspolicies.h"
 
+class IndexingData;
 class LogData;
 class LogFilteredData;
 
@@ -276,7 +277,6 @@ private:
     // mutable std::unique_ptr<QFile> attached_file_;
     // mutable FileId attached_file_id_;
 
-    IndexingPolicy indexingPolicy_;
     SearchPolicy searchPolicy_;
     // Both of its fields are read when an object is built and never again:
     // keeping a file closed is fixed when the FileHolder is created, and
