@@ -73,11 +73,11 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
                    .pollingEnabled = config.pollingEnabled(),
                    .pollIntervalMs = config.pollIntervalMs() },
 
-        .fileAccess = { .keepFileClosed = config.keepFileClosed(),
-                        .defaultEncodingMib
-                        = knownDefaultEncodingMib( config.defaultEncodingMib() ),
-                        .extractArchives = config.extractArchives(),
-                        .extractArchivesAlways = config.extractArchivesAlways() },
+        .fileAccess
+        = { .keepFileClosed = config.keepFileClosed(),
+            .defaultEncodingMib = knownDefaultEncodingMib( config.defaultEncodingMib() ),
+            .extractArchives = config.extractArchives(),
+            .extractArchivesAlways = config.extractArchivesAlways() },
 
         .recognition = { .enabled = config.autoDetectLogFormats() },
 
