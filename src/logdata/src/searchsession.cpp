@@ -19,6 +19,7 @@
 
 #include "searchsession.h"
 
+#include <algorithm>
 #include <numeric>
 #include <utility>
 
@@ -96,8 +97,8 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
     const bool isContinuation
         = ( previous.phase == Phase::Running || previous.phase == Phase::Complete
             || previous.phase == Phase::Interrupted )
-          && !previous.fromCache && pattern == previous.pattern && startLine == previous.startLine
-          && endLine > previous.endLine;
+          && !previous.fromCache && !logLinesChangedUnderRun_ && pattern == previous.pattern
+          && startLine == previous.startLine && endLine > previous.endLine;
 
     if ( isContinuation ) {
         // Same pattern as the run being continued, already validated and
@@ -240,6 +241,9 @@ void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumbe
                              : OptionalLineNumber{};
     }
 
+    // What this run searches reads as it does now.
+    logLinesChangedUnderRun_ = false;
+
     // A continuation's eventual completion must not be cached under a key
     // that promises the whole (originally requested) range was searched
     // from scratch; only a fresh run's key is kept.
@@ -254,8 +258,6 @@ void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumbe
     newState.phase = Phase::Running;
     newState.isContinuation = isContinuation;
     applyState( std::move( newState ) );
-
-    blockSource_.attachReader();
 
     currentSearchId_ = isContinuation
                            ? workerThread_.updateSearch( compiledExpression, startLine, endLine,
@@ -291,9 +293,38 @@ LinesCount SearchSession::processedLines() const
     return nbLinesProcessed_;
 }
 
-void SearchSession::dropCache()
+void SearchSession::logLinesChanged( LineNumber firstChanged )
 {
-    searchResultsCache_.clear();
+    // A cached range [startLine, endLine) holds while none of its Log Lines
+    // changed.
+    const auto dropped = std::erase_if( searchResultsCache_, [ firstChanged ]( const auto& entry ) {
+        return getExpectedSearchEnd( entry.first ) > firstChanged;
+    } );
+    if ( dropped > 0 ) {
+        LOG_INFO << "SearchSession: Log Lines changed from " << firstChanged << ", dropped "
+                 << dropped << " cached results";
+    }
+
+    const auto held = state();
+    if ( held.endLine <= firstChanged ) {
+        return;
+    }
+
+    // A run in flight has read some of its Log Lines the old way: what it
+    // finds is not what its range reads now, so it is not cached.
+    if ( held.phase == Phase::Running ) {
+        currentSearchKey_ = SearchCacheKey{};
+    }
+
+    // A continuation searches again from the last Log Line searched before,
+    // which may have been incomplete then (recheckedLine_, set in
+    // startRun()): a change there needs no more than that. A run in flight may have read further
+    // than it reported, up to its whole range.
+    const auto searchedEnd
+        = held.phase == Phase::Running ? held.endLine.get() : nbLinesProcessed_.get();
+    if ( firstChanged.get() + 1 < searchedEnd ) {
+        logLinesChangedUnderRun_ = true;
+    }
 }
 
 void SearchSession::updateSearchResultsCache()
@@ -408,8 +439,7 @@ void SearchSession::applyIncomingResults( SearchResults results )
     state_.matchCount = matchCount;
 }
 
-void SearchSession::handleSearchProgressed( int progress, LineNumber /*initialLine*/,
-                                            SearchId searchId )
+void SearchSession::handleSearchProgressed( int progress, SearchId searchId )
 {
     if ( searchId != currentSearchId_ ) {
         // Progress from a run we've since superseded; its results are stale.
@@ -427,16 +457,9 @@ void SearchSession::handleSearchProgressed( int progress, LineNumber /*initialLi
     Q_EMIT resultsReady();
 }
 
-void SearchSession::handleSearchFinished( SearchId searchId, LineNumber /*initialLine*/,
-                                          bool interrupted, const QString& failure )
+void SearchSession::handleSearchFinished( SearchId searchId, bool interrupted,
+                                          const QString& failure )
 {
-    // Every request()/completeFromCache() that reached the worker did
-    // exactly one attachReader(); this is its matching detachReader(),
-    // and it must happen regardless of whether this run's results end up
-    // applied below -- a superseded run must not leak the attach just
-    // because its results are discarded.
-    blockSource_.detachReader();
-
     if ( searchId != currentSearchId_ ) {
         // A superseded (or explicitly stopped) run finishing late;
         // discard rather than apply.

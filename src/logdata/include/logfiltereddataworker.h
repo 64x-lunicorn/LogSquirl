@@ -39,7 +39,6 @@
 #ifndef LOGFILTEREDDATAWORKERTHREAD_H
 #define LOGFILTEREDDATAWORKERTHREAD_H
 
-#include <atomic>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -47,15 +46,12 @@
 #include <QObject>
 #include <QString>
 
-#include <qthreadpool.h>
-
 #ifndef Q_MOC_RUN
 #include <roaring.hh>
 #include <roaring64map.hh>
 #endif
 
-#include <type_safe/strong_typedef.hpp>
-
+#include "backgroundrun.h"
 #include "linetypes.h"
 #include "regularexpression.h"
 #include "settingspolicies.h"
@@ -63,21 +59,11 @@
 
 class SearchBlockSource;
 
-// Identifies one Search run. A new run gets a fresh id; whatever owns the
-// worker compares an incoming result's id against the id it is currently
-// waiting on to tell a result belonging to a superseded run from a live one.
-struct SearchId : type_safe::strong_typedef<SearchId, uint64_t>,
-                  type_safe::strong_typedef_op::equality_comparison<SearchId> {
-    using strong_typedef::strong_typedef;
-
-    using UnderlyingType = uint64_t;
-
-    UnderlyingType get() const
-    {
-        return type_safe::get( *this );
-    }
-};
-Q_DECLARE_METATYPE( SearchId )
+// Identifies one Search run: the id of the Background Run it is. A new run
+// gets a fresh id; whatever owns the worker compares an incoming result's id
+// against the id it is currently waiting on to tell a result belonging to a
+// superseded run from a live one.
+using SearchId = RunId;
 
 // Class encapsulating a single matching line
 // Contains the line number the line was found in and its content.
@@ -167,40 +153,37 @@ private:
     std::map<LineNumber::UnderlyingType, LineNumber::UnderlyingType> searchedAhead_;
 };
 
-class SearchOperation : public QObject {
-    Q_OBJECT
+// One Search run: a plain job the worker's Background Run executes. Whether
+// it has been superseded, and how far it is, go through the run it is part
+// of; how it ended is that run's finish report.
+class SearchOperation {
 public:
     // compiledExpression is shared (not copied) with whoever validated the
     // pattern before starting this run, so the (expensive, Hyperscan-
     // backed) compile happens exactly once per request() rather than once
     // there and once more here.
-    // The Search Policy is copied in when the operation is built, so
-    // everything this run reads about the settings is fixed for its
-    // duration: the options dialog is modal to the window but does not
-    // stop this pool, and a setting changed mid-run takes effect on the
-    // next run rather than half way through this one.
-    SearchOperation( const SearchBlockSource& blockSource, SearchId searchId,
-                     const std::atomic<uint64_t>& activeSearchId,
+    // The Search Policy is the copy the Background Run took when the run
+    // started, so everything this run reads about the settings is fixed for
+    // its duration: the options dialog is modal to the window but does not
+    // stop the run, and a setting changed mid-run takes effect on the next
+    // run rather than half way through this one.
+    SearchOperation( const SearchBlockSource& blockSource, const RunControl& run,
                      std::shared_ptr<const RegularExpression> compiledExpression,
                      LineNumber startLine, LineNumber endLine, SearchPolicy searchPolicy );
+    virtual ~SearchOperation() = default;
 
-    // Run the search operation, reporting how it ended through
-    // searchFinished. An exception escaping the run is a failure of the
-    // engine: the results are dropped and searchFinished carries its
-    // description, rather than a dialog being opened or the exception
-    // thrown further.
+    SearchOperation( const SearchOperation& ) = delete;
+    SearchOperation& operator=( const SearchOperation& ) = delete;
+    SearchOperation( SearchOperation&& ) = delete;
+    SearchOperation& operator=( SearchOperation&& ) = delete;
+
+    // Run the search operation. An exception escaping the run is a failure
+    // of the engine: the results are dropped and the exception is let go on
+    // to the Background Run, whose finish report describes it.
     void run( SearchData& result );
 
-Q_SIGNALS:
-    void searchProgressed( int percent, LineNumber initialLine, SearchId searchId );
-    // interrupted is true when this run was superseded by another (or explicitly
-    // interrupted) before it reached the end of its range. failure describes
-    // what went wrong when the run failed, and is empty otherwise.
-    void searchFinished( SearchId searchId, LineNumber initialLine, bool interrupted,
-                         const QString& failure );
-
 protected:
-    // The run itself, which run() reports the failure of.
+    // The run itself, whose failure run() drops the results of.
     virtual void doRun( SearchData& result ) = 0;
 
     // Implement the common part of the search, passing
@@ -211,8 +194,7 @@ protected:
     // superseded (by a newer search) or explicitly interrupted.
     bool isSuperseded() const;
 
-    SearchId searchId_;
-    const std::atomic<uint64_t>& activeSearchId_;
+    const RunControl& run_;
     const std::shared_ptr<const RegularExpression> compiledExpression_;
     const SearchBlockSource& blockSource_;
     LineNumber startLine_;
@@ -225,31 +207,21 @@ protected:
 // that the run after it, which may continue from the data rather than replace
 // it too, never continues on another pattern's Matches.
 class FullSearchOperation : public SearchOperation {
-    Q_OBJECT
 public:
-    FullSearchOperation( const SearchBlockSource& blockSource, SearchId searchId,
-                         const std::atomic<uint64_t>& activeSearchId,
-                         std::shared_ptr<const RegularExpression> compiledExpression,
-                         LineNumber startLine, LineNumber endLine, SearchPolicy searchPolicy )
-        : SearchOperation( blockSource, searchId, activeSearchId, std::move( compiledExpression ),
-                           startLine, endLine, searchPolicy )
-    {
-    }
+    using SearchOperation::SearchOperation;
 
 protected:
     void doRun( SearchData& result ) override;
 };
 
 class UpdateSearchOperation : public SearchOperation {
-    Q_OBJECT
 public:
-    UpdateSearchOperation( const SearchBlockSource& blockSource, SearchId searchId,
-                           const std::atomic<uint64_t>& activeSearchId,
+    UpdateSearchOperation( const SearchBlockSource& blockSource, const RunControl& run,
                            std::shared_ptr<const RegularExpression> compiledExpression,
                            LineNumber startLine, LineNumber endLine, LineNumber position,
                            SearchPolicy searchPolicy )
-        : SearchOperation( blockSource, searchId, activeSearchId, std::move( compiledExpression ),
-                           startLine, endLine, searchPolicy )
+        : SearchOperation( blockSource, run, std::move( compiledExpression ), startLine, endLine,
+                           searchPolicy )
         , initialPosition_( position )
     {
     }
@@ -261,6 +233,9 @@ private:
     LineNumber initialPosition_;
 };
 
+// Runs the Searches of one Search Session through a Background Run, which
+// keeps the Log File's reader attached for exactly as long as each run lasts
+// and reports each run finished once.
 class LogFilteredDataWorker : public QObject {
     Q_OBJECT
 
@@ -268,10 +243,10 @@ public:
     // The Search Policy is what this worker knows about the settings; it
     // reads none itself.
     LogFilteredDataWorker( const SearchBlockSource& blockSource, const SearchPolicy& searchPolicy );
-    ~LogFilteredDataWorker() noexcept override;
+    ~LogFilteredDataWorker() override = default;
 
     LogFilteredDataWorker( const LogFilteredDataWorker& ) = delete;
-    LogFilteredDataWorker& operator=( const LogFilteredDataWorker&& ) = delete;
+    LogFilteredDataWorker& operator=( const LogFilteredDataWorker& ) = delete;
 
     LogFilteredDataWorker( LogFilteredDataWorker&& ) = delete;
     LogFilteredDataWorker& operator=( LogFilteredDataWorker&& ) = delete;
@@ -300,37 +275,24 @@ public:
     SearchResults getSearchResults() const;
 
 Q_SIGNALS:
-    // Sent during the indexing process to signal progress
-    // percent being the percentage of completion.
-    void searchProgressed( int percent, LineNumber initialLine, SearchId searchId );
-    // Sent once a run stops, one way or another. interrupted is true when the
-    // run was superseded or explicitly interrupted before reaching its end;
-    // failure describes what went wrong when the run failed.
-    void searchFinished( SearchId searchId, LineNumber initialLine, bool interrupted,
-                         const QString& failure );
-
-private:
-    void connectSignalsAndRun( SearchOperation* operationRequested );
+    // Sent during the search to signal progress, percent being the
+    // percentage of completion.
+    void searchProgressed( int percent, SearchId searchId );
+    // Sent once for every run started, when it stops one way or another.
+    // interrupted is true when the run was superseded or explicitly
+    // interrupted before reaching its end; failure describes what went wrong
+    // when the run failed.
+    void searchFinished( SearchId searchId, bool interrupted, const QString& failure );
 
 private:
     const SearchBlockSource& blockSource_;
 
-    // Read and written under operationsMutex_ and copied into every
-    // operation as it is started, so a run never reads it from the pool
-    // thread while the UI thread is replacing it.
-    SearchPolicy searchPolicy_;
-
-    // The id of the run currently considered "active". A run compares its own
-    // id against this to tell whether it has been superseded; interrupt() (and
-    // starting a new run) simply change what this holds. 0 means no run active.
-    std::atomic<uint64_t> activeSearchId_{ 0 };
-    std::atomic<uint64_t> nextSearchId_{ 0 };
-
-    QThreadPool operationsPool_;
-    Mutex operationsMutex_;
-
     // Shared indexing data
     SearchData searchData_;
+
+    // Declared last, so it shuts down -- and no run touches searchData_ any
+    // more -- before anything else here is destroyed.
+    BackgroundRun<SearchPolicy> run_;
 };
 
 #endif
