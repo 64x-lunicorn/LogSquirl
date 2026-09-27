@@ -846,6 +846,74 @@ SCENARIO( "A Log File growing under an unchanged Encoding keeps what scrolling c
     }
 }
 
+SCENARIO( "Search Limits set on a Log File stay as it grows", "[ui][limits]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "growing.log" );
+    QByteArray content;
+    for ( int i = 0; i < SL_NB_LINES; i++ ) {
+        content += QString( "LOGDATA is a part of logsquirl, this is line %1\n" )
+                       .arg( i, 6, 10, QChar( '0' ) )
+                       .toUtf8();
+    }
+    {
+        QFile file( path );
+        REQUIRE( file.open( QIODevice::WriteOnly ) );
+        REQUIRE( file.write( content ) == content.size() );
+    }
+
+    const auto fileWatch = std::make_shared<FakeFileWatch>();
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>(), fileWatch };
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
+               && crawlerVisitor.isLoadingFinished();
+    } ) );
+
+    const auto grow = [ & ] {
+        REQUIRE( fileWatch->grow( path, "one more Log Line\nand another\n" ) );
+        REQUIRE( waitUiState( [ & ]() {
+            return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES + 2
+                   && crawlerVisitor.isLoadingFinished();
+        } ) );
+        QCoreApplication::processEvents();
+    };
+
+    GIVEN( "Search Limits narrowed to Log Lines 10 to 20" )
+    {
+        crawlerVisitor.setSearchLimits( 10_lnum, 20_lnum );
+
+        WHEN( "Log Lines are appended to the Log File" )
+        {
+            grow();
+
+            THEN( "every view still subdues the Log Lines outside them" )
+            {
+                REQUIRE( crawlerVisitor.searchLimits() == std::make_pair( 10_lnum, 20_lnum ) );
+            }
+        }
+    }
+
+    GIVEN( "Search Limits that are the whole Log File" )
+    {
+        crawlerVisitor.clearSearchLimits();
+
+        WHEN( "Log Lines are appended to the Log File" )
+        {
+            grow();
+
+            THEN( "they reach its new end, and no Log Line is subdued" )
+            {
+                REQUIRE( crawlerVisitor.searchLimits()
+                         == std::make_pair( 0_lnum, LineNumber( SL_NB_LINES + 2 ) ) );
+            }
+        }
+    }
+}
+
 SCENARIO( "The chart extracts its points again under a changed Encoding", "[ui][encoding][chart]" )
 {
     QTemporaryDir directory;

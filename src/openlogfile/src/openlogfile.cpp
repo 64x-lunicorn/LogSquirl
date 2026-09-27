@@ -329,28 +329,39 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     // is known only now.
     const auto encodingSettledAnew = settleEncoding();
 
+    // Search Limits the user narrowed stay as set while Log Lines are only
+    // added; Limits that were the whole Log File follow its end. Any other
+    // load brings Log Lines the Limits did not describe: they become the
+    // whole Log File again.
+    const auto limitsWereWholeFile
+        = searchStartLine_ == 0_lnum && searchEndLine_ >= LineNumber( loadedLineCount_.get() );
+    if ( !decision.onlyAppended || limitsWereWholeFile ) {
+        searchStartLine_ = 0_lnum;
+        searchEndLine_ = nbLines;
+    }
+    loadedLineCount_ = lineCount;
+
     // The Search follows the Log Lines loaded: it continues over the ones
-    // added, or starts again over a Log File truncated under it.
+    // added within the Search Limits, or starts again over a Log File
+    // truncated under it.
     switch ( decision.searchRefresh ) {
     case LoadRule::SearchRefresh::None:
         break;
-    case LoadRule::SearchRefresh::Continue:
-        searchEndLine_ = nbLines;
+    case LoadRule::SearchRefresh::Continue: {
         // Same pattern and start, a larger end: the Search Session continues
-        // the run rather than starting over.
-        filteredData_->request( filteredData_->searchState().pattern, searchStartLine_,
-                                searchEndLine_ );
+        // the run rather than starting over. A Search that already ran over
+        // narrowed Limits has no Log Line added to them to run over.
+        const auto searched = filteredData_->searchState();
+        if ( searched.startLine != searchStartLine_ || searched.endLine != searchEndLine_ ) {
+            filteredData_->request( searched.pattern, searchStartLine_, searchEndLine_ );
+        }
         break;
+    }
     case LoadRule::SearchRefresh::Restart:
-        searchEndLine_ = nbLines;
         restartSearch();
         load.searchRestarted = true;
         break;
     }
-
-    // A finished load makes the Search Limits the whole Log File again.
-    searchStartLine_ = 0_lnum;
-    searchEndLine_ = nbLines;
 
     for ( const auto& mark : decision.savedMarksToApply ) {
         filteredData_->addMark( mark );
