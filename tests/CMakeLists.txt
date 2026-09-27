@@ -131,6 +131,15 @@ if(UNIX)
               -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/case_runner_signal
               -P ${CMAKE_CURRENT_SOURCE_DIR}/case_runner_signal.cmake
   )
+  # And it keeps a case's links to the built executables from one run to the
+  # next, while what the case wrote beside them goes (#566).
+  add_test(
+      NAME case_runner_keeps_links
+      COMMAND ${CMAKE_COMMAND}
+              -DRUNNER=${CMAKE_SOURCE_DIR}/cmake/CatchTestDiscoveryRunTest.cmake
+              -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/case_runner_keeps_links
+              -P ${CMAKE_CURRENT_SOURCE_DIR}/case_runner_keeps_links.cmake
+  )
 endif()
 
 # And the other way round, on every ThreadSanitizer run: a race in LogSquirl's
