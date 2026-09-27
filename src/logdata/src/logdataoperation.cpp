@@ -97,11 +97,6 @@ IndexJob waitingIndexJob( IndexJob waiting, IndexJob arriving )
     return std::move( winner );
 }
 
-OperationQueue::OperationQueue( std::function<void()> beforeJobStart )
-    : beforeJobStart_( std::move( beforeJobStart ) )
-{
-}
-
 void OperationQueue::setWorker( std::unique_ptr<LogDataWorker>&& worker )
 {
     worker_ = std::move( worker );
@@ -155,7 +150,6 @@ void OperationQueue::tryStartWaitingJob()
         return;
     }
 
-    beforeJobStart_();
     worker_->run( runningJob_ );
     LOG_INFO << "Started index job " << nameOf( runningJob_ );
 }

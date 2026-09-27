@@ -43,6 +43,10 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
     Q_OBJECT
 
 public:
+    // Lets a test read what the delegate was handed.
+    template <class T>
+    struct access_by;
+
     // Horizontal padding applied on each side of a cell's text, both when
     // painting it and when hit-testing a click against it. The two must
     // agree, so both read this single constant.
@@ -53,8 +57,8 @@ public:
     {
     }
 
-    // Set the filtered data source for match/mark line type queries.
-    void setFilteredData( LogFilteredData* data )
+    // The current Search, whose Marks and Matches are painted. Not owned.
+    void setFilteredData( const LogFilteredData* data )
     {
         filteredData_ = data;
     }
@@ -474,7 +478,7 @@ private:
         }
     }
 
-    LogFilteredData* filteredData_ = nullptr;
+    const LogFilteredData* filteredData_ = nullptr;
     std::shared_ptr<const RowMapping> rows_ = std::make_shared<OneRowPerLogLine>();
     std::shared_ptr<QuickFindPattern> quickFindPattern_;
 

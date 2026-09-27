@@ -39,7 +39,6 @@
 #ifndef LOGDATAOPERATION_H
 #define LOGDATAOPERATION_H
 
-#include <functional>
 #include <memory>
 
 #include "logdataworker.h"
@@ -65,10 +64,10 @@
 // latest request, a later reload's Encoding among them.
 IndexJob waitingIndexJob( IndexJob waiting, IndexJob arriving );
 
+// Hands the index jobs of one Log File to its worker, one at a time: the next
+// starts once the one before is reported finished.
 class OperationQueue {
 public:
-    explicit OperationQueue( std::function<void()> beforeJobStart );
-
     void setWorker( std::unique_ptr<LogDataWorker>&& worker );
 
     // Hands a changed Indexing Policy to the worker, if there is one.
@@ -91,9 +90,6 @@ public:
 private:
     void tryStartWaitingJob();
 
-    std::function<void()> beforeJobStart_;
-
-private:
     mutable Mutex mutex_;
 
     IndexJob runningJob_;

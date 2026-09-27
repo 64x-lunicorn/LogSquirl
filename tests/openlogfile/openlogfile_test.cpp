@@ -1101,6 +1101,110 @@ SCENARIO( "Choosing another Encoding while a Search is shown reads its Log Lines
     }
 }
 
+SCENARIO( "After another Encoding is chosen, the same Search finds the Matches of the new reading",
+          "[openlogfile][encoding]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "searched.log" );
+    REQUIRE( writeUtf8LogFile( path ) );
+
+    OpenedLogFile logFile( path );
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+    // Every Log Line says it in UTF-8; none does once read in ISO-8859-1.
+    const RegularExpressionPattern greetings( "Grüße" );
+    logFile.openLogFile.requestSearch( greetings );
+    REQUIRE( logFile.waitSearchSettled() );
+    REQUIRE( logFile.searchState().matchCount == LinesCount( EncodedLineCount ) );
+
+    WHEN( "another Encoding is chosen and the same Search repeated" )
+    {
+        logFile.openLogFile.setEncoding( mibOf( "ISO-8859-1" ) );
+        const auto requested = logFile.openLogFile.requestSearch( greetings );
+        REQUIRE( logFile.waitSearchSettled() );
+
+        THEN( "it runs again and finds the Log Lines as they read now" )
+        {
+            REQUIRE_FALSE( requested.fromCache );
+            REQUIRE( logFile.searchState().matchCount == 0_lcount );
+        }
+    }
+
+    WHEN( "the Search is kept, another Encoding chosen, and the kept Search repeated" )
+    {
+        const auto kept = logFile.openLogFile.filteredData();
+        logFile.openLogFile.startAnotherSearch();
+        logFile.openLogFile.setEncoding( mibOf( "ISO-8859-1" ) );
+        logFile.openLogFile.makeSearchCurrent( kept );
+        const auto requested = logFile.openLogFile.requestSearch( greetings );
+        REQUIRE( logFile.waitSearchSettled() );
+
+        THEN( "it runs again and finds the Log Lines as they read now" )
+        {
+            REQUIRE_FALSE( requested.fromCache );
+            REQUIRE( kept->searchState().matchCount == 0_lcount );
+        }
+    }
+
+    WHEN( "the same Search is repeated in the same Encoding" )
+    {
+        const auto requested = logFile.openLogFile.requestSearch( greetings );
+
+        THEN( "it is served from the cache" )
+        {
+            REQUIRE( requested.fromCache );
+            REQUIRE( logFile.searchState().matchCount == LinesCount( EncodedLineCount ) );
+        }
+    }
+}
+
+SCENARIO( "A Log File truncated and written again to as many Log Lines is searched anew",
+          "[openlogfile]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "rewritten.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+    GIVEN( "an auto-refreshed Search" )
+    {
+        logFile.openLogFile.setAutoRefresh( true );
+        logFile.openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+        REQUIRE( logFile.waitSearchSettled() );
+        REQUIRE( logFile.searchState().matchCount == fizzCount( FirstLineCount ) );
+
+        WHEN( "the Log File is cut short and written again with as many, shorter Log Lines, "
+              "only the first of which says fizz" )
+        {
+            QByteArray lines = "fizz\n";
+            for ( auto number = 1; number < FirstLineCount; ++number ) {
+                lines += "buzz\n";
+            }
+            REQUIRE( logFile.fileWatch->truncate( path, lines ) );
+            REQUIRE( waitUiState(
+                [ & ] {
+                    return !logFile.observer.loads.empty()
+                           && logFile.observer.loads.back().searchRestarted;
+                },
+                30000 ) );
+            REQUIRE( logFile.nbLines() == LinesCount( FirstLineCount ) );
+            REQUIRE( logFile.waitSearchSettled() );
+
+            THEN( "the Search starts again over what is there now, not from the cache" )
+            {
+                const auto state = logFile.searchState();
+                REQUIRE_FALSE( state.fromCache );
+                REQUIRE( state.endLine == LineNumber( FirstLineCount ) );
+                REQUIRE( state.matchCount == 1_lcount );
+            }
+        }
+    }
+}
+
 SCENARIO( "An Open Log File is heard by a host that registers no meta types",
           "[openlogfile][metatypes]" )
 {

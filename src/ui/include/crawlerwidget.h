@@ -53,6 +53,7 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QMenu>
+#include <QPointer>
 #include <QPushButton>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -63,6 +64,7 @@
 #include "colorlabelsmanager.h"
 #include "filteredview.h"
 #include "iconloader.h"
+#include "keptsearches.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
 #include "logdata.h"
@@ -105,6 +107,7 @@ public:
     // Builds every view of the Log File from everything they show it with,
     // and restores the view context in it, if any (#248).
     explicit CrawlerWidget( const ViewBuild& build, QWidget* parent = nullptr );
+    ~CrawlerWidget() override;
 
     // Get the line number of the first line displayed.
     LineNumber getTopLine() const;
@@ -199,7 +202,9 @@ protected:
     std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const override;
 
     // Implementation of the mux selector interface
-    // (for dispatching QuickFind to the right widget)
+    // (for dispatching QuickFind to the right widget): the Filtered View when
+    // it has or had the focus, else the Presentation shown, the Text View or
+    // the Table View. The Presentation not shown is never searched.
     SearchableWidgetInterface* doGetActiveSearchable() const override;
     std::vector<QObject*> doGetAllSearchables() const override;
 
@@ -257,9 +262,11 @@ private Q_SLOTS:
     // Stop the currently ongoing search (if one exists)
     void stopSearch();
     void loadIcons();
-    // QuickFind is being entered, save the focus for incremental qf.
+    // QuickFind is being entered: remember which view had the focus, the
+    // Filtered View or a Presentation, so QuickFind searches it while the
+    // QuickFind bar has the focus.
     void enteringQuickFind();
-    // QuickFind is being closed.
+    // QuickFind is being closed: the view that had the focus gets it back.
     void exitingQuickFind();
     // Called when new data must be displayed in the filtered window.
     void updateFilteredView( SearchSession::State state );
@@ -365,9 +372,10 @@ public Q_SLOTS:
 
 private Q_SLOTS:
 
+    // Makes the Search of the tab brought to the front current.
     void changeFilteredView( int tabIndex );
+    // Drops the Search of the tab closed, unless it is the last one.
     void closeFilteredView( int tabIndex );
-    void filteredViewDestroyed( QObject* view );
 
 private:
     // Private functions
@@ -393,7 +401,14 @@ private:
     // Tells whom the Session handed over of a change this Log File's views
     // wrote themselves, so that it reaches every open Log File.
     void reportChange( Changed change );
-    AbstractLogView* activeView() const;
+    // The view QuickFind searches, Select All selects in and Esc focuses (see
+    // doGetActiveSearchable()).
+    QWidget* activeView() const;
+    // Whether the Filtered View has the focus, or had it when QuickFind was
+    // entered and the Presentation shown has not taken it since.
+    bool filteredViewIsActive() const;
+    // The Presentation the upper pane shows, as a widget.
+    QWidget* shownPresentation() const;
     // The Search Line says what is known of the Search, which does not run:
     // the Matches the Filtered View holds (#406).
     void printSearchInfoMessage();
@@ -421,6 +436,12 @@ private:
     void updateColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels );
 
     void connectAllFilteredViewSlots( FilteredView* view );
+
+    // The Filtered View of the current Search, the one in the front tab.
+    FilteredView* currentFilteredView() const;
+    // Builds the Filtered View a Search is shown in; the Kept Searches add it
+    // to the View Set.
+    FilteredView* buildFilteredView( LogFilteredData* search );
 
     void saveSplitterSizes() const;
 
@@ -480,8 +501,7 @@ private:
     std::shared_ptr<QuickFindPattern> quickFindPattern_;
 
     LogMainView* logMainView_ = nullptr;
-    FilteredView* filteredView_ = nullptr;
-    std::unordered_map<FilteredView*, std::shared_ptr<LogFilteredData>> filteredViewsData_;
+    // One tab for each of the Kept Searches.
     QTabWidget* tabbedFilteredView_ = nullptr;
 
     OverviewWidget* overviewWidget_;
@@ -520,7 +540,9 @@ private:
 
     // Reference to the QuickFind Pattern (not owned)
 
-    QWidget* qfSavedFocus_ = nullptr;
+    // The view that had the focus when QuickFind was entered; a kept
+    // Search's Filtered View can be closed meanwhile.
+    QPointer<QWidget> qfSavedFocus_;
 
     // the current dataStatus (whether we have new, not seen, data)
     DataStatus dataStatus_ = DataStatus::OLD_DATA;
@@ -549,6 +571,11 @@ private:
     // Decoration, Presentation and QuickFind Policies, the follow allowance,
     // the font, the Color Labels and the Search Limits.
     ViewSet viewSet_;
+
+    // Every Search of this Log File, each shown in a tab of its own; which
+    // one is current reaches every view through the View Set. Declared after
+    // the View Set, which it hands the current Search.
+    KeptSearches keptSearches_;
 
     // Whether this Log File may be followed.
     WatchPolicy watchPolicy_;

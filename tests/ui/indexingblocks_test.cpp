@@ -34,7 +34,7 @@
 
 #include "test_policies.h"
 
-#include "atomicflag.h"
+#include "fake_run_control.h"
 #include "linetypes.h"
 #include "logdataworker.h"
 
@@ -134,15 +134,11 @@ IndexingRun indexInBlocks( const QString& path, const TextEncoding* encoding, qi
                                  = [ &run ]( qint64 buffers ) { run.blockBuffers = buffers; } };
 
     auto data = std::make_shared<IndexingData>();
-    AtomicFlag interruptRequest;
-    FullIndexOperation operation{ path,
-                                  data,
-                                  interruptRequest,
-                                  policy,
-                                  FullIndexRequest::Automatic,
-                                  encoding,
-                                  std::move( blockPlan ) };
-    REQUIRE( std::get<bool>( operation.run() ) );
+    const FakeRunControl indexRun;
+    FullIndexOperation operation{
+        path, data, indexRun, policy, FullIndexRequest::Automatic, encoding, std::move( blockPlan )
+    };
+    REQUIRE( std::get<LoadingStatus>( operation.run().status ) == LoadingStatus::Successful );
 
     IndexingData::ConstAccessor accessor{ data.get() };
     for ( auto line = 0u; line < accessor.getNbLines().get(); ++line ) {
