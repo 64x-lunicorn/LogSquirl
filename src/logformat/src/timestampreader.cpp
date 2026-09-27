@@ -502,8 +502,8 @@ TimestampReader::TimestampReader( const LogFormatDefinition& format, int referen
     impl_->patterns = compileAll( format.timestampFormats() );
 }
 
-TimestampReader::TimestampReader( const QString& timestampFormat, double divisor,
-                                  int referenceYear, const QDate& modificationDate )
+TimestampReader::TimestampReader( const QString& timestampFormat, double divisor, int referenceYear,
+                                  const QDate& modificationDate )
     : impl_( std::make_unique<Impl>() )
 {
     // No Log Format: there is no field to find in a Log Line, only the text
