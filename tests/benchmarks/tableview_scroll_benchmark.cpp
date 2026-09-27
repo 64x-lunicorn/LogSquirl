@@ -148,7 +148,7 @@ TEST_CASE( "Scrolling a Table View over 10 million Log Lines", "[tableview-scrol
     view.setPresentationPolicy( viewPolicies.presentation );
     view.updateFont( QApplication::font() );
     view.setLogFormat( &format, &logData );
-    view.updateData( nullptr, false );
+    view.updateData( false );
     // LOGSQUIRL_BENCHMARK_HIDE_ELAPSED hides the elapsed-time column, found
     // by its header so that this builds before #462 too (where it hides none).
     int hiddenColumns = 0;
