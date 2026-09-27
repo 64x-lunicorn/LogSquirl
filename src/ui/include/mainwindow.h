@@ -304,6 +304,9 @@ private:
     // While the Session's tabs are added: each becomes current in turn, and
     // none of them is to start loading for that (#300).
     bool restoringSession_ = false;
+    // While the tab brought to the front replays the state of its Log File:
+    // a load under way is shown whatever its progress (#540).
+    bool replayingFrontTab_ = false;
 
     std::array<QAction*, MAX_RECENT_FILES> recentFileActions;
     QActionGroup* recentFilesGroup;

@@ -2256,8 +2256,10 @@ void MainWindow::updateLoadingProgress( int progress )
     QString current_file = QDir::toNativeSeparators( session_.getFilename( crawler ) );
 
     // We ignore 0% and 100% to avoid a flash when the file (or update)
-    // is very short.
-    if ( progress > 0 && progress < 100 ) {
+    // is very short. A load under way replayed by the tab brought to the
+    // front is shown whatever its progress: the info line still describes
+    // the tab shown before (#540).
+    if ( replayingFrontTab_ || ( progress > 0 && progress < 100 ) ) {
         infoLine->setText( current_file + tr( " - Indexing lines... (%1 %)" ).arg( progress ) );
         infoLine->displayGauge( progress );
 
@@ -2467,7 +2469,9 @@ void MainWindow::currentTabChanged( int index )
             session_.startLoading( crawler_widget );
         }
 
+        replayingFrontTab_ = true;
         signalMux_.setCurrentDocument( crawler_widget );
+        replayingFrontTab_ = false;
         quickFindMux_.registerSelector( crawler_widget );
 
         // No configuration is applied here: a settings change has already
