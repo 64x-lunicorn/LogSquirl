@@ -120,6 +120,28 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tsan_report_filter.cmake
 )
 
+# A test case that a signal ends fails with the signal's name, and the
+# environment the ctest runner sets reaches the case in every build (#566). The
+# stand-in for a test binary is a shell script.
+if(UNIX)
+  add_test(
+      NAME case_runner_signal
+      COMMAND ${CMAKE_COMMAND}
+              -DRUNNER=${CMAKE_SOURCE_DIR}/cmake/CatchTestDiscoveryRunTest.cmake
+              -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/case_runner_signal
+              -P ${CMAKE_CURRENT_SOURCE_DIR}/case_runner_signal.cmake
+  )
+  # And it keeps a case's links to the built executables from one run to the
+  # next, while what the case wrote beside them goes (#566).
+  add_test(
+      NAME case_runner_keeps_links
+      COMMAND ${CMAKE_COMMAND}
+              -DRUNNER=${CMAKE_SOURCE_DIR}/cmake/CatchTestDiscoveryRunTest.cmake
+              -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/case_runner_keeps_links
+              -P ${CMAKE_CURRENT_SOURCE_DIR}/case_runner_keeps_links.cmake
+  )
+endif()
+
 # And the other way round, on every ThreadSanitizer run: a race in LogSquirl's
 # own code, run through the ctest runner, fails its case (#439). The canary is
 # built in a TSan build only.
