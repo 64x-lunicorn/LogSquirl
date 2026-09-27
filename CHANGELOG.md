@@ -191,7 +191,9 @@
   scrollbar, with Page Up or Ctrl+Home -- turns follow off, as it does in the
   Text View, so the next lines written to the Log File no longer snap the
   table back to the bottom. Turning follow on while the Table View is shown
-  scrolls it to the last Row (#543).
+  scrolls it to the last Row, and while following it stays there when it is
+  made shorter or its font grows; a key that moves nothing, such as Shift,
+  leaves follow on (#543).
 - **QuickFind no longer crashes when its view closes during a search**: a
   QuickFind message still on its way -- the search's progress, or that it was
   interrupted -- is dropped when the view it belongs to is closed first,

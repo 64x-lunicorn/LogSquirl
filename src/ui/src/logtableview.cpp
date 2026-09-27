@@ -137,6 +137,15 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     // leaves the bottom.
     connect( verticalScrollBar(), &QAbstractSlider::actionTriggered, this,
              [ this ]() { leaveFollowAwayFromBottom( verticalScrollBar()->sliderPosition() ); } );
+    // Following, the last Row stays in sight as the Text View's last line
+    // does: a shorter viewport, a larger font or Rows added while hidden move
+    // the bottom, not the user.
+    connect( verticalScrollBar(), &QAbstractSlider::rangeChanged, this,
+             [ this ]( int, int maximum ) {
+                 if ( follow_ ) {
+                     verticalScrollBar()->setValue( maximum );
+                 }
+             } );
 }
 
 LogTableView::~LogTableView()
@@ -642,9 +651,13 @@ void LogTableView::keyPressEvent( QKeyEvent* event )
         }
     }
 
+    // Page Up, the arrow keys and Home may move the Rows; a key that moves
+    // nothing, Shift alone among them, leaves follow as it is.
+    const int before = verticalScrollBar()->value();
     QTableView::keyPressEvent( event );
-    // Page Up, the arrow keys and Home may have moved the Rows.
-    leaveFollowAwayFromBottom( verticalScrollBar()->value() );
+    if ( verticalScrollBar()->value() != before ) {
+        leaveFollowAwayFromBottom( verticalScrollBar()->value() );
+    }
 }
 
 void LogTableView::paintEvent( QPaintEvent* event )
