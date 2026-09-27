@@ -373,3 +373,40 @@ SCENARIO( "QuickFind reports the progress of a long search in intermediate perce
     INFO( quickFind.notifications().join( '\n' ).toStdString() );
     REQUIRE( intermediate >= 2 );
 }
+
+// A QuickFind queues its notifications for the UI thread. One queued while its
+// view closes -- the search it interrupts, a progress report -- must not reach
+// it once it is destroyed (#565).
+SCENARIO( "A QuickFind notification queued before its QuickFind is destroyed reaches nothing",
+          "[quickfind]" )
+{
+    const FakeLogData logFile{ logLineTexts( 10 ) };
+    auto quickFind = std::make_unique<QuickFind>(
+        [ & ]() { return QuickFindLines::everyLogLine( logFile ); },
+        []( LineNumber ) { return true; } );
+
+    QuickFindPattern quickFindPattern;
+    quickFindPattern.changeSearchPattern( QStringLiteral( "no such text" ),
+                                          /* useExtendedRegexp */ true, /* isRegex */ true );
+    Selection selection;
+    selection.selectLine( 0_lnum );
+
+    GIVEN( "a QuickFind whose search queued a notification as it ended" )
+    {
+        quickFind->searchForward( selection, quickFindPattern.getMatcher() );
+        // Waits for the search, which queues the notification that it
+        // reached the end of the Log File, or that it was interrupted.
+        quickFind->stopSearch();
+
+        WHEN( "the QuickFind is destroyed before the event loop runs" )
+        {
+            quickFind.reset();
+            QCoreApplication::processEvents();
+
+            THEN( "the notification is dropped" )
+            {
+                SUCCEED( "the queued notification did not reach the destroyed QuickFind" );
+            }
+        }
+    }
+}
