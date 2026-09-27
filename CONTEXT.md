@@ -42,6 +42,10 @@ Marks saved with the Session are handed to it when the Log File is opened and ap
 after the first load; saving them stays with the user interface. A Search requested before
 the Log File has first loaded waits for that load and then runs over the whole Log File.
 It hears of changes on disk through the File Watch Port handed to it when it is built.
+It is the way in to its Log File: it takes every Policy, adds, toggles and clears the Marks,
+owns the Search Limits and tells the View Set when they change, and answers what is known of
+the Log File — its Log Lines, its size, when it was last written; nothing reaches past it
+but to read Log Lines.
 The desktop application and the command line tool follow a Log File the same way because
 both use it.
 _Avoid_: document, loaded file, file session
@@ -202,7 +206,8 @@ Line with a Timestamp at or after the start time, the end the first at or after 
 time), and from then on they are ordinary line Limits. They do not follow the Log File as it
 grows or is reloaded: narrowed Limits stay as set, cut back to its end when it shrinks, and
 become the whole Log File only when nothing of them is left; Limits that are the whole Log
-File follow its end. Times are not converted a second time.
+File follow its end. Times are not converted a second time. They belong to the Open Log
+File, which tells the View Set whenever they change.
 _Avoid_: search range, scope
 
 **Match**:

@@ -25,8 +25,6 @@
 #include <cassert>
 
 #include "configuration.h"
-#include "logdata.h"
-#include "logfiltereddata.h"
 #include "logformatcatalog.h"
 #include "openlogfile.h"
 #include "policyfilewatchport.h"
@@ -241,10 +239,10 @@ void Session::getFileInfo( const ViewInterface* view, uint64_t* fileSize, uint64
         return;
     }
 
-    const auto& logData = file->openLogFile->logData();
-    *fileSize = static_cast<uint64_t>( logData->getFileSize() );
-    *fileNbLine = logData->getNbLine().get();
-    *lastModified = logData->getLastModifiedDate();
+    const auto& openLogFile = *file->openLogFile;
+    *fileSize = static_cast<uint64_t>( openLogFile.fileSize() );
+    *fileNbLine = openLogFile.lineCount().get();
+    *lastModified = openLogFile.lastModified();
 }
 
 Session::OpenFile* Session::findOpenFileFromView( const ViewInterface* view )
@@ -384,21 +382,20 @@ void Session::applyPolicies( const SettingsPolicies& policies, ViewChange change
         }
 
         if ( indexingChanged ) {
-            openFile.openLogFile->logData()->setIndexingPolicy( policies_.indexing );
+            openFile.openLogFile->setIndexingPolicy( policies_.indexing );
         }
 
         if ( searchChanged ) {
-            // The Log File hands it on to every LogFilteredData built from
-            // it, which is more than the one this Session holds: a tab that
-            // kept an earlier Search has its own.
-            openFile.openLogFile->logData()->setSearchPolicy( policies_.search );
+            // The Open Log File hands it on to every Search it has, the
+            // kept ones included.
+            openFile.openLogFile->setSearchPolicy( policies_.search );
         }
 
         if ( decodingChanged ) {
             // Log Lines read from now on are decoded under it, and the Log
             // File tells its views to read what they show again. Search
             // results already found stay as they were.
-            openFile.openLogFile->logData()->setDecodingPolicy( policies_.decoding );
+            openFile.openLogFile->setDecodingPolicy( policies_.decoding );
         }
 
         if ( !change.isEmpty() ) {

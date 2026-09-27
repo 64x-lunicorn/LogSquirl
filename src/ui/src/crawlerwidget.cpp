@@ -276,7 +276,7 @@ void CrawlerWidget::reload()
     lastLoadStatus_.reset();
     loadingProgress_ = 0;
     openLogFile_->reload();
-    viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
+    viewSet_.refreshMatchesAndMarks( openLogFile_->lineCount() );
     printSearchInfoMessage();
 }
 
@@ -308,7 +308,7 @@ void CrawlerWidget::goToLine()
             = LineNumber( static_cast<LineNumber::UnderlyingType>( newLine - 1 ) );
         currentFilteredView()->trySelectLine( selectedLine );
 
-        const auto nbLines = openLogFile_->logData()->getNbLine();
+        const auto nbLines = openLogFile_->lineCount();
         if ( nbLines.get() > 0 ) {
             presentation_->showLogLine(
                 std::min( selectedLine, LineNumber( nbLines.get() ) - 1_lcount ) );
@@ -371,7 +371,7 @@ std::optional<CrawlerWidget::LookupSource> CrawlerWidget::lookupSource() const
         return std::nullopt;
     }
     return LookupSource{ openLogFile_->logData(), recognizedFormat_,
-                         openLogFile_->logData()->getLastModifiedDate().date() };
+                         openLogFile_->lastModified().date() };
 }
 
 template <typename Result, typename Work, typename Done>
@@ -792,8 +792,7 @@ void CrawlerWidget::stopSearch()
     // An interrupted run no longer reports completion (it is not one): the
     // Search Line puts the buttons and the gauge back now, rather than
     // waiting on a signal that won't come.
-    searchLine_.stopped( openLogFile_->searchAutoRefresh().state(),
-                         openLogFile_->filteredData()->getNbMatches() );
+    searchLine_.stopped( openLogFile_->searchAutoRefresh().state(), openLogFile_->matchCount() );
     showSearchLine();
 }
 
@@ -880,7 +879,7 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
 
         // Show the new Matches; the overview, while the Search runs, at a
         // bounded rate.
-        viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine(),
+        viewSet_.refreshMatchesAndMarks( openLogFile_->lineCount(),
                                          isDone ? Overview::UpdatePace::Now
                                                 : Overview::UpdatePace::WhileSearching );
 
@@ -944,8 +943,8 @@ void CrawlerWidget::updateLineNumberHandler( const LogPresentation& reporter, Li
 
     // A Row selected in the Table View selects its Log Line, or the Match
     // before it, in the Filtered View too.
-    if ( &reporter == logTableView_ && !syncingSelection_ && openLogFile_->filteredData()
-         && openLogFile_->filteredData()->getNbLine().get() > 0 ) {
+    if ( &reporter == logTableView_ && !syncingSelection_
+         && openLogFile_->displayedLineCount() > 0_lcount ) {
         syncingSelection_ = true;
         currentFilteredView()->selectAndDisplayLine( line );
         syncingSelection_ = false;
@@ -961,13 +960,12 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
 
     bool markAdded = false;
     for ( const auto& line : lines ) {
-        if ( line >= openLogFile_->logData()->getNbLine() ) {
+        if ( line >= openLogFile_->lineCount() ) {
             continue;
         }
 
-        if ( !openLogFile_->filteredData()->lineTypeByLine( line ).testFlag(
-                 AbstractLogData::LineTypeFlags::Mark ) ) {
-            openLogFile_->filteredData()->addMark( line );
+        if ( !openLogFile_->lineType( line ).testFlag( AbstractLogData::LineTypeFlags::Mark ) ) {
+            openLogFile_->addMark( line );
             markAdded = true;
         }
         else {
@@ -977,11 +975,11 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
 
     if ( !markAdded ) {
         for ( const auto& line : alreadyMarkedLines ) {
-            openLogFile_->filteredData()->toggleMark( line );
+            openLogFile_->toggleMark( line );
         }
     }
 
-    viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
+    viewSet_.refreshMatchesAndMarks( openLogFile_->lineCount() );
 }
 
 void CrawlerWidget::broughtToFront()
@@ -1107,7 +1105,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
 
     // We need to refresh the main window because the view lines on the
     // overview have probably changed.
-    overview_.updateData( openLogFile_->logData()->getNbLine() );
+    overview_.updateData( openLogFile_->lineCount() );
 
     // FIXME, handle topLine
     // logMainView_->updateData( logData_, topLine );
@@ -1117,14 +1115,11 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     // again over the truncated Log File is shown like any new Search.
     if ( load.searchRestarted ) {
         prepareForNewSearch();
-        showSearchRequested( openLogFile_->filteredData()->searchState() );
+        showSearchRequested( openLogFile_->searchState() );
     }
 
     // The Open Log File has settled the Encoding.
     updateEncodingText();
-
-    // The Search Limits as the load settled them; every view shows them.
-    viewSet_.setSearchLimits( openLogFile_->searchStartLine(), openLogFile_->searchEndLine() );
 
     // A lookup over the old lines has nothing to say about a Log File that
     // was loaded anew; appended lines leave it valid.
@@ -1148,8 +1143,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     }
     else {
         // File was updated — refresh table model contents
-        logTableView_->updateData( isFollowEnabled(),
-                                   openLogFile_->logData()->getLastModifiedDate().date() );
+        logTableView_->updateData( isFollowEnabled(), openLogFile_->lastModified().date() );
     }
 
     Q_EMIT loadingFinished( load.status, load.failure );
@@ -1165,7 +1159,7 @@ void CrawlerWidget::truncatedHandler( const QString& failure )
     // The Open Log File has cleared the Marks, dropped an active Search and
     // forgotten the Log Format.
     if ( openLogFile_->searchAutoRefresh().isFileTruncated() ) {
-        viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
+        viewSet_.refreshMatchesAndMarks( openLogFile_->lineCount() );
         printSearchInfoMessage();
         nbMatches_ = 0_lcount;
     }
@@ -1262,7 +1256,7 @@ void CrawlerWidget::changeFilteredViewVisibility( int index )
 
     currentFilteredView()->setVisibility( visibility );
 
-    if ( openLogFile_->filteredData()->getNbLine() > 0_lcount ) {
+    if ( openLogFile_->displayedLineCount() > 0_lcount ) {
         currentFilteredView()->selectAndDisplayLine( currentLineNumber_ );
     }
 }
@@ -1315,17 +1309,14 @@ void CrawlerWidget::activityDetected()
 
 void CrawlerWidget::setSearchLimits( LineNumber startLine, LineNumber endLine )
 {
-    // The Log Lines the next Search runs over.
+    // The Log Lines the next Search runs over; the View Set hears of them
+    // from the Open Log File.
     openLogFile_->setSearchLimits( startLine, endLine );
-
-    // The Search Limits belong to the Log File: every view of it subdues the
-    // same Log Lines, the Filtered Views of kept Searches included.
-    viewSet_.setSearchLimits( startLine, endLine );
 }
 
 void CrawlerWidget::clearSearchLimits()
 {
-    setSearchLimits( 0_lnum, LineNumber( openLogFile_->logData()->getNbLine().get() ) );
+    setSearchLimits( 0_lnum, LineNumber( openLogFile_->lineCount().get() ) );
 }
 
 //
@@ -1685,8 +1676,15 @@ void CrawlerWidget::setup()
     } );
     // From the Log File rather than from the Session, so a CrawlerWidget in
     // a tab that is not current is reached too.
-    connect( openLogFile_->logData().get(), &LogData::decodingPolicyChanged, this,
+    connect( openLogFile_.get(), &OpenLogFile::decodingPolicyChanged, this,
              &CrawlerWidget::applyDecodingPolicyChange );
+    // The Search Limits belong to the Log File: every view of it subdues the
+    // same Log Lines, the Filtered Views of kept Searches included, as they
+    // are set and as a load settles them.
+    connect( openLogFile_.get(), &OpenLogFile::searchLimitsChanged, this,
+             [ this ]( LineNumber startLine, LineNumber endLine ) {
+                 viewSet_.setSearchLimits( startLine, endLine );
+             } );
     connect( openLogFile_.get(), &OpenLogFile::encodingChanged, this,
              &CrawlerWidget::applyEncodingChange );
 
@@ -2253,7 +2251,7 @@ void CrawlerWidget::prepareForNewSearch()
         visibilityBox_->setCurrentIndex( 0 );
     }
 
-    viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
+    viewSet_.refreshMatchesAndMarks( openLogFile_->lineCount() );
 }
 
 void CrawlerWidget::showSearchRequested( const SearchSession::State& state )
@@ -2269,7 +2267,7 @@ void CrawlerWidget::showSearchRequested( const SearchSession::State& state )
         // The regexp is wrong. The request already drove the Session to
         // InvalidPattern, which on its own clears results/Context Lines the
         // same way an idle request would -- no separate clear needed here.
-        viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
+        viewSet_.refreshMatchesAndMarks( openLogFile_->lineCount() );
         viewSet_.setSearchPattern( {} );
     }
 }
@@ -2292,8 +2290,7 @@ void CrawlerWidget::updateSearchCombo()
 
 void CrawlerWidget::printSearchInfoMessage()
 {
-    searchLine_.settled( openLogFile_->searchAutoRefresh().state(),
-                         openLogFile_->filteredData()->getNbMatches() );
+    searchLine_.settled( openLogFile_->searchAutoRefresh().state(), openLogFile_->matchCount() );
     showSearchLine();
 }
 
@@ -2426,8 +2423,7 @@ void CrawlerWidget::toggleTableView()
     if ( showTable ) {
         // Defer model population so the view switch renders immediately
         QTimer::singleShot( 0, this, [ this ]() {
-            logTableView_->updateData( isFollowEnabled(),
-                                       openLogFile_->logData()->getLastModifiedDate().date() );
+            logTableView_->updateData( isFollowEnabled(), openLogFile_->lastModified().date() );
         } );
     }
 }
@@ -2466,8 +2462,7 @@ void CrawlerWidget::showRecognizedFormat()
     if ( recognized == recognizedFormat_ ) {
         // Still the very same Log Format: nothing to switch, only the Table
         // View to bring up to date with what was loaded.
-        logTableView_->updateData( isFollowEnabled(),
-                                   openLogFile_->logData()->getLastModifiedDate().date() );
+        logTableView_->updateData( isFollowEnabled(), openLogFile_->lastModified().date() );
         return;
     }
 
@@ -2485,8 +2480,7 @@ void CrawlerWidget::showRecognizedFormat()
 
     // A reload that recognized a different Log Format while the Table View
     // was shown keeps it shown, with the new columns.
-    logTableView_->updateData( isFollowEnabled(),
-                               openLogFile_->logData()->getLastModifiedDate().date() );
+    logTableView_->updateData( isFollowEnabled(), openLogFile_->lastModified().date() );
     if ( viewSet_.presentationPolicy().autoShowTableView && !tableViewToggle_->isChecked() ) {
         // Automatically activate table view if the user opted in
         tableViewToggle_->setChecked( true );

@@ -279,7 +279,7 @@ SCENARIO(
         {
             auto decoding = logFile.policies.decoding;
             decoding.hideAnsiColorSequences = true;
-            logFile.openLogFile->logData()->setDecodingPolicy( decoding );
+            logFile.openLogFile->setDecodingPolicy( decoding );
 
             logFile.keptSearches.makeCurrent( first );
             logFile.openLogFile->requestSearch( boldEnd );

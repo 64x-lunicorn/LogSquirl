@@ -74,6 +74,8 @@ OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPoli
     connect( logData_.get(), &LogData::loadingProgressed, this, &OpenLogFile::loadingProgressed );
     connect( logData_.get(), &LogData::loadingFinished, this, &OpenLogFile::handleLoadingFinished );
     connect( logData_.get(), &LogData::fileChanged, this, &OpenLogFile::handleFileChanged );
+    connect( logData_.get(), &LogData::decodingPolicyChanged, this,
+             &OpenLogFile::decodingPolicyChanged );
 
     if ( fileWatch_ ) {
         // Queued, as the log data always heard of changes: a change is
@@ -112,6 +114,26 @@ void OpenLogFile::restoreMarks( const logsquirl::vector<LineNumber>& marks )
     loadRule_.restoreMarks( marks );
 }
 
+void OpenLogFile::addMark( LineNumber line )
+{
+    filteredData_->addMark( line );
+}
+
+void OpenLogFile::toggleMark( LineNumber line )
+{
+    filteredData_->toggleMark( line );
+}
+
+void OpenLogFile::clearMarks()
+{
+    filteredData_->clearMarks();
+}
+
+AbstractLogData::LineType OpenLogFile::lineType( LineNumber line ) const
+{
+    return filteredData_->lineTypeByLine( line );
+}
+
 QList<LineNumber> OpenLogFile::marks() const
 {
     if ( loadRule_.isLoadingFromStart() ) {
@@ -143,7 +165,7 @@ void OpenLogFile::reload()
         filteredData_->request();
     }
     if ( decision.clearMarks ) {
-        filteredData_->clearMarks();
+        clearMarks();
     }
 
     logData_->reload();
@@ -163,6 +185,41 @@ const std::shared_ptr<LogData>& OpenLogFile::logData() const
 const std::shared_ptr<LogFilteredData>& OpenLogFile::filteredData() const
 {
     return filteredData_;
+}
+
+LinesCount OpenLogFile::lineCount() const
+{
+    return logData_->getNbLine();
+}
+
+qint64 OpenLogFile::fileSize() const
+{
+    return logData_->getFileSize();
+}
+
+QDateTime OpenLogFile::lastModified() const
+{
+    return logData_->getLastModifiedDate();
+}
+
+void OpenLogFile::setIndexingPolicy( const IndexingPolicy& policy )
+{
+    logData_->setIndexingPolicy( policy );
+}
+
+void OpenLogFile::setSearchPolicy( const SearchPolicy& policy )
+{
+    // The log data hands it on to every Search built from it, the kept ones
+    // included, which this object holds no list of.
+    logData_->setSearchPolicy( policy );
+}
+
+void OpenLogFile::setDecodingPolicy( const DecodingPolicy& policy )
+{
+    // Log Lines read from now on are decoded under it, and the log data tells
+    // the Searches, and through decodingPolicyChanged() the users, to read
+    // what they show again. Search results already found stay as they were.
+    logData_->setDecodingPolicy( policy );
 }
 
 std::shared_ptr<LogFilteredData> OpenLogFile::startAnotherSearch()
@@ -212,6 +269,21 @@ SearchSession::State OpenLogFile::requestSearch( const RegularExpressionPattern&
     return state;
 }
 
+SearchSession::State OpenLogFile::searchState() const
+{
+    return filteredData_->searchState();
+}
+
+LinesCount OpenLogFile::matchCount() const
+{
+    return filteredData_->getNbMatches();
+}
+
+LinesCount OpenLogFile::displayedLineCount() const
+{
+    return filteredData_->getNbLine();
+}
+
 void OpenLogFile::clearSearch()
 {
     loadRule_.searchCleared();
@@ -245,6 +317,17 @@ void OpenLogFile::setSearchLimits( LineNumber startLine, LineNumber endLine )
 {
     searchStartLine_ = startLine;
     searchEndLine_ = endLine;
+    tellSearchLimits();
+}
+
+void OpenLogFile::tellSearchLimits()
+{
+    const auto limits = std::pair{ searchStartLine_, searchEndLine_ };
+    if ( toldSearchLimits_ == limits ) {
+        return;
+    }
+    toldSearchLimits_ = limits;
+    Q_EMIT searchLimitsChanged( searchStartLine_, searchEndLine_ );
 }
 
 LineNumber OpenLogFile::searchStartLine() const
@@ -363,6 +446,8 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
         searchEndLine_ = std::min( searchEndLine_, nbLines );
     }
     loadedLineCount_ = lineCount;
+    // Every view shows them as settled before the Search runs over them.
+    tellSearchLimits();
 
     // The Search follows the Log Lines loaded: it continues over the ones
     // added within the Search Limits, or starts again over a Log File
@@ -387,7 +472,7 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     }
 
     for ( const auto& mark : decision.savedMarksToApply ) {
-        filteredData_->addMark( mark );
+        addMark( mark );
     }
 
     if ( decision.runWaitingSearch ) {
@@ -422,7 +507,7 @@ void OpenLogFile::handleFileChanged( MonitoredFileStatus status, const QString& 
     const auto decision = loadRule_.changedOnDisk( status );
 
     if ( decision.clearMarks ) {
-        filteredData_->clearMarks();
+        clearMarks();
     }
     if ( decision.dropSearch ) {
         // The Search's results no longer describe the Log File; whether it
