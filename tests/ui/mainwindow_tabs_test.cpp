@@ -20,12 +20,14 @@
 // The main window's tabs: which of them hold a Log File, whether or not the
 // window shows the dashboard (#535), the merged Log File whose rebuild ends
 // with its tab (#537), and the dashboard setting, which reaches the windows
-// opened after it changes (#562).
+// opened after it changes (#562). Every close of tabs takes one path, whoever
+// asks for it (#536).
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
 #include <QAction>
+#include <QActionEvent>
 #include <QApplication>
 #include <QColor>
 #include <QDialogButtonBox>
@@ -34,6 +36,7 @@
 #include <QGridLayout>
 #include <QLabel>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -52,6 +55,7 @@
 #include "mergecontroller.h"
 #include "openlogfile.h"
 #include "optionsdialog.h"
+#include "recentfiles.h"
 #include "session.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabgroupinfo.h"
@@ -223,6 +227,108 @@ struct ThreeLogFiles {
     QTemporaryDir dir;
     QStringList paths;
 };
+
+// Counts the times the Opened files menu is filled anew: each time it gets
+// back its first entry.
+class OpenedFilesMenuRefreshes : public QObject {
+public:
+    explicit OpenedFilesMenuRefreshes( const MainWindow& window )
+    {
+        const auto title = QApplication::translate( "logsquirl::mainwindow::menu",
+                                                    logsquirl::mainwindow::menu::openedFilesTitle );
+        const auto firstEntry = QApplication::translate(
+            "logsquirl::mainwindow::action", logsquirl::mainwindow::action::selectOpenFileText );
+        for ( auto* menu : window.findChildren<QMenu*>() ) {
+            if ( menu->title() == title ) {
+                menu_ = menu;
+            }
+        }
+        REQUIRE( menu_ != nullptr );
+        firstEntry_ = firstEntry;
+        menu_->installEventFilter( this );
+    }
+
+    int count() const
+    {
+        return count_;
+    }
+
+protected:
+    bool eventFilter( QObject* watched, QEvent* event ) override
+    {
+        if ( watched == menu_ && event->type() == QEvent::ActionAdded ) {
+            const auto* added = static_cast<QActionEvent*>( event )->action();
+            if ( added->text() == firstEntry_ ) {
+                ++count_;
+            }
+        }
+        return false;
+    }
+
+private:
+    QMenu* menu_ = nullptr;
+    QString firstEntry_;
+    int count_ = 0;
+};
+
+// Answers Yes to every question the window asks, and keeps what it asked.
+class QuestionAnswerer {
+public:
+    QuestionAnswerer()
+    {
+        QObject::connect( &driver_, &QTimer::timeout, [ this ] {
+            if ( auto* box = qobject_cast<QMessageBox*>( QApplication::activeModalWidget() ) ) {
+                if ( box->isVisible() && !box->property( "answered" ).toBool() ) {
+                    box->setProperty( "answered", true );
+                    questions_.append( box->text() );
+                    box->button( QMessageBox::Yes )->click();
+                }
+            }
+        } );
+        driver_.start( 10 );
+    }
+
+    const QStringList& questions() const
+    {
+        return questions_;
+    }
+
+private:
+    QTimer driver_;
+    QStringList questions_;
+};
+
+// Turns the confirmation of a tab close on for its lifetime.
+struct ConfirmTabClose {
+    ConfirmTabClose()
+    {
+        Configuration::get().setConfirmTabClose( true );
+        Configuration::get().save();
+    }
+    ~ConfirmTabClose()
+    {
+        Configuration::get().setConfirmTabClose( false );
+        Configuration::get().save();
+    }
+    ConfirmTabClose( const ConfirmTabClose& ) = delete;
+    ConfirmTabClose& operator=( const ConfirmTabClose& ) = delete;
+};
+
+QStringList recentFiles()
+{
+    QStringList files;
+    for ( const auto& file : RecentFiles::getSynced().recentFiles() ) {
+        files.append( QDir::fromNativeSeparators( file ) );
+    }
+    return files;
+}
+
+void forgetRecentFiles()
+{
+    auto& recent = RecentFiles::getSynced();
+    recent.removeAll();
+    recent.save();
+}
 
 } // namespace
 
@@ -511,4 +617,99 @@ SCENARIO( "The dashboard setting reaches the windows opened after it changes", "
 
     config.setShowDashboard( previousShowDashboard );
     config.save();
+}
+
+// One path closes any set of tabs: it asks once for the whole set when the
+// user asked for the close and confirmation is on, adds the Log Files to the
+// recent files only then, and fills the Opened files menu anew once (#536).
+SCENARIO( "Closing tabs asks once and remembers the Log Files only when the user asked",
+          "[ui][tabs]" )
+{
+    ThreeLogFiles files;
+    const ConfirmTabClose confirmation;
+    TabsWindow window( true );
+
+    GIVEN( "three Log Files open in their tabs, with the close of a tab to be confirmed" )
+    {
+        const auto paths = window.open( files.paths );
+        QTest::qWait( 50 );
+        // Opening them made them recent files too.
+        forgetRecentFiles();
+        OpenedFilesMenuRefreshes refreshes( *window.mainWindow );
+        QuestionAnswerer answerer;
+
+        WHEN( "Close all is chosen from the File menu" )
+        {
+            auto* closeAll
+                = fileMenuAction( *window.mainWindow, logsquirl::mainwindow::action::closeAllText );
+            REQUIRE( closeAll != nullptr );
+            closeAll->trigger();
+
+            THEN( "one question is asked, and all three are closed and in the recent files" )
+            {
+                REQUIRE( answerer.questions().size() == 1 );
+                REQUIRE( answerer.questions().front().contains( "3" ) );
+                REQUIRE( window.logFileTabPaths().isEmpty() );
+                REQUIRE( window.noneOpenInSession( paths ) );
+                const auto recent = recentFiles();
+                for ( const auto& path : paths ) {
+                    REQUIRE( recent.contains( path ) );
+                }
+                REQUIRE( refreshes.count() == 1 );
+            }
+        }
+
+        WHEN( "Close all is chosen from the menu of a Log File's tab" )
+        {
+            REQUIRE(
+                window.chooseFromTabMenu( window.tabArea->logFileTabs().back(), "Close all" ) );
+
+            THEN( "one question is asked, and all three are closed and in the recent files" )
+            {
+                REQUIRE( answerer.questions().size() == 1 );
+                REQUIRE( window.logFileTabPaths().isEmpty() );
+                const auto recent = recentFiles();
+                for ( const auto& path : paths ) {
+                    REQUIRE( recent.contains( path ) );
+                }
+                REQUIRE( refreshes.count() == 1 );
+            }
+        }
+
+        WHEN( "the tab in front is closed from the File menu" )
+        {
+            auto* close
+                = fileMenuAction( *window.mainWindow, logsquirl::mainwindow::action::closeText );
+            REQUIRE( close != nullptr );
+            window.tabArea->setCurrentIndex( window.tabArea->logFileTabs().back() );
+            close->trigger();
+
+            THEN( "the question names its Log File, and only it is closed and remembered" )
+            {
+                REQUIRE( answerer.questions()
+                         == QStringList{ QStringLiteral( "Close tab \"third.log\"?" ) } );
+                REQUIRE( window.logFileTabPaths() == QStringList{ paths[ 0 ], paths[ 1 ] } );
+                REQUIRE( recentFiles().contains( paths[ 2 ] ) );
+                REQUIRE_FALSE( recentFiles().contains( paths[ 0 ] ) );
+                REQUIRE( refreshes.count() == 1 );
+            }
+        }
+
+        WHEN( "the window is closed" )
+        {
+            window.mainWindow->close();
+
+            THEN( "no question is asked, and none of them is in the recent files" )
+            {
+                REQUIRE( answerer.questions().isEmpty() );
+                REQUIRE( window.noneOpenInSession( paths ) );
+                const auto recent = recentFiles();
+                for ( const auto& path : paths ) {
+                    REQUIRE_FALSE( recent.contains( path ) );
+                }
+            }
+        }
+    }
+
+    forgetRecentFiles();
 }

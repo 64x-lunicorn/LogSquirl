@@ -225,8 +225,9 @@ private Q_SLOTS:
 
     // Close the tab with the passed index
     void closeTab( int index, ActionInitiator initiator );
-    // Close multiple tabs at once with a single confirmation dialog
-    void closeTabs( QList<int> indices );
+    // The one path that closes tabs, one or many, whoever asks (#536). The
+    // tabs that hold no Log File are left alone.
+    void closeTabs( const QList<int>& indices, ActionInitiator initiator );
     // Setup the tab with current index for view
     void currentTabChanged( int index );
 
