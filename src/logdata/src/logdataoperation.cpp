@@ -39,7 +39,6 @@
 #include "logdataoperation.h"
 
 #include "log.h"
-#include "logdataworker.h"
 #include "overload_visitor.h"
 #include "synchronization.h"
 
@@ -102,41 +101,43 @@ OperationQueue::OperationQueue() = default;
 
 OperationQueue::~OperationQueue() = default;
 
-void OperationQueue::setWorker( std::unique_ptr<LogDataWorker>&& worker )
+void OperationQueue::setRunner( std::unique_ptr<IndexJobRunner>&& runner )
 {
-    worker_ = std::move( worker );
+    runner_ = std::move( runner );
 }
 
 void OperationQueue::setIndexingPolicy( const IndexingPolicy& indexingPolicy )
 {
     ScopedLock guard( mutex_ );
-    if ( worker_ ) {
-        worker_->setIndexingPolicy( indexingPolicy );
+    if ( runner_ ) {
+        runner_->setIndexingPolicy( indexingPolicy );
     }
 }
 
 void OperationQueue::interrupt()
 {
     ScopedLock guard( mutex_ );
-    if ( worker_ ) {
-        worker_->interrupt();
+    if ( runner_ ) {
+        runner_->interrupt();
     }
 }
 
 void OperationQueue::shutdown()
 {
-    std::unique_ptr<LogDataWorker> worker;
+    std::unique_ptr<IndexJobRunner> runner;
     {
         ScopedLock guard( mutex_ );
-        worker = std::move( worker_ );
+        runner = std::move( runner_ );
+        runningJob_ = {};
+        waitingJob_ = {};
     }
 
-    // Interrupt and destroy the worker outside the queue mutex so that the
+    // Interrupt and destroy the runner outside the queue mutex so that the
     // worker destructor can wait for its thread pool without contention.
-    if ( worker ) {
-        worker->interrupt();
+    if ( runner ) {
+        runner->interrupt();
     }
-    worker.reset();
+    runner.reset();
 
     LOG_INFO << "Operation queue shutdown";
 }
@@ -144,8 +145,8 @@ void OperationQueue::shutdown()
 void OperationQueue::tryStartWaitingJob()
 {
     runningJob_ = std::exchange( waitingJob_, {} );
-    if ( !worker_ ) {
-        LOG_WARNING << "No worker for index job";
+    if ( !runner_ ) {
+        LOG_WARNING << "No runner for index job";
         runningJob_ = {};
         return;
     }
@@ -155,7 +156,7 @@ void OperationQueue::tryStartWaitingJob()
         return;
     }
 
-    worker_->run( runningJob_ );
+    runner_->run( runningJob_ );
     LOG_INFO << "Started index job " << nameOf( runningJob_ );
 }
 

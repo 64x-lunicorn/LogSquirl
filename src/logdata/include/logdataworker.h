@@ -75,6 +75,7 @@ class IndexingBlockPool;
 #include "headerandtaildigests.h"
 #include "indexedhash.h"
 #include "indexjob.h"
+#include "indexjobrunner.h"
 #include "linepositionarray.h"
 #include "loadingstatus.h"
 
@@ -588,8 +589,9 @@ private:
 // Runs the index jobs of one Log File through a Background Run, one at a
 // time, which keeps the Log File's reader attached for exactly as long as each
 // run lasts and reports each run finished once. Which index job runs next is
-// the job rule's, and up to whoever hands the jobs in (the log data).
-class LogDataWorker : public QObject {
+// the job rule's, and up to whoever hands the jobs in: the operation queue,
+// whose runner port this worker implements (#550).
+class LogDataWorker : public QObject, public IndexJobRunner {
     Q_OBJECT
 
 public:
@@ -619,15 +621,15 @@ public:
     // reported finished. Its
     // progress and its end are sent as the signals below, on the thread this
     // worker lives on. Nothing runs for no job.
-    void run( const IndexJob& job );
+    void run( const IndexJob& job ) override;
 
     // Replaces the Indexing Policy used by the runs requested from now on.
     // A run already in flight keeps the Policy it was started with.
-    void setIndexingPolicy( const IndexingPolicy& indexingPolicy );
+    void setIndexingPolicy( const IndexingPolicy& indexingPolicy ) override;
 
     // Interrupts the index run in flight, if any. Does not wait for it: it is
     // reported finished, Interrupted, once it has stopped.
-    void interrupt();
+    void interrupt() override;
 
 Q_SIGNALS:
     // Sent during the indexing process to signal progress
