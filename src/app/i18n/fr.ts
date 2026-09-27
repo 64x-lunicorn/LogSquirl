@@ -1575,7 +1575,7 @@ Sans date, %1 est utilisé.</translation>
 <context>
     <name>LogTableView</name>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="714"/>
+        <location filename="../../ui/src/logtableview.cpp" line="731"/>
         <source>Count values</source>
         <translation>Compter les valeurs</translation>
     </message>
