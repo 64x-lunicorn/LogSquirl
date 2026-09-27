@@ -43,6 +43,11 @@
 // show, and whether follow is left or engaged. The widget turns Qt events into
 // these calls and applies the answers. Selection is not part of it.
 //
+// Follow is not its own: the Log File's View Set owns it (#558). Scrolling
+// asks the view whether it follows, says in an answer when a step leaves or
+// engages follow -- the elastic hook's pull included -- and is handed the
+// owner's state back through followSet().
+//
 // The vertical scrollbar counts whole Log Lines (docs/adr/0001). No step here
 // does work proportional to the Log File: a move wraps only the lines it passes
 // over, and the bottom is found wrapping backwards no more lines than the
@@ -78,6 +83,8 @@ public:
     virtual logsquirl::vector<QString> lineTexts( LineNumber first, LinesCount count ) const;
     // The Viewport as it is now.
     virtual ScrollingViewport viewport() const = 0;
+    // Whether the view follows, as the owner of follow says now.
+    virtual bool follows() const = 0;
 
 protected:
     ScrolledText() = default;
@@ -85,9 +92,8 @@ protected:
     ScrolledText& operator=( const ScrolledText& ) = default;
 };
 
-// Whether a step leaves follow or engages it. The view says so to whoever
-// holds the follow toggle; that one hands the new state back through
-// TextViewScrolling::followSet().
+// Whether a step leaves follow or engages it. The view says so to the owner of
+// follow, which hands the new state back through TextViewScrolling::followSet().
 enum class FollowChange { None, Leave, Engage };
 
 // How the lines a text view shows changed.
@@ -184,11 +190,6 @@ public:
     {
         return textWrap_;
     }
-    // Whether follow is engaged: the view stays at the bottom of the Log File.
-    bool follows() const
-    {
-        return follow_;
-    }
     // Whether pulling past the bottom may engage follow (see allowFollow()).
     bool followAllowed() const
     {
@@ -198,8 +199,8 @@ public:
     {
         return presentationPolicy_;
     }
-    // Its signals say when the pull-to-follow bar is to be redrawn, and when
-    // pulling it engaged or left follow.
+    // Its signal says when the pull-to-follow bar is to be redrawn. Whether
+    // pulling it engaged or left follow is said in the wheel turn's answer.
     const ElasticHook& elasticHook() const
     {
         return elasticHook_;
@@ -256,7 +257,7 @@ public:
     // when the Presentation Policy lets scrolling engage follow.
     ScrollAnswer turnWheel( const WheelTurn& turn );
     ScrollAnswer jumpToBottom();
-    // A move that does, when follow is on or orAtBottom: the view goes to the
+    // A move that does, when the view follows or orAtBottom: the view goes to the
     // bottom Scroll Position. Otherwise it does not scroll.
     ScrollAnswer jumpToBottomIfFollowing( bool orAtBottom = false );
     // Brings the view back to the bottom Scroll Position when it stands below
@@ -265,7 +266,8 @@ public:
 
     // --- follow --------------------------------------------------------
 
-    // Follow was turned on or off. On, the view goes to the bottom.
+    // The owner of follow turned it on or off, and hands it over: the elastic
+    // hook hooks or unhooks, and on, the view goes to the bottom.
     ScrollAnswer followSet( bool checked );
     // Asks to leave follow: a move away from the bottom by the user.
     ScrollAnswer leaveFollow();
@@ -376,7 +378,8 @@ private:
     // The maximum the vertical scrollbar was last given.
     int scrollBarMaximum_ = 0;
 
-    bool follow_ = false;
+    // Hooked while the view follows, as followSet() hands it over; a pull
+    // hooks or unhooks it ahead of the owner, which the answer then asks.
     ElasticHook elasticHook_{ HookThreshold };
 
     mutable std::optional<LogFileBottom> logFileBottom_;

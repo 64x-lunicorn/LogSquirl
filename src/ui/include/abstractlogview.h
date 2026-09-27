@@ -181,9 +181,10 @@ public:
     // behind a progress dialog. Nothing is saved without a selection.
     void saveSelectedTo( const QString& filename );
 
+    // Whether the view follows, as it was handed last.
     bool isFollowEnabled() const
     {
-        return scrolling_.follows();
+        return follow_;
     }
 
     bool isTextWrapEnabled() const
@@ -277,7 +278,9 @@ protected:
     void registerShortcut( const std::string& action, std::function<void()> func );
 
 Q_SIGNALS:
-    // Sent up to the MainWindow to enable/disable the follow mode
+    // Asks the owner of follow, the View Set, to engage or leave it: the user
+    // pulled past the bottom or moved away from it. The view follows only once
+    // it is handed the outcome through followSet() (#558).
     void followModeChanged( bool enabled );
     // Sent when the view wants the QuickFind widget pattern to change.
     void changeQuickFind( const QString& newPattern, QuickFindMux::QFDirection newDirection );
@@ -345,8 +348,8 @@ public Q_SLOTS:
     // Abort the current incremental search (typically when user press esc)
     void incrementalSearchAbort() override;
 
-    // Signals the follow mode has been enabled.
-    void followSet( bool checked );
+    // The owner of follow turned it on or off.
+    void followSet( bool checked ) override;
 
     // Signals the text wrap mode has been enabled.
     void textWrapSet( bool checked );
@@ -396,6 +399,9 @@ private:
     // Digits buffer (for numeric keyboard entry)
     DigitsBuffer digitsBuffer_;
 
+    // Whether the view follows, as the owner of follow handed it last.
+    // Scrolling asks it through scrolledLines_ and keeps none of its own.
+    bool follow_ = false;
     // Whether to show line numbers or not
     bool lineNumbersVisible_ = false;
 
@@ -455,6 +461,7 @@ private:
         QString lineText( LineNumber position ) const override;
         logsquirl::vector<QString> lineTexts( LineNumber first, LinesCount count ) const override;
         ScrollingViewport viewport() const override;
+        bool follows() const override;
 
     private:
         const AbstractLogView& view_;
@@ -462,9 +469,10 @@ private:
     ScrolledLines scrolledLines_{ *this };
 
     // Every scrolling rule, and all the state they keep: the Scroll Position,
-    // follow and its elastic hook, the bottom of the Log File, text wrapping,
-    // the first column and the Presentation Policy. This view turns Qt events
-    // into its calls and applies its answers (#246).
+    // the elastic hook that pulls to follow, the bottom of the Log File, text
+    // wrapping, the first column and the Presentation Policy. Follow is not
+    // among them: scrolling asks this view. This view turns Qt events into
+    // its calls and applies its answers (#246).
     TextViewScrolling scrolling_;
 
     // Everything a Log Line's Decoration depends on that can change while the
@@ -721,9 +729,9 @@ private:
     // above the bottom.
     void updateScrollBars();
 
-    // Applies what scrolling answered: says a change of follow, moves the
-    // vertical scrollbar -- scrollContentsBy() follows, and scrolling knows
-    // the scrollbar only caught up -- and redraws.
+    // Applies what scrolling answered: asks the owner of follow for a change
+    // of follow, moves the vertical scrollbar -- scrollContentsBy() follows,
+    // and scrolling knows the scrollbar only caught up -- and redraws.
     void applyScroll( const ScrollAnswer& answer );
     // What follows any move of the Scroll Position: the overview, the
     // hovered line and a repaint.
@@ -735,7 +743,7 @@ private:
                        std::optional<int> endRow = std::nullopt );
     QPixmap drawPullToFollowBar( int width, qreal pixelRatio );
 
-    // Leaves follow: a move away from the bottom by the user.
+    // Asks to leave follow: a move away from the bottom by the user.
     void disableFollow();
 
     // Utils functions

@@ -199,7 +199,8 @@ private Q_SLOTS:
     void toggleMainLineNumbersVisibility( bool isVisible );
     void toggleFilteredLineNumbersVisibility( bool isVisible );
 
-    // Change the follow mode checkbox and send the followSet signal down
+    // Mirrors in the follow action whether the current Log File is followed,
+    // as its View Set, the owner of follow, holds it (#558).
     void changeFollowMode( bool follow );
 
     // Update the selection information displayed in the status bar.
@@ -236,7 +237,8 @@ private Q_SLOTS:
     void changeQFPattern( const QString& newPattern );
 
 Q_SIGNALS:
-    // Is emitted when the 'follow' option is enabled/disabled
+    // The user turned the follow action on or off: asks the current Log
+    // File's View Set, which says back what it holds.
     void followSet( bool checked );
     // Is emitted when the 'text wrap' option is enabled/disabled
     void textWrapSet( bool checked );

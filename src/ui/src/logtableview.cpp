@@ -324,7 +324,6 @@ void LogTableView::followSet( bool checked )
 void LogTableView::leaveFollowAwayFromBottom( int position )
 {
     if ( follow_ && position < verticalScrollBar()->maximum() ) {
-        follow_ = false;
         Q_EMIT followModeChanged( false );
     }
 }

@@ -81,6 +81,10 @@ public:
     {
         return viewport_;
     }
+    bool follows() const override
+    {
+        return follow_;
+    }
 
     QStringList lines_;
     ScrollingViewport viewport_{ .charWidthPx = CharWidthPx,
@@ -90,10 +94,14 @@ public:
     mutable uint64_t linesRead = 0;
     // How often lines were read: one at a time or several together.
     mutable uint64_t readsOfLines = 0;
+    // Whether the view follows, as its owner says.
+    bool follow_ = false;
 };
 
 // A text view reduced to what scrolling needs of it: its lines, its Viewport
-// and a vertical scrollbar.
+// and a vertical scrollbar. It is also the owner of follow, as the View Set is
+// in the application: a change of follow is heard from the answers alone, and
+// handed back to scrolling as the View Set hands it to every view.
 class View {
 public:
     explicit View( QStringList lines, bool textWrap = true )
@@ -101,8 +109,6 @@ public:
         , scrolling( text, textWrap )
     {
         text.viewport_.largestDisplayLineNumber = text.lineCount().get();
-        QObject::connect( &scrolling.elasticHook(), &ElasticHook::hooked,
-                          [ this ]( bool hooked ) { hookedSignals.push_back( hooked ); } );
         // As a view shown for the first time is resized.
         changeViewport( text.viewport_.widthPx );
     }
@@ -126,15 +132,24 @@ public:
         apply( scrolling.keepAboveBottom() );
     }
 
-    // What the text view does with an answer.
+    // What the text view does with an answer. A change of follow goes to the
+    // owner, which hands the new state back.
     void apply( const ScrollAnswer& answer )
     {
         if ( answer.followChange != FollowChange::None ) {
             followChanges.push_back( answer.followChange );
+            setFollow( answer.followChange == FollowChange::Engage );
         }
         if ( answer.scrolled ) {
             setScrollBarValue( answer.scrollBarValue );
         }
+    }
+
+    // The owner turns follow on or off, and hands it to the view.
+    void setFollow( bool follow )
+    {
+        text.follow_ = follow;
+        apply( scrolling.followSet( follow ) );
     }
 
     // --- input -----------------------------------------------------------
@@ -245,7 +260,6 @@ public:
     int scrollBarValue = 0;
     int scrollBarMaximum = 0;
     std::vector<FollowChange> followChanges;
-    std::vector<bool> hookedSignals;
 };
 
 constexpr int Notch = 120;
@@ -649,7 +663,7 @@ SCENARIO( "A text view at the bottom as its Log File changes", "[textviewscrolli
 
         THEN( "follow keeps the new last Visual Line on the last row" )
         {
-            view.apply( view.scrolling.followSet( true ) );
+            view.setFollow( true );
             view.setLines( grown );
             view.requireLogFileEndsOnLastRow();
             REQUIRE( view.scrolling.pullToFollowState().hooked );
@@ -683,7 +697,7 @@ SCENARIO( "A text view at the bottom as its Log File changes", "[textviewscrolli
 
         THEN( "follow keeps its new last Visual Line on the last row" )
         {
-            view.apply( view.scrolling.followSet( true ) );
+            view.setFollow( true );
             view.setLines( grown );
             view.requireLogFileEndsOnLastRow();
         }
@@ -691,7 +705,7 @@ SCENARIO( "A text view at the bottom as its Log File changes", "[textviewscrolli
         THEN( "follow keeps its new last Visual Line on the last row when told Log Lines were "
               "only appended" )
         {
-            view.apply( view.scrolling.followSet( true ) );
+            view.setFollow( true );
             view.setLines( grown, LinesChange::Appended );
             view.requireLogFileEndsOnLastRow();
         }
@@ -700,7 +714,7 @@ SCENARIO( "A text view at the bottom as its Log File changes", "[textviewscrolli
     GIVEN( "Log Lines appended, and the view told so" )
     {
         View view{ fewerVisualLinesThanRows() };
-        view.apply( view.scrolling.followSet( true ) );
+        view.setFollow( true );
 
         THEN( "follow keeps the new last Visual Line on the last row, append after append" )
         {
@@ -741,8 +755,7 @@ SCENARIO( "Follow is left by moving up and engaged by pulling past the bottom",
 
     GIVEN( "a view that follows" )
     {
-        view.apply( view.scrolling.followSet( true ) );
-        REQUIRE( view.scrolling.follows() );
+        view.setFollow( true );
         REQUIRE( view.scrolling.position() == view.scrolling.bottomScrollPosition() );
 
         THEN( "a step up asks to leave follow, a step down does not" )
@@ -762,6 +775,20 @@ SCENARIO( "Follow is left by moving up and engaged by pulling past the bottom",
             view.apply( view.scrolling.leaveFollow() );
             REQUIRE( view.followChanges.size() == 2 );
             REQUIRE( !view.scrolling.pullToFollowState().hooked );
+        }
+
+        THEN( "follow is asked of the owner each time, not kept: left elsewhere, the view stays "
+              "where it is as Log Lines are appended, and a step up asks nothing" )
+        {
+            // As when another view of the Log File left follow.
+            view.text.follow_ = false;
+            const auto before = view.scrolling.position();
+            auto grown = tallLogLines();
+            grown << QStringLiteral( "b" ) << QStringLiteral( "c" );
+            view.setLines( grown );
+            REQUIRE( view.scrolling.position() == before );
+            view.step( -1 );
+            REQUIRE( view.followChanges.empty() );
         }
 
         THEN( "the wheel takes a view the scrollbar moved away back to the bottom first" )
@@ -785,11 +812,24 @@ SCENARIO( "Follow is left by moving up and engaged by pulling past the bottom",
         {
             view.pull( TextViewScrolling::HookThreshold );
 
-            THEN( "the elastic hook hooks, and the view does not move" )
+            THEN( "the elastic hook hooks, the turn's answer asks to engage follow, and the view "
+                  "does not move" )
             {
-                REQUIRE( view.hookedSignals == std::vector{ true } );
+                REQUIRE( view.followChanges == std::vector{ FollowChange::Engage } );
                 REQUIRE( view.scrolling.pullToFollowState().hooked );
                 REQUIRE( view.scrolling.position() == bottom );
+            }
+
+            AND_WHEN( "it is pushed back up as far again" )
+            {
+                view.pull( -TextViewScrolling::HookThreshold );
+
+                THEN( "the turn's answer asks to leave follow" )
+                {
+                    REQUIRE( view.followChanges
+                             == std::vector{ FollowChange::Engage, FollowChange::Leave } );
+                    REQUIRE( !view.scrolling.pullToFollowState().hooked );
+                }
             }
         }
 
@@ -799,7 +839,7 @@ SCENARIO( "Follow is left by moving up and engaged by pulling past the bottom",
 
             THEN( "the elastic stretches without hooking" )
             {
-                REQUIRE( view.hookedSignals.empty() );
+                REQUIRE( view.followChanges.empty() );
                 REQUIRE( view.scrolling.pullToFollowState().elasticHookLength == 112 );
                 REQUIRE( view.scrolling.position() == bottom );
             }
@@ -808,12 +848,11 @@ SCENARIO( "Follow is left by moving up and engaged by pulling past the bottom",
         WHEN( "follow is not allowed for the Log File" )
         {
             view.scrolling.allowFollow( false );
-            view.hookedSignals.clear();
             view.pull( TextViewScrolling::HookThreshold );
 
             THEN( "the pull does not hook" )
             {
-                REQUIRE( view.hookedSignals.empty() );
+                REQUIRE( view.followChanges.empty() );
                 REQUIRE( !view.scrolling.pullToFollowState().hooked );
             }
         }
@@ -826,7 +865,7 @@ SCENARIO( "Follow is left by moving up and engaged by pulling past the bottom",
 
         THEN( "a pull down neither stretches nor hooks the elastic" )
         {
-            REQUIRE( view.hookedSignals.empty() );
+            REQUIRE( view.followChanges.empty() );
             REQUIRE( view.scrolling.pullToFollowState().elasticHookLength == 0 );
         }
     }

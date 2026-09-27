@@ -96,8 +96,14 @@ public:
     // Each view shows the line numbers the Policy says for its kind, and the
     // Presentations show the Overview as it says.
     void setPresentationPolicy( const PresentationPolicy& policy );
-    // Whether follow may be engaged at all. Until told otherwise it may.
+    // Whether follow may be engaged at all. Until told otherwise it may; not
+    // allowed, follow is left.
     void setFollowAllowed( bool allowed );
+    // Follow the Log File, or leave it. The View Set owns follow: every view
+    // is handed it, whichever view or the window's action asked, so they all
+    // follow alike (#558). Engaging it is refused while it is not allowed.
+    // Until told otherwise the Log File is not followed.
+    void setFollow( bool follow );
     // The font Log Lines are drawn in. Until one is set, a view keeps its own.
     void setFont( const QFont& font );
     // The words of every Color Label, one list per color slot.
@@ -143,6 +149,10 @@ public:
     bool isFollowAllowed() const
     {
         return followAllowed_;
+    }
+    bool follows() const
+    {
+        return follow_;
     }
     // None until a font was set.
     const std::optional<QFont>& font() const
@@ -205,6 +215,7 @@ private:
     DecorationPolicy decorationPolicy_;
     PresentationPolicy presentationPolicy_;
     bool followAllowed_ = true;
+    bool follow_ = false;
     std::optional<QFont> font_;
     ColorLabels colorLabels_ = ColorLabels( ColorLabelCount );
     std::optional<std::pair<LineNumber, LineNumber>> searchLimits_;

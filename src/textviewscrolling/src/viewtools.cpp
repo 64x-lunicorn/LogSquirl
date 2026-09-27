@@ -46,12 +46,10 @@ void ElasticHook::move( int value )
     if ( allowHook_ && ( !hooked_ ) && position_ >= hook_threshold_ ) {
         position_ -= hook_threshold_;
         hooked_ = true;
-        Q_EMIT hooked( true );
     }
     else if ( hooked_ && position_ <= -hook_threshold_ ) {
         position_ += hook_threshold_;
         hooked_ = false;
-        Q_EMIT hooked( false );
     }
 
     if ( position_ < 0 && !isHooked() )

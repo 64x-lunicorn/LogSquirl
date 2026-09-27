@@ -94,10 +94,12 @@ _Avoid_: screen, canvas, page
 Every view of one Log File: its Presentations and its Filtered Views, those of kept
 Searches included. Whatever all of them must show alike — the Policies, the font, the Color
 Labels, the Search Limits — is handed to the View Set, which hands it to every view, and a
-view added later starts with all of it. Which Search is current reaches every Presentation,
-the Overview and that Search's Filtered View through it too, as the Kept Searches make one
-current, and so does the pattern of the current Search; a kept Search's Filtered View keeps
-coloring the pattern it ran with.
+view added later starts with all of it. It owns whether the Log File is followed: a view
+that leaves or engages follow asks the View Set, which hands the outcome to every view, and
+the window's follow action shows what it holds. Which Search is current reaches every
+Presentation, the Overview and that Search's Filtered View through it too, as the Kept
+Searches make one current, and so does the pattern of the current Search; a kept Search's
+Filtered View keeps coloring the pattern it ran with.
 _Avoid_: views, panes, tabs
 
 **Visual Line**:

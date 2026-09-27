@@ -134,6 +134,10 @@ public:
     {
         followAllowed = allow;
     }
+    void followSet( bool follow ) override
+    {
+        follows = follow;
+    }
     void setColorLabels( const std::vector<QStringList>& labels ) override
     {
         colorLabels = labels;
@@ -159,6 +163,7 @@ public:
     std::optional<DecorationPolicy> decorationPolicy;
     std::optional<PresentationPolicy> presentationPolicy;
     std::optional<bool> followAllowed;
+    std::optional<bool> follows;
     std::optional<QFont> font;
     std::optional<std::vector<QStringList>> colorLabels;
     std::optional<std::pair<LineNumber, LineNumber>> searchLimits;
@@ -501,6 +506,91 @@ SCENARIO( "What the View Set is handed reaches every view in it", "[viewset]" )
                 {
                     REQUIRE( ViewAccess::searchLimits( *another.view ) == HandedSearchLimits );
                 }
+            }
+        }
+    }
+}
+
+SCENARIO( "The View Set owns follow for every view of the Log File", "[viewset][follow]" )
+{
+    LogFile logFile;
+    ViewSet viewSet;
+
+    GIVEN( "a View Set with both Presentations and the Filtered Views of two Searches" )
+    {
+        RecordingPresentation textView;
+        RecordingPresentation tableView;
+        auto current = logFile.newSearch();
+        auto kept = logFile.newSearch();
+        viewSet.addPresentation( &textView );
+        viewSet.addPresentation( &tableView );
+        viewSet.addFilteredView( kept.view.get() );
+        viewSet.addFilteredView( current.view.get() );
+
+        THEN( "the Log File is not followed, and no view is told it is" )
+        {
+            REQUIRE_FALSE( viewSet.follows() );
+            REQUIRE_FALSE( textView.follows.has_value() );
+            REQUIRE_FALSE( current.view->isFollowEnabled() );
+        }
+
+        WHEN( "follow is engaged" )
+        {
+            viewSet.setFollow( true );
+
+            THEN( "every view follows, the kept Search's included" )
+            {
+                REQUIRE( viewSet.follows() );
+                REQUIRE( textView.follows == true );
+                REQUIRE( tableView.follows == true );
+                REQUIRE( kept.view->isFollowEnabled() );
+                REQUIRE( current.view->isFollowEnabled() );
+            }
+
+            THEN( "a Filtered View added afterwards follows too" )
+            {
+                auto another = logFile.newSearch();
+                viewSet.addFilteredView( another.view.get() );
+                REQUIRE( another.view->isFollowEnabled() );
+            }
+
+            AND_WHEN( "it is left" )
+            {
+                viewSet.setFollow( false );
+
+                THEN( "no view follows" )
+                {
+                    REQUIRE_FALSE( viewSet.follows() );
+                    REQUIRE( textView.follows == false );
+                    REQUIRE( tableView.follows == false );
+                    REQUIRE_FALSE( kept.view->isFollowEnabled() );
+                    REQUIRE_FALSE( current.view->isFollowEnabled() );
+                }
+            }
+
+            AND_WHEN( "follow is no longer allowed" )
+            {
+                viewSet.setFollowAllowed( false );
+
+                THEN( "it is left in every view" )
+                {
+                    REQUIRE_FALSE( viewSet.follows() );
+                    REQUIRE( textView.follows == false );
+                    REQUIRE_FALSE( current.view->isFollowEnabled() );
+                }
+            }
+        }
+
+        WHEN( "follow is not allowed, and is asked for" )
+        {
+            viewSet.setFollowAllowed( false );
+            viewSet.setFollow( true );
+
+            THEN( "it is refused" )
+            {
+                REQUIRE_FALSE( viewSet.follows() );
+                REQUIRE_FALSE( textView.follows.value_or( false ) );
+                REQUIRE_FALSE( current.view->isFollowEnabled() );
             }
         }
     }

@@ -440,10 +440,9 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     connect( quickFind_, &QuickFind::searchDone, this, &AbstractLogView::setQuickFindResult,
              Qt::DirectConnection );
 
+    // Whether a pull hooked the elastic is said in the wheel turn's answer.
     connect( &scrolling_.elasticHook(), &ElasticHook::lengthChanged, this,
              qOverload<>( &AbstractLogView::repaint ) );
-    connect( &scrolling_.elasticHook(), &ElasticHook::hooked, this,
-             &AbstractLogView::followModeChanged );
 
     // A step or a page up by the scrollbar leaves follow. Moving it to the
     // maximum it is already at changes no value, so scrollContentsBy() never
@@ -488,6 +487,11 @@ ScrollingViewport AbstractLogView::ScrolledLines::viewport() const
                               .heightPx = area->height(),
                               .lineNumbersVisible = view_.lineNumbersVisible_,
                               .largestDisplayLineNumber = view_.lines_->logLineCount().get() };
+}
+
+bool AbstractLogView::ScrolledLines::follows() const
+{
+    return view_.follow_;
 }
 
 AbstractLogView::~AbstractLogView()
@@ -1279,6 +1283,7 @@ void AbstractLogView::setPresentationPolicy( const PresentationPolicy& policy )
 
 void AbstractLogView::followSet( bool checked )
 {
+    follow_ = checked;
     applyScroll( scrolling_.followSet( checked ) );
 }
 

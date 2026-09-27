@@ -208,7 +208,16 @@ std::optional<int> CrawlerWidget::encodingMib() const
 
 bool CrawlerWidget::isFollowEnabled() const
 {
-    return logMainView_->isFollowEnabled();
+    return viewSet_.follows();
+}
+
+void CrawlerWidget::followSet( bool follow )
+{
+    const bool before = viewSet_.follows();
+    viewSet_.setFollow( follow );
+    if ( viewSet_.follows() != before || viewSet_.follows() != follow ) {
+        Q_EMIT followModeChanged( viewSet_.follows() );
+    }
 }
 
 bool CrawlerWidget::isTextWrapEnabled() const
@@ -660,7 +669,11 @@ void CrawlerWidget::applyWatchPolicy( const WatchPolicy& policy )
 
     // Takes following away from every view of this Log File, or gives it
     // back, without the Log File being opened again.
+    const bool followed = viewSet_.follows();
     viewSet_.setFollowAllowed( policy.anyWatchEnabled() );
+    if ( viewSet_.follows() != followed ) {
+        Q_EMIT followModeChanged( viewSet_.follows() );
+    }
 }
 
 const DecorationPolicy& CrawlerWidget::decorationPolicy() const
@@ -699,9 +712,7 @@ void CrawlerWidget::restoreViewContext( const QString& viewContext )
     // Manually call the handler as it is not called when changing the state programmatically
     searchRefreshChangedHandler( context.autoRefresh );
 
-    const bool follow = context.followFile && watchPolicy_.anyWatchEnabled();
-    logMainView_->followSet( follow );
-    logTableView_->followSet( follow );
+    followSet( context.followFile && watchPolicy_.anyWatchEnabled() );
 
     // Saving and restoring Marks with the Session is the user interface's;
     // when they are applied is the Open Log File's.
@@ -732,7 +743,7 @@ std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() co
     state.sizes = sizes();
     state.ignoreCase = !flags.matchCase;
     state.autoRefresh = flags.autoRefresh;
-    state.followFile = logMainView_->isFollowEnabled();
+    state.followFile = isFollowEnabled();
     state.useRegexp = flags.useRegexp;
     state.inverseRegexp = flags.inverse;
     state.useBooleanCombination = flags.booleanCombination;
@@ -1639,18 +1650,12 @@ void CrawlerWidget::setup()
              &CrawlerWidget::countFieldValues );
 
     // Leaving following by moving away from the bottom, which both
-    // Presentations let the user do (#543). What only the Text View lets the
-    // user do: start following at the bottom, and zoom with the wheel.
-    connect( logMainView_, &LogMainView::followModeChanged, this,
-             &CrawlerWidget::followModeChanged );
-    connect( logTableView_, &LogTableView::followModeChanged, this,
-             &CrawlerWidget::followModeChanged );
+    // Presentations let the user do (#543), asks the View Set, which owns
+    // follow (#558). What only the Text View lets the user do: start
+    // following at the bottom, and zoom with the wheel.
+    connect( logMainView_, &LogMainView::followModeChanged, this, &CrawlerWidget::followSet );
+    connect( logTableView_, &LogTableView::followModeChanged, this, &CrawlerWidget::followSet );
     connect( logMainView_, &LogMainView::changeFontSize, this, &CrawlerWidget::changeFontSize );
-
-    // Follow option (down): the Text View follows, and the Table View knows
-    // to leave it
-    connect( this, &CrawlerWidget::followSet, logMainView_, &LogMainView::followSet );
-    connect( this, &CrawlerWidget::followSet, logTableView_, &LogTableView::followSet );
 
     connect( this, &CrawlerWidget::textWrapSet, logMainView_, &LogMainView::textWrapSet );
 
@@ -2061,9 +2066,8 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
     connect( view, &FilteredView::mouseLeftHoveringZone, logTableView_,
              &LogTableView::removeOverviewHighlight );
 
-    connect( this, &CrawlerWidget::followSet, view, &FilteredView::followSet );
-
-    connect( view, &FilteredView::followModeChanged, this, &CrawlerWidget::followModeChanged );
+    // The View Set hands the Filtered View follow; it asks the View Set too.
+    connect( view, &FilteredView::followModeChanged, this, &CrawlerWidget::followSet );
 
     connect( this, &CrawlerWidget::textWrapSet, view, &FilteredView::textWrapSet );
 

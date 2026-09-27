@@ -176,7 +176,7 @@ MainWindow::MainWindow( WindowSession session,
     // "current" crawlerwidget
 
     // Send actions to the crawlerwidget
-    signalMux_.connect( this, SIGNAL( followSet( bool ) ), SIGNAL( followSet( bool ) ) );
+    signalMux_.connect( this, SIGNAL( followSet( bool ) ), SLOT( followSet( bool ) ) );
     signalMux_.connect( this, SIGNAL( textWrapSet( bool ) ), SIGNAL( textWrapSet( bool ) ) );
     signalMux_.connect( this, SIGNAL( enteringQuickFind() ), SLOT( enteringQuickFind() ) );
     signalMux_.connect( &quickFindWidget_, SIGNAL( close() ), SLOT( exitingQuickFind() ) );
@@ -2963,6 +2963,7 @@ void MainWindow::updateMenuBarFromDocument( const CrawlerWidget* crawler )
         ( *encodingItem )->setChecked( true );
     }
 
+    // The action mirrors the Log File's follow; the View Set holds it.
     followAction->setChecked( crawler->isFollowEnabled() );
     textWrapAction->setChecked( crawler->isTextWrapEnabled() );
     updateGoToTimestampAction( crawler );
