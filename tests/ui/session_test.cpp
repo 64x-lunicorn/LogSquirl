@@ -28,8 +28,13 @@
 #include "session.h"
 #include "sessioninfo.h"
 
+#include <QFile>
+#include <QFileInfo>
+#include <QSettings>
+#include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
+#include <QTextStream>
 
 #include <algorithm>
 #include <memory>
@@ -312,9 +317,12 @@ SCENARIO( "Restoring a Session reads the settings store once, at startup, not pe
 
     auto& readAtStartup = SessionInfo::get();
     readAtStartup.add( windowId );
+    // The first tab was in front when the Session was saved (#542).
     readAtStartup.setOpenFiles(
-        windowId, { { files.first.fileName(), 0, QStringLiteral( "first context" ) },
-                    { files.second.fileName(), 0, QStringLiteral( "second context" ) } } );
+        windowId,
+        { { files.first.fileName(), 0, QStringLiteral( "first context" ) },
+          { files.second.fileName(), 0, QStringLiteral( "second context" ) } },
+        0 );
 
     WindowSession window{ appSession, windowId, 0 };
     OpenedViews views;
@@ -331,7 +339,7 @@ SCENARIO( "Restoring a Session reads the settings store once, at startup, not pe
             REQUIRE( views.built.size() == 2 );
             REQUIRE( views.built[ 0 ]->build().viewContext == "first context" );
             REQUIRE( views.built[ 1 ]->build().viewContext == "second context" );
-            REQUIRE( currentFileIndex == 1 );
+            REQUIRE( currentFileIndex == 0 );
         }
     }
 
@@ -367,8 +375,8 @@ void writeLogLines( QTemporaryFile& file, qint64 bytes )
 }
 
 // Three Log Files to be saved as the one window of the last Session, the last
-// one its current tab (#300). The first is far larger than the other two, so that
-// Log Files loading side by side would finish in a different order than Log
+// one its current tab (#300), saved as the tab in front (#542). The first is far larger than the
+// other two, so that Log Files loading side by side would finish in a different order than Log
 // Files loading one after another.
 struct ThreeTabSession {
     QTemporaryFile large{ "session_test_large_XXXXXX" };
@@ -389,9 +397,11 @@ struct ThreeTabSession {
     {
         auto& readAtStartup = SessionInfo::get();
         readAtStartup.add( windowId );
-        readAtStartup.setOpenFiles( windowId, { { large.fileName(), 0, QString{} },
-                                                { small.fileName(), 0, QString{} },
-                                                { current.fileName(), 0, QString{} } } );
+        readAtStartup.setOpenFiles( windowId,
+                                    { { large.fileName(), 0, QString{} },
+                                      { small.fileName(), 0, QString{} },
+                                      { current.fileName(), 0, QString{} } },
+                                    2 );
     }
 
     ~ThreeTabSession()
@@ -453,6 +463,7 @@ SCENARIO( "Restoring a Session loads the current tab's Log File before the other
     const auto restored
         = window.restore( RecordingViews::factory( views.built ), &currentFileIndex );
     REQUIRE( restored.size() == 3 );
+    // The tab saved as the one in front.
     REQUIRE( currentFileIndex == 2 );
     order.follow( views.built );
 
@@ -533,6 +544,115 @@ SCENARIO( "Restoring a Session loads the current tab's Log File before the other
         THEN( "the other tabs' Log Files load all the same, one after another" )
         {
             REQUIRE( order.finished == std::vector<int>{ 0, 1 } );
+        }
+    }
+}
+
+// The Session saves which tab of a window was in front, and a restore makes
+// that one current and loads its Log File first, whatever its place (#542).
+SCENARIO( "A restored Session opens on the tab that was in front", "[ui][session]" )
+{
+    ThreeTabSession files;
+    const auto windowId = QStringLiteral( "session_test_window_542" );
+
+    {
+        const auto savingSession = std::make_shared<Session>(
+            testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+        WindowSession window{ savingSession, windowId, 0 };
+        OpenedViews views;
+        std::vector<SaveFileInfo> tabs;
+        for ( const auto* file : { &files.large, &files.small, &files.current } ) {
+            const auto* view
+                = window.open( file->fileName(), RecordingViews::factory( views.built ) );
+            tabs.emplace_back( view, 0, view->context() );
+        }
+
+        // The first of the three tabs is in front.
+        window.save( tabs, std::get<0>( tabs.front() ), QByteArray{}, 0 );
+        for ( const auto& tab : tabs ) {
+            window.close( std::get<0>( tab ) );
+        }
+    }
+
+    const auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    WindowSession window{ appSession, windowId, 0 };
+    OpenedViews views;
+
+    WHEN( "the Session is restored" )
+    {
+        int currentFileIndex = -1;
+        const auto restored
+            = window.restore( RecordingViews::factory( views.built ), &currentFileIndex );
+        REQUIRE( restored.size() == 3 );
+
+        THEN( "the first tab is current, and only its Log File loads now" )
+        {
+            REQUIRE( currentFileIndex == 0 );
+            REQUIRE( !appSession->isLoadQueued( restored[ 0 ].second ) );
+            REQUIRE( appSession->isLoadQueued( restored[ 1 ].second ) );
+            REQUIRE( appSession->isLoadQueued( restored[ 2 ].second ) );
+        }
+    }
+
+    auto& stored = SessionInfo::getSynced();
+    stored.remove( windowId );
+    stored.save();
+}
+
+// A Session stored before the tab in front was saved restores the last tab as
+// the current one, as it always did (#542). The fixture is a Session as the
+// settings store holds it in that format.
+SCENARIO( "A stored Session without the tab in front restores the last tab", "[ui][session]" )
+{
+    ThreeTabSession files;
+    const auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+
+    QTemporaryDir fixtureDir;
+    REQUIRE( fixtureDir.isValid() );
+    const auto fixturePath = fixtureDir.filePath( "session.ini" );
+    {
+        QFile fixture( fixturePath );
+        REQUIRE( fixture.open( QIODevice::WriteOnly | QIODevice::Text ) );
+        QTextStream out( &fixture );
+        out << "[Window]\n"
+            << "version=1\n"
+            << "windows\\size=1\n"
+            << "windows\\1\\id=" << files.windowId << "\n"
+            << "windows\\1\\geometry=@ByteArray()\n"
+            << "windows\\1\\sidebarWidth=0\n"
+            << "windows\\1\\OpenFiles\\version=1\n"
+            << "windows\\1\\OpenFiles\\openFiles\\size=3\n";
+        auto index = 1;
+        for ( const auto* file : { &files.large, &files.small, &files.current } ) {
+            out << "windows\\1\\OpenFiles\\openFiles\\" << index
+                << "\\fileName=" << QFileInfo( file->fileName() ).absoluteFilePath() << "\n"
+                << "windows\\1\\OpenFiles\\openFiles\\" << index << "\\topLine=0\n"
+                << "windows\\1\\OpenFiles\\openFiles\\" << index << "\\viewContext=\n";
+            ++index;
+        }
+    }
+    QSettings fixture( fixturePath, QSettings::IniFormat );
+    SessionInfo::get().retrieveFromStorage( fixture );
+    REQUIRE( SessionInfo::get().openFiles( files.windowId ).size() == 3 );
+
+    WindowSession window{ appSession, files.windowId, 0 };
+    OpenedViews views;
+
+    WHEN( "it is restored" )
+    {
+        int currentFileIndex = -1;
+        const auto restored
+            = window.restore( RecordingViews::factory( views.built ), &currentFileIndex );
+        REQUIRE( restored.size() == 3 );
+
+        THEN( "the last tab is current, and only its Log File loads now" )
+        {
+            REQUIRE( currentFileIndex == 2 );
+            REQUIRE( !appSession->isLoadQueued( restored[ 2 ].second ) );
+            REQUIRE( appSession->isLoadQueued( restored[ 0 ].second ) );
+            REQUIRE( appSession->isLoadQueued( restored[ 1 ].second ) );
         }
     }
 }

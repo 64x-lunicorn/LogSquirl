@@ -257,6 +257,10 @@
   an empty Log File as loaded. It now offers to report the failure and closes
   the tab, as a failure in the tab in front does; a tab still loading shows
   as loading, not as loaded (#540).
+- **A restored Session opens on the tab that was in front**: The Session now
+  remembers which tab of a window was in front, and restoring it shows that
+  tab and loads its Log File first, instead of the last tab. A Session saved
+  by an earlier version still opens on its last tab (#542).
 
 ## Build and packaging
 

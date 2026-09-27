@@ -54,6 +54,7 @@
 #include "pathline.h"
 #include "quickfindwidget.h"
 #include "session.h"
+#include "sessioninfo.h"
 #include "settingspolicies.h"
 #include "test_policies.h"
 #include "textencoding.h"
@@ -565,4 +566,57 @@ SCENARIO( "A Log File that failed to load in a background tab says so when its t
 
     questionDriver.stop();
     mainWindow.reset();
+}
+
+// A window restored from the Session shows the tab that was in front when the
+// Session was saved, not the last one (#542).
+SCENARIO( "A restored window shows the tab that was in front", "[ui][session]" )
+{
+    const auto windowId = QStringLiteral( "mainwindow_test_window_542" );
+
+    QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_restore_first_XXXXXX" ) };
+    QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_restore_second_XXXXXX" ) };
+    for ( auto* file : { &firstFile, &secondFile } ) {
+        REQUIRE( file->open() );
+        file->write( "first Log Line\nsecond Log Line\n" );
+        file->flush();
+    }
+
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    // Stored after the Session was built, which reads the settings store.
+    auto& stored = SessionInfo::get();
+    stored.add( windowId );
+    stored.setOpenFiles( windowId,
+                         { { QFileInfo( firstFile ).absoluteFilePath(), 0, QString{} },
+                           { QFileInfo( secondFile ).absoluteFilePath(), 0, QString{} } },
+                         0 );
+    WindowSession windowSession{ appSession, windowId, 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    WHEN( "the window's Session is restored with its first tab saved in front" )
+    {
+        mainWindow->reloadSession();
+
+        THEN( "the first tab is in front" )
+        {
+            auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+            REQUIRE( tabArea != nullptr );
+            REQUIRE( tabArea->findChildren<CrawlerWidget*>().size() == 2 );
+            // The Log Files' tabs are the last two, in the order they were
+            // saved; a Dashboard tab, if any, comes before them.
+            REQUIRE( tabArea->currentIndex() == tabArea->count() - 2 );
+        }
+    }
+
+    mainWindow.reset();
+    // Leave the in-memory Session info as the settings store has it.
+    SessionInfo::getSynced();
 }

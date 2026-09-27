@@ -3294,7 +3294,7 @@ void MainWindow::writeSettings()
     if ( sidebarWidthApplied_ && sidebarDock_->isVisible() && !sidebarDock_->isFloating() ) {
         sidebarWidth_ = sidebarDock_->width();
     }
-    session_.save( widget_list, saveGeometry(), sidebarWidth_ );
+    session_.save( widget_list, currentCrawlerWidget(), saveGeometry(), sidebarWidth_ );
 }
 
 // Read settings from permanent storage
