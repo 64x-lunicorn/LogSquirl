@@ -84,12 +84,16 @@ endforeach()
 set(_tsan_suppressions "${CMAKE_CURRENT_LIST_DIR}/tsan.supp")
 set(_tsan_log "${_work_dir}/tsan")
 
+# Set in this script's own environment, which the case inherits, and the case
+# is started directly: `cmake -E env` in between reported a signal in its own
+# words and exited with 1, so the result below never saw the signal (#566).
+set(ENV{LOGSQUIRL_TEST_SETTINGS_ISOLATED} 1)
+set(ENV{TSAN_OPTIONS} "suppressions=${_tsan_suppressions}:log_path=${_tsan_log}:exitcode=0")
+
 # No OUTPUT_VARIABLE: what the test case prints is what this script prints, so
 # ctest reads it as it always did, as it is printed.
 execute_process(
-  COMMAND "${CMAKE_COMMAND}" -E env "LOGSQUIRL_TEST_SETTINGS_ISOLATED=1"
-          "TSAN_OPTIONS=suppressions=${_tsan_suppressions}:log_path=${_tsan_log}:exitcode=0"
-          -- "${_work_dir}/${_binary_name}" ${_arguments}
+  COMMAND "${_work_dir}/${_binary_name}" ${_arguments}
   RESULT_VARIABLE _result
 )
 
@@ -113,8 +117,9 @@ endif()
 
 file(REMOVE_RECURSE "${_work_dir}")
 
-# A signal is reported as its name, so a case that crashed says so instead of
-# ending in an exit code nobody can read.
+# A signal is reported as its name ("Subprocess killed", "Segmentation fault"),
+# so a case that crashed says so instead of ending in an exit code nobody can
+# read.
 if(NOT _result STREQUAL "0")
   message(FATAL_ERROR "the test case failed: ${_result}")
 endif()
