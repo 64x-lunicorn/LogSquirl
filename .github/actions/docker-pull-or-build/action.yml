@@ -40,8 +40,39 @@ runs:
           echo "digest=" >> "$GITHUB_OUTPUT"
         fi
 
+    # The installer fetches cosign from github.com's release assets with one
+    # curl per file, and its --retry covers timeouts and 5xx answers but not a
+    # reset connection (curl: (35), run 36205756986), which then failed the
+    # whole job. The pinned version has no retry input, so the step runs up to
+    # three times: the first two attempts may fail and are each followed by a
+    # short pause, and the third runs without continue-on-error, so a real
+    # failure (a missing release asset, a wrong version) still fails the job
+    # with the installer's own error, before anything calls cosign. A rerun
+    # overwrites whatever a failed attempt left in the install directory (#528).
     - name: Install cosign
+      id: cosign-1
       if: steps.resolve.outputs.digest != ''
+      continue-on-error: true
+      uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+    - name: Wait before retrying the cosign installation
+      if: steps.cosign-1.outcome == 'failure'
+      shell: bash
+      run: sleep 20
+
+    - name: Install cosign (second attempt)
+      id: cosign-2
+      if: steps.cosign-1.outcome == 'failure'
+      continue-on-error: true
+      uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+    - name: Wait before retrying the cosign installation
+      if: steps.cosign-2.outcome == 'failure'
+      shell: bash
+      run: sleep 20
+
+    - name: Install cosign (last attempt)
+      if: steps.cosign-2.outcome == 'failure'
       uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
     # Only the Docker Images workflow on master may have produced a pulled
