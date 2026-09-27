@@ -632,8 +632,9 @@ void CrawlerWidget::doApplyChange( const ViewChange& change )
     }
     if ( change.quickFind ) {
         // The QuickFind bar and the mux that dispatches to this Log File
-        // belong to the window, which takes this Policy from its session:
-        // nothing is handed on from here.
+        // belong to the window, which takes this Policy from its session;
+        // the Search line is handed it from here, which says whether an
+        // edited pattern runs the Search at once.
         quickFindPolicy_ = *change.quickFind;
         searchLine_.setQuickFindPolicy( *change.quickFind );
     }
