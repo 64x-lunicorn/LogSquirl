@@ -109,16 +109,10 @@ public:
     explicit CrawlerWidget( const ViewBuild& build, QWidget* parent = nullptr );
     ~CrawlerWidget() override;
 
-    // Get the line number of the first line displayed.
-    LineNumber getTopLine() const;
-
     // Get the selected text as a string (from the main window)
     QString getSelectedText() const;
     // True for partial selection
     bool isPartialSelection() const;
-
-    // Display the QFB at the bottom, remembering where the focus was
-    void displayQuickFindBar( QuickFindMux::QFDirection direction );
 
     // Instructs the widget to select all the text in the window the user
     // is interacting with
@@ -136,9 +130,6 @@ public:
     // Why "Go to timestamp" is not available for this Log File, empty when it
     // is: it needs a recognized Log Format with a timestamp field.
     QString goToTimestampUnavailableReason() const;
-    // Said in the status bar when a time lookup landed among Timestamps that
-    // are not in time order.
-    static QString notInTimeOrderNotice();
     // The same for the Search Limits given as a time.
     QString searchLimitsByTimeUnavailableReason() const;
 
@@ -235,11 +226,6 @@ Q_SIGNALS:
     void sendToScratchpad( QString );
     void replaceDataInScratchpad( QString );
 
-    // "auto-refresh" check has been changed
-    void searchRefreshChanged( bool isRefreshing );
-    // "ignore case" check has been changed
-    void matchCaseChanged( bool matchCase );
-
     // Sent when the data status (whether new not seen data are
     // available) has changed
     void dataStatusChanged( DataStatus status );
@@ -285,9 +271,6 @@ private Q_SLOTS:
     // Shows that the Log File was truncated on disk. A failure to check the
     // file is offered to be reported.
     void truncatedHandler( const QString& failure );
-
-    void searchForward();
-    void searchBackward();
 
     // Called when the checkbox for search auto-refresh is changed
     void searchRefreshChangedHandler( bool isRefreshing );
@@ -350,6 +333,9 @@ private:
     // Looks up the Timestamp near the current line, then calls then with it.
     void lookUpNearbyTimestamp( std::function<void( std::optional<QDateTime> )> then );
     void showTimeLookupResult( const timelookup::Result& result );
+    // Said in the status bar when a time lookup landed among Timestamps that
+    // are not in time order.
+    static QString notInTimeOrderNotice();
 private Q_SLOTS:
 
     void addColorLabelToSelection( size_t label );

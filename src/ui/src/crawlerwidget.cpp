@@ -175,12 +175,6 @@ CrawlerWidget::~CrawlerWidget()
     }
 }
 
-// The top line is first one on the main display
-LineNumber CrawlerWidget::getTopLine() const
-{
-    return logMainView_->getTopLine();
-}
-
 QString CrawlerWidget::getSelectedText() const
 {
     if ( currentFilteredView()->hasFocus() )
@@ -1204,20 +1198,6 @@ QWidget* CrawlerWidget::shownPresentation() const
         return logMainView_;
 }
 
-void CrawlerWidget::searchForward()
-{
-    LOG_DEBUG << "CrawlerWidget::searchForward";
-
-    doGetActiveSearchable()->searchForward();
-}
-
-void CrawlerWidget::searchBackward()
-{
-    LOG_DEBUG << "CrawlerWidget::searchBackward";
-
-    doGetActiveSearchable()->searchBackward();
-}
-
 void CrawlerWidget::resetStateOnSearchPatternChanges()
 {
     // We suspend auto-refresh
@@ -1721,12 +1701,6 @@ void CrawlerWidget::setup()
         flags.inverse = inverse;
         searchLine_.setFlags( flags );
     } );
-
-    // Advise the parent the checkboxes have been changed
-    // (for maintaining default config)
-    connect( searchRefreshButton_, &QPushButton::toggled, this,
-             &CrawlerWidget::searchRefreshChanged );
-    connect( matchCaseButton_, &QPushButton::toggled, this, &CrawlerWidget::matchCaseChanged );
 
     connectAllFilteredViewSlots( firstFilteredView );
 
