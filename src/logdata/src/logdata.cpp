@@ -121,8 +121,14 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
         LOG_INFO << "Keep file closed option is set";
     }
 
+    // The Policy forces an Encoding this build knows, or none (#552). One it
+    // does not know is none forced, as the index worker takes it too.
     if ( fileAccessPolicy_.defaultEncodingMib >= 0 ) {
-        codec_.setCodec( TextEncoding::forMib( fileAccessPolicy_.defaultEncodingMib ) );
+        const auto* defaultEncoding = TextEncoding::forMib( fileAccessPolicy_.defaultEncodingMib );
+        Q_ASSERT( defaultEncoding != nullptr );
+        if ( defaultEncoding ) {
+            codec_.setCodec( defaultEncoding );
+        }
     }
 }
 

@@ -190,10 +190,10 @@ int TextCodecHolder::mibEnum() const
 
 void TextCodecHolder::setCodec( const TextEncoding* codec )
 {
+    // Always an Encoding: an unknown default one never reaches here (#552).
+    assert( codec != nullptr );
     UniqueLock guard( mutex_ );
-    // An Encoding this build does not know (a setting written elsewhere) is
-    // the Encoding of the locale.
-    codec_ = codec ? codec : TextEncoding::forLocale();
+    codec_ = codec;
     encodingParams_ = EncodingParameters{ codec_ };
 }
 

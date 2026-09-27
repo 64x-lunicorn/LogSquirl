@@ -196,7 +196,9 @@ public:
 
     // Chooses the Encoding the Log File is read in, by its MIB; none reads it
     // in the one detected. The one the File Access Policy forces is chosen
-    // from the start.
+    // from the start. Only an Encoding this build knows is chosen -- the menu
+    // offers no other, and the Policy is derived with no other (#552); a MIB
+    // it does not know asserts, and is no choice in a build without asserts.
     //
     // The Encoding is settled here and again after every load: the one
     // chosen, else the one detected, else the locale's. The log data and
@@ -205,7 +207,7 @@ public:
     // tells it.
     void setEncoding( std::optional<int> mib );
     std::optional<int> chosenEncoding() const;
-    // The Encoding the Log File is read in, as settled now.
+    // The Encoding the Log File is read in, as settled now; never null.
     const TextEncoding* encoding() const;
 
 Q_SIGNALS:

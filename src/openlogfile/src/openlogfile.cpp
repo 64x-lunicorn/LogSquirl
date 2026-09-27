@@ -32,6 +32,20 @@
 #include <mutex>
 #include <utility>
 
+namespace {
+
+// The Encoding chosen by its MIB: only one this build knows (#552). The
+// callers make sure of it; a MIB it does not know is no choice, which is how
+// the log data and its index worker take such a default Encoding too.
+std::optional<int> knownEncoding( std::optional<int> mib )
+{
+    const auto known = !mib || TextEncoding::forMib( *mib ) != nullptr;
+    Q_ASSERT( known );
+    return known ? mib : std::nullopt;
+}
+
+} // namespace
+
 OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
                           const FileAccessPolicy& fileAccessPolicy,
                           const DecodingPolicy& decodingPolicy,
@@ -47,7 +61,7 @@ OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPoli
     , logFormatCatalog_( std::move( logFormatCatalog ) )
 {
     if ( fileAccessPolicy.defaultEncodingMib >= 0 ) {
-        chosenEncoding_ = fileAccessPolicy.defaultEncodingMib;
+        chosenEncoding_ = knownEncoding( fileAccessPolicy.defaultEncodingMib );
     }
 
     // The log data registers the types it signals with itself; this is the
@@ -265,7 +279,7 @@ int OpenLogFile::formatRecognitionCount() const
 
 void OpenLogFile::setEncoding( std::optional<int> mib )
 {
-    chosenEncoding_ = mib;
+    chosenEncoding_ = knownEncoding( mib );
     if ( settleEncoding() ) {
         Q_EMIT encodingChanged();
     }
@@ -278,8 +292,8 @@ std::optional<int> OpenLogFile::chosenEncoding() const
 
 const TextEncoding* OpenLogFile::encoding() const
 {
-    // Only an Encoding this build knows is chosen: the menu offers no other,
-    // and the File Access Policy forces no other (#552).
+    // Only an Encoding this build knows is chosen (knownEncoding()), so this
+    // is never null.
     if ( chosenEncoding_ ) {
         return TextEncoding::forMib( *chosenEncoding_ );
     }
