@@ -24,6 +24,7 @@
 #include "abstractlogview.h"
 #include "fake_log_data.h"
 #include "logformatdefinition.h"
+#include "logtablehighlightdelegate.h"
 #include "logtableview.h"
 #include "persistentinfo.h"
 #include "quickfindmux.h"
@@ -835,12 +836,75 @@ SCENARIO( "Find next and previous in the Table View's context menu select the Lo
 
 namespace {
 
+// Two Log Lines of the Log Format's shape: a body of two words, and a body
+// whose first word is joined by connector punctuation (U+203F, UNDERTIE).
+const QStringList WordLines = {
+    "Jan  1 12:00:00 host1 needle one",
+    QString( "Jan  1 12:00:01 host2 foo" ) + QChar( 0x203F ) + "bar baz",
+};
+
+// Double-clicks the character at charIndex of the cell of the Row whose text
+// is text, just inside that character's left edge.
+void doubleClickCharacter( LogTableView& view, int row, const QString& text, int charIndex )
+{
+    for ( int column = 0; column < view.model()->columnCount(); ++column ) {
+        const auto index = view.model()->index( row, column );
+        if ( index.data( Qt::DisplayRole ).toString() == text ) {
+            const auto rect = view.visualRect( index );
+            const auto x = rect.left() + LogTableHighlightDelegate::HorizontalTextPadding
+                           + QFontMetrics( view.font() ).horizontalAdvance( text.left( charIndex ) )
+                           + 1;
+            QTest::mouseDClick( view.viewport(), Qt::LeftButton, {},
+                                QPoint( x, rect.center().y() ) );
+            return;
+        }
+    }
+    FAIL( "no cell holding " << text.toStdString() );
+}
+
+} // namespace
+
+// The Text View's word rule, which both Presentations follow (#546).
+SCENARIO( "A double-click in the Table View selects a word as the Text View does",
+          "[logtableview][word]" )
+{
+    const auto format = makeFormat();
+    FakeLogData logData( WordLines );
+    LogTableView view;
+    open( view, format, logData );
+    view.setActive( true );
+    view.show();
+    QCoreApplication::processEvents();
+
+    WHEN( "a word joined by connector punctuation is double-clicked" )
+    {
+        const auto body = QString( "foo" ) + QChar( 0x203F ) + "bar baz";
+        doubleClickCharacter( view, 1, body, 0 );
+
+        THEN( "the whole word is selected, the connector punctuation included" )
+        {
+            REQUIRE( view.selectedText() == QString( "foo" ) + QChar( 0x203F ) + "bar" );
+        }
+    }
+
+    WHEN( "the space between two words is double-clicked" )
+    {
+        doubleClickCharacter( view, 0, "needle one", 6 );
+
+        THEN( "no character is selected" )
+        {
+            REQUIRE_FALSE( view.selection().hasInCellSelection() );
+        }
+    }
+}
+
+namespace {
+
 // 103 Log Lines, the last three of the Log Format's shape. The body of the Row
-// showing Log Line 101 is a lone regexp metacharacter: a word is letters,
-// digits and underscores, so where there is no word to be found the character
-// under the cursor is selected on its own -- whatever the font, and without
-// the test having to place a selection by pixel. The Row after it holds that
-// character too, so that a QuickFind for it finds a match and finishes.
+// showing Log Line 101 is a lone regexp metacharacter, so dragging across its
+// cell selects that character alone -- whatever the font. The Row after it
+// holds that character too, so that a QuickFind for it finds a match and
+// finishes.
 QStringList metacharacterLines()
 {
     QStringList lines;
@@ -852,14 +916,18 @@ QStringList metacharacterLines()
     return lines;
 }
 
-// Double-clicks the cell of the Row whose text is exactly text.
-void doubleClickCell( LogTableView& view, int row, const QString& text )
+// Drags across the whole cell of the Row whose text is exactly text.
+void selectCell( LogTableView& view, int row, const QString& text )
 {
     for ( int column = 0; column < view.model()->columnCount(); ++column ) {
         const auto index = view.model()->index( row, column );
         if ( index.data( Qt::DisplayRole ).toString() == text ) {
-            QTest::mouseDClick( view.viewport(), Qt::LeftButton, {},
-                                view.visualRect( index ).center() );
+            const auto cell = view.visualRect( index );
+            QTest::mousePress( view.viewport(), Qt::LeftButton, {},
+                               QPoint( cell.left(), cell.center().y() ) );
+            QTest::mouseMove( view.viewport(), QPoint( cell.right(), cell.center().y() ) );
+            QTest::mouseRelease( view.viewport(), Qt::LeftButton, {},
+                                 QPoint( cell.right(), cell.center().y() ) );
             return;
         }
     }
@@ -898,7 +966,7 @@ SCENARIO( "The text chosen in the Table View for a QuickFind is read the way the
 
     GIVEN( "the lone metacharacter of a Row selected" )
     {
-        doubleClickCell( view, 1, "." );
+        selectCell( view, 1, "." );
         REQUIRE( view.selectedText() == "." );
 
         WHEN( "Find next is chosen under a Policy reading a pattern as an extended regexp" )

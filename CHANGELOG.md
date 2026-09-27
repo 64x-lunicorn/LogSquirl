@@ -177,6 +177,10 @@
 
 ## Bug fixes
 
+- **A double-click selects the same word in the Table View as in the Text
+  View**: a word is letters, numbers and connector punctuation in both, so
+  `foo‿bar` is one word in the Table View too, and a double-click on a space
+  or another separator selects nothing instead of that one character (#546).
 - **The Table View shows the Marks and Matches of the Search in front**: After
   another Filtered View tab is brought to the front, or a Search is kept and a
   new one started, the Table View shows that Search's Marks and Matches instead

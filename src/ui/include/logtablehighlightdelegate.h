@@ -259,6 +259,24 @@ public:
         return ( relativeX - charLeft < charRight - relativeX ) ? low - 1 : low;
     }
 
+    // The character painted under pixelX, in a cell whose left edge is at
+    // cellLeft: 0 for a click left of the text, the length of the text for
+    // one right of it. A double-click selects the word of this character,
+    // where a click places the caret charIndexAtX() gives.
+    static int characterAtX( const QString& cellText, const QFontMetrics& fm, int cellLeft,
+                             int pixelX )
+    {
+        const int caret = charIndexAtX( cellText, fm, cellLeft, pixelX );
+        if ( caret == 0 ) {
+            return 0;
+        }
+        // The caret is the nearest one: a click on the right half of a
+        // character puts it after that character.
+        const int caretX
+            = cellLeft + HorizontalTextPadding + fm.horizontalAdvance( cellText.left( caret ) );
+        return pixelX < caretX ? caret - 1 : caret;
+    }
+
     // Return a size hint that accounts for the full text width (no clipping).
     QSize sizeHint( const QStyleOptionViewItem& option, const QModelIndex& index ) const override
     {

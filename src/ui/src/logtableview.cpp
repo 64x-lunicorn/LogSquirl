@@ -48,6 +48,7 @@
 #include "quickfindpattern.h"
 #include "regularexpression.h"
 #include "theme.h"
+#include "wordrule.h"
 
 namespace {
 
@@ -544,7 +545,10 @@ void LogTableView::mouseDoubleClickEvent( QMouseEvent* event )
     if ( handlesMouse() && event->button() == Qt::LeftButton ) {
         const auto index = indexAt( event->pos() );
         if ( index.isValid() ) {
-            selectWordAt( index, charAtX( index, event->pos().x() ) );
+            selectWordAt( index,
+                          LogTableHighlightDelegate::characterAtX(
+                              index.data( Qt::DisplayRole ).toString(), QFontMetrics( font() ),
+                              visualRect( index ).left(), event->pos().x() ) );
             // Consumed, to prevent default editing
             return;
         }
@@ -645,7 +649,8 @@ int LogTableView::charAtX( const QModelIndex& index, int pixelX ) const
                                                     visualRect( index ).left(), pixelX );
 }
 
-// Select the word at the given character position in a cell.
+// Select the word holding the character at charPos in a cell, as the Text
+// View does; a character right of the text counts as the last one.
 void LogTableView::selectWordAt( const QModelIndex& index, int charPos )
 {
     const auto cellText = index.data( Qt::DisplayRole ).toString();
@@ -653,29 +658,13 @@ void LogTableView::selectWordAt( const QModelIndex& index, int charPos )
         return;
     }
 
-    const int textLen = static_cast<int>( cellText.size() );
-
-    // Clamp charPos to valid range
-    charPos = std::clamp( charPos, 0, textLen - 1 );
-
-    // Find word boundaries (alphanumeric + underscore)
-    int start = charPos;
-    int end = charPos;
-
-    while ( start > 0
-            && ( cellText[ start - 1 ].isLetterOrNumber() || cellText[ start - 1 ] == '_' ) ) {
-        --start;
-    }
-    while ( end < textLen && ( cellText[ end ].isLetterOrNumber() || cellText[ end ] == '_' ) ) {
-        ++end;
+    const auto word
+        = wordAt( cellText, std::min( charPos, static_cast<int>( cellText.size() ) - 1 ) );
+    if ( !word ) {
+        return;
     }
 
-    if ( start == end ) {
-        // No word found at position, select the single character
-        end = std::min( start + 1, textLen );
-    }
-
-    state_.selection.selectInCell( index.row(), index.column(), start, end );
+    state_.selection.selectInCell( index.row(), index.column(), word->first, word->second );
     showInCellSelection();
 }
 
