@@ -1,0 +1,79 @@
+---
+// The top of a release page, drawn as a terminal window in the SMYCK colors
+// of the app's Smyck themes: the release, its channel and date, and where to
+// download it. With a title, it is the top of the release overview and shows
+// the current stable release and a newer beta.
+import { displayDate, downloadUrl } from '../releases.mjs';
+
+interface Release {
+  version: string;
+  date: string;
+  channel: 'stable' | 'beta' | 'legacy';
+  label: string;
+  description: string;
+}
+
+interface Props {
+  release: Release | null;
+  beta?: Release | null;
+  title?: string;
+}
+
+const { release, beta, title } = Astro.props;
+// Starlight's page title id, which its "Overview" link in the table of
+// contents jumps to; the package does not export the constant.
+const PAGE_TITLE_ID = '_top';
+const channelName = { stable: 'Stable', beta: 'Beta', legacy: 'klogg era' };
+const command = title ? 'logsquirl --releases' : 'logsquirl --version';
+---
+
+<header class="release-hero">
+  <div class="release-hero__bar" aria-hidden="true">
+    <span></span><span></span><span></span>
+    <code>~/logsquirl</code>
+  </div>
+  <div class="release-hero__body">
+    <p class="release-hero__prompt" aria-hidden="true"><span>$</span> {command}</p>
+    {
+      title ? (
+        <h1 id={PAGE_TITLE_ID} class="release-hero__title">{title}</h1>
+      ) : (
+        release && (
+          <h1 id={PAGE_TITLE_ID} class="release-hero__title">
+            {release.label}
+            <span class="release-badge" data-channel={release.channel}>{channelName[release.channel]}</span>
+          </h1>
+        )
+      )
+    }
+    {!title && release && <p class="release-hero__date">{displayDate(release.date)}</p>}
+    {!title && release && <p class="release-hero__lead">{release.description}</p>}
+    {
+      title && (
+        <p class="release-hero__lead">
+          Every LogSquirl release with its notes, from the klogg era to today. Installers and portable
+          builds for Windows, Linux and macOS are on GitHub.
+        </p>
+      )
+    }
+    <div class="release-hero__actions">
+      {
+        release && (
+          <a class="release-button release-button--primary" href={downloadUrl(release)}>
+            Download {release.label}
+            {title && <span class="release-badge" data-channel={release.channel}>{channelName[release.channel]}</span>}
+          </a>
+        )
+      }
+      {
+        beta && (
+          <a class="release-button" href={downloadUrl(beta)}>
+            Try {beta.label}
+            <span class="release-badge" data-channel="beta">Beta</span>
+          </a>
+        )
+      }
+      {!title && <a class="release-button" href="/news/">All releases</a>}
+    </div>
+  </div>
+</header>

@@ -8,8 +8,6 @@ release:
   label: v26.03 (Beta)
 ---
 
-## Version 26.03 (Beta)
-
 This is the first release of **LogSquirl**, a GPL-3.0 fork of [klogg](https://github.com/variar/klogg). Since klogg is no longer actively maintained, LogSquirl continues development under a new name, building on the excellent foundation laid by both glogg and klogg.
 
 ### New features

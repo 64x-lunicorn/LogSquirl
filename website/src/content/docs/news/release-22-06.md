@@ -7,8 +7,6 @@ release:
   channel: legacy
 ---
 
-## Version 22.06
-
 This release brings many new features, performance and usability improvements.
 
 ### New features
@@ -49,5 +47,3 @@ Supported operating systems: Windows 7+, macOS 10.14+, Ubuntu LTS 18.04+, Oracle
 - Mac x64 dmg image and pkg installer, based on Qt 5.15.2, for Intel CPUs
 - **Experimental** packages for Windows built with Qt 6.2.4, requires Windows 10+.
 - **Experimental** packages for Mac built with Qt 6.2.4, requires macOS 10.15+, for Intel CPUs
-
-Download on GitHub: [LogSquirl 22.06](https://github.com/64x-lunicorn/LogSquirl/releases/tag/v22.06)

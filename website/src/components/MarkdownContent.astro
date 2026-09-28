@@ -1,0 +1,18 @@
+---
+// Starlight's Markdown content, marked on the release pages so the Smyck
+// release styles (releases.css) reach only them.
+import Default from '@astrojs/starlight/components/MarkdownContent.astro';
+
+const { entry } = Astro.locals.starlightRoute;
+const releasePage = entry.id === 'news' || entry.data.release !== undefined;
+---
+
+{
+  releasePage ? (
+    <div class="release-notes">
+      <Default><slot /></Default>
+    </div>
+  ) : (
+    <Default><slot /></Default>
+  )
+}

@@ -7,8 +7,6 @@ release:
   channel: beta
 ---
 
-## Version 26.05.0-beta1 (April 2026)
-
 The second feature release of LogSquirl delivers a polished first-run experience, transparent compressed-log support, an index cache for instant re-opens, a VS Code-style command palette, full UI translations for six languages, a complete theme overhaul, and 33 bug fixes found in a thorough code audit.
 
 ### New features

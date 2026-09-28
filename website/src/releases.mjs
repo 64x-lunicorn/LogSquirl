@@ -10,7 +10,7 @@
 //     label: v26.03 (Beta)     # optional; defaults to "v" + version
 //
 // The sidebar (astro.config.mjs), the release overview and the home page
-// (ReleaseCards.astro) all take the releases from here, so they cannot
+// (ReleaseTimeline.astro) all take the releases from here, so they cannot
 // disagree. A page with missing or malformed release frontmatter fails the
 // build, naming the file.
 
@@ -79,6 +79,24 @@ export function currentReleases(releases) {
   const stable = releases.find((release) => release.channel === 'stable') ?? null;
   const beta = releases.find((release) => release.channel === 'beta') ?? null;
   return { stable, beta: beta && (!stable || beta.date > stable.date) ? beta : null };
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+  'October', 'November', 'December'];
+
+// A release date as the release pages show it: "13 July 2026", or
+// "June 2022" for a legacy release dated by month only.
+export function displayDate(date) {
+  const [year, month, day] = date.split('-');
+  const monthYear = `${MONTHS[Number(month) - 1]} ${year}`;
+  return day ? `${Number(day)} ${monthYear}` : monthYear;
+}
+
+// Where a release is downloaded: its GitHub release, which for a legacy
+// release is klogg's, since LogSquirl never published those tags.
+export function downloadUrl(release) {
+  const repo = release.channel === 'legacy' ? 'variar/klogg' : '64x-lunicorn/LogSquirl';
+  return `https://github.com/${repo}/releases/tag/v${release.version}`;
 }
 
 // The release pages the deployed website leaves out (#315): a LogSquirl

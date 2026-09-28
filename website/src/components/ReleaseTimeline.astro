@@ -1,0 +1,40 @@
+---
+// The release overview as a timeline, generated from the release pages (#313)
+// so it always lists the releases that have a page.
+//   view="current"  the latest stable release and a newer beta
+//   view="previous" every other LogSquirl release, newest first
+//   view="legacy"   the klogg-era releases
+import { currentReleases, displayDate, readReleases } from '../releases.mjs';
+
+interface Props {
+  view: 'current' | 'previous' | 'legacy';
+}
+
+const { view } = Astro.props;
+const releases = readReleases();
+const { stable, beta } = currentReleases(releases);
+const current = [beta, stable].filter(Boolean);
+const shown =
+  view === 'current'
+    ? current
+    : releases.filter((release) => (view === 'legacy') === (release.channel === 'legacy') && !current.includes(release));
+const channelName = { stable: 'Stable', beta: 'Beta', legacy: 'klogg era' };
+---
+
+<ol class="release-timeline not-content">
+  {
+    shown.map((release) => (
+      <li data-channel={release.channel}>
+        <a href={`/${release.slug}/`}>
+          <span class="release-timeline__head">
+            <span class="release-timeline__version">{release.label}</span>
+            <span class="release-badge" data-channel={release.channel}>{channelName[release.channel]}</span>
+            <time datetime={release.date}>{displayDate(release.date)}</time>
+          </span>
+          <span class="release-timeline__description">{release.description}</span>
+          <span class="release-timeline__more">Release notes →</span>
+        </a>
+      </li>
+    ))
+  }
+</ol>

@@ -7,8 +7,6 @@ release:
   channel: beta
 ---
 
-## Version 26.10.0-beta3 (September 2026)
-
 The third beta of 26.10: a team can now share Filter Groups and Highlighter Sets through a Git
 repository, LogSquirl finds its way through a Log File by time, JSON and logfmt Log Files get a Table
 View, and Ubuntu, Fedora and Oracle Linux users install and update it with their package manager.

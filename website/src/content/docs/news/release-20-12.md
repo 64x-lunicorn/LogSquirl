@@ -7,8 +7,6 @@ release:
   channel: legacy
 ---
 
-## Version 20.12
-
 This release has several major new features.
 
 First of all highlighters have been reworked. Now it is possible to create several sets of highlighting rules and choose active set to apply at the moment. Highlight rules have become more flexible. It is possible to colorize only matching part of line (with support for regex capture groups if present). And finally, highlighters configuration can be exported to a file and shared with collaborators.
@@ -27,5 +25,3 @@ DMG packages for Mac are now properly signed to make Gatekeeper happy.
 - Made some shortcut behavior more user-friendly
 - Use DejaVu fonts by default
 - Updated 3rdparty libraries
-
-Download on GitHub: [LogSquirl 20.12](https://github.com/64x-lunicorn/LogSquirl/releases/tag/v20.12)
