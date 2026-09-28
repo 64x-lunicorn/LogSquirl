@@ -594,6 +594,27 @@ TEST_CASE( "The tab of standard input is named stdin and takes no other tab's na
     } ) );
 }
 
+TEST_CASE( "A window closed right after opening a followed Log File leaves its tab alone",
+           "[ui][modal][follow]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "followed.log" );
+    REQUIRE( writeFile( path, "first line\nsecond line\n" ) );
+
+    WindowFixture window;
+    REQUIRE( waitUiState( [ & ] { return window.plugins->isLoaded(); }, 5000 ) );
+    REQUIRE( window.session->watchPolicy().anyWatchEnabled() );
+
+    // Opening a followed Log File queues "follow" for its tab; the window, and
+    // with it the tab, goes before the event loop runs that. The sanitizer jobs
+    // report the queued call if it still reaches the freed tab (#607).
+    window.mainWindow->loadInitialFile( path, true );
+    REQUIRE_FALSE( window.mainWindow->findChildren<CrawlerWidget*>().isEmpty() );
+    window.mainWindow.reset();
+    QTest::qWait( 50 );
+}
+
 // --- The time dialogs ---
 
 namespace {

@@ -125,9 +125,13 @@
 
 namespace {
 
+// Queued on the Crawler Widget itself, so Qt drops the call when the widget is
+// destroyed before the event loop runs it, as when its window closes right
+// after opening the Log File (#607).
 void signalCrawlerToFollowFile( CrawlerWidget* crawler_widget )
 {
-    dispatchToMainThread( [ crawler_widget ]() { crawler_widget->followSet( true ); } );
+    dispatchToObject( [ crawler_widget ]() { crawler_widget->followSet( true ); },
+                      crawler_widget );
 }
 
 static constexpr auto ClipboardMaxTry = 5;
