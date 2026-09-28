@@ -49,6 +49,7 @@ namespace {
 constexpr QLatin1String PathKey = QLatin1String( "path", 4 );
 constexpr QLatin1String StatusKey = QLatin1String( "status", 6 );
 constexpr QLatin1String TransientKey = QLatin1String( "transient", 9 );
+constexpr QLatin1String StoredKey = QLatin1String( "storedKey", 9 );
 
 // Creates a small solid-colour icon for use in group context menus.
 QIcon createColorIcon( const QColor& color, int size = 12 )
@@ -106,10 +107,11 @@ void TabbedCrawlerWidget::setOpeningTitle( const QString& path, const QString& t
 }
 
 void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName,
-                                         LogFileLifetime lifetime )
+                                         LogFileLifetime lifetime, const QString& storedKey )
 {
     QVariantMap tabData;
     tabData[ PathKey ] = fileName;
+    tabData[ StoredKey ] = storedKey.isEmpty() ? fileName : storedKey;
     tabData[ StatusKey ] = static_cast<int>( DataStatus::OLD_DATA );
     tabData[ TransientKey ] = lifetime == LogFileLifetime::Transient;
 
@@ -132,8 +134,9 @@ void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName,
 QString TabbedCrawlerWidget::baseTabName( int index ) const
 {
     const auto path = tabPathAt( index );
-    const auto customName = holdsTransientLogFile( index ) ? renamedTransientTabs_.value( path )
-                                                           : TabNameMapping::get().tabName( path );
+    auto customName = holdsTransientLogFile( index )
+                          ? renamedTransientTabs_.value( path )
+                          : TabNameMapping::get().tabName( storedKeyAt( index ) );
     if ( !customName.isEmpty() ) {
         return customName;
     }
@@ -182,7 +185,7 @@ void TabbedCrawlerWidget::renameTab( int index, const QString& name )
         }
     }
     else {
-        TabNameMapping::getSynced().setTabName( path, name ).save();
+        TabNameMapping::getSynced().setTabName( storedKeyAt( index ), name ).save();
     }
     updateTabGroupAppearance( index );
 }
@@ -194,7 +197,7 @@ void TabbedCrawlerWidget::addTabToGroup( int index, const QString& groupId )
         transientTabGroups_.insert( path, groupId );
     }
     else {
-        TabGroupInfo::getSynced().addTabToGroup( groupId, path ).save();
+        TabGroupInfo::getSynced().addTabToGroup( groupId, storedKeyAt( index ) ).save();
     }
     refreshAllTabGroupAppearances();
 }
@@ -206,17 +209,17 @@ void TabbedCrawlerWidget::removeTabFromGroup( int index )
         transientTabGroups_.remove( path );
     }
     else {
-        TabGroupInfo::getSynced().removeTabFromGroup( path ).save();
+        TabGroupInfo::getSynced().removeTabFromGroup( storedKeyAt( index ) ).save();
     }
     refreshAllTabGroupAppearances();
 }
 
 std::optional<TabGroupInfo::TabGroup> TabbedCrawlerWidget::groupOfTab( int index ) const
 {
-    const auto path = tabPathAt( index );
     if ( !holdsTransientLogFile( index ) ) {
-        return TabGroupInfo::get().groupForTab( path );
+        return TabGroupInfo::get().groupForTab( storedKeyAt( index ) );
     }
+    const auto path = tabPathAt( index );
 
     // The group itself is stored, and may have been deleted since.
     const auto groupId = transientTabGroups_.value( path );
@@ -294,6 +297,11 @@ QString TabbedCrawlerWidget::tabPathAt( int index ) const
     return myTabBar_.tabData( index ).toMap()[ PathKey ].toString();
 }
 
+QString TabbedCrawlerWidget::storedKeyAt( int index ) const
+{
+    return myTabBar_.tabData( index ).toMap()[ StoredKey ].toString();
+}
+
 void CrawlerTabBar::mouseReleaseEvent( QMouseEvent* mouseEvent )
 {
     if ( mouseEvent->button() == Qt::RightButton ) {
@@ -365,9 +373,9 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
         bool isNameEntered = false;
         // The name without the group's bullet, so accepting it as it is keeps
         // the name (#612).
-        auto newName = QInputDialog::getText( this, tr( "Rename tab" ), tr( "Tab name" ),
-                                              QLineEdit::Normal, baseTabName( tab ),
-                                              &isNameEntered );
+        auto newName
+            = QInputDialog::getText( this, tr( "Rename tab" ), tr( "Tab name" ), QLineEdit::Normal,
+                                     baseTabName( tab ), &isNameEntered );
         if ( isNameEntered ) {
             renameTab( tab, newName );
         }

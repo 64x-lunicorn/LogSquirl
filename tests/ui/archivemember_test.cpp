@@ -161,3 +161,23 @@ SCENARIO( "A saved archive member is decompressed again", "[ui][session][archive
         }
     }
 }
+
+// A Log File from an archive keeps its tab name and tab group by its archive
+// and member, which name it at every start where its temporary path does not
+// (#609).
+TEST_CASE( "An archive member is known by one key at every start", "[ui][session][archive]" )
+{
+    CHECK( ArchiveMember{}.key().isEmpty() );
+    CHECK( ArchiveMember{ "/logs/app.log.gz", { QString{} } }.key()
+           == QStringLiteral( "/logs/app.log.gz!/" ) );
+    CHECK( ArchiveMember{ "/logs/logs.zip", { "a/app.log" } }.key()
+           == QStringLiteral( "/logs/logs.zip!/a/app.log" ) );
+    CHECK( ArchiveMember{ "/logs/logs.zip", { "app.log.gz", QString{} } }.key()
+           == QStringLiteral( "/logs/logs.zip!/app.log.gz!/" ) );
+
+    // Another member of the same archive, or the archive itself, is another key.
+    CHECK( ArchiveMember{ "/logs/logs.zip", { "b/app.log" } }.key()
+           != ArchiveMember{ "/logs/logs.zip", { "a/app.log" } }.key() );
+    CHECK( ArchiveMember{ "/logs/logs.zip", { "a/app.log" } }.key()
+           != QStringLiteral( "/logs/logs.zip" ) );
+}

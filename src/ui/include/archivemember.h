@@ -54,6 +54,29 @@ struct ArchiveMember {
         return nested;
     }
 
+    // What a Log File from it is stored by where a Log File is otherwise
+    // stored by its path -- the name and the tab group of its tab (#609): the
+    // archive, and each member one level down after "!/", as a jar URL names
+    // one. The same archive and member give the same key at every start, the
+    // temporary path does not:
+    //
+    //   {"app.log.gz", {""}}                "app.log.gz!/"
+    //   {"logs.zip", {"a/app.log"}}         "logs.zip!/a/app.log"
+    //   {"logs.zip", {"app.log.gz", ""}}    "logs.zip!/app.log.gz!/"
+    //
+    // Empty when it names none.
+    QString key() const
+    {
+        if ( isEmpty() ) {
+            return {};
+        }
+        auto key = archive;
+        for ( const auto& member : members ) {
+            key += QStringLiteral( "!/" ) + member;
+        }
+        return key;
+    }
+
     bool operator==( const ArchiveMember& other ) const = default;
 };
 

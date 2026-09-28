@@ -130,8 +130,7 @@ namespace {
 // after opening the Log File (#607).
 void signalCrawlerToFollowFile( CrawlerWidget* crawler_widget )
 {
-    dispatchToObject( [ crawler_widget ]() { crawler_widget->followSet( true ); },
-                      crawler_widget );
+    dispatchToObject( [ crawler_widget ]() { crawler_widget->followSet( true ); }, crawler_widget );
 }
 
 static constexpr auto ClipboardMaxTry = 5;
@@ -450,7 +449,11 @@ void MainWindow::reloadSession()
     restoringSession_ = true;
     for ( size_t i = 0; i < crawlers.size() && i < openedFiles.size(); ++i ) {
         auto* crawlerWidget = crawlers[ i ];
-        mainTabWidget_.addCrawler( crawlerWidget, openedFiles[ i ].first );
+        const auto& fileName = openedFiles[ i ].first;
+        // Its name and group are found by its archive, not by the new
+        // temporary path (#609).
+        mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary,
+                                   archiveMembers_.value( fileName ).key() );
 
         if ( followFileOnLoad ) {
             signalCrawlerToFollowFile( crawlerWidget );
@@ -2438,7 +2441,8 @@ void MainWindow::closeTabs( const QList<int>& indices, ActionInitiator initiator
 
         // Only a Log File the user closed becomes a recent file, and never a
         // Transient one: its path is gone after a restart (#597). A converted
-        // one is kept by the file it was converted from (#605).
+        // one is kept by the file it was converted from (#605), a decompressed
+        // one by its archive (#609).
         if ( initiator == ActionInitiator::User ) {
             const auto recentFile = recentFileOf( session_.getFilename( crawler ),
                                                   mainTabWidget_.holdsTransientLogFile( index )
@@ -2891,15 +2895,18 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLife
             // tab during loading. (maybe FIXME)
             // mainTabWidget_.setEnabled( false );
 
-            // It opens with the title given to it, if any (#606).
-            int index = mainTabWidget_.addCrawler( crawlerWidget, fileName, lifetime );
+            // It opens with the title given to it, if any (#606). One from an
+            // archive keeps its name and group by the archive (#609).
+            int index = mainTabWidget_.addCrawler( crawlerWidget, fileName, lifetime,
+                                                   archiveMembers_.value( fileName ).key() );
 
             // Setting the new tab, the user will see a blank page for the duration
             // of the loading, with no way to switch to another tab
             mainTabWidget_.setCurrentIndex( index );
 
             // A Transient Log File's path is gone after a restart (#597); a
-            // converted one is kept by the file it was converted from (#605).
+            // converted one is kept by the file it was converted from (#605),
+            // a decompressed one by its archive (#609).
             if ( const auto recentFile = recentFileOf( fileName, lifetime );
                  !recentFile.isEmpty() ) {
                 addRecentFile( recentFile );
@@ -2959,9 +2966,14 @@ void MainWindow::updateTitleBar( const QString& file_name )
 QString MainWindow::recentFileOf( const QString& fileName, LogFileLifetime lifetime ) const
 {
     if ( lifetime == LogFileLifetime::Ordinary ) {
-        return fileName;
+        // Opened from the recent files, the archive asks for its member again.
+        const auto archiveMember = archiveMembers_.value( fileName );
+        return archiveMember.isEmpty() ? fileName : archiveMember.archive;
     }
-    return convertedFrom_.value( fileName );
+    // What it was converted from may itself be from an archive.
+    const auto convertedFrom = convertedFrom_.value( fileName );
+    return convertedFrom.isEmpty() ? QString{}
+                                   : recentFileOf( convertedFrom, LogFileLifetime::Ordinary );
 }
 
 void MainWindow::addRecentFile( const QString& fileName )

@@ -61,6 +61,7 @@
 #include "applicationplugins.h"
 #include "archivemember.h"
 #include "chartpanel.h"
+#include "configuration.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
 #include "highlightersdialog.h"
@@ -70,9 +71,12 @@
 #include "mainwindowtext.h"
 #include "modal_answers.h"
 #include "openlogfile.h"
+#include "recentfiles.h"
 #include "session.h"
 #include "sessioninfo.h"
 #include "tabbedcrawlerwidget.h"
+#include "tabgroupinfo.h"
+#include "tabnamemapping.h"
 #include "teamfolder.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -752,6 +756,146 @@ TEST_CASE( "A Log File from an archive comes back after a restart, one from a UR
         REQUIRE( waitUiState( [ tab ] { return CrawlerState{ *tab }.nbLines().get() == 2; } ) );
     }
     CHECK_FALSE( modals.seen() );
+}
+
+namespace {
+
+QStringList recentFiles()
+{
+    QStringList files;
+    for ( const auto& file : RecentFiles::getSynced().recentFiles() ) {
+        files.append( QDir::fromNativeSeparators( file ) );
+    }
+    return files;
+}
+
+void forgetRecentFiles()
+{
+    auto& recent = RecentFiles::getSynced();
+    recent.removeAll();
+    recent.save();
+}
+
+} // namespace
+
+// The temporary path a Log File from an archive is read from is gone after a
+// restart, which decompresses the archive again into another. The recent files
+// keep the archive instead, and the tab's name and group are stored by the
+// archive and its member, so that the tab keeps them across the restart (#609).
+TEST_CASE( "A Log File from an archive is known by its archive to the recent files, tab names "
+           "and tab groups",
+           "[ui][modal][session][archive]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const QByteArray logLines = "first Log Line\nsecond Log Line\n";
+    const auto zipPath = directory.filePath( "logs.zip" );
+    {
+        KZip zip( zipPath );
+        REQUIRE( zip.open( QIODevice::WriteOnly ) );
+        REQUIRE( zip.writeFile( "app.log", logLines ) );
+        REQUIRE( zip.writeFile( "other.log", "another Log File\n" ) );
+        zip.close();
+    }
+    const auto gzPath = directory.filePath( "single.log.gz" );
+    {
+        KCompressionDevice gz( gzPath, KCompressionDevice::GZip );
+        REQUIRE( gz.open( QIODevice::WriteOnly ) );
+        REQUIRE( gz.write( logLines ) == logLines.size() );
+    }
+    const auto zipKey = ArchiveMember{ zipPath, { "app.log" } }.key();
+    const auto gzKey = ArchiveMember{ gzPath, { QString{} } }.key();
+
+    auto& groups = TabGroupInfo::getSynced();
+    const auto groupId
+        = groups.addGroup( QStringLiteral( "Group 609" ), QColor( 0x60, 0x90, 0x09 ) );
+    groups.save();
+    auto& config = Configuration::get();
+    const auto confirmTabClose = config.confirmTabClose();
+    config.setConfirmTabClose( false );
+    forgetRecentFiles();
+
+    const auto tempPathsOf = []( const WindowFixture& window ) {
+        QStringList paths;
+        for ( auto* tab : logFileTabs( window ) ) {
+            paths.append( QDir::fromNativeSeparators( window.session->getFilename( tab ) ) );
+        }
+        return paths;
+    };
+
+    {
+        WindowFixture window;
+        for ( const auto& [ archive, member ] : { std::pair{ zipPath, QStringLiteral( "app.log" ) },
+                                                  std::pair{ gzPath, QString{} } } ) {
+            const auto tabsBefore = logFileTabs( window ).size();
+            ModalAnswers modals;
+            modals.click( QMessageBox::Yes )
+                .answerWith( answerProgressAndMember( modals, member ) );
+            window.mainWindow->loadInitialFile( archive, false );
+            REQUIRE( waitUiState( [ & ] { return logFileTabs( window ).size() > tabsBefore; } ) );
+            CHECK( modals.unexpectedMessageBoxes() == 0 );
+        }
+        const auto tabs = logFileTabs( window );
+        REQUIRE( tabs.size() == 2 );
+        for ( auto* tab : tabs ) {
+            REQUIRE( waitUiState( [ tab ] { return CrawlerState{ *tab }.nbLines().get() > 0; } ) );
+        }
+
+        // Opening them listed the archives, never the temporary paths.
+        const auto recent = recentFiles();
+        CHECK( recent.contains( zipPath ) );
+        CHECK( recent.contains( gzPath ) );
+        for ( const auto& tempPath : tempPathsOf( window ) ) {
+            CHECK_FALSE( recent.contains( tempPath ) );
+        }
+
+        const auto indices = window.tabArea->logFileTabs();
+        window.tabArea->renameTab( indices[ 0 ], QStringLiteral( "Renamed 609" ) );
+        window.tabArea->addTabToGroup( indices[ 1 ], groupId );
+        CHECK( TabNameMapping::getSynced().tabName( zipKey ) == QStringLiteral( "Renamed 609" ) );
+        CHECK( TabGroupInfo::getSynced().groupForTab( gzKey )->id == groupId );
+
+        // Quitting saves every window.
+        window.session->setExitRequested( true );
+        window.mainWindow->close();
+        window.session->setExitRequested( false );
+    }
+    forgetRecentFiles();
+
+    // The next start: the archives are decompressed into new temporary paths.
+    WindowFixture restarted;
+    ModalAnswers modals;
+    restarted.mainWindow->reloadSession();
+    const auto tabs = logFileTabs( restarted );
+    REQUIRE( tabs.size() == 2 );
+    for ( auto* tab : tabs ) {
+        REQUIRE( waitUiState( [ tab ] { return CrawlerState{ *tab }.nbLines().get() == 2; } ) );
+    }
+    CHECK_FALSE( modals.seen() );
+
+    const auto indices = restarted.tabArea->logFileTabs();
+    CHECK( restarted.tabArea->tabText( indices[ 0 ] ) == QStringLiteral( "Renamed 609" ) );
+    const auto group = restarted.tabArea->groupOfTab( indices[ 1 ] );
+    REQUIRE( group.has_value() );
+    CHECK( group->id == groupId );
+
+    // Closing them by hand lists the archives again, never the temporary paths.
+    const auto tempPaths = tempPathsOf( restarted );
+    Q_EMIT restarted.tabArea->tabCloseRequested( indices[ 1 ] );
+    Q_EMIT restarted.tabArea->tabCloseRequested( indices[ 0 ] );
+    REQUIRE( restarted.tabArea->logFileTabs().isEmpty() );
+    const auto recent = recentFiles();
+    CHECK( recent.contains( zipPath ) );
+    CHECK( recent.contains( gzPath ) );
+    for ( const auto& tempPath : tempPaths ) {
+        CHECK_FALSE( recent.contains( tempPath ) );
+    }
+
+    // Leave the settings store as it was.
+    TabNameMapping::getSynced().setTabName( zipKey, {} ).save();
+    TabGroupInfo::getSynced().removeGroup( groupId ).save();
+    forgetRecentFiles();
+    config.setConfirmTabClose( confirmTabClose );
 }
 
 // --- The time dialogs ---

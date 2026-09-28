@@ -497,7 +497,9 @@ it hands the views only what changed, one change per open Log File, and asks for
 state when it is saved. It saves only Ordinary Log Files: a Transient Log File is left out.
 A Log File decompressed from an archive is saved with the archive and the member taken from
 it, not with the temporary file it is read from; a restore decompresses the archive again,
-and leaves the tab out, without an error, when the archive is gone.
+and leaves the tab out, without an error, when the archive is gone. The recent files, the
+tab names and the tab groups know such a Log File by its archive and member too, never by
+its temporary file.
 _Avoid_: workspace, project, layout
 
 **Transient Log File**:

@@ -309,7 +309,9 @@ determined automatically by file content or extension.
 A file opened from an archive or a compressed file comes back with the session:
 on the next start *logsquirl* extracts the archive again, without asking, and
 opens the same file where it stood. If the archive is gone by then, its tab is
-left out.
+left out. Its tab keeps the name you gave it and its tab group, and the recent
+files list the archive, which asks for the file again when you open it from
+there.
 
 #### Remote URLs
 
