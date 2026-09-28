@@ -651,7 +651,7 @@ jobs:
 
           Add it to your `PATH` with
           `ln -s /Applications/LogSquirl.app/Contents/MacOS/logsquirl_grep /usr/local/bin/logsquirl_grep`.
-          See the [documentation](https://github.com/64x-lunicorn/LogSquirl/blob/master/DOCUMENTATION.md#the-command-line-tool)
+          See the [documentation](https://logsquirl.lunicorn-lab.de/docs/the-command-line-tool/)
           for its options.
           NOTES
 

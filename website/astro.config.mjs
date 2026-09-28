@@ -1,7 +1,12 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightLinksValidator from 'starlight-links-validator';
+import { writeDocumentationPages } from './src/documentation.mjs';
 import { readReleases } from './src/releases.mjs';
+
+// The Documentation section is generated from DOCUMENTATION.md, one page per
+// `##` section, before the content is read (#587, docs/adr/0012).
+const documentation = writeDocumentationPages();
 
 export default defineConfig({
   site: 'https://logsquirl.lunicorn-lab.de',
@@ -38,6 +43,13 @@ export default defineConfig({
       plugins: [starlightLinksValidator()],
       sidebar: [
         { label: 'Install', slug: 'install' },
+        {
+          label: 'Documentation',
+          items: [
+            { label: 'Overview', slug: 'docs' },
+            ...documentation.map((page) => ({ label: page.title, slug: `docs/${page.slug}` })),
+          ],
+        },
         {
           label: 'About',
           items: [

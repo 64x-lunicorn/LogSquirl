@@ -73,6 +73,11 @@ example wrapped into an `.intunewin` package for Microsoft Intune:
 CI checks all of this, except the elevation prompt itself, on every build of
 the installer.
 
+For Windows there is also a portable package, `logsquirl-win-x64-portable.zip`:
+unpack it anywhere and start `logsquirl_portable.exe`. It keeps its settings in
+`logsquirl.conf` beside the executable instead of in the user profile; any
+*logsquirl* does so when it finds that file beside itself.
+
 ### The Dashboard
 
 When *Show dashboard on startup* is enabled (`Settings->General`, it is by
@@ -122,6 +127,23 @@ Following logic operations are supported:
 |`\|`             |Similar to OR but with left to right expression short circuiting optimization   |
 |`not`           |Logical NOT, Negate the logical sense of the input. Input must be enclosed in `()` (eg: `not("x")`)|
 
+#### The search bar
+
+The buttons left of the search line switch, for the next search:
+
+- *Match case*, whether upper and lower case must match (`4`);
+- *Use regex*, a regular expression or the text as written (`5`); it starts
+  as `Settings->General` says;
+- *Inverse match*, which shows the lines that do *not* match (`6`);
+- the logical combining described above (`7`);
+- *Auto-refresh*, which runs the search again as the file grows (`8`).
+
+*Search* runs it, and the stop button, shown while a search runs, cancels it.
+*Keep Results* (`9`) keeps the current results: the next search opens its
+results in a new tab of the filtered view, beside the kept ones, so several
+searches of one file can be compared. The keys are the defaults and can be
+changed in the shortcut settings.
+
 *logsquirl* keeps track of used search patterns and provides autocomplete
 for them. This history can be edited or cleared from the search text box context menu.
 Autocomplete is case-sensitive if this option is selected for matching 
@@ -137,12 +159,33 @@ the left margin in front of the line that needs to be marked. Or, select
 the line and press the `'m'` hotkey.
 To mark several lines at once select them and use the `'m'` hotkey or context menu.
 
-By default, filtered view always shows all marked lines. It is possible to switch filtered
-view mode to show either only the lines matching search pattern or only marked lines.
+By default, the filtered view shows the marked lines as well as the matches.
+The list at the left of the search line switches it between *Marks and
+matches*, *Marks, matches + breadcrumbs*, *Matches + breadcrumbs*, *Marks* and
+*Matches*; `v` and `Shift+V` go through them.
 
 Marks also appear as blue lines in the match overview.
 
 It is possible to quickly jump to a specific line using `Ctrl+L` shortcut.
+
+#### Breadcrumbs
+
+The breadcrumbs are the lines around each match and mark, shown dimmed in the
+filtered view, so that it shows what happened around a match without going back
+to the main view: 5 lines before and after by default. *Context lines around
+matches* in `Settings->View` sets the number, and 0 turns them off. Where the
+lines around two matches overlap, each line is shown once.
+
+#### QuickFind
+
+QuickFind searches the view you are in, the main view or the filtered view,
+without changing the search results, and jumps from one occurrence to the next.
+`Ctrl+F` opens its bar, and so do `'` and `"`, which search forward and
+backward. The bar has the text to find, *Ignore case*, and *Previous* and *Next*;
+`Enter` finds the next occurrence, `Esc` closes the bar. `F3` and `n` find the
+next occurrence, `Shift+F3` and `N` the previous one (`Cmd+G` and
+`Cmd+Shift+G` on macOS). With incremental QuickFind (`Settings->General`, on by
+default) it searches as you type.
 
 #### Go to timestamp
 
@@ -252,8 +295,8 @@ download the file to a temporary directory and open it from there.
 
 #### Recent files
 
-*logsquirl* saves a history of recent opened files. Up to 5 recent files are
-available from the `File` menu.
+*logsquirl* saves a history of recent opened files, available from the `File`
+menu: 5 by default, up to 25 as set in `Settings->File`.
 
 #### Favorites
 
@@ -316,9 +359,9 @@ This is available from the `Tools` menu. The imported filters are converted to
 to draw attention to lines indicating an error, or to associate
 a color with a certain type of event. 
 
-Highlighters are grouped into sets. One set of highlighters can be active
-at any given time. The current active set can be selected using either the
-context menu or the `Highlighters` menu.
+Highlighters are grouped into sets. Several sets can be active at once; they
+are switched on and off in the context menu or the `Highlighters` menu, where
+*None* switches them all off.
 
 Any number of highlighters can be defined in a single set.
 Highlighter configuration includes a regular expression to match
@@ -507,16 +550,81 @@ support all built-in and user-defined format definitions.
 
 #### Manual series
 
-You can still create custom series with the **+ Add Series** button.
-Each series requires a regex pattern with at least one capture group for
-the Y value (or capture group 0 for count mode).  An optional X-axis
-section lets you extract X values from a separate regex, parse them as
-timestamps, and aggregate into time buckets.
+You can still create custom series with the **+ Add Series** button, which
+opens the *Chart Series* dialog:
+
+- *Name*, shown in the series list of the toolbar and in the tooltip of a
+  point.
+- *Regex pattern (Y)* chooses the lines to plot, and *Capture group (Y)* the
+  group whose number is the Y value. Capture group 0 counts: every matching
+  line adds a point with Y = 1, as does a line whose group holds no number.
+- *Color* of the series.
+
+#### The X axis and time buckets
+
+The X axis is the line number unless *X-Axis (custom)* is checked. Then a
+second *Pattern* and *Capture group* take the X value from each line. With
+*Parse as timestamp* and a *Format* in Qt's date and time tokens (`yyyy`, `MM`,
+`dd`, `HH`, `mm`, `ss`, `zzz`, for example `yyyy-MM-dd HH:mm:ss.zzz`) the X value
+is a time; without them, a number. A line whose X value cannot be read is left
+out. The axis shows the times in UTC.
+
+*Aggregate*, available with *Parse as timestamp*, groups the points into time
+buckets of 100 ms, 500 ms, 1, 5, 10 or 30 seconds, or 1 or 5 minutes, and adds
+up their Y values. With capture group 0 that is the number of matching lines per
+bucket, for example errors per minute:
+
+|Field                |Value                               |
+|---------------------|------------------------------------|
+|Regex pattern (Y)    |`ERROR`                             |
+|Capture group (Y)    |0                                   |
+|Pattern (X)          |`^(\d{2}:\d{2}:\d{2})`              |
+|Capture group (X)    |1                                   |
+|Parse as timestamp   |checked, format `HH:mm:ss`          |
+|Aggregate            |1 minute                            |
+
+#### Working with the chart
+
+The mouse wheel zooms in and out around the pointer, dragging with the middle
+or the right mouse button moves the view, and *Fit* shows all points again.
+Hovering over a point shows its series, its line or time and its value;
+clicking a point goes to its line in the log. *Edit* and *Remove* act on the
+series chosen in the toolbar's list. `View->Show Filter Frequency` adds one
+counting series for every alternative of the current search.
+
+The series of a file, and whether the panel is shown, are kept in the session
+with the file and restored with it.
 
 #### Presets
 
-Series configurations can be saved, loaded, deleted, exported, and
-imported via the toolbar buttons.
+*Save Preset* keeps the current series under a name, for every file; a preset
+of the same name is replaced. *Load Preset* replaces the series of the chart
+with those of a preset, and *Delete Preset* deletes one without asking.
+
+*Export…* writes the current series to a JSON file and *Import…* adds the
+series of such a file to the chart, so a set of series can be shared. The file
+is a list of series:
+
+```json
+[
+  {
+    "name": "Errors per minute",
+    "color": "#e53935",
+    "pattern": "ERROR",
+    "captureGroup": 0,
+    "visible": true,
+    "xPattern": "^(\\d{2}:\\d{2}:\\d{2})",
+    "xCaptureGroup": 1,
+    "xTimestampFormat": "HH:mm:ss",
+    "bucketSizeMs": 60000
+  }
+]
+```
+
+The `x…` fields are the custom X axis and `bucketSizeMs` the bucket in
+milliseconds. A field left out takes its default: capture group 1, blue, and
+visible; `"matchCase": false` makes the pattern ignore case. An exported file
+also gives each series an `id`; an imported series without one gets a new one.
 
 ### Browsing changing log files
 
@@ -561,7 +669,20 @@ starts from what the sources contain at that moment: if a source is truncated
 or overwritten, its old lines disappear from the merged tab and the lines of
 the other sources stay. A source that is deleted contributes nothing until it
 exists again and changes. The merged file is a temporary file, removed when
-the window closes; it is not restored with the session.
+its tab or the window closes; it is not restored with the session.
+
+### Tabs
+
+Every file opens in a tab of its own. Its context menu closes it, the others,
+those to its left or right, or all, copies the file's full path and opens its
+folder. *Rename tab* gives the tab a name of your own instead of the file name;
+the name belongs to the file's path and comes back whenever that file is opened,
+until *Reset tab name*. The icon of a tab shows when its file has new lines, and
+when those lines hold new matches.
+
+`Ctrl+Tab` and `Ctrl+Shift+Tab` (or `Ctrl+PgDown` and `Ctrl+PgUp`) go to the
+next and the previous tab, `Ctrl+1` to `Ctrl+8` to the first eight and `Ctrl+9`
+to the last, and `Ctrl+W` closes the current one.
 
 ### Tab groups
 
@@ -600,12 +721,29 @@ replace its content with selected text. There are shortcuts `Ctrl+Z` and `Ctrl+S
 
 New tabs can be opened in Scratchpad using the `Ctrl+N` hotkey.
 
+The buttons above the text transform the selected text, or all of it when
+nothing is selected: `From base64`, `To base64`, `From hex`, `To hex`,
+`Decode url`, `Decode JWT`, `Format json` and `Format xml`. The result replaces
+the text and is copied to the clipboard; a transformation that gives nothing
+leaves the text as it is and says `Empty transformation`. `Format json` starts at
+the first `{` or `[`, so a JSON object can be formatted straight from a log
+line; text that is not valid XML stays unchanged.
+
+Beside the text, and updated as you type or select, the Scratchpad shows the
+same text read as numbers: `CRC32 hex` and `CRC32 dec` (its checksum),
+`File time` (a Windows FILETIME as a UTC date), `Dec->Hex`, `Hex->Dec`, and
+`Time`, which reads Unix seconds as a date in the time zone chosen below it.
+
 #### JWT token decoder
 
-The Scratchpad includes a JWT (JSON Web Token) decoder. When a JWT is pasted
-into the Scratchpad, it can decode the Base64URL-encoded header and payload,
-format the JSON with indentation, and annotate epoch timestamp fields
-(`iat`, `exp`, `nbf`, `auth_time`) with human-readable UTC dates.
+The Scratchpad includes a JWT (JSON Web Token) decoder. `Decode JWT` finds the
+token in the text, so a whole log line such as
+`Authorization: Bearer eyJhbGciOi…` can be pasted as it is; it takes the first
+token it finds, looking line by line. It decodes the Base64URL-encoded header
+and payload, formats the JSON with indentation, and annotates epoch timestamp
+fields (`iat`, `exp`, `nbf`, `auth_time`) with human-readable UTC dates, as in
+`"exp": 1705316222  // 2024-01-15T10:57:02Z`. The signature follows as hex
+bytes.
 
 ## The menu bar
 
@@ -656,15 +794,30 @@ before it is shown, and *UI extension* plugins add menu items, status bar
 widgets or panels. How to write one is described in the
 [Plugin SDK guide](https://github.com/64x-lunicorn/LogSquirl/blob/master/docs/plugin-sdk.md).
 
-`Plugins->Manage Plugins...` opens the Plugin Management dialog. It lists the
+`Plugins->Plugin Management...` opens the Plugin Management dialog. It lists the
 plugins in the catalog and the ones installed on your machine under the tabs
 *All*, *Installed* and *Updates*, and can be searched. Each plugin offers
 *Install* (or *Update*) and *Enable* or *Disable*. With *Auto-load enabled
 plugins on startup* the enabled plugins are loaded when *logsquirl* starts, and
-*Plugin Folder* opens the directory user plugins are installed to. The catalog
+*Plugin Folder* opens the user plugin directory. The catalog
 is fetched when the dialog opens; if that fails, the error is shown in the
 status line at the bottom. Menu items that a UI extension plugin adds appear
-in the `Plugins` menu, above `Manage Plugins...`.
+in the `Plugins` menu, above `Plugin Management...`.
+
+The official plugins are [Android Logcat](https://github.com/64x-lunicorn/LogSquirl-Logcat),
+which streams logcat output from devices connected through ADB, and
+[Serial Monitor](https://github.com/64x-lunicorn/LogSquirl-Serial), which shows
+the output of serial ports. Both are in the catalog.
+
+A plugin is a folder with a `plugin.json` manifest and a shared library. One
+that is not in the catalog is installed by copying its folder into the user
+plugin directory and restarting *logsquirl*:
+
+| Platform  | Path                                                     |
+|-----------|----------------------------------------------------------|
+| Linux     | `~/.local/share/logsquirl/plugins/`                      |
+| macOS     | `~/Library/Application Support/logsquirl/plugins/`       |
+| Windows   | `%APPDATA%/logsquirl/plugins/`                           |
 
 The `Sources` menu lists the installed data source plugins. Choosing one loads
 the plugin if needed and starts it; the stream opens as a new tab in the window
@@ -800,6 +953,11 @@ scale factors manual overrides.
 
 #### Miscellaneous
 
+*Context lines around matches* sets the number of [breadcrumbs](#breadcrumbs)
+shown before and after each match (5 by default, 0 turns them off). With
+*Enable fast scrolling with Alt key*, on by default, the mouse wheel scrolls
+*Fast scroll multiplier* times (5) as far while `Alt` is held.
+
 Some log files contain ANSI color codes to be displayed by terminals with
 color support. These color codes create visual noise, so *logsquirl* provides
 an option to hide them from both main and filtered view. However, enabling
@@ -815,7 +973,8 @@ disk.
 
 Sometimes this kind of monitoring is unreliable on
 network shares or directories mounted via sftp. In that case, polling can
-be enabled to make *logsquirl* check for changes.
+be enabled to make *logsquirl* check for changes, every 2000 ms by default
+(*Polling interval*). Monitoring is on by default; polling only on Windows.
 
 *logsquirl* tries to detect if the file was changed in the already indexed
 area. This mechanism involves hash recalculation and can be slow for
@@ -852,6 +1011,11 @@ SSL errors.
 ### Advanced options
 
 These options refer to the customization of performance related settings.
+
+*Regular expressions engine* chooses between Vectorscan, the default and the
+fastest, and Qt's engine, which understands every pattern, lookahead included,
+but is slower. Even with Vectorscan, a pattern it cannot handle is searched
+with Qt's engine.
 
 If parallel search is enabled, *logsquirl* will try to use several CPU cores
 for regular expression matching. This does not work with quickfind.
@@ -915,8 +1079,8 @@ The main commands are:
 |m               |put a mark on current selected line                               |
 |\[ or \]        |jump to previous or next marked line                              |
 |+ or -          |decrease/increase filtered view size                              |
-|v               |switch filtered view visibility mode                               |
-|                |(Marks and Matches -&gt; Marks -&gt; Matches)                     |
+|v or Shift+V    |switch filtered view visibility mode, forward or backward          |
+|                |(see [Breadcrumbs](#breadcrumbs))                                 |
 |F5              |reload current file                                               |
 |Ctrl+S          |Set focus to search string edit box                               |
 |Ctrl+Shift+O    |Open dialog to switch to another file                             |
@@ -925,8 +1089,9 @@ All shortucts can be configured from the shortcuts tab in options dialog.
 
 ## Mouse navigation
 
-Holding `Alt` while scrolling will scroll horizontally.
-Holding `Shift` while scrolling will scroll faster.
+Holding `Alt` while scrolling scrolls faster, by the *Fast scroll multiplier*
+of `Settings->View`. Holding `Shift` while scrolling scrolls a page at a time.
+Scrolling sideways, on a trackpad or a tilting wheel, scrolls horizontally.
 
 ## Command line options
 

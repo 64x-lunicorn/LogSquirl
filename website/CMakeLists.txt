@@ -1,6 +1,8 @@
 add_custom_target(website
    SOURCES  astro.config.mjs
             package.json
+            src/documentation.mjs
+            scripts/documentation.test.mjs
             src/content/docs/index.mdx
             src/content/docs/getting-involved.md
             src/content/docs/legal-notice.md
