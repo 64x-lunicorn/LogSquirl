@@ -153,8 +153,11 @@ typedef struct {
     void ( *unregister_status_widget )( void* handle, void* qwidget_ptr );
 
     /**
-     * Add a custom action to the host menu bar.
-     * @param menu_path  Slash-separated menu path, e.g. "Tools/My Plugin".
+     * Add a custom action to the host's Plugins menu.
+     * @param menu_path  Slash-separated path of submenus of the Plugins menu the
+     *                   item goes into, e.g. "My Plugin/Sub" for
+     *                   Plugins > My Plugin > Sub. An empty path (or "Plugins")
+     *                   puts the item directly into the Plugins menu.
      * @param label      Menu item label.
      * @param callback   Function called when the item is triggered.
      * @param user_data  Passed back to callback unchanged.

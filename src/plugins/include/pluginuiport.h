@@ -74,7 +74,9 @@ public:
 
     /**
      * Add a menu action for a plugin.
-     * @param menuPath  Slash-separated menu path the plugin asked for.
+     * @param menuPath  Slash-separated path of the submenus of the Plugins menu
+     *                  the action goes into; empty or "Plugins" for the Plugins
+     *                  menu itself.
      * @param label     Text of the action.
      * @param callback  Called with userData when the user triggers the action.
      */

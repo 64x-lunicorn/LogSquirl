@@ -308,8 +308,8 @@ SCENARIO( "What plugins contribute shows in every window", "[ui][plugins][applic
         auto plugins
             = std::make_shared<ApplicationPlugins>( [ & ]( PluginCatalog&, PluginHost& host ) {
                   REQUIRE( host.uiPort() );
-                  host.uiPort()->addMenuAction( pluginId, QStringLiteral( "Tools" ), actionLabel,
-                                                countPluginAction, nullptr );
+                  host.uiPort()->addMenuAction( pluginId, QString(), actionLabel, countPluginAction,
+                                                nullptr );
                   host.uiPort()->addSidebarTab( pluginId, QStringLiteral( "Test Plugin" ),
                                                 PluginWidgetHandle{ sidebarWidget.data() } );
               } );
