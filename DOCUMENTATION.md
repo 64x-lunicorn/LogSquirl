@@ -809,15 +809,24 @@ which streams logcat output from devices connected through ADB, and
 [Serial Monitor](https://github.com/64x-lunicorn/LogSquirl-Serial), which shows
 the output of serial ports. Both are in the catalog.
 
-A plugin is a folder with a `plugin.json` manifest and a shared library. One
-that is not in the catalog is installed by copying its folder into the user
-plugin directory and restarting *logsquirl*:
+A plugin is a folder with a `plugin.json` manifest and a shared library.
+*Install* and *Update* put a plugin from the catalog into the user plugin
+directory, the one *Plugin Folder* opens. One that is not in the catalog is
+installed by copying its folder there and restarting *logsquirl*:
 
 | Platform  | Path                                                     |
 |-----------|----------------------------------------------------------|
 | Linux     | `~/.local/share/logsquirl/plugins/`                      |
 | macOS     | `~/Library/Application Support/logsquirl/plugins/`       |
 | Windows   | `%APPDATA%/logsquirl/plugins/`                           |
+
+Plugins that come with *logsquirl* itself sit in the application folder
+(`Contents/PlugIns` in the macOS app, the `plugins` folder next to the program
+elsewhere) and are never changed. Updating one from the catalog puts the new
+version into the user plugin directory, and a plugin there is used instead of
+the one with the same id in the application folder. To go back to the version
+that came with *logsquirl*, delete the plugin's folder in the user plugin
+directory and restart *logsquirl*.
 
 The `Sources` menu lists the installed data source plugins. Choosing one loads
 the plugin if needed and starts it; the stream opens as a new tab in the window

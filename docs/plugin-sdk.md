@@ -133,13 +133,16 @@ cmake --build build
 ### 5. Install the Plugin
 
 Copy the built library and `plugin.json` into one of the plugin search
-directories:
+directories, which are scanned in this order: the user plugin directory, then
+the application plugin directory. For a plugin id found in both, the one in the
+user plugin directory is used; installs and updates from the catalog go there
+too (see [ADR 0014](adr/0014-a-plugin-from-the-catalog-goes-into-the-user-plugin-directory-and-wins-over-the-shipped-copy.md)).
 
 | Platform | Directories                                                               |
 |----------|---------------------------------------------------------------------------|
-| macOS    | `<app>/../PlugIns/` · `~/Library/Application Support/LogSquirl/plugins/` |
-| Linux    | `<app>/plugins/` · `~/.local/share/LogSquirl/plugins/`                   |
-| Windows  | `<app>/plugins/` · `%APPDATA%/LogSquirl/plugins/`                        |
+| macOS    | `~/Library/Application Support/LogSquirl/plugins/` · `<app>/../PlugIns/` |
+| Linux    | `~/.local/share/LogSquirl/plugins/` · `<app>/plugins/`                   |
+| Windows  | `%APPDATA%/LogSquirl/plugins/` · `<app>/plugins/`                        |
 
 Each plugin should live in its own subdirectory:
 

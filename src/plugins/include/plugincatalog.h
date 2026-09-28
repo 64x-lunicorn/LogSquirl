@@ -37,8 +37,32 @@ namespace logsquirl::plugins {
  */
 class PluginCatalog {
 public:
-    /** Return the platform-specific plugin search directories. */
+    /**
+     * Return the platform-specific plugin search directories, in the order
+     * they are scanned: the user plugin directory first, then the application
+     * plugin directory. For a duplicate id the plugin found first is kept, so
+     * a plugin installed or updated from the catalog wins over the copy
+     * shipped with the application (ADR 0014).
+     */
     static QStringList defaultPluginDirectories();
+
+    /**
+     * The user plugin directory in the application data location. Installs
+     * and updates from the catalog go here, and the plugin dialog's "Plugin
+     * Folder" button opens it; it is writable without admin rights on every
+     * platform.
+     */
+    static QString userPluginDirectory();
+
+    /**
+     * The application plugin directory: Contents/PlugIns in the macOS bundle,
+     * `plugins` next to the executable elsewhere. It holds the plugins shipped
+     * with the application and is never written to.
+     */
+    static QString applicationPluginDirectory();
+
+    /** The directory a plugin with the given id is installed or updated into. */
+    static QString installDirectory( const QString& pluginId );
 
     /**
      * Rescan the default plugin directories. Replaces what was discovered

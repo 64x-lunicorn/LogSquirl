@@ -33,24 +33,33 @@ namespace logsquirl::plugins {
 
 QStringList PluginCatalog::defaultPluginDirectories()
 {
-    QStringList dirs;
+    // The user plugin directory comes first: discovery keeps the first plugin
+    // of an id, so a plugin updated from the catalog, which lands there, wins
+    // over the copy shipped in the application folder (#595, ADR 0014).
+    return { userPluginDirectory(), applicationPluginDirectory() };
+}
+
+QString PluginCatalog::userPluginDirectory()
+{
+    return QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
+}
+
+QString PluginCatalog::applicationPluginDirectory()
+{
     const auto appDir = QCoreApplication::applicationDirPath();
 
 #if defined( Q_OS_MACOS )
     // Inside .app bundle: Contents/PlugIns/
-    dirs << QDir( appDir + "/../PlugIns" ).absolutePath();
-    // User-installed plugins
-    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
-#elif defined( Q_OS_WIN )
-    dirs << appDir + "/plugins";
-    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
+    return QDir( appDir + "/../PlugIns" ).absolutePath();
 #else
-    // Linux / other Unix
-    dirs << appDir + "/plugins";
-    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
+    // Windows, Linux and other Unix
+    return appDir + "/plugins";
 #endif
+}
 
-    return dirs;
+QString PluginCatalog::installDirectory( const QString& pluginId )
+{
+    return QDir( userPluginDirectory() ).filePath( pluginId );
 }
 
 // ── Discovery ───────────────────────────────────────────────────────────────

@@ -2659,110 +2659,110 @@ Retroceso o Suprimir borra el atajo.</translation>
 <context>
     <name>PluginDialog</name>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="150"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="149"/>
         <source>License: %1</source>
         <translation>Licencia: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="161"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="160"/>
         <source>Install</source>
         <translation>Instalar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="168"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="182"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="167"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="181"/>
         <source>Disable</source>
         <translation>Deshabilitar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="174"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="173"/>
         <source>Enable</source>
         <translation>Habilitar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="179"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="768"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="178"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="763"/>
         <source>Update</source>
         <translation>Actualizar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="196"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="195"/>
         <source>Plugin Management</source>
         <translation>Administración de plugins</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="205"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="204"/>
         <source>Search plugins...</source>
         <translation>Buscar plugins...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="214"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="213"/>
         <source>All</source>
         <translation>Todos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="222"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="221"/>
         <source>Installed</source>
         <translation>Instalados</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="229"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="590"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="228"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="588"/>
         <source>Updates</source>
         <translation>Actualizaciones</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="258"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="257"/>
         <source>Fetching plugin catalog...</source>
         <translation>Obteniendo catálogo de plugins...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="267"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="266"/>
         <source>Auto-load enabled plugins on startup</source>
         <translation>Cargar automáticamente los plugins habilitados al iniciar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="277"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="276"/>
         <source>Plugin Folder</source>
         <translation>Carpeta de plugins</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="278"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="277"/>
         <source>Open the user plugin directory in the file manager</source>
         <translation>Abrir la carpeta de plugins del usuario en el administrador de archivos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="287"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="285"/>
         <source>Close</source>
         <translation>Cerrar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="330"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="328"/>
         <source>%1 plugins available</source>
         <translation>%1 plugins disponibles</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="345"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="343"/>
         <source>Error: %1</source>
         <translation>Error: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="367"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="365"/>
         <source>Downloaded to %1</source>
         <translation>Descargado en %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="384"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="382"/>
         <source>%1 installed and activated.</source>
         <translation>%1 instalado y activado.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="385"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="383"/>
         <source>Plugin Installed</source>
         <translation>Plugin instalado</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="386"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="384"/>
         <source>%1 has been installed and activated.
 
 You can now use it from the Plugins menu.</source>
@@ -2771,103 +2771,97 @@ You can now use it from the Plugins menu.</source>
 Ya puede usarlo desde el menú Plugins.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="397"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="395"/>
         <source>Download failed: %1</source>
         <translation>Error en la descarga: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="398"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="396"/>
         <source>Download Error</source>
         <translation>Error de descarga</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="587"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="585"/>
         <source>All (%1)</source>
         <translation>Todos (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="588"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="586"/>
         <source>Installed (%1)</source>
         <translation>Instalados (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="589"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="587"/>
         <source>Updates (%1)</source>
         <translation>Actualizaciones (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="600"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="670"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="701"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="598"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="696"/>
         <source>Install Error</source>
         <translation>Error de instalación</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="601"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="599"/>
         <source>No compatible download available for %1 on this platform.</source>
         <translation>No hay ninguna descarga compatible de %1 para esta plataforma.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="616"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="614"/>
         <source>Downloading %1...</source>
         <translation>Descargando %1...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="622"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="620"/>
         <source>Installing...</source>
         <translation>Instalando...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="644"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="642"/>
         <source>Plugin disabled.</source>
         <translation>Plugin deshabilitado.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="654"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="652"/>
         <source>Plugin Error</source>
         <translation>Error de plugin</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="655"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="653"/>
         <source>Failed to load %1:
 %2</source>
         <translation>No se pudo cargar %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="658"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="656"/>
         <source>Plugin enabled.</source>
         <translation>Plugin habilitado.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="671"/>
-        <source>No plugin directory configured.</source>
-        <translation>No hay ninguna carpeta de plugins configurada.</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="700"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="695"/>
         <source>Installation failed.</source>
         <translation>La instalación falló.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="702"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="697"/>
         <source>Failed to extract plugin archive:
 %1</source>
         <translation>No se pudo extraer el archivo comprimido del plugin:
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="717"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="712"/>
         <source>Extracted but failed to load.</source>
         <translation>Extraído, pero no se pudo cargar.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="718"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="713"/>
         <source>Load Error</source>
         <translation>Error de carga</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="719"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="714"/>
         <source>Plugin was extracted but could not be loaded:
 %1
 
@@ -2878,17 +2872,17 @@ Restart LogSquirl to try again.</source>
 Reinicie LogSquirl para volver a intentarlo.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="766"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="761"/>
         <source>Active</source>
         <translation>Activo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="770"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="765"/>
         <source>Disabled</source>
         <translation>Deshabilitado</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="772"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="767"/>
         <source>Available</source>
         <translation>Disponible</translation>
     </message>
