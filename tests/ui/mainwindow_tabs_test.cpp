@@ -325,6 +325,33 @@ private:
     QTimer driver_;
 };
 
+// Accepts every text the window asks for as it is offered, and keeps what
+// was offered.
+class InputAccepter {
+public:
+    InputAccepter()
+    {
+        QObject::connect( &driver_, &QTimer::timeout, [ this ] {
+            if ( auto* dialog = qobject_cast<QInputDialog*>( QApplication::activeModalWidget() ) ) {
+                if ( dialog->isVisible() ) {
+                    offered_ << dialog->textValue();
+                    dialog->accept();
+                }
+            }
+        } );
+        driver_.start( 10 );
+    }
+
+    const QStringList& offered() const
+    {
+        return offered_;
+    }
+
+private:
+    QStringList offered_;
+    QTimer driver_;
+};
+
 // Turns the confirmation of a tab close on for its lifetime.
 struct ConfirmTabClose {
     ConfirmTabClose()
@@ -766,6 +793,24 @@ SCENARIO( "A data source's tab keeps its name when tabs are grouped and renamed"
 
         THEN( "it shows the group before its name" )
         {
+            REQUIRE( window.tabArea->tabText( sourceTab )
+                     == QString::fromUtf8( "● " ) + sourceName );
+        }
+    }
+
+    WHEN( "the grouped data source's tab is renamed and the offered name accepted as it is" )
+    {
+        REQUIRE( window.chooseFromTabMenu( sourceTab, "Group 606" ) );
+        QStringList offered;
+        {
+            const InputAccepter accepter;
+            REQUIRE( window.chooseFromTabMenu( sourceTab, "Rename tab" ) );
+            offered = accepter.offered();
+        }
+
+        THEN( "the name is offered without the group's bullet and stays as it was (#612)" )
+        {
+            REQUIRE( offered == QStringList{ sourceName } );
             REQUIRE( window.tabArea->tabText( sourceTab )
                      == QString::fromUtf8( "● " ) + sourceName );
         }
