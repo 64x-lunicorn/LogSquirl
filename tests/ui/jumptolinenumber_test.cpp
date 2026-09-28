@@ -19,7 +19,8 @@
 
 // "Jump to line number" is listed in the shortcut settings with no key, and
 // a key the user binds to it selects the Log Line whose number was typed
-// before it (#601).
+// before it (#601). With no number typed it leaves the selection, and 0 counts
+// as the first line (#614).
 
 #include "configuration.h"
 #include "logdata.h"
@@ -104,7 +105,8 @@ SCENARIO( "A key bound to Jump to line number selects the typed line number",
         view.resize( 400, 200 );
         view.show();
         view.registerShortcuts();
-        view.selectAndDisplayLine( 0_lnum );
+        view.selectAndDisplayLine( 5_lnum );
+        REQUIRE( view.getSelectedText() == QStringLiteral( "log line 5" ) );
 
         QShortcut* shortcut = nullptr;
         for ( auto* candidate : view.findChildren<QShortcut*>() ) {
@@ -126,6 +128,49 @@ SCENARIO( "A key bound to Jump to line number selects the typed line number",
             {
                 REQUIRE_FALSE( selected.isEmpty() );
                 // Line numbers count from 1, Log Lines from 0.
+                REQUIRE( qvariant_cast<LineNumber>( selected.last().at( 0 ) ) == 11_lnum );
+            }
+        }
+
+        WHEN( "the key is pressed with no number typed" )
+        {
+            QSignalSpy selected( &view, &AbstractLogView::newSelection );
+            Q_EMIT shortcut->activated();
+
+            THEN( "the selection stays where it is" )
+            {
+                REQUIRE( selected.isEmpty() );
+                REQUIRE( view.getSelectedText() == QStringLiteral( "log line 5" ) );
+            }
+        }
+
+        WHEN( "0 is typed and the key is pressed" )
+        {
+            QTest::keyClick( &view, Qt::Key_0 );
+
+            QSignalSpy selected( &view, &AbstractLogView::newSelection );
+            Q_EMIT shortcut->activated();
+
+            THEN( "the first Log Line is selected" )
+            {
+                REQUIRE_FALSE( selected.isEmpty() );
+                REQUIRE( qvariant_cast<LineNumber>( selected.last().at( 0 ) ) == 0_lnum );
+                REQUIRE( view.getSelectedText() == QStringLiteral( "log line 0" ) );
+            }
+        }
+
+        WHEN( "0, 1 and 2 are typed and the key is pressed" )
+        {
+            QTest::keyClick( &view, Qt::Key_0 );
+            QTest::keyClick( &view, Qt::Key_1 );
+            QTest::keyClick( &view, Qt::Key_2 );
+
+            QSignalSpy selected( &view, &AbstractLogView::newSelection );
+            Q_EMIT shortcut->activated();
+
+            THEN( "the Log Line with number 12 is selected" )
+            {
+                REQUIRE_FALSE( selected.isEmpty() );
                 REQUIRE( qvariant_cast<LineNumber>( selected.last().at( 0 ) ) == 11_lnum );
             }
         }
