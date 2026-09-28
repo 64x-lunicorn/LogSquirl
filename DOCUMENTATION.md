@@ -179,7 +179,8 @@ To mark several lines at once select them and use the `'m'` hotkey or context me
 By default, the filtered view shows the marked lines as well as the matches.
 The list at the left of the search line switches it between *Marks and
 matches*, *Marks, matches + breadcrumbs*, *Matches + breadcrumbs*, *Marks* and
-*Matches*; `v` and `Shift+V` go through them.
+*Matches*; `v` and `Shift+V` go through them, and `1`, `2` and `3` pick
+*Marks and matches*, *Marks* and *Matches*.
 
 Marks also appear as blue lines in the match overview.
 
@@ -1138,6 +1139,15 @@ The main commands are:
 Every key in this table is a default and can be changed in the shortcuts tab of
 the options dialog, where the commands without a default key, such as
 *Open scratchpad* or *Full Screen*, can be given one as well.
+
+A count before a command repeats it, as in *vi*: type `0`, the number, then
+the command. `05j` moves the selection five lines down, `012k` twelve lines up,
+and the arrow keys take a count as `j` and `k` do; *Jump to line number* goes to
+the line of the number typed. The count starts with `0` because `1` to `9` on
+their own are the shortcuts of the filtered view's visibility and of the search
+buttons. Once `0` has started a count, the digits after it belong to the count
+until the command, or until two seconds pass without a key. `0` also scrolls to
+the beginning of the line, with or without a count after it.
 
 ## Mouse navigation
 

@@ -127,6 +127,11 @@ struct AbstractLogView::access_by<CrawlerWidgetPrivate> {
     {
         return view.quickFind_;
     }
+    // The selected Log Line, or the one in the middle of the view.
+    static OptionalLineNumber viewPosition( const AbstractLogView& view )
+    {
+        return view.getViewPosition();
+    }
     // The Search Limits the view subdues the Log Lines outside of.
     static std::pair<LineNumber, LineNumber> searchLimits( const AbstractLogView& view )
     {
@@ -3999,6 +4004,88 @@ SCENARIO( "A visibility shortcut shows what its name says in the Filtered View",
             THEN( "the Filtered View shows the mode of its name" )
             {
                 REQUIRE( crawlerVisitor.filteredView()->visibility() == shown );
+            }
+        }
+    }
+}
+
+// A count and the Crawler Widget's digit shortcuts share the bare digits: a
+// count starts with 0, and the digits after it go to the view, not to the
+// shortcuts of 1 to 9 (#600, docs/adr/0016). The keys go through Qt's
+// shortcut dispatch, with the default shortcuts in place.
+SCENARIO( "A count typed after 0 moves the selection while a bare digit stays a shortcut", "[ui]" )
+{
+    using VisibilityFlags = LogFilteredData::VisibilityFlags;
+
+    QTemporaryFile file{ "crawler_count_XXXXXX" };
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    openCrawler( session, file, crawlerVisitor );
+    crawlerVisitor.crawler->activateWindow();
+    REQUIRE( QTest::qWaitForWindowActive( crawlerVisitor.crawler.get() ) );
+
+    auto* view = crawlerVisitor.textView();
+    const auto viewPosition = [ view ]() {
+        return AbstractLogView::access_by<CrawlerWidgetPrivate>::viewPosition( *view );
+    };
+    const auto typeKeys = [ view ]( std::initializer_list<Qt::Key> keys ) {
+        for ( const auto key : keys ) {
+            QTest::keyClick( view, key );
+        }
+        QCoreApplication::processEvents();
+    };
+
+    GIVEN( "the main view focused, with Log Line 20 selected" )
+    {
+        view->selectAndDisplayLine( 20_lnum );
+        view->setFocus();
+        QCoreApplication::processEvents();
+        REQUIRE( QApplication::focusWidget() == view );
+
+        const auto regexp = crawlerVisitor.useRegexpChecked();
+        const auto visibility = crawlerVisitor.filteredView()->visibility();
+
+        WHEN( "0, 5 and j are typed" )
+        {
+            typeKeys( { Qt::Key_0, Qt::Key_5, Qt::Key_J } );
+
+            THEN( "the selection moves five lines down and no search button toggles" )
+            {
+                REQUIRE( viewPosition() == OptionalLineNumber{ 25_lnum } );
+                REQUIRE( crawlerVisitor.useRegexpChecked() == regexp );
+            }
+        }
+
+        WHEN( "0, 1, 2 and k are typed" )
+        {
+            typeKeys( { Qt::Key_0, Qt::Key_1, Qt::Key_2, Qt::Key_K } );
+
+            THEN( "the selection moves twelve lines up and the visibility stays" )
+            {
+                REQUIRE( viewPosition() == OptionalLineNumber{ 8_lnum } );
+                REQUIRE( crawlerVisitor.filteredView()->visibility() == visibility );
+            }
+        }
+
+        WHEN( "5 is typed without a 0 before it" )
+        {
+            typeKeys( { Qt::Key_5 } );
+
+            THEN( "Use regex toggles, as its shortcut says" )
+            {
+                REQUIRE( crawlerVisitor.useRegexpChecked() != regexp );
+            }
+        }
+
+        WHEN( "a count moves the selection, then 2 is typed" )
+        {
+            typeKeys( { Qt::Key_0, Qt::Key_3, Qt::Key_J, Qt::Key_2 } );
+
+            THEN( "the count is spent and 2 shows the Marks in the Filtered View" )
+            {
+                REQUIRE( viewPosition() == OptionalLineNumber{ 23_lnum } );
+                REQUIRE( crawlerVisitor.filteredView()->visibility() == VisibilityFlags::Marks );
             }
         }
     }
