@@ -296,7 +296,9 @@ download the file to a temporary directory and open it from there.
 #### Recent files
 
 *logsquirl* saves a history of recent opened files, available from the `File`
-menu: 5 by default, up to 25 as set in `Settings->File`.
+menu: 5 by default, up to 25 as set in `Settings->File`. Standard input, a
+merged tab, what a data source writes and text opened from the clipboard exist
+only while *logsquirl* runs, so they are not added to it.
 
 #### Favorites
 
@@ -677,7 +679,9 @@ Every file opens in a tab of its own. Its context menu closes it, the others,
 those to its left or right, or all, copies the file's full path and opens its
 folder. *Rename tab* gives the tab a name of your own instead of the file name;
 the name belongs to the file's path and comes back whenever that file is opened,
-until *Reset tab name*. The icon of a tab shows when its file has new lines, and
+until *Reset tab name*. The tab of a file that exists only while *logsquirl*
+runs -- standard input, a merged tab, a data source, the clipboard -- keeps its
+name until it closes. The icon of a tab shows when its file has new lines, and
 when those lines hold new matches.
 
 `Ctrl+Tab` and `Ctrl+Shift+Tab` (or `Ctrl+PgDown` and `Ctrl+PgUp`) go to the
@@ -697,7 +701,8 @@ and `Ungroup All`.
 `Tools->Manage Tab Groups...` opens a dialog listing the groups with their
 color, name and number of tabs, to rename, recolor or delete them without going
 through a tab. Group membership is remembered by the file's path and restored
-with the session.
+with the session; the tab of a file that exists only while *logsquirl* runs
+stays in its group until it closes.
 
 ### Filters Panel
 

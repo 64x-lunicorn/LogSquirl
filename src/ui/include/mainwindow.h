@@ -262,7 +262,8 @@ private:
     void readSettings();
     void writeSettings();
     // Opens a Log File in a new tab. A Transient Log File -- one the window
-    // made for this run alone -- is not saved with the Session (#570).
+    // made for this run alone -- is not saved with the Session (#570), nor
+    // added to the recent files (#597).
     bool loadFile( const QString& fileName, bool followFile = false,
                    LogFileLifetime lifetime = LogFileLifetime::Ordinary );
     bool extractAndLoadFile( const QString& fileName );

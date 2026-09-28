@@ -2420,8 +2420,10 @@ void MainWindow::closeTabs( const QList<int>& indices, ActionInitiator initiator
             continue;
         }
 
-        // Only a Log File the user closed becomes a recent file.
-        if ( initiator == ActionInitiator::User ) {
+        // Only a Log File the user closed becomes a recent file, and never a
+        // Transient one: its path is gone after a restart (#597).
+        if ( initiator == ActionInitiator::User
+             && !mainTabWidget_.holdsTransientLogFile( index ) ) {
             addRecentFile( session_.getFilename( crawler ) );
         }
 
@@ -2844,7 +2846,7 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLife
             // tab during loading. (maybe FIXME)
             // mainTabWidget_.setEnabled( false );
 
-            int index = mainTabWidget_.addCrawler( crawlerWidget, fileName );
+            int index = mainTabWidget_.addCrawler( crawlerWidget, fileName, lifetime );
             if ( const auto title = tabTitles_.constFind( fileName ); title != tabTitles_.cend() ) {
                 mainTabWidget_.setTabText( index, title->first );
                 mainTabWidget_.setTabToolTip( index, title->second );
@@ -2854,7 +2856,10 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLife
             // of the loading, with no way to switch to another tab
             mainTabWidget_.setCurrentIndex( index );
 
-            addRecentFile( fileName );
+            // A Transient Log File's path is gone after a restart (#597).
+            if ( lifetime == LogFileLifetime::Ordinary ) {
+                addRecentFile( fileName );
+            }
             updateOpenedFilesMenu();
 
             const auto& config = Configuration::get();
