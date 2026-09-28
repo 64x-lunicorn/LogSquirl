@@ -1,0 +1,79 @@
+/* The website in the colors of the app's Smyck themes: the SMYCK terminal
+   color scheme (https://color.smyck.org/, MIT), as in
+   src/settings/src/theme.cpp. Smyck is the dark site theme, Smyck Light the
+   light one. Starlight draws every page from these variables; the grays are
+   the scheme's own black-to-white ramp, the accent is its selection color,
+   and the aside colors are its ANSI colors. */
+
+:root {
+  --sl-color-white: #f7f7f7;
+  --sl-color-gray-1: #e4e4e4;
+  --sl-color-gray-2: #c4c4c4;
+  --sl-color-gray-3: #989898;
+  --sl-color-gray-4: #5d5d5d;
+  --sl-color-gray-5: #3a3a3a;
+  --sl-color-gray-6: #242424;
+  --sl-color-black: #1b1b1b;
+
+  --sl-color-accent-low: #14404a;
+  --sl-color-accent: #207483;
+  --sl-color-accent-high: #9cd9f0;
+
+  --sl-color-blue-low: #14404a;
+  --sl-color-blue: #4e90a7;
+  --sl-color-blue-high: #9cd9f0;
+  --sl-color-green-low: #2a3812;
+  --sl-color-green: #8eb33b;
+  --sl-color-green-high: #cdee69;
+  --sl-color-orange-low: #3d3413;
+  --sl-color-orange: #d0b03c;
+  --sl-color-orange-high: #ffe377;
+  --sl-color-red-low: #4a1f1a;
+  --sl-color-red: #c75646;
+  --sl-color-red-high: #e09690;
+  --sl-color-purple-low: #3a2a3e;
+  --sl-color-purple: #c8a0d1;
+  --sl-color-purple-high: #fbb1f9;
+
+  --sl-color-backdrop-overlay: rgb(27 27 27 / 0.7);
+}
+
+:root[data-theme='light'] {
+  --sl-color-white: #1b1b1b;
+  --sl-color-gray-1: #242424;
+  --sl-color-gray-2: #3a3a3a;
+  --sl-color-gray-3: #5d5d5d;
+  --sl-color-gray-4: #7a7a7a;
+  --sl-color-gray-5: #c4c4c4;
+  --sl-color-gray-6: #e4e4e4;
+  --sl-color-gray-7: #f7f7f7;
+  --sl-color-black: #ffffff;
+
+  --sl-color-accent-low: #cfe5ea;
+  --sl-color-accent: #207483;
+  --sl-color-accent-high: #14404a;
+
+  --sl-color-blue-low: #dcebf1;
+  --sl-color-blue: #4e90a7;
+  --sl-color-blue-high: #245566;
+  --sl-color-green-low: #e8f2d3;
+  --sl-color-green: #8eb33b;
+  --sl-color-green-high: #46601a;
+  --sl-color-orange-low: #f6efd3;
+  --sl-color-orange: #d0b03c;
+  --sl-color-orange-high: #6b5a14;
+  --sl-color-red-low: #f6deda;
+  --sl-color-red: #c75646;
+  --sl-color-red-high: #8e3a2e;
+  --sl-color-purple-low: #f1e7f4;
+  --sl-color-purple: #c8a0d1;
+  --sl-color-purple-high: #6b4a73;
+
+  --sl-color-backdrop-overlay: rgb(93 93 93 / 0.6);
+}
+
+/* The site title in the scheme's light blue, like a version in the release
+   hero. */
+.site-title {
+  color: var(--sl-color-text-accent);
+}

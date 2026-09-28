@@ -23,7 +23,7 @@ export default defineConfig({
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/64x-lunicorn/LogSquirl' },
       ],
-      customCss: ['./src/styles/custom.css', './src/styles/releases.css'],
+      customCss: ['./src/styles/smyck.css', './src/styles/custom.css', './src/styles/releases.css'],
       // A link to a page or heading that does not exist fails the build, on
       // pull requests as well as in the deploy (#311).
       plugins: [starlightLinksValidator()],

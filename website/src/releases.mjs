@@ -10,7 +10,7 @@
 //     label: v26.03 (Beta)     # optional; defaults to "v" + version
 //
 // The sidebar (astro.config.mjs), the release overview and the home page
-// (ReleaseCards.astro) all take the releases from here, so they cannot
+// (ReleaseTimeline.astro) all take the releases from here, so they cannot
 // disagree. A page with missing or malformed release frontmatter fails the
 // build, naming the file.
 
