@@ -268,8 +268,8 @@ CFFIXED_USER_HOME=/tmp/shots-home TMPDIR=/tmp/shots-tmp/ LOGSQUIRL_SCREENSHOT_DI
 
 The run also renders the Table View, with Format Recognition on as in the application: before the
 Search (`main-window-table-view`) and with it (`main-window-table-view-search`), where the Rows of
-the Matches show the Theme's Row color (#590). It stays off the website until the demo log is
-recognized as spdlog (#589).
+the Matches show the Theme's Row color (#590). The website does not show it
+yet; the demo log is recognized as spdlog since #589, so its columns are right.
 
 ### E2E integration tests (Python / pytest)
 

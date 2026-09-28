@@ -280,7 +280,7 @@ Light, or System, which becomes Light or Dark from the operating system's color 
 follows it while the application runs. Choosing a Theme takes effect at once, in every open
 window. A Theme is exactly one set of Tokens, and it carries the colors of the Color Labels;
 the application's palette and stylesheet are both derived from it. Beyond the Color Labels and
-the Row colors of a Match, a Mark and a Mark that is a Match in the Table View (ADR-0014), a
+the Row colors of a Match, a Mark and a Mark that is a Match in the Table View (ADR-0013), a
 Theme does not color Log Lines — Highlighters and Highlighter Sets are the user's alone.
 _Avoid_: style, skin, palette (a palette is derived from a Theme)
 
@@ -505,3 +505,8 @@ followed like any other, but the Session does not save it, so a restart neither 
 file that is gone nor reports an error for it. Every other Log File is an Ordinary one,
 saved and restored with its view state.
 _Avoid_: temporary tab, temp file, volatile source
+
+**Ordinary Log File**:
+A Log File that is not a Transient Log File: a file on disk the user opened, which the
+Session saves and restores with its view state.
+_Avoid_: persistent tab, normal file

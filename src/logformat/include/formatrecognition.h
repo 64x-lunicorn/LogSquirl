@@ -38,9 +38,9 @@ class AbstractLogData;
 //
 // Among the Log Formats that match, the one matching the most sample lines
 // wins; at least half of the sample lines must match. On a tie (ADR 0011):
-//  1. the more specific Log Format: one whose sample lines (its "sample"
+//  1. the more specific Log Format: one whose example lines (its "sample"
 //     section) a rival's patterns accept, while its own patterns accept none
-//     of the rival's, wins over that rival;
+//     of the rival's example lines, wins over that rival;
 //  2. then the one capturing more fields from the sample lines: the named
 //     groups that took part in the match (an optional group that did not
 //     match counts for nothing), or the declared fields a JSON or logfmt
