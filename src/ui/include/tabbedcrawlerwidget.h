@@ -99,9 +99,13 @@ public:
     // under; -1 when none does.
     int tabOfPath( const QString& path ) const;
 
-    // Names the tab of `path`, when it is opened next, until the window
-    // closes. Unlike a renamed tab it is not saved; a rename by the user wins.
-    void setTransientTabName( const QString& path, const QString& name );
+    // The opening title of the tab of `path`: the title and tooltip it gets,
+    // instead of its file's name and path, when it opens -- standard input, a
+    // data source or a merge. It lasts until the tab closes and is never
+    // stored. A rename by the user wins over it; grouping and a reset of the
+    // rename give it back, never the file's name (#606). An empty title
+    // forgets it; an empty tooltip leaves the path.
+    void setOpeningTitle( const QString& path, const QString& title, const QString& toolTip = {} );
 
     // Whether the tab at `index` holds a Transient Log File.
     bool holdsTransientLogFile( int index ) const;
@@ -135,7 +139,8 @@ private:
     // Applies group styling (bullet prefix + text colour) to a single tab.
     void updateTabGroupAppearance( int index );
 
-    // Returns the base display name for a tab (custom rename or filename).
+    // The name a tab shows, before its group's bullet: the user's rename,
+    // else its opening title, else its file's name (#606).
     QString baseTabName( int index ) const;
 
     // Set the data status (icon) for the tab number 'index'
@@ -156,7 +161,12 @@ private:
     QIcon newfiltered_icon_;
 
     CrawlerTabBar myTabBar_;
-    QHash<QString, QString> transientTabNames_;
+    struct OpeningTitle {
+        QString title;
+        QString toolTip;
+    };
+    // The opening titles, by path (#606).
+    QHash<QString, OpeningTitle> openingTitles_;
     // What the user made of the tabs of Transient Log Files, by path: their
     // names and the ids of their tab groups. Never stored (#597).
     QHash<QString, QString> renamedTransientTabs_;

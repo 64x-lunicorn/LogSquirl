@@ -487,11 +487,12 @@ void MainWindow::openStandardInput()
 
     // The tab is named when it is opened, which is later than here when the
     // plugins have not loaded yet: it is the file's, not the current tab's.
-    tabTitles_.insert( filePath, { tr( "stdin" ), tr( "Standard input\n%1" ).arg( filePath ) } );
+    mainTabWidget_.setOpeningTitle( filePath, tr( "stdin" ),
+                                    tr( "Standard input\n%1" ).arg( filePath ) );
     // The spool lives as long as this window: it is not saved with the
     // Session (#570).
     if ( !loadFile( filePath, true, LogFileLifetime::Transient ) ) {
-        tabTitles_.remove( filePath );
+        mainTabWidget_.setOpeningTitle( filePath, {} );
         standardInputWriter_.reset();
         return;
     }
@@ -1880,12 +1881,12 @@ void MainWindow::handleDataSourceStarted( const QString& pluginId, const QString
     // Open the temp file with follow mode so it tails as the plugin pushes lines
     // A friendly tab title instead of the temp file path, given to the tab of
     // that file when it opens.
-    tabTitles_.insert( filePath,
-                       { displayName, tr( "DataSource: %1\n%2" ).arg( displayName, filePath ) } );
+    mainTabWidget_.setOpeningTitle( filePath, displayName,
+                                    tr( "DataSource: %1\n%2" ).arg( displayName, filePath ) );
     // The file goes with the data source's run: it is not saved with the
     // Session (#570).
     if ( !loadFile( filePath, true, LogFileLifetime::Transient ) ) {
-        tabTitles_.remove( filePath );
+        mainTabWidget_.setOpeningTitle( filePath, {} );
     }
 }
 
@@ -2036,7 +2037,7 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
     // Open the merged temp file as a tab of its own. It goes with its tab, so
     // it is not saved with the Session (#570).
     const auto direction = dedup ? tr( "Merged (dedup)" ) : tr( "Merged" );
-    mainTabWidget_.setTransientTabName( mergedPath, direction );
+    mainTabWidget_.setOpeningTitle( mergedPath, direction );
     loadFile( mergedPath, false, LogFileLifetime::Transient );
 
     // A file asked for before the plugins have loaded opens once they have,
@@ -2846,11 +2847,8 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLife
             // tab during loading. (maybe FIXME)
             // mainTabWidget_.setEnabled( false );
 
+            // It opens with the title given to it, if any (#606).
             int index = mainTabWidget_.addCrawler( crawlerWidget, fileName, lifetime );
-            if ( const auto title = tabTitles_.constFind( fileName ); title != tabTitles_.cend() ) {
-                mainTabWidget_.setTabText( index, title->first );
-                mainTabWidget_.setTabToolTip( index, title->second );
-            }
 
             // Setting the new tab, the user will see a blank page for the duration
             // of the loading, with no way to switch to another tab

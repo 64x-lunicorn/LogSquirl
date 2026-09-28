@@ -711,6 +711,89 @@ SCENARIO( "Text opened from the clipboard is not added to the recent files", "[u
     }
 }
 
+// A data source's tab opens under the source's name, not its temporary file's.
+// Grouping a tab, the Manage Tab Groups dialog and a reset of a rename restyle
+// every tab: each keeps the title it opened with (#606). Standard input's tab
+// is titled the same way.
+SCENARIO( "A data source's tab keeps its name when tabs are grouped and renamed", "[ui][tabs]" )
+{
+    TabsWindow window( false );
+    const ThreeLogFiles logFiles;
+    window.open( { logFiles.paths[ 0 ] } );
+
+    const auto sourcePath = logFiles.dir.filePath( QStringLiteral( "datasource_606.log" ) );
+    REQUIRE( writeLines( sourcePath, "a Log Line from a data source\n", QIODevice::Truncate ) );
+    const auto sourceName = QStringLiteral( "Source 606" );
+    REQUIRE( QMetaObject::invokeMethod(
+        window.mainWindow.get(), "handleDataSourceStarted", Qt::DirectConnection,
+        Q_ARG( QString, QStringLiteral( "datasource.606" ) ), Q_ARG( QString, sourceName ),
+        Q_ARG( QString, sourcePath ) ) );
+
+    int sourceTab = -1;
+    REQUIRE( waitUiState(
+        [ & ] {
+            sourceTab = window.tabArea->tabOfPath( sourcePath );
+            return sourceTab >= 0;
+        },
+        UiTimeoutMs ) );
+    const auto fileTab = window.tabArea->tabOfPath( logFiles.paths[ 0 ] );
+    REQUIRE( fileTab >= 0 );
+
+    REQUIRE( window.tabArea->tabText( sourceTab ) == sourceName );
+    REQUIRE( window.tabArea->tabToolTip( sourceTab ).startsWith( "DataSource: " + sourceName ) );
+
+    auto& groups = TabGroupInfo::getSynced();
+    const auto groupId = groups.addGroup( QStringLiteral( "Group 606" ), Qt::darkCyan );
+    groups.save();
+
+    WHEN( "another tab is put in a tab group from its menu" )
+    {
+        const auto chosen = window.chooseFromTabMenu( fileTab, "Group 606" );
+
+        THEN( "the data source's tab keeps its name and tooltip" )
+        {
+            REQUIRE( chosen );
+            REQUIRE( window.tabArea->tabText( fileTab ).startsWith( QString::fromUtf8( "● " ) ) );
+            REQUIRE( window.tabArea->tabText( sourceTab ) == sourceName );
+            REQUIRE(
+                window.tabArea->tabToolTip( sourceTab ).startsWith( "DataSource: " + sourceName ) );
+        }
+    }
+
+    WHEN( "the data source's tab is put in a tab group from its menu" )
+    {
+        REQUIRE( window.chooseFromTabMenu( sourceTab, "Group 606" ) );
+
+        THEN( "it shows the group before its name" )
+        {
+            REQUIRE( window.tabArea->tabText( sourceTab )
+                     == QString::fromUtf8( "● " ) + sourceName );
+        }
+    }
+
+    WHEN( "the data source's tab is renamed, then its name is reset, from its menu" )
+    {
+        QString renamed;
+        {
+            const InputAnswerer answerer( QStringLiteral( "Renamed 606" ) );
+            REQUIRE( window.chooseFromTabMenu( sourceTab, "Rename tab" ) );
+            renamed = window.tabArea->tabText( sourceTab );
+        }
+        REQUIRE( window.chooseFromTabMenu( sourceTab, "Reset tab name" ) );
+
+        THEN( "it shows the rename, then the data source's name again" )
+        {
+            REQUIRE( renamed == QStringLiteral( "Renamed 606" ) );
+            REQUIRE( window.tabArea->tabText( sourceTab ) == sourceName );
+        }
+    }
+
+    // Close the tab while its file is there, then leave the settings store as
+    // it was.
+    Q_EMIT window.tabArea->tabCloseRequested( window.tabArea->tabOfPath( sourcePath ) );
+    TabGroupInfo::getSynced().removeGroup( groupId ).save();
+}
+
 // The dashboard setting is read when a window is built, so the Options Dialog
 // says it applies to the windows opened from then on (#562).
 SCENARIO( "The dashboard setting reaches the windows opened after it changes", "[ui][tabs]" )
