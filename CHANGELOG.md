@@ -1,4 +1,4 @@
-# Unreleased
+# v26.10.0-beta3 (2026-09-28)
 
 ## Changes
 
@@ -289,20 +289,17 @@
   but could never be recognized, because Format Recognition only understands
   regular expressions and neither had one. LogSquirl now ships 22 built-in
   formats, all recognizable. JSON Log Lines are tracked separately (#460).
-
 - **A merged Log File follows its sources**: The merged tab was a one-time
   snapshot that went stale while its sources kept growing. It is now rebuilt
   when a source changes (lines of a truncated source leave it), and the tab is
   named "Merged" or "Merged (dedup)" instead of after the temporary file
   (#432).
-
 - **Selecting a Log Line no longer hangs on large Log Files on macOS**: With
   the Table View of a large Log File and an app on the Mac that uses the
   accessibility features, every click, double click or dragged selection in
   any view took seconds. The Table View no longer tells the accessibility
   clients which Row is selected, because Qt then rebuilt an accessibility
   element for every Row. A click takes milliseconds again (#425).
-
 - **The close button of a tab is square again**: The red fill under the mouse
   was 14x20 pixels around a 16-pixel icon, taller than it was wide and larger
   than the button it belongs to. Its right margin was taken off the drawn box

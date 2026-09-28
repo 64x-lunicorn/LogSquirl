@@ -76,6 +76,10 @@
     {
       "version": "26.10.0-beta2",
       "description": "Smyck themes, flatter look, Dashboard, live theme switching, faster Search, indexing and startup, 60 bug fixes"
+    },
+    {
+      "version": "26.10.0-beta3",
+      "description": "Team Folder, Go to timestamp and time search limits, JSON and logfmt Table View, Count values, stdin, apt and dnf repositories, 27 bug fixes"
     }
   ],
   "stable_version": "26.07.0",
