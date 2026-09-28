@@ -1,0 +1,336 @@
+/* The release pages in the colors of the app's Smyck themes: the SMYCK
+   terminal color scheme (https://color.smyck.org/, MIT), as in
+   src/settings/src/theme.cpp. Smyck in the dark site theme, Smyck Light in
+   the light one. Only the release overview and the release pages use these
+   rules: the release hero and timeline, and .release-notes, which
+   MarkdownContent.astro puts around a release page's text. */
+
+:root {
+  --smyck-window: #1b1b1b;
+  --smyck-surface: #242424;
+  --smyck-panel: #2e2e2e;
+  --smyck-border: #3a3a3a;
+  --smyck-text: #f7f7f7;
+  --smyck-muted: #b0b0b0;
+  --smyck-accent: #207483;
+  --smyck-accent-hover: #1a5e6b;
+  --smyck-emphasis: #9cd9f0;
+  --smyck-code: #fbb1f9;
+  --smyck-red: #c75646;
+  --smyck-green: #8eb33b;
+  --smyck-yellow: #d0b03c;
+  /* A badge's text; it reaches 4.5:1 on every channel color. */
+  --smyck-badge-text: #1b1b1b;
+}
+
+:root[data-theme='light'] {
+  --smyck-surface: #f7f7f7;
+  --smyck-panel: #e4e4e4;
+  --smyck-border: #d8d8d8;
+  --smyck-emphasis: #207483;
+  --smyck-code: #8a3f87;
+}
+
+.release-badge {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--smyck-muted);
+  color: var(--smyck-badge-text);
+  font-family: var(--sl-font-system);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.release-badge[data-channel='stable'] {
+  background: var(--smyck-green);
+}
+
+.release-badge[data-channel='beta'] {
+  background: var(--smyck-yellow);
+}
+
+/* The hero is a terminal window, so it stays Smyck dark in both site themes. */
+.release-hero {
+  margin-top: 1rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #1b1b1b;
+  color: #f7f7f7;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.25);
+}
+
+.release-hero__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.9rem;
+  background: #242424;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.release-hero__bar span {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: #c75646;
+}
+
+.release-hero__bar span:nth-child(2) {
+  background: #d0b03c;
+}
+
+.release-hero__bar span:nth-child(3) {
+  background: #8eb33b;
+}
+
+.release-hero__bar code {
+  margin-inline: auto;
+  padding-inline-end: 2.4rem;
+  background: none;
+  color: #b0b0b0;
+  font-size: 0.8rem;
+}
+
+.release-hero__body {
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.release-hero__body > * {
+  margin: 0;
+}
+
+.release-hero__prompt {
+  color: #b0b0b0;
+  font-family: var(--sl-font-mono);
+  font-size: 0.9rem;
+}
+
+.release-hero__prompt span {
+  color: #8eb33b;
+}
+
+.release-hero .release-hero__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  color: #9cd9f0;
+  font-family: var(--sl-font-mono);
+  font-size: clamp(1.9rem, 5vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.release-hero__date {
+  margin-top: 0.35rem;
+  color: #77dfd8;
+  font-family: var(--sl-font-mono);
+  font-size: 0.95rem;
+}
+
+.release-hero__lead {
+  margin-top: 1rem;
+  max-width: 60ch;
+  color: #f7f7f7;
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.release-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.release-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #5d5d5d;
+  border-radius: 6px;
+  color: #f7f7f7;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.release-button:hover {
+  background: #3a3a3a;
+  color: #f7f7f7;
+}
+
+.release-button--primary {
+  border-color: #207483;
+  background: #207483;
+}
+
+.release-button--primary:hover {
+  border-color: #1a5e6b;
+  background: #1a5e6b;
+}
+
+.release-button:focus-visible {
+  outline: 2px solid #f7f7f7;
+  outline-offset: 2px;
+}
+
+/* The overview's timeline: one entry per release, a dot in its channel's
+   color on a line down the left. */
+.release-timeline {
+  position: relative;
+  margin: 1rem 0 0;
+  padding: 0 0 0 1.75rem;
+  list-style: none;
+}
+
+.release-timeline::before {
+  content: '';
+  position: absolute;
+  inset-block: 0.9rem 0.9rem;
+  inset-inline-start: 0.4rem;
+  width: 2px;
+  background: var(--smyck-border);
+}
+
+.release-timeline li {
+  position: relative;
+  margin: 0 0 0.9rem;
+}
+
+.release-timeline li::before {
+  content: '';
+  position: absolute;
+  top: 1.15rem;
+  inset-inline-start: -1.75rem;
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid var(--sl-color-bg);
+  border-radius: 50%;
+  background: var(--smyck-muted);
+  box-shadow: 0 0 0 2px var(--smyck-border);
+}
+
+.release-timeline li[data-channel='stable']::before {
+  background: var(--smyck-green);
+}
+
+.release-timeline li[data-channel='beta']::before {
+  background: var(--smyck-yellow);
+}
+
+.release-timeline a {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--smyck-border);
+  border-radius: 8px;
+  background: var(--smyck-surface);
+  color: var(--sl-color-text);
+  text-decoration: none;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.release-timeline a:hover {
+  border-color: var(--smyck-accent);
+  transform: translateX(3px);
+}
+
+.release-timeline a:focus-visible {
+  outline: 2px solid var(--smyck-accent);
+  outline-offset: 2px;
+}
+
+.release-timeline__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.release-timeline__version {
+  color: var(--smyck-emphasis);
+  font-family: var(--sl-font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.release-timeline time {
+  margin-inline-start: auto;
+  color: var(--smyck-muted);
+  font-family: var(--sl-font-mono);
+  font-size: 0.85rem;
+}
+
+:root[data-theme='light'] .release-timeline time {
+  color: #5d5d5d;
+}
+
+.release-timeline__description {
+  line-height: 1.5;
+}
+
+.release-timeline__more {
+  color: var(--smyck-emphasis);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .release-timeline a,
+  .release-timeline a:hover {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* A release page's notes. */
+.release-notes h2 {
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--smyck-border);
+  font-family: var(--sl-font-mono);
+}
+
+.release-notes h3 {
+  font-family: var(--sl-font-mono);
+  font-size: 1.15rem;
+}
+
+.release-notes h3::before {
+  content: '#';
+  margin-inline-end: 0.6rem;
+  color: var(--smyck-accent);
+  font-weight: 700;
+}
+
+:root:not([data-theme='light']) .release-notes h3::before {
+  color: #218693;
+}
+
+.release-notes li {
+  margin-top: 0.45rem;
+}
+
+.release-notes li::marker {
+  color: var(--smyck-muted);
+}
+
+.release-notes li > strong:first-child,
+.release-notes li > p:first-child > strong:first-child {
+  color: var(--smyck-emphasis);
+}
+
+.release-notes :not(pre) > code {
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--smyck-border);
+  border-radius: 4px;
+  background: var(--smyck-panel);
+  color: var(--smyck-code);
+}

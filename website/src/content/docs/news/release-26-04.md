@@ -7,8 +7,6 @@ release:
   channel: stable
 ---
 
-## Version 26.04.1 (April 2026)
-
 The first major feature release of LogSquirl brings the Chart Panel, Log Merge, Tab Groups, Context Lines (Breadcrumbs), the transition from Hyperscan to Vectorscan, and the full Plugin System.
 
 ### New features

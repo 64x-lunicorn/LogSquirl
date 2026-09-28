@@ -81,6 +81,24 @@ export function currentReleases(releases) {
   return { stable, beta: beta && (!stable || beta.date > stable.date) ? beta : null };
 }
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+  'October', 'November', 'December'];
+
+// A release date as the release pages show it: "13 July 2026", or
+// "June 2022" for a legacy release dated by month only.
+export function displayDate(date) {
+  const [year, month, day] = date.split('-');
+  const monthYear = `${MONTHS[Number(month) - 1]} ${year}`;
+  return day ? `${Number(day)} ${monthYear}` : monthYear;
+}
+
+// Where a release is downloaded: its GitHub release, which for a legacy
+// release is klogg's, since LogSquirl never published those tags.
+export function downloadUrl(release) {
+  const repo = release.channel === 'legacy' ? 'variar/klogg' : '64x-lunicorn/LogSquirl';
+  return `https://github.com/${repo}/releases/tag/v${release.version}`;
+}
+
 // The release pages the deployed website leaves out (#315): a LogSquirl
 // release whose tag has no published GitHub release yet. Its preparation is
 // merged before CI Build has run and the tag is pushed, and the page would

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { currentReleases, readReleases, unpublishedReleases } from '../src/releases.mjs';
+import { currentReleases, displayDate, downloadUrl, readReleases, unpublishedReleases } from '../src/releases.mjs';
 
 function newsDir(pages) {
   const dir = mkdtempSync(join(tmpdir(), 'news-'));
@@ -60,4 +60,16 @@ test('an empty list of published releases is an error, not an empty website', ()
 test('a malformed release frontmatter names the page', () => {
   const broken = { 'release-26-07.md': { version: 'latest', date: '2026-07-13', channel: 'stable' } };
   assert.throws(() => readReleases(newsDir(broken)), /news\/release-26-07\.md: release\.version "latest"/);
+});
+
+test('a release date shows its day only when it has one', () => {
+  assert.equal(displayDate('2026-07-13'), '13 July 2026');
+  assert.equal(displayDate('2026-09-03'), '3 September 2026');
+  assert.equal(displayDate('2022-06'), 'June 2022');
+});
+
+test('a legacy release downloads from klogg, every other one from LogSquirl', () => {
+  const [newest, , , legacy] = readReleases(newsDir(pages));
+  assert.equal(downloadUrl(newest), 'https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.11.0-beta1');
+  assert.equal(downloadUrl(legacy), 'https://github.com/variar/klogg/releases/tag/v22.06');
 });

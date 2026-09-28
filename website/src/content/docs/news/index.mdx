@@ -3,24 +3,20 @@ title: Releases
 description: All LogSquirl releases — download links and changelogs.
 ---
 
-import ReleaseCards from '../../../components/ReleaseCards.astro';
+import ReleaseTimeline from '../../../components/ReleaseTimeline.astro';
 
-All LogSquirl releases in chronological order.
+## Current
 
-## Current Version
+<ReleaseTimeline view="current" />
 
-[![GitHub Release](https://img.shields.io/github/v/release/64x-lunicorn/LogSquirl?label=Latest%20Release&style=for-the-badge)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
+## Previous releases
 
-<ReleaseCards view="current" />
+<ReleaseTimeline view="previous" />
 
-**Download**: [GitHub Releases](https://github.com/64x-lunicorn/LogSquirl/releases/latest) — installers and portable builds for Windows, Linux, and macOS.
+## klogg era
+
+LogSquirl continues [klogg](https://github.com/variar/klogg). These are klogg's releases.
+
+<ReleaseTimeline view="legacy" />
 
 [Code signing policy](/code-signing-policy/) · [Privacy policy](/privacy-policy/)
-
-## Previous LogSquirl Releases
-
-<ReleaseCards view="previous" />
-
-## Legacy Releases (klogg era)
-
-<ReleaseCards view="legacy" />

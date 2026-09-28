@@ -1,0 +1,23 @@
+---
+// Starlight's page title, except on the release pages: a release page and
+// the release overview open with a Smyck terminal window instead.
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+import ReleaseHero from './ReleaseHero.astro';
+import { currentReleases, readReleases } from '../releases.mjs';
+
+const { entry } = Astro.locals.starlightRoute;
+const releases = readReleases();
+const release = releases.find((candidate) => candidate.slug === entry.id);
+const overview = entry.id === 'news';
+const { stable, beta } = currentReleases(releases);
+---
+
+{
+  release ? (
+    <ReleaseHero release={release} />
+  ) : overview ? (
+    <ReleaseHero title={entry.data.title} release={stable} beta={beta} />
+  ) : (
+    <Default />
+  )
+}

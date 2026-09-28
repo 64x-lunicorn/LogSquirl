@@ -7,8 +7,6 @@ release:
   channel: stable
 ---
 
-## Version 26.06.1 (June 2026)
-
 This is the first stable release of the v26.05/06 cycle, graduating the beta feature set to stable and shipping three additional months of improvements: auto log format detection with a structured table view, format-aware chart templates, Filters Panel usability improvements, 15 security fixes, and a comprehensive round of viewport and table view bug fixes.
 
 ### New features
