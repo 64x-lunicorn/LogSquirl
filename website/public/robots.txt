@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://logsquirl.lunicorn-lab.de/sitemap-index.xml

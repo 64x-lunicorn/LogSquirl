@@ -20,6 +20,15 @@ export default defineConfig({
         alt: 'LogSquirl Logo',
       },
       favicon: '/favicon.png',
+      // The card a shared link shows (#582); scripts/og-image.py draws it.
+      head: [
+        { tag: 'meta', attrs: { property: 'og:image', content: 'https://logsquirl.lunicorn-lab.de/og.png' } },
+        { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+        { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
+        { tag: 'meta', attrs: { property: 'og:image:alt', content: 'LogSquirl, a fast, smart log file explorer' } },
+        { tag: 'meta', attrs: { name: 'twitter:image', content: 'https://logsquirl.lunicorn-lab.de/og.png' } },
+        { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' } },
+      ],
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/64x-lunicorn/LogSquirl' },
       ],
