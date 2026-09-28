@@ -20,6 +20,12 @@
   Theme. The text on it stays readable in every Theme, and a Theme switch
   recolors the Rows at once. The Text View's gutter bullets and the overview
   keep their colors (#590).
+- **spdlog Log Files are recognized as spdlog**: a Log File written by spdlog
+  opens with the spdlog Log Format, with logger, level and body in their own
+  Table View columns, instead of as an Apache error log. When several Log
+  Formats match the same Log Lines, the more specific one wins, and the choice
+  no longer changes from one start of LogSquirl to the next; CUPS logs and
+  Java logs that could be taken for syslog are recognized correctly too (#589).
 
 # v26.10.0-beta3 (2026-09-28)
 

@@ -316,7 +316,10 @@ _Avoid_: registry, library
 The decision which Log Format, if any, applies to a Log File, taken from its first Log
 Lines against the Log Format Catalog. Taken when a Log File has loaded, and again after it
 is reloaded or truncated; in between, the Log File keeps the Log Format it was recognized
-with, even when the Catalog changes. The kinds of Log Format are scored apart: a sample Log
+with, even when the Catalog changes. The Log Format matching the most of those Log Lines
+wins; among equals, the more specific one (a rival accepts the example lines it carries, it
+accepts none of the rival's), then the one capturing more fields of the Log Lines, then the first by name
+(ADR-0011). The kinds of Log Format are scored apart: a sample Log
 Line that is a JSON object counts only for JSON Log Formats, every other one only for regex
 Log Formats. A logfmt Log Format counts a Log Line that reads completely as key/value pairs
 and holds its timestamp field as a key; it never wins over a regex or JSON Log Format that
