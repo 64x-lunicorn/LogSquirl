@@ -38,6 +38,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
@@ -733,4 +734,111 @@ SCENARIO( "The Session saves no top line, and reads a Session stored with one", 
             }
         }
     }
+}
+
+namespace {
+
+// A view state as a window hands it to the Session to save.
+class SavedViewContext final : public ViewContextInterface {
+public:
+    explicit SavedViewContext( QString text )
+        : text_( std::move( text ) )
+    {
+    }
+
+    QString toString() const override
+    {
+        return text_;
+    }
+
+private:
+    QString text_;
+};
+
+} // namespace
+
+// A Transient Log File -- the spool of standard input, the file of a merged
+// tab -- exists only while the application runs. The Session does not save it,
+// so a restart neither opens a file that is gone nor reports an error for it;
+// the Ordinary Log Files beside it are saved as before (#570).
+SCENARIO( "The Session saves no Transient Log File", "[ui][session]" )
+{
+    TwoLogFiles files;
+    const auto windowId = QStringLiteral( "session_test_window_570" );
+    const auto ordinaryPath = files.first.fileName();
+    const auto transientPath = files.second.fileName();
+
+    // Saves a window holding an Ordinary and a Transient Log File, in that tab
+    // order, with the tab of the one asked for in front.
+    const auto saveWindow = [ & ]( bool transientInFront ) {
+        const auto savingSession = std::make_shared<Session>(
+            testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+        WindowSession savingWindow{ savingSession, windowId, 0 };
+        OpenedViews savedViews;
+        std::vector<SaveFileInfo> tabs;
+        const auto* ordinary
+            = savingWindow.open( ordinaryPath, RecordingViews::factory( savedViews.built ) );
+        const auto* transient
+            = savingWindow.open( transientPath, RecordingViews::factory( savedViews.built ),
+                                 LogFileLifetime::Transient );
+        tabs.emplace_back( ordinary, std::make_shared<const SavedViewContext>( "ordinary state" ) );
+        tabs.emplace_back( transient,
+                           std::make_shared<const SavedViewContext>( "transient state" ) );
+
+        savingWindow.save( tabs, transientInFront ? transient : ordinary, QByteArray{}, 0 );
+        for ( const auto& tab : tabs ) {
+            savingWindow.close( std::get<0>( tab ) );
+        }
+    };
+
+    WHEN( "the window is saved with the Ordinary Log File's tab in front" )
+    {
+        saveWindow( false );
+
+        THEN( "only the Ordinary Log File is saved, with its view state, and it is in front" )
+        {
+            const auto saved = SessionInfo::get().openFiles( windowId );
+            REQUIRE( saved.size() == 1 );
+            REQUIRE( saved.front().fileName == ordinaryPath );
+            REQUIRE( saved.front().viewContext == "ordinary state" );
+            REQUIRE( SessionInfo::get().currentFile( windowId ) == 0 );
+        }
+    }
+
+    WHEN( "the window is saved with the Transient Log File's tab in front" )
+    {
+        saveWindow( true );
+
+        THEN( "only the Ordinary Log File is saved, and no tab is saved as the one in front" )
+        {
+            const auto saved = SessionInfo::get().openFiles( windowId );
+            REQUIRE( saved.size() == 1 );
+            REQUIRE( saved.front().fileName == ordinaryPath );
+            REQUIRE( saved.front().viewContext == "ordinary state" );
+            REQUIRE( SessionInfo::get().currentFile( windowId ) == -1 );
+        }
+
+        AND_WHEN( "the Session is restored" )
+        {
+            const auto appSession = std::make_shared<Session>(
+                testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+            WindowSession window{ appSession, windowId, 0 };
+            OpenedViews views;
+            int currentFileIndex = -1;
+            const auto restored
+                = window.restore( RecordingViews::factory( views.built ), &currentFileIndex );
+
+            THEN( "the Ordinary Log File alone is opened, in front, with its view state" )
+            {
+                REQUIRE( restored.size() == 1 );
+                REQUIRE( restored.front().first == ordinaryPath );
+                REQUIRE( currentFileIndex == 0 );
+                REQUIRE( views.built.front()->build().viewContext == "ordinary state" );
+            }
+        }
+    }
+
+    auto& stored = SessionInfo::getSynced();
+    stored.remove( windowId );
+    stored.save();
 }

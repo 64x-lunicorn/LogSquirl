@@ -261,7 +261,10 @@ private:
     void createTrayIcon();
     void readSettings();
     void writeSettings();
-    bool loadFile( const QString& fileName, bool followFile = false );
+    // Opens a Log File in a new tab. A Transient Log File -- one the window
+    // made for this run alone -- is not saved with the Session (#570).
+    bool loadFile( const QString& fileName, bool followFile = false,
+                   LogFileLifetime lifetime = LogFileLifetime::Ordinary );
     bool extractAndLoadFile( const QString& fileName );
     void openRemoteFile( const QUrl& url );
     void updateTitleBar( const QString& fileName );

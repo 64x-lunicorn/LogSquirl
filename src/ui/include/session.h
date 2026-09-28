@@ -54,6 +54,15 @@ class FileUnreadableErr {};
 
 class WindowSession;
 
+// Whether a Log File outlives the run of the application it was opened in. A
+// Transient Log File -- the spool of standard input, the file of a merged tab,
+// what a data source writes, the text pasted from the clipboard -- exists only
+// while the application runs, so the Session does not save it: a restart
+// neither opens a file that is gone nor reports an error for it (#570).
+// Whoever opens a Log File knows which it is and says so; the Session only
+// keeps it.
+enum class LogFileLifetime { Ordinary, Transient };
+
 // A window showing Log Files of the Session. A window outlives every Log File
 // it shows, and some of what it shows answers to the settings on its own --
 // its QuickFind bar, its menus and actions, its shortcuts -- so the Session
@@ -126,9 +135,13 @@ public:
     // Its views are built all the same, and what they are asked before it
     // loads -- a Search, the Marks saved with the Session -- waits for that
     // load, as it waits for any first load.
+    //
+    // A Transient Log File is open like any other, but is never saved with the
+    // Session (see WindowSession::save()).
     enum class Loading { Now, Queued };
     ViewInterface* open( const QString& fileName, const ViewFactory& viewFactory,
-                         const QString& viewContext = {}, Loading loading = Loading::Now );
+                         const QString& viewContext = {}, Loading loading = Loading::Now,
+                         LogFileLifetime lifetime = LogFileLifetime::Ordinary );
 
     // Starts loading the Log File of these views now if it is still queued,
     // ahead of the Log Files queued before it: its tab was activated. Does
@@ -278,6 +291,8 @@ private:
         QString fileName;
         std::shared_ptr<OpenLogFile> openLogFile;
         ViewInterface* view;
+        // A Transient Log File is not saved with the Session.
+        LogFileLifetime lifetime = LogFileLifetime::Ordinary;
         FirstLoad firstLoad = FirstLoad::Queued;
         // Hears of the end of the first load; disconnected once it did.
         QMetaObject::Connection firstLoadFinished;
@@ -359,8 +374,11 @@ public:
     }
 
     // Opens a Log File in this window, restoring the view context saved for
-    // it in any window of the stored Session, the way restore() does.
-    ViewInterface* open( const QString& fileName, const ViewFactory& viewFactory );
+    // it in any window of the stored Session, the way restore() does. A
+    // Transient Log File was never saved, so it has none to restore, and it is
+    // left out whenever this window is saved (#570).
+    ViewInterface* open( const QString& fileName, const ViewFactory& viewFactory,
+                         LogFileLifetime lifetime = LogFileLifetime::Ordinary );
 
     void close( const ViewInterface* view )
     {
@@ -486,6 +504,8 @@ public:
     // the user (it might have changed since file were opened).
     // The views of the tab in front are saved as the current ones, so that a
     // restore opens on that tab (#542); null when no Log File's tab is.
+    // A Transient Log File is left out (#570); when its tab is in front, no
+    // tab is saved as the one in front, and a restore opens on the last one.
     // Also, the geometry information is passed as an opaque string, and the
     // width of the sidebar beside it (0 when there is none to keep).
     void save( const std::vector<SaveFileInfo>& view_list, const ViewInterface* currentView,

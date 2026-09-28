@@ -44,6 +44,7 @@
 #include <QTest>
 #include <QUrl>
 
+#include <algorithm>
 #include <cstdio>
 #include <map>
 #include <optional>
@@ -61,6 +62,7 @@
 #include "modal_answers.h"
 #include "openlogfile.h"
 #include "session.h"
+#include "sessioninfo.h"
 #include "tabbedcrawlerwidget.h"
 #include "teamfolder.h"
 #include "test_policies.h"
@@ -578,6 +580,18 @@ TEST_CASE( "The tab of standard input is named stdin and takes no other tab's na
     CHECK( window.tabArea->tabText( window.tabArea->currentIndex() ) == "stdin" );
     CHECK( window.tabArea->tabToolTip( window.tabArea->currentIndex() )
                .startsWith( "Standard input" ) );
+
+    // The spool is gone after a restart, so the Session does not save it: no
+    // stdin tab and no error comes back (#570). Quitting saves every window.
+    const auto spoolPath = window.session->getFilename( stdinTab );
+    REQUIRE_FALSE( spoolPath.isEmpty() );
+    window.session->setExitRequested( true );
+    window.mainWindow->close();
+    window.session->setExitRequested( false );
+    const auto saved = SessionInfo::get().openFiles( "Main" );
+    CHECK( std::none_of( saved.cbegin(), saved.cend(), [ &spoolPath ]( const auto& file ) {
+        return file.fileName == spoolPath;
+    } ) );
 }
 
 // --- The time dialogs ---
