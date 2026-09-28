@@ -503,11 +503,14 @@ _Avoid_: workspace, project, layout
 **Transient Log File**:
 A Log File that exists only while the application runs: the spool of standard input, the
 file of a merged tab, what a data source writes, the text pasted from the clipboard, a file
-downloaded from a URL — a start never fetches anything unasked — and later a command's
-output. Whoever opens it says it is transient; it is then shown and
+downloaded from a URL — a start never fetches anything unasked — what a converter plugin
+writes for a Log File it converts, and later a command's output. Whoever opens it says it
+is transient; it is then shown and
 followed like any other, but the Session does not save it, so a restart neither opens a
 file that is gone nor reports an error for it. Every other Log File is an Ordinary one,
-saved and restored with its view state.
+saved and restored with its view state. A converted Log File is not converted again on
+restore, as the Session is restored before the plugins load; the recent files keep the
+Log File it was converted from, when that one is Ordinary.
 _Avoid_: temporary tab, temp file, volatile source
 
 **Ordinary Log File**:

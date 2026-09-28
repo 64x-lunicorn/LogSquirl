@@ -2436,10 +2436,16 @@ void MainWindow::closeTabs( const QList<int>& indices, ActionInitiator initiator
         }
 
         // Only a Log File the user closed becomes a recent file, and never a
-        // Transient one: its path is gone after a restart (#597).
-        if ( initiator == ActionInitiator::User
-             && !mainTabWidget_.holdsTransientLogFile( index ) ) {
-            addRecentFile( session_.getFilename( crawler ) );
+        // Transient one: its path is gone after a restart (#597). A converted
+        // one is kept by the file it was converted from (#605).
+        if ( initiator == ActionInitiator::User ) {
+            const auto recentFile = recentFileOf( session_.getFilename( crawler ),
+                                                  mainTabWidget_.holdsTransientLogFile( index )
+                                                      ? LogFileLifetime::Transient
+                                                      : LogFileLifetime::Ordinary );
+            if ( !recentFile.isEmpty() ) {
+                addRecentFile( recentFile );
+            }
         }
 
         crawler->stopLoading();
@@ -2836,7 +2842,18 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLife
         if ( tempFile->open() ) {
             const auto rc = pluginHost.runConverter( converterId, fileName, tempFile->fileName() );
             if ( rc == 0 ) {
-                return loadFile( tempFile->fileName(), followFile );
+                // The converted Log File is a Transient one, whatever the
+                // file it was converted from: it is read from a temporary
+                // file that is gone after a restart, so neither the Session
+                // nor the recent files keep its path (#605). It is not
+                // converted again on restore either: the Session is restored
+                // before the plugins load (#303), so the converter would not
+                // be there for it. The recent files keep the Log File it was
+                // converted from instead, unless that one is Transient too.
+                if ( lifetime == LogFileLifetime::Ordinary ) {
+                    convertedFrom_.insert( tempFile->fileName(), fileName );
+                }
+                return loadFile( tempFile->fileName(), followFile, LogFileLifetime::Transient );
             }
             LOG_ERROR << "Converter plugin " << converterId << " failed with rc=" << rc;
         }
@@ -2883,9 +2900,11 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLife
             // of the loading, with no way to switch to another tab
             mainTabWidget_.setCurrentIndex( index );
 
-            // A Transient Log File's path is gone after a restart (#597).
-            if ( lifetime == LogFileLifetime::Ordinary ) {
-                addRecentFile( fileName );
+            // A Transient Log File's path is gone after a restart (#597); a
+            // converted one is kept by the file it was converted from (#605).
+            if ( const auto recentFile = recentFileOf( fileName, lifetime );
+                 !recentFile.isEmpty() ) {
+                addRecentFile( recentFile );
             }
             updateOpenedFilesMenu();
 
@@ -2937,6 +2956,14 @@ void MainWindow::updateTitleBar( const QString& file_name )
 
     setWindowTitle( tr( "%1 - %2%3" ).arg( shownName, tr( "logsquirl" ), indexPart )
                     + tr( " (build " ) + logsquirlVersion() + ")" );
+}
+
+QString MainWindow::recentFileOf( const QString& fileName, LogFileLifetime lifetime ) const
+{
+    if ( lifetime == LogFileLifetime::Ordinary ) {
+        return fileName;
+    }
+    return convertedFrom_.value( fileName );
 }
 
 void MainWindow::addRecentFile( const QString& fileName )

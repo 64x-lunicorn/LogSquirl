@@ -22,7 +22,9 @@
 #include "applicationplugins.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
+#include "recentfiles.h"
 #include "session.h"
+#include "sessioninfo.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -131,6 +133,23 @@ bool showsInSidebar( const MainWindow& window, QWidget* widget )
     const auto tabWidgets = window.findChildren<QTabWidget*>();
     return std::ranges::any_of(
         tabWidgets, [ widget ]( const QTabWidget* tabs ) { return tabs->indexOf( widget ) >= 0; } );
+}
+
+/// The recent files, with the separators of a path the tests build.
+QStringList recentFiles()
+{
+    QStringList files;
+    for ( const auto& file : RecentFiles::getSynced().recentFiles() ) {
+        files.append( QDir::fromNativeSeparators( file ) );
+    }
+    return files;
+}
+
+void forgetRecentFiles()
+{
+    auto& recent = RecentFiles::getSynced();
+    recent.removeAll();
+    recent.save();
 }
 
 int pluginActionTriggers = 0;
@@ -291,6 +310,126 @@ SCENARIO( "A Log File opened before the plugins loaded is opened with the conver
         window.reset();
         plugins.reset();
         qunsetenv( "LOGSQUIRL_TEST_PLUGIN_INIT_DELAY_MS" );
+    }
+}
+
+// What a converter plugin writes is read from a temporary file that is gone
+// after a restart: it is a Transient Log File, so neither the recent files nor
+// the Session keep its path. The recent files keep the Log File it was
+// converted from, unless that one is Transient too (#605).
+SCENARIO( "A converted Log File leaves no temporary path in the recent files or the Session",
+          "[ui][plugins][applicationplugins][session]" )
+{
+    const auto windowId = QStringLiteral( "applicationplugins_window_test_window_605" );
+
+    GIVEN( "A window whose converter plugin has loaded, with an Ordinary and a Transient Log "
+           "File converted by it" )
+    {
+        const StandardPathsInTestMode testPaths;
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installSlowConverter( pluginRoot.path() );
+        qunsetenv( "LOGSQUIRL_TEST_PLUGIN_INIT_DELAY_MS" );
+
+        QTemporaryDir fileDir;
+        REQUIRE( fileDir.isValid() );
+        const auto ordinaryPath = fileDir.filePath( "opened.slowconv" );
+        const auto transientPath = fileDir.filePath( "streamed.slowconv" );
+        for ( const auto& path : { ordinaryPath, transientPath } ) {
+            QFile logFile( path );
+            REQUIRE( logFile.open( QIODevice::WriteOnly ) );
+            logFile.write( "first line\nsecond line\n" );
+        }
+
+        forgetRecentFiles();
+        {
+            auto& stored = SessionInfo::getSynced();
+            stored.remove( windowId );
+            stored.save();
+        }
+
+        QStringList loadErrors;
+        auto plugins = std::make_shared<ApplicationPlugins>(
+            [ & ]( PluginCatalog& catalog, PluginHost& host ) {
+                catalog.discoverPlugins( { pluginRoot.path() } );
+                loadErrors
+                    = host.autoLoadPlugins( { .autoLoad = true, .enabled = { SlowConverterId } } )
+                          .errors;
+            } );
+        const auto appSession = newSession();
+        auto window
+            = std::make_unique<MainWindow>( WindowSession{ appSession, windowId, 0 }, plugins );
+        window->show();
+        REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); }, 5000 ) );
+        REQUIRE( loadErrors.isEmpty() );
+        auto* tabs = window->findChild<TabbedCrawlerWidget*>();
+        REQUIRE( tabs != nullptr );
+
+        // A file the user opens, and one a data source writes, which is
+        // Transient.
+        window->loadInitialFile( ordinaryPath, false );
+        REQUIRE( QMetaObject::invokeMethod(
+            window.get(), "handleDataSourceStarted", Qt::DirectConnection,
+            Q_ARG( QString, QStringLiteral( "io.github.logsquirl.test.stream" ) ),
+            Q_ARG( QString, QStringLiteral( "Stream" ) ), Q_ARG( QString, transientPath ) ) );
+        REQUIRE( waitUiState( [ & ] { return tabs->logFileTabs().size() == 2; }, 10000 ) );
+
+        // The tab of the Log File the user opened, named after what the
+        // converter wrote.
+        const auto openedTab = [ & ] {
+            for ( const auto i : tabs->logFileTabs() ) {
+                if ( tabs->tabText( i ).contains( QStringLiteral( "opened.slowconv.txt" ) ) ) {
+                    return i;
+                }
+            }
+            return -1;
+        };
+
+        THEN( "both are opened from what the converter wrote, as Transient Log Files" )
+        {
+            REQUIRE( openedTab() >= 0 );
+            for ( const auto i : tabs->logFileTabs() ) {
+                REQUIRE( tabs->holdsTransientLogFile( i ) );
+            }
+        }
+
+        THEN( "the recent files keep the Ordinary Log File converted, and no temporary path" )
+        {
+            REQUIRE( recentFiles() == QStringList{ QDir::fromNativeSeparators( ordinaryPath ) } );
+        }
+
+        WHEN( "the user closes the tab of the Ordinary Log File converted" )
+        {
+            forgetRecentFiles();
+            REQUIRE( openedTab() >= 0 );
+            Q_EMIT tabs->tabCloseRequested( openedTab() );
+
+            THEN( "the Log File it was converted from becomes a recent file" )
+            {
+                REQUIRE( waitUiState( [ & ] { return tabs->logFileTabs().size() == 1; }, 5000 ) );
+                REQUIRE( recentFiles()
+                         == QStringList{ QDir::fromNativeSeparators( ordinaryPath ) } );
+            }
+        }
+
+        WHEN( "the application quits, which saves the Session" )
+        {
+            appSession->setExitRequested( true );
+            window->close();
+            appSession->setExitRequested( false );
+
+            THEN( "the Session saves neither of them" )
+            {
+                REQUIRE( SessionInfo::getSynced().openFiles( windowId ).empty() );
+            }
+        }
+
+        window.reset();
+        plugins.reset();
+        forgetRecentFiles();
+        auto& left = SessionInfo::getSynced();
+        left.remove( windowId );
+        left.save();
     }
 }
 
