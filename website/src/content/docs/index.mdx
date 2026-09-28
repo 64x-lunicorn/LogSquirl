@@ -3,16 +3,32 @@ title: LogSquirl — Faster Log Explorer
 description: Open source, cross-platform log viewer built with C++23 and Qt6. Handles 10 GB+ files with SIMD-accelerated regex.
 template: splash
 hero:
-  tagline: An open source, cross-platform log viewer built with C++23 and Qt6. Blazing fast — optimized for modern multi-core CPUs with SIMD (SSE2 → AVX512). Handles 10 GB+ log files without loading them into memory.
+  title: LogSquirl
+  tagline: A fast, smart log file explorer for Windows, macOS and Linux. It opens 10 GB+ log files without loading them into memory and searches them with SIMD-accelerated regular expressions on every core.
+  image:
+    file: ../../assets/logsquirl.png
+    alt: The LogSquirl squirrel inspecting a log with a magnifying glass
+  actions:
+    - text: Download
+      link: /install/
+      icon: right-arrow
+    - text: GitHub
+      link: https://github.com/64x-lunicorn/LogSquirl
+      icon: github
+      variant: minimal
 ---
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 import { Image } from 'astro:assets';
 import ReleaseTimeline from '../../components/ReleaseTimeline.astro';
-import mainwindow from '@assets/screenshots/mainwindow.png';
-import dark from '@assets/screenshots/dark.png';
-import scratchpad from '@assets/screenshots/scratchpad.png';
-import highlighters from '@assets/screenshots/highlighters.png';
+import searchDark from '@assets/screenshots/search-smyck.png';
+import searchLight from '@assets/screenshots/search-smyck-light.png';
+import chartDark from '@assets/screenshots/chart-smyck.png';
+import chartLight from '@assets/screenshots/chart-smyck-light.png';
+import paletteDark from '@assets/screenshots/command-palette-smyck.png';
+import paletteLight from '@assets/screenshots/command-palette-smyck-light.png';
+import dashboardDark from '@assets/screenshots/dashboard-smyck.png';
+import dashboardLight from '@assets/screenshots/dashboard-smyck-light.png';
 
 ## Latest Release
 
@@ -23,34 +39,61 @@ import highlighters from '@assets/screenshots/highlighters.png';
 ## Screenshots
 
 <div class="screenshot-gallery">
-  <Image src={mainwindow} alt="LogSquirl main window" />
-  <Image src={dark} alt="LogSquirl dark theme" />
-  <Image src={scratchpad} alt="LogSquirl scratchpad" />
-  <Image src={highlighters} alt="LogSquirl highlighters configuration" />
+  <figure class="wide">
+    <Image class="screenshot-dark" src={searchDark} alt="A Search for warn|error: the Matches marked in the Log File above and listed in the Filtered View below, in the Smyck theme" />
+    <Image class="screenshot-light" src={searchLight} alt="A Search for warn|error: the Matches marked in the Log File above and listed in the Filtered View below, in the Smyck Light theme" />
+    <figcaption>Search a Log File and see the Matches in their own view</figcaption>
+  </figure>
+  <figure class="wide">
+    <Image class="screenshot-dark" src={chartDark} alt="The Chart Panel plotting the checkout latency (duration_ms) of a demo incident over time, in the Smyck theme" />
+    <Image class="screenshot-light" src={chartLight} alt="The Chart Panel plotting the checkout latency (duration_ms) of a demo incident over time, in the Smyck Light theme" />
+    <figcaption>Plot a value over time with the Chart Panel</figcaption>
+  </figure>
+  <figure>
+    <Image class="screenshot-dark" src={paletteDark} alt="The Command Palette listing the File menu's commands with their shortcuts, in the Smyck theme" />
+    <Image class="screenshot-light" src={paletteLight} alt="The Command Palette listing the File menu's commands with their shortcuts, in the Smyck Light theme" />
+    <figcaption>Reach every command from the Command Palette</figcaption>
+  </figure>
+  <figure>
+    <Image class="screenshot-dark" src={dashboardDark} alt="The Dashboard with Open File, Load Session, Recent Files, Favorites and Plugins, in the Smyck theme" />
+    <Image class="screenshot-light" src={dashboardLight} alt="The Dashboard with Open File, Load Session, Recent Files, Favorites and Plugins, in the Smyck Light theme" />
+    <figcaption>Start from the Dashboard</figcaption>
+  </figure>
 </div>
+
+The screenshots show the Smyck theme in the dark site theme and Smyck Light in the light one.
 
 ## Features
 
 <CardGrid>
-  <Card title="Core Features" icon="star">
-    - Runs on **Windows, macOS, and Linux** thanks to Qt6
-    - Displays search results separately from the original file
-    - **Perl-compatible regular expressions** via Vectorscan SIMD engine
-    - Colorizes log lines with **multi-set highlighters**
-    - Context view showing where matches are in the log
-    - Reads file directly from disk — no memory loading
-    - **Follow Mode** — watches for file changes and reloads in real-time
-    - Configurable keyboard shortcuts
+  <Card title="Open anything" icon="document">
+    - Log Files of any size, read from disk instead of loaded into memory
+    - Archives and compressed files: zip, 7z, tar, gz, bz2, xz, zst, lz4
+    - Standard input: `journalctl -f | logsquirl -`
+    - Follow a growing Log File as it is written
+    - Automatic encoding detection, or pick one yourself
   </Card>
-  <Card title="New in LogSquirl" icon="rocket">
-    - **Chart Panel** — plot numeric values with regex capture groups, timestamps, bucketing, presets, filter frequency, and **format-aware quick-add templates**
-    - **Plugin System** — DataSource, Converter, and UI plugins via pure C ABI
-    - **Log Merge** — combine multiple log files into a unified, live-updated view
-    - **Tab Groups** — organize tabs with named, colored groups; session persistence
-    - **Context Lines (Breadcrumbs)** — surrounding lines around matches in filtered view
-    - **Predefined Filters Panel** — pinned filters with Chipmunk import support
-    - **Scratchpad** — Base64, Hex, URL, JSON/XML formatter, CRC32, timestamps, JWT decoder
-    - **Boolean Search** — combine regex with AND, OR, NOT operators
+  <Card title="Search fast" icon="magnifier">
+    - Regular expressions through Vectorscan and Hyperscan, SIMD-accelerated on every core, with PCRE as the fallback
+    - Combine patterns with `and`, `or` and `not`
+    - Search results in their own view, with context lines around each match
+    - Keep several Searches of one file side by side
+    - Limit a Search to a line or a time range
+  </Card>
+  <Card title="Understand" icon="list-format">
+    - Log Formats recognized automatically, shown as a table with one column per field, JSON and logfmt included
+    - Go to a timestamp, and see the time between lines
+    - Chart Panel: plot values and message rates over time, and jump from a point to its line
+    - Count the values of a column or a capture group
+    - Highlighter Sets and nine Color Labels
+  </Card>
+  <Card title="Work your way" icon="setting">
+    - Themes, Smyck and Smyck Light included, switched without a restart
+    - Command Palette and fully configurable shortcuts, vi and less keys included
+    - Tab groups, marks and sessions that restore where you left off
+    - Team Folder: share Filter Groups and Highlighter Sets through a Git repository
+    - Plugins for new sources and formats, such as Android Logcat and serial ports
+    - Scratchpad with JSON, XML, Base64 and JWT tools; nine languages
   </Card>
 </CardGrid>
 
@@ -58,39 +101,7 @@ import highlighters from '@assets/screenshots/highlighters.png';
 
 <LinkCard title="LogSquirl Wiki" description="Full documentation including Getting Started, feature guides, configuration reference, and plugin development." href="https://github.com/64x-lunicorn/LogSquirl/wiki" />
 
-## Install on Ubuntu with apt
+## Install
 
-On Ubuntu 24.04 (amd64), add the LogSquirl APT repository once and update LogSquirl with `apt upgrade` from then on:
-
-```sh
-sudo install -d -m 0755 /etc/apt/keyrings
-sudo curl -fsSL https://packages.lunicorn-lab.de/logsquirl-packages.asc -o /etc/apt/keyrings/logsquirl.asc
-sudo curl -fsSL https://packages.lunicorn-lab.de/logsquirl.sources -o /etc/apt/sources.list.d/logsquirl.sources
-sudo apt update
-sudo apt install logsquirl
-```
-
-The repository holds the last three stable releases, signed with the key `51ABA6432D0407ED62E8EC403169E5DF85C9A3A3`. It has no betas.
-
-## Install on Fedora and Oracle Linux with dnf
-
-On Fedora 44 and Oracle Linux 10, add the LogSquirl DNF repository once and update LogSquirl with `dnf upgrade` from then on:
-
-```sh
-sudo curl -fsSL https://packages.lunicorn-lab.de/logsquirl-fedora.repo -o /etc/yum.repos.d/logsquirl.repo
-sudo dnf install logsquirl
-```
-
-On Oracle Linux 10 (and EL10 clones), fetch `logsquirl-el10.repo` instead of `logsquirl-fedora.repo`. Updates arrive
-with `sudo dnf upgrade`. The Fedora package is built against Fedora 44 and supported there only; a newer Fedora that
-changes its Qt may need a newer LogSquirl build, so use the AppImage until then. The repositories hold the last three
-stable releases and no betas. The repository metadata is signed with the key
-`51ABA6432D0407ED62E8EC403169E5DF85C9A3A3` (`repo_gpgcheck=1`); the RPMs themselves are unsigned, exactly the
-release assets, and dnf verifies them through the signed metadata.
-
-## System Requirements
-
-- **CPU**: SSE2 minimum. SSSE3/POPCNT recommended. AVX2/AVX512 auto-detected for best performance.
-- **OS**: Windows 10+, macOS 15+, Ubuntu 22.04+, Fedora 44+, Oracle Linux 10+
-- **Linux packages**: the AppImage brings its own Qt and runs on all of them. The DEB and RPM packages use the distribution's Qt and install only when it is at least the Qt version LogSquirl was built with (named in the release notes); otherwise use the AppImage.
-- **License**: [GPL-3.0-or-later](https://www.gnu.org/licenses/gpl-3.0.html)
+LogSquirl runs on Windows, macOS and Linux: an installer, Homebrew, apt, dnf or an AppImage. The
+[Install page](/install/) has every way, the system requirements and how to verify a download.

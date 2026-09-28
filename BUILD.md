@@ -253,6 +253,22 @@ before and once after a Theme change into two directories to compare them side b
 File shown is a copy of `test_data/screenshot_demo.txt` under `/tmp/logsquirl-screenshots`, so no
 path of your machine appears in the images.
 
+The website's screenshots come from the same run (#586): `main-window-search`, `main-window-chart`,
+`command-palette` and `main-window-dashboard`, each in `smyck` and `smyck-light`, copied to
+`website/src/assets/screenshots/` as `search-smyck.png`, `search-smyck-light.png` and so on. The home
+page shows the Smyck set in the dark site theme and the Smyck Light set in the light one. To retake
+them for a release, run the test from that release's build and copy the eight files. On macOS, keep
+the run away from your own settings by pointing Core Foundation and the temporary directory
+elsewhere:
+
+```
+CFFIXED_USER_HOME=/tmp/shots-home TMPDIR=/tmp/shots-tmp/ LOGSQUIRL_SCREENSHOT_DIR=/tmp/shots \
+  build/output/logsquirl_itests -platform offscreen "[.screenshots]"
+```
+
+The run also renders the Table View (`main-window-table-view`), with Format Recognition on as in the
+application. It stays off the website until the demo log is recognized as spdlog (#589).
+
 ### E2E integration tests (Python / pytest)
 
 End-to-end tests exercise the compiled `logsquirl_grep` and `logsquirl` binaries

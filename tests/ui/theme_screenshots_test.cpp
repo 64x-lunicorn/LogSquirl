@@ -17,9 +17,12 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "chartpanel.h"
+#include "chartseries.h"
 #include "crawlerwidget.h"
 #include "highlighterset.h"
 #include "logformatcatalog.h"
+#include "logtableview.h"
 #include "mainwindow.h"
 #include "pathline.h"
 #include "recentfiles.h"
@@ -587,8 +590,13 @@ void renderMainWindow( const QString& logFile, const Screenshots& screenshots )
     recentFiles.removeAll();
     recentFiles.save();
 
-    auto session
-        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    // The demo log is recognized as spdlog, as in the application, so the
+    // Table View can be shown.
+    auto policies = testSettingsPolicies();
+    policies.recognition.enabled = true;
+    auto logFormats = std::make_shared<LogFormatCatalog>();
+    logFormats->rebuild();
+    auto session = std::make_shared<Session>( policies, logFormats );
     MainWindow mainWindow( WindowSession{ session, "Main", 0 },
                            std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
     mainWindow.resize( 1400, 850 );
@@ -605,6 +613,31 @@ void renderMainWindow( const QString& logFile, const Screenshots& screenshots )
     REQUIRE( waitUiState( [ & ] { return pathLine->text().endsWith( NeutralLogFileName ); } ) );
     settle( 500 );
     screenshots.save( &mainWindow, "main-window-log-file" );
+
+    // Before the Search: a Match colours its whole row in the Table View.
+    QToolButton* tableViewToggle = nullptr;
+    for ( auto* button : crawler->findChildren<QToolButton*>() ) {
+        if ( button->accessibleName() == "Toggle table view" ) {
+            tableViewToggle = button;
+        }
+    }
+    REQUIRE( tableViewToggle != nullptr );
+    REQUIRE( waitUiState( [ & ] { return tableViewToggle->isVisible(); } ) );
+    for ( auto* combo : crawler->findChildren<QComboBox*>() ) {
+        if ( combo->isEditable() ) {
+            combo->clearEditText();
+        }
+    }
+    tableViewToggle->setChecked( true );
+    settle( 500 );
+    // Past the demo log's header, where the incident starts.
+    auto* tableView = crawler->findChild<LogTableView*>();
+    REQUIRE( tableView != nullptr );
+    tableView->showLogLine( 45_lnum );
+    settle( 300 );
+    screenshots.save( &mainWindow, "main-window-table-view" );
+    tableViewToggle->setChecked( false );
+    settle();
 
     QComboBox* searchLine = nullptr;
     for ( auto* combo : crawler->findChildren<QComboBox*>() ) {
@@ -628,6 +661,24 @@ void renderMainWindow( const QString& logFile, const Screenshots& screenshots )
         30000 ) );
     settle( 300 );
     screenshots.save( &mainWindow, "main-window-search" );
+
+    // The checkout latency of the demo incident over time, as its header
+    // suggests.
+    auto* chartPanel = crawler->findChild<ChartPanel*>();
+    REQUIRE( chartPanel != nullptr );
+    ChartSeriesDefinition duration;
+    duration.id = "duration";
+    duration.name = "duration_ms";
+    duration.color = QColor( "#218693" );
+    duration.pattern = R"(duration_ms=(\d+))";
+    duration.xPattern = R"(^\[(.*?)\])";
+    duration.xTimestampFormat = "yyyy-MM-dd HH:mm:ss.zzz";
+    chartPanel->setSeriesDefinitions( { duration } );
+    REQUIRE( QMetaObject::invokeMethod( crawler, "toggleChartPanel" ) );
+    settle( 800 );
+    screenshots.save( &mainWindow, "main-window-chart" );
+    REQUIRE( QMetaObject::invokeMethod( crawler, "toggleChartPanel" ) );
+    settle();
 
     REQUIRE( QMetaObject::invokeMethod( &mainWindow, "showFiltersPanel" ) );
     settle( 300 );

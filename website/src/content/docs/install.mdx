@@ -1,0 +1,122 @@
+---
+title: Install
+description: Install LogSquirl on Windows, macOS and Linux — installer, Homebrew, apt, dnf or AppImage — and verify the download.
+---
+
+import { LinkButton, Tabs, TabItem } from '@astrojs/starlight/components';
+
+LogSquirl is free and open source. Every release is built, signed and published by CI on
+[GitHub](https://github.com/64x-lunicorn/LogSquirl/releases/latest); pick your platform below.
+
+<Tabs syncKey="platform">
+<TabItem label="Windows" icon="seti:windows">
+
+Windows 10 or later, 64-bit.
+
+<LinkButton href="https://github.com/64x-lunicorn/LogSquirl/releases/latest/download/logsquirl-win-x64-setup.exe" icon="download">Download the installer</LinkButton>
+<LinkButton href="https://github.com/64x-lunicorn/LogSquirl/releases/latest/download/logsquirl-win-x64-portable.zip" variant="secondary">Portable ZIP</LinkButton>
+
+- **Installer** (`logsquirl-win-x64-setup.exe`): installs LogSquirl and adds it to the Start menu.
+  It lets you turn off the update check.
+- **Portable** (`logsquirl-win-x64-portable.zip`): unpack it anywhere and run `logsquirl.exe`; nothing is installed.
+
+The Windows downloads are not code-signed yet ([#445](https://github.com/64x-lunicorn/LogSquirl/issues/445)), so
+SmartScreen may ask before the first start: choose **More info → Run anyway**. See the
+[code signing policy](/code-signing-policy/), and [verify the download](#verify-a-download) if you want to be sure.
+
+</TabItem>
+<TabItem label="macOS" icon="apple">
+
+macOS 15 or later on Apple Silicon. There is no Intel build.
+
+With [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask 64x-lunicorn/tap/logsquirl
+```
+
+`brew upgrade` brings each new stable release; LogSquirl does not update itself.
+
+Or download the disk image, open it and drag LogSquirl to Applications. The app and the disk image are signed and
+notarized by Apple.
+
+<LinkButton href="https://github.com/64x-lunicorn/LogSquirl/releases/latest/download/logsquirl-mac-arm64.dmg" icon="download">Download the DMG</LinkButton>
+
+</TabItem>
+<TabItem label="Linux" icon="linux">
+
+### Ubuntu (apt)
+
+On Ubuntu 24.04 (amd64), add the LogSquirl APT repository once; `apt upgrade` updates LogSquirl from then on:
+
+```sh
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo curl -fsSL https://packages.lunicorn-lab.de/logsquirl-packages.asc -o /etc/apt/keyrings/logsquirl.asc
+sudo curl -fsSL https://packages.lunicorn-lab.de/logsquirl.sources -o /etc/apt/sources.list.d/logsquirl.sources
+sudo apt update
+sudo apt install logsquirl
+```
+
+The repository holds the last three stable releases, signed with the key
+`51ABA6432D0407ED62E8EC403169E5DF85C9A3A3`. It has no betas.
+
+### Fedora and Oracle Linux (dnf)
+
+On Fedora 44, add the LogSquirl DNF repository once; `dnf upgrade` updates LogSquirl from then on:
+
+```sh
+sudo curl -fsSL https://packages.lunicorn-lab.de/logsquirl-fedora.repo -o /etc/yum.repos.d/logsquirl.repo
+sudo dnf install logsquirl
+```
+
+On Oracle Linux 10 and other EL10 distributions, fetch `logsquirl-el10.repo` instead of `logsquirl-fedora.repo`.
+
+The Fedora package is built against Fedora 44 and supported there only; a newer Fedora that changes its Qt may need
+a newer LogSquirl build, so use the AppImage until then. The repositories hold the last three stable releases and no
+betas. Their metadata is signed with the key `51ABA6432D0407ED62E8EC403169E5DF85C9A3A3` (`repo_gpgcheck=1`); the
+RPMs themselves are the unsigned release assets, which dnf verifies through the signed metadata.
+
+### Any other distribution (AppImage)
+
+The AppImage brings its own Qt and runs on Ubuntu 22.04 and every newer x86_64 distribution. Download
+`logsquirl-<version>-x86_64.AppImage` from the release, make it executable and run it:
+
+```sh
+chmod +x logsquirl-*-x86_64.AppImage
+./logsquirl-*-x86_64.AppImage
+```
+
+<LinkButton href="https://github.com/64x-lunicorn/LogSquirl/releases/latest" icon="download">Latest release</LinkButton>
+
+The DEB and RPM files of a release install only where the distribution's Qt is at least the version LogSquirl was
+built with (named in the release notes); otherwise use the AppImage.
+
+</TabItem>
+</Tabs>
+
+## Betas
+
+Betas are published on GitHub only, never in the package repositories or the Homebrew cask. Their notes say what
+is new; see [all releases](/news/).
+
+## Verify a download
+
+Every release lists its downloads in `logsquirl-<version>-sha256.txt`. The checksum file is signed with Sigstore,
+and every file carries a GitHub build provenance attestation:
+
+```sh
+# Check the files you downloaded against the checksum file
+sha256sum -c logsquirl-<version>-sha256.txt --ignore-missing
+
+# Or check a single file's build provenance (needs the GitHub CLI)
+gh attestation verify <file> -R 64x-lunicorn/LogSquirl
+```
+
+The release notes on GitHub show the full commands for that release, including the Sigstore signature and the
+software bill of materials.
+
+## System requirements
+
+- **CPU**: SSE2 minimum; SSSE3 and POPCNT recommended. AVX2 and AVX-512 are detected and used automatically.
+- **OS**: Windows 10+, macOS 15+ (Apple Silicon), Ubuntu 22.04+, Fedora 44+, Oracle Linux 10+
+- **License**: [GPL-3.0-or-later](https://www.gnu.org/licenses/gpl-3.0.html)
