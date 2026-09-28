@@ -3,7 +3,19 @@ title: LogSquirl — Faster Log Explorer
 description: Open source, cross-platform log viewer built with C++23 and Qt6. Handles 10 GB+ files with SIMD-accelerated regex.
 template: splash
 hero:
-  tagline: An open source, cross-platform log viewer built with C++23 and Qt6. Blazing fast — optimized for modern multi-core CPUs with SIMD (SSE2 → AVX512). Handles 10 GB+ log files without loading them into memory.
+  title: LogSquirl
+  tagline: A fast, smart log file explorer for Windows, macOS and Linux. It opens 10 GB+ log files without loading them into memory and searches them with SIMD-accelerated regular expressions on every core.
+  image:
+    file: ../../assets/logsquirl.png
+    alt: The LogSquirl squirrel inspecting a log with a magnifying glass
+  actions:
+    - text: Download
+      link: /install/
+      icon: right-arrow
+    - text: GitHub
+      link: https://github.com/64x-lunicorn/LogSquirl
+      icon: github
+      variant: minimal
 ---
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
@@ -32,25 +44,34 @@ import highlighters from '@assets/screenshots/highlighters.png';
 ## Features
 
 <CardGrid>
-  <Card title="Core Features" icon="star">
-    - Runs on **Windows, macOS, and Linux** thanks to Qt6
-    - Displays search results separately from the original file
-    - **Perl-compatible regular expressions** via Vectorscan SIMD engine
-    - Colorizes log lines with **multi-set highlighters**
-    - Context view showing where matches are in the log
-    - Reads file directly from disk — no memory loading
-    - **Follow Mode** — watches for file changes and reloads in real-time
-    - Configurable keyboard shortcuts
+  <Card title="Open anything" icon="document">
+    - Log Files of any size, read from disk instead of loaded into memory
+    - Archives and compressed files: zip, 7z, tar, gz, bz2, xz, zst, lz4
+    - Standard input: `journalctl -f | logsquirl -`
+    - Follow a growing Log File as it is written
+    - Automatic encoding detection, or pick one yourself
   </Card>
-  <Card title="New in LogSquirl" icon="rocket">
-    - **Chart Panel** — plot numeric values with regex capture groups, timestamps, bucketing, presets, filter frequency, and **format-aware quick-add templates**
-    - **Plugin System** — DataSource, Converter, and UI plugins via pure C ABI
-    - **Log Merge** — combine multiple log files into a unified, live-updated view
-    - **Tab Groups** — organize tabs with named, colored groups; session persistence
-    - **Context Lines (Breadcrumbs)** — surrounding lines around matches in filtered view
-    - **Predefined Filters Panel** — pinned filters with Chipmunk import support
-    - **Scratchpad** — Base64, Hex, URL, JSON/XML formatter, CRC32, timestamps, JWT decoder
-    - **Boolean Search** — combine regex with AND, OR, NOT operators
+  <Card title="Search fast" icon="magnifier">
+    - Regular expressions through Vectorscan and Hyperscan, SIMD-accelerated on every core, with PCRE as the fallback
+    - Combine patterns with `and`, `or` and `not`
+    - Search results in their own view, with context lines around each match
+    - Keep several Searches of one file side by side
+    - Limit a Search to a line or a time range
+  </Card>
+  <Card title="Understand" icon="list-format">
+    - Log Formats recognized automatically, shown as a table with one column per field, JSON and logfmt included
+    - Go to a timestamp, and see the time between lines
+    - Chart Panel: plot values and message rates over time, and jump from a point to its line
+    - Count the values of a column or a capture group
+    - Highlighter Sets and nine Color Labels
+  </Card>
+  <Card title="Work your way" icon="setting">
+    - Themes, Smyck and Smyck Light included, switched without a restart
+    - Command Palette and fully configurable shortcuts, vi and less keys included
+    - Tab groups, marks and sessions that restore where you left off
+    - Team Folder: share Filter Groups and Highlighter Sets through a Git repository
+    - Plugins for new sources and formats, such as Android Logcat and serial ports
+    - Scratchpad with JSON, XML, Base64 and JWT tools; nine languages
   </Card>
 </CardGrid>
 
