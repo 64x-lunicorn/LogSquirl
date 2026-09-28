@@ -56,7 +56,7 @@ const DataLocation& DataLocation::current()
 }
 
 DataLocation::DataLocation( bool forcePortable, QString executableDirectory )
-    : executableDirectory_( QDir::cleanPath( std::move( executableDirectory ) ) )
+    : executableDirectory_( QDir::cleanPath( executableDirectory ) )
 {
     portable_ = forcePortable || QFileInfo::exists( portableSettingsPath() );
 }
