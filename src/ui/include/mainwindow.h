@@ -269,6 +269,9 @@ private:
     bool loadFile( const QString& fileName, bool followFile = false,
                    LogFileLifetime lifetime = LogFileLifetime::Ordinary );
     bool extractAndLoadFile( const QString& fileName );
+    // The view of this Log File open in any window, or of the Log File a
+    // converter plugin converted it into (#615); nullptr while neither is.
+    const ViewInterface* openViewOf( const QString& fileName ) const;
     void openRemoteFile( const QUrl& url );
     void updateTitleBar( const QString& fileName );
     // The file the recent files keep for a Log File open with this lifetime:
@@ -453,7 +456,8 @@ private:
     QHash<QString, ArchiveMember> archiveMembers_;
     // The Ordinary Log File each Log File a converter plugin wrote into
     // tempDir_ was converted from, by the path it is read from: the recent
-    // files keep that instead (#605).
+    // files keep that instead (#605), and opening it again shows that tab
+    // (#615). Dropped when the tab closes.
     QHash<QString, QString> convertedFrom_;
 
     bool isMaximized_ = false;
