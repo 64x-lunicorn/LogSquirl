@@ -26,12 +26,12 @@
 
 #include <QGuiApplication>
 
-#include "persistentinfo.h"
+#include "datalocation.h"
 
 // The shortcut defaults live in the settings library, which links the
 // settings store. These tests never reach the store; should one ever do, it
 // stays portable, beside the test binary, as in the other test runners (#389).
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 int main( int argc, char* argv[] )
 {

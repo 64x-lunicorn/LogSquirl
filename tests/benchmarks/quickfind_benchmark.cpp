@@ -28,10 +28,10 @@
 #include "generated_log_file.h"
 #include "test_policies.h"
 
+#include "datalocation.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
 #include "logdata.h"
-#include "persistentinfo.h"
 #include "quickfind.h"
 #include "quickfindpattern.h"
 #include "selection.h"
@@ -54,7 +54,7 @@
 #include "isolated_settings.h"
 
 // The settings library, which the UI library links, asks every executable.
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 namespace {
 

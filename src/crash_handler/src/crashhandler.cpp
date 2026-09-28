@@ -31,7 +31,6 @@
 #include <QProcess>
 #include <QProgressDialog>
 #include <QPushButton>
-#include <QStandardPaths>
 #include <QSysInfo>
 #include <QTimer>
 #include <QUrlQuery>
@@ -53,6 +52,7 @@
 
 #include "cpu_info.h"
 #include "crashreports.h"
+#include "datalocation.h"
 #include "issuereporter.h"
 #include "log.h"
 #include "logsquirl_version.h"
@@ -67,13 +67,9 @@ constexpr const char* DSN
 
 QString sentryDatabasePath()
 {
-#ifdef LOGSQUIRL_PORTABLE
-    auto basePath = QCoreApplication::applicationDirPath();
-#else
-    auto basePath = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
-#endif
-
-    return crashDumpDirectory( basePath );
+    // Beside the executable in a portable run, like everything else it keeps
+    // (#602).
+    return crashDumpDirectory( DataLocation::current().dataDirectory() );
 }
 
 void logSentry( sentry_level_t level, const char* message, va_list args, void* userdata )

@@ -38,6 +38,7 @@
 // unchanged on both sides of an A/B comparison. See tests/benchmarks/README.md.
 
 #include "configuration.h"
+#include "datalocation.h"
 #include "generated_log_file.h"
 #include "logformatcatalog.h"
 #include "openlogfile.h"
@@ -68,7 +69,7 @@
 #include "isolated_settings.h"
 
 // The settings library, which the UI library links, asks every executable.
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 namespace {
 

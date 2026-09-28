@@ -19,6 +19,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "datalocation.h"
 #include "plugincatalog.h"
 
 #include <QCoreApplication>
@@ -50,6 +51,16 @@ void writeManifest( const QString& root, const QString& subdirectory, const QStr
     })" )
                         .arg( id, name )
                         .toUtf8() );
+}
+
+/// This binary is an installed run, unless someone left a logsquirl.conf
+/// beside it: then its user plugin directory is the application plugin
+/// directory (#602), and what an installed run keeps apart cannot be checked.
+void skipWhenPortable()
+{
+    if ( DataLocation::current().isPortable() ) {
+        SKIP( "a logsquirl.conf beside the test binary makes this run portable" );
+    }
 }
 
 /// Writes a file with the given content into root/subdirectory.
@@ -209,8 +220,9 @@ SCENARIO( "Rediscovering replaces what the Plugin Catalog found before",
 SCENARIO( "The Plugin Catalog searches the user and then the application plugin directory",
           "[plugincatalog][plugins]" )
 {
-    GIVEN( "The default plugin directories" )
+    GIVEN( "The default plugin directories of an installed run" )
     {
+        skipWhenPortable();
         const auto dirs = PluginCatalog::defaultPluginDirectories();
 
         THEN( "The user plugin directory in the user's data comes first" )
@@ -236,8 +248,9 @@ SCENARIO( "The Plugin Catalog searches the user and then the application plugin 
 SCENARIO( "A plugin from the catalog is installed into the user plugin directory",
           "[plugincatalog][plugins]" )
 {
-    GIVEN( "The id of a plugin in the catalog" )
+    GIVEN( "The id of a plugin in the catalog, in an installed run" )
     {
+        skipWhenPortable();
         const auto pluginId = QStringLiteral( "com.test.installed" );
 
         WHEN( "Its install directory is asked for" )

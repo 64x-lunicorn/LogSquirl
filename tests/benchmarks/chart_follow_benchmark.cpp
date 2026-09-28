@@ -29,9 +29,9 @@
 
 #include "chartpanel.h"
 #include "chartseries.h"
+#include "datalocation.h"
 #include "generated_log_file.h"
 #include "logdata.h"
-#include "persistentinfo.h"
 #include "test_policies.h"
 
 #include <QApplication>
@@ -50,7 +50,7 @@
 
 #include "isolated_settings.h"
 
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 using namespace logdatabenchmark;
 

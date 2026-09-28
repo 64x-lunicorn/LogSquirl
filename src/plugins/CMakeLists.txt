@@ -17,6 +17,8 @@ target_link_libraries(
          logsquirl_logging
          Qt6::Core
 )
+# Where the user plugin directory is (#602).
+target_link_libraries(logsquirl_plugin_catalog PUBLIC logsquirl_datalocation)
 
 add_library(
   logsquirl_plugins STATIC
@@ -56,6 +58,8 @@ target_link_libraries(
          Qt6::Gui
          Qt6::Network
 )
+# Where a plugin's configuration directory is (#602).
+target_link_libraries(logsquirl_plugins PUBLIC logsquirl_datalocation)
 
 # Install the MIT-licensed C ABI header as part of the Plugin SDK.
 # This is the only file external plugin developers need.

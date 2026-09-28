@@ -19,11 +19,11 @@
 
 #include "pluginhost.h"
 
+#include "datalocation.h"
 #include "log.h"
 #include "streamwriter.h"
 
 #include <QDir>
-#include <QStandardPaths>
 
 namespace logsquirl::plugins {
 
@@ -116,9 +116,9 @@ QString PluginHost::loadPlugin( const QString& pluginId )
         new PluginContext{ std::move( loadResult.value() ), {}, {}, {}, nullptr, this } );
     ctx->hostApi = buildHostApi();
 
-    // Create plugin-private config directory
-    ctx->configDir = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation )
-                     + "/plugin_config/" + pluginId;
+    // Create plugin-private config directory, next to the user plugin
+    // directory: beside the executable in a portable run (#602).
+    ctx->configDir = DataLocation::current().dataDirectory() + "/plugin_config/" + pluginId;
     ctx->configDirUtf8 = ctx->configDir.toUtf8();
     QDir().mkpath( ctx->configDir );
 

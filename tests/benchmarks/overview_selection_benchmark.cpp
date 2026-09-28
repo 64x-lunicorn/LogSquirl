@@ -33,13 +33,13 @@
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
 #include "configuration.h"
+#include "datalocation.h"
 #include "highlighterset.h"
 #include "loadingstatus.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "overview.h"
 #include "overviewwidget.h"
-#include "persistentinfo.h"
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "shortcuts.h"
@@ -63,7 +63,7 @@
 #include "isolated_settings.h"
 
 // The settings library, which the UI library links, asks every executable.
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 namespace {
 

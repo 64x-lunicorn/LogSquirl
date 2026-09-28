@@ -43,8 +43,7 @@
 #include <QDir>
 #include <QFileInfo>
 
-#include <whereami.h>
-
+#include "datalocation.h"
 #include "log.h"
 #include "uuid.h"
 
@@ -68,24 +67,14 @@ QString makeSessionSettingsPath( const QString& appConfigPath )
 
 PersistentInfo::PersistentInfo()
 {
-    QString executablePath;
-
-    int dirnameLength = 0;
-    const auto executablePathLength = wai_getExecutablePath( NULL, 0, &dirnameLength );
-    if ( executablePathLength > 0 ) {
-        auto path = std::vector<char>( static_cast<size_t>( executablePathLength ), '\0' );
-        wai_getExecutablePath( &path[ 0 ], executablePathLength, &dirnameLength );
-        executablePath = QString::fromUtf8( path.data(), dirnameLength );
-    }
-
-    const auto portableConfigPath
-        = executablePath + QDir::separator() + ApplicationSessionFile + PortableExtension;
+    // A portable run keeps its settings beside the executable, as it keeps its
+    // data there: DataLocation decides both (#602).
+    const auto& location = DataLocation::current();
+    const auto portableConfigPath = location.portableSettingsPath();
 
     LOG_INFO << "Portable config path " << portableConfigPath;
 
-    const auto usePortableConfiguration = ForcePortable || QFileInfo::exists( portableConfigPath );
-
-    if ( usePortableConfiguration ) {
+    if ( location.isPortable() ) {
         PreparePortableSettings( portableConfigPath );
     }
     else {

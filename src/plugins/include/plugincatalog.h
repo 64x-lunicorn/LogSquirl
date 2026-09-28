@@ -42,22 +42,26 @@ public:
      * they are scanned: the user plugin directory first, then the application
      * plugin directory. For a duplicate id the plugin found first is kept, so
      * a plugin installed or updated from the catalog wins over the copy
-     * shipped with the application (ADR 0014).
+     * shipped with the application (ADR 0014). Where the two are the same
+     * directory, as in a portable run on Windows and Linux, it is listed once
+     * (ADR 0015).
      */
     static QStringList defaultPluginDirectories();
 
     /**
-     * The user plugin directory in the application data location. Installs
-     * and updates from the catalog go here, and the plugin dialog's "Plugin
-     * Folder" button opens it; it is writable without admin rights on every
-     * platform.
+     * The user plugin directory, `plugins` in the data directory: in the
+     * application data location, or beside the executable in a portable run
+     * (DataLocation, ADR 0015). Installs and updates from the catalog go
+     * here, and the plugin dialog's "Plugin Folder" button opens it; it is
+     * writable without admin rights on every platform.
      */
     static QString userPluginDirectory();
 
     /**
      * The application plugin directory: Contents/PlugIns in the macOS bundle,
      * `plugins` next to the executable elsewhere. It holds the plugins shipped
-     * with the application and is never written to.
+     * with the application and is never written to, unless a portable run
+     * uses it as its user plugin directory as well (ADR 0015).
      */
     static QString applicationPluginDirectory();
 

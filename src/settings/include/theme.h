@@ -263,6 +263,10 @@ public:
     // userThemesDirectory, if there is one.
     QString styleSheetWithUserFile( const QString& userThemesDirectory ) const;
 
+    // Where the user's stylesheets are: `themes` in the configuration
+    // directory (DataLocation), beside the executable in a portable run.
+    static QString userThemesDirectory();
+
     // The name of token: its placeholder in the stylesheet template without
     // the @ signs, and its key in the stored Dark overrides.
     static QString tokenName( ColorToken token );
@@ -270,7 +274,7 @@ public:
 
     // Makes the Theme a stored `style` setting stands for the application's
     // look: Fusion style, platform color scheme, palette, and stylesheet with
-    // the user's stylesheet from AppConfigLocation/themes/ on top. Can be
+    // the user's stylesheet from userThemesDirectory() on top. Can be
     // called again at any time, with windows open; afterwards every refresh
     // registered with whenApplied() runs.
     static void apply( const QString& name );

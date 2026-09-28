@@ -74,9 +74,26 @@ CI checks all of this, except the elevation prompt itself, on every build of
 the installer.
 
 For Windows there is also a portable package, `logsquirl-win-x64-portable.zip`:
-unpack it anywhere and start `logsquirl_portable.exe`. It keeps its settings in
-`logsquirl.conf` beside the executable instead of in the user profile; any
-*logsquirl* does so when it finds that file beside itself.
+unpack it anywhere and start `logsquirl_portable.exe`. It keeps everything it
+stores beside the executable instead of in the user profile; any *logsquirl*
+does so when it finds a `logsquirl.conf` beside itself:
+
+| Beside the executable    | What it holds                                        |
+|--------------------------|------------------------------------------------------|
+| `logsquirl.conf`         | the settings                                         |
+| `logsquirl_session.conf` | the session                                          |
+| `formats\`               | your own log formats                                 |
+| `plugins\`               | the plugins it comes with and those you install      |
+| `plugin_config\`         | the plugins' own configuration                       |
+| `teamfolder\`            | the Team Folder's clone of the team's repository     |
+| `themes\`                | your own theme stylesheets                           |
+| `logsquirl_dump\`        | crash dumps                                          |
+
+Only the index cache stays in the user profile, and a log file written with
+logging turned on goes to the temporary folder. Unpack the package where you
+may write, not under `Program Files`. Since the plugins you install share the
+`plugins` folder with those it comes with, updating one from the catalog
+replaces the copy it came with.
 
 ### The Dashboard
 
@@ -479,6 +496,9 @@ formats can be placed in the platform data directory:
 | macOS     | `~/Library/Application Support/logsquirl/formats/`       |
 | Windows   | `%APPDATA%/logsquirl/formats/`                           |
 
+A portable *logsquirl* reads them from the `formats` folder beside its
+executable instead (see [Installing](#installing)).
+
 Format definitions are read when *logsquirl* starts and again whenever the
 Options dialog is applied. A file that is already open keeps the format it
 was recognized with; reload it (or reopen it) to have an added or edited
@@ -828,6 +848,11 @@ the one with the same id in the application folder. To go back to the version
 that came with *logsquirl*, delete the plugin's folder in the user plugin
 directory and restart *logsquirl*.
 
+A portable *logsquirl* has one plugin folder, `plugins` beside its executable:
+it holds the plugins it came with and is its user plugin directory too, so
+*Install* and *Update* put plugins there, and an update replaces the copy it
+came with.
+
 The `Sources` menu lists the installed data source plugins. Choosing one loads
 the plugin if needed and starts it; the stream opens as a new tab in the window
 you chose it in. Without a data source plugin the menu says
@@ -941,7 +966,10 @@ colors of the theme you choose, and keeps them when you choose another.
 A theme can be extended with a stylesheet of your own: put a `.qss` file named
 after the theme (`fusion-light.qss`, `dark.qss`, `high-contrast.qss`,
 `smyck.qss` or `smyck-light.qss`) into the `themes` directory of the
-configuration directory, and it is appended to the theme's stylesheet.
+configuration directory (`~/.config/logsquirl` on Linux,
+`~/Library/Preferences/logsquirl` on macOS, `%LOCALAPPDATA%\logsquirl` on
+Windows, the executable's folder for a portable *logsquirl*), and it is
+appended to the theme's stylesheet.
 
 #### Language
 

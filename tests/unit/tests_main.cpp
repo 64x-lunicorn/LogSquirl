@@ -27,9 +27,9 @@
 #include "configuration.h"
 #include "highlighterset.h"
 #include "isolated_settings.h"
-#include <persistentinfo.h>
+#include <datalocation.h>
 
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 int main( int argc, char* argv[] )
 {

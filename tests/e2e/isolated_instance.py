@@ -13,7 +13,9 @@ An instance started here gets:
   temporary directory.
 - its own QStandardPaths locations -- plugins, plugin configuration, Log
   Formats, theme files, the index cache, crash dumps. On Linux the ``XDG_*``
-  directories move all of them. macOS resolves them through Core Foundation,
+  directories move all of them. On macOS the portable clone keeps all but the
+  index cache beside its executable, inside the clone (#602); the cache is
+  still a QStandardPaths location, and macOS resolves those through Core Foundation,
   which reads the home directory from the password database and so ignores
   ``HOME``; ``CFFIXED_USER_HOME`` is the override it does honour, and with it
   every location lands under the temporary directory. Qt's
@@ -184,7 +186,10 @@ class IsolatedLogSquirl:
             # See the module docstring: HOME alone does not move macOS's
             # QStandardPaths locations, CFFIXED_USER_HOME does.
             self.env["CFFIXED_USER_HOME"] = str(self.home)
-            self.app_data_dir = self.home / "Library" / "Application Support" / "logsquirl"
+            # A portable instance keeps its plugins, plugin configuration,
+            # Log Formats and theme files beside its executable, in the clone
+            # (#602, ADR 0015); only its cache stays under CFFIXED_USER_HOME.
+            self.app_data_dir = self.binary.parent
         else:
             config = self.home / ".config"
             (config / "logsquirl").mkdir(parents=True)

@@ -510,3 +510,13 @@ _Avoid_: temporary tab, temp file, volatile source
 A Log File that is not a Transient Log File: a file on disk the user opened, which the
 Session saves and restores with its view state.
 _Avoid_: persistent tab, normal file
+
+**Portable Run**:
+A run of LogSquirl that keeps everything it stores beside its executable: its settings and
+Session in `logsquirl.conf` and `logsquirl_session.conf`, and its Log Formats, plugins,
+plugin configuration, Team Folder, theme stylesheets and crash dumps in its data directory,
+which is the executable's directory. A run is portable when its build says so (the portable
+package, the command line tool, the test binaries) or when it finds `logsquirl.conf` beside
+its executable; every other run is installed and keeps them in the user profile. One place
+decides it for the whole run (ADR 0015). Only the Index Cache stays in the user profile.
+_Avoid_: portable mode, portable build (the build is one way a run becomes portable)

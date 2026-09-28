@@ -24,18 +24,18 @@
 #include <mimalloc.h>
 
 #include "configuration.h"
+#include "datalocation.h"
 #include "displayedlines.h"
 #include "loadingstatus.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logger.h"
 #include "openlogfile.h"
-#include "persistentinfo.h"
 #include "settingspolicies.h"
 
 #include "cli.h"
 
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 namespace {
 

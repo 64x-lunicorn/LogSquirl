@@ -24,15 +24,15 @@
 #include <QtConcurrent>
 
 #include <configuration.h>
+#include <datalocation.h>
 #include <filewatcher.h>
 #include <highlighterset.h>
-#include <persistentinfo.h>
 
 #include <logger.h>
 
 #include "isolated_settings.h"
 
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 class TestRunner : public QObject {
     Q_OBJECT

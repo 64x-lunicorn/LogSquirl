@@ -19,13 +19,14 @@
 
 #include "plugincatalog.h"
 
+#include "datalocation.h"
 #include "log.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
-#include <QStandardPaths>
+#include <QFileInfo>
 
 namespace logsquirl::plugins {
 
@@ -36,12 +37,26 @@ QStringList PluginCatalog::defaultPluginDirectories()
     // The user plugin directory comes first: discovery keeps the first plugin
     // of an id, so a plugin updated from the catalog, which lands there, wins
     // over the copy shipped in the application folder (#595, ADR 0014).
-    return { userPluginDirectory(), applicationPluginDirectory() };
+    const auto user = userPluginDirectory();
+    const auto application = applicationPluginDirectory();
+    // A portable run keeps its user plugin directory beside the executable,
+    // where the application plugin directory is too (#602, ADR 0015): the one
+    // directory is scanned once, not a second time to find every plugin in it
+    // a duplicate of itself.
+    const QFileInfo userInfo( user );
+    const QFileInfo applicationInfo( application );
+    const auto same = userInfo.exists() && applicationInfo.exists()
+                          ? userInfo.canonicalFilePath() == applicationInfo.canonicalFilePath()
+                          : QDir::cleanPath( user ) == QDir::cleanPath( application );
+    if ( same ) {
+        return { user };
+    }
+    return { user, application };
 }
 
 QString PluginCatalog::userPluginDirectory()
 {
-    return QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
+    return DataLocation::current().dataDirectory() + "/plugins";
 }
 
 QString PluginCatalog::applicationPluginDirectory()
