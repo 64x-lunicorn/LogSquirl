@@ -43,6 +43,8 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QPair>
+#include <QPointer>
+#include <QProgressDialog>
 #include <QStatusBar>
 #include <QSystemTrayIcon>
 #include <QTemporaryDir>
@@ -269,6 +271,14 @@ private:
     bool loadFile( const QString& fileName, bool followFile = false,
                    LogFileLifetime lifetime = LogFileLifetime::Ordinary );
     bool extractAndLoadFile( const QString& fileName );
+    // Adds the tab of a restored Log File whose archive decompressed after
+    // the restore, `fileName`, where it stood among the tabs (#610).
+    void openRestoredFromArchive( int deferredId, const ArchiveMember& member,
+                                  const QString& fileName );
+    // Shows the progress of the archive decompressing for a restore, or
+    // closes it once none is.
+    void showArchiveRestoreProgress( const QString& archive );
+    void closeArchiveRestoreProgress();
     void openRemoteFile( const QUrl& url );
     void updateTitleBar( const QString& fileName );
     // The file the recent files keep for a Log File open with this lifetime:
@@ -455,6 +465,11 @@ private:
     // tempDir_ was converted from, by the path it is read from: the recent
     // files keep that instead (#605).
     QHash<QString, QString> convertedFrom_;
+    // Decompresses the archives of a restored Session into tempDir_ while the
+    // window is in use; declared after it, so that it is gone, and has waited
+    // for the decompression under way, before tempDir_ is removed (#610).
+    ArchiveMemberDecompression archiveRestores_;
+    QPointer<QProgressDialog> archiveRestoreProgress_;
 
     bool isMaximized_ = false;
     bool isCloseFromTray_ = false;

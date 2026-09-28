@@ -449,8 +449,40 @@ void WindowSession::save( const std::vector<SaveFileInfo>& view_list,
 
     std::vector<SessionInfo::OpenFile> session_files;
     auto currentFile = -1;
+
+    // A Log File still waiting for its archive to decompress is saved as the
+    // Session saved it, where it stood among the tabs that remain, and in
+    // front if it was and the window still shows the tab the restore put
+    // there (#610).
+    std::vector<const ViewInterface*> views;
     for ( const auto& view : view_list ) {
-        const auto& [ view_object, view_context ] = view;
+        views.push_back( std::get<0>( view ) );
+    }
+    std::vector<std::pair<size_t, const RestoredTab::Deferred*>> waiting;
+    for ( size_t slot = 0; slot < restoredTabs_.size(); ++slot ) {
+        if ( const auto& deferred = restoredTabs_[ slot ].deferred ) {
+            waiting.emplace_back( positionAmong( slot, views ), &*deferred );
+        }
+    }
+    std::ranges::stable_sort( waiting, {}, &decltype( waiting )::value_type::first );
+    const auto deferredInFront
+        = currentView == restoredFront_
+          && std::ranges::any_of( waiting, []( const auto& w ) { return w.second->inFront; } );
+    auto nextWaiting = waiting.cbegin();
+    const auto saveWaitingUpTo = [ & ]( size_t position ) {
+        for ( ; nextWaiting != waiting.cend() && nextWaiting->first <= position; ++nextWaiting ) {
+            const auto& deferred = *nextWaiting->second;
+            if ( deferred.inFront && deferredInFront ) {
+                currentFile = logsquirl::isize( session_files );
+            }
+            session_files.emplace_back( deferred.fileName, deferred.viewContext,
+                                        deferred.archiveMember );
+        }
+    };
+
+    for ( size_t position = 0; position < view_list.size(); ++position ) {
+        saveWaitingUpTo( position );
+        const auto& [ view_object, view_context ] = view_list[ position ];
 
         const Session::OpenFile* file = appSession_->findOpenFileFromView( view_object );
         if ( !file ) {
@@ -466,13 +498,14 @@ void WindowSession::save( const std::vector<SaveFileInfo>& view_list,
         }
 
         LOG_DEBUG << "Saving " << file->fileName.toLocal8Bit().data() << " in session.";
-        if ( view_object == currentView ) {
+        if ( view_object == currentView && !deferredInFront ) {
             currentFile = logsquirl::isize( session_files );
         }
         // A decompressed Log File is saved with its archive, which a restore
         // decompresses again: the temporary file is gone by then (#596).
         session_files.emplace_back( file->fileName, view_context->toString(), file->archiveMember );
     }
+    saveWaitingUpTo( view_list.size() );
 
     auto& session = SessionInfo::getSynced();
     session.setOpenFiles( windowId_, session_files, currentFile );
@@ -510,7 +543,8 @@ ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& 
 }
 
 OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* currentFileIndex,
-                                        const ArchiveMemberDecompressor& decompressor )
+                                        const ArchiveMemberDecompressor& decompressor,
+                                        std::vector<DeferredArchiveFile>* deferred )
 {
     const auto& session = SessionInfo::get();
 
@@ -529,11 +563,25 @@ OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* cur
     // that is gone by now: the archive is decompressed again, and the Log
     // File opened from what that gives. When the archive is gone, its tab is
     // left out, as quietly as any Log File that is (#596).
+    //
+    // A deferred one is decompressed after this returns, and keeps its place
+    // among the tabs restored here until it is opened (#610).
+    const auto run = ++restoreRuns_;
+    std::vector<size_t> restoredSlots;
     auto currentFile = -1;
     {
         std::vector<SessionInfo::OpenFile> restorable;
         for ( auto i = 0; i < logsquirl::isize( session_files ); ++i ) {
             auto file = session_files[ static_cast<size_t>( i ) ];
+            if ( !file.archiveMember.isEmpty() && deferred ) {
+                const auto id = nextDeferredId_++;
+                restoredTabs_.push_back( RestoredTab{
+                    run, nullptr,
+                    RestoredTab::Deferred{ id, file.fileName, file.viewContext, file.archiveMember,
+                                           i == savedCurrentFile } } );
+                deferred->push_back( DeferredArchiveFile{ id, file.archiveMember } );
+                continue;
+            }
             if ( !file.archiveMember.isEmpty() ) {
                 file.fileName = decompressor ? decompressor( file.archiveMember ) : QString{};
                 if ( file.fileName.isEmpty() ) {
@@ -545,6 +593,10 @@ OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* cur
             if ( i <= savedCurrentFile ) {
                 // The tab in front, or the last one left before it.
                 currentFile = logsquirl::isize( restorable );
+            }
+            if ( deferred ) {
+                restoredSlots.push_back( restoredTabs_.size() );
+                restoredTabs_.push_back( RestoredTab{ run, nullptr, std::nullopt } );
             }
             restorable.push_back( std::move( file ) );
         }
@@ -583,6 +635,9 @@ OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* cur
                 LogFileLifetime::Ordinary, file.archiveMember );
             result.emplace_back( file.fileName, view );
             openedFiles_.emplace_back( file.fileName );
+            if ( deferred ) {
+                restoredTabs_[ restoredSlots[ static_cast<size_t>( i ) ] ].view = view;
+            }
         }
     }
 
@@ -591,7 +646,103 @@ OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* cur
 
     *currentFileIndex = result.empty() ? -1 : currentFile;
 
+    if ( deferred ) {
+        restoredFront_
+            = result.empty() ? nullptr : result[ static_cast<size_t>( currentFile ) ].second;
+        forgetFinishedRestores();
+    }
+
     return result;
+}
+
+WindowSession::DeferredOpen
+WindowSession::openDeferred( int id, const QString& fileName, const ViewFactory& viewFactory,
+                             const std::vector<const ViewInterface*>& tabs,
+                             const ViewInterface* currentView )
+{
+    const auto slot = std::ranges::find_if( restoredTabs_, [ id ]( const auto& tab ) {
+        return tab.deferred && tab.deferred->id == id;
+    } );
+    if ( slot == restoredTabs_.end() ) {
+        LOG_WARNING << "No deferred Log File " << id << " to open";
+        return {};
+    }
+    const auto saved = *slot->deferred;
+
+    DeferredOpen opened;
+    opened.position = positionAmong( static_cast<size_t>( slot - restoredTabs_.begin() ), tabs );
+    // The window's only tab is in front whatever it was; any other takes the
+    // front only from the tab the restore put there.
+    opened.inFront = tabs.empty() || ( saved.inFront && currentView == restoredFront_ );
+
+    LOG_DEBUG << "Create view for " << fileName << ", decompressed from "
+              << saved.archiveMember.archive;
+    opened.view
+        = appSession_->open( fileName, viewFactory, saved.viewContext,
+                             opened.inFront ? Session::Loading::Now : Session::Loading::Queued,
+                             LogFileLifetime::Ordinary, saved.archiveMember );
+    openedFiles_.push_back( fileName );
+
+    slot->view = opened.view;
+    slot->deferred.reset();
+    if ( opened.inFront ) {
+        restoredFront_ = opened.view;
+    }
+    forgetFinishedRestores();
+
+    return opened;
+}
+
+void WindowSession::dropDeferred( int id )
+{
+    std::erase_if( restoredTabs_,
+                   [ id ]( const auto& tab ) { return tab.deferred && tab.deferred->id == id; } );
+    forgetFinishedRestores();
+}
+
+size_t WindowSession::positionAmong( size_t slot,
+                                     const std::vector<const ViewInterface*>& tabs ) const
+{
+    const auto run = restoredTabs_[ slot ].run;
+    const auto indexOf = [ &tabs ]( const ViewInterface* view ) -> std::optional<size_t> {
+        const auto found = std::ranges::find( tabs, view );
+        if ( view == nullptr || found == tabs.end() ) {
+            return std::nullopt;
+        }
+        return static_cast<size_t>( found - tabs.begin() );
+    };
+
+    // Before the first tab after it that is still open...
+    for ( auto after = slot + 1; after < restoredTabs_.size() && restoredTabs_[ after ].run == run;
+          ++after ) {
+        if ( const auto index = indexOf( restoredTabs_[ after ].view ) ) {
+            return *index;
+        }
+    }
+    // ... else after the last one before it...
+    for ( auto before = slot; before > 0 && restoredTabs_[ before - 1 ].run == run; --before ) {
+        if ( const auto index = indexOf( restoredTabs_[ before - 1 ].view ) ) {
+            return *index + 1;
+        }
+    }
+    // ... else last.
+    return tabs.size();
+}
+
+void WindowSession::forgetFinishedRestores()
+{
+    std::vector<int> waiting;
+    for ( const auto& tab : restoredTabs_ ) {
+        if ( tab.deferred ) {
+            waiting.push_back( tab.run );
+        }
+    }
+    std::erase_if( restoredTabs_, [ &waiting ]( const RestoredTab& tab ) {
+        return std::ranges::find( waiting, tab.run ) == waiting.end();
+    } );
+    if ( restoredTabs_.empty() ) {
+        restoredFront_ = nullptr;
+    }
 }
 
 WindowSession::WindowSession( std::shared_ptr<Session> appSession, const QString& id, size_t index )

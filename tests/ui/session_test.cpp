@@ -1043,3 +1043,157 @@ SCENARIO( "The Session saves a decompressed Log File with its archive", "[ui][se
     stored.remove( windowId );
     stored.save();
 }
+
+// A restore given somewhere to put them leaves the Log Files decompressed from
+// an archive out, to be opened once the archive is decompressed again, away
+// from the restore. Until then each keeps its place in the saved window; once
+// decompressed it goes where it stood among the tabs still open, in front
+// only if the window still shows the tab the restore put there (#610).
+SCENARIO( "A restore leaves a Log File from an archive to be opened once decompressed",
+          "[ui][session][archive]" )
+{
+    const auto windowId = QStringLiteral( "session_test_window_610" );
+    const auto gzMember = ArchiveMember{ "/logs/app.log.gz", { QString{} } };
+
+    TwoLogFiles files;
+    const auto firstPath = files.first.fileName();
+    const auto secondPath = files.second.fileName();
+    const StoredSessionWindow stored{ windowId,
+                                      { { firstPath, "first state" },
+                                        { "/tmp/app.log.gz.AbCdEf", "archive state", gzMember },
+                                        { secondPath, "second state" } },
+                                      1 };
+
+    const auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    WindowSession window{ appSession, windowId, 0 };
+    OpenedViews views;
+    int currentFileIndex = -1;
+    std::vector<WindowSession::DeferredArchiveFile> deferred;
+    const auto restored = window.restore( RecordingViews::factory( views.built ), &currentFileIndex,
+                                          {}, &deferred );
+    REQUIRE( restored.size() == 2 );
+    REQUIRE( deferred.size() == 1 );
+    const auto* first = restored[ 0 ].second;
+    const auto* second = restored[ 1 ].second;
+    std::vector<const ViewInterface*> openViews{ first, second };
+
+    // Saves the window with these tabs, in this order.
+    const auto save = [ & ]( const std::vector<const ViewInterface*>& tabs,
+                             const ViewInterface* current ) {
+        std::vector<SaveFileInfo> saved;
+        for ( const auto* view : tabs ) {
+            saved.emplace_back(
+                view, std::make_shared<const SavedViewContext>( window.getFilename( view ) ) );
+        }
+        window.save( saved, current, QByteArray{}, 0 );
+        return SessionInfo::get().openFiles( windowId );
+    };
+
+    THEN( "the others are restored without it, the one before it in front" )
+    {
+        REQUIRE( deferred.front().archiveMember == gzMember );
+        REQUIRE( restored[ 0 ].first == firstPath );
+        REQUIRE( restored[ 1 ].first == secondPath );
+        REQUIRE( currentFileIndex == 0 );
+    }
+
+    WHEN( "the window is saved before the archive is decompressed" )
+    {
+        const auto saved = save( openViews, first );
+
+        THEN( "it is saved where it stood, as it was stored, and in front" )
+        {
+            REQUIRE( saved.size() == 3 );
+            REQUIRE( saved[ 0 ].fileName == firstPath );
+            REQUIRE( saved[ 1 ].archiveMember == gzMember );
+            REQUIRE( saved[ 1 ].viewContext == "archive state" );
+            REQUIRE( saved[ 2 ].fileName == secondPath );
+            REQUIRE( SessionInfo::get().currentFile( windowId ) == 1 );
+        }
+    }
+
+    WHEN( "it is decompressed while the tab the restore put in front still is" )
+    {
+        QTemporaryFile again{ "session_test_again_XXXXXX" };
+        REQUIRE( again.open() );
+        const auto opened
+            = window.openDeferred( deferred.front().id, again.fileName(),
+                                   RecordingViews::factory( views.built ), openViews, first );
+        REQUIRE( opened.view != nullptr );
+        openViews.push_back( opened.view );
+
+        THEN( "it goes between the two, in front, with its view state" )
+        {
+            REQUIRE( opened.position == 1 );
+            REQUIRE( opened.inFront );
+            REQUIRE( views.built.back()->build().viewContext == "archive state" );
+        }
+
+        AND_WHEN( "the window is saved" )
+        {
+            const auto saved = save( { first, opened.view, second }, opened.view );
+
+            THEN( "it is saved with its archive, in front" )
+            {
+                REQUIRE( saved.size() == 3 );
+                REQUIRE( saved[ 1 ].fileName == again.fileName() );
+                REQUIRE( saved[ 1 ].archiveMember == gzMember );
+                REQUIRE( SessionInfo::get().currentFile( windowId ) == 1 );
+            }
+        }
+    }
+
+    WHEN( "it is decompressed after the user brought another tab to the front" )
+    {
+        QTemporaryFile again{ "session_test_again_XXXXXX" };
+        REQUIRE( again.open() );
+        const auto opened
+            = window.openDeferred( deferred.front().id, again.fileName(),
+                                   RecordingViews::factory( views.built ), openViews, second );
+        REQUIRE( opened.view != nullptr );
+        openViews.push_back( opened.view );
+
+        THEN( "it goes between the two, behind the tab the user chose" )
+        {
+            REQUIRE( opened.position == 1 );
+            REQUIRE_FALSE( opened.inFront );
+        }
+    }
+
+    WHEN( "the tab after it was closed before it is decompressed" )
+    {
+        window.close( second );
+        openViews = { first };
+        QTemporaryFile again{ "session_test_again_XXXXXX" };
+        REQUIRE( again.open() );
+        const auto opened
+            = window.openDeferred( deferred.front().id, again.fileName(),
+                                   RecordingViews::factory( views.built ), openViews, first );
+        REQUIRE( opened.view != nullptr );
+        openViews.push_back( opened.view );
+
+        THEN( "it goes after the tab before it" )
+        {
+            REQUIRE( opened.position == 1 );
+        }
+    }
+
+    WHEN( "its archive cannot be decompressed" )
+    {
+        window.dropDeferred( deferred.front().id );
+        const auto saved = save( openViews, first );
+
+        THEN( "it is left out for good" )
+        {
+            REQUIRE( saved.size() == 2 );
+            REQUIRE( saved[ 0 ].fileName == firstPath );
+            REQUIRE( saved[ 1 ].fileName == secondPath );
+            REQUIRE( SessionInfo::get().currentFile( windowId ) == 0 );
+        }
+    }
+
+    for ( const auto* view : openViews ) {
+        window.close( view );
+    }
+}
