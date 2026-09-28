@@ -2659,6 +2659,11 @@ Backspace ou Delete limpa o atalho.</translation>
 <context>
     <name>PluginDialog</name>
     <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="117"/>
+        <source>Configure...</source>
+        <translation>Configurar...</translation>
+    </message>
+    <message>
         <location filename="../../ui/src/plugindialog.cpp" line="149"/>
         <source>License: %1</source>
         <translation>Licença: %1</translation>
@@ -2684,6 +2689,21 @@ Backspace ou Delete limpa o atalho.</translation>
         <location filename="../../ui/src/plugindialog.cpp" line="763"/>
         <source>Update</source>
         <translation>Atualizar</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="197"/>
+        <source>Open the configuration of this plugin</source>
+        <translation>Abrir a configuração deste plugin</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="200"/>
+        <source>This plugin has no configuration</source>
+        <translation>Este plugin não tem configuração</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="203"/>
+        <source>Enable the plugin to open its configuration</source>
+        <translation>Ative o plugin para abrir sua configuração</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="195"/>

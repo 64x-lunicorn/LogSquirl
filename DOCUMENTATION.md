@@ -809,7 +809,9 @@ widgets or panels. How to write one is described in the
 `Plugins->Plugin Management...` opens the Plugin Management dialog. It lists the
 plugins in the catalog and the ones installed on your machine under the tabs
 *All*, *Installed* and *Updates*, and can be searched. Each plugin offers
-*Install* (or *Update*) and *Enable* or *Disable*. With *Auto-load enabled
+*Install* (or *Update*) and *Enable* or *Disable*; an installed plugin also has
+*Configure...*, which opens the plugin's own settings and works only while the
+plugin is enabled and has settings. With *Auto-load enabled
 plugins on startup* the enabled plugins are loaded when *logsquirl* starts, and
 *Plugin Folder* opens the user plugin directory. The catalog
 is fetched when the dialog opens; if that fails, the error is shown in the

@@ -2659,6 +2659,11 @@ Retour arrière ou Suppr efface le raccourci.</translation>
 <context>
     <name>PluginDialog</name>
     <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="117"/>
+        <source>Configure...</source>
+        <translation>Configurer...</translation>
+    </message>
+    <message>
         <location filename="../../ui/src/plugindialog.cpp" line="149"/>
         <source>License: %1</source>
         <translation>Licence : %1</translation>
@@ -2684,6 +2689,21 @@ Retour arrière ou Suppr efface le raccourci.</translation>
         <location filename="../../ui/src/plugindialog.cpp" line="763"/>
         <source>Update</source>
         <translation>Mettre à jour</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="197"/>
+        <source>Open the configuration of this plugin</source>
+        <translation>Ouvrir la configuration de ce plugin</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="200"/>
+        <source>This plugin has no configuration</source>
+        <translation>Ce plugin n&apos;a pas de configuration</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="203"/>
+        <source>Enable the plugin to open its configuration</source>
+        <translation>Activez le plugin pour ouvrir sa configuration</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="195"/>

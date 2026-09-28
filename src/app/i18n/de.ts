@@ -2659,6 +2659,11 @@ Rücktaste oder Entf löscht das Tastenkürzel.</translation>
 <context>
     <name>PluginDialog</name>
     <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="117"/>
+        <source>Configure...</source>
+        <translation>Konfigurieren...</translation>
+    </message>
+    <message>
         <location filename="../../ui/src/plugindialog.cpp" line="149"/>
         <source>License: %1</source>
         <translation>Lizenz: %1</translation>
@@ -2684,6 +2689,21 @@ Rücktaste oder Entf löscht das Tastenkürzel.</translation>
         <location filename="../../ui/src/plugindialog.cpp" line="763"/>
         <source>Update</source>
         <translation>Aktualisieren</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="197"/>
+        <source>Open the configuration of this plugin</source>
+        <translation>Die Konfiguration dieses Plugins öffnen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="200"/>
+        <source>This plugin has no configuration</source>
+        <translation>Dieses Plugin hat keine Konfiguration</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="203"/>
+        <source>Enable the plugin to open its configuration</source>
+        <translation>Aktivieren Sie das Plugin, um seine Konfiguration zu öffnen</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="195"/>

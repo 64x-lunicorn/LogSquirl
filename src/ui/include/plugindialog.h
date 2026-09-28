@@ -86,6 +86,8 @@ private:
         QString installedVersion;
         QString latestVersion;
         PluginState state = PluginState::NotInstalled;
+        bool loaded = false;       ///< Loaded in the Plugin Host
+        bool configurable = false; ///< Loaded and exports logsquirl_plugin_configure
     };
 
     // ── Card widget ──────────────────────────────────────────────────
@@ -111,6 +113,7 @@ private:
         QLabel* statusBadge = nullptr;
         QPushButton* actionButton = nullptr;
         QPushButton* toggleButton = nullptr;
+        QPushButton* configureButton = nullptr;
 
     private:
         QString pluginId_;
@@ -132,6 +135,9 @@ private:
 
     /** Toggle a plugin between enabled and disabled. */
     void togglePlugin( const QString& pluginId );
+
+    /** Open the configuration of a loaded plugin that has one. */
+    void configurePlugin( const QString& pluginId );
 
     /** Extract archive, discover, and load the plugin. */
     bool extractAndInstall( const QString& archivePath, const QString& pluginId );
