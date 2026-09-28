@@ -2422,6 +2422,14 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
         // Now everything is ready, we can finally show the file!
         crawler->show();
     }
+    else if ( status == LoadingStatus::Interrupted && crawler->hasLoaded() ) {
+        // A reload a newer one interrupted, as a merged tab's rebuilds do:
+        // the Log File stays open with what it shows, and the newer load goes
+        // on (#621). Only a first load that never finished closes the tab.
+        infoLine->hideGauge();
+        stopAction->setEnabled( false );
+        reloadAction->setEnabled( true );
+    }
     else {
         if ( status == LoadingStatus::NoMemory ) {
             QMessageBox alertBox;

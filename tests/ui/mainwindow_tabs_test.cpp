@@ -39,6 +39,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPointer>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -52,6 +53,7 @@
 #include "applicationplugins.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
+#include "loadingstatus.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
@@ -533,6 +535,32 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
             {
                 REQUIRE( window.noneOpenInSession( paths ) );
             }
+        }
+    }
+}
+
+// A reload that a newer one interrupts, as a merged tab's rebuilds do, leaves
+// the tab of a Log File that has loaded open (#621).
+SCENARIO( "An interrupted reload leaves the tab of a loaded Log File open", "[ui][tabs]" )
+{
+    ThreeLogFiles files;
+    TabsWindow window( true );
+    window.open( { files.paths[ 0 ] } );
+
+    auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->currentWidget() );
+    REQUIRE( crawler != nullptr );
+    REQUIRE( waitUiState( [ crawler ] { return crawler->hasLoaded(); }, UiTimeoutMs ) );
+    const QPointer<CrawlerWidget> tab( crawler );
+
+    WHEN( "a load of it ends interrupted" )
+    {
+        Q_EMIT crawler->loadingFinished( LoadingStatus::Interrupted, {} );
+        QTest::qWait( 100 );
+
+        THEN( "its tab is still open" )
+        {
+            REQUIRE( tab );
+            REQUIRE( window.tabArea->indexOf( tab ) >= 0 );
         }
     }
 }

@@ -73,6 +73,8 @@
   jumping to the last line, and `0` goes to the first line (#614).
 - **Opening a converted Log File again shows its open tab** instead of
   converting it into a second one (#615).
+- **A reload interrupted by a newer one leaves the tab open**: a merged tab
+  rebuilt twice in quick succession no longer closes by itself (#621).
 
 - **The Table View colors Matches and Marks in the Theme's colors**: the Row
   of a Match, a Mark and a Mark that is a Match is a subdued tint of red, blue

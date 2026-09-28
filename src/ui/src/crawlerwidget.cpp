@@ -1133,6 +1133,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     // load is done, unless it follows the end of the Log File. An interrupted
     // load keeps the position for the next one, and for the next save.
     if ( load.status == LoadingStatus::Successful ) {
+        hasLoaded_ = true;
         if ( const auto restored = std::exchange( scrollPositionToRestore_, {} );
              restored.has_value() && !isFollowEnabled() ) {
             logMainView_->showAtTop( *restored );
