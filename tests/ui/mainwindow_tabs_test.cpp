@@ -29,11 +29,13 @@
 #include <QAction>
 #include <QActionEvent>
 #include <QApplication>
+#include <QClipboard>
 #include <QColor>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
 #include <QGridLayout>
+#include <QInputDialog>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
@@ -45,6 +47,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <utility>
 
 #include "applicationplugins.h"
 #include "configuration.h"
@@ -60,6 +63,7 @@
 #include "sessioninfo.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabgroupinfo.h"
+#include "tabnamemapping.h"
 #include "test_policies.h"
 #include "test_utils.h"
 #include "welcomedashboard.h"
@@ -297,6 +301,28 @@ public:
 private:
     QTimer driver_;
     QStringList questions_;
+};
+
+// Answers every text the window asks for with this one.
+class InputAnswerer {
+public:
+    explicit InputAnswerer( QString answer )
+        : answer_( std::move( answer ) )
+    {
+        QObject::connect( &driver_, &QTimer::timeout, [ this ] {
+            if ( auto* dialog = qobject_cast<QInputDialog*>( QApplication::activeModalWidget() ) ) {
+                if ( dialog->isVisible() ) {
+                    dialog->setTextValue( answer_ );
+                    dialog->accept();
+                }
+            }
+        } );
+        driver_.start( 10 );
+    }
+
+private:
+    QString answer_;
+    QTimer driver_;
 };
 
 // Turns the confirmation of a tab close on for its lifetime.
@@ -581,6 +607,105 @@ SCENARIO( "A merged Log File's rebuild ends with its tab", "[ui][tabs][merge]" )
                     saved.append( QDir::fromNativeSeparators( file.fileName ) );
                 }
                 REQUIRE( saved == sources );
+            }
+        }
+
+        // Its temporary path is gone after a restart, so no stored state
+        // keeps it (#597).
+        THEN( "the merged Log File is not among the recent files" )
+        {
+            REQUIRE_FALSE( recentFiles().contains( mergedPath ) );
+        }
+
+        WHEN( "the user closes the merged tab" )
+        {
+            Q_EMIT window.tabArea->tabCloseRequested( window.tabArea->indexOf( merged ) );
+
+            THEN( "it does not become a recent file" )
+            {
+                REQUIRE( waitUiState( [ & ] { return window.tabArea->indexOf( merged ) < 0; },
+                                      UiTimeoutMs ) );
+                REQUIRE_FALSE( recentFiles().contains( mergedPath ) );
+            }
+        }
+
+        WHEN( "the merged tab is renamed from its menu" )
+        {
+            const InputAnswerer answerer( QStringLiteral( "Renamed 597" ) );
+            const auto tab = window.tabArea->indexOf( merged );
+            REQUIRE( window.chooseFromTabMenu( tab, "Rename tab" ) );
+
+            THEN( "the tab shows the name, and the stored tab names do not hold its path" )
+            {
+                REQUIRE( window.tabArea->tabText( tab ) == QStringLiteral( "Renamed 597" ) );
+                REQUIRE( TabNameMapping::getSynced().tabName( mergedPath ).isEmpty() );
+            }
+        }
+
+        WHEN( "the merged tab is put in a tab group from its menu" )
+        {
+            auto& groups = TabGroupInfo::getSynced();
+            const auto groupId = groups.addGroup( QStringLiteral( "Group 597" ), Qt::darkGreen );
+            groups.save();
+
+            const auto tab = window.tabArea->indexOf( merged );
+            const auto chosen = window.chooseFromTabMenu( tab, "Group 597" );
+            const auto tabText = window.tabArea->tabText( tab );
+            const auto stored = TabGroupInfo::getSynced().groupForTab( mergedPath );
+
+            TabGroupInfo::getSynced().removeGroup( groupId ).save();
+
+            THEN( "the tab shows the group, and the stored tab groups do not hold its path" )
+            {
+                REQUIRE( chosen );
+                REQUIRE( tabText.startsWith( QString::fromUtf8( "● " ) ) );
+                REQUIRE_FALSE( stored.has_value() );
+            }
+        }
+    }
+}
+
+// Text opened from the clipboard is a Transient Log File: its temporary path
+// is gone after a restart, so it is never a recent file (#597).
+SCENARIO( "Text opened from the clipboard is not added to the recent files", "[ui][tabs]" )
+{
+    TabsWindow window( true );
+    QGuiApplication::clipboard()->setText( QStringLiteral( "a Log Line from the clipboard\n" ) );
+
+    GIVEN( "the clipboard opened in a tab" )
+    {
+        auto* openClipboard = fileMenuAction( *window.mainWindow,
+                                              logsquirl::mainwindow::action::openClipboardText );
+        REQUIRE( openClipboard != nullptr );
+        openClipboard->trigger();
+
+        QString clipboardPath;
+        REQUIRE( waitUiState(
+            [ & ] {
+                for ( const auto& path : window.logFileTabPaths() ) {
+                    if ( path.contains( "logsquirl_clipboard" ) ) {
+                        clipboardPath = path;
+                        return true;
+                    }
+                }
+                return false;
+            },
+            UiTimeoutMs ) );
+
+        THEN( "it is not among the recent files" )
+        {
+            REQUIRE_FALSE( recentFiles().contains( clipboardPath ) );
+        }
+
+        WHEN( "the user closes its tab" )
+        {
+            Q_EMIT window.tabArea->tabCloseRequested( window.tabArea->tabOfPath( clipboardPath ) );
+
+            THEN( "it does not become a recent file" )
+            {
+                REQUIRE( waitUiState( [ & ] { return window.logFileTabPaths().isEmpty(); },
+                                      UiTimeoutMs ) );
+                REQUIRE_FALSE( recentFiles().contains( clipboardPath ) );
             }
         }
     }

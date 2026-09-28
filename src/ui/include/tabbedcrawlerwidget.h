@@ -20,6 +20,8 @@
 #ifndef TABBEDCRAWLERWIDGET_H
 #define TABBEDCRAWLERWIDGET_H
 
+#include <optional>
+
 #include <QHash>
 #include <QTabBar>
 #include <QTabWidget>
@@ -28,6 +30,8 @@
 #include <qwidget.h>
 
 #include "loadingstatus.h"
+#include "session.h"
+#include "tabgroupinfo.h"
 
 // This class represents glogg's main widget, a tabbed
 // group of CrawlerWidgets.
@@ -56,8 +60,11 @@ public:
     // `dedup` is true when duplicate-line removal was requested.
     Q_SIGNAL void mergeRequested( QStringList filePaths, bool dedup );
 
+    // Adds the tab of a Log File. The tab of a Transient Log File can be
+    // renamed and grouped like any other, but neither is stored (#597).
     template <typename T>
-    int addCrawler( T* crawler, const QString& fileName )
+    int addCrawler( T* crawler, const QString& fileName,
+                    LogFileLifetime lifetime = LogFileLifetime::Ordinary )
     {
         const auto index = QTabWidget::addTab( crawler, QString{} );
 
@@ -71,7 +78,7 @@ public:
             }
         } );
 
-        addTabBarItem( index, fileName );
+        addTabBarItem( index, fileName, lifetime );
 
         return index;
     }
@@ -96,6 +103,23 @@ public:
     // closes. Unlike a renamed tab it is not saved; a rename by the user wins.
     void setTransientTabName( const QString& path, const QString& name );
 
+    // Whether the tab at `index` holds a Transient Log File.
+    bool holdsTransientLogFile( int index ) const;
+
+    // Renames the tab at `index`; an empty name gives it back its own. The
+    // name of an Ordinary Log File's tab is stored with its path, that of a
+    // Transient Log File's tab lasts until the tab closes (#597).
+    void renameTab( int index, const QString& name );
+
+    // Puts the tab at `index` in the tab group `groupId`, or takes it out of
+    // its group. As with a rename, a Transient Log File's tab is a member only
+    // until it closes, and its path is not stored (#597).
+    void addTabToGroup( int index, const QString& groupId );
+    void removeTabFromGroup( int index );
+
+    // The tab group the tab at `index` is in, if any.
+    std::optional<TabGroupInfo::TabGroup> groupOfTab( int index ) const;
+
 protected:
     void keyPressEvent( QKeyEvent* event ) override;
     void mouseReleaseEvent( QMouseEvent* event ) override;
@@ -105,7 +129,7 @@ public:
     void refreshAllTabGroupAppearances();
 
 private:
-    void addTabBarItem( int index, const QString& fileName );
+    void addTabBarItem( int index, const QString& fileName, LogFileLifetime lifetime );
     QString tabPathAt( int index ) const;
 
     // Applies group styling (bullet prefix + text colour) to a single tab.
@@ -133,6 +157,10 @@ private:
 
     CrawlerTabBar myTabBar_;
     QHash<QString, QString> transientTabNames_;
+    // What the user made of the tabs of Transient Log Files, by path: their
+    // names and the ids of their tab groups. Never stored (#597).
+    QHash<QString, QString> renamedTransientTabs_;
+    QHash<QString, QString> transientTabGroups_;
 };
 
 #endif
