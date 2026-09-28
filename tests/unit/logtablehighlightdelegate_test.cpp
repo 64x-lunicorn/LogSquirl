@@ -38,9 +38,10 @@ namespace {
 
 using LineTypeFlags = AbstractLogData::LineTypeFlags;
 
-const LinePalette TestPalette{ QColor{ 10, 10, 10 }, QColor{ 250, 250, 250 },
+const LinePalette TestPalette{ QColor{ 10, 10, 10 },    QColor{ 250, 250, 250 },
                                QColor{ 128, 128, 128 }, QColor{ 240, 240, 200 },
-                               QColor{ 30, 60, 200 } };
+                               QColor{ 30, 60, 200 },   QColor{ 250, 220, 220 },
+                               QColor{ 210, 225, 250 }, QColor{ 235, 220, 245 } };
 
 HighlighterSet setWithHighlighter( const QString& pattern, bool highlightOnlyMatch,
                                    const QColor& foreColor, const QColor& backColor )

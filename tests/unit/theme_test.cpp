@@ -885,6 +885,67 @@ SCENARIO( "The pull-to-follow bar's stripes stand out in every Theme", "[theme]"
     }
 }
 
+// The Table View has no gutter, so it colors the Row of a Match, a Mark and a
+// Mark that is a Match. The Row's text is the Theme's text color (#590).
+SCENARIO( "A Match's and a Mark's Row is readable in every Theme", "[theme]" )
+{
+    const std::array rowTokens{ ColorToken::MatchRow, ColorToken::MarkRow,
+                                ColorToken::MarkedMatchRow };
+
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "its text reaches 4.5:1 on each Row color, and 7:1 in High Contrast" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                const auto minimum = name == Theme::HighContrastKey ? 7.0 : 4.5;
+                for ( const auto token : rowTokens ) {
+                    INFO( name.toStdString() << " " << Theme::tokenName( token ).toStdString() );
+                    REQUIRE( theme.color( token ).isValid() );
+                    REQUIRE( theme.color( token ).alpha() == 255 );
+                    REQUIRE( contrastRatio( theme.color( ColorToken::Text ), theme.color( token ) )
+                             >= minimum );
+                }
+            }
+        }
+
+        THEN( "the three Row colors differ from each other, from the Base and from the "
+              "selection" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                QList<QRgb> colors{ theme.color( ColorToken::Base ).rgb(),
+                                    theme.color( ColorToken::Highlight ).rgb() };
+                for ( const auto token : rowTokens ) {
+                    colors.append( theme.color( token ).rgb() );
+                }
+                auto distinct = colors;
+                std::sort( distinct.begin(), distinct.end() );
+                distinct.erase( std::unique( distinct.begin(), distinct.end() ), distinct.end() );
+                REQUIRE( distinct.size() == colors.size() );
+            }
+        }
+    }
+
+    GIVEN( "Dark overrides stored before the Row colors were Tokens" )
+    {
+        const std::map<QString, QString> overrides{ { "Window", "#101010" },
+                                                    { "Text", "#D0D0D0" } };
+
+        THEN( "the Row colors are Dark's own" )
+        {
+            const auto dark = Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light );
+            const auto overridden
+                = Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light, overrides );
+            for ( const auto token : rowTokens ) {
+                INFO( Theme::tokenName( token ).toStdString() );
+                REQUIRE( overridden.color( token ) == dark.color( token ) );
+            }
+        }
+    }
+}
+
 namespace {
 
 // The lengths of a size Token in pixels, e.g. "4px 12px" -> { 4, 12 }; "0"

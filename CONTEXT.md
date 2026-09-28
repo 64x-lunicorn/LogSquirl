@@ -279,14 +279,17 @@ The look of the application around the Log Lines: Light, Dark, High Contrast, Sm
 Light, or System, which becomes Light or Dark from the operating system's color scheme and
 follows it while the application runs. Choosing a Theme takes effect at once, in every open
 window. A Theme is exactly one set of Tokens, and it carries the colors of the Color Labels;
-the application's palette and stylesheet are both derived from it. Beyond the Color Labels a
+the application's palette and stylesheet are both derived from it. Beyond the Color Labels and
+the Row colors of a Match, a Mark and a Mark that is a Match in the Table View (ADR-0014), a
 Theme does not color Log Lines — Highlighters and Highlighter Sets are the user's alone.
 _Avoid_: style, skin, palette (a palette is derived from a Theme)
 
 **Token**:
 One named value of a Theme — a color such as the border or hover color, or a size or icon
 used by the stylesheet. Every Theme sets every Token; the colors of the Color Labels are not
-Tokens, because they color Log Lines rather than the application around them. A user can override Dark Tokens by
+Tokens, because they color Log Lines rather than the application around them and the user can
+color them. The Table View's Row colors are Tokens (`MatchRow`, `MarkRow`, `MarkedMatchRow`):
+no user colors them, and the Row's text reaches 4.5:1 on each. A user can override Dark Tokens by
 name in the settings, and add a stylesheet of their own on top.
 _Avoid_: variable, constant, design value
 

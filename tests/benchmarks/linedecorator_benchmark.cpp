@@ -65,8 +65,8 @@ LineDecorator::Context contextWith( HighlighterSet highlighterSet = {},
                                    std::move( quickFind ),
                                    QColor{ Qt::cyan },
                                    SearchLimits{},
-                                   LinePalette{ Qt::black, Qt::white, Qt::gray, Qt::white,
-                                                Qt::blue },
+                                   LinePalette{ Qt::black, Qt::white, Qt::gray, Qt::white, Qt::blue,
+                                                QColor{}, QColor{}, QColor{} },
                                    LineStatusDisplay::InGutter };
 }
 

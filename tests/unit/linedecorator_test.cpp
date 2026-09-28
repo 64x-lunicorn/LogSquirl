@@ -34,9 +34,10 @@ using LineTypeFlags = AbstractLogData::LineTypeFlags;
 
 // A palette whose every color is told apart from the others and from the
 // colors the sources below use.
-const LinePalette TestPalette{ QColor{ 10, 10, 10 }, QColor{ 250, 250, 250 },
+const LinePalette TestPalette{ QColor{ 10, 10, 10 },    QColor{ 250, 250, 250 },
                                QColor{ 128, 128, 128 }, QColor{ 240, 240, 200 },
-                               QColor{ 30, 60, 200 } };
+                               QColor{ 30, 60, 200 },   QColor{ 250, 220, 220 },
+                               QColor{ 210, 225, 250 }, QColor{ 235, 220, 245 } };
 
 // Whether the spans cover [0, length) in order, without a gap or an overlap.
 bool coversWithoutGaps( const Decoration& decoration, int length )
@@ -631,21 +632,29 @@ SCENARIO( "LineDecorator::lineColorsFor decides a line's own colors from its Lin
             REQUIRE( colors.backColor == TestPalette.base );
         }
 
-        THEN( "a Match, a Mark and a Mark that is a Match each have their own background" )
+        THEN( "a Match, a Mark and a Mark that is a Match each have the palette's Row color" )
         {
             REQUIRE(
                 decorator.lineColorsFor( LineVerdict{ std::nullopt, LineTypeFlags::Match, false } )
                     .backColor
-                == LineStatusColors::match() );
+                == TestPalette.matchRow );
             REQUIRE(
                 decorator.lineColorsFor( LineVerdict{ std::nullopt, LineTypeFlags::Mark, false } )
                     .backColor
-                == LineStatusColors::mark() );
+                == TestPalette.markRow );
             REQUIRE( decorator
                          .lineColorsFor( LineVerdict{
                              std::nullopt, LineTypeFlags::Mark | LineTypeFlags::Match, false } )
                          .backColor
-                     == LineStatusColors::markedMatch() );
+                     == TestPalette.markedMatchRow );
+        }
+
+        THEN( "a Match keeps the Theme's text color on its Row" )
+        {
+            REQUIRE(
+                decorator.lineColorsFor( LineVerdict{ std::nullopt, LineTypeFlags::Match, false } )
+                    .foreColor
+                == TestPalette.text );
         }
 
         THEN( "marking a line changes its background" )
@@ -704,6 +713,33 @@ SCENARIO( "LineDecorator::lineColorsFor decides a line's own colors from its Lin
             const auto colors = decorator.lineColorsFor(
                 LineVerdict{ std::nullopt, LineTypeFlags::Mark | LineTypeFlags::Match, false } );
             REQUIRE( colors.backColor == TestPalette.base );
+        }
+    }
+
+    GIVEN( "a background Presentation whose palette has no Row colors" )
+    {
+        auto context = emptyContext();
+        context.lineStatus = LineStatusDisplay::AsBackground;
+        context.palette.matchRow = QColor{};
+        context.palette.markRow = QColor{};
+        context.palette.markedMatchRow = QColor{};
+        const LineDecorator decorator{ std::move( context ) };
+
+        THEN( "a Match, a Mark and a Mark that is a Match show the gutter's colors" )
+        {
+            REQUIRE(
+                decorator.lineColorsFor( LineVerdict{ std::nullopt, LineTypeFlags::Match, false } )
+                    .backColor
+                == LineStatusColors::match() );
+            REQUIRE(
+                decorator.lineColorsFor( LineVerdict{ std::nullopt, LineTypeFlags::Mark, false } )
+                    .backColor
+                == LineStatusColors::mark() );
+            REQUIRE( decorator
+                         .lineColorsFor( LineVerdict{
+                             std::nullopt, LineTypeFlags::Mark | LineTypeFlags::Match, false } )
+                         .backColor
+                     == LineStatusColors::markedMatch() );
         }
     }
 }
