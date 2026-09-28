@@ -14,7 +14,7 @@
 Search huge files, follow live logs, and turn noisy output into something you can actually work with.
 
 [![Download LogSquirl](https://img.shields.io/badge/Download-LogSquirl-f97316?style=for-the-badge)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
-[![Read the docs](https://img.shields.io/badge/Read_the-Docs-334155?style=for-the-badge)](DOCUMENTATION.md)
+[![Read the docs](https://img.shields.io/badge/Read_the-Docs-334155?style=for-the-badge)](https://logsquirl.lunicorn-lab.de/docs/)
 
 [![Latest release](https://img.shields.io/github/v/release/64x-lunicorn/LogSquirl?color=f97316)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/64x-lunicorn/LogSquirl/total)](https://github.com/64x-lunicorn/LogSquirl/releases)
@@ -59,7 +59,7 @@ and choose the package for your platform.
 
 The Windows installer also installs silently for all users with `/S` (`/D=<dir>` as the last argument sets the
 directory), for deployment through Intune or similar tools; the
-[user guide](DOCUMENTATION.md#installing) says what it installs and how to detect it.
+[user guide](https://logsquirl.lunicorn-lab.de/docs/getting-started/#installing) says what it installs and how to detect it.
 
 On a Mac, you can also install it with [Homebrew](https://brew.sh/) and keep it up to date with
 `brew upgrade`:
@@ -121,7 +121,7 @@ section of the release notes has the `cosign verify-blob`, `sha256sum -c` and
 
 Need a log to try? Open the [fictional incident demo](test_data/screenshot_demo.txt)
 and follow a service from healthy traffic through timeouts to recovery.
-The [user guide](DOCUMENTATION.md) covers filters, charts, and keyboard shortcuts.
+The [user guide](https://logsquirl.lunicorn-lab.de/docs/) covers filters, charts, and keyboard shortcuts.
 
 ## Features
 
@@ -142,8 +142,8 @@ straight to its log line. Reuse chart templates and share presets as JSON.
 Dark mode, configurable shortcuts, and a Command Palette (`Ctrl+Shift+P`) for quick access.
 A Scratchpad for notes, data transformations, and JWT decoding.
 
-**Go deeper:** [Log formats](DOCUMENTATION.md#auto-log-format-detection-table-view) ·
-[Chart Panel](DOCUMENTATION.md#chart-panel) · [Full user guide](DOCUMENTATION.md)
+**Go deeper:** [Log formats](https://logsquirl.lunicorn-lab.de/docs/exploring-log-files/#auto-log-format-detection-table-view) ·
+[Chart Panel](https://logsquirl.lunicorn-lab.de/docs/exploring-log-files/#chart-panel) · [Full user guide](https://logsquirl.lunicorn-lab.de/docs/)
 
 ## Plugins
 
@@ -179,7 +179,7 @@ and CMake 3.16+, along with the platform-specific dependencies.
 
 | Looking for… | Start here |
 | :--- | :--- |
-| Usage, settings, and shortcuts | [User guide](DOCUMENTATION.md) |
+| Usage, settings, and shortcuts | [User guide](https://logsquirl.lunicorn-lab.de/docs/) |
 | New features and fixes | [Changelog](CHANGELOG.md) |
 | A known issue or workaround | [Search existing issues](https://github.com/64x-lunicorn/LogSquirl/issues) |
 | A bug report or feature request | [Open an issue](https://github.com/64x-lunicorn/LogSquirl/issues/new/choose) |
@@ -286,7 +286,7 @@ See [COPYING](COPYING) for the full license.
 **Less scrolling. More investigating.**
 
 [Download LogSquirl](https://github.com/64x-lunicorn/LogSquirl/releases/latest) ·
-[Read the docs](DOCUMENTATION.md) ·
+[Read the docs](https://logsquirl.lunicorn-lab.de/docs/) ·
 [Back to top](#logsquirl)
 
 </div>

@@ -17,14 +17,15 @@ explains how to build LogSquirl, the coding rules and how a change is reviewed. 
 
 ## Documentation
 
-The [LogSquirl Wiki](https://github.com/64x-lunicorn/LogSquirl/wiki) has the documentation: getting started, feature
-guides, the configuration reference and plugin development.
+The [Documentation](/docs/) is the user guide: getting started, exploring log files, the settings, the keys and the
+command line. It is written in [DOCUMENTATION.md](https://github.com/64x-lunicorn/LogSquirl/blob/master/DOCUMENTATION.md);
+a correction there is a pull request like any other.
 
 ## Plugins
 
-LogSquirl installs plugins from its own catalog (**Plugins → Plugin Management…**). See the
-[Plugin System](https://github.com/64x-lunicorn/LogSquirl/wiki/Plugin-System) wiki page and the
-[Plugin Development Guide](https://github.com/64x-lunicorn/LogSquirl/wiki/Plugin-Development) to write one.
+LogSquirl installs plugins from its own catalog (**Plugins → Plugin Management…**). See
+[Plugins](/docs/plugins/) in the documentation, and the
+[Plugin SDK guide](https://github.com/64x-lunicorn/LogSquirl/blob/master/docs/plugin-sdk.md) to write one.
 
 - [Android Logcat](https://github.com/64x-lunicorn/LogSquirl-Logcat): streams logcat output from ADB-connected devices
   into tabs
