@@ -217,3 +217,20 @@ add_executable(logsquirl_versioncheck_tests
 target_link_libraries(logsquirl_versioncheck_tests logsquirl_versioncheck Catch2::Catch2)
 
 logsquirl_add_catch_tests(logsquirl_versioncheck_tests TIMEOUT 60)
+
+# The user guide is checked against the application: every key its Keyboard
+# commands section names is a default key (#599). It needs the shortcut
+# defaults only, from the settings library, and a QGuiApplication for the
+# platform's standard keys.
+add_executable(logsquirl_documentation_tests
+    documentation_tests_main.cpp
+    documentationkeys_test.cpp
+)
+
+target_link_libraries(logsquirl_documentation_tests logsquirl_settings Catch2::Catch2)
+target_compile_definitions(logsquirl_documentation_tests PRIVATE
+    LOGSQUIRL_DOCUMENTATION_FILE="${CMAKE_SOURCE_DIR}/DOCUMENTATION.md")
+
+logsquirl_add_catch_tests(logsquirl_documentation_tests
+    EXTRA_ARGS -platform offscreen
+    TIMEOUT 60)

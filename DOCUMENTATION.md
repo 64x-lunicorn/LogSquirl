@@ -328,14 +328,14 @@ be wrong, then the desired encoding can be selected from the `Encoding` menu.
 If some search patterns are used very often they can be saved as predefined filters.
 Predefined filters are configured from the `Tools` menu.
 
-Predefined filters are added to a dropdown near the search input and allow to 
-add several patterns to regular expression. Predefined filter has a name
-which is displayed in the dropdown, a pattern to add to search regular expression
-and a setting to treat pattern as a regular expression
-or simple text search.
+A predefined filter has a name, a pattern and a setting to treat the pattern as
+a regular expression or as plain text. The filters are listed in the Filters
+tab of the [Filters Panel](#filters-panel): checking filters there makes the
+checked ones the search pattern, as alternatives of each other, and
+double-clicking a filter or a group checks only that one.
 
-It is possible to save the current search pattern as a predefined filter from
-search input context menu.
+It is possible to save the current search pattern as a predefined filter with
+*Save as Filter* from the search input context menu.
 
 Predefined filters are kept in filter groups. The dialog lists the groups
 (*New Filter Group*, *Delete Filter Group*, *Move Group Up* and *Move Group Down*);
@@ -476,8 +476,8 @@ formats can be placed in the platform data directory:
 | Platform  | Path                                                     |
 |-----------|----------------------------------------------------------|
 | Linux     | `~/.local/share/logsquirl/formats/`                      |
-| macOS     | `~/Library/Application Support/LogSquirl/formats/`       |
-| Windows   | `%APPDATA%/LogSquirl/formats/`                            |
+| macOS     | `~/Library/Application Support/logsquirl/formats/`       |
+| Windows   | `%APPDATA%/logsquirl/formats/`                           |
 
 Format definitions are read when *logsquirl* starts and again whenever the
 Options dialog is applied. A file that is already open keeps the format it
@@ -1059,16 +1059,15 @@ The main commands are:
 
 |Keys            |Actions                                                           |
 |----------------|------------------------------------------------------------------|
-|arrows          |scroll one line up/down or one column left/right                  |
-|\[number\] j/k  |move the selection 'number' (or one) line down/up                 |
-|h/l             |scroll left/right                                                 |
+|arrows          |move the selection one line up/down or scroll left/right          |
+|j or k          |move the selection one line down/up                               |
+|h or l          |scroll left/right                                                 |
 |\^ or \$        |scroll to beginning or end of selected line                       |
-|\[number\] g    |jump to the line number given or the first one if no number is    |
-|                |entered                                                           |
-|G               |jump to the first line of the file (selecting it)                 |
+|Ctrl+Home       |jump to the first line of the file (selecting it)                 |
+|Ctrl+End        |jump to the last line of the file (selecting it)                  |
 |Shift+G         |jump to the last line of the file (selecting it)                  |
-|Alt+G           |show jump to line dialog                                          |
-|Ctrl+Shift+L    |show go to timestamp dialog                                       |
+|Ctrl+L          |show the go to line dialog                                        |
+|Ctrl+Shift+L    |show the go to timestamp dialog                                   |
 |' or "          |start a quickfind search in the current screen                    |
 |                |(forward and backward)                                            |
 |n or N          |repeat the previous quickfind search forward/backward             |
@@ -1078,14 +1077,16 @@ The main commands are:
 |                |file (like "tail -f")                                             |
 |m               |put a mark on current selected line                               |
 |\[ or \]        |jump to previous or next marked line                              |
-|+ or -          |decrease/increase filtered view size                              |
+|+ or -          |increase/decrease main view size                                  |
 |v or Shift+V    |switch filtered view visibility mode, forward or backward          |
 |                |(see [Breadcrumbs](#breadcrumbs))                                 |
 |F5              |reload current file                                               |
 |Ctrl+S          |Set focus to search string edit box                               |
 |Ctrl+Shift+O    |Open dialog to switch to another file                             |
 
-All shortucts can be configured from the shortcuts tab in options dialog.
+Every key in this table is a default and can be changed in the shortcuts tab of
+the options dialog, where the commands without a default key, such as
+*Open scratchpad* or *Full Screen*, can be given one as well.
 
 ## Mouse navigation
 
