@@ -43,6 +43,17 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/plugins_no_qt_widgets.cmake
 )
 
+# The plugin developer guide shows the plugin API as its header declares it,
+# and its example plugin as the files the unit tests build and load (#598).
+add_test(
+    NAME plugin_sdk_guide_matches_api
+    COMMAND ${CMAKE_COMMAND}
+            -DGUIDE=${CMAKE_SOURCE_DIR}/docs/plugin-sdk.md
+            -DHEADER=${CMAKE_SOURCE_DIR}/src/plugins/include/logsquirl_plugin_api.h
+            -DEXAMPLE_DIR=${CMAKE_SOURCE_DIR}/docs/plugin-sdk/my_plugin
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/plugin_sdk_guide_matches_api.cmake
+)
+
 # The Open Log File builds without Qt Widgets: no file of it may include a Qt
 # Widgets header, and the library may link neither Qt Widgets, the settings
 # store nor the UI library (#244).

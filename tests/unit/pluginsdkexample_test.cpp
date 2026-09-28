@@ -1,0 +1,156 @@
+/*
+ * Copyright (C) 2026 LogSquirl Contributors
+ *
+ * This file is part of LogSquirl.
+ *
+ * LogSquirl is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * LogSquirl is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// The example plugin of the plugin developer guide loads in LogSquirl (#598):
+// installed the way the guide says, with the guide's own plugin.json, it is
+// found by the Plugin Catalog and loaded and initialised by the Plugin Host.
+
+#include <catch2/catch_test_macros.hpp>
+
+#include "plugincatalog.h"
+#include "pluginhost.h"
+#include "pluginuiport.h"
+
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTemporaryDir>
+
+#include <vector>
+
+using logsquirl::plugins::PluginCallbackFn;
+using logsquirl::plugins::PluginCatalog;
+using logsquirl::plugins::PluginHost;
+using logsquirl::plugins::PluginUiPort;
+using logsquirl::plugins::PluginWidgetHandle;
+
+namespace {
+
+const auto ExampleId = QStringLiteral( "com.example.my-plugin" );
+
+/// A menu action a plugin added.
+struct MenuAction {
+    QString pluginId;
+    QString label;
+    PluginCallbackFn callback = nullptr;
+    void* userData = nullptr;
+};
+
+/// Keeps the menu actions plugins add and ignores their widgets.
+class MenuActionPort : public PluginUiPort {
+public:
+    std::vector<MenuAction> actions;
+    QStringList removedContributions;
+
+    void addStatusWidget( const QString&, PluginWidgetHandle ) override {}
+    void removeStatusWidget( const QString&, PluginWidgetHandle ) override {}
+    void addSidebarTab( const QString&, const QString&, PluginWidgetHandle ) override {}
+    void removeSidebarTab( const QString&, PluginWidgetHandle ) override {}
+    void addFooterWidget( const QString&, PluginWidgetHandle ) override {}
+    void removeFooterWidget( const QString&, PluginWidgetHandle ) override {}
+
+    void addMenuAction( const QString& pluginId, const QString& /* menuPath */,
+                        const QString& label, PluginCallbackFn callback, void* userData ) override
+    {
+        actions.push_back( { pluginId, label, callback, userData } );
+    }
+
+    void removeContributions( const QString& pluginId ) override
+    {
+        removedContributions.append( pluginId );
+    }
+
+    PluginWidgetHandle configurationParent() override
+    {
+        return {};
+    }
+};
+
+/// Installs the example the way the guide says: its plugin.json and the built
+/// library in a subdirectory of its own under the plugin directory root.
+void installExample( const QString& root )
+{
+    const auto pluginDir = QDir( root ).filePath( ExampleId );
+    REQUIRE( QDir().mkpath( pluginDir ) );
+
+    const QString exampleDir = QStringLiteral( LOGSQUIRL_SDK_EXAMPLE_DIR );
+    REQUIRE( QFile::copy( QDir( exampleDir ).filePath( "plugin.json" ),
+                          QDir( pluginDir ).filePath( "plugin.json" ) ) );
+
+    const QFileInfo library( QStringLiteral( LOGSQUIRL_SDK_EXAMPLE_PATH ) );
+    REQUIRE( QFile::copy( library.filePath(), QDir( pluginDir ).filePath( library.fileName() ) ) );
+}
+
+} // namespace
+
+SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk][plugins]" )
+{
+    GIVEN( "The example plugin installed in a plugin directory" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installExample( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPlugins( QStringList{ pluginRoot.path() } );
+
+        THEN( "The Plugin Catalog finds it" )
+        {
+            REQUIRE( catalog.findDiscovered( ExampleId ) != nullptr );
+        }
+
+        WHEN( "The Plugin Host loads it" )
+        {
+            MenuActionPort port;
+            PluginHost host( catalog );
+            host.setUiPort( &port );
+
+            QStringList notifications;
+            const auto recordNotification
+                = [ &notifications ]( const QString& message ) { notifications.append( message ); };
+            QObject::connect( &host, &PluginHost::notificationRequested, recordNotification );
+
+            const auto error = host.loadPlugin( ExampleId );
+
+            THEN( "It is initialised and adds its menu action" )
+            {
+                REQUIRE( error.isEmpty() );
+                REQUIRE( host.isLoaded( ExampleId ) );
+                REQUIRE( port.actions.size() == 1 );
+                REQUIRE( port.actions.front().pluginId == ExampleId );
+                REQUIRE( port.actions.front().label == "Say Hello" );
+            }
+
+            THEN( "Its menu action shows a notification" )
+            {
+                REQUIRE( port.actions.size() == 1 );
+                const auto& action = port.actions.front();
+                action.callback( action.userData );
+                REQUIRE( notifications == QStringList{ "Hello from My Plugin" } );
+            }
+
+            THEN( "It unloads again" )
+            {
+                host.unloadPlugin( ExampleId );
+                REQUIRE_FALSE( host.isLoaded( ExampleId ) );
+                REQUIRE( port.removedContributions == QStringList{ ExampleId } );
+            }
+        }
+    }
+}

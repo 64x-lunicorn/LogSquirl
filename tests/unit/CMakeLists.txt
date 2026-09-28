@@ -59,6 +59,7 @@ add_executable(logsquirl_tests
     pluginloader_test.cpp
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
+    pluginsdkexample_test.cpp
     pluginuiadapter_test.cpp
     sharedpluginuiport_test.cpp
     stdinpump_test.cpp
@@ -144,6 +145,19 @@ foreach(variant IN ITEMS
       LOGSQUIRL_LOADER_FIXTURE_${variant}_PATH="$<TARGET_FILE:${fixture_target}>")
 endforeach()
 # A CONVERTER fixture that is otherwise complete also stands for a good plugin.
+
+# The example plugin of the plugin developer guide is built with the guide's
+# own CMakeLists.txt against the current header, and the Plugin Host test loads
+# it with the guide's own plugin.json (#598). Like every other target of the
+# project it builds with the project's warnings and options (#451).
+set(LOGSQUIRL_SDK_DIR "${CMAKE_SOURCE_DIR}/src/plugins/include")
+add_subdirectory("${CMAKE_SOURCE_DIR}/docs/plugin-sdk/my_plugin"
+                 "${CMAKE_CURRENT_BINARY_DIR}/plugin-sdk-example")
+target_link_libraries(my_plugin PRIVATE project_options project_warnings)
+add_dependencies(logsquirl_tests my_plugin)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_SDK_EXAMPLE_DIR="${CMAKE_SOURCE_DIR}/docs/plugin-sdk/my_plugin"
+    LOGSQUIRL_SDK_EXAMPLE_PATH="$<TARGET_FILE:my_plugin>")
 
 # Each test case is its own ctest test (#217). Its timeout is the one the whole
 # executable had: the slowest case, the 10,000 Visual Lines scenario, takes a
