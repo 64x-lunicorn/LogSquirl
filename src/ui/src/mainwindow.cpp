@@ -2553,6 +2553,9 @@ void MainWindow::closeTabs( const QList<int>& indices, ActionInitiator initiator
             }
         }
 
+        // Opening the file it was converted from converts it anew (#615).
+        convertedFrom_.remove( session_.getFilename( crawler ) );
+
         crawler->stopLoading();
         mainTabWidget_.removeCrawler( index );
         session_.close( crawler );
@@ -2919,8 +2922,8 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLife
         return true;
     }
 
-    // First check if the file is already open...
-    if ( const auto* existingView = session_.getViewIfOpen( fileName ) ) {
+    // First check if the file is already open, or converted (#615)...
+    if ( const auto* existingView = openViewOf( fileName ) ) {
         // Found among the tabs of every window, rather than cast back from
         // the views the Session knows.
         for ( auto* topLevel : QApplication::topLevelWidgets() ) {
@@ -3034,6 +3037,34 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLife
     else {
         return extractAndLoadFile( fileName );
     }
+}
+
+const ViewInterface* MainWindow::openViewOf( const QString& fileName ) const
+{
+    if ( const auto* view = session_.getViewIfOpen( fileName ) ) {
+        return view;
+    }
+
+    // A converted Log File is open by the path the converter wrote it to, in
+    // whichever window converted it. Only an Ordinary Log File is found this
+    // way: a Transient one is a temporary file written anew each time it is
+    // fetched, so the same path is never asked for again.
+    for ( auto* topLevel : QApplication::topLevelWidgets() ) {
+        const auto* window = qobject_cast<const MainWindow*>( topLevel );
+        if ( !window ) {
+            continue;
+        }
+        for ( auto converted = window->convertedFrom_.cbegin();
+              converted != window->convertedFrom_.cend(); ++converted ) {
+            if ( converted.value() != fileName ) {
+                continue;
+            }
+            if ( const auto* view = session_.getViewIfOpen( converted.key() ) ) {
+                return view;
+            }
+        }
+    }
+    return nullptr;
 }
 
 // Strips the passed filename from its directory part.

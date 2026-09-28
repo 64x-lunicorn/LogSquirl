@@ -32,12 +32,14 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QLabel>
 #include <QMenu>
 #include <QPointer>
 #include <QStandardPaths>
 #include <QTabWidget>
 #include <QTemporaryDir>
+#include <QTemporaryFile>
 #include <QTest>
 #include <QWindow>
 
@@ -430,6 +432,111 @@ SCENARIO( "A converted Log File leaves no temporary path in the recent files or 
         auto& left = SessionInfo::getSynced();
         left.remove( windowId );
         left.save();
+    }
+}
+
+// A converted Log File is open by the path the converter wrote it to, not by
+// the one asked for: opening that one again shows its tab rather than
+// converting it anew (#615).
+SCENARIO( "Opening a converted Log File again shows its open tab",
+          "[ui][plugins][applicationplugins]" )
+{
+    GIVEN( "A window whose converter plugin has loaded, with two Log Files converted by it" )
+    {
+        const StandardPathsInTestMode testPaths;
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installSlowConverter( pluginRoot.path() );
+        qunsetenv( "LOGSQUIRL_TEST_PLUGIN_INIT_DELAY_MS" );
+
+        QTemporaryDir fileDir;
+        REQUIRE( fileDir.isValid() );
+        const auto firstPath = fileDir.filePath( "first.slowconv" );
+        const auto secondPath = fileDir.filePath( "second.slowconv" );
+        for ( const auto& path : { firstPath, secondPath } ) {
+            QFile logFile( path );
+            REQUIRE( logFile.open( QIODevice::WriteOnly ) );
+            logFile.write( "first line\nsecond line\n" );
+        }
+
+        QStringList loadErrors;
+        auto plugins = std::make_shared<ApplicationPlugins>(
+            [ & ]( PluginCatalog& catalog, PluginHost& host ) {
+                catalog.discoverPlugins( { pluginRoot.path() } );
+                loadErrors
+                    = host.autoLoadPlugins( { .autoLoad = true, .enabled = { SlowConverterId } } )
+                          .errors;
+            } );
+        auto window = std::make_unique<MainWindow>(
+            WindowSession{ newSession(), QStringLiteral( "applicationplugins_window_test_615" ),
+                           0 },
+            plugins );
+        window->show();
+        REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); }, 5000 ) );
+        REQUIRE( loadErrors.isEmpty() );
+        auto* tabs = window->findChild<TabbedCrawlerWidget*>();
+        REQUIRE( tabs != nullptr );
+
+        window->loadInitialFile( firstPath, false );
+        window->loadInitialFile( secondPath, false );
+        REQUIRE( waitUiState( [ & ] { return tabs->logFileTabs().size() == 2; }, 10000 ) );
+
+        // Each conversion writes a temporary file of the window's, named
+        // after the Log File converted.
+        const auto conversionsOfFirst = [ & ] {
+            const auto files = window->findChildren<QTemporaryFile*>();
+            return std::ranges::count_if( files, []( const QTemporaryFile* file ) {
+                return QFileInfo( file->fileName() )
+                    .fileName()
+                    .startsWith( QStringLiteral( "first.slowconv.txt" ) );
+            } );
+        };
+        const auto currentTabText = [ & ] { return tabs->tabText( tabs->currentIndex() ); };
+        REQUIRE( conversionsOfFirst() == 1 );
+        REQUIRE( currentTabText().contains( QStringLiteral( "second.slowconv.txt" ) ) );
+
+        WHEN( "the first one is opened again" )
+        {
+            window->loadInitialFile( firstPath, false );
+
+            THEN( "its tab becomes current, without converting it again or opening another" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] {
+                        return currentTabText().contains( QStringLiteral( "first.slowconv.txt" ) );
+                    },
+                    5000 ) );
+                REQUIRE( tabs->logFileTabs().size() == 2 );
+                REQUIRE( conversionsOfFirst() == 1 );
+            }
+        }
+
+        WHEN( "the tab of the first one is closed, and it is opened again" )
+        {
+            const auto firstTab = [ & ] {
+                for ( const auto i : tabs->logFileTabs() ) {
+                    if ( tabs->tabText( i ).contains( QStringLiteral( "first.slowconv.txt" ) ) ) {
+                        return i;
+                    }
+                }
+                return -1;
+            };
+            REQUIRE( firstTab() >= 0 );
+            Q_EMIT tabs->tabCloseRequested( firstTab() );
+            REQUIRE( waitUiState( [ & ] { return tabs->logFileTabs().size() == 1; }, 5000 ) );
+
+            window->loadInitialFile( firstPath, false );
+
+            THEN( "it is converted anew into a tab of its own" )
+            {
+                REQUIRE( waitUiState( [ & ] { return tabs->logFileTabs().size() == 2; }, 5000 ) );
+                REQUIRE( conversionsOfFirst() == 2 );
+                REQUIRE( currentTabText().contains( QStringLiteral( "first.slowconv.txt" ) ) );
+            }
+        }
+
+        window.reset();
+        plugins.reset();
     }
 }
 
