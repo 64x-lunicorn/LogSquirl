@@ -3505,6 +3505,11 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="505"/>
+        <source>Jump to line number</source>
+        <translation>Zu Zeilennummer springen</translation>
+    </message>
+    <message>
+        <location filename="../../settings/src/shortcuts.cpp" line="505"/>
         <source>Jump to timestamp</source>
         <translation>Zu Zeitstempel springen</translation>
     </message>

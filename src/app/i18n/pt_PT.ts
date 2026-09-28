@@ -3505,6 +3505,11 @@ Reinicie o LogSquirl para tentar novamente.</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="505"/>
+        <source>Jump to line number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../settings/src/shortcuts.cpp" line="505"/>
         <source>Jump to timestamp</source>
         <translation>Saltar para o carimbo de data/hora</translation>
     </message>

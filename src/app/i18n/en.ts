@@ -3505,6 +3505,11 @@ Restart LogSquirl to try again.</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="505"/>
+        <source>Jump to line number</source>
+        <translation>Jump to line number</translation>
+    </message>
+    <message>
+        <location filename="../../settings/src/shortcuts.cpp" line="505"/>
         <source>Jump to timestamp</source>
         <translation>Jump to timestamp</translation>
     </message>
