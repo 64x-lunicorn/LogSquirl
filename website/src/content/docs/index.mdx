@@ -21,10 +21,14 @@ hero:
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 import { Image } from 'astro:assets';
 import ReleaseTimeline from '../../components/ReleaseTimeline.astro';
-import mainwindow from '@assets/screenshots/mainwindow.png';
-import dark from '@assets/screenshots/dark.png';
-import scratchpad from '@assets/screenshots/scratchpad.png';
-import highlighters from '@assets/screenshots/highlighters.png';
+import searchDark from '@assets/screenshots/search-smyck.png';
+import searchLight from '@assets/screenshots/search-smyck-light.png';
+import chartDark from '@assets/screenshots/chart-smyck.png';
+import chartLight from '@assets/screenshots/chart-smyck-light.png';
+import paletteDark from '@assets/screenshots/command-palette-smyck.png';
+import paletteLight from '@assets/screenshots/command-palette-smyck-light.png';
+import dashboardDark from '@assets/screenshots/dashboard-smyck.png';
+import dashboardLight from '@assets/screenshots/dashboard-smyck-light.png';
 
 ## Latest Release
 
@@ -35,11 +39,29 @@ import highlighters from '@assets/screenshots/highlighters.png';
 ## Screenshots
 
 <div class="screenshot-gallery">
-  <Image src={mainwindow} alt="LogSquirl main window" />
-  <Image src={dark} alt="LogSquirl dark theme" />
-  <Image src={scratchpad} alt="LogSquirl scratchpad" />
-  <Image src={highlighters} alt="LogSquirl highlighters configuration" />
+  <figure class="wide">
+    <Image class="screenshot-dark" src={searchDark} alt="A Search for warn|error: the Matches marked in the Log File above and listed in the Filtered View below, in the Smyck theme" />
+    <Image class="screenshot-light" src={searchLight} alt="A Search for warn|error: the Matches marked in the Log File above and listed in the Filtered View below, in the Smyck Light theme" />
+    <figcaption>Search a Log File and see the Matches in their own view</figcaption>
+  </figure>
+  <figure class="wide">
+    <Image class="screenshot-dark" src={chartDark} alt="The Chart Panel plotting the checkout latency (duration_ms) of a demo incident over time, in the Smyck theme" />
+    <Image class="screenshot-light" src={chartLight} alt="The Chart Panel plotting the checkout latency (duration_ms) of a demo incident over time, in the Smyck Light theme" />
+    <figcaption>Plot a value over time with the Chart Panel</figcaption>
+  </figure>
+  <figure>
+    <Image class="screenshot-dark" src={paletteDark} alt="The Command Palette listing the File menu's commands with their shortcuts, in the Smyck theme" />
+    <Image class="screenshot-light" src={paletteLight} alt="The Command Palette listing the File menu's commands with their shortcuts, in the Smyck Light theme" />
+    <figcaption>Reach every command from the Command Palette</figcaption>
+  </figure>
+  <figure>
+    <Image class="screenshot-dark" src={dashboardDark} alt="The Dashboard with Open File, Load Session, Recent Files, Favorites and Plugins, in the Smyck theme" />
+    <Image class="screenshot-light" src={dashboardLight} alt="The Dashboard with Open File, Load Session, Recent Files, Favorites and Plugins, in the Smyck Light theme" />
+    <figcaption>Start from the Dashboard</figcaption>
+  </figure>
 </div>
+
+The screenshots show the Smyck theme in the dark site theme and Smyck Light in the light one.
 
 ## Features
 

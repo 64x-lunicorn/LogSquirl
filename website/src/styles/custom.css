@@ -10,7 +10,7 @@
 
 .screenshot-gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 1rem;
   margin: 1.5rem 0;
 }
@@ -24,6 +24,33 @@
 
 .screenshot-gallery img:hover {
   transform: scale(1.02);
+}
+
+.screenshot-gallery figure {
+  margin: 0;
+}
+
+.screenshot-gallery figure.wide {
+  grid-column: 1 / -1;
+}
+
+.screenshot-gallery figcaption {
+  margin-top: 0.4rem;
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-sm);
+}
+
+/* The Smyck screenshots in the dark site theme, the Smyck Light ones in the
+   light theme. */
+:root[data-theme='light'] .screenshot-dark,
+:root:not([data-theme='light']) .screenshot-light {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .screenshot-gallery {
+    grid-template-columns: 1fr;
+  }
 }
 
 .features-grid {
