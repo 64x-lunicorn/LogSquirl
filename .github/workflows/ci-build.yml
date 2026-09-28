@@ -71,6 +71,9 @@ jobs:
           while IFS= read -r file; do
             case "$file" in
               website/*) website=true ;;
+              # The app embeds it, and the website builds its Documentation
+              # pages from it (#587).
+              DOCUMENTATION.md) build=true; website=true ;;
               BUILD.md | CODE_OF_CONDUCT.md | CONTRIBUTING.md | README.md | latest.json | .gitignore) ;;
               *) build=true ;;
             esac
