@@ -94,9 +94,15 @@ void TabbedCrawlerWidget::loadIcons()
     }
 }
 
-void TabbedCrawlerWidget::setTransientTabName( const QString& path, const QString& name )
+void TabbedCrawlerWidget::setOpeningTitle( const QString& path, const QString& title,
+                                           const QString& toolTip )
 {
-    transientTabNames_.insert( path, name );
+    if ( title.isEmpty() ) {
+        openingTitles_.remove( path );
+    }
+    else {
+        openingTitles_.insert( path, { title, toolTip } );
+    }
 }
 
 void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName,
@@ -110,7 +116,9 @@ void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName,
     myTabBar_.setTabData( index, tabData );
 
     myTabBar_.setTabIcon( index, olddata_icon_ );
-    myTabBar_.setTabToolTip( index, QDir::toNativeSeparators( fileName ) );
+    const auto toolTip = openingTitles_.value( fileName ).toolTip;
+    myTabBar_.setTabToolTip( index,
+                             toolTip.isEmpty() ? QDir::toNativeSeparators( fileName ) : toolTip );
 
     // Names the tab too.
     updateTabGroupAppearance( index );
@@ -129,8 +137,8 @@ QString TabbedCrawlerWidget::baseTabName( int index ) const
     if ( !customName.isEmpty() ) {
         return customName;
     }
-    const auto transientName = transientTabNames_.value( path );
-    return transientName.isEmpty() ? QFileInfo( path ).fileName() : transientName;
+    const auto openingTitle = openingTitles_.value( path ).title;
+    return openingTitle.isEmpty() ? QFileInfo( path ).fileName() : openingTitle;
 }
 
 void TabbedCrawlerWidget::updateTabGroupAppearance( int index )
@@ -223,12 +231,13 @@ std::optional<TabGroupInfo::TabGroup> TabbedCrawlerWidget::groupOfTab( int index
 void TabbedCrawlerWidget::removeCrawler( int index )
 {
     // A Transient Log File goes with its tab, and what the user made of the
-    // tab with it.
+    // tab with it. So does the title the tab opened with.
+    const auto path = tabPathAt( index );
     if ( holdsTransientLogFile( index ) ) {
-        const auto path = tabPathAt( index );
         renamedTransientTabs_.remove( path );
         transientTabGroups_.remove( path );
     }
+    openingTitles_.remove( path );
 
     QTabWidget::removeTab( index );
 
@@ -345,11 +354,12 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
     closeLeft->setDisabled( leftOfTab.isEmpty() );
     closeRight->setDisabled( rightOfTab.isEmpty() );
 
-    connect( copyFullPath, &QAction::triggered, this,
-             [ this, tab ] { sendTextToClipboard( tabToolTip( tab ) ); } );
+    connect( copyFullPath, &QAction::triggered, this, [ this, tab ] {
+        sendTextToClipboard( QDir::toNativeSeparators( tabPathAt( tab ) ) );
+    } );
 
     connect( openContainingFolder, &QAction::triggered, this,
-             [ this, tab ] { showPathInFileExplorer( tabToolTip( tab ) ); } );
+             [ this, tab ] { showPathInFileExplorer( tabPathAt( tab ) ); } );
 
     connect( renameTabAction, &QAction::triggered, this, [ this, tab ] {
         bool isNameEntered = false;

@@ -22,6 +22,7 @@
 #include "tabnamemapping.h"
 
 #include <QColor>
+#include <QDir>
 #include <QTabBar>
 #include <QWidget>
 
@@ -140,6 +141,106 @@ SCENARIO( "A Transient Log File's tab is renamed and grouped without storing its
 
     // Leave the settings store as it was.
     TabNameMapping::getSynced().setTabName( path, {} ).save();
+    TabGroupInfo::getSynced().removeGroup( groupId ).save();
+}
+
+// Standard input, a data source and a merge open a tab under a title of their
+// own, not their temporary file's name. Grouping, the Manage Tab Groups dialog
+// and a reset of a rename restyle the tabs: each gets back that title, never
+// the file's name (#606).
+SCENARIO( "A tab keeps the title it opened with", "[ui][tabs]" )
+{
+    const bool withToolTip = GENERATE( true, false );
+    CAPTURE( withToolTip );
+
+    const auto path = QStringLiteral( "/tmp/tabbedcrawlerwidget_test_606.log" );
+    const auto otherPath = QStringLiteral( "/logs/tabbedcrawlerwidget_test_606_other.log" );
+    const auto toolTip
+        = withToolTip ? QStringLiteral( "Standard input\n%1" ).arg( path ) : QString{};
+    const auto groupColor = QColor( 0x60, 0x60, 0x06 );
+
+    auto& groups = TabGroupInfo::getSynced();
+    const auto groupId = groups.addGroup( QStringLiteral( "Group 606" ), groupColor );
+    groups.save();
+
+    TabbedCrawlerWidget tabArea;
+    tabArea.setOpeningTitle( path, QStringLiteral( "stdin" ), toolTip );
+    const auto index = tabArea.addCrawler( new StubCrawler, path, LogFileLifetime::Transient );
+    const auto other = tabArea.addCrawler( new StubCrawler, otherPath );
+
+    const auto expectedToolTip = withToolTip ? toolTip : QDir::toNativeSeparators( path );
+    REQUIRE( tabArea.tabText( index ) == QStringLiteral( "stdin" ) );
+    REQUIRE( tabArea.tabToolTip( index ) == expectedToolTip );
+
+    WHEN( "another tab is put in a tab group and taken out of it" )
+    {
+        tabArea.addTabToGroup( other, groupId );
+        const auto whileGrouped = tabArea.tabText( index );
+        tabArea.removeTabFromGroup( other );
+
+        THEN( "the tab keeps its title and tooltip" )
+        {
+            REQUIRE( whileGrouped == QStringLiteral( "stdin" ) );
+            REQUIRE( tabArea.tabText( index ) == QStringLiteral( "stdin" ) );
+            REQUIRE( tabArea.tabToolTip( index ) == expectedToolTip );
+        }
+    }
+
+    WHEN( "the tabs are restyled, as closing the Manage Tab Groups dialog does" )
+    {
+        tabArea.refreshAllTabGroupAppearances();
+
+        THEN( "the tab keeps its title" )
+        {
+            REQUIRE( tabArea.tabText( index ) == QStringLiteral( "stdin" ) );
+        }
+    }
+
+    WHEN( "the tab itself is put in a tab group" )
+    {
+        tabArea.addTabToGroup( index, groupId );
+
+        THEN( "it shows the group before its title" )
+        {
+            REQUIRE( tabArea.tabText( index ) == QString::fromUtf8( "● stdin" ) );
+        }
+    }
+
+    WHEN( "the tab is renamed" )
+    {
+        tabArea.renameTab( index, QStringLiteral( "Renamed 606" ) );
+
+        THEN( "the rename wins over the title" )
+        {
+            REQUIRE( tabArea.tabText( index ) == QStringLiteral( "Renamed 606" ) );
+        }
+
+        AND_WHEN( "its name is reset" )
+        {
+            tabArea.renameTab( index, {} );
+
+            THEN( "it shows its title again, not its file's name" )
+            {
+                REQUIRE( tabArea.tabText( index ) == QStringLiteral( "stdin" ) );
+            }
+        }
+    }
+
+    WHEN( "the tab is closed and its file opened again" )
+    {
+        tabArea.removeCrawler( index );
+        const auto reopened
+            = tabArea.addCrawler( new StubCrawler, path, LogFileLifetime::Transient );
+
+        THEN( "the title went with the tab" )
+        {
+            REQUIRE( tabArea.tabText( reopened )
+                     == QStringLiteral( "tabbedcrawlerwidget_test_606.log" ) );
+            REQUIRE( tabArea.tabToolTip( reopened ) == QDir::toNativeSeparators( path ) );
+        }
+    }
+
+    // Leave the settings store as it was.
     TabGroupInfo::getSynced().removeGroup( groupId ).save();
 }
 

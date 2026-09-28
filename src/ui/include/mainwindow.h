@@ -460,9 +460,6 @@ private:
     std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins_;
 
     // Declared in this order: the pump reads into the writer, so it goes first.
-    // The title and tooltip of the tab of a file that is not named after its
-    // path (standard input, a data source), by path, given when it opens.
-    QHash<QString, QPair<QString, QString>> tabTitles_;
     std::unique_ptr<logsquirl::plugins::StreamWriter> standardInputWriter_;
     std::unique_ptr<logsquirl::plugins::StdinPump> standardInputPump_;
 
