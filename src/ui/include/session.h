@@ -23,6 +23,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -398,6 +399,16 @@ public:
             openedFiles_.erase( it );
         }
 
+        // A closed tab no longer places a deferred one, nor holds the front.
+        for ( auto& tab : restoredTabs_ ) {
+            if ( tab.view == view ) {
+                tab.view = nullptr;
+            }
+        }
+        if ( restoredFront_ == view ) {
+            restoredFront_ = nullptr;
+        }
+
         appSession_->close( view );
     }
 
@@ -499,8 +510,45 @@ public:
     // the view state saved for it. When it returns none -- the archive is
     // gone -- or there is no decompressor, its tab is left out without an
     // error, and the current file is counted without it (#596).
+    //
+    // Given `deferred`, it is not decompressed here: its tab is left out as
+    // above, and it is added to `deferred` to be decompressed after the
+    // restore returns, then opened with openDeferred() or left out for good
+    // with dropDeferred() (#610). Until then it keeps its place in the saved
+    // window: save() saves it where it stood among the tabs that remain.
+    struct DeferredArchiveFile {
+        int id;
+        ArchiveMember archiveMember;
+    };
     OpenedFilesList restore( const ViewFactory& viewFactory, int* currentFileIndex,
-                             const ArchiveMemberDecompressor& decompressor = {} );
+                             const ArchiveMemberDecompressor& decompressor = {},
+                             std::vector<DeferredArchiveFile>* deferred = nullptr );
+
+    // Opens `fileName`, decompressed for the deferred Log File `id`, with the
+    // view state saved for it, as restore() would have. `tabs` are the views
+    // of the window's Log Files in tab order, and `currentView` the ones in
+    // front, if any.
+    //
+    // Its tab goes at `position` among `tabs`: before the first of the tabs
+    // that came after it in the saved window and are still open, else after
+    // the last of those before it, else last. It is `inFront` when it was the
+    // tab in front and the window still shows the tab the restore put in
+    // front, or it is the window's only tab; else its Log File waits in the
+    // queue for its first load, like every restored Log File but the current
+    // one (#300). A tab that arrives never takes the front from one the user
+    // chose.
+    struct DeferredOpen {
+        ViewInterface* view = nullptr;
+        size_t position = 0;
+        bool inFront = false;
+    };
+    DeferredOpen openDeferred( int id, const QString& fileName, const ViewFactory& viewFactory,
+                               const std::vector<const ViewInterface*>& tabs,
+                               const ViewInterface* currentView );
+
+    // The deferred Log File `id` cannot be decompressed: its tab is left out
+    // without an error, as restore() leaves one out, and is no longer saved.
+    void dropDeferred( int id );
 
     // Starts loading a restored Log File that is still queued, now: its tab
     // was activated. See the Session's own.
@@ -538,6 +586,34 @@ private:
     size_t windowIndex_;
 
     std::vector<QString> openedFiles_;
+
+    // The tabs of the saved window a restore left deferred, and the ones
+    // around them, in saved order, for as long as one is deferred (#610).
+    struct RestoredTab {
+        // Which restore it was: the tabs of one are placed among each other.
+        int run = 0;
+        // Null while deferred, or once the tab is closed.
+        const ViewInterface* view = nullptr;
+        struct Deferred {
+            int id;
+            // As the Session saved it.
+            QString fileName;
+            QString viewContext;
+            ArchiveMember archiveMember;
+            bool inFront;
+        };
+        std::optional<Deferred> deferred;
+    };
+    std::vector<RestoredTab> restoredTabs_;
+    int restoreRuns_ = 0;
+    int nextDeferredId_ = 0;
+    // The views a restore put in front, or null for none.
+    const ViewInterface* restoredFront_ = nullptr;
+
+    // Where the restored tab at `slot` goes among `tabs`.
+    size_t positionAmong( size_t slot, const std::vector<const ViewInterface*>& tabs ) const;
+    // Forgets the tabs of a restore none of whose tabs is deferred any longer.
+    void forgetFinishedRestores();
 };
 
 #endif

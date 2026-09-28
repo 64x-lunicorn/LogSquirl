@@ -149,6 +149,7 @@ MainWindow::MainWindow( WindowSession session,
     , quickFindMux_( session_.getQuickFindPattern() )
     , mainTabWidget_()
     , tempDir_( QDir::temp().filePath( "logsquirl_temp_" ) )
+    , archiveRestores_( tempDir_.path(), this )
     , plugins_( std::move( plugins ) )
 {
     createActions();
@@ -388,6 +389,11 @@ MainWindow::MainWindow( WindowSession session,
 
     connectTeamFolder();
 
+    connect( &archiveRestores_, &ArchiveMemberDecompression::decompressing, this,
+             &MainWindow::showArchiveRestoreProgress );
+    connect( &archiveRestores_, &ArchiveMemberDecompression::idle, this,
+             &MainWindow::closeArchiveRestoreProgress );
+
     plugins_->whenLoaded( this, [ this ] {
         updateSourcesMenu();
         if ( welcomeDashboard_ ) {
@@ -428,21 +434,13 @@ void MainWindow::reloadSession()
     // their Log Files, so that nothing has to be cast back from the views.
     std::vector<CrawlerWidget*> crawlers;
     int currentFileIndex = -1;
+    std::vector<WindowSession::DeferredArchiveFile> fromArchives;
     const auto openedFiles = session_.restore(
         [ &crawlers ]( const ViewBuild& build ) {
             crawlers.push_back( new CrawlerWidget( build ) );
             return crawlers.back();
         },
-        &currentFileIndex,
-        // A Log File decompressed from an archive is decompressed again, as
-        // the user opened it, with no question asked (#596).
-        [ this ]( const ArchiveMember& member ) {
-            const auto fileName = decompressArchiveMember( member, tempDir_.path() );
-            if ( !fileName.isEmpty() ) {
-                archiveMembers_.insert( fileName, member );
-            }
-            return fileName;
-        } );
+        &currentFileIndex, {}, &fromArchives );
 
     // Only the current tab's Log File loads now, the others after it (#300).
     // Adding a tab makes it current for a moment, which is not the user
@@ -470,6 +468,106 @@ void MainWindow::reloadSession()
     mainTabWidget_.refreshAllTabGroupAppearances();
 
     updateOpenedFilesMenu();
+
+    // A Log File decompressed from an archive is decompressed again, as the
+    // user opened it, with no question asked (#596), and in the background:
+    // the window is in use meanwhile, and its tab comes once it is done (#610).
+    for ( const auto& file : fromArchives ) {
+        archiveRestores_.decompress(
+            file.archiveMember,
+            [ this, id = file.id, member = file.archiveMember ]( const QString& fileName ) {
+                openRestoredFromArchive( id, member, fileName );
+            } );
+    }
+}
+
+void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& member,
+                                          const QString& fileName )
+{
+    // Gone, broken or cancelled: left out as quietly as a gone Log File (#596).
+    if ( fileName.isEmpty() ) {
+        LOG_INFO << "Not restoring " << member.archive << ": it cannot be decompressed again";
+        session_.dropDeferred( deferredId );
+        return;
+    }
+    archiveMembers_.insert( fileName, member );
+
+    std::vector<const ViewInterface*> tabs;
+    const auto logFileTabs = mainTabWidget_.logFileTabs();
+    for ( const auto i : logFileTabs ) {
+        tabs.push_back( qobject_cast<const CrawlerWidget*>( mainTabWidget_.widget( i ) ) );
+    }
+
+    CrawlerWidget* crawlerWidget = nullptr;
+    const auto opened = session_.openDeferred(
+        deferredId, fileName,
+        [ &crawlerWidget ]( const ViewBuild& build ) {
+            crawlerWidget = new CrawlerWidget( build );
+            return crawlerWidget;
+        },
+        tabs, currentCrawlerWidget() );
+    if ( !crawlerWidget ) {
+        return;
+    }
+
+    // Where it stood among the tabs: before the Log File tab at its position,
+    // else after the last one.
+    const auto tabIndex = opened.position < static_cast<size_t>( logFileTabs.size() )
+                              ? logFileTabs[ static_cast<qsizetype>( opened.position ) ]
+                          : logFileTabs.isEmpty() ? mainTabWidget_.count()
+                                                  : logFileTabs.back() + 1;
+
+    // Adding a tab makes it current for a moment, which is neither the user
+    // activating it nor the tab in front changing.
+    auto* front = mainTabWidget_.currentWidget();
+    restoringSession_ = true;
+    mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary, tabIndex );
+    restoringSession_ = false;
+    if ( !opened.inFront && front ) {
+        mainTabWidget_.setCurrentWidget( front );
+    }
+
+    const auto& config = Configuration::get();
+    if ( config.followFileOnLoad() && session_.watchPolicy().anyWatchEnabled() ) {
+        signalCrawlerToFollowFile( crawlerWidget );
+        if ( opened.inFront ) {
+            followAction->setChecked( true );
+        }
+    }
+
+    mainTabWidget_.refreshAllTabGroupAppearances();
+    updateOpenedFilesMenu();
+}
+
+void MainWindow::showArchiveRestoreProgress( const QString& archive )
+{
+    // The progress opening an archive by hand shows, but beside the window,
+    // which stays in use; only an archive that takes a while shows it.
+    if ( !archiveRestoreProgress_ ) {
+        archiveRestoreProgress_ = new QProgressDialog( this );
+        archiveRestoreProgress_->setAttribute( Qt::WA_ShowWithoutActivating );
+        archiveRestoreProgress_->setWindowModality( Qt::NonModal );
+        archiveRestoreProgress_->setAutoClose( false );
+        archiveRestoreProgress_->setAutoReset( false );
+        archiveRestoreProgress_->setRange( 0, 0 );
+        // Cancelling it leaves out the tab of the archive it shows.
+        connect( archiveRestoreProgress_, &QProgressDialog::canceled, this, [ this ] {
+            archiveRestores_.cancelCurrent();
+            closeArchiveRestoreProgress();
+        } );
+        QTimer::singleShot( archiveRestoreProgress_->minimumDuration(), archiveRestoreProgress_,
+                            [ progress = archiveRestoreProgress_ ] { progress->show(); } );
+    }
+    archiveRestoreProgress_->setLabelText(
+        tr( "Extracting %1" ).arg( QDir::toNativeSeparators( archive ) ) );
+}
+
+void MainWindow::closeArchiveRestoreProgress()
+{
+    if ( archiveRestoreProgress_ ) {
+        archiveRestoreProgress_->deleteLater();
+        archiveRestoreProgress_ = nullptr;
+    }
 }
 
 void MainWindow::loadInitialFile( QString fileName, bool followFile )
@@ -2590,6 +2688,10 @@ void MainWindow::closeEvent( QCloseEvent* event )
         if ( saveSettings ) {
             writeSettings();
         }
+
+        // A Log File still decompressing for a restore was saved as it was
+        // stored, and gets no tab in a closed window (#610).
+        archiveRestores_.cancelAll();
 
         closeAll( ActionInitiator::App );
         trayIcon_->hide();

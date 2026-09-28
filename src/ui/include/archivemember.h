@@ -19,8 +19,17 @@
 
 #pragma once
 
+#include <deque>
+#include <functional>
+#include <memory>
+#include <optional>
+
+#include <QFutureWatcher>
+#include <QObject>
 #include <QString>
 #include <QStringList>
+
+class AtomicFlag;
 
 // Where a decompressed Log File came from: the archive the user opened, and
 // the member taken from it at every level (#596). A compressed single file
@@ -62,3 +71,65 @@ struct ArchiveMember {
 // an empty string when the archive is gone, a member is not in it, or it
 // cannot be decompressed. Blocks until it is done.
 QString decompressArchiveMember( const ArchiveMember& member, const QString& directory );
+
+// The same, which stops early and returns an empty string once `interrupt` is
+// set.
+QString decompressArchiveMember( const ArchiveMember& member, const QString& directory,
+                                 AtomicFlag& interrupt );
+
+// Decompresses archive members again one after another, away from the thread
+// that asks, so that a window restoring its Session stays usable while a
+// large archive decompresses (#610). Each request is answered on the asking
+// thread, in the order asked, with the path of its member inside `directory`,
+// or an empty string when it cannot be decompressed or was cancelled.
+//
+// What is still queued or decompressing when this goes, or is cancelled with
+// cancelAll(), is interrupted and never answered; the destructor waits for
+// the decompression under way, so nothing is written into `directory` after.
+class ArchiveMemberDecompression : public QObject {
+    Q_OBJECT
+public:
+    using Answer = std::function<void( const QString& fileName )>;
+
+    explicit ArchiveMemberDecompression( QString directory, QObject* parent = nullptr );
+    ~ArchiveMemberDecompression() override;
+
+    ArchiveMemberDecompression( const ArchiveMemberDecompression& ) = delete;
+    ArchiveMemberDecompression& operator=( const ArchiveMemberDecompression& ) = delete;
+
+    void decompress( const ArchiveMember& member, Answer answer );
+
+    // Interrupts the member decompressing now, which is answered with an
+    // empty string; the next one starts.
+    void cancelCurrent();
+
+    // Interrupts the member decompressing now and forgets the queued ones;
+    // none of them is answered.
+    void cancelAll();
+
+    // Whether no member is queued or decompressing.
+    bool isIdle() const;
+
+Q_SIGNALS:
+    // A member of `archive` starts decompressing.
+    void decompressing( const QString& archive );
+    // The last member queued is answered, or cancelAll() was called.
+    void idle();
+
+private:
+    void startNext();
+    void finishCurrent();
+
+    struct Request {
+        ArchiveMember member;
+        Answer answer;
+    };
+
+    QString directory_;
+    std::deque<Request> queued_;
+    // The request decompressing now; its answer is empty once cancelled.
+    std::optional<Request> current_;
+    // Shared with the thread decompressing, which may outlive a request.
+    std::shared_ptr<AtomicFlag> interrupt_;
+    QFutureWatcher<QString> watcher_;
+};

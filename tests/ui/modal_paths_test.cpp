@@ -746,8 +746,9 @@ TEST_CASE( "A Log File from an archive comes back after a restart, one from a UR
     WindowFixture restarted;
     ModalAnswers modals;
     restarted.mainWindow->reloadSession();
+    // The archives decompress in the background, one after the other (#610).
+    REQUIRE( waitUiState( [ & ] { return logFileTabs( restarted ).size() == 2; } ) );
     const auto tabs = logFileTabs( restarted );
-    REQUIRE( tabs.size() == 2 );
     for ( auto* tab : tabs ) {
         REQUIRE( waitUiState( [ tab ] { return CrawlerState{ *tab }.nbLines().get() == 2; } ) );
     }

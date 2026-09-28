@@ -60,13 +60,14 @@ public:
     // `dedup` is true when duplicate-line removal was requested.
     Q_SIGNAL void mergeRequested( QStringList filePaths, bool dedup );
 
-    // Adds the tab of a Log File. The tab of a Transient Log File can be
-    // renamed and grouped like any other, but neither is stored (#597).
+    // Adds the tab of a Log File, last or at `position`. The tab of a
+    // Transient Log File can be renamed and grouped like any other, but
+    // neither is stored (#597).
     template <typename T>
     int addCrawler( T* crawler, const QString& fileName,
-                    LogFileLifetime lifetime = LogFileLifetime::Ordinary )
+                    LogFileLifetime lifetime = LogFileLifetime::Ordinary, int position = -1 )
     {
-        const auto index = QTabWidget::addTab( crawler, QString{} );
+        const auto index = QTabWidget::insertTab( position, crawler, QString{} );
 
         connect( crawler, &T::dataStatusChanged, this, [ this, fileName ]( DataStatus status ) {
             const auto tabsCount = count();
