@@ -464,8 +464,11 @@ extern "C" LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_configure( void* parent
 }
 ```
 
-LogSquirl resolves this export but has no menu item or button that calls it
-yet.
+The user opens it with the *Configure...* button of the plugin's card in
+`Plugins` → `Plugin Management...`. The button is enabled only while the plugin
+is loaded and exports `logsquirl_plugin_configure`; each click calls it once.
+The parent is the LogSquirl main window, not the Plugin Management dialog, so a
+window the plugin keeps open outlives the dialog.
 
 ---
 

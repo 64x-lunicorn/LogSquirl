@@ -114,6 +114,11 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     toggleButton->setFixedWidth( 90 );
     rightLayout->addWidget( toggleButton );
 
+    configureButton = new QPushButton( tr( "Configure..." ), this );
+    configureButton->setObjectName( "configureButton" );
+    configureButton->setFixedWidth( 90 );
+    rightLayout->addWidget( configureButton );
+
     rightLayout->addStretch();
     mainLayout->addLayout( rightLayout );
 
@@ -182,6 +187,20 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
         toggleButton->setEnabled( true );
         toggleButton->setVisible( true );
         break;
+    }
+
+    // Only a loaded plugin can be asked for its configuration, and only one
+    // that exports logsquirl_plugin_configure has one (#604).
+    configureButton->setVisible( plugin.state != PluginState::NotInstalled );
+    configureButton->setEnabled( plugin.configurable );
+    if ( plugin.configurable ) {
+        configureButton->setToolTip( tr( "Open the configuration of this plugin" ) );
+    }
+    else if ( plugin.loaded ) {
+        configureButton->setToolTip( tr( "This plugin has no configuration" ) );
+    }
+    else {
+        configureButton->setToolTip( tr( "Enable the plugin to open its configuration" ) );
     }
 }
 
@@ -415,6 +434,10 @@ void PluginDialog::rebuildMergedList()
         mp.license = meta.license();
         mp.installedVersion = meta.version();
 
+        const auto* handle = host_.pluginHandle( meta.id() );
+        mp.loaded = handle != nullptr;
+        mp.configurable = handle != nullptr && handle->hasConfigureUi();
+
         if ( enabledIds.contains( meta.id() ) ) {
             mp.state = PluginState::Installed;
         }
@@ -509,6 +532,10 @@ void PluginDialog::rebuildCards()
         // Wire toggle button
         connect( card->toggleButton, &QPushButton::clicked, this,
                  [ this, id = mp.id ]() { togglePlugin( id ); } );
+
+        // Wire configure button
+        connect( card->configureButton, &QPushButton::clicked, this,
+                 [ this, id = mp.id ]() { configurePlugin( id ); } );
 
         // Set icon from cache
         const auto icon = repository_.pluginIcon( mp.id );
@@ -659,6 +686,13 @@ void PluginDialog::togglePlugin( const QString& pluginId )
 
     rebuildMergedList();
     rebuildCards();
+}
+
+void PluginDialog::configurePlugin( const QString& pluginId )
+{
+    // The Plugin UI Port picks the parent: a window that outlives this dialog,
+    // so a plugin may keep a window of its own open after the dialog closes.
+    host_.configurePlugin( pluginId );
 }
 
 bool PluginDialog::extractAndInstall( const QString& archivePath, const QString& pluginId )

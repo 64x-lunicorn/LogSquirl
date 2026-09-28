@@ -2660,6 +2660,11 @@ Backspace або Delete очищає комбінацію.</translation>
 <context>
     <name>PluginDialog</name>
     <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="117"/>
+        <source>Configure...</source>
+        <translation>Налаштувати...</translation>
+    </message>
+    <message>
         <location filename="../../ui/src/plugindialog.cpp" line="149"/>
         <source>License: %1</source>
         <translation>Ліцензія: %1</translation>
@@ -2685,6 +2690,21 @@ Backspace або Delete очищає комбінацію.</translation>
         <location filename="../../ui/src/plugindialog.cpp" line="763"/>
         <source>Update</source>
         <translation>Оновити</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="197"/>
+        <source>Open the configuration of this plugin</source>
+        <translation>Відкрити налаштування цього плагіна</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="200"/>
+        <source>This plugin has no configuration</source>
+        <translation>Цей плагін не має налаштувань</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="203"/>
+        <source>Enable the plugin to open its configuration</source>
+        <translation>Увімкніть плагін, щоб відкрити його налаштування</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="195"/>

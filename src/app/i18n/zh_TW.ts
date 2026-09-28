@@ -2658,6 +2658,11 @@ Backspace or Delete clears the shortcut.</source>
 <context>
     <name>PluginDialog</name>
     <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="117"/>
+        <source>Configure...</source>
+        <translation>設定...</translation>
+    </message>
+    <message>
         <location filename="../../ui/src/plugindialog.cpp" line="149"/>
         <source>License: %1</source>
         <translation>授權條款：%1</translation>
@@ -2683,6 +2688,21 @@ Backspace or Delete clears the shortcut.</source>
         <location filename="../../ui/src/plugindialog.cpp" line="763"/>
         <source>Update</source>
         <translation>更新</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="197"/>
+        <source>Open the configuration of this plugin</source>
+        <translation>開啟此外掛程式的設定</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="200"/>
+        <source>This plugin has no configuration</source>
+        <translation>此外掛程式沒有設定</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/plugindialog.cpp" line="203"/>
+        <source>Enable the plugin to open its configuration</source>
+        <translation>啟用外掛程式以開啟其設定</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="195"/>
