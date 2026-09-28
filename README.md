@@ -155,8 +155,8 @@ Extend LogSquirl with data sources, format converters, and custom UI actions.
 | [Android Logcat](https://github.com/64x-lunicorn/LogSquirl-Logcat) | Stream logcat output from ADB devices. |
 | [Serial Monitor](https://github.com/64x-lunicorn/LogSquirl-Serial) | Stream data from serial ports. |
 
-Use **Plugins → Browse Plugins…** to discover and download plugins, and
-**Plugins → Manage Plugins…** to manage them.
+**Plugins → Plugin Management…** finds, installs, updates and enables them
+([Plugins](https://logsquirl.lunicorn-lab.de/docs/plugins/) in the documentation).
 
 Want to build your own? The C ABI supports **DataSource**, **Converter**, and **UI Extension**
 plugins.
