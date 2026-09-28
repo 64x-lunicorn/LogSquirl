@@ -89,8 +89,8 @@ ViewInterface* Session::getViewIfOpen( const QString& file_name ) const
 }
 
 ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFactory,
-                              const QString& viewContext, Loading loading,
-                              LogFileLifetime lifetime )
+                              const QString& viewContext, Loading loading, LogFileLifetime lifetime,
+                              const ArchiveMember& archiveMember )
 {
     // The Open Log File: the log data, its Searches, and what they do as the
     // Log File changes on disk
@@ -112,11 +112,10 @@ ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFa
     } );
 
     // Insert in the hash
-    auto& openFile
-        = openFiles_
-              .insert(
-                  { view, { fileName, openLogFile, view, lifetime, FirstLoad::Queued, {}, {} } } )
-              .first->second;
+    OpenFile entry{
+        fileName, openLogFile, view, lifetime, archiveMember, FirstLoad::Queued, {}, {}
+    };
+    auto& openFile = openFiles_.insert( { view, std::move( entry ) } ).first->second;
 
     // A Log File reloaded before it was ever loaded asks to be loaded, and
     // this is the one place that opens one: the request goes to the same
@@ -470,7 +469,9 @@ void WindowSession::save( const std::vector<SaveFileInfo>& view_list,
         if ( view_object == currentView ) {
             currentFile = logsquirl::isize( session_files );
         }
-        session_files.emplace_back( file->fileName, view_context->toString() );
+        // A decompressed Log File is saved with its archive, which a restore
+        // decompresses again: the temporary file is gone by then (#596).
+        session_files.emplace_back( file->fileName, view_context->toString(), file->archiveMember );
     }
 
     auto& session = SessionInfo::getSynced();
@@ -481,7 +482,7 @@ void WindowSession::save( const std::vector<SaveFileInfo>& view_list,
 }
 
 ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& viewFactory,
-                                    LogFileLifetime lifetime )
+                                    LogFileLifetime lifetime, const ArchiveMember& archiveMember )
 {
     // The view context saved for this Log File in any window, if it was
     // open when the Session was last saved. A Transient Log File never was.
@@ -503,12 +504,13 @@ ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& 
     }();
 
     auto* view = appSession_->open( fileName, viewFactory, savedViewContext, Session::Loading::Now,
-                                    lifetime );
+                                    lifetime, archiveMember );
     openedFiles_.push_back( fileName );
     return view;
 }
 
-OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* currentFileIndex )
+OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* currentFileIndex,
+                                        const ArchiveMemberDecompressor& decompressor )
 {
     const auto& session = SessionInfo::get();
 
@@ -518,11 +520,40 @@ OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* cur
 
     // The current file is the one whose tab was in front; a Session stored
     // before that was saved makes it the last one (#542).
-    const auto savedCurrentFile = session.currentFile( windowId_ );
-    const auto currentFile
-        = savedCurrentFile >= 0 && savedCurrentFile < logsquirl::isize( session_files )
-              ? savedCurrentFile
-              : logsquirl::isize( session_files ) - 1;
+    auto savedCurrentFile = session.currentFile( windowId_ );
+    if ( savedCurrentFile < 0 || savedCurrentFile >= logsquirl::isize( session_files ) ) {
+        savedCurrentFile = logsquirl::isize( session_files ) - 1;
+    }
+
+    // A Log File decompressed from an archive is read from a temporary file
+    // that is gone by now: the archive is decompressed again, and the Log
+    // File opened from what that gives. When the archive is gone, its tab is
+    // left out, as quietly as any Log File that is (#596).
+    auto currentFile = -1;
+    {
+        std::vector<SessionInfo::OpenFile> restorable;
+        for ( auto i = 0; i < logsquirl::isize( session_files ); ++i ) {
+            auto file = session_files[ static_cast<size_t>( i ) ];
+            if ( !file.archiveMember.isEmpty() ) {
+                file.fileName = decompressor ? decompressor( file.archiveMember ) : QString{};
+                if ( file.fileName.isEmpty() ) {
+                    LOG_INFO << "Not restoring " << file.archiveMember.archive
+                             << ": it cannot be decompressed again";
+                    continue;
+                }
+            }
+            if ( i <= savedCurrentFile ) {
+                // The tab in front, or the last one left before it.
+                currentFile = logsquirl::isize( restorable );
+            }
+            restorable.push_back( std::move( file ) );
+        }
+        session_files = std::move( restorable );
+        if ( currentFile < 0 && !session_files.empty() ) {
+            // None was left up to the tab in front: the first one after it.
+            currentFile = 0;
+        }
+    }
 
     {
         // No queued Log File starts before the current one has, whatever its
@@ -546,9 +577,10 @@ OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* cur
             const auto& file = session_files[ static_cast<size_t>( i ) ];
             LOG_DEBUG << "Create view for " << file.fileName;
             // The same path as opening a Log File by hand.
-            ViewInterface* view = appSession_->open( file.fileName, viewFactory, file.viewContext,
-                                                     i == currentFile ? Session::Loading::Now
-                                                                      : Session::Loading::Queued );
+            ViewInterface* view = appSession_->open(
+                file.fileName, viewFactory, file.viewContext,
+                i == currentFile ? Session::Loading::Now : Session::Loading::Queued,
+                LogFileLifetime::Ordinary, file.archiveMember );
             result.emplace_back( file.fileName, view );
             openedFiles_.emplace_back( file.fileName );
         }

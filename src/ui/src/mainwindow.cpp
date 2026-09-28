@@ -433,7 +433,16 @@ void MainWindow::reloadSession()
             crawlers.push_back( new CrawlerWidget( build ) );
             return crawlers.back();
         },
-        &currentFileIndex );
+        &currentFileIndex,
+        // A Log File decompressed from an archive is decompressed again, as
+        // the user opened it, with no question asked (#596).
+        [ this ]( const ArchiveMember& member ) {
+            const auto fileName = decompressArchiveMember( member, tempDir_.path() );
+            if ( !fileName.isEmpty() ) {
+                archiveMembers_.insert( fileName, member );
+            }
+            return fileName;
+        } );
 
     // Only the current tab's Log File loads now, the others after it (#300).
     // Adding a tab makes it current for a moment, which is not the user
@@ -1357,7 +1366,9 @@ void MainWindow::openRemoteFile( const QUrl& url )
     if ( tempFile->open() ) {
         downloader.download( url, tempFile );
         if ( !progressDialog.exec() ) {
-            loadFile( tempFile->fileName() );
+            // Not saved with the Session: a start never fetches anything
+            // unasked (#596).
+            loadFile( tempFile->fileName(), false, LogFileLifetime::Transient );
         }
         else {
             QMessageBox::critical( this, tr( "LogSquirl - File download" ),
@@ -2693,6 +2704,10 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
 
     const auto decompressAction = Decompressor::action( fileName );
 
+    // The archive this is, or the member of one it was decompressed from: a
+    // Log File decompressed from it is saved with that, one level down (#596).
+    const auto archiveMember = archiveMembers_.value( fileName );
+
     Decompressor decompressor;
     AtomicFlag decompressInterrupt;
 
@@ -2720,6 +2735,7 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
                 return false;
             }
 
+            archiveMembers_.insert( tempFile->fileName(), archiveMember.inside( fileName, {} ) );
             return this->loadFile( tempFile->fileName() );
         }
         else {
@@ -2741,7 +2757,14 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
             const auto selectedFiles = QFileDialog::getOpenFileNames(
                 this, tr( "Open file from archive" ), archiveDir.path(), tr( "All files (*)" ) );
 
+            const QDir extracted{ archiveDir.path() };
             for ( const auto& extractedFile : selectedFiles ) {
+                // A file picked beside the archive's is a Log File of its own.
+                const auto member = extracted.relativeFilePath( extractedFile );
+                if ( !member.startsWith( "../" ) && !QDir::isAbsolutePath( member ) ) {
+                    archiveMembers_.insert( extractedFile,
+                                            archiveMember.inside( fileName, member ) );
+                }
                 this->loadFile( extractedFile );
             }
 
@@ -2836,7 +2859,7 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLife
                     crawlerWidget = new CrawlerWidget( build );
                     return crawlerWidget;
                 },
-                lifetime );
+                lifetime, archiveMembers_.value( fileName ) );
 
             if ( !crawlerWidget ) {
                 LOG_ERROR << "Can't create crawler for " << fileName.toStdString();
