@@ -32,7 +32,9 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
+#include <QFileDialog>
 #include <QHeaderView>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QProcess>
 #include <QPushButton>
@@ -46,11 +48,18 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
+
+#include <kcompressiondevice.h>
+#include <kzip.h>
 
 #include "applicationplugins.h"
+#include "archivemember.h"
 #include "chartpanel.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
@@ -592,6 +601,136 @@ TEST_CASE( "The tab of standard input is named stdin and takes no other tab's na
     CHECK( std::none_of( saved.cbegin(), saved.cend(), [ &spoolPath ]( const auto& file ) {
         return file.fileName == spoolPath;
     } ) );
+}
+
+// --- Log Files from an archive and from a URL ---
+
+namespace {
+
+// Answers what opening an archive or a URL shows once it is under way: the
+// progress, which closes itself when it is done, and, for an archive of
+// several files, the file dialog, where `member` is picked.
+std::function<void( QDialog& )> answerProgressAndMember( ModalAnswers& modals,
+                                                         const QString& member )
+{
+    return [ &modals, member ]( QDialog& modal ) {
+        if ( auto* files = qobject_cast<QFileDialog*>( &modal ) ) {
+            // Typed, as the directory may not be listed yet.
+            auto* name = files->findChild<QLineEdit*>( "fileNameEdit" );
+            REQUIRE( name != nullptr );
+            name->setText( member );
+            // Through QDialog, where accept() is public: the file dialog's own
+            // reads the name typed.
+            modal.accept();
+            return;
+        }
+        waitUiState( [ &modal ] { return !modal.isVisible(); }, 30'000 );
+        if ( !member.isEmpty() ) {
+            modals.answerWith( answerProgressAndMember( modals, member ) );
+        }
+    };
+}
+
+// The Log Files of the tabs of a window, by their paths.
+std::vector<CrawlerWidget*> logFileTabs( const WindowFixture& window )
+{
+    std::vector<CrawlerWidget*> crawlers;
+    for ( const auto index : window.tabArea->logFileTabs() ) {
+        crawlers.push_back( qobject_cast<CrawlerWidget*>( window.tabArea->widget( index ) ) );
+    }
+    return crawlers;
+}
+
+} // namespace
+
+// A Log File decompressed from an archive is saved with the archive and the
+// member picked in it, and a restart decompresses the archive again. One
+// downloaded from a URL is a Transient Log File: it is not saved, so a start
+// never fetches anything unasked (#596).
+TEST_CASE( "A Log File from an archive comes back after a restart, one from a URL does not",
+           "[ui][modal][session][archive]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const QByteArray logLines = "first Log Line\nsecond Log Line\n";
+    const auto zipPath = directory.filePath( "logs.zip" );
+    {
+        KZip zip( zipPath );
+        REQUIRE( zip.open( QIODevice::WriteOnly ) );
+        REQUIRE( zip.writeFile( "app.log", logLines ) );
+        REQUIRE( zip.writeFile( "other.log", "another Log File\n" ) );
+        zip.close();
+    }
+    const auto gzPath = directory.filePath( "single.log.gz" );
+    {
+        KCompressionDevice gz( gzPath, KCompressionDevice::GZip );
+        REQUIRE( gz.open( QIODevice::WriteOnly ) );
+        REQUIRE( gz.write( logLines ) == logLines.size() );
+    }
+    const auto remotePath = directory.filePath( "remote.log" );
+    REQUIRE( writeFile( remotePath, logLines ) );
+
+    {
+        WindowFixture window;
+
+        // The member of the archive of several, then the compressed single
+        // file; each is extracted once the user said so.
+        for ( const auto& [ archive, member ] : { std::pair{ zipPath, QStringLiteral( "app.log" ) },
+                                                  std::pair{ gzPath, QString{} } } ) {
+            const auto tabsBefore = logFileTabs( window ).size();
+            ModalAnswers modals;
+            modals.click( QMessageBox::Yes )
+                .answerWith( answerProgressAndMember( modals, member ) );
+            window.mainWindow->loadInitialFile( archive, false );
+            REQUIRE( waitUiState( [ & ] { return logFileTabs( window ).size() > tabsBefore; } ) );
+            CHECK( modals.unexpectedMessageBoxes() == 0 );
+        }
+
+        // Downloaded, from a URL the file dialog would not take.
+        {
+            const auto tabsBefore = logFileTabs( window ).size();
+            ModalAnswers modals;
+            modals.inputText( QUrl::fromLocalFile( remotePath ).toString() )
+                .answerWith( answerProgressAndMember( modals, {} ) );
+            auto* openUrl
+                = actionNamed( *window.mainWindow, logsquirl::mainwindow::action::openUrlText );
+            REQUIRE( openUrl != nullptr );
+            openUrl->trigger();
+            REQUIRE( waitUiState( [ & ] { return logFileTabs( window ).size() > tabsBefore; } ) );
+            CHECK( modals.unexpectedMessageBoxes() == 0 );
+        }
+
+        const auto tabs = logFileTabs( window );
+        REQUIRE( tabs.size() == 3 );
+        for ( auto* tab : tabs ) {
+            REQUIRE( waitUiState( [ tab ] { return CrawlerState{ *tab }.nbLines().get() > 0; } ) );
+        }
+        const auto downloadedPath = window.session->getFilename( tabs.back() );
+
+        // Quitting saves every window.
+        window.session->setExitRequested( true );
+        window.mainWindow->close();
+        window.session->setExitRequested( false );
+
+        const auto saved = SessionInfo::get().openFiles( "Main" );
+        REQUIRE( saved.size() == 2 );
+        CHECK( saved[ 0 ].archiveMember == ArchiveMember{ zipPath, { "app.log" } } );
+        CHECK( saved[ 1 ].archiveMember == ArchiveMember{ gzPath, { QString{} } } );
+        CHECK( std::none_of( saved.cbegin(), saved.cend(), [ & ]( const auto& file ) {
+            return file.fileName == downloadedPath;
+        } ) );
+    }
+
+    // The next start: the temporary files are gone with the window.
+    WindowFixture restarted;
+    ModalAnswers modals;
+    restarted.mainWindow->reloadSession();
+    const auto tabs = logFileTabs( restarted );
+    REQUIRE( tabs.size() == 2 );
+    for ( auto* tab : tabs ) {
+        REQUIRE( waitUiState( [ tab ] { return CrawlerState{ *tab }.nbLines().get() == 2; } ) );
+    }
+    CHECK_FALSE( modals.seen() );
 }
 
 // --- The time dialogs ---

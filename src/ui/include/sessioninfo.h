@@ -40,11 +40,13 @@
 #define SESSIONINFO_H
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <QByteArray>
 #include <QString>
 
+#include "archivemember.h"
 #include "persistable.h"
 
 // Simple component class containing information related to the session
@@ -57,18 +59,26 @@ public:
     }
 
     struct OpenFile {
-        OpenFile( const QString& file, const QString& context )
+        OpenFile( const QString& file, const QString& context, ArchiveMember member = {} )
             : fileName{ file }
             , viewContext{ context }
+            , archiveMember{ std::move( member ) }
         {
         }
 
+        // For a Log File decompressed from an archive, the temporary file it
+        // was read from, which a restore does not open (#596).
         QString fileName;
 
         // The view context contains parameter specific to the view's
         // implementation (such as geometry...), and where the Log File
         // stands: its Scroll Position (#559).
         QString viewContext;
+
+        // The archive a decompressed Log File came from and its member, which
+        // a restore decompresses again; empty for any other Log File, and in
+        // a Session stored before it was saved (#596).
+        ArchiveMember archiveMember;
     };
 
     struct Window {

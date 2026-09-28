@@ -288,10 +288,17 @@ content or extension.
 decompressed to a temporary folder and then opened. The compression type is
 determined automatically by file content or extension.
 
+A file opened from an archive or a compressed file comes back with the session:
+on the next start *logsquirl* extracts the archive again, without asking, and
+opens the same file where it stood. If the archive is gone by then, its tab is
+left out.
+
 #### Remote URLs
 
 *logsquirl* can open files from remote URLs. In that case, *logsquirl* will
 download the file to a temporary directory and open it from there.
+A downloaded file is not restored with the session: a start never downloads
+anything you did not ask for.
 
 #### Recent files
 

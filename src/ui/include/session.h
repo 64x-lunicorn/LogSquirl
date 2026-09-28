@@ -32,6 +32,7 @@
 #include <QDateTime>
 #include <QMetaObject>
 
+#include "archivemember.h"
 #include "changed.h"
 #include "log.h"
 #include "quickfindpattern.h"
@@ -137,11 +138,14 @@ public:
     // load, as it waits for any first load.
     //
     // A Transient Log File is open like any other, but is never saved with the
-    // Session (see WindowSession::save()).
+    // Session (see WindowSession::save()). A Log File decompressed from an
+    // archive is saved with the archive and its member, not with `fileName`,
+    // the temporary file it is read from (#596).
     enum class Loading { Now, Queued };
     ViewInterface* open( const QString& fileName, const ViewFactory& viewFactory,
                          const QString& viewContext = {}, Loading loading = Loading::Now,
-                         LogFileLifetime lifetime = LogFileLifetime::Ordinary );
+                         LogFileLifetime lifetime = LogFileLifetime::Ordinary,
+                         const ArchiveMember& archiveMember = {} );
 
     // Starts loading the Log File of these views now if it is still queued,
     // ahead of the Log Files queued before it: its tab was activated. Does
@@ -293,6 +297,8 @@ private:
         ViewInterface* view;
         // A Transient Log File is not saved with the Session.
         LogFileLifetime lifetime = LogFileLifetime::Ordinary;
+        // Where a decompressed Log File came from; empty for any other.
+        ArchiveMember archiveMember;
         FirstLoad firstLoad = FirstLoad::Queued;
         // Hears of the end of the first load; disconnected once it did.
         QMetaObject::Connection firstLoadFinished;
@@ -361,6 +367,9 @@ private:
 };
 
 using OpenedFilesList = std::vector<std::pair<QString, ViewInterface*>>;
+// Decompresses a saved archive member again and returns the file to open, or
+// an empty string to leave its tab out (#596).
+using ArchiveMemberDecompressor = std::function<QString( const ArchiveMember& )>;
 // A view and its view state, which holds where it stands (#559).
 using SaveFileInfo = std::tuple<const ViewInterface*, std::shared_ptr<const ViewContextInterface>>;
 
@@ -376,9 +385,11 @@ public:
     // Opens a Log File in this window, restoring the view context saved for
     // it in any window of the stored Session, the way restore() does. A
     // Transient Log File was never saved, so it has none to restore, and it is
-    // left out whenever this window is saved (#570).
+    // left out whenever this window is saved (#570). A Log File decompressed
+    // from an archive is saved with `archiveMember` (#596).
     ViewInterface* open( const QString& fileName, const ViewFactory& viewFactory,
-                         LogFileLifetime lifetime = LogFileLifetime::Ordinary );
+                         LogFileLifetime lifetime = LogFileLifetime::Ordinary,
+                         const ArchiveMember& archiveMember = {} );
 
     void close( const ViewInterface* view )
     {
@@ -482,7 +493,14 @@ public:
     // Only the current file starts loading; the others are queued and load
     // one after another once it has loaded, unless startLoading() is called
     // for one first (#300).
-    OpenedFilesList restore( const ViewFactory& viewFactory, int* currentFileIndex );
+    //
+    // A Log File saved with the archive it was decompressed from is handed
+    // to `decompressor`, and the file it returns is opened in its place, with
+    // the view state saved for it. When it returns none -- the archive is
+    // gone -- or there is no decompressor, its tab is left out without an
+    // error, and the current file is counted without it (#596).
+    OpenedFilesList restore( const ViewFactory& viewFactory, int* currentFileIndex,
+                             const ArchiveMemberDecompressor& decompressor = {} );
 
     // Starts loading a restored Log File that is still queued, now: its tab
     // was activated. See the Session's own.

@@ -21,6 +21,8 @@
 
 #include <QSettings>
 
+#include <utility>
+
 #include "log.h"
 
 constexpr int OPENFILES_VERSION = 1;
@@ -53,7 +55,18 @@ void SessionInfo::retrieveFromStorage( QSettings& settings )
                         // A Session stored before #559 holds a top line
                         // too, always zero: it is not read.
                         QString view_context = settings.value( "viewContext" ).toString();
-                        window.openFiles.emplace_back( file_name, view_context );
+                        // Absent from a Session stored before it was saved,
+                        // and for any Log File not decompressed (#596).
+                        ArchiveMember archive_member;
+                        archive_member.archive = settings.value( "archive" ).toString();
+                        const auto levels = settings.beginReadArray( "archiveMembers" );
+                        for ( int level = 0; level < levels; ++level ) {
+                            settings.setArrayIndex( level );
+                            archive_member.members.append( settings.value( "member" ).toString() );
+                        }
+                        settings.endArray();
+                        window.openFiles.emplace_back( file_name, view_context,
+                                                       std::move( archive_member ) );
                     }
                     settings.endArray();
                     // Absent from a Session stored before it was saved (#542).
@@ -103,6 +116,19 @@ void SessionInfo::saveToStorage( QSettings& settings ) const
             const OpenFile* open_file = &( window.openFiles.at( i ) );
             settings.setValue( "fileName", open_file->fileName );
             settings.setValue( "viewContext", open_file->viewContext );
+            // One entry per level rather than a list value, which could not
+            // tell a single empty member -- a compressed single file -- from
+            // none.
+            if ( !open_file->archiveMember.isEmpty() ) {
+                const auto& archive_member = open_file->archiveMember;
+                settings.setValue( "archive", archive_member.archive );
+                settings.beginWriteArray( "archiveMembers" );
+                for ( int level = 0; level < archive_member.members.size(); ++level ) {
+                    settings.setArrayIndex( level );
+                    settings.setValue( "member", archive_member.members.at( level ) );
+                }
+                settings.endArray();
+            }
         }
         settings.endArray();
         settings.setValue( "currentFile", window.currentFile );

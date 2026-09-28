@@ -441,6 +441,9 @@ private:
     bool sidebarWidthApplied_ = false;
 
     QTemporaryDir tempDir_;
+    // Where each Log File decompressed into tempDir_ came from, by the path
+    // it is read from: the Session saves that instead (#596).
+    QHash<QString, ArchiveMember> archiveMembers_;
 
     bool isMaximized_ = false;
     bool isCloseFromTray_ = false;

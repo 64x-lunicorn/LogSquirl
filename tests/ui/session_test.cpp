@@ -842,3 +842,201 @@ SCENARIO( "The Session saves no Transient Log File", "[ui][session]" )
     stored.remove( windowId );
     stored.save();
 }
+
+// A Log File decompressed from an archive is read from a temporary file that
+// is gone by the next start. The Session saves the archive and the member the
+// user took from it, and a restore decompresses the archive again and opens
+// the member with its view state; when the archive is gone, the tab is left
+// out without an error. A Session stored before it saved archives reads as
+// before (#596).
+SCENARIO( "The Session saves a decompressed Log File with its archive", "[ui][session][archive]" )
+{
+    const auto windowId = QStringLiteral( "session_test_window_596" );
+    const auto gzMember = ArchiveMember{ "/logs/app.log.gz", { QString{} } };
+    const auto nestedMember = ArchiveMember{ "/logs/logs.zip", { "a/app.log.gz", QString{} } };
+
+    GIVEN( "a window with an Ordinary Log File and two decompressed ones in the store" )
+    {
+        QTemporaryDir storeDir;
+        REQUIRE( storeDir.isValid() );
+        SessionInfo info;
+        info.add( windowId );
+        info.setOpenFiles(
+            windowId,
+            { SessionInfo::OpenFile{ "/logs/plain.log", "plain state" },
+              SessionInfo::OpenFile{ "/tmp/app.log.gz.AbCdEf", "gz state", gzMember },
+              SessionInfo::OpenFile{ "/tmp/app.log.gz.GhIjKl", "nested state", nestedMember } },
+            1 );
+
+        WHEN( "it is written and read again" )
+        {
+            QSettings store( storeDir.filePath( "saved.ini" ), QSettings::IniFormat );
+            info.saveToStorage( store );
+            SessionInfo reread;
+            reread.retrieveFromStorage( store );
+
+            THEN( "every Log File keeps its archive and member, or its having none" )
+            {
+                const auto files = reread.openFiles( windowId );
+                REQUIRE( files.size() == 3 );
+                REQUIRE( files[ 0 ].archiveMember.isEmpty() );
+                REQUIRE( files[ 1 ].archiveMember == gzMember );
+                REQUIRE( files[ 1 ].viewContext == "gz state" );
+                REQUIRE( files[ 2 ].archiveMember == nestedMember );
+                REQUIRE( reread.currentFile( windowId ) == 1 );
+            }
+        }
+    }
+
+    GIVEN( "a Session stored before archives were saved" )
+    {
+        QTemporaryDir storeDir;
+        REQUIRE( storeDir.isValid() );
+        const auto fixturePath = storeDir.filePath( "stored.ini" );
+        {
+            QFile fixture( fixturePath );
+            REQUIRE( fixture.open( QIODevice::WriteOnly | QIODevice::Text ) );
+            QTextStream out( &fixture );
+            out << "[Window]\n"
+                << "version=1\n"
+                << "windows\\size=1\n"
+                << "windows\\1\\id=" << windowId << "\n"
+                << "windows\\1\\OpenFiles\\version=1\n"
+                << "windows\\1\\OpenFiles\\openFiles\\size=1\n"
+                << "windows\\1\\OpenFiles\\openFiles\\1\\fileName=/logs/a.log\n"
+                << "windows\\1\\OpenFiles\\openFiles\\1\\viewContext=state\n";
+        }
+
+        THEN( "its Log Files read as Log Files with no archive" )
+        {
+            QSettings fixture( fixturePath, QSettings::IniFormat );
+            SessionInfo info;
+            info.retrieveFromStorage( fixture );
+            const auto files = info.openFiles( windowId );
+            REQUIRE( files.size() == 1 );
+            REQUIRE( files.front().fileName == "/logs/a.log" );
+            REQUIRE( files.front().viewContext == "state" );
+            REQUIRE( files.front().archiveMember.isEmpty() );
+        }
+    }
+
+    GIVEN( "a window with an Ordinary Log File and one decompressed from an archive" )
+    {
+        // The temporary files the two are read from in the run that saves them.
+        TwoLogFiles files;
+        const auto ordinaryPath = files.first.fileName();
+        const auto decompressedPath = files.second.fileName();
+
+        {
+            const auto savingSession = std::make_shared<Session>(
+                testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+            WindowSession savingWindow{ savingSession, windowId, 0 };
+            OpenedViews savedViews;
+            const auto* ordinary
+                = savingWindow.open( ordinaryPath, RecordingViews::factory( savedViews.built ) );
+            const auto* decompressed
+                = savingWindow.open( decompressedPath, RecordingViews::factory( savedViews.built ),
+                                     LogFileLifetime::Ordinary, gzMember );
+            std::vector<SaveFileInfo> tabs;
+            tabs.emplace_back( decompressed,
+                               std::make_shared<const SavedViewContext>( "archive state" ) );
+            tabs.emplace_back( ordinary,
+                               std::make_shared<const SavedViewContext>( "ordinary state" ) );
+            savingWindow.save( tabs, decompressed, QByteArray{}, 0 );
+            for ( const auto& tab : tabs ) {
+                savingWindow.close( std::get<0>( tab ) );
+            }
+        }
+
+        THEN( "it is saved with its archive and member, its view state, and in front" )
+        {
+            const auto saved = SessionInfo::get().openFiles( windowId );
+            REQUIRE( saved.size() == 2 );
+            REQUIRE( saved[ 0 ].archiveMember == gzMember );
+            REQUIRE( saved[ 0 ].viewContext == "archive state" );
+            REQUIRE( saved[ 1 ].fileName == ordinaryPath );
+            REQUIRE( saved[ 1 ].archiveMember.isEmpty() );
+            REQUIRE( SessionInfo::get().currentFile( windowId ) == 0 );
+        }
+
+        WHEN( "the Session is restored and the archive is decompressed again" )
+        {
+            // A new temporary file, as the next start has.
+            QTemporaryFile again{ "session_test_again_XXXXXX" };
+            REQUIRE( again.open() );
+            std::vector<ArchiveMember> asked;
+
+            const auto appSession = std::make_shared<Session>(
+                testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+            WindowSession window{ appSession, windowId, 0 };
+            OpenedViews views;
+            int currentFileIndex = -1;
+            const auto restored
+                = window.restore( RecordingViews::factory( views.built ), &currentFileIndex,
+                                  [ & ]( const ArchiveMember& member ) {
+                                      asked.push_back( member );
+                                      return again.fileName();
+                                  } );
+
+            THEN( "the member is opened from what it gave, in front, with its view state" )
+            {
+                REQUIRE( asked == std::vector<ArchiveMember>{ gzMember } );
+                REQUIRE( restored.size() == 2 );
+                REQUIRE( restored[ 0 ].first == again.fileName() );
+                REQUIRE( restored[ 1 ].first == ordinaryPath );
+                REQUIRE( currentFileIndex == 0 );
+                REQUIRE( views.built[ 0 ]->build().viewContext == "archive state" );
+                REQUIRE( views.built[ 1 ]->build().viewContext == "ordinary state" );
+            }
+
+            AND_WHEN( "the window is saved again" )
+            {
+                std::vector<SaveFileInfo> tabs;
+                for ( const auto& [ fileName, view ] : restored ) {
+                    tabs.emplace_back( view, std::make_shared<const SavedViewContext>( fileName ) );
+                }
+                window.save( tabs, restored[ 0 ].second, QByteArray{}, 0 );
+
+                THEN( "the member is saved with its archive once more, for the start after" )
+                {
+                    const auto saved = SessionInfo::get().openFiles( windowId );
+                    REQUIRE( saved.size() == 2 );
+                    REQUIRE( saved[ 0 ].archiveMember == gzMember );
+                    REQUIRE( saved[ 1 ].archiveMember.isEmpty() );
+                }
+            }
+
+            for ( const auto& restoredFile : restored ) {
+                window.close( restoredFile.second );
+            }
+        }
+
+        WHEN( "the Session is restored and the archive is gone" )
+        {
+            const auto appSession = std::make_shared<Session>(
+                testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+            WindowSession window{ appSession, windowId, 0 };
+            OpenedViews views;
+            int currentFileIndex = -1;
+            const auto restored
+                = window.restore( RecordingViews::factory( views.built ), &currentFileIndex,
+                                  []( const ArchiveMember& ) { return QString{}; } );
+
+            THEN( "its tab is left out, and the Ordinary Log File is restored in front" )
+            {
+                REQUIRE( restored.size() == 1 );
+                REQUIRE( restored.front().first == ordinaryPath );
+                REQUIRE( currentFileIndex == 0 );
+                REQUIRE( views.built.front()->build().viewContext == "ordinary state" );
+            }
+
+            for ( const auto& restoredFile : restored ) {
+                window.close( restoredFile.second );
+            }
+        }
+    }
+
+    auto& stored = SessionInfo::getSynced();
+    stored.remove( windowId );
+    stored.save();
+}
