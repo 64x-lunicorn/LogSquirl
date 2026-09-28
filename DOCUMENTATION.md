@@ -78,16 +78,27 @@ unpack it anywhere and start `logsquirl_portable.exe`. It keeps everything it
 stores beside the executable instead of in the user profile; any *logsquirl*
 does so when it finds a `logsquirl.conf` beside itself:
 
-| Beside the executable    | What it holds                                        |
-|--------------------------|------------------------------------------------------|
-| `logsquirl.conf`         | the settings                                         |
-| `logsquirl_session.conf` | the session                                          |
-| `formats\`               | your own log formats                                 |
-| `plugins\`               | the plugins it comes with and those you install      |
-| `plugin_config\`         | the plugins' own configuration                       |
-| `teamfolder\`            | the Team Folder's clone of the team's repository     |
-| `themes\`                | your own theme stylesheets                           |
-| `logsquirl_dump\`        | crash dumps                                          |
+| Beside the executable      | What it holds                                    |
+|----------------------------|--------------------------------------------------|
+| `logsquirl.conf`           | the settings                                     |
+| `logsquirl_session.conf`   | the session                                      |
+| `formats\`                 | your own log formats                             |
+| `plugins\`                 | the plugins it comes with and those you install  |
+| `plugin_config\`           | the plugins' own configuration                   |
+| `teamfolder\`              | the Team Folder's clone of the team's repository |
+| `themes\`                  | your own theme stylesheets                       |
+| `logsquirl_dump\`          | crash dumps                                      |
+| `logsquirl_taken_over.txt` | what it took over from an earlier package        |
+
+Earlier portable packages kept your log formats, plugins, plugin configuration,
+Team Folder and themes in `%APPDATA%\logsquirl_portable\` and
+`%LOCALAPPDATA%\logsquirl_portable\`. On its first start, a portable
+*logsquirl* with none of that beside its executable yet copies what it finds
+there beside itself, once, and notes it in `logsquirl_taken_over.txt`. A plugin
+it comes with is kept rather than replaced by the older copy. The old folders
+are left as they are; delete them once you no longer need them. Nothing is
+copied when your own formats, plugin configuration, Team Folder or themes
+already sit beside the executable.
 
 Only the index cache stays in the user profile, and a log file written with
 logging turned on goes to the temporary folder. Unpack the package where you
