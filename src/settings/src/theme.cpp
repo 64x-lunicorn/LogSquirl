@@ -287,6 +287,12 @@ Theme Theme::light()
         { LineNumberText, "#495057" },
         { Bullet, "#FFFFFF" },
         { BulletOutline, "#495057" },
+        // The Rows of a Match, a Mark and both in the Table View, which has
+        // no gutter: the gutter's red, blue and violet as pale tints, with
+        // the text at 11.5:1 and more on each.
+        { MatchRow, "#F8D7DA" },
+        { MarkRow, "#CFE2FF" },
+        { MarkedMatchRow, "#EBDDF7" },
         { ProgressChunk, "#0056B3" },
         { SliderGroove, "#ADB5BD" },
         { ErrorBackground, "#F8D7DA" },
@@ -425,6 +431,11 @@ Theme Theme::dark()
         { LineNumberText, "#A0A0A0" },
         { Bullet, "#1E1E1E" },
         { BulletOutline, "#A0A0A0" },
+        // The gutter's red, blue and violet, dark enough for the text (8.7:1
+        // and more). An overridden Base or Text does not change them.
+        { MatchRow, "#5A2222" },
+        { MarkRow, "#1E3A5F" },
+        { MarkedMatchRow, "#4A2A5A" },
         // Highlight; follows an overridden Highlight (see fromName).
         { ProgressChunk, "#4D90FE" },
         { SliderGroove, "#505050" },
@@ -560,6 +571,11 @@ Theme Theme::highContrast()
         { LineNumberText, "#FFFFFF" },
         { Bullet, "#000000" },
         { BulletOutline, "#FFFFFF" },
+        // Deep red, blue and purple: white text reaches AAA on each (11.9:1
+        // and more), and none can be taken for the yellow selection.
+        { MatchRow, "#6B0000" },
+        { MarkRow, "#00337A" },
+        { MarkedMatchRow, "#5C0066" },
         // No single text color reaches 4.5:1 on both black and yellow, so the
         // filled part is black too, outlined in Highlight.
         { ProgressChunk, "#000000" },
@@ -717,6 +733,11 @@ Theme Theme::smyck()
         { LineNumberText, "#B0B0B0" },
         { Bullet, "#1B1B1B" },
         { BulletOutline, "#B0B0B0" },
+        // The scheme's red, blue and magenta, darkened over its background
+        // until its light white reads at 10.9:1 and more.
+        { MatchRow, "#4F231E" },
+        { MarkRow, "#223A52" },
+        { MarkedMatchRow, "#46304C" },
         { ProgressChunk, "#207483" },
         { SliderGroove, "#5D5D5D" },
         // The scheme's red, dark enough for its light red as text (5.9:1).
@@ -878,6 +899,11 @@ Theme Theme::smyckLight()
         { LineNumberText, "#5D5D5D" },
         { Bullet, "#FFFFFF" },
         { BulletOutline, "#5D5D5D" },
+        // The scheme's red, blue and magenta as pale tints over the Base: its
+        // background as the text reads at 13.2:1 and more.
+        { MatchRow, "#F4DDD9" },
+        { MarkRow, "#D9E6F2" },
+        { MarkedMatchRow, "#EEDDF0" },
         { ProgressChunk, "#207483" },
         { SliderGroove, "#B0B0B0" },
         // The scheme's red over the Window, pale enough for a dark red as

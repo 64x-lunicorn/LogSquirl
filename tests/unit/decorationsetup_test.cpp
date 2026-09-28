@@ -226,7 +226,8 @@ SCENARIO( "A Decoration Setup passes on the Highlighter Set and Search Limits it
 
             THEN( "the palette and where Match and Mark show are the ones given" )
             {
-                const LinePalette palette{ Qt::black, Qt::white, Qt::gray, Qt::white, Qt::blue };
+                const LinePalette palette{ Qt::black, Qt::white, Qt::gray,  Qt::white,
+                                           Qt::blue,  Qt::red,   Qt::green, Qt::magenta };
                 const auto tableContext = setup.context( highlighterSet, SearchLimits{}, palette,
                                                          LineStatusDisplay::AsBackground );
                 REQUIRE( tableContext.palette.selection == QColor{ Qt::blue } );
@@ -244,10 +245,10 @@ SCENARIO( "A Decoration Setup passes on the Highlighter Set and Search Limits it
     }
 }
 
-SCENARIO( "The Mark and Match colors are defined once, for every Presentation",
+SCENARIO( "The Mark and Match colors of the gutter and the overview are defined once",
           "[decorationsetup]" )
 {
-    THEN( "they are the colors both Presentations have always painted" )
+    THEN( "they are the colors the gutter and the overview have always painted" )
     {
         REQUIRE( LineStatusColors::match() == QColor{ Qt::red } );
         REQUIRE( LineStatusColors::mark() == QColor{ "dodgerblue" } );

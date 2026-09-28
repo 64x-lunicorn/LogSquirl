@@ -12,6 +12,15 @@
   and preset files, the Scratchpad's transformations, where plugins go, and the
   portable Windows package (#587).
 
+## Bug fixes
+
+- **The Table View colors Matches and Marks in the Theme's colors**: the Row
+  of a Match, a Mark and a Mark that is a Match is a subdued tint of red, blue
+  and violet that fits the Theme, instead of pure red, blue and violet in every
+  Theme. The text on it stays readable in every Theme, and a Theme switch
+  recolors the Rows at once. The Text View's gutter bullets and the overview
+  keep their colors (#590).
+
 # v26.10.0-beta3 (2026-09-28)
 
 ## Changes

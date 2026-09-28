@@ -266,8 +266,10 @@ CFFIXED_USER_HOME=/tmp/shots-home TMPDIR=/tmp/shots-tmp/ LOGSQUIRL_SCREENSHOT_DI
   build/output/logsquirl_itests -platform offscreen "[.screenshots]"
 ```
 
-The run also renders the Table View (`main-window-table-view`), with Format Recognition on as in the
-application. It stays off the website until the demo log is recognized as spdlog (#589).
+The run also renders the Table View, with Format Recognition on as in the application: before the
+Search (`main-window-table-view`) and with it (`main-window-table-view-search`), where the Rows of
+the Matches show the Theme's Row color (#590). It stays off the website until the demo log is
+recognized as spdlog (#589).
 
 ### E2E integration tests (Python / pytest)
 
