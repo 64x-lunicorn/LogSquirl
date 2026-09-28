@@ -52,8 +52,8 @@ public:
 
     // Where the application keeps the user's Log Formats:
     // ~/.local/share/logsquirl/formats/ on Linux,
-    // ~/Library/Application Support/LogSquirl/formats/ on macOS,
-    // %APPDATA%/LogSquirl/formats/ on Windows. Empty if there is none.
+    // ~/Library/Application Support/logsquirl/formats/ on macOS,
+    // %APPDATA%/logsquirl/formats/ on Windows. Empty if there is none.
     static QString defaultUserFormatsDirectory();
 
     // Forget every Log Format and read them all again: the built-in ones,
