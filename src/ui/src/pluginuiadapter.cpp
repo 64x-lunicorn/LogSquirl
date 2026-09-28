@@ -43,6 +43,24 @@ QWidget* widgetFrom( PluginWidgetHandle handle )
     return static_cast<QWidget*>( handle.widget );
 }
 
+// The submenus of the Plugins menu a menu path names, outermost first. Empty
+// segments do not count, and a first segment "Plugins" names the Plugins menu
+// itself: "", "Plugins" and "/" all name the Plugins menu.
+QStringList submenuNamesOf( const QString& menuPath )
+{
+    QStringList names;
+    for ( const auto& segment : menuPath.split( u'/' ) ) {
+        const auto name = segment.trimmed();
+        if ( !name.isEmpty() ) {
+            names.append( name );
+        }
+    }
+    if ( !names.isEmpty() && names.front() == QStringLiteral( "Plugins" ) ) {
+        names.removeFirst();
+    }
+    return names;
+}
+
 } // namespace
 
 PluginUiAdapter::PluginUiAdapter( QMainWindow& window, QMenu& pluginsMenu, QAction* menuSeparator,
@@ -228,17 +246,62 @@ void PluginUiAdapter::removeSidebarTab( const QString& pluginId, PluginWidgetHan
     } );
 }
 
-void PluginUiAdapter::addMenuAction( const QString& pluginId, const QString& /* menuPath */,
+QMenu& PluginUiAdapter::menuAt( const QStringList& submenuNames )
+{
+    QMenu* menu = &pluginsMenu_;
+    QString path;
+    for ( const auto& name : submenuNames ) {
+        path = path.isEmpty() ? name : path + u'/' + name;
+        auto& submenu = submenus_[ path ];
+        if ( !submenu ) {
+            submenu = new QMenu( name, menu );
+            if ( menu == &pluginsMenu_ ) {
+                // Like plugin actions, above the separator.
+                pluginsMenu_.insertMenu( menuSeparator_, submenu );
+            }
+            else {
+                menu->addMenu( submenu );
+            }
+        }
+        menu = submenu;
+    }
+    return *menu;
+}
+
+void PluginUiAdapter::removeEmptySubmenus()
+{
+    // Innermost first: a submenu whose only entry is an empty submenu is
+    // empty once that one is gone.
+    std::vector<std::map<QString, QPointer<QMenu>>::iterator> byDepth;
+    for ( auto it = submenus_.begin(); it != submenus_.end(); ++it ) {
+        byDepth.push_back( it );
+    }
+    std::ranges::sort( byDepth, std::ranges::greater{},
+                       []( const auto& it ) { return it->first.count( u'/' ); } );
+    for ( const auto& it : byDepth ) {
+        if ( it->second && !it->second->actions().isEmpty() ) {
+            continue;
+        }
+        // Deleting the menu also deletes the action that shows it in its parent.
+        delete it->second.data();
+        submenus_.erase( it );
+    }
+}
+
+void PluginUiAdapter::addMenuAction( const QString& pluginId, const QString& menuPath,
                                      const QString& label, PluginCallbackFn callback,
                                      void* userData )
 {
-    onWindowThread( pluginId, [ this, pluginId, label, callback, userData ] {
+    onWindowThread( pluginId, [ this, pluginId, menuPath, label, callback, userData ] {
+        auto& menu = menuAt( submenuNamesOf( menuPath ) );
         auto& actions = menuActions_[ pluginId ];
 
         // Prevent duplicate entries when a plugin is re-enabled without restart.
-        const auto duplicate = std::ranges::any_of( actions, [ &label ]( const auto& existing ) {
-            return existing && existing->text() == label;
-        } );
+        const auto duplicate
+            = std::ranges::any_of( actions, [ &label, &menu ]( const PluginMenuAction& existing ) {
+                  return existing.action && existing.menu == &menu
+                         && existing.action->text() == label;
+              } );
         if ( duplicate ) {
             return;
         }
@@ -252,10 +315,15 @@ void PluginUiAdapter::addMenuAction( const QString& pluginId, const QString& /* 
             }
         } );
 
-        // Insert above the separator so plugin actions appear at the top,
-        // with Manage/Browse sitting below the divider line.
-        pluginsMenu_.insertAction( menuSeparator_, action );
-        actions.emplace_back( action );
+        if ( &menu == &pluginsMenu_ ) {
+            // Insert above the separator so plugin actions appear at the top,
+            // with Manage/Browse sitting below the divider line.
+            pluginsMenu_.insertAction( menuSeparator_, action );
+        }
+        else {
+            menu.addAction( action );
+        }
+        actions.push_back( { action, &menu } );
     } );
 }
 
@@ -270,13 +338,17 @@ void PluginUiAdapter::removeContributions( const QString& pluginId )
 
     onWindowThread( pluginId, [ this, pluginId ] {
         if ( const auto it = menuActions_.find( pluginId ); it != menuActions_.end() ) {
-            for ( const auto& action : it->second ) {
+            for ( const auto& [ action, menu ] : it->second ) {
                 if ( action ) {
-                    pluginsMenu_.removeAction( action );
+                    if ( menu ) {
+                        menu->removeAction( action );
+                    }
                     delete action.data();
                 }
             }
             menuActions_.erase( it );
+            // Submenus shared with another plugin's actions stay.
+            removeEmptySubmenus();
         }
 
         // Normally a plugin removes its widgets itself when it is shut down;

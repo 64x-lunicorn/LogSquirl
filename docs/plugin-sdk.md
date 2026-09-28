@@ -428,8 +428,14 @@ api->open_file( handle, "/tmp/converted.log", 0 /* follow = false */ );
 api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
 ```
 
-The host puts every menu action into the `Plugins` menu, above
-`Plugin Management...`; it does not evaluate `menu_path` today.
+`menu_path` names the submenus of the `Plugins` menu the item goes into,
+separated by `/`: `"My Plugin/Sub"` puts `label` into
+`Plugins` → `My Plugin` → `Sub`. An empty path, or `"Plugins"`, puts the item
+directly into the `Plugins` menu; a path starting with `Plugins/` is read
+without that first segment. The last segment is a submenu too, the item's own
+text is always `label`. Items and submenus go above `Plugin Management...`,
+and plugins naming the same path share its submenus. When the plugin is
+unloaded, its items go away, and so does every submenu nothing is left in.
 
 `register_status_widget`, `register_sidebar_tab` and `register_footer_widget`
 take a `QWidget*` cast to `void*`: the plugin creates and owns the widget and

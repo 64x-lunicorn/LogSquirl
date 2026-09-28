@@ -22,8 +22,10 @@
 #include "pluginuiport.h"
 
 #include <QAction>
+#include <QMenu>
 #include <QPointer>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 
 #include <cstdint>
@@ -33,7 +35,6 @@
 #include <vector>
 
 class QMainWindow;
-class QMenu;
 class QTabWidget;
 class QToolBar;
 
@@ -42,7 +43,8 @@ class QToolBar;
  *
  * Shows plugin status widgets in a toolbar at the top of the window, footer
  * widgets in a toolbar at the bottom, sidebar tabs in the sidebar and menu
- * actions at the top of the Plugins menu. It is the only place that turns a
+ * actions at the top of the Plugins menu, or in the submenus of it their menu
+ * path names. It is the only place that turns a
  * PluginWidgetHandle back into a QWidget. Calls from another thread are
  * carried out on the window's thread.
  */
@@ -89,6 +91,12 @@ private:
         QPointer<QAction> toolBarAction;
     };
 
+    /// A menu action a plugin added, and the menu (or submenu) it sits in.
+    struct PluginMenuAction {
+        QPointer<QAction> action;
+        QPointer<QMenu> menu;
+    };
+
     /// A toolbar of the window that shows plugin widgets; created when the first one arrives.
     struct PluginToolBar {
         /// Untranslated title, in the "MainWindow" translation context.
@@ -118,6 +126,15 @@ private:
     /// Takes sidebar tabs of a plugin away; all of them when widget is null.
     void removeFromSidebar( const QString& pluginId, const QWidget* widget );
 
+    /**
+     * The submenu of the Plugins menu the names lead to, outermost first,
+     * creating the submenus missing; the Plugins menu itself for no names.
+     */
+    QMenu& menuAt( const QStringList& submenuNames );
+
+    /// Deletes the plugin submenus that nothing is in any more.
+    void removeEmptySubmenus();
+
     QMainWindow& window_;
     QMenu& pluginsMenu_;
     QPointer<QAction> menuSeparator_;
@@ -134,7 +151,11 @@ private:
     std::vector<PlacedWidget> sidebarWidgets_;
 
     // Tracks menu actions added by each plugin so they can be removed on unload.
-    std::map<QString, std::vector<QPointer<QAction>>> menuActions_;
+    std::map<QString, std::vector<PluginMenuAction>> menuActions_;
+
+    // The submenus of the Plugins menu plugin actions sit in, by their path
+    // ("My Plugin/Sub"). Plugins naming the same path share the submenu.
+    std::map<QString, QPointer<QMenu>> submenus_;
 
     // Bumped by removeContributions(); read from the threads plugins call from.
     mutable std::mutex generationsMutex_;

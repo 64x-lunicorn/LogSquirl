@@ -53,6 +53,13 @@ QAction* menuActionNamed( const QMenu& menu, const QString& text )
     return nullptr;
 }
 
+/// The submenu the menu shows with the given title, or nullptr.
+QMenu* submenuNamed( const QMenu& menu, const QString& title )
+{
+    auto* action = menuActionNamed( menu, title );
+    return action ? action->menu() : nullptr;
+}
+
 int triggeredCount = 0;
 
 void countTrigger( void* userData )
@@ -170,6 +177,88 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
                 THEN( "The plugin's callback runs with its user data" )
                 {
                     REQUIRE( triggeredCount == 1 );
+                }
+            }
+        }
+
+        WHEN( "A plugin adds a menu action under the menu path \"My Plugin/Sub\"" )
+        {
+            adapter.addMenuAction( pluginId, QStringLiteral( "My Plugin/Sub" ),
+                                   QStringLiteral( "Plugin action" ), nullptr, nullptr );
+
+            THEN( "The action sits in Plugins -> My Plugin -> Sub, above the separator" )
+            {
+                const auto actions = pluginsMenu.actions();
+                REQUIRE( actions.size() == 3 );
+                REQUIRE( actions[ 0 ]->text() == "My Plugin" );
+                REQUIRE( actions[ 1 ] == separator );
+                auto* myPlugin = submenuNamed( pluginsMenu, QStringLiteral( "My Plugin" ) );
+                REQUIRE( myPlugin != nullptr );
+                auto* sub = submenuNamed( *myPlugin, QStringLiteral( "Sub" ) );
+                REQUIRE( sub != nullptr );
+                REQUIRE( sub->actions().size() == 1 );
+                REQUIRE( sub->actions()[ 0 ]->text() == "Plugin action" );
+                REQUIRE( menuActionNamed( pluginsMenu, QStringLiteral( "Plugin action" ) )
+                         == nullptr );
+            }
+        }
+
+        WHEN( "A plugin adds a menu action with an empty menu path" )
+        {
+            adapter.addMenuAction( pluginId, QString(), QStringLiteral( "Plugin action" ), nullptr,
+                                   nullptr );
+
+            THEN( "The action sits directly in the Plugins menu, in no submenu" )
+            {
+                const auto actions = pluginsMenu.actions();
+                REQUIRE( actions.size() == 3 );
+                REQUIRE( actions[ 0 ]->text() == "Plugin action" );
+                REQUIRE( actions[ 0 ]->menu() == nullptr );
+                REQUIRE( actions[ 1 ] == separator );
+            }
+        }
+
+        WHEN( "Two plugins add menu actions under menu paths, one of them shared, and the "
+              "first plugin is unloaded" )
+        {
+            const auto otherId = QStringLiteral( "com.test.other" );
+            adapter.addMenuAction( pluginId, QStringLiteral( "My Plugin/Sub" ),
+                                   QStringLiteral( "Own action" ), nullptr, nullptr );
+            adapter.addMenuAction( pluginId, QStringLiteral( "Shared/Tools" ),
+                                   QStringLiteral( "First action" ), nullptr, nullptr );
+            adapter.addMenuAction( otherId, QStringLiteral( "Shared" ),
+                                   QStringLiteral( "Other action" ), nullptr, nullptr );
+            REQUIRE( submenuNamed( pluginsMenu, QStringLiteral( "My Plugin" ) ) != nullptr );
+            QPointer<QMenu> shared = submenuNamed( pluginsMenu, QStringLiteral( "Shared" ) );
+            REQUIRE( shared != nullptr );
+            REQUIRE( submenuNamed( *shared, QStringLiteral( "Tools" ) ) != nullptr );
+
+            adapter.removeContributions( pluginId );
+
+            THEN( "Its actions and the submenus nothing is left in are gone" )
+            {
+                REQUIRE( submenuNamed( pluginsMenu, QStringLiteral( "My Plugin" ) ) == nullptr );
+                REQUIRE( shared != nullptr );
+                REQUIRE( submenuNamed( *shared, QStringLiteral( "Tools" ) ) == nullptr );
+            }
+
+            THEN( "The submenu shared with the other plugin stays with its action" )
+            {
+                REQUIRE( submenuNamed( pluginsMenu, QStringLiteral( "Shared" ) ) == shared );
+                REQUIRE( shared->actions().size() == 1 );
+                REQUIRE( shared->actions()[ 0 ]->text() == "Other action" );
+            }
+
+            AND_WHEN( "The other plugin is unloaded too" )
+            {
+                adapter.removeContributions( otherId );
+
+                THEN( "The Plugins menu holds only its own entries again" )
+                {
+                    REQUIRE( shared == nullptr );
+                    const auto actions = pluginsMenu.actions();
+                    REQUIRE( actions.size() == 2 );
+                    REQUIRE( actions[ 0 ] == separator );
                 }
             }
         }
