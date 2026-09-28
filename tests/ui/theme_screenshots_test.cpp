@@ -614,7 +614,7 @@ void renderMainWindow( const QString& logFile, const Screenshots& screenshots )
     settle( 500 );
     screenshots.save( &mainWindow, "main-window-log-file" );
 
-    // Before the Search: a Match colours its whole row in the Table View.
+    // The Table View before the Search, and again with it below.
     QToolButton* tableViewToggle = nullptr;
     for ( auto* button : crawler->findChildren<QToolButton*>() ) {
         if ( button->accessibleName() == "Toggle table view" ) {
@@ -661,6 +661,18 @@ void renderMainWindow( const QString& logFile, const Screenshots& screenshots )
         30000 ) );
     settle( 300 );
     screenshots.save( &mainWindow, "main-window-search" );
+
+    // The same Search in the Table View: a Match colours its whole Row in
+    // the Theme's Row colour (#590).
+    tableViewToggle->setChecked( true );
+    settle( 500 );
+    tableView = crawler->findChild<LogTableView*>();
+    REQUIRE( tableView != nullptr );
+    tableView->showLogLine( 45_lnum );
+    settle( 300 );
+    screenshots.save( &mainWindow, "main-window-table-view-search" );
+    tableViewToggle->setChecked( false );
+    settle();
 
     // The checkout latency of the demo incident over time, as its header
     // suggests.

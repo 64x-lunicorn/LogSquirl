@@ -27,6 +27,7 @@
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "tableviewstate.h"
+#include "theme.h"
 
 #include <QPainter>
 #include <QStyledItemDelegate>
@@ -182,8 +183,14 @@ public:
 
         // The Row's base: alternating Rows and the Row under the mouse
         // cursor are tinted. What the Row then shows over it is the Line
-        // Decorator's decision.
+        // Decorator's decision. The Row colors of a Match and a Mark are the
+        // active Theme's, read at every paint, so a Theme switch recolors
+        // them (#590).
         auto linePalette = LinePalette::fromPalette( opt.palette );
+        const auto& theme = Theme::active();
+        linePalette.matchRow = theme.color( ColorToken::MatchRow );
+        linePalette.markRow = theme.color( ColorToken::MarkRow );
+        linePalette.markedMatchRow = theme.color( ColorToken::MarkedMatchRow );
         if ( opt.features & QStyleOptionViewItem::Alternate ) {
             linePalette.base = linePalette.base.darker( 105 );
         }
@@ -316,12 +323,6 @@ private:
         std::unordered_map<int, Row> rows;
     };
 
-    static bool isSamePalette( const LinePalette& lhs, const LinePalette& rhs )
-    {
-        return lhs.text == rhs.text && lhs.base == rhs.base && lhs.subduedText == rhs.subduedText
-               && lhs.selectedText == rhs.selectedText && lhs.selection == rhs.selection;
-    }
-
     // The Line Decorator for a Row of the given palette. The Context the
     // Line Decorator matches every color source against is built by the one
     // module that builds it for either Presentation, once per pass. The
@@ -333,7 +334,7 @@ private:
     const LineDecorator& decoratorFor( PaintPassState& pass, const LinePalette& linePalette ) const
     {
         for ( const auto& decorator : pass.decorators ) {
-            if ( isSamePalette( decorator.palette, linePalette ) ) {
+            if ( decorator.palette == linePalette ) {
                 return decorator.lineDecorator;
             }
         }

@@ -89,7 +89,8 @@ ViewInterface* Session::getViewIfOpen( const QString& file_name ) const
 }
 
 ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFactory,
-                              const QString& viewContext, Loading loading )
+                              const QString& viewContext, Loading loading,
+                              LogFileLifetime lifetime )
 {
     // The Open Log File: the log data, its Searches, and what they do as the
     // Log File changes on disk
@@ -112,7 +113,9 @@ ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFa
 
     // Insert in the hash
     auto& openFile
-        = openFiles_.insert( { view, { fileName, openLogFile, view, FirstLoad::Queued, {}, {} } } )
+        = openFiles_
+              .insert(
+                  { view, { fileName, openLogFile, view, lifetime, FirstLoad::Queued, {}, {} } } )
               .first->second;
 
     // A Log File reloaded before it was ever loaded asks to be loaded, and
@@ -456,6 +459,13 @@ void WindowSession::save( const std::vector<SaveFileInfo>& view_list,
             continue;
         }
 
+        // Gone by the next start: a restore would open a file that is not
+        // there (#570).
+        if ( file->lifetime == LogFileLifetime::Transient ) {
+            LOG_DEBUG << "Not saving the Transient Log File " << file->fileName << " in session.";
+            continue;
+        }
+
         LOG_DEBUG << "Saving " << file->fileName.toLocal8Bit().data() << " in session.";
         if ( view_object == currentView ) {
             currentFile = logsquirl::isize( session_files );
@@ -470,11 +480,15 @@ void WindowSession::save( const std::vector<SaveFileInfo>& view_list,
     session.save();
 }
 
-ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& viewFactory )
+ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& viewFactory,
+                                    LogFileLifetime lifetime )
 {
     // The view context saved for this Log File in any window, if it was
-    // open when the Session was last saved.
-    const auto savedViewContext = [ &fileName ]() {
+    // open when the Session was last saved. A Transient Log File never was.
+    const auto savedViewContext = [ &fileName, lifetime ]() {
+        if ( lifetime == LogFileLifetime::Transient ) {
+            return QString{};
+        }
         const auto& session = SessionInfo::get();
         for ( const auto& windowId : session.windows() ) {
             const auto openedFiles = session.openFiles( windowId );
@@ -488,7 +502,8 @@ ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& 
         return QString{};
     }();
 
-    auto* view = appSession_->open( fileName, viewFactory, savedViewContext );
+    auto* view = appSession_->open( fileName, viewFactory, savedViewContext, Session::Loading::Now,
+                                    lifetime );
     openedFiles_.push_back( fileName );
     return view;
 }

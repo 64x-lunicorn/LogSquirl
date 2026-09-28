@@ -1,3 +1,37 @@
+# Unreleased
+
+## Documentation
+
+- **The documentation is on the website, and its search finds it**: the
+  website has a Documentation section, one page per topic of the user guide
+  (`DOCUMENTATION.md`, the one the app shows under Help → Documentation), at
+  https://logsquirl.lunicorn-lab.de/docs/. The README and the release notes
+  link there; the GitHub wiki, which had fallen behind, only points to it. The
+  guide now also covers the search bar's buttons and Keep Results, the
+  breadcrumbs, QuickFind, tabs, the Chart Panel's series dialog, time buckets
+  and preset files, the Scratchpad's transformations, where plugins go, and the
+  portable Windows package (#587).
+
+## Bug fixes
+
+- **The Table View colors Matches and Marks in the Theme's colors**: the Row
+  of a Match, a Mark and a Mark that is a Match is a subdued tint of red, blue
+  and violet that fits the Theme, instead of pure red, blue and violet in every
+  Theme. The text on it stays readable in every Theme, and a Theme switch
+  recolors the Rows at once. The Text View's gutter bullets and the overview
+  keep their colors (#590).
+- **spdlog Log Files are recognized as spdlog**: a Log File written by spdlog
+  opens with the spdlog Log Format, with logger, level and body in their own
+  Table View columns, instead of as an Apache error log. When several Log
+  Formats match the same Log Lines, the more specific one wins, and the choice
+  no longer changes from one start of LogSquirl to the next; CUPS logs and
+  Java logs that could be taken for syslog are recognized correctly too (#589).
+- **A restored Session opens no tab whose source is gone**: a tab of standard
+  input, a merged tab, a data source's tab and a tab pasted from the clipboard
+  read a temporary file that is gone once LogSquirl quits. The Session no longer
+  saves them, so the next start neither reopens them nor shows an error; Log
+  Files opened from disk are restored as before (#570).
+
 # v26.10.0-beta3 (2026-09-28)
 
 ## Changes

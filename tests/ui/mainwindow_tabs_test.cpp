@@ -57,6 +57,7 @@
 #include "optionsdialog.h"
 #include "recentfiles.h"
 #include "session.h"
+#include "sessioninfo.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabgroupinfo.h"
 #include "test_policies.h"
@@ -562,6 +563,24 @@ SCENARIO( "A merged Log File's rebuild ends with its tab", "[ui][tabs][merge]" )
                         REQUIRE_FALSE( QFile::exists( mergedPath ) );
                     }
                 }
+            }
+        }
+
+        WHEN( "the application quits, which saves the Session" )
+        {
+            // Quitting saves every window, whichever others the Session holds.
+            window.session->setExitRequested( true );
+            window.mainWindow->close();
+            window.session->setExitRequested( false );
+
+            THEN( "the sources are saved, and the merged Log File, which is transient, is not" )
+            {
+                // A restart would find its temporary file gone (#570).
+                QStringList saved;
+                for ( const auto& file : SessionInfo::get().openFiles( "Main" ) ) {
+                    saved.append( QDir::fromNativeSeparators( file.fileName ) );
+                }
+                REQUIRE( saved == sources );
             }
         }
     }

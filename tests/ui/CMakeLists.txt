@@ -35,6 +35,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow_tabs_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow_load_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_follow_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tableview_line_status_theme_test.cpp
 )
 
 if(NOT APPLE)

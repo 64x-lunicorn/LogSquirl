@@ -46,8 +46,21 @@ LinePalette LinePalette::fromPalette( const QPalette& palette )
         palette.color( QPalette::Disabled, QPalette::Text ),
         palette.color( QPalette::HighlightedText ),
         palette.color( QPalette::Highlight ),
+        QColor{},
+        QColor{},
+        QColor{},
     };
 }
+
+namespace {
+
+// The palette's Row color, or the gutter's color for a palette without one.
+QColor rowColorOr( const QColor& rowColor, QColor ( *gutterColor )() )
+{
+    return rowColor.isValid() ? rowColor : gutterColor();
+}
+
+} // namespace
 
 LineVerdict LineDecorator::verdictFor( const LogLine& line, AbstractLogData::LineType lineType,
                                        bool isSelectedAsWhole ) const
@@ -94,10 +107,12 @@ HighlightColor LineDecorator::lineColorsFor( const LineVerdict& verdict ) const
     else if ( context_.lineStatus == LineStatusDisplay::AsBackground ) {
         if ( verdict.isMark() ) {
             colors.backColor
-                = verdict.isMatch() ? LineStatusColors::markedMatch() : LineStatusColors::mark();
+                = verdict.isMatch()
+                      ? rowColorOr( palette.markedMatchRow, &LineStatusColors::markedMatch )
+                      : rowColorOr( palette.markRow, &LineStatusColors::mark );
         }
         else if ( verdict.isMatch() ) {
-            colors.backColor = LineStatusColors::match();
+            colors.backColor = rowColorOr( palette.matchRow, &LineStatusColors::match );
         }
     }
 

@@ -279,14 +279,17 @@ The look of the application around the Log Lines: Light, Dark, High Contrast, Sm
 Light, or System, which becomes Light or Dark from the operating system's color scheme and
 follows it while the application runs. Choosing a Theme takes effect at once, in every open
 window. A Theme is exactly one set of Tokens, and it carries the colors of the Color Labels;
-the application's palette and stylesheet are both derived from it. Beyond the Color Labels a
+the application's palette and stylesheet are both derived from it. Beyond the Color Labels and
+the Row colors of a Match, a Mark and a Mark that is a Match in the Table View (ADR-0013), a
 Theme does not color Log Lines — Highlighters and Highlighter Sets are the user's alone.
 _Avoid_: style, skin, palette (a palette is derived from a Theme)
 
 **Token**:
 One named value of a Theme — a color such as the border or hover color, or a size or icon
 used by the stylesheet. Every Theme sets every Token; the colors of the Color Labels are not
-Tokens, because they color Log Lines rather than the application around them. A user can override Dark Tokens by
+Tokens, because they color Log Lines rather than the application around them and the user can
+color them. The Table View's Row colors are Tokens (`MatchRow`, `MarkRow`, `MarkedMatchRow`):
+no user colors them, and the Row's text reaches 4.5:1 on each. A user can override Dark Tokens by
 name in the settings, and add a stylesheet of their own on top.
 _Avoid_: variable, constant, design value
 
@@ -313,7 +316,10 @@ _Avoid_: registry, library
 The decision which Log Format, if any, applies to a Log File, taken from its first Log
 Lines against the Log Format Catalog. Taken when a Log File has loaded, and again after it
 is reloaded or truncated; in between, the Log File keeps the Log Format it was recognized
-with, even when the Catalog changes. The kinds of Log Format are scored apart: a sample Log
+with, even when the Catalog changes. The Log Format matching the most of those Log Lines
+wins; among equals, the more specific one (a rival accepts the example lines it carries, it
+accepts none of the rival's), then the one capturing more fields of the Log Lines, then the first by name
+(ADR-0011). The kinds of Log Format are scored apart: a sample Log
 Line that is a JSON object counts only for JSON Log Formats, every other one only for regex
 Log Formats. A logfmt Log Format counts a Log Line that reads completely as key/value pairs
 and holds its timestamp field as a key; it never wins over a regex or JSON Log Format that
@@ -488,5 +494,19 @@ It builds the views of every Log File it opens in one call, from one value: the 
 File, the QuickFind pattern, the Policies, the saved Searches and the view state to restore,
 if any — opening a Log File by hand and restoring it on start take the same path. After that
 it hands the views only what changed, one change per open Log File, and asks for their view
-state when it is saved.
+state when it is saved. It saves only Ordinary Log Files: a Transient Log File is left out.
 _Avoid_: workspace, project, layout
+
+**Transient Log File**:
+A Log File that exists only while the application runs: the spool of standard input, the
+file of a merged tab, what a data source writes, the text pasted from the clipboard, and
+later a command's output. Whoever opens it says it is transient; it is then shown and
+followed like any other, but the Session does not save it, so a restart neither opens a
+file that is gone nor reports an error for it. Every other Log File is an Ordinary one,
+saved and restored with its view state.
+_Avoid_: temporary tab, temp file, volatile source
+
+**Ordinary Log File**:
+A Log File that is not a Transient Log File: a file on disk the user opened, which the
+Session saves and restores with its view state.
+_Avoid_: persistent tab, normal file

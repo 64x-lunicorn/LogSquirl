@@ -36,49 +36,103 @@ namespace {
 // Minimum fraction of lines that must match a format for it to be accepted.
 constexpr double MinMatchRatio = 0.5;
 
+// A compiled regex pattern and the name of each of its capture groups.
+struct CompiledPattern {
+    QRegularExpression regex;
+    QStringList groupNames;
+};
+
 // How well one Log Format fits the sample Log Lines. Each kind of Log Format
 // scores only the Log Lines of its own kind.
 struct FormatScore {
     std::shared_ptr<const LogFormatDefinition> format;
     int matchCount = 0;
-    int specificity = 0; // more capture groups (regex) or fields (JSON) = more specific
+    // The fields read from the matching Log Lines, summed over them: for a
+    // regex format the named groups that took part in the match, for a JSON
+    // or logfmt format the declared fields present in the Log Line.
+    int capturedFields = 0;
+    // A regex format's valid patterns; empty for the other kinds.
+    QVector<CompiledPattern> patterns = {};
 };
 
-// A regex format: how many of the Log Lines match at least one of its patterns.
+QVector<CompiledPattern> compilePatterns( const LogFormatDefinition& format )
+{
+    QVector<CompiledPattern> compiled;
+    for ( const auto& patternStr : format.regexPatterns() ) {
+        QRegularExpression re( patternStr );
+        if ( re.isValid() ) {
+            auto groupNames = re.namedCaptureGroups();
+            compiled.append( { std::move( re ), std::move( groupNames ) } );
+        }
+    }
+    return compiled;
+}
+
+// Whether the patterns of one scored regex format accept at least one of the
+// sample lines another Log Format carries (its "sample" section).
+bool acceptsSampleOf( const FormatScore& general, const FormatScore& other )
+{
+    return std::ranges::any_of( other.format->sampleLines(), [ & ]( const auto& sample ) {
+        return std::ranges::any_of( general.patterns, [ & ]( const CompiledPattern& pattern ) {
+            return pattern.regex.match( sample.line ).hasMatch();
+        } );
+    } );
+}
+
+// A Log Format is more specific than another when the other's patterns accept
+// one of its sample lines, and its own patterns accept none of the other's:
+// spdlog's lines are Apache error log lines too, but not the other way round.
+bool moreSpecific( const FormatScore& candidate, const FormatScore& other )
+{
+    return acceptsSampleOf( other, candidate ) && !acceptsSampleOf( candidate, other );
+}
+
+// How many distinct named fields a match captured; a group that did not take
+// part in the match (an optional one, or another alternative) does not count.
+int capturedFieldCount( const QRegularExpressionMatch& match, const QStringList& groupNames )
+{
+    QStringList captured;
+    for ( int group = 1; group < groupNames.size(); ++group ) {
+        const auto& name = groupNames[ group ];
+        if ( !name.isEmpty() && match.hasCaptured( group ) && !captured.contains( name ) ) {
+            captured << name;
+        }
+    }
+    return static_cast<int>( captured.size() );
+}
+
+// A regex format: how many of the Log Lines match at least one of its
+// patterns, and how many fields the best matching pattern captures of each.
 std::optional<FormatScore>
 scoreRegexFormat( const std::shared_ptr<const LogFormatDefinition>& format,
                   const QStringList& lines )
 {
-    // Compile all patterns for this format
-    QVector<QRegularExpression> compiledPatterns;
-    int maxGroups = 0;
-    for ( const auto& patternStr : format->regexPatterns() ) {
-        QRegularExpression re( patternStr );
-        if ( re.isValid() ) {
-            maxGroups = std::max( maxGroups, re.captureCount() );
-            compiledPatterns.append( std::move( re ) );
-        }
-    }
-
+    auto compiledPatterns = compilePatterns( *format );
     if ( compiledPatterns.isEmpty() ) {
         return std::nullopt;
     }
 
-    // Count how many lines match at least one pattern
     int matchCount = 0;
+    int capturedFields = 0;
     for ( const auto& line : lines ) {
-        for ( const auto& re : compiledPatterns ) {
-            if ( re.match( line ).hasMatch() ) {
-                ++matchCount;
-                break; // one pattern matching is enough
+        std::optional<int> bestFields;
+        for ( const auto& pattern : compiledPatterns ) {
+            const auto match = pattern.regex.match( line );
+            if ( match.hasMatch() ) {
+                bestFields = std::max( bestFields.value_or( 0 ),
+                                       capturedFieldCount( match, pattern.groupNames ) );
             }
+        }
+        if ( bestFields ) {
+            ++matchCount;
+            capturedFields += *bestFields;
         }
     }
 
     if ( matchCount == 0 ) {
         return std::nullopt;
     }
-    return FormatScore{ format, matchCount, maxGroups };
+    return FormatScore{ format, matchCount, capturedFields, std::move( compiledPatterns ) };
 }
 
 // A JSON format: how many of the JSON objects contain its timestamp field.
@@ -91,18 +145,27 @@ scoreJsonFormat( const std::shared_ptr<const LogFormatDefinition>& format,
         return std::nullopt;
     }
 
+    const auto present = []( const QJsonObject& object, const QString& path ) {
+        const auto value = JsonLogLine::valueAt( object, path );
+        return !value.isUndefined() && !value.isNull();
+    };
+
     int matchCount = 0;
+    int capturedFields = 0;
     for ( const auto& object : objects ) {
-        const auto value = JsonLogLine::valueAt( object, timestampField );
-        if ( !value.isUndefined() && !value.isNull() ) {
+        if ( present( object, timestampField ) ) {
             ++matchCount;
+            capturedFields += static_cast<int>(
+                std::ranges::count_if( format->valueFieldOrder(), [ & ]( const QString& path ) {
+                    return present( object, path );
+                } ) );
         }
     }
 
     if ( matchCount == 0 ) {
         return std::nullopt;
     }
-    return FormatScore{ format, matchCount, static_cast<int>( format->valueFieldOrder().size() ) };
+    return FormatScore{ format, matchCount, capturedFields };
 }
 
 // A logfmt format: how many of the Log Lines read completely as key/value pairs
@@ -117,44 +180,76 @@ scoreLogfmtFormat( const std::shared_ptr<const LogFormatDefinition>& format,
     }
 
     int matchCount = 0;
+    int capturedFields = 0;
     for ( const auto& line : lines ) {
         const auto pairs = LogfmtLogLine::parse( line );
         if ( pairs && pairs->contains( timestampField ) ) {
             ++matchCount;
+            capturedFields += static_cast<int>(
+                std::ranges::count_if( format->valueFieldOrder(), [ & ]( const QString& key ) {
+                    return pairs->contains( key );
+                } ) );
         }
     }
 
     if ( matchCount == 0 ) {
         return std::nullopt;
     }
-    return FormatScore{ format, matchCount, static_cast<int>( format->valueFieldOrder().size() ) };
+    return FormatScore{ format, matchCount, capturedFields };
 }
 
 // The best of the scored formats, when it matches enough of the sample lines.
-std::shared_ptr<const LogFormatDefinition> pickBest( QVector<FormatScore>& scores,
+//
+// The formats matching the most Log Lines are ranked by (1) how many of their
+// rivals are more specific than they are (fewest first), (2) the fields they
+// capture from the Log Lines, and (3) their name, so that the answer never
+// depends on the Catalog's order.
+std::shared_ptr<const LogFormatDefinition> pickBest( const QVector<FormatScore>& scores,
                                                      qsizetype lineCount )
 {
     if ( scores.isEmpty() ) {
         return nullptr;
     }
 
-    // Sort by: (1) match count descending, (2) specificity descending (more specific)
-    std::sort( scores.begin(), scores.end(), []( const FormatScore& a, const FormatScore& b ) {
-        if ( a.matchCount != b.matchCount ) {
-            return a.matchCount > b.matchCount;
-        }
-        return a.specificity > b.specificity;
-    } );
-
-    // Check if the best candidate passes the minimum threshold
-    const auto& best = scores.first();
-    const double ratio = static_cast<double>( best.matchCount ) / static_cast<double>( lineCount );
-
+    const auto mostMatched = std::ranges::max( scores, {}, &FormatScore::matchCount ).matchCount;
+    const double ratio = static_cast<double>( mostMatched ) / static_cast<double>( lineCount );
     if ( ratio < MinMatchRatio ) {
         return nullptr;
     }
 
-    return best.format;
+    QVector<const FormatScore*> rivals;
+    for ( const auto& score : scores ) {
+        if ( score.matchCount == mostMatched ) {
+            rivals.append( &score );
+        }
+    }
+
+    struct Rank {
+        int moreSpecificRivals = 0;
+        int capturedFields = 0;
+        const FormatScore* score = nullptr;
+    };
+    QVector<Rank> ranks;
+    ranks.reserve( rivals.size() );
+    for ( const auto* candidate : rivals ) {
+        const auto moreSpecificRivals
+            = std::ranges::count_if( rivals, [ & ]( const FormatScore* rival ) {
+                  return rival != candidate && moreSpecific( *rival, *candidate );
+              } );
+        ranks.append(
+            { static_cast<int>( moreSpecificRivals ), candidate->capturedFields, candidate } );
+    }
+
+    const auto best = std::ranges::min( ranks, []( const Rank& a, const Rank& b ) {
+        if ( a.moreSpecificRivals != b.moreSpecificRivals ) {
+            return a.moreSpecificRivals < b.moreSpecificRivals;
+        }
+        if ( a.capturedFields != b.capturedFields ) {
+            return a.capturedFields > b.capturedFields;
+        }
+        return a.score->format->name() < b.score->format->name();
+    } );
+    return best.score->format;
 }
 
 std::shared_ptr<const LogFormatDefinition> bestMatch( const QStringList& lines,

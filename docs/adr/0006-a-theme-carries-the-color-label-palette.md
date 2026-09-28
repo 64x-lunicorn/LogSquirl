@@ -21,3 +21,7 @@ The Text View was handed the colors together with the words and holds them in it
 - A Theme is no longer only a set of Tokens: whoever adds one adds nine Color Label colors too, and their text reaches 4.5:1 on their background like every other pair of Tokens.
 - Applying a Theme writes the settings when a Color Label changed, so such a Theme switch is a write, not only a repaint.
 - A user who colors a Color Label to a built-in Theme's exact colors has, for the Theme, not colored it at all.
+
+## Note (2026-09-28, #590): a Theme colors Match and Mark Rows too
+
+Color Labels are no longer the only thing in a Log Line a Theme colors: in the Table View the Row of a Match, a Mark and a Mark that is a Match takes its color from the Theme's `MatchRow`, `MarkRow` and `MarkedMatchRow` Tokens (ADR-0013). Whoever adds a Theme adds these three too, with its Text reaching 4.5:1 on each.

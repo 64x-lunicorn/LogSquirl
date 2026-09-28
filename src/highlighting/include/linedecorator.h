@@ -187,17 +187,27 @@ private:
 HighlightedMatch inRawColumns( QStringView rawText, const HighlightedMatch& displaySpan );
 
 // The colors a Presentation's palette gives a Log Line: its text when
-// nothing else colors it, the text of a line outside the Search Limits, and
-// the selection. The Line Decorator decides which of them a line gets.
+// nothing else colors it, the text of a line outside the Search Limits, the
+// selection, and the backgrounds of a Match, a Mark and a Mark that is a
+// Match where the Presentation shows them as one. The Line Decorator decides
+// which of them a line gets.
 struct LinePalette {
     QColor text;
     QColor base;
     QColor subduedText;
     QColor selectedText;
     QColor selection;
+    // The Theme's Row colors (#590). Invalid where the Presentation shows
+    // Match and Mark in a gutter; an invalid one shows LineStatusColors.
+    QColor matchRow;
+    QColor markRow;
+    QColor markedMatchRow;
 
-    // The line colors of a Qt palette, as both Presentations take them.
+    // The line colors of a Qt palette, as both Presentations take them. A Qt
+    // palette has no Row colors: they are left invalid.
     static LinePalette fromPalette( const QPalette& palette );
+
+    bool operator==( const LinePalette& ) const = default;
 };
 
 // Where a Presentation shows whether a Log Line is a Match or a Mark. The
@@ -211,11 +221,11 @@ enum class LineStatusDisplay {
 // The colors that show what a Log Line *is* rather than what its text says:
 // whether it is a Match, a Mark, or both at once.
 //
-// Defined once here because every Presentation shows the same three facts,
-// each in the only place it has: the Text View paints them as a gutter
-// bullet, the Table View -- which has no gutter -- as the row background,
-// the overview strip as a line. They have to agree, and a comment asking two
-// copies to stay in step is not what keeps them agreeing.
+// Defined once here for the Text View's gutter bullets and the overview
+// strip, which show the same three facts and have to agree. They are
+// saturated marks on the Theme's background, not a surface text sits on.
+// The Table View has no gutter and colors the whole Row instead, in the
+// Theme's Row colors, which the Row's text has to read on (#590).
 struct LineStatusColors {
     // The color of a Log Line the current Search selected.
     static QColor match();

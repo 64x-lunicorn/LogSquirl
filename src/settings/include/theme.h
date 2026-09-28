@@ -111,6 +111,9 @@ class QObject;
     X( LineNumberText )                                                                            \
     X( Bullet )                                                                                    \
     X( BulletOutline )                                                                             \
+    X( MatchRow )                                                                                  \
+    X( MarkRow )                                                                                   \
+    X( MarkedMatchRow )                                                                            \
     X( ProgressChunk )                                                                             \
     X( SliderGroove )                                                                              \
     X( ErrorBackground )                                                                           \
