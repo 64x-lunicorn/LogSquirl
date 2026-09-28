@@ -31,7 +31,6 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
-#include <QStandardPaths>
 
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
@@ -277,8 +276,7 @@ PluginDialog::PluginDialog( PluginCatalog& catalog, PluginHost& host, QWidget* p
     auto* pluginFolderButton = new QPushButton( tr( "Plugin Folder" ), this );
     pluginFolderButton->setToolTip( tr( "Open the user plugin directory in the file manager" ) );
     connect( pluginFolderButton, &QPushButton::clicked, this, []() {
-        const auto dir
-            = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
+        const auto dir = PluginCatalog::userPluginDirectory();
         QDir().mkpath( dir );
         showPathInFileExplorer( dir );
     } );
@@ -622,9 +620,9 @@ void PluginDialog::installPlugin( const QString& pluginId )
         it->second->actionButton->setText( tr( "Installing..." ) );
     }
 
-    const auto dirs = PluginCatalog::defaultPluginDirectories();
-    const auto destDir = dirs.isEmpty() ? QDir::tempPath() : dirs.first();
-    repository_.downloadPlugin( latest->assets.front(), pluginId, destDir );
+    // The archive is downloaded next to where extractAndInstall() unpacks it.
+    repository_.downloadPlugin( latest->assets.front(), pluginId,
+                                PluginCatalog::userPluginDirectory() );
 }
 
 void PluginDialog::togglePlugin( const QString& pluginId )
@@ -665,14 +663,11 @@ void PluginDialog::togglePlugin( const QString& pluginId )
 
 bool PluginDialog::extractAndInstall( const QString& archivePath, const QString& pluginId )
 {
-    const auto dirs = PluginCatalog::defaultPluginDirectories();
-    if ( dirs.isEmpty() ) {
-        QMessageBox::warning( this, tr( "Install Error" ),
-                              tr( "No plugin directory configured." ) );
-        return false;
-    }
-
-    const auto pluginDir = QDir( dirs.first() ).filePath( pluginId );
+    // Always the user plugin directory, the one "Plugin Folder" opens: the
+    // application folder is not writable on Windows and part of the signed
+    // bundle on macOS. An update of a shipped plugin lands there too and wins
+    // over the shipped copy, which stays untouched (#595, ADR 0014).
+    const auto pluginDir = PluginCatalog::installDirectory( pluginId );
     const auto backupDir = pluginDir + ".bak";
 
     // Unload existing plugin before overwriting

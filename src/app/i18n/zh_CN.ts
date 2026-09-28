@@ -2658,110 +2658,110 @@ Backspace or Delete clears the shortcut.</source>
 <context>
     <name>PluginDialog</name>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="150"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="149"/>
         <source>License: %1</source>
         <translation>许可证：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="161"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="160"/>
         <source>Install</source>
         <translation>安装</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="168"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="182"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="167"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="181"/>
         <source>Disable</source>
         <translation>禁用</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="174"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="173"/>
         <source>Enable</source>
         <translation>启用</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="179"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="768"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="178"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="763"/>
         <source>Update</source>
         <translation>更新</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="196"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="195"/>
         <source>Plugin Management</source>
         <translation>插件管理</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="205"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="204"/>
         <source>Search plugins...</source>
         <translation>搜索插件...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="214"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="213"/>
         <source>All</source>
         <translation>全部</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="222"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="221"/>
         <source>Installed</source>
         <translation>已安装</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="229"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="590"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="228"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="588"/>
         <source>Updates</source>
         <translation>更新</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="258"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="257"/>
         <source>Fetching plugin catalog...</source>
         <translation>正在获取插件目录...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="267"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="266"/>
         <source>Auto-load enabled plugins on startup</source>
         <translation>启动时自动加载已启用的插件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="277"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="276"/>
         <source>Plugin Folder</source>
         <translation>插件文件夹</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="278"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="277"/>
         <source>Open the user plugin directory in the file manager</source>
         <translation>在文件管理器中打开用户插件目录</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="287"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="285"/>
         <source>Close</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="330"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="328"/>
         <source>%1 plugins available</source>
         <translation>%1 个可用插件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="345"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="343"/>
         <source>Error: %1</source>
         <translation>错误：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="367"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="365"/>
         <source>Downloaded to %1</source>
         <translation>已下载到 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="384"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="382"/>
         <source>%1 installed and activated.</source>
         <translation>%1 已安装并激活。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="385"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="383"/>
         <source>Plugin Installed</source>
         <translation>插件已安装</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="386"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="384"/>
         <source>%1 has been installed and activated.
 
 You can now use it from the Plugins menu.</source>
@@ -2770,103 +2770,97 @@ You can now use it from the Plugins menu.</source>
 现在可以通过“插件”菜单使用它。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="397"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="395"/>
         <source>Download failed: %1</source>
         <translation>下载失败：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="398"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="396"/>
         <source>Download Error</source>
         <translation>下载错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="587"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="585"/>
         <source>All (%1)</source>
         <translation>全部 (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="588"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="586"/>
         <source>Installed (%1)</source>
         <translation>已安装 (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="589"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="587"/>
         <source>Updates (%1)</source>
         <translation>更新 (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="600"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="670"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="701"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="598"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="696"/>
         <source>Install Error</source>
         <translation>安装错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="601"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="599"/>
         <source>No compatible download available for %1 on this platform.</source>
         <translation>%1 没有适用于此平台的兼容下载。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="616"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="614"/>
         <source>Downloading %1...</source>
         <translation>正在下载 %1...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="622"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="620"/>
         <source>Installing...</source>
         <translation>正在安装...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="644"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="642"/>
         <source>Plugin disabled.</source>
         <translation>插件已禁用。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="654"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="652"/>
         <source>Plugin Error</source>
         <translation>插件错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="655"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="653"/>
         <source>Failed to load %1:
 %2</source>
         <translation>加载 %1 失败：
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="658"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="656"/>
         <source>Plugin enabled.</source>
         <translation>插件已启用。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="671"/>
-        <source>No plugin directory configured.</source>
-        <translation>未配置插件目录。</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="700"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="695"/>
         <source>Installation failed.</source>
         <translation>安装失败。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="702"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="697"/>
         <source>Failed to extract plugin archive:
 %1</source>
         <translation>解压插件压缩包失败：
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="717"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="712"/>
         <source>Extracted but failed to load.</source>
         <translation>已解压但加载失败。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="718"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="713"/>
         <source>Load Error</source>
         <translation>加载错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="719"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="714"/>
         <source>Plugin was extracted but could not be loaded:
 %1
 
@@ -2877,17 +2871,17 @@ Restart LogSquirl to try again.</source>
 请重新启动 LogSquirl 后重试。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="766"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="761"/>
         <source>Active</source>
         <translation>已激活</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="770"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="765"/>
         <source>Disabled</source>
         <translation>已禁用</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="772"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="767"/>
         <source>Available</source>
         <translation>可用</translation>
     </message>
