@@ -1,3 +1,17 @@
+# Unreleased
+
+## Documentation
+
+- **The documentation is on the website, and its search finds it**: the
+  website has a Documentation section, one page per topic of the user guide
+  (`DOCUMENTATION.md`, the one the app shows under Help → Documentation), at
+  https://logsquirl.lunicorn-lab.de/docs/. The README and the release notes
+  link there; the GitHub wiki, which had fallen behind, only points to it. The
+  guide now also covers the search bar's buttons and Keep Results, the
+  breadcrumbs, QuickFind, tabs, the Chart Panel's series dialog, time buckets
+  and preset files, the Scratchpad's transformations, where plugins go, and the
+  portable Windows package (#587).
+
 # v26.10.0-beta3 (2026-09-28)
 
 ## Changes
