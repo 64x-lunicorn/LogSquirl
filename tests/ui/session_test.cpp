@@ -27,6 +27,7 @@
 #include "savedsearches.h"
 #include "session.h"
 #include "sessioninfo.h"
+#include "stored_session.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -38,6 +39,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -391,17 +393,15 @@ struct ThreeTabSession {
         writeLogLines( current, 1024 * 1024 );
     }
 
-    // Saves them in the Session info read at startup. Building a Session reads
-    // the settings store again, so this comes after.
-    void store() const
+    // Saves them as the Session in the settings store, as after an earlier
+    // run (#608).
+    void store()
     {
-        auto& readAtStartup = SessionInfo::get();
-        readAtStartup.add( windowId );
-        readAtStartup.setOpenFiles( windowId,
-                                    { { large.fileName(), QString{} },
-                                      { small.fileName(), QString{} },
-                                      { current.fileName(), QString{} } },
-                                    2 );
+        stored_.emplace( windowId,
+                         std::vector<SessionInfo::OpenFile>{ { large.fileName(), QString{} },
+                                                             { small.fileName(), QString{} },
+                                                             { current.fileName(), QString{} } },
+                         2 );
     }
 
     ~ThreeTabSession()
@@ -412,6 +412,9 @@ struct ThreeTabSession {
 
     ThreeTabSession( const ThreeTabSession& ) = delete;
     ThreeTabSession& operator=( const ThreeTabSession& ) = delete;
+
+private:
+    std::optional<StoredSessionWindow> stored_;
 };
 
 // The tabs whose Log File finished its first load, in the order they did.

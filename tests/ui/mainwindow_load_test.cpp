@@ -54,7 +54,7 @@
 #include "openlogfile.h"
 #include "pathline.h"
 #include "session.h"
-#include "sessioninfo.h"
+#include "stored_session.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -332,13 +332,10 @@ SCENARIO( "A restored window shows the tab that was in front", "[ui][session]" )
 
     auto appSession
         = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
-    // Stored after the Session was built, which reads the settings store.
-    auto& stored = SessionInfo::get();
-    stored.add( windowId );
-    stored.setOpenFiles( windowId,
-                         { { QFileInfo( firstFile ).absoluteFilePath(), QString{} },
-                           { QFileInfo( secondFile ).absoluteFilePath(), QString{} } },
-                         0 );
+    const StoredSessionWindow stored{ windowId,
+                                      { { QFileInfo( firstFile ).absoluteFilePath(), QString{} },
+                                        { QFileInfo( secondFile ).absoluteFilePath(), QString{} } },
+                                      0 };
     WindowSession windowSession{ appSession, windowId, 0 };
     const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
 
@@ -365,8 +362,6 @@ SCENARIO( "A restored window shows the tab that was in front", "[ui][session]" )
     }
 
     mainWindow.reset();
-    // Leave the in-memory Session info as the settings store has it.
-    SessionInfo::getSynced();
 }
 
 // A restored Log File shows the Log Line that was at the top of its Viewport
@@ -388,14 +383,12 @@ SCENARIO( "A restored Log File stands where it stood", "[ui][session]" )
 
     auto appSession
         = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
-    // Stored after the Session was built, which reads the settings store.
-    auto& stored = SessionInfo::get();
-    stored.add( windowId );
-    stored.setOpenFiles(
+    const StoredSessionWindow stored{
         windowId,
         { { QFileInfo( firstFile ).absoluteFilePath(), R"({"S":[400,100],"SP":1200})" },
           { QFileInfo( secondFile ).absoluteFilePath(), R"({"S":[400,100],"SP":900})" } },
-        0 );
+        0
+    };
     WindowSession windowSession{ appSession, windowId, 0 };
     const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
 
@@ -433,8 +426,6 @@ SCENARIO( "A restored Log File stands where it stood", "[ui][session]" )
     }
 
     mainWindow.reset();
-    // Leave the in-memory Session info as the settings store has it.
-    SessionInfo::getSynced();
 }
 
 // A Log File decompressed from an archive is read from a temporary file that
@@ -571,13 +562,10 @@ SCENARIO( "A Log File still loading in a background tab shows as loading when it
 
     auto appSession
         = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
-    // Stored after the Session was built, which reads the settings store.
-    auto& stored = SessionInfo::get();
-    stored.add( windowId );
-    stored.setOpenFiles( windowId,
-                         { { QFileInfo( firstFile ).absoluteFilePath(), QString{} },
-                           { QFileInfo( secondFile ).absoluteFilePath(), QString{} } },
-                         0 );
+    const StoredSessionWindow stored{ windowId,
+                                      { { QFileInfo( firstFile ).absoluteFilePath(), QString{} },
+                                        { QFileInfo( secondFile ).absoluteFilePath(), QString{} } },
+                                      0 };
     WindowSession windowSession{ appSession, windowId, 0 };
     const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
 
@@ -663,8 +651,6 @@ SCENARIO( "A Log File still loading in a background tab shows as loading when it
     }
 
     mainWindow.reset();
-    // Leave the in-memory Session info as the settings store has it.
-    SessionInfo::getSynced();
 }
 
 // The window shows the loading progress of the tab in front only. A tab keeps

@@ -40,6 +40,7 @@
 #include "savedsearches.h"
 #include "session.h"
 #include "sessioninfo.h"
+#include "stored_session.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
@@ -2816,25 +2817,19 @@ namespace {
 struct RestoredWindow {
     // Before the Crawler Widgets, which it outlives.
     std::shared_ptr<Session> appSession;
+    // Before the window, which finds it in the Session (#608).
+    StoredSessionWindow stored;
     std::unique_ptr<WindowSession> window;
     std::vector<std::unique_ptr<CrawlerWidget>> tabs;
 
     // Restores the window with these Log Files and view contexts, the last one
-    // its current tab. Building a Session reads the settings store again, so
-    // the Session info is written after it.
+    // its current tab.
     RestoredWindow( const QString& windowId,
                     const std::vector<std::pair<QString, QString>>& openFiles )
         : appSession( std::make_shared<Session>( testSettingsPolicies(),
                                                  std::make_shared<LogFormatCatalog>() ) )
+        , stored( windowId, toOpenFiles( openFiles ) )
     {
-        std::vector<SessionInfo::OpenFile> saved;
-        for ( const auto& [ fileName, viewContext ] : openFiles ) {
-            saved.emplace_back( fileName, viewContext );
-        }
-        auto& readAtStartup = SessionInfo::get();
-        readAtStartup.add( windowId );
-        readAtStartup.setOpenFiles( windowId, saved );
-
         window = std::make_unique<WindowSession>( appSession, windowId, 0 );
         int currentFileIndex = -1;
         window->restore(
@@ -2849,12 +2844,21 @@ struct RestoredWindow {
     ~RestoredWindow()
     {
         tabs.clear();
-        // Leave the in-memory Session info as the settings store has it.
-        SessionInfo::getSynced();
     }
 
     RestoredWindow( const RestoredWindow& ) = delete;
     RestoredWindow& operator=( const RestoredWindow& ) = delete;
+
+private:
+    static std::vector<SessionInfo::OpenFile>
+    toOpenFiles( const std::vector<std::pair<QString, QString>>& openFiles )
+    {
+        std::vector<SessionInfo::OpenFile> saved;
+        for ( const auto& [ fileName, viewContext ] : openFiles ) {
+            saved.emplace_back( fileName, viewContext );
+        }
+        return saved;
+    }
 };
 
 } // namespace
