@@ -331,8 +331,7 @@ SCENARIO( "A shortcut is recorded by clicking its cell", "[ui][options][shortcut
 
 // Shift+Up extends the selection up and Shift+Down down; each is named after
 // what it does (#611).
-TEST_CASE( "The select-lines commands are named after their direction",
-           "[ui][options][shortcuts]" )
+TEST_CASE( "The select-lines commands are named after their direction", "[ui][options][shortcuts]" )
 {
     const auto& shortcuts = ShortcutAction::defaultShortcutList();
     const auto up = shortcuts.find( ShortcutAction::LogViewSelectLinesUp );

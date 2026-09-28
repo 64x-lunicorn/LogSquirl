@@ -130,8 +130,7 @@ namespace {
 // after opening the Log File (#607).
 void signalCrawlerToFollowFile( CrawlerWidget* crawler_widget )
 {
-    dispatchToObject( [ crawler_widget ]() { crawler_widget->followSet( true ); },
-                      crawler_widget );
+    dispatchToObject( [ crawler_widget ]() { crawler_widget->followSet( true ); }, crawler_widget );
 }
 
 static constexpr auto ClipboardMaxTry = 5;

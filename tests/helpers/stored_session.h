@@ -52,8 +52,7 @@ public:
     // one whose tab was in front: -1 for none, as a Session stored before
     // that was saved (#542).
     StoredSessionWindow( const QString& windowId,
-                         const std::vector<SessionInfo::OpenFile>& openFiles,
-                         int currentFile = -1 )
+                         const std::vector<SessionInfo::OpenFile>& openFiles, int currentFile = -1 )
         : before_( SessionInfo::getSynced() )
     {
         auto& stored = SessionInfo::getSynced();

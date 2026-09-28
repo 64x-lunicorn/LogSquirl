@@ -365,9 +365,9 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
         bool isNameEntered = false;
         // The name without the group's bullet, so accepting it as it is keeps
         // the name (#612).
-        auto newName = QInputDialog::getText( this, tr( "Rename tab" ), tr( "Tab name" ),
-                                              QLineEdit::Normal, baseTabName( tab ),
-                                              &isNameEntered );
+        auto newName
+            = QInputDialog::getText( this, tr( "Rename tab" ), tr( "Tab name" ), QLineEdit::Normal,
+                                     baseTabName( tab ), &isNameEntered );
         if ( isNameEntered ) {
             renameTab( tab, newName );
         }
