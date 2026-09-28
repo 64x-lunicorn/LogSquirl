@@ -6,7 +6,9 @@
   Formats, plugins, plugin configuration, Team Folder and theme stylesheets sit
   beside `logsquirl_portable.exe`, next to its settings and crash dumps, instead
   of in `%APPDATA%\logsquirl_portable`. Any LogSquirl that finds a
-  `logsquirl.conf` beside itself does the same (#602).
+  `logsquirl.conf` beside itself does the same (#602). On its first start it
+  copies what an earlier portable package kept in the old place beside the
+  executable, once, and leaves the old folders as they are (#613).
 - **A plugin installed from the catalog goes into the user plugin folder**:
   installs and updates from Plugins → Plugin Management… go into the user
   plugin directory, the one *Plugin Folder* opens, instead of the application's
@@ -64,6 +66,13 @@
   the group's bullet (#606, #612).
 - **Closing a window right after it opened a followed Log File no longer reads
   the freed tab** (#607).
+- **A Log File from an archive is known by its archive**: Recent Files lists
+  the archive instead of a temporary path, and its tab keeps its name and tab
+  group across a restart (#609).
+- **Jump to line number without a typed number stays where it is** instead of
+  jumping to the last line, and `0` goes to the first line (#614).
+- **Opening a converted Log File again shows its open tab** instead of
+  converting it into a second one (#615).
 
 - **The Table View colors Matches and Marks in the Theme's colors**: the Row
   of a Match, a Mark and a Mark that is a Match is a subdued tint of red, blue
