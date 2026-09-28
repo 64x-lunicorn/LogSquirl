@@ -455,6 +455,7 @@ void WindowSession::save( const std::vector<SaveFileInfo>& view_list,
     // front if it was and the window still shows the tab the restore put
     // there (#610).
     std::vector<const ViewInterface*> views;
+    views.reserve( view_list.size() );
     for ( const auto& view : view_list ) {
         views.push_back( std::get<0>( view ) );
     }
@@ -667,7 +668,12 @@ WindowSession::openDeferred( int id, const QString& fileName, const ViewFactory&
         LOG_WARNING << "No deferred Log File " << id << " to open";
         return {};
     }
-    const auto saved = *slot->deferred;
+    const auto& deferred = slot->deferred;
+    if ( !deferred ) {
+        LOG_WARNING << "No deferred Log File " << id << " to open";
+        return {};
+    }
+    const auto saved = *deferred;
 
     DeferredOpen opened;
     opened.position = positionAmong( static_cast<size_t>( slot - restoredTabs_.begin() ), tabs );

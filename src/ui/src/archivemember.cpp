@@ -61,7 +61,7 @@ QString decompressLevel( const QString& fileName, const QString& member, const Q
         }
 
         // A member names a file inside the archive, never one beside it.
-        const auto path = QDir::cleanPath( extracted.filePath( member ) );
+        auto path = QDir::cleanPath( extracted.filePath( member ) );
         if ( !path.startsWith( QDir::cleanPath( extracted.path() ) + '/' )
              || !QFileInfo{ path }.isFile() ) {
             LOG_WARNING << "No member " << member << " in " << fileName;

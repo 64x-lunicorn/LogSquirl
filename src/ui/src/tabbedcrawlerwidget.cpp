@@ -132,8 +132,8 @@ void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName,
 QString TabbedCrawlerWidget::baseTabName( int index ) const
 {
     const auto path = tabPathAt( index );
-    const auto customName = holdsTransientLogFile( index ) ? renamedTransientTabs_.value( path )
-                                                           : TabNameMapping::get().tabName( path );
+    auto customName = holdsTransientLogFile( index ) ? renamedTransientTabs_.value( path )
+                                                     : TabNameMapping::get().tabName( path );
     if ( !customName.isEmpty() ) {
         return customName;
     }
