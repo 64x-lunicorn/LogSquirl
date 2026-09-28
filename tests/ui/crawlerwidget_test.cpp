@@ -3939,3 +3939,63 @@ SCENARIO( "A Log File replays the status of its last load to the window", "[ui][
         }
     }
 }
+
+namespace {
+
+// What pressing the keys of action does: its shortcut in the Crawler Widget
+// fires.
+void pressShortcut( const CrawlerWidgetVisitor& crawlerVisitor, const std::string& action )
+{
+    const auto keys = ShortcutAction::shortcutKeys( action, Configuration::get().shortcuts() );
+    REQUIRE_FALSE( keys.isEmpty() );
+
+    for ( const auto& shortcut : shortcutsOf( *crawlerVisitor.crawler ) ) {
+        if ( !shortcut.isNull() && shortcut->key() == keys.front() ) {
+            Q_EMIT shortcut->activated();
+            QCoreApplication::processEvents();
+            return;
+        }
+    }
+    FAIL( "no shortcut registered for " << action );
+}
+
+} // namespace
+
+// Each visibility shortcut picks the mode of its name, not the entry at a fixed
+// position of the visibility list (#594).
+SCENARIO( "A visibility shortcut shows what its name says in the Filtered View", "[ui]" )
+{
+    using VisibilityFlags = LogFilteredData::VisibilityFlags;
+    using Visibility = FilteredView::Visibility;
+
+    QTemporaryFile file{ "crawler_visibility_XXXXXX" };
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    openCrawler( session, file, crawlerVisitor );
+
+    const auto [ action, shown ] = GENERATE( table<std::string, Visibility>( {
+        { ShortcutAction::CrawlerChangeVisibilityToMarksAndMatches,
+          VisibilityFlags::Marks | VisibilityFlags::Matches },
+        { ShortcutAction::CrawlerChangeVisibilityToMarks, VisibilityFlags::Marks },
+        { ShortcutAction::CrawlerChangeVisibilityToMatches, VisibilityFlags::Matches },
+    } ) );
+
+    GIVEN( "a Filtered View showing Marks, Matches and breadcrumbs, a mode no shortcut names" )
+    {
+        pressShortcut( crawlerVisitor, ShortcutAction::CrawlerChangeVisibilityForward );
+        REQUIRE(
+            crawlerVisitor.filteredView()->visibility()
+            == ( VisibilityFlags::Marks | VisibilityFlags::Matches | VisibilityFlags::Context ) );
+
+        DYNAMIC_SECTION( "When: the shortcut " << action << " is pressed" )
+        {
+            pressShortcut( crawlerVisitor, action );
+
+            THEN( "the Filtered View shows the mode of its name" )
+            {
+                REQUIRE( crawlerVisitor.filteredView()->visibility() == shown );
+            }
+        }
+    }
+}

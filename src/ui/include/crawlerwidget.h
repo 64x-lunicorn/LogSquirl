@@ -295,6 +295,9 @@ private Q_SLOTS:
     // Called when the user change the visibility combobox
     void changeFilteredViewVisibility( int index );
 
+    // Selects the entry of the visibility combobox that shows visibility.
+    void selectVisibility( FilteredView::Visibility visibility );
+
     // Called when the user add the string to the search
     void addToSearch( const QString& string );
 
