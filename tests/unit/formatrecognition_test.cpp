@@ -422,3 +422,269 @@ SCENARIO( "Format Recognition looks at the first 50 Log Lines only", "[logformat
         }
     }
 }
+
+namespace {
+
+// A format with a narrow pattern that captures few fields, and a second one
+// with many capture groups that these tests' Log Lines never match.
+const char* WideUnusedPatternJson = R"({
+    "wide_log": {
+        "title": "Wide",
+        "regex": {
+            "narrow": {
+                "pattern": "^\\[(?<timestamp>[^\\]]+)\\] (?<body>.*)$"
+            },
+            "unused": {
+                "pattern": "^WIDE (?<a>\\w+) (?<b>\\w+) (?<c>\\w+) (?<d>\\w+) (?<e>\\w+) (?<f>\\w+) (?<body>.*)$"
+            }
+        },
+        "timestamp-field": "timestamp",
+        "body-field": "body"
+    }
+})";
+
+// A format whose one pattern captures more fields of the same Log Lines.
+const char* LeveledJson = R"({
+    "leveled_log": {
+        "title": "Leveled",
+        "regex": {
+            "std": {
+                "pattern": "^\\[(?<timestamp>[^\\]]+)\\] (?<level>[A-Z]+) (?<body>.*)$"
+            }
+        },
+        "timestamp-field": "timestamp",
+        "level-field": "level",
+        "body-field": "body"
+    }
+})";
+
+// A format with many optional fields, none of which the Log Lines carry.
+const char* OptionalFieldsJson = R"({
+    "optional_log": {
+        "title": "Optional",
+        "regex": {
+            "std": {
+                "pattern": "^\\[(?<timestamp>[^\\]]+)\\](?: pid=(?<pid>\\d+))?(?: tid=(?<tid>\\d+))?(?: host=(?<host>\\S+))? (?<body>.*)$"
+            }
+        },
+        "timestamp-field": "timestamp",
+        "body-field": "body"
+    }
+})";
+
+// Two formats that read the same Log Lines into the same fields.
+const char* TwinAJson = R"({
+    "twin_a_log": {
+        "title": "Twin A",
+        "regex": { "std": { "pattern": "^\\[(?<timestamp>[^\\]]+)\\] (?<body>.*)$" } },
+        "timestamp-field": "timestamp",
+        "body-field": "body"
+    }
+})";
+
+const char* TwinBJson = R"({
+    "twin_b_log": {
+        "title": "Twin B",
+        "regex": { "std": { "pattern": "^\\[(?<timestamp>[^\\]]+)\\] (?<body>.*)$" } },
+        "timestamp-field": "timestamp",
+        "body-field": "body"
+    }
+})";
+
+// A loose format that reads any two words after a bracketed timestamp; its
+// pattern also accepts the sample line of StrictLeveledJson.
+const char* LooseJson = R"({
+    "loose_log": {
+        "title": "Loose",
+        "regex": {
+            "std": {
+                "pattern": "^\\[(?<timestamp>[^\\]]+)\\] (?<first>\\S+) (?<second>\\S+) (?<body>.*)$"
+            }
+        },
+        "timestamp-field": "timestamp",
+        "body-field": "body",
+        "sample": [ { "line": "[Tue Apr 04 06:18:29 2017] alpha beta gamma" } ]
+    }
+})";
+
+// A strict format whose pattern does not accept LooseJson's sample line.
+const char* StrictLeveledJson = R"({
+    "strict_log": {
+        "title": "Strict",
+        "regex": {
+            "std": {
+                "pattern": "^\\[(?<timestamp>\\d{4}-\\d{2}-\\d{2} [^\\]]+)\\] (?<level>INFO|WARN|ERROR) (?<body>.*)$"
+            }
+        },
+        "timestamp-field": "timestamp",
+        "level-field": "level",
+        "body-field": "body",
+        "sample": [ { "line": "[2026-09-09 09:41:00] INFO started" } ]
+    }
+})";
+
+const QStringList LeveledLines = {
+    "[2026-09-09 09:41:00] INFO started",
+    "[2026-09-09 09:41:01] WARN pool filling",
+    "[2026-09-09 09:41:02] ERROR request failed",
+};
+
+} // namespace
+
+SCENARIO( "Format Recognition prefers the more specific of two equally matching Log Formats",
+          "[logformat][recognition]" )
+{
+    GIVEN( "a loose Log Format that accepts a strict one's sample line, but not the other way "
+           "round" )
+    {
+        const auto catalog = catalogOf( { LooseJson, StrictLeveledJson } );
+
+        THEN( "Log Lines both match are recognized with the strict one, though the loose one "
+              "captures more fields" )
+        {
+            const auto recognized = FormatRecognition::recognize( LeveledLines, Enabled, catalog );
+            REQUIRE( recognized == catalog.formatByName( "strict_log" ) );
+        }
+
+        THEN( "Log Lines only the loose one matches are recognized with it" )
+        {
+            const QStringList lines = { "[Tue Apr 04 06:18:29 2017] alpha beta gamma",
+                                        "[Tue Apr 04 06:18:30 2017] delta epsilon zeta" };
+            const auto recognized = FormatRecognition::recognize( lines, Enabled, catalog );
+            REQUIRE( recognized == catalog.formatByName( "loose_log" ) );
+        }
+    }
+}
+
+SCENARIO( "Format Recognition ranks equally matching Log Formats by the fields they capture",
+          "[logformat][recognition]" )
+{
+    GIVEN( "a Log Format whose widest pattern does not match, and one that captures more" )
+    {
+        const auto catalog = catalogOf( { WideUnusedPatternJson, LeveledJson } );
+
+        THEN( "the Log Format capturing more fields of the Log Lines wins" )
+        {
+            const auto recognized = FormatRecognition::recognize( LeveledLines, Enabled, catalog );
+            REQUIRE( recognized == catalog.formatByName( "leveled_log" ) );
+        }
+    }
+
+    GIVEN( "a Log Format with optional fields the Log Lines do not carry" )
+    {
+        const auto catalog = catalogOf( { OptionalFieldsJson, LeveledJson } );
+
+        THEN( "its optional fields do not count, and the one capturing more fields wins" )
+        {
+            const auto recognized = FormatRecognition::recognize( LeveledLines, Enabled, catalog );
+            REQUIRE( recognized == catalog.formatByName( "leveled_log" ) );
+        }
+    }
+
+    GIVEN( "two Log Formats that capture the same fields" )
+    {
+        THEN( "the one first by name wins, whatever order the Catalog got them in" )
+        {
+            for ( const auto& catalog : { catalogOf( { TwinAJson, TwinBJson } ),
+                                          catalogOf( { TwinBJson, TwinAJson } ) } ) {
+                const auto recognized
+                    = FormatRecognition::recognize( LeveledLines, Enabled, catalog );
+                REQUIRE( recognized == catalog.formatByName( "twin_a_log" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "Format Recognition tells spdlog and Apache error logs apart with the built-in Log "
+          "Formats",
+          "[logformat][recognition]" )
+{
+    GIVEN( "the built-in Log Formats" )
+    {
+        LogFormatCatalog catalog;
+        catalog.loadBuiltinFormats();
+
+        WHEN( "the Log Lines are spdlog's, as in test_data/screenshot_demo.txt" )
+        {
+            const QStringList lines = {
+                "[2026-09-09 09:41:00.000] [demo] [info] ACORN STORE | Synthetic incident replay "
+                "| All services and requests are fictional",
+                "[2026-09-09 09:41:00.100] [gateway] [info] GET /api/catalog status=200 "
+                "duration_ms=24 request=demo-001",
+                "[2026-09-09 09:41:01.000] [inventory] [debug] Cache warm: items=128 hit_rate=99 "
+                "pool_active=4 pool_limit=32",
+                "[2026-09-09 09:41:04.000] [checkout] [info] Order accepted order=acorn-001 "
+                "payment=sandbox",
+                "[2026-09-09 09:41:25.000] [database] [warn] Connection pool filling "
+                "pool_active=24 pool_limit=32",
+            };
+
+            THEN( "they are recognized as spdlog_log, not as error_log" )
+            {
+                const auto recognized = FormatRecognition::recognize( lines, Enabled, catalog );
+                REQUIRE( recognized != nullptr );
+                REQUIRE( recognized->name() == "spdlog_log" );
+            }
+        }
+
+        WHEN( "the Log Lines are an Apache error log's" )
+        {
+            const QStringList lines = {
+                "[Tue Apr 04 06:18:29.712806 2017] [mpm_prefork:notice] [pid 17725] AH00163: "
+                "Apache/2.4.23 (Unix) configured -- resuming normal operations",
+                "[Tue Apr 04 06:28:08.605341 2017] [core:error] [pid 17962] [client "
+                "127.0.0.1:60444] AH00135: Invalid method in request FOO /",
+                "[Thu May 12 08:28:57.652118 2011] [core:error] [pid 8777:tid 4326490112] "
+                "[client ::1:58619] File does not exist: /usr/local/apache2/htdocs/favicon.ico",
+                "[Thu Jan 17 02:42:49 2013] [notice] Digest: generating secret for digest "
+                "authentication ...",
+            };
+
+            THEN( "they are recognized as error_log" )
+            {
+                const auto recognized = FormatRecognition::recognize( lines, Enabled, catalog );
+                REQUIRE( recognized != nullptr );
+                REQUIRE( recognized->name() == "error_log" );
+            }
+        }
+    }
+}
+
+SCENARIO( "Format Recognition recognizes each built-in Log Format by its own sample lines",
+          "[logformat][recognition]" )
+{
+    GIVEN( "the built-in Log Formats" )
+    {
+        LogFormatCatalog catalog;
+        catalog.loadBuiltinFormats();
+
+        // error_log carries a pattern and a sample line for CUPS, which the
+        // CUPS Log Format reads as well; that line belongs to cups_log.
+        const auto ownedByAnother = []( const QString& format, const QString& line ) {
+            return format == "error_log" && line.startsWith( "E [" );
+        };
+
+        THEN( "every sample line, and all of a Log Format's sample lines together, are "
+              "recognized with that Log Format" )
+        {
+            for ( const auto& name : catalog.formatNames() ) {
+                const auto format = catalog.formatByName( name );
+                QStringList samples;
+                for ( const auto& sample : format->sampleLines() ) {
+                    samples << sample.line;
+                    if ( ownedByAnother( name, sample.line ) ) {
+                        continue;
+                    }
+                    CAPTURE( name, sample.line );
+                    const auto recognized = FormatRecognition::recognize(
+                        QStringList{ sample.line }, Enabled, catalog );
+                    REQUIRE( recognized == format );
+                }
+                if ( !samples.isEmpty() ) {
+                    CAPTURE( name );
+                    REQUIRE( FormatRecognition::recognize( samples, Enabled, catalog ) == format );
+                }
+            }
+        }
+    }
+}

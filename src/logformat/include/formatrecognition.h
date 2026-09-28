@@ -37,8 +37,16 @@ class AbstractLogData;
 // answers nullptr without looking at a single Log Line.
 //
 // Among the Log Formats that match, the one matching the most sample lines
-// wins, and on a tie the more specific one (more capture groups, or more
-// fields for a JSON format); at least half of the sample lines must match.
+// wins; at least half of the sample lines must match. On a tie (ADR 0011):
+//  1. the more specific Log Format: one whose sample lines (its "sample"
+//     section) a rival's patterns accept, while its own patterns accept none
+//     of the rival's, wins over that rival;
+//  2. then the one capturing more fields from the sample lines: the named
+//     groups that took part in the match (an optional group that did not
+//     match counts for nothing), or the declared fields a JSON or logfmt
+//     line holds;
+//  3. then the one first by name, so the answer never depends on the
+//     Catalog's order.
 //
 // The kinds of Log Format are scored apart: a sample line that parses as a
 // JSON object is scored only against JSON formats, which it matches when it
