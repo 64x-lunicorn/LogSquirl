@@ -1289,6 +1289,19 @@ void CrawlerWidget::changeFilteredViewVisibility( int index )
     }
 }
 
+void CrawlerWidget::selectVisibility( FilteredView::Visibility visibility )
+{
+    // Looked up by what the entry shows, not by its position in the list,
+    // so that the shortcuts keep their mode however the list is ordered.
+    for ( int row = 0; row < visibilityModel_->rowCount(); ++row ) {
+        const auto* item = visibilityModel_->item( row );
+        if ( item->data().value<FilteredView::Visibility>() == visibility ) {
+            visibilityBox_->setCurrentIndex( row );
+            return;
+        }
+    }
+}
+
 void CrawlerWidget::setSearchPatternFromPredefinedFilters( const QList<PredefinedFilter>& filters )
 {
     showEditedPattern( searchLine_.useFilters( filters ) );
@@ -2152,29 +2165,22 @@ void CrawlerWidget::registerShortcuts()
                                           visibilityBox_->setCurrentIndex( nextIndex );
                                       } );
 
+    using VisibilityFlags = LogFilteredData::VisibilityFlags;
+
     ShortcutAction::registerShortcut(
         configuredShortcuts, shortcuts_, this, Qt::WidgetWithChildrenShortcut,
-        ShortcutAction::CrawlerChangeVisibilityToMarksAndMatches, [ this ]() {
-            if ( visibilityBox_->count() > 0 ) {
-                visibilityBox_->setCurrentIndex( 0 );
-            }
-        } );
+        ShortcutAction::CrawlerChangeVisibilityToMarksAndMatches,
+        [ this ]() { selectVisibility( VisibilityFlags::Marks | VisibilityFlags::Matches ); } );
 
     ShortcutAction::registerShortcut( configuredShortcuts, shortcuts_, this,
                                       Qt::WidgetWithChildrenShortcut,
-                                      ShortcutAction::CrawlerChangeVisibilityToMarks, [ this ]() {
-                                          if ( visibilityBox_->count() > 1 ) {
-                                              visibilityBox_->setCurrentIndex( 1 );
-                                          }
-                                      } );
+                                      ShortcutAction::CrawlerChangeVisibilityToMarks,
+                                      [ this ]() { selectVisibility( VisibilityFlags::Marks ); } );
 
-    ShortcutAction::registerShortcut( configuredShortcuts, shortcuts_, this,
-                                      Qt::WidgetWithChildrenShortcut,
-                                      ShortcutAction::CrawlerChangeVisibilityToMatches, [ this ]() {
-                                          if ( visibilityBox_->count() > 2 ) {
-                                              visibilityBox_->setCurrentIndex( 2 );
-                                          }
-                                      } );
+    ShortcutAction::registerShortcut(
+        configuredShortcuts, shortcuts_, this, Qt::WidgetWithChildrenShortcut,
+        ShortcutAction::CrawlerChangeVisibilityToMatches,
+        [ this ]() { selectVisibility( VisibilityFlags::Matches ); } );
 
     ShortcutAction::registerShortcut(
         configuredShortcuts, shortcuts_, this, Qt::WidgetWithChildrenShortcut,
