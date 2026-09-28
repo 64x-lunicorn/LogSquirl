@@ -263,12 +263,18 @@ private:
     void writeSettings();
     // Opens a Log File in a new tab. A Transient Log File -- one the window
     // made for this run alone -- is not saved with the Session (#570), nor
-    // added to the recent files (#597).
+    // added to the recent files (#597). A Log File a converter plugin
+    // handles is opened as what the converter wrote, a Transient Log File
+    // (#605).
     bool loadFile( const QString& fileName, bool followFile = false,
                    LogFileLifetime lifetime = LogFileLifetime::Ordinary );
     bool extractAndLoadFile( const QString& fileName );
     void openRemoteFile( const QUrl& url );
     void updateTitleBar( const QString& fileName );
+    // The file the recent files keep for a Log File open with this lifetime:
+    // the Log File itself, the one a converted Log File was converted from
+    // (#605), or none for any other Transient Log File (#597).
+    QString recentFileOf( const QString& fileName, LogFileLifetime lifetime ) const;
     void addRecentFile( const QString& fileName );
     void updateRecentFileActions();
     void clearRecentFileActions();
@@ -445,6 +451,10 @@ private:
     // Where each Log File decompressed into tempDir_ came from, by the path
     // it is read from: the Session saves that instead (#596).
     QHash<QString, ArchiveMember> archiveMembers_;
+    // The Ordinary Log File each Log File a converter plugin wrote into
+    // tempDir_ was converted from, by the path it is read from: the recent
+    // files keep that instead (#605).
+    QHash<QString, QString> convertedFrom_;
 
     bool isMaximized_ = false;
     bool isCloseFromTray_ = false;

@@ -827,6 +827,10 @@ before it is shown, and *UI extension* plugins add menu items, status bar
 widgets or panels. How to write one is described in the
 [Plugin SDK guide](https://github.com/64x-lunicorn/LogSquirl/blob/master/docs/plugin-sdk.md).
 
+A file a converter plugin turns into text is opened from a temporary copy of
+that text. It is not restored with the session; the recent files keep the file
+you opened, which is converted again when you open it from there.
+
 `Plugins->Plugin Management...` opens the Plugin Management dialog. It lists the
 plugins in the catalog and the ones installed on your machine under the tabs
 *All*, *Installed* and *Updates*, and can be searched. Each plugin offers
