@@ -803,8 +803,13 @@ void AbstractLogView::registerShortcuts()
     registerShortcut( ShortcutAction::LogViewPrevMark, [ this ]() { selectMark( false ); } );
 
     registerShortcut( ShortcutAction::LogViewJumpToLineNumber, [ this ]() {
-        // The number counts the lines the view shows, from 1.
-        const auto position = LineNumber( qMax( 0ull, digitsBuffer_.content() - 1ull ) );
+        // Without a typed number there is no line to go to (#614).
+        if ( digitsBuffer_.isEmpty() ) {
+            return;
+        }
+        // The number counts the lines the view shows, from 1; 0 counts as 1.
+        const auto number = digitsBuffer_.content();
+        const auto position = LineNumber( number > 0 ? number - 1 : 0 );
         const auto logLine = lines_->logLineAt( position );
         if ( logLine.has_value() ) {
             selectAndDisplayLine( *logLine );

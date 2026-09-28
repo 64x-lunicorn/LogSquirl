@@ -1147,7 +1147,8 @@ the options dialog, where the commands without a default key, such as
 A count before a command repeats it, as in *vi*: type `0`, the number, then
 the command. `05j` moves the selection five lines down, `012k` twelve lines up,
 and the arrow keys take a count as `j` and `k` do; *Jump to line number* goes to
-the line of the number typed. The count starts with `0` because `1` to `9` on
+the line of the number typed, to the first line after a lone `0`, and stays
+where it is when no number was typed. The count starts with `0` because `1` to `9` on
 their own are the shortcuts of the filtered view's visibility and of the search
 buttons. Once `0` has started a count, the digits after it belong to the count
 until the command, or until two seconds pass without a key. `0` also scrolls to
