@@ -27,7 +27,6 @@
 #include <QHash>
 #include <QMap>
 #include <QSet>
-#include <QStandardPaths>
 #include <QTemporaryFile>
 #include <QUuid>
 #include <QtConcurrent/QtConcurrentRun>
@@ -36,6 +35,7 @@
 #include <optional>
 #include <utility>
 
+#include "datalocation.h"
 #include "groupexchange.h"
 #include "log.h"
 #include "teamfoldergit.h"
@@ -1060,7 +1060,7 @@ TeamFolder::~TeamFolder()
 
 QString TeamFolder::defaultCloneDirectory()
 {
-    const auto dataDir = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
+    const auto dataDir = DataLocation::current().dataDirectory();
     if ( dataDir.isEmpty() ) {
         return {};
     }

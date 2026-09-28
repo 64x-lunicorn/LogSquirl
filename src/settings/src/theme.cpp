@@ -20,6 +20,7 @@
 #include "theme.h"
 
 #include "configuration.h"
+#include "datalocation.h"
 #include "log.h"
 
 #include <QApplication>
@@ -27,7 +28,6 @@
 #include <QFile>
 #include <QPointer>
 #include <QRegularExpression>
-#include <QStandardPaths>
 #include <QStyle>
 #include <QStyleFactory>
 #include <QStyleHints>
@@ -1206,6 +1206,11 @@ QString Theme::styleSheet() const
     return result;
 }
 
+QString Theme::userThemesDirectory()
+{
+    return DataLocation::current().configDirectory() + QStringLiteral( "/themes/" );
+}
+
 QString Theme::styleSheetWithUserFile( const QString& userThemesDirectory ) const
 {
     auto result = styleSheet();
@@ -1272,9 +1277,7 @@ void applyResolved( const QString& name, Qt::ColorScheme systemScheme )
     }
 
     qApp->setPalette( theme.palette() );
-    qApp->setStyleSheet( theme.styleSheetWithUserFile(
-        QStandardPaths::writableLocation( QStandardPaths::AppConfigLocation )
-        + QStringLiteral( "/themes/" ) ) );
+    qApp->setStyleSheet( theme.styleSheetWithUserFile( Theme::userThemesDirectory() ) );
 
     // Only now, with Qt's repolish over, may widgets touch their styles.
     runRefreshes();

@@ -29,7 +29,7 @@
 
 #include "chartseries.h"
 #include "chartwidget.h"
-#include "persistentinfo.h"
+#include "datalocation.h"
 
 #include <QApplication>
 #include <QImage>
@@ -48,7 +48,7 @@
 #include "isolated_settings.h"
 
 // The settings library, which the UI library links, asks every executable.
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 namespace {
 

@@ -18,11 +18,11 @@
  */
 
 #include "logformatcatalog.h"
+#include "datalocation.h"
 #include "logformatparser.h"
 
 #include <QDir>
 #include <QFile>
-#include <QStandardPaths>
 
 #include <utility>
 
@@ -46,7 +46,7 @@ LogFormatCatalog::LogFormatCatalog( QString userFormatsDirectory )
 
 QString LogFormatCatalog::defaultUserFormatsDirectory()
 {
-    const auto dataDir = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
+    const auto dataDir = DataLocation::current().dataDirectory();
     if ( dataDir.isEmpty() ) {
         return {};
     }

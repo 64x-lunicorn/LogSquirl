@@ -25,6 +25,13 @@
 
 #include <QCoreApplication>
 
+#include "datalocation.h"
+
+// The catalog's tests check the directories of an installed run: this binary
+// is not portable unless a logsquirl.conf lies beside it (#602). They only
+// read where those directories are, never write there.
+const bool DataLocation::ForcePortable = false;
+
 int main( int argc, char* argv[] )
 {
     QCoreApplication app( argc, argv );

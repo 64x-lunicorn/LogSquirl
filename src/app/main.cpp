@@ -61,6 +61,7 @@
 #include "tbb/global_control.h"
 
 #include "configuration.h"
+#include "datalocation.h"
 #include "defaultencodingcheck.h"
 #include "highlighterset.h"
 #include "logger.h"
@@ -76,9 +77,9 @@
 #include <QSplashScreen>
 
 #ifdef LOGSQUIRL_PORTABLE
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 #else
-const bool PersistentInfo::ForcePortable = false;
+const bool DataLocation::ForcePortable = false;
 #endif
 
 // Nothing here reads a setting: a secondary instance sets these attributes

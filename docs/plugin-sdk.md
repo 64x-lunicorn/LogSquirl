@@ -180,6 +180,9 @@ then the one next to the application:
 
 Plugins installed or updated from the catalog go into the user plugin
 directory (see [ADR 0014](adr/0014-a-plugin-from-the-catalog-goes-into-the-user-plugin-directory-and-wins-over-the-shipped-copy.md)).
+A portable LogSquirl keeps its user plugin directory beside its executable, in
+the `plugins` folder next to the application, and searches that one folder
+(see [ADR 0015](adr/0015-a-portable-run-keeps-its-data-beside-the-executable.md)).
 
 Each plugin lives in a subdirectory of its own, directly below a plugin
 directory, that holds its `plugin.json` and its library:
@@ -378,8 +381,9 @@ const char* dir = api->get_config_dir( handle );
 /* e.g. ~/.local/share/logsquirl/plugin_config/com.example.my-plugin */
 ```
 
-The directory is `plugin_config/<plugin id>` next to the user plugin directory
-and is created before `init` is called. The returned string is valid until the
+The directory is `plugin_config/<plugin id>` next to the user plugin directory,
+beside the executable in a portable LogSquirl, and is created before `init` is
+called. The returned string is valid until the
 next call to `get_config_dir`. Use it to persist any plugin-specific settings.
 
 ### Data Source Streaming

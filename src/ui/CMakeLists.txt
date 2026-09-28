@@ -197,6 +197,8 @@ target_link_libraries(
 # linessaver.cpp saves through a TBB flow graph; the log data library no
 # longer hands TBB on (#168).
 target_link_libraries(logsquirl_ui PRIVATE tbb)
+# Where the Team Folder clone is (#602).
+target_link_libraries(logsquirl_ui PUBLIC logsquirl_datalocation)
 
 if(WIN32)
   target_link_libraries(logsquirl_ui PUBLIC user32)

@@ -27,3 +27,5 @@ target_link_libraries(
 # Only to derive a File Access Policy whose default Encoding this build knows
 # (#552); the engine itself is not linked.
 target_link_libraries(logsquirl_settings PRIVATE logsquirl_textencoding)
+# Where the settings file and the user's theme stylesheets are (#602).
+target_link_libraries(logsquirl_settings PUBLIC logsquirl_datalocation)

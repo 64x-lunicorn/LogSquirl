@@ -134,6 +134,7 @@ src/
 ├── app/                  # Application entry points (main, CLI, portable)
 ├── compression/          # Decompression of .gz/.zst/.lz4 files and archives (no Widgets)
 ├── crash_handler/        # Crash handling and issue reporting
+├── datalocation/         # Where settings and data are kept, portable or installed (Qt Core only)
 ├── filewatch/            # File system watching (the efsw watcher)
 ├── filewatch_port/       # File Watch Port: what an Open Log File hears changes through
 ├── logdata/              # Core log data model

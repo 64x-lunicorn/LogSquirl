@@ -50,10 +50,11 @@ public:
     // in userFormatsDirectory, which replace built-in ones of the same name.
     explicit LogFormatCatalog( QString userFormatsDirectory );
 
-    // Where the application keeps the user's Log Formats:
-    // ~/.local/share/logsquirl/formats/ on Linux,
-    // ~/Library/Application Support/logsquirl/formats/ on macOS,
-    // %APPDATA%/logsquirl/formats/ on Windows. Empty if there is none.
+    // Where the application keeps the user's Log Formats: `formats` in its
+    // data directory (DataLocation), so ~/.local/share/logsquirl/formats/ on
+    // Linux, ~/Library/Application Support/logsquirl/formats/ on macOS,
+    // %APPDATA%/logsquirl/formats/ on Windows, and beside the executable in a
+    // portable run. Empty if there is none.
     static QString defaultUserFormatsDirectory();
 
     // Forget every Log Format and read them all again: the built-in ones,

@@ -32,3 +32,5 @@ target_link_libraries(
          Qt6::Core
          logsquirl_logdata
 )
+# Where the user's Log Formats are (#602).
+target_link_libraries(logsquirl_logformat PUBLIC logsquirl_datalocation)
