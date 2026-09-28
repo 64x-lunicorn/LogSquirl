@@ -20,10 +20,16 @@
 // Runner for the Search Line tests. It uses QCoreApplication on purpose:
 // the Search Line knows no widget (#399).
 
+#include "datalocation.h"
+
 #include <QCoreApplication>
 
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
+
+// The Log Format library asks every executable whether it runs portable;
+// a test runner stays beside its binary, as the other runners do (#617).
+const bool DataLocation::ForcePortable = true;
 
 int main( int argc, char* argv[] )
 {

@@ -55,8 +55,6 @@ public:
     static QSettings& getSettings( session_settings );
 
 private:
-    static const bool ForcePortable;
-
     explicit PersistentInfo();
     static PersistentInfo& getInstance();
 

@@ -7,11 +7,13 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewsave_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewselection_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/marknavigation_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/jumptolinenumber_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/overview_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/crawlerwidget_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/crawlerwidget_formatrecognition_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/policy_change_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/session_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/archivemember_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tabbedcrawlerwidget_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/settings_during_run_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/default_encoding_check_test.cpp

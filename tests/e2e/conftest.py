@@ -125,12 +125,22 @@ def binary_dir(request, repo_root) -> Path:
 
 
 @pytest.fixture(scope="session")
-def logsquirl_grep_binary(request, binary_dir) -> Path:
+def logsquirl_grep_binary(request, binary_dir, tmp_path_factory) -> Path:
     suffix = ".exe" if platform.system() == "Windows" else ""
     binary = binary_dir / f"logsquirl_grep{suffix}"
     if not binary.exists():
         _missing_binary(request, f"logsquirl_grep not found at {binary}")
-    return binary
+    # The tool is always portable and writes its settings beside itself. Run
+    # from the build directory it would leave a logsquirl.conf there, and every
+    # LogSquirl started from there afterwards would run portable too (#620).
+    # So it runs as a copy, as tests/logsquirl_grep_cli.cmake does (#364), with
+    # the libraries Windows looks for beside the executable.
+    tool_dir = tmp_path_factory.mktemp("logsquirl_grep")
+    copy = tool_dir / binary.name
+    shutil.copy2(binary, copy)
+    for library in binary_dir.glob("*.dll"):
+        shutil.copy2(library, tool_dir / library.name)
+    return copy
 
 
 @pytest.fixture(scope="session")

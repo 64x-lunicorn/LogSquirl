@@ -43,6 +43,8 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QPair>
+#include <QPointer>
+#include <QProgressDialog>
 #include <QStatusBar>
 #include <QSystemTrayIcon>
 #include <QTemporaryDir>
@@ -262,12 +264,31 @@ private:
     void readSettings();
     void writeSettings();
     // Opens a Log File in a new tab. A Transient Log File -- one the window
-    // made for this run alone -- is not saved with the Session (#570).
+    // made for this run alone -- is not saved with the Session (#570), nor
+    // added to the recent files (#597). A Log File a converter plugin
+    // handles is opened as what the converter wrote, a Transient Log File
+    // (#605).
     bool loadFile( const QString& fileName, bool followFile = false,
                    LogFileLifetime lifetime = LogFileLifetime::Ordinary );
     bool extractAndLoadFile( const QString& fileName );
+    // Adds the tab of a restored Log File whose archive decompressed after
+    // the restore, `fileName`, where it stood among the tabs (#610).
+    void openRestoredFromArchive( int deferredId, const ArchiveMember& member,
+                                  const QString& fileName );
+    // Shows the progress of the archive decompressing for a restore, or
+    // closes it once none is.
+    void showArchiveRestoreProgress( const QString& archive );
+    void closeArchiveRestoreProgress();
+    // The view of this Log File open in any window, or of the Log File a
+    // converter plugin converted it into (#615); nullptr while neither is.
+    const ViewInterface* openViewOf( const QString& fileName ) const;
     void openRemoteFile( const QUrl& url );
     void updateTitleBar( const QString& fileName );
+    // The file the recent files keep for a Log File open with this lifetime:
+    // the Log File itself, the archive a decompressed Log File came from
+    // (#609), the one a converted Log File was converted from (#605), or none
+    // for any other Transient Log File (#597).
+    QString recentFileOf( const QString& fileName, LogFileLifetime lifetime ) const;
     void addRecentFile( const QString& fileName );
     void updateRecentFileActions();
     void clearRecentFileActions();
@@ -441,6 +462,20 @@ private:
     bool sidebarWidthApplied_ = false;
 
     QTemporaryDir tempDir_;
+    // Where each Log File decompressed into tempDir_ came from, by the path
+    // it is read from: the Session saves that instead (#596), and the recent
+    // files, tab names and tab groups know it by that (#609).
+    QHash<QString, ArchiveMember> archiveMembers_;
+    // The Ordinary Log File each Log File a converter plugin wrote into
+    // tempDir_ was converted from, by the path it is read from: the recent
+    // files keep that instead (#605), and opening it again shows that tab
+    // (#615). Dropped when the tab closes.
+    QHash<QString, QString> convertedFrom_;
+    // Decompresses the archives of a restored Session into tempDir_ while the
+    // window is in use; declared after it, so that it is gone, and has waited
+    // for the decompression under way, before tempDir_ is removed (#610).
+    ArchiveMemberDecompression archiveRestores_;
+    QPointer<QProgressDialog> archiveRestoreProgress_;
 
     bool isMaximized_ = false;
     bool isCloseFromTray_ = false;
@@ -456,9 +491,6 @@ private:
     std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins_;
 
     // Declared in this order: the pump reads into the writer, so it goes first.
-    // The title and tooltip of the tab of a file that is not named after its
-    // path (standard input, a data source), by path, given when it opens.
-    QHash<QString, QPair<QString, QString>> tabTitles_;
     std::unique_ptr<logsquirl::plugins::StreamWriter> standardInputWriter_;
     std::unique_ptr<logsquirl::plugins::StdinPump> standardInputPump_;
 

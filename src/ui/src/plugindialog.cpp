@@ -31,7 +31,6 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
-#include <QStandardPaths>
 
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
@@ -115,6 +114,11 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     toggleButton->setFixedWidth( 90 );
     rightLayout->addWidget( toggleButton );
 
+    configureButton = new QPushButton( tr( "Configure..." ), this );
+    configureButton->setObjectName( "configureButton" );
+    configureButton->setFixedWidth( 90 );
+    rightLayout->addWidget( configureButton );
+
     rightLayout->addStretch();
     mainLayout->addLayout( rightLayout );
 
@@ -183,6 +187,20 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
         toggleButton->setEnabled( true );
         toggleButton->setVisible( true );
         break;
+    }
+
+    // Only a loaded plugin can be asked for its configuration, and only one
+    // that exports logsquirl_plugin_configure has one (#604).
+    configureButton->setVisible( plugin.state != PluginState::NotInstalled );
+    configureButton->setEnabled( plugin.configurable );
+    if ( plugin.configurable ) {
+        configureButton->setToolTip( tr( "Open the configuration of this plugin" ) );
+    }
+    else if ( plugin.loaded ) {
+        configureButton->setToolTip( tr( "This plugin has no configuration" ) );
+    }
+    else {
+        configureButton->setToolTip( tr( "Enable the plugin to open its configuration" ) );
     }
 }
 
@@ -277,8 +295,7 @@ PluginDialog::PluginDialog( PluginCatalog& catalog, PluginHost& host, QWidget* p
     auto* pluginFolderButton = new QPushButton( tr( "Plugin Folder" ), this );
     pluginFolderButton->setToolTip( tr( "Open the user plugin directory in the file manager" ) );
     connect( pluginFolderButton, &QPushButton::clicked, this, []() {
-        const auto dir
-            = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
+        const auto dir = PluginCatalog::userPluginDirectory();
         QDir().mkpath( dir );
         showPathInFileExplorer( dir );
     } );
@@ -417,6 +434,10 @@ void PluginDialog::rebuildMergedList()
         mp.license = meta.license();
         mp.installedVersion = meta.version();
 
+        const auto* handle = host_.pluginHandle( meta.id() );
+        mp.loaded = handle != nullptr;
+        mp.configurable = handle != nullptr && handle->hasConfigureUi();
+
         if ( enabledIds.contains( meta.id() ) ) {
             mp.state = PluginState::Installed;
         }
@@ -511,6 +532,10 @@ void PluginDialog::rebuildCards()
         // Wire toggle button
         connect( card->toggleButton, &QPushButton::clicked, this,
                  [ this, id = mp.id ]() { togglePlugin( id ); } );
+
+        // Wire configure button
+        connect( card->configureButton, &QPushButton::clicked, this,
+                 [ this, id = mp.id ]() { configurePlugin( id ); } );
 
         // Set icon from cache
         const auto icon = repository_.pluginIcon( mp.id );
@@ -622,9 +647,9 @@ void PluginDialog::installPlugin( const QString& pluginId )
         it->second->actionButton->setText( tr( "Installing..." ) );
     }
 
-    const auto dirs = PluginCatalog::defaultPluginDirectories();
-    const auto destDir = dirs.isEmpty() ? QDir::tempPath() : dirs.first();
-    repository_.downloadPlugin( latest->assets.front(), pluginId, destDir );
+    // The archive is downloaded next to where extractAndInstall() unpacks it.
+    repository_.downloadPlugin( latest->assets.front(), pluginId,
+                                PluginCatalog::userPluginDirectory() );
 }
 
 void PluginDialog::togglePlugin( const QString& pluginId )
@@ -663,16 +688,20 @@ void PluginDialog::togglePlugin( const QString& pluginId )
     rebuildCards();
 }
 
+void PluginDialog::configurePlugin( const QString& pluginId )
+{
+    // The Plugin UI Port picks the parent: a window that outlives this dialog,
+    // so a plugin may keep a window of its own open after the dialog closes.
+    host_.configurePlugin( pluginId );
+}
+
 bool PluginDialog::extractAndInstall( const QString& archivePath, const QString& pluginId )
 {
-    const auto dirs = PluginCatalog::defaultPluginDirectories();
-    if ( dirs.isEmpty() ) {
-        QMessageBox::warning( this, tr( "Install Error" ),
-                              tr( "No plugin directory configured." ) );
-        return false;
-    }
-
-    const auto pluginDir = QDir( dirs.first() ).filePath( pluginId );
+    // Always the user plugin directory, the one "Plugin Folder" opens: the
+    // application folder is not writable on Windows and part of the signed
+    // bundle on macOS. An update of a shipped plugin lands there too and wins
+    // over the shipped copy, which stays untouched (#595, ADR 0014).
+    const auto pluginDir = PluginCatalog::installDirectory( pluginId );
     const auto backupDir = pluginDir + ".bak";
 
     // Unload existing plugin before overwriting

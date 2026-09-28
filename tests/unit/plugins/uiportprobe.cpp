@@ -30,6 +30,7 @@ namespace {
 const LogSquirlHostApi* hostApi = nullptr;
 void* hostHandle = nullptr;
 void* configureParent = nullptr;
+int configureCalls = 0;
 
 // Stands in for the footer widget a plugin creates; the host never looks behind it.
 int shutdownFooterWidget = 0;
@@ -73,6 +74,7 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_configure( void* parent_widget )
 {
     configureParent = parent_widget;
+    ++configureCalls;
 }
 
 /** The host callback table passed to init, or NULL when not initialised. */
@@ -91,6 +93,12 @@ LOGSQUIRL_PLUGIN_EXPORT void* logsquirl_probe_host_handle( void )
 LOGSQUIRL_PLUGIN_EXPORT void* logsquirl_probe_configure_parent( void )
 {
     return configureParent;
+}
+
+/** How often the host called configure. */
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_probe_configure_calls( void )
+{
+    return configureCalls;
 }
 
 /** The footer widget the probe unregisters when it is shut down. */

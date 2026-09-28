@@ -23,6 +23,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -32,6 +33,7 @@
 #include <QDateTime>
 #include <QMetaObject>
 
+#include "archivemember.h"
 #include "changed.h"
 #include "log.h"
 #include "quickfindpattern.h"
@@ -137,11 +139,14 @@ public:
     // load, as it waits for any first load.
     //
     // A Transient Log File is open like any other, but is never saved with the
-    // Session (see WindowSession::save()).
+    // Session (see WindowSession::save()). A Log File decompressed from an
+    // archive is saved with the archive and its member, not with `fileName`,
+    // the temporary file it is read from (#596).
     enum class Loading { Now, Queued };
     ViewInterface* open( const QString& fileName, const ViewFactory& viewFactory,
                          const QString& viewContext = {}, Loading loading = Loading::Now,
-                         LogFileLifetime lifetime = LogFileLifetime::Ordinary );
+                         LogFileLifetime lifetime = LogFileLifetime::Ordinary,
+                         const ArchiveMember& archiveMember = {} );
 
     // Starts loading the Log File of these views now if it is still queued,
     // ahead of the Log Files queued before it: its tab was activated. Does
@@ -293,6 +298,8 @@ private:
         ViewInterface* view;
         // A Transient Log File is not saved with the Session.
         LogFileLifetime lifetime = LogFileLifetime::Ordinary;
+        // Where a decompressed Log File came from; empty for any other.
+        ArchiveMember archiveMember;
         FirstLoad firstLoad = FirstLoad::Queued;
         // Hears of the end of the first load; disconnected once it did.
         QMetaObject::Connection firstLoadFinished;
@@ -361,6 +368,9 @@ private:
 };
 
 using OpenedFilesList = std::vector<std::pair<QString, ViewInterface*>>;
+// Decompresses a saved archive member again and returns the file to open, or
+// an empty string to leave its tab out (#596).
+using ArchiveMemberDecompressor = std::function<QString( const ArchiveMember& )>;
 // A view and its view state, which holds where it stands (#559).
 using SaveFileInfo = std::tuple<const ViewInterface*, std::shared_ptr<const ViewContextInterface>>;
 
@@ -376,15 +386,27 @@ public:
     // Opens a Log File in this window, restoring the view context saved for
     // it in any window of the stored Session, the way restore() does. A
     // Transient Log File was never saved, so it has none to restore, and it is
-    // left out whenever this window is saved (#570).
+    // left out whenever this window is saved (#570). A Log File decompressed
+    // from an archive is saved with `archiveMember` (#596).
     ViewInterface* open( const QString& fileName, const ViewFactory& viewFactory,
-                         LogFileLifetime lifetime = LogFileLifetime::Ordinary );
+                         LogFileLifetime lifetime = LogFileLifetime::Ordinary,
+                         const ArchiveMember& archiveMember = {} );
 
     void close( const ViewInterface* view )
     {
         auto it = std::find( openedFiles_.begin(), openedFiles_.end(), getFilename( view ) );
         if ( it != openedFiles_.end() ) {
             openedFiles_.erase( it );
+        }
+
+        // A closed tab no longer places a deferred one, nor holds the front.
+        for ( auto& tab : restoredTabs_ ) {
+            if ( tab.view == view ) {
+                tab.view = nullptr;
+            }
+        }
+        if ( restoredFront_ == view ) {
+            restoredFront_ = nullptr;
         }
 
         appSession_->close( view );
@@ -482,7 +504,51 @@ public:
     // Only the current file starts loading; the others are queued and load
     // one after another once it has loaded, unless startLoading() is called
     // for one first (#300).
-    OpenedFilesList restore( const ViewFactory& viewFactory, int* currentFileIndex );
+    //
+    // A Log File saved with the archive it was decompressed from is handed
+    // to `decompressor`, and the file it returns is opened in its place, with
+    // the view state saved for it. When it returns none -- the archive is
+    // gone -- or there is no decompressor, its tab is left out without an
+    // error, and the current file is counted without it (#596).
+    //
+    // Given `deferred`, it is not decompressed here: its tab is left out as
+    // above, and it is added to `deferred` to be decompressed after the
+    // restore returns, then opened with openDeferred() or left out for good
+    // with dropDeferred() (#610). Until then it keeps its place in the saved
+    // window: save() saves it where it stood among the tabs that remain.
+    struct DeferredArchiveFile {
+        int id;
+        ArchiveMember archiveMember;
+    };
+    OpenedFilesList restore( const ViewFactory& viewFactory, int* currentFileIndex,
+                             const ArchiveMemberDecompressor& decompressor = {},
+                             std::vector<DeferredArchiveFile>* deferred = nullptr );
+
+    // Opens `fileName`, decompressed for the deferred Log File `id`, with the
+    // view state saved for it, as restore() would have. `tabs` are the views
+    // of the window's Log Files in tab order, and `currentView` the ones in
+    // front, if any.
+    //
+    // Its tab goes at `position` among `tabs`: before the first of the tabs
+    // that came after it in the saved window and are still open, else after
+    // the last of those before it, else last. It is `inFront` when it was the
+    // tab in front and the window still shows the tab the restore put in
+    // front, or it is the window's only tab; else its Log File waits in the
+    // queue for its first load, like every restored Log File but the current
+    // one (#300). A tab that arrives never takes the front from one the user
+    // chose.
+    struct DeferredOpen {
+        ViewInterface* view = nullptr;
+        size_t position = 0;
+        bool inFront = false;
+    };
+    DeferredOpen openDeferred( int id, const QString& fileName, const ViewFactory& viewFactory,
+                               const std::vector<const ViewInterface*>& tabs,
+                               const ViewInterface* currentView );
+
+    // The deferred Log File `id` cannot be decompressed: its tab is left out
+    // without an error, as restore() leaves one out, and is no longer saved.
+    void dropDeferred( int id );
 
     // Starts loading a restored Log File that is still queued, now: its tab
     // was activated. See the Session's own.
@@ -520,6 +586,34 @@ private:
     size_t windowIndex_;
 
     std::vector<QString> openedFiles_;
+
+    // The tabs of the saved window a restore left deferred, and the ones
+    // around them, in saved order, for as long as one is deferred (#610).
+    struct RestoredTab {
+        // Which restore it was: the tabs of one are placed among each other.
+        int run = 0;
+        // Null while deferred, or once the tab is closed.
+        const ViewInterface* view = nullptr;
+        struct Deferred {
+            int id;
+            // As the Session saved it.
+            QString fileName;
+            QString viewContext;
+            ArchiveMember archiveMember;
+            bool inFront;
+        };
+        std::optional<Deferred> deferred;
+    };
+    std::vector<RestoredTab> restoredTabs_;
+    int restoreRuns_ = 0;
+    int nextDeferredId_ = 0;
+    // The views a restore put in front, or null for none.
+    const ViewInterface* restoredFront_ = nullptr;
+
+    // Where the restored tab at `slot` goes among `tabs`.
+    size_t positionAmong( size_t slot, const std::vector<const ViewInterface*>& tabs ) const;
+    // Forgets the tabs of a restore none of whose tabs is deferred any longer.
+    void forgetFinishedRestores();
 };
 
 #endif

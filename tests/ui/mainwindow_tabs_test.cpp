@@ -29,14 +29,17 @@
 #include <QAction>
 #include <QActionEvent>
 #include <QApplication>
+#include <QClipboard>
 #include <QColor>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
 #include <QGridLayout>
+#include <QInputDialog>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPointer>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -45,10 +48,12 @@
 
 #include <algorithm>
 #include <optional>
+#include <utility>
 
 #include "applicationplugins.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
+#include "loadingstatus.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
@@ -60,6 +65,7 @@
 #include "sessioninfo.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabgroupinfo.h"
+#include "tabnamemapping.h"
 #include "test_policies.h"
 #include "test_utils.h"
 #include "welcomedashboard.h"
@@ -299,6 +305,55 @@ private:
     QStringList questions_;
 };
 
+// Answers every text the window asks for with this one.
+class InputAnswerer {
+public:
+    explicit InputAnswerer( QString answer )
+        : answer_( std::move( answer ) )
+    {
+        QObject::connect( &driver_, &QTimer::timeout, [ this ] {
+            if ( auto* dialog = qobject_cast<QInputDialog*>( QApplication::activeModalWidget() ) ) {
+                if ( dialog->isVisible() ) {
+                    dialog->setTextValue( answer_ );
+                    dialog->accept();
+                }
+            }
+        } );
+        driver_.start( 10 );
+    }
+
+private:
+    QString answer_;
+    QTimer driver_;
+};
+
+// Accepts every text the window asks for as it is offered, and keeps what
+// was offered.
+class InputAccepter {
+public:
+    InputAccepter()
+    {
+        QObject::connect( &driver_, &QTimer::timeout, [ this ] {
+            if ( auto* dialog = qobject_cast<QInputDialog*>( QApplication::activeModalWidget() ) ) {
+                if ( dialog->isVisible() ) {
+                    offered_ << dialog->textValue();
+                    dialog->accept();
+                }
+            }
+        } );
+        driver_.start( 10 );
+    }
+
+    const QStringList& offered() const
+    {
+        return offered_;
+    }
+
+private:
+    QStringList offered_;
+    QTimer driver_;
+};
+
 // Turns the confirmation of a tab close on for its lifetime.
 struct ConfirmTabClose {
     ConfirmTabClose()
@@ -484,6 +539,32 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
     }
 }
 
+// A reload that a newer one interrupts, as a merged tab's rebuilds do, leaves
+// the tab of a Log File that has loaded open (#621).
+SCENARIO( "An interrupted reload leaves the tab of a loaded Log File open", "[ui][tabs]" )
+{
+    ThreeLogFiles files;
+    TabsWindow window( true );
+    window.open( { files.paths[ 0 ] } );
+
+    auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->currentWidget() );
+    REQUIRE( crawler != nullptr );
+    REQUIRE( waitUiState( [ crawler ] { return crawler->hasLoaded(); }, UiTimeoutMs ) );
+    const QPointer<CrawlerWidget> tab( crawler );
+
+    WHEN( "a load of it ends interrupted" )
+    {
+        Q_EMIT crawler->loadingFinished( LoadingStatus::Interrupted, {} );
+        QTest::qWait( 100 );
+
+        THEN( "its tab is still open" )
+        {
+            REQUIRE( tab );
+            REQUIRE( window.tabArea->indexOf( tab ) >= 0 );
+        }
+    }
+}
+
 // The merge controller belongs to the merged tab: closing the tab ends the
 // rebuild, and the temporary file goes with it (#537).
 SCENARIO( "A merged Log File's rebuild ends with its tab", "[ui][tabs][merge]" )
@@ -583,7 +664,207 @@ SCENARIO( "A merged Log File's rebuild ends with its tab", "[ui][tabs][merge]" )
                 REQUIRE( saved == sources );
             }
         }
+
+        // Its temporary path is gone after a restart, so no stored state
+        // keeps it (#597).
+        THEN( "the merged Log File is not among the recent files" )
+        {
+            REQUIRE_FALSE( recentFiles().contains( mergedPath ) );
+        }
+
+        WHEN( "the user closes the merged tab" )
+        {
+            Q_EMIT window.tabArea->tabCloseRequested( window.tabArea->indexOf( merged ) );
+
+            THEN( "it does not become a recent file" )
+            {
+                REQUIRE( waitUiState( [ & ] { return window.tabArea->indexOf( merged ) < 0; },
+                                      UiTimeoutMs ) );
+                REQUIRE_FALSE( recentFiles().contains( mergedPath ) );
+            }
+        }
+
+        WHEN( "the merged tab is renamed from its menu" )
+        {
+            const InputAnswerer answerer( QStringLiteral( "Renamed 597" ) );
+            const auto tab = window.tabArea->indexOf( merged );
+            REQUIRE( window.chooseFromTabMenu( tab, "Rename tab" ) );
+
+            THEN( "the tab shows the name, and the stored tab names do not hold its path" )
+            {
+                REQUIRE( window.tabArea->tabText( tab ) == QStringLiteral( "Renamed 597" ) );
+                REQUIRE( TabNameMapping::getSynced().tabName( mergedPath ).isEmpty() );
+            }
+        }
+
+        WHEN( "the merged tab is put in a tab group from its menu" )
+        {
+            auto& groups = TabGroupInfo::getSynced();
+            const auto groupId = groups.addGroup( QStringLiteral( "Group 597" ), Qt::darkGreen );
+            groups.save();
+
+            const auto tab = window.tabArea->indexOf( merged );
+            const auto chosen = window.chooseFromTabMenu( tab, "Group 597" );
+            const auto tabText = window.tabArea->tabText( tab );
+            const auto stored = TabGroupInfo::getSynced().groupForTab( mergedPath );
+
+            TabGroupInfo::getSynced().removeGroup( groupId ).save();
+
+            THEN( "the tab shows the group, and the stored tab groups do not hold its path" )
+            {
+                REQUIRE( chosen );
+                REQUIRE( tabText.startsWith( QString::fromUtf8( "● " ) ) );
+                REQUIRE_FALSE( stored.has_value() );
+            }
+        }
     }
+}
+
+// Text opened from the clipboard is a Transient Log File: its temporary path
+// is gone after a restart, so it is never a recent file (#597).
+SCENARIO( "Text opened from the clipboard is not added to the recent files", "[ui][tabs]" )
+{
+    TabsWindow window( true );
+    QGuiApplication::clipboard()->setText( QStringLiteral( "a Log Line from the clipboard\n" ) );
+
+    GIVEN( "the clipboard opened in a tab" )
+    {
+        auto* openClipboard = fileMenuAction( *window.mainWindow,
+                                              logsquirl::mainwindow::action::openClipboardText );
+        REQUIRE( openClipboard != nullptr );
+        openClipboard->trigger();
+
+        QString clipboardPath;
+        REQUIRE( waitUiState(
+            [ & ] {
+                for ( const auto& path : window.logFileTabPaths() ) {
+                    if ( path.contains( "logsquirl_clipboard" ) ) {
+                        clipboardPath = path;
+                        return true;
+                    }
+                }
+                return false;
+            },
+            UiTimeoutMs ) );
+
+        THEN( "it is not among the recent files" )
+        {
+            REQUIRE_FALSE( recentFiles().contains( clipboardPath ) );
+        }
+
+        WHEN( "the user closes its tab" )
+        {
+            Q_EMIT window.tabArea->tabCloseRequested( window.tabArea->tabOfPath( clipboardPath ) );
+
+            THEN( "it does not become a recent file" )
+            {
+                REQUIRE( waitUiState( [ & ] { return window.logFileTabPaths().isEmpty(); },
+                                      UiTimeoutMs ) );
+                REQUIRE_FALSE( recentFiles().contains( clipboardPath ) );
+            }
+        }
+    }
+}
+
+// A data source's tab opens under the source's name, not its temporary file's.
+// Grouping a tab, the Manage Tab Groups dialog and a reset of a rename restyle
+// every tab: each keeps the title it opened with (#606). Standard input's tab
+// is titled the same way.
+SCENARIO( "A data source's tab keeps its name when tabs are grouped and renamed", "[ui][tabs]" )
+{
+    TabsWindow window( false );
+    const ThreeLogFiles logFiles;
+    window.open( { logFiles.paths[ 0 ] } );
+
+    const auto sourcePath = logFiles.dir.filePath( QStringLiteral( "datasource_606.log" ) );
+    REQUIRE( writeLines( sourcePath, "a Log Line from a data source\n", QIODevice::Truncate ) );
+    const auto sourceName = QStringLiteral( "Source 606" );
+    REQUIRE( QMetaObject::invokeMethod(
+        window.mainWindow.get(), "handleDataSourceStarted", Qt::DirectConnection,
+        Q_ARG( QString, QStringLiteral( "datasource.606" ) ), Q_ARG( QString, sourceName ),
+        Q_ARG( QString, sourcePath ) ) );
+
+    int sourceTab = -1;
+    REQUIRE( waitUiState(
+        [ & ] {
+            sourceTab = window.tabArea->tabOfPath( sourcePath );
+            return sourceTab >= 0;
+        },
+        UiTimeoutMs ) );
+    const auto fileTab = window.tabArea->tabOfPath( logFiles.paths[ 0 ] );
+    REQUIRE( fileTab >= 0 );
+
+    REQUIRE( window.tabArea->tabText( sourceTab ) == sourceName );
+    REQUIRE( window.tabArea->tabToolTip( sourceTab ).startsWith( "DataSource: " + sourceName ) );
+
+    auto& groups = TabGroupInfo::getSynced();
+    const auto groupId = groups.addGroup( QStringLiteral( "Group 606" ), Qt::darkCyan );
+    groups.save();
+
+    WHEN( "another tab is put in a tab group from its menu" )
+    {
+        const auto chosen = window.chooseFromTabMenu( fileTab, "Group 606" );
+
+        THEN( "the data source's tab keeps its name and tooltip" )
+        {
+            REQUIRE( chosen );
+            REQUIRE( window.tabArea->tabText( fileTab ).startsWith( QString::fromUtf8( "● " ) ) );
+            REQUIRE( window.tabArea->tabText( sourceTab ) == sourceName );
+            REQUIRE(
+                window.tabArea->tabToolTip( sourceTab ).startsWith( "DataSource: " + sourceName ) );
+        }
+    }
+
+    WHEN( "the data source's tab is put in a tab group from its menu" )
+    {
+        REQUIRE( window.chooseFromTabMenu( sourceTab, "Group 606" ) );
+
+        THEN( "it shows the group before its name" )
+        {
+            REQUIRE( window.tabArea->tabText( sourceTab )
+                     == QString::fromUtf8( "● " ) + sourceName );
+        }
+    }
+
+    WHEN( "the grouped data source's tab is renamed and the offered name accepted as it is" )
+    {
+        REQUIRE( window.chooseFromTabMenu( sourceTab, "Group 606" ) );
+        QStringList offered;
+        {
+            const InputAccepter accepter;
+            REQUIRE( window.chooseFromTabMenu( sourceTab, "Rename tab" ) );
+            offered = accepter.offered();
+        }
+
+        THEN( "the name is offered without the group's bullet and stays as it was (#612)" )
+        {
+            REQUIRE( offered == QStringList{ sourceName } );
+            REQUIRE( window.tabArea->tabText( sourceTab )
+                     == QString::fromUtf8( "● " ) + sourceName );
+        }
+    }
+
+    WHEN( "the data source's tab is renamed, then its name is reset, from its menu" )
+    {
+        QString renamed;
+        {
+            const InputAnswerer answerer( QStringLiteral( "Renamed 606" ) );
+            REQUIRE( window.chooseFromTabMenu( sourceTab, "Rename tab" ) );
+            renamed = window.tabArea->tabText( sourceTab );
+        }
+        REQUIRE( window.chooseFromTabMenu( sourceTab, "Reset tab name" ) );
+
+        THEN( "it shows the rename, then the data source's name again" )
+        {
+            REQUIRE( renamed == QStringLiteral( "Renamed 606" ) );
+            REQUIRE( window.tabArea->tabText( sourceTab ) == sourceName );
+        }
+    }
+
+    // Close the tab while its file is there, then leave the settings store as
+    // it was.
+    Q_EMIT window.tabArea->tabCloseRequested( window.tabArea->tabOfPath( sourcePath ) );
+    TabGroupInfo::getSynced().removeGroup( groupId ).save();
 }
 
 // The dashboard setting is read when a window is built, so the Options Dialog

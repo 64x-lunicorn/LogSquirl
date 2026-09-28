@@ -45,7 +45,8 @@ How to turn it off, any one of these:
 The official builds contain a crash handler (Crashpad, through the Sentry
 Native SDK). If LogSquirl crashes, a crash report is written to your computer,
 in the folder `logsquirl_dump` in LogSquirl's application data folder (the
-portable Windows build: next to the executable).
+portable Windows build, and any LogSquirl with a `logsquirl.conf` beside it:
+next to the executable).
 
 Nothing is sent when the crash happens. The next time LogSquirl starts, it
 shows you the report and asks. Only if you click "Send report" is it uploaded;

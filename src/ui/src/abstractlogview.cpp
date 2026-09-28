@@ -803,8 +803,13 @@ void AbstractLogView::registerShortcuts()
     registerShortcut( ShortcutAction::LogViewPrevMark, [ this ]() { selectMark( false ); } );
 
     registerShortcut( ShortcutAction::LogViewJumpToLineNumber, [ this ]() {
-        // The number counts the lines the view shows, from 1.
-        const auto position = LineNumber( qMax( 0ull, digitsBuffer_.content() - 1ull ) );
+        // Without a typed number there is no line to go to (#614).
+        if ( digitsBuffer_.isEmpty() ) {
+            return;
+        }
+        // The number counts the lines the view shows, from 1; 0 counts as 1.
+        const auto number = digitsBuffer_.content();
+        const auto position = LineNumber( number > 0 ? number - 1 : 0 );
         const auto logLine = lines_->logLineAt( position );
         if ( logLine.has_value() ) {
             selectAndDisplayLine( *logLine );
@@ -851,14 +856,14 @@ void AbstractLogView::keyPressEvent( QKeyEvent* keyEvent )
 
     if ( keyEvent->modifiers() == Qt::NoModifier && text.size() == 1 ) {
         const auto character = text.at( 0 ).toLatin1();
-        if ( ( ( character > '0' ) && ( character <= '9' ) )
-             || ( !digitsBuffer_.isEmpty() && character == '0' ) ) {
+        if ( character >= '0' && character <= '9' ) {
+            // 0 opens a count as well as going to the start of the line, and
+            // every digit after it reaches the view (see isCountDigit()).
+            if ( digitsBuffer_.isEmpty() && character == '0' ) {
+                jumpToStartOfLine();
+            }
             // Adds the digit to the timed buffer
             digitsBuffer_.add( character );
-            keyEvent->accept();
-        }
-        else if ( digitsBuffer_.isEmpty() && character == '0' ) {
-            jumpToStartOfLine();
             keyEvent->accept();
         }
     }
@@ -954,9 +959,26 @@ void AbstractLogView::resizeEvent( QResizeEvent* )
     updateDisplaySize();
 }
 
+bool AbstractLogView::isCountDigit( const QKeyEvent& keyEvent ) const
+{
+    const auto text = keyEvent.text();
+    return !digitsBuffer_.isEmpty() && keyEvent.modifiers() == Qt::NoModifier && text.size() == 1
+           && text.at( 0 ) >= u'0' && text.at( 0 ) <= u'9';
+}
+
 bool AbstractLogView::event( QEvent* e )
 {
     LOG_DEBUG << "Event! Type: " << e->type();
+
+    // A count and the Crawler Widget's shortcuts share the bare digits (#600,
+    // docs/adr/0016): 1 to 9 are its visibility and search button shortcuts,
+    // which fire before this view sees the key. A count therefore starts with
+    // 0, which no default shortcut takes; while the count is being typed, the
+    // view takes the digits it would otherwise lose to those shortcuts.
+    if ( e->type() == QEvent::ShortcutOverride && isCountDigit( *static_cast<QKeyEvent*>( e ) ) ) {
+        e->accept();
+        return true;
+    }
 
     // Make sure we ignore the gesture events as
     // they seem to be accepted by default.

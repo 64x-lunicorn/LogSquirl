@@ -328,3 +328,19 @@ SCENARIO( "A shortcut is recorded by clicking its cell", "[ui][options][shortcut
     config.setLanguage( storedLanguage );
     config.save();
 }
+
+// Shift+Up extends the selection up and Shift+Down down; each is named after
+// what it does (#611).
+TEST_CASE( "The select-lines commands are named after their direction", "[ui][options][shortcuts]" )
+{
+    const auto& shortcuts = ShortcutAction::defaultShortcutList();
+    const auto up = shortcuts.find( ShortcutAction::LogViewSelectLinesUp );
+    const auto down = shortcuts.find( ShortcutAction::LogViewSelectLinesDown );
+    REQUIRE( up != shortcuts.end() );
+    REQUIRE( down != shortcuts.end() );
+
+    CHECK( up->second.name == "Select lines up" );
+    CHECK( up->second.keySequence == QStringList{ "Shift+Up" } );
+    CHECK( down->second.name == "Select lines down" );
+    CHECK( down->second.keySequence == QStringList{ "Shift+Down" } );
+}

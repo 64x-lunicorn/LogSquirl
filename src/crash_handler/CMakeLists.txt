@@ -21,6 +21,9 @@ target_link_libraries(
 )
 # Only issuereporter.cpp reads the TBB version (#168).
 target_link_libraries(logsquirl_crash_handler PRIVATE tbb)
+# Where the crash dumps are kept (#602). crashhandler.cpp is compiled into the
+# executable, which reaches the library through the PUBLIC link.
+target_link_libraries(logsquirl_crash_handler PUBLIC logsquirl_datalocation)
 
 if(LOGSQUIRL_USE_SENTRY)
   target_compile_definitions(logsquirl_crash_handler PUBLIC -DLOGSQUIRL_USE_SENTRY)

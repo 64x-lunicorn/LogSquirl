@@ -500,6 +500,13 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
             },
         },
         {
+            LogViewJumpToLineNumber,
+            {
+                QApplication::tr( "Jump to line number" ),
+                QStringList{},
+            },
+        },
+        {
             LogViewJumpToTimestamp,
             {
                 QApplication::tr( "Jump to timestamp" ),
@@ -670,14 +677,14 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             LogViewSelectLinesUp,
             {
-                QApplication::tr( "Select lines down" ),
+                QApplication::tr( "Select lines up" ),
                 QStringList{ "Shift+Up" },
             },
         },
         {
             LogViewSelectLinesDown,
             {
-                QApplication::tr( "Select lines up" ),
+                QApplication::tr( "Select lines down" ),
                 QStringList{ "Shift+Down" },
             },
         },

@@ -25,12 +25,12 @@
 
 #include <QCoreApplication>
 
-#include "persistentinfo.h"
+#include "datalocation.h"
 
 // The version checker links the settings store. Its tests hand it settings of
 // their own and never reach the store; should one ever do, it stays portable,
 // beside the test binary, as in the other test runners (#389).
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 int main( int argc, char* argv[] )
 {

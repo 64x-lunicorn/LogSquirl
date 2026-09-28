@@ -2,7 +2,9 @@
 
 This guide explains how to create plugins for
 [LogSquirl](https://github.com/64x-lunicorn/LogSquirl), the cross-platform log
-viewer.
+viewer. It describes the plugin API as
+[`logsquirl_plugin_api.h`](../src/plugins/include/logsquirl_plugin_api.h)
+defines it; where the two differ, the header is right.
 
 ## Architecture Overview
 
@@ -10,7 +12,8 @@ LogSquirl uses a **pure C ABI** boundary between the host application and
 plugins. This design decouples plugin licensing from the GPL-licensed host:
 
 - The SDK header (`logsquirl_plugin_api.h`) is released under the **MIT licence**.
-- Plugins are standalone shared libraries (`.dylib` / `.so` / `.dll`).
+  `cmake --install` installs it as `include/logsquirl/logsquirl_plugin_api.h`.
+- Plugins are standalone shared libraries (`.so` / `.dylib` / `.dll`).
 - Plugins do **not** link against any host library — the host resolves their
   symbols at runtime via `QLibrary`.
 - All data crosses the boundary as C primitives (`int`, `const char*`,
@@ -18,15 +21,21 @@ plugins. This design decouples plugin licensing from the GPL-licensed host:
 
 ### Plugin Types
 
-| Type          | Enum                          | Purpose                                              |
-|---------------|-------------------------------|------------------------------------------------------|
-| Data Source   | `LOGSQUIRL_PLUGIN_DATASOURCE` | Stream log lines into a `StreamLogData` view         |
-| Converter     | `LOGSQUIRL_PLUGIN_CONVERTER`  | Convert a file format into plain text before viewing |
-| UI Extension  | `LOGSQUIRL_PLUGIN_UI`         | Add menu items, status-bar widgets, or panels        |
+| Type          | `type` in `plugin.json` | Enum                          | Purpose                                              |
+|---------------|-------------------------|-------------------------------|------------------------------------------------------|
+| Data Source   | `datasource`            | `LOGSQUIRL_PLUGIN_DATASOURCE` | Stream log lines into a tab of their own             |
+| Converter     | `converter`             | `LOGSQUIRL_PLUGIN_CONVERTER`  | Convert a file format into plain text before viewing |
+| UI Extension  | `ui`                    | `LOGSQUIRL_PLUGIN_UI`         | Add menu items, status-bar, sidebar or footer widgets |
 
 ---
 
 ## Quick Start
+
+The example below is a complete UI extension plugin: it adds a *Say Hello*
+item to the `Plugins` menu that shows a notification. It is the plugin in
+[`docs/plugin-sdk/my_plugin/`](plugin-sdk/my_plugin/): LogSquirl's own build
+compiles it against the current header and its tests load it, so what you
+copy from here builds and loads.
 
 ### 1. Create a Plugin Directory
 
@@ -40,15 +49,16 @@ my_plugin/
 
 ### 2. Write the Manifest (`plugin.json`)
 
+<!-- example: plugin.json -->
 ```json
 {
     "id": "com.example.my-plugin",
     "name": "My Plugin",
     "version": "0.1.0",
-    "type": "datasource",
-    "library": "libmy_plugin.dylib",
+    "type": "ui",
+    "library": "my_plugin",
     "api_version": 1,
-    "description": "A short description of what the plugin does.",
+    "description": "Says hello from the Plugins menu.",
     "author": "Your Name",
     "license": "MIT"
 }
@@ -60,177 +70,295 @@ my_plugin/
 | `name`         | **yes**  | Human-readable display name.                                    |
 | `version`      | **yes**  | Semver string.                                                  |
 | `type`         | **yes**  | One of `datasource`, `converter`, `ui`.                         |
-| `library`      | **yes**  | Filename of the shared library (platform-specific extension).   |
-| `api_version`  | **yes**  | Must be `1` (current API version).                              |
-| `description`  | no       | One-line description shown in the plugin manager.               |
+| `library`      | **yes**  | File name of the shared library.                                |
+| `api_version`  | **yes**  | Must be `1` (`LOGSQUIRL_PLUGIN_API_VERSION`).                   |
+| `description`  | no       | One-line description shown in the plugin dialog.                |
 | `author`       | no       | Author name or organisation.                                    |
 | `license`      | no       | SPDX identifier of the plugin's licence.                        |
+| `icon`         | no       | File name of an icon next to `plugin.json`.                     |
 
-**Important**: `library` is the *filename* only — no path separators. The host
-resolves it relative to the directory containing `plugin.json`.
+`library` is resolved relative to the directory containing `plugin.json`. It
+may leave out the platform's prefix and extension: `my_plugin` finds
+`libmy_plugin.so` on Linux, `libmy_plugin.dylib` or `libmy_plugin.so` on macOS
+and `my_plugin.dll` on Windows, so one manifest serves every platform.
 
 ### 3. Write the Implementation
 
-```c
-/* my_plugin.cpp — MIT licence example */
+<!-- example: src/my_plugin.cpp -->
+```cpp
+/* my_plugin.cpp: a LogSquirl UI extension plugin. MIT licence example. */
 #include "logsquirl_plugin_api.h"
-#include <cstring>
 
-static LogSquirlPluginInfo pluginInfo;
+namespace {
 
-/* Required: return plugin metadata */
-LOGSQUIRL_PLUGIN_EXPORT LogSquirlPluginInfo LOGSQUIRL_PLUGIN_GET_INFO_NAME( void )
+// Designated initializers name every field, in the order the header declares them.
+const LogSquirlPluginInfo pluginInfo = {
+    .id = "com.example.my-plugin",
+    .name = "My Plugin",
+    .version = "0.1.0",
+    .description = "Says hello from the Plugins menu.",
+    .author = "Your Name",
+    .license = "MIT",
+    .type = LOGSQUIRL_PLUGIN_UI,
+    .api_version = LOGSQUIRL_PLUGIN_API_VERSION,
+};
+
+// Valid from init until shutdown.
+const LogSquirlHostApi* host = nullptr;
+void* hostHandle = nullptr;
+
+void sayHello( void* /* user_data */ )
 {
-    pluginInfo.api_version  = LOGSQUIRL_PLUGIN_API_VERSION;
-    pluginInfo.id           = "com.example.my-plugin";
-    pluginInfo.name         = "My Plugin";
-    pluginInfo.version      = "0.1.0";
-    pluginInfo.description  = "A short description.";
-    pluginInfo.type         = LOGSQUIRL_PLUGIN_DATASOURCE;
-    return pluginInfo;
+    host->show_notification( hostHandle, "Hello from My Plugin" );
 }
 
-/* Required: initialise the plugin */
-LOGSQUIRL_PLUGIN_EXPORT int LOGSQUIRL_PLUGIN_INIT_NAME(
-    const LogSquirlHostApi* api, void* handle )
+} // namespace
+
+extern "C" {
+
+LOGSQUIRL_PLUGIN_EXPORT const LogSquirlPluginInfo* logsquirl_plugin_get_info( void )
 {
-    /* Store `api` and `handle` for later use in your plugin state. */
-    /* Return 0 on success, non-zero on failure. */
-    api->log_message( handle, LOGSQUIRL_LOG_INFO, "My plugin initialised" );
+    return &pluginInfo;
+}
+
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init( const LogSquirlHostApi* api, void* handle )
+{
+    host = api;
+    hostHandle = handle;
+    api->log_message( handle, LOGSQUIRL_LOG_INFO, "My Plugin initialised" );
+    api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
     return 0;
 }
 
-/* Required: clean up resources */
-LOGSQUIRL_PLUGIN_EXPORT void LOGSQUIRL_PLUGIN_SHUTDOWN_NAME( void )
+LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 {
-    /* Release any resources you allocated. */
+    host = nullptr;
+    hostHandle = nullptr;
 }
+
+} // extern "C"
 ```
+
+The exported functions need C linkage: in C++, define them inside
+`extern "C"`, or the host does not find them by name.
 
 ### 4. Build with CMake
 
+<!-- example: CMakeLists.txt -->
 ```cmake
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.16)
 project(my_plugin LANGUAGES CXX)
 
-# Only include the SDK header — no host libraries needed
-set(LOGSQUIRL_SDK_DIR "" CACHE PATH "Path to LogSquirl SDK header directory")
+# The plugin includes the SDK header and nothing else of LogSquirl.
+if(NOT EXISTS "${LOGSQUIRL_SDK_DIR}/logsquirl_plugin_api.h")
+  message(FATAL_ERROR "Set LOGSQUIRL_SDK_DIR to the directory that holds logsquirl_plugin_api.h")
+endif()
 
-add_library(my_plugin SHARED src/my_plugin.cpp)
-
+# A MODULE is a library that is loaded at runtime and never linked against.
+add_library(my_plugin MODULE src/my_plugin.cpp)
 target_include_directories(my_plugin PRIVATE "${LOGSQUIRL_SDK_DIR}")
-target_compile_features(my_plugin PRIVATE cxx_std_17)
-
-# Remove lib prefix on all platforms for consistent naming
-set_target_properties(my_plugin PROPERTIES PREFIX "lib")
+target_compile_features(my_plugin PRIVATE cxx_std_20)
+# Export only the functions marked LOGSQUIRL_PLUGIN_EXPORT.
+set_target_properties(my_plugin PROPERTIES CXX_VISIBILITY_PRESET hidden)
 ```
 
 ```bash
-cmake -B build -S . -DLOGSQUIRL_SDK_DIR=/path/to/logsquirl_plugin_api.h/dir
+cmake -B build -S . -DLOGSQUIRL_SDK_DIR=/path/to/directory/of/logsquirl_plugin_api.h
 cmake --build build
 ```
 
-### 5. Install the Plugin
+### 5. Where LogSquirl Looks for Plugins
 
-Copy the built library and `plugin.json` into one of the plugin search
-directories:
+LogSquirl searches two plugin directories, the user plugin directory first,
+then the one next to the application:
 
-| Platform | Directories                                                               |
-|----------|---------------------------------------------------------------------------|
-| macOS    | `<app>/../PlugIns/` · `~/Library/Application Support/LogSquirl/plugins/` |
-| Linux    | `<app>/plugins/` · `~/.local/share/LogSquirl/plugins/`                   |
-| Windows  | `<app>/plugins/` · `%APPDATA%/LogSquirl/plugins/`                        |
+| Platform | User plugin directory                               | Next to the application                  |
+|----------|-----------------------------------------------------|------------------------------------------|
+| Linux    | `~/.local/share/logsquirl/plugins/`                 | `<directory of logsquirl>/plugins/`      |
+| macOS    | `~/Library/Application Support/logsquirl/plugins/`  | `Contents/PlugIns/` in the app bundle    |
+| Windows  | `%APPDATA%\logsquirl\plugins\`                      | `<directory of logsquirl.exe>\plugins\`  |
 
-Each plugin should live in its own subdirectory:
+Plugins installed or updated from the catalog go into the user plugin
+directory (see [ADR 0014](adr/0014-a-plugin-from-the-catalog-goes-into-the-user-plugin-directory-and-wins-over-the-shipped-copy.md)).
+A portable LogSquirl keeps its user plugin directory beside its executable, in
+the `plugins` folder next to the application, and searches that one folder
+(see [ADR 0015](adr/0015-a-portable-run-keeps-its-data-beside-the-executable.md)).
+
+Each plugin lives in a subdirectory of its own, directly below a plugin
+directory, that holds its `plugin.json` and its library:
 
 ```
-~/.local/share/LogSquirl/plugins/
+~/.local/share/logsquirl/plugins/
 └── com.example.my-plugin/
     ├── plugin.json
     └── libmy_plugin.so
 ```
 
+LogSquirl reads the manifests when it starts. If two directories hold a plugin
+with the same `id`, the one found first is used. Plugins are enabled and
+disabled in `Plugins` → `Plugin Management...`.
+
 ---
 
 ## C ABI Reference
 
+### Version and Export Macro
+
+```c
+#define LOGSQUIRL_PLUGIN_API_VERSION 1
+
+#ifdef _WIN32
+#define LOGSQUIRL_PLUGIN_EXPORT __declspec( dllexport )
+#else
+#define LOGSQUIRL_PLUGIN_EXPORT __attribute__( ( visibility( "default" ) ) )
+#endif
+```
+
+Mark every exported function with `LOGSQUIRL_PLUGIN_EXPORT`.
+
 ### Plugin Exports
 
-Every plugin **must** export these three symbols:
+Every plugin **must** export these three functions:
 
-| Symbol                             | Signature                                                      |
-|------------------------------------|----------------------------------------------------------------|
-| `logsquirl_plugin_get_info`        | `LogSquirlPluginInfo (void)`                                   |
-| `logsquirl_plugin_init`            | `int (const LogSquirlHostApi* api, void* handle)`              |
-| `logsquirl_plugin_shutdown`        | `void (void)`                                                  |
+```c
+LOGSQUIRL_PLUGIN_EXPORT const LogSquirlPluginInfo* logsquirl_plugin_get_info( void );
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init( const LogSquirlHostApi*, void* );
+LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void );
+```
 
-**Optional** exports:
+- `logsquirl_plugin_get_info` is called before `init` and returns a pointer to
+  the plugin's metadata, which must stay valid as long as the library is
+  loaded (a `static` or namespace-scope `const` object does).
+- `logsquirl_plugin_init` receives the host API table and the opaque handle;
+  it returns 0 on success and non-zero on failure. A plugin whose `init` fails
+  is not loaded.
+- `logsquirl_plugin_shutdown` releases everything the plugin allocated. The
+  host calls it before it unloads the library.
 
-| Symbol                             | Signature                                        | Used by       |
-|------------------------------------|--------------------------------------------------|---------------|
-| `logsquirl_plugin_configure`       | `void (void* parent_widget)`                     | All types     |
-| `logsquirl_converter_get_exts`     | `const char* (void)` — semicolon-separated list  | Converter     |
-| `logsquirl_converter_convert`      | `int (const char* in, const char* out)`          | Converter     |
+**Optional** export, for any plugin type:
+
+```c
+LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_configure( void* parent_widget );
+```
+
+Converter plugins additionally export both of these:
+
+```c
+LOGSQUIRL_PLUGIN_EXPORT const char* logsquirl_converter_get_extensions( void );
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert( const char*, const char* );
+```
+
+The host resolves the functions by these names, which the header also defines
+as constants:
+
+```c
+#define LOGSQUIRL_PLUGIN_ENTRY_GET_INFO "logsquirl_plugin_get_info"
+#define LOGSQUIRL_PLUGIN_ENTRY_INIT "logsquirl_plugin_init"
+#define LOGSQUIRL_PLUGIN_ENTRY_SHUTDOWN "logsquirl_plugin_shutdown"
+#define LOGSQUIRL_PLUGIN_ENTRY_CONFIGURE "logsquirl_plugin_configure"
+#define LOGSQUIRL_CONVERTER_ENTRY_GET_EXTS "logsquirl_converter_get_extensions"
+#define LOGSQUIRL_CONVERTER_ENTRY_CONVERT "logsquirl_converter_convert"
+```
+
+and the function pointer types it casts them to:
+
+```c
+typedef const LogSquirlPluginInfo* ( *LogSquirlPluginGetInfoFn )( void );
+typedef int ( *LogSquirlPluginInitFn )( const LogSquirlHostApi* api, void* handle );
+typedef void ( *LogSquirlPluginShutdownFn )( void );
+typedef void ( *LogSquirlPluginConfigureFn )( void* parent_widget );
+typedef const char* ( *LogSquirlConverterGetExtsFn )( void );
+typedef int ( *LogSquirlConverterConvertFn )( const char* input_path, const char* output_path );
+```
+
+### `LogSquirlPluginType`
+
+```c
+typedef enum {
+    LOGSQUIRL_PLUGIN_DATASOURCE = 0,
+    LOGSQUIRL_PLUGIN_CONVERTER = 1,
+    LOGSQUIRL_PLUGIN_UI = 2
+} LogSquirlPluginType;
+```
 
 ### `LogSquirlPluginInfo`
 
-Returned by `get_info`. String pointers must remain valid until `shutdown` is
-called.
+Returned by `logsquirl_plugin_get_info`. All strings are UTF-8 and must stay
+valid as long as the library is loaded.
 
 ```c
-typedef struct LogSquirlPluginInfo {
-    int           api_version;  /* Must equal LOGSQUIRL_PLUGIN_API_VERSION (1) */
-    const char*   id;
-    const char*   name;
-    const char*   version;
-    const char*   description;  /* May be NULL */
-    LogSquirlPluginType type;
+typedef struct {
+    const char* id;          /* Reverse-domain identifier, as in plugin.json */
+    const char* name;        /* Human-readable display name */
+    const char* version;     /* SemVer string, e.g. "1.2.0" */
+    const char* description; /* One-line description */
+    const char* author;      /* Author / organisation */
+    const char* license;     /* SPDX license identifier, e.g. "MIT" */
+    int type;                /* One of LogSquirlPluginType */
+    int api_version;         /* Must equal LOGSQUIRL_PLUGIN_API_VERSION */
 } LogSquirlPluginInfo;
 ```
 
+The host refuses a plugin whose `api_version` differs from its own
+`LOGSQUIRL_PLUGIN_API_VERSION`; the plugin's type and the rest of its metadata
+come from `plugin.json`.
+
 ### `LogSquirlHostApi`
 
-Function-pointer table provided by the host during `init`:
+The function-pointer table the host passes to `init`. It is valid from `init`
+until `shutdown`, and its functions are safe to call from any thread.
 
 ```c
-typedef struct LogSquirlHostApi {
-    int version;   /* == LOGSQUIRL_PLUGIN_API_VERSION */
+typedef struct {
+    int api_version; /* == LOGSQUIRL_PLUGIN_API_VERSION */
 
-    /* Data source streaming (Phase 2) */
-    void (*push_line)  (void* handle, const char* data, size_t len);
-    void (*push_lines) (void* handle, const char* const* data,
-                        const size_t* lens, size_t count);
-    void (*signal_eos) (void* handle);
-    void (*signal_error)(void* handle, const char* message);
+    /* Data source callbacks */
+    void ( *push_line )( void* handle, const char* data, size_t len );
+    void ( *push_lines )( void* handle, const char* const* data, const size_t* lens, size_t count );
+    void ( *signal_eos )( void* handle );
+    void ( *signal_error )( void* handle, const char* message );
 
-    /* Logging */
-    void (*log_message)(void* handle, int level, const char* message);
+    /* General utilities */
+    void ( *log_message )( void* handle, int level, const char* message );
+    const char* ( *get_config_dir )( void* handle );
+    void ( *show_notification )( void* handle, const char* message );
+    void ( *open_file )( void* handle, const char* file_path, int follow );
 
-    /* Plugin configuration directory */
-    const char* (*get_config_dir)(void* handle);
+    /* UI extension callbacks */
+    void ( *register_status_widget )( void* handle, void* qwidget_ptr );
+    void ( *unregister_status_widget )( void* handle, void* qwidget_ptr );
+    void ( *register_menu_action )( void* handle, const char* menu_path, const char* label,
+                                    void ( *callback )( void* user_data ), void* user_data );
+    void ( *register_sidebar_tab )( void* handle, const char* label, void* qwidget_ptr );
+    void ( *unregister_sidebar_tab )( void* handle, void* qwidget_ptr );
+    void ( *register_footer_widget )( void* handle, void* qwidget_ptr );
+    void ( *unregister_footer_widget )( void* handle, void* qwidget_ptr );
 
-    /* UI integration (Phase 3) */
-    void (*show_notification)(void* handle, const char* message);
-    void (*open_file)(void* handle, const char* file_path, int follow);
-    void (*register_status_widget)  (void* handle, void* qwidget_ptr);
-    void (*unregister_status_widget)(void* handle, void* qwidget_ptr);
-    void (*register_menu_action)    (void* handle, const char* menu_path,
-                                     const char* label,
-                                     void (*callback)(void*),
-                                     void* user_data);
+    /* Active file queries */
+    const char* ( *get_active_file_path )( void* handle );
+    void ( *register_active_file_callback )( void* handle,
+                                             void ( *callback )( void* user_data,
+                                                                 const char* file_path ),
+                                             void* user_data );
 } LogSquirlHostApi;
 ```
 
 The `handle` is an opaque pointer — always pass the same `handle` value that
 was given to your `init` function. **Never** dereference or interpret it.
 
-### Log Levels
+### `LogSquirlLogLevel`
+
+The levels for `log_message`, mirroring spdlog:
 
 ```c
-#define LOGSQUIRL_LOG_DEBUG   0
-#define LOGSQUIRL_LOG_INFO    1
-#define LOGSQUIRL_LOG_WARNING 2
-#define LOGSQUIRL_LOG_ERROR   3
+typedef enum {
+    LOGSQUIRL_LOG_TRACE = 0,
+    LOGSQUIRL_LOG_DEBUG = 1,
+    LOGSQUIRL_LOG_INFO = 2,
+    LOGSQUIRL_LOG_WARNING = 3,
+    LOGSQUIRL_LOG_ERROR = 4,
+    LOGSQUIRL_LOG_CRITICAL = 5
+} LogSquirlLogLevel;
 ```
 
 ---
@@ -243,21 +371,25 @@ was given to your `init` function. **Never** dereference or interpret it.
 api->log_message( handle, LOGSQUIRL_LOG_INFO, "Processing started" );
 ```
 
-Messages appear in the LogSquirl log output prefixed with your plugin ID.
+Messages appear in LogSquirl's log prefixed with `[plugin]`. Trace goes to the
+debug level and critical to the error level.
 
 ### Configuration Directory
 
 ```c
 const char* dir = api->get_config_dir( handle );
-/* e.g. ~/.local/share/LogSquirl/plugin_config/com.example.my-plugin/ */
+/* e.g. ~/.local/share/logsquirl/plugin_config/com.example.my-plugin */
 ```
 
-The directory is created automatically before `init` is called. The pointer
-remains valid until `shutdown`. Use it to persist any plugin-specific settings.
+The directory is `plugin_config/<plugin id>` next to the user plugin directory,
+beside the executable in a portable LogSquirl, and is created before `init` is
+called. The returned string is valid until the
+next call to `get_config_dir`. Use it to persist any plugin-specific settings.
 
-### Data Source Streaming (Phase 2)
+### Data Source Streaming
 
-Data-source plugins push log lines to the host:
+A data source plugin is listed in the `Sources` menu. Choosing it starts a
+stream that opens as a new tab; the lines the plugin pushes go into that tab:
 
 ```c
 /* Push a single line */
@@ -270,25 +402,71 @@ api->push_lines( handle, lines, lens, 3 );
 
 /* Signal end of stream */
 api->signal_eos( handle );
+
+/* Report an error; it is written to LogSquirl's log */
+api->signal_error( handle, "Device disconnected" );
 ```
 
-### UI Integration (Phase 3)
+Lines pushed while no stream of the plugin is running are dropped.
 
-```c
+### Converters
+
+A converter plugin (`"type": "converter"`) exports
+`logsquirl_converter_get_extensions` and `logsquirl_converter_convert`.
+`logsquirl_converter_get_extensions` returns the file extensions it handles,
+separated by semicolons, e.g. `".har;.pcap"`. When a Log File with one of
+these extensions is opened, the host calls `logsquirl_converter_convert` with
+the file's path and the path of a temporary file to write plain text into, and
+shows that text if the converter returns 0. Both paths are absolute and UTF-8.
+
+### UI Integration
+
+```cpp
 /* Show a notification toast */
 api->show_notification( handle, "Import complete" );
 
 /* Ask the host to open a file */
 api->open_file( handle, "/tmp/converted.log", 0 /* follow = false */ );
+
+/* Add an item to the Plugins menu */
+api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
 ```
+
+`menu_path` names the submenus of the `Plugins` menu the item goes into,
+separated by `/`: `"My Plugin/Sub"` puts `label` into
+`Plugins` → `My Plugin` → `Sub`. An empty path, or `"Plugins"`, puts the item
+directly into the `Plugins` menu; a path starting with `Plugins/` is read
+without that first segment. The last segment is a submenu too, the item's own
+text is always `label`. Items and submenus go above `Plugin Management...`,
+and plugins naming the same path share its submenus. When the plugin is
+unloaded, its items go away, and so does every submenu nothing is left in.
+
+`register_status_widget`, `register_sidebar_tab` and `register_footer_widget`
+take a `QWidget*` cast to `void*`: the plugin creates and owns the widget and
+the host parents it. Unregister the widget again before you delete it, at the
+latest in `shutdown`. Such a plugin links against the same Qt 6 LogSquirl
+uses.
+
+### Active File
+
+```c
+/* The path of the Log File in the focused tab, or "" */
+const char* path = api->get_active_file_path( handle );
+
+/* Be told whenever the focused Log File changes */
+api->register_active_file_callback( handle, &onActiveFile, userData );
+```
+
+The string `get_active_file_path` returns is valid until the next host API
+call.
 
 ### Configuration Dialog
 
-If your plugin exports `logsquirl_plugin_configure`, the host calls it with a
-`void*` that is actually a `QWidget*` parent. Cast it and create your dialog:
+A plugin may export `logsquirl_plugin_configure`; the host passes it a
+`QWidget*` (cast to `void*`) to use as the parent of its dialog:
 
 ```cpp
-LOGSQUIRL_PLUGIN_EXPORT void LOGSQUIRL_PLUGIN_CONFIGURE_NAME( void* parent_widget )
+extern "C" LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_configure( void* parent_widget )
 {
     auto* parent = static_cast<QWidget*>( parent_widget );
     MyConfigDialog dialog( parent );
@@ -296,8 +474,11 @@ LOGSQUIRL_PLUGIN_EXPORT void LOGSQUIRL_PLUGIN_CONFIGURE_NAME( void* parent_widge
 }
 ```
 
-This is the **only** place where Qt types cross the ABI boundary. If you don't
-use Qt in your plugin, simply don't export this symbol.
+The user opens it with the *Configure...* button of the plugin's card in
+`Plugins` → `Plugin Management...`. The button is enabled only while the plugin
+is loaded and exports `logsquirl_plugin_configure`; each click calls it once.
+The parent is the LogSquirl main window, not the Plugin Management dialog, so a
+window the plugin keeps open outlives the dialog.
 
 ---
 
@@ -307,8 +488,8 @@ use Qt in your plugin, simply don't export this symbol.
   dispatches UI-modifying calls to the main thread internally.
 - **String lifetime**: All `const char*` strings you pass to host API functions
   are copied immediately — you may free them after the call returns.
-- **Error reporting**: Return non-zero from `init` on failure. The host reads
-  `get_info()` to identify the failing plugin.
+- **Error reporting**: Return non-zero from `init` on failure; the host logs
+  the code and does not load the plugin.
 - **No host headers**: Never include any host header other than
   `logsquirl_plugin_api.h`. This keeps your plugin fully decoupled.
 - **Cross-platform**: Use the `LOGSQUIRL_PLUGIN_EXPORT` macro for all exported
@@ -321,12 +502,12 @@ use Qt in your plugin, simply don't export this symbol.
 
 **Q: Can I use C++ in my plugin?**
 A: Yes. The exported functions must use C linkage (`extern "C"`) and C types at
-the boundary, but the implementation may be C++. Use `cxx_std_17` or later.
+the boundary, but the implementation may be C++. The example uses C++20 for
+its designated initializers.
 
 **Q: Do I need to link against Qt?**
-A: No. Most plugins don't need Qt at all. The only exception is if you export
-`logsquirl_plugin_configure` and want to show a Qt dialog — in that case, link
-against `Qt6::Widgets`.
+A: No. Most plugins don't need Qt at all. Only a plugin that hands widgets to
+the host or shows a Qt dialog links against `Qt6::Widgets`.
 
 **Q: My plugin needs a background thread. Is that safe?**
 A: Yes. Create threads as needed. All host API functions are thread-safe. Call
@@ -338,9 +519,10 @@ files there (JSON, INI, etc.). The host does not manage plugin-specific
 settings — only the enable/disable state.
 
 **Q: What happens if the API version changes in a future LogSquirl release?**
-A: The host checks `api_version` in both `plugin.json` and the `get_info()`
-return value. Incompatible plugins are rejected at load time with a clear error
-message. Plugin authors update `api_version` and adapt to the new API.
+A: The host checks `api_version` in both `plugin.json` and the
+`LogSquirlPluginInfo` that `logsquirl_plugin_get_info` returns. Incompatible
+plugins are rejected at load time with an error message. Plugin authors update
+`api_version` and adapt to the new API.
 
 ---
 

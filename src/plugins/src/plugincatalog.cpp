@@ -19,13 +19,14 @@
 
 #include "plugincatalog.h"
 
+#include "datalocation.h"
 #include "log.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
-#include <QStandardPaths>
+#include <QFileInfo>
 
 namespace logsquirl::plugins {
 
@@ -33,24 +34,47 @@ namespace logsquirl::plugins {
 
 QStringList PluginCatalog::defaultPluginDirectories()
 {
-    QStringList dirs;
+    // The user plugin directory comes first: discovery keeps the first plugin
+    // of an id, so a plugin updated from the catalog, which lands there, wins
+    // over the copy shipped in the application folder (#595, ADR 0014).
+    const auto user = userPluginDirectory();
+    const auto application = applicationPluginDirectory();
+    // A portable run keeps its user plugin directory beside the executable,
+    // where the application plugin directory is too (#602, ADR 0015): the one
+    // directory is scanned once, not a second time to find every plugin in it
+    // a duplicate of itself.
+    const QFileInfo userInfo( user );
+    const QFileInfo applicationInfo( application );
+    const auto same = userInfo.exists() && applicationInfo.exists()
+                          ? userInfo.canonicalFilePath() == applicationInfo.canonicalFilePath()
+                          : QDir::cleanPath( user ) == QDir::cleanPath( application );
+    if ( same ) {
+        return { user };
+    }
+    return { user, application };
+}
+
+QString PluginCatalog::userPluginDirectory()
+{
+    return DataLocation::current().dataDirectory() + "/plugins";
+}
+
+QString PluginCatalog::applicationPluginDirectory()
+{
     const auto appDir = QCoreApplication::applicationDirPath();
 
 #if defined( Q_OS_MACOS )
     // Inside .app bundle: Contents/PlugIns/
-    dirs << QDir( appDir + "/../PlugIns" ).absolutePath();
-    // User-installed plugins
-    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
-#elif defined( Q_OS_WIN )
-    dirs << appDir + "/plugins";
-    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
+    return QDir( appDir + "/../PlugIns" ).absolutePath();
 #else
-    // Linux / other Unix
-    dirs << appDir + "/plugins";
-    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
+    // Windows, Linux and other Unix
+    return appDir + "/plugins";
 #endif
+}
 
-    return dirs;
+QString PluginCatalog::installDirectory( const QString& pluginId )
+{
+    return QDir( userPluginDirectory() ).filePath( pluginId );
 }
 
 // ── Discovery ───────────────────────────────────────────────────────────────

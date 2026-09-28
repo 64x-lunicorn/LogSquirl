@@ -25,6 +25,7 @@
 // Writes the Log File at run time into a temporary file; it is never checked
 // in. LOGSQUIRL_BENCHMARK_LOG_LINES writes fewer Log Lines, for a quick run.
 
+#include "datalocation.h"
 #include "logdata.h"
 #include "logformatparser.h"
 #include "test_policies.h"
@@ -160,6 +161,10 @@ TEST_CASE( "Go to timestamp on a Log File of 10 million Log Lines", "[timelookup
 
     CHECK( milliseconds.back() < 50.0 );
 }
+
+// The Log Format library asks every executable whether it runs portable;
+// a test runner stays beside its binary, as the other runners do (#617).
+const bool DataLocation::ForcePortable = true;
 
 int main( int argc, char* argv[] )
 {

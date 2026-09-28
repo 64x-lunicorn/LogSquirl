@@ -27,12 +27,12 @@
 // tests/benchmarks/README.md.
 
 #include "configuration.h"
+#include "datalocation.h"
 #include "fake_log_data.h"
 #include "highlighterset.h"
 #include "logformatdefinition.h"
 #include "logtablehighlightdelegate.h"
 #include "logtableview.h"
-#include "persistentinfo.h"
 #include "test_policies.h"
 
 #include <QApplication>
@@ -46,7 +46,7 @@
 #include "isolated_settings.h"
 
 // The settings library, which the UI library links, asks every executable.
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 namespace {
 

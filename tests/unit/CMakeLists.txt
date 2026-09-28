@@ -16,6 +16,7 @@ add_executable(logsquirl_tests
     compressedlinestorage_test.cpp
     configuration_test.cpp
     crashreports_test.cpp
+    datalocation_test.cpp
     decorationsetup_test.cpp
     displayedlines_test.cpp
     encodingdetector_test.cpp
@@ -59,6 +60,7 @@ add_executable(logsquirl_tests
     pluginloader_test.cpp
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
+    pluginsdkexample_test.cpp
     pluginuiadapter_test.cpp
     sharedpluginuiport_test.cpp
     stdinpump_test.cpp
@@ -145,6 +147,19 @@ foreach(variant IN ITEMS
 endforeach()
 # A CONVERTER fixture that is otherwise complete also stands for a good plugin.
 
+# The example plugin of the plugin developer guide is built with the guide's
+# own CMakeLists.txt against the current header, and the Plugin Host test loads
+# it with the guide's own plugin.json (#598). Like every other target of the
+# project it builds with the project's warnings and options (#451).
+set(LOGSQUIRL_SDK_DIR "${CMAKE_SOURCE_DIR}/src/plugins/include")
+add_subdirectory("${CMAKE_SOURCE_DIR}/docs/plugin-sdk/my_plugin"
+                 "${CMAKE_CURRENT_BINARY_DIR}/plugin-sdk-example")
+target_link_libraries(my_plugin PRIVATE project_options project_warnings)
+add_dependencies(logsquirl_tests my_plugin)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_SDK_EXAMPLE_DIR="${CMAKE_SOURCE_DIR}/docs/plugin-sdk/my_plugin"
+    LOGSQUIRL_SDK_EXAMPLE_PATH="$<TARGET_FILE:my_plugin>")
+
 # Each test case is its own ctest test (#217). Its timeout is the one the whole
 # executable had: the slowest case, the 10,000 Visual Lines scenario, takes a
 # third of the suite in a Debug build and is slower under the sanitizers.
@@ -217,3 +232,20 @@ add_executable(logsquirl_versioncheck_tests
 target_link_libraries(logsquirl_versioncheck_tests logsquirl_versioncheck Catch2::Catch2)
 
 logsquirl_add_catch_tests(logsquirl_versioncheck_tests TIMEOUT 60)
+
+# The user guide is checked against the application: every key its Keyboard
+# commands section names is a default key (#599). It needs the shortcut
+# defaults only, from the settings library, and a QGuiApplication for the
+# platform's standard keys.
+add_executable(logsquirl_documentation_tests
+    documentation_tests_main.cpp
+    documentationkeys_test.cpp
+)
+
+target_link_libraries(logsquirl_documentation_tests logsquirl_settings Catch2::Catch2)
+target_compile_definitions(logsquirl_documentation_tests PRIVATE
+    LOGSQUIRL_DOCUMENTATION_FILE="${CMAKE_SOURCE_DIR}/DOCUMENTATION.md")
+
+logsquirl_add_catch_tests(logsquirl_documentation_tests
+    EXTRA_ARGS -platform offscreen
+    TIMEOUT 60)

@@ -48,6 +48,8 @@
 namespace {
 constexpr QLatin1String PathKey = QLatin1String( "path", 4 );
 constexpr QLatin1String StatusKey = QLatin1String( "status", 6 );
+constexpr QLatin1String TransientKey = QLatin1String( "transient", 9 );
+constexpr QLatin1String StoredKey = QLatin1String( "storedKey", 9 );
 
 // Creates a small solid-colour icon for use in group context menus.
 QIcon createColorIcon( const QColor& color, int size = 12 )
@@ -93,29 +95,34 @@ void TabbedCrawlerWidget::loadIcons()
     }
 }
 
-void TabbedCrawlerWidget::setTransientTabName( const QString& path, const QString& name )
+void TabbedCrawlerWidget::setOpeningTitle( const QString& path, const QString& title,
+                                           const QString& toolTip )
 {
-    transientTabNames_.insert( path, name );
+    if ( title.isEmpty() ) {
+        openingTitles_.remove( path );
+    }
+    else {
+        openingTitles_.insert( path, { title, toolTip } );
+    }
 }
 
-void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName )
+void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName,
+                                         LogFileLifetime lifetime, const QString& storedKey )
 {
-    const auto tabLabel = QFileInfo( fileName ).fileName();
-    auto tabName = TabNameMapping::get().tabName( fileName );
-    if ( tabName.isEmpty() ) {
-        tabName = transientTabNames_.value( fileName );
-    }
-
-    myTabBar_.setTabIcon( index, olddata_icon_ );
-    myTabBar_.setTabText( index, tabName.isEmpty() ? tabLabel : tabName );
-    myTabBar_.setTabToolTip( index, QDir::toNativeSeparators( fileName ) );
-
     QVariantMap tabData;
     tabData[ PathKey ] = fileName;
+    tabData[ StoredKey ] = storedKey.isEmpty() ? fileName : storedKey;
     tabData[ StatusKey ] = static_cast<int>( DataStatus::OLD_DATA );
+    tabData[ TransientKey ] = lifetime == LogFileLifetime::Transient;
 
     myTabBar_.setTabData( index, tabData );
 
+    myTabBar_.setTabIcon( index, olddata_icon_ );
+    const auto toolTip = openingTitles_.value( fileName ).toolTip;
+    myTabBar_.setTabToolTip( index,
+                             toolTip.isEmpty() ? QDir::toNativeSeparators( fileName ) : toolTip );
+
+    // Names the tab too.
     updateTabGroupAppearance( index );
 
     setCurrentIndex( index );
@@ -127,18 +134,19 @@ void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName )
 QString TabbedCrawlerWidget::baseTabName( int index ) const
 {
     const auto path = tabPathAt( index );
-    auto customName = TabNameMapping::get().tabName( path );
+    auto customName = holdsTransientLogFile( index )
+                          ? renamedTransientTabs_.value( path )
+                          : TabNameMapping::get().tabName( storedKeyAt( index ) );
     if ( !customName.isEmpty() ) {
         return customName;
     }
-    const auto transientName = transientTabNames_.value( path );
-    return transientName.isEmpty() ? QFileInfo( path ).fileName() : transientName;
+    const auto openingTitle = openingTitles_.value( path ).title;
+    return openingTitle.isEmpty() ? QFileInfo( path ).fileName() : openingTitle;
 }
 
 void TabbedCrawlerWidget::updateTabGroupAppearance( int index )
 {
-    const auto path = tabPathAt( index );
-    const auto group = TabGroupInfo::get().groupForTab( path );
+    const auto group = groupOfTab( index );
     const auto name = baseTabName( index );
 
     if ( group.has_value() ) {
@@ -158,8 +166,82 @@ void TabbedCrawlerWidget::refreshAllTabGroupAppearances()
     }
 }
 
+bool TabbedCrawlerWidget::holdsTransientLogFile( int index ) const
+{
+    return myTabBar_.tabData( index ).toMap()[ TransientKey ].toBool();
+}
+
+void TabbedCrawlerWidget::renameTab( int index, const QString& name )
+{
+    const auto path = tabPathAt( index );
+    // A Transient Log File's path is gone after a restart: stored, its name
+    // would never name a tab again.
+    if ( holdsTransientLogFile( index ) ) {
+        if ( name.isEmpty() ) {
+            renamedTransientTabs_.remove( path );
+        }
+        else {
+            renamedTransientTabs_.insert( path, name );
+        }
+    }
+    else {
+        TabNameMapping::getSynced().setTabName( storedKeyAt( index ), name ).save();
+    }
+    updateTabGroupAppearance( index );
+}
+
+void TabbedCrawlerWidget::addTabToGroup( int index, const QString& groupId )
+{
+    const auto path = tabPathAt( index );
+    if ( holdsTransientLogFile( index ) ) {
+        transientTabGroups_.insert( path, groupId );
+    }
+    else {
+        TabGroupInfo::getSynced().addTabToGroup( groupId, storedKeyAt( index ) ).save();
+    }
+    refreshAllTabGroupAppearances();
+}
+
+void TabbedCrawlerWidget::removeTabFromGroup( int index )
+{
+    const auto path = tabPathAt( index );
+    if ( holdsTransientLogFile( index ) ) {
+        transientTabGroups_.remove( path );
+    }
+    else {
+        TabGroupInfo::getSynced().removeTabFromGroup( storedKeyAt( index ) ).save();
+    }
+    refreshAllTabGroupAppearances();
+}
+
+std::optional<TabGroupInfo::TabGroup> TabbedCrawlerWidget::groupOfTab( int index ) const
+{
+    if ( !holdsTransientLogFile( index ) ) {
+        return TabGroupInfo::get().groupForTab( storedKeyAt( index ) );
+    }
+    const auto path = tabPathAt( index );
+
+    // The group itself is stored, and may have been deleted since.
+    const auto groupId = transientTabGroups_.value( path );
+    const auto& groups = TabGroupInfo::get().groups();
+    const auto group = std::ranges::find( groups, groupId, &TabGroupInfo::TabGroup::id );
+    if ( groupId.isEmpty() || group == groups.end() ) {
+        return std::nullopt;
+    }
+    return *group;
+}
+
 void TabbedCrawlerWidget::removeCrawler( int index )
 {
+    // A Transient Log File goes with its tab, and what the user made of the
+    // tab with it. So does the title the tab opened with.
+    const auto path = tabPathAt( index );
+    if ( holdsTransientLogFile( index ) ) {
+        renamedTransientTabs_.remove( path );
+        transientTabGroups_.remove( path );
+    }
+    openingTitles_.remove( path );
+
     QTabWidget::removeTab( index );
 
     // Keep the tab bar visible while a tab that holds no Log File remains:
@@ -215,6 +297,11 @@ QString TabbedCrawlerWidget::tabPathAt( int index ) const
     return myTabBar_.tabData( index ).toMap()[ PathKey ].toString();
 }
 
+QString TabbedCrawlerWidget::storedKeyAt( int index ) const
+{
+    return myTabBar_.tabData( index ).toMap()[ StoredKey ].toString();
+}
+
 void CrawlerTabBar::mouseReleaseEvent( QMouseEvent* mouseEvent )
 {
     if ( mouseEvent->button() == Qt::RightButton ) {
@@ -254,7 +341,7 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
     auto copyFullPath = menu.addAction( tr( "Copy full path" ) );
     auto openContainingFolder = menu.addAction( tr( "Open containing folder" ) );
     menu.addSeparator();
-    auto renameTab = menu.addAction( tr( "Rename tab" ) );
+    auto renameTabAction = menu.addAction( tr( "Rename tab" ) );
     auto resetTabName = menu.addAction( tr( "Reset tab name" ) );
 
     connect( closeThis, &QAction::triggered, [ tab, this ] { Q_EMIT tabCloseRequested( tab ); } );
@@ -275,32 +362,31 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
     closeLeft->setDisabled( leftOfTab.isEmpty() );
     closeRight->setDisabled( rightOfTab.isEmpty() );
 
-    connect( copyFullPath, &QAction::triggered, this,
-             [ this, tab ] { sendTextToClipboard( tabToolTip( tab ) ); } );
+    connect( copyFullPath, &QAction::triggered, this, [ this, tab ] {
+        sendTextToClipboard( QDir::toNativeSeparators( tabPathAt( tab ) ) );
+    } );
 
     connect( openContainingFolder, &QAction::triggered, this,
-             [ this, tab ] { showPathInFileExplorer( tabToolTip( tab ) ); } );
+             [ this, tab ] { showPathInFileExplorer( tabPathAt( tab ) ); } );
 
-    connect( renameTab, &QAction::triggered, this, [ this, tab ] {
+    connect( renameTabAction, &QAction::triggered, this, [ this, tab ] {
         bool isNameEntered = false;
-        auto newName = QInputDialog::getText( this, "Rename tab", "Tab name", QLineEdit::Normal,
-                                              myTabBar_.tabText( tab ), &isNameEntered );
+        // The name without the group's bullet, so accepting it as it is keeps
+        // the name (#612).
+        auto newName
+            = QInputDialog::getText( this, tr( "Rename tab" ), tr( "Tab name" ), QLineEdit::Normal,
+                                     baseTabName( tab ), &isNameEntered );
         if ( isNameEntered ) {
-            const auto tabPath = tabPathAt( tab );
-            TabNameMapping::getSynced().setTabName( tabPath, newName ).save();
-            updateTabGroupAppearance( tab );
+            renameTab( tab, newName );
         }
     } );
 
-    connect( resetTabName, &QAction::triggered, this, [ this, tab ] {
-        const auto tabPath = tabPathAt( tab );
-        TabNameMapping::getSynced().setTabName( tabPath, "" ).save();
-        updateTabGroupAppearance( tab );
-    } );
+    connect( resetTabName, &QAction::triggered, this, [ this, tab ] { renameTab( tab, {} ); } );
 
     // --- Tab group operations ---
-    const auto tabPath = tabPathAt( tab );
-    const auto currentGroup = TabGroupInfo::getSynced().groupForTab( tabPath );
+    // Read again, to offer what another instance saved in the meantime.
+    TabGroupInfo::getSynced();
+    const auto currentGroup = groupOfTab( tab );
 
     menu.addSeparator();
 
@@ -314,16 +400,14 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
         }
         auto* action = addToGroupMenu->addAction( group.name );
         action->setIcon( createColorIcon( group.color ) );
-        connect( action, &QAction::triggered, this, [ this, groupId = group.id, tabPath ] {
-            TabGroupInfo::getSynced().addTabToGroup( groupId, tabPath ).save();
-            refreshAllTabGroupAppearances();
-        } );
+        connect( action, &QAction::triggered, this,
+                 [ this, groupId = group.id, tab ] { addTabToGroup( tab, groupId ); } );
     }
     if ( !allGroups.empty() ) {
         addToGroupMenu->addSeparator();
     }
     auto* newGroupAction = addToGroupMenu->addAction( tr( "New Group..." ) );
-    connect( newGroupAction, &QAction::triggered, this, [ this, tabPath ] {
+    connect( newGroupAction, &QAction::triggered, this, [ this, tab ] {
         bool ok = false;
         const auto name = QInputDialog::getText( this, tr( "New Tab Group" ), tr( "Group name:" ),
                                                  QLineEdit::Normal, QString{}, &ok );
@@ -336,17 +420,15 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
         }
         auto& groupInfo = TabGroupInfo::getSynced();
         const auto groupId = groupInfo.addGroup( name, color );
-        groupInfo.addTabToGroup( groupId, tabPath ).save();
-        refreshAllTabGroupAppearances();
+        groupInfo.save();
+        addTabToGroup( tab, groupId );
     } );
 
     // "Remove from Group" (enabled only if tab is in a group)
     auto* removeFromGroup = menu.addAction( tr( "Remove from Group" ) );
     removeFromGroup->setEnabled( currentGroup.has_value() );
-    connect( removeFromGroup, &QAction::triggered, this, [ this, tabPath ] {
-        TabGroupInfo::getSynced().removeTabFromGroup( tabPath ).save();
-        refreshAllTabGroupAppearances();
-    } );
+    connect( removeFromGroup, &QAction::triggered, this,
+             [ this, tab ] { removeTabFromGroup( tab ); } );
 
     // Group management submenu (visible only if tab is in a group)
     if ( currentGroup.has_value() ) {
@@ -379,18 +461,13 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
 
         auto* closeAllInGroup = groupMenu->addAction( tr( "Close All in Group" ) );
         connect( closeAllInGroup, &QAction::triggered, this, [ this, groupId ] {
-            const auto group = TabGroupInfo::getSynced().groupForTab( QString{} );
-            const auto& groups = TabGroupInfo::getSynced().groups();
-            auto it = std::find_if( groups.begin(), groups.end(),
-                                    [ &groupId ]( const auto& g ) { return g.id == groupId; } );
-            if ( it == groups.end() ) {
-                return;
-            }
-            // Collect tab indices first, then close in reverse order
-            const auto paths = it->tabPaths;
+            TabGroupInfo::getSynced();
+            // Collect tab indices first, then close in reverse order. The
+            // tabs of Transient Log Files in the group are among them.
             const auto logFileTabsNow = logFileTabs();
             for ( auto i = logFileTabsNow.crbegin(); i != logFileTabsNow.crend(); ++i ) {
-                if ( paths.contains( tabPathAt( *i ) ) ) {
+                const auto group = groupOfTab( *i );
+                if ( group.has_value() && group->id == groupId ) {
                     Q_EMIT tabCloseRequested( *i );
                 }
             }

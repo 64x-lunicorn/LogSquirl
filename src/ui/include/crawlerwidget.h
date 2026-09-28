@@ -128,6 +128,13 @@ public:
     // says (#558).
     bool isFollowEnabled() const;
 
+    // Whether a load of its Log File has finished successfully in this tab:
+    // an interrupted reload then leaves the tab open (#621).
+    bool hasLoaded() const
+    {
+        return hasLoaded_;
+    }
+
     // Why "Go to timestamp" is not available for this Log File, empty when it
     // is: it needs a recognized Log Format with a timestamp field.
     QString goToTimestampUnavailableReason() const;
@@ -294,6 +301,9 @@ private Q_SLOTS:
 
     // Called when the user change the visibility combobox
     void changeFilteredViewVisibility( int index );
+
+    // Selects the entry of the visibility combobox that shows visibility.
+    void selectVisibility( FilteredView::Visibility visibility );
 
     // Called when the user add the string to the search
     void addToSearch( const QString& string );
@@ -555,6 +565,7 @@ private:
     // whose progress is kept instead, and the failure of a Failed one.
     std::optional<LoadingStatus> lastLoadStatus_;
     QString lastLoadFailure_;
+    bool hasLoaded_ = false;
     int loadingProgress_ = 0;
 
     // The Scroll Position of the text view restored with the Session, until

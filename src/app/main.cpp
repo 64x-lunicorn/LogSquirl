@@ -61,6 +61,7 @@
 #include "tbb/global_control.h"
 
 #include "configuration.h"
+#include "datalocation.h"
 #include "defaultencodingcheck.h"
 #include "highlighterset.h"
 #include "logger.h"
@@ -76,9 +77,9 @@
 #include <QSplashScreen>
 
 #ifdef LOGSQUIRL_PORTABLE
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 #else
-const bool PersistentInfo::ForcePortable = false;
+const bool DataLocation::ForcePortable = false;
 #endif
 
 // Nothing here reads a setting: a secondary instance sets these attributes
@@ -100,6 +101,23 @@ void setApplicationAttributes()
     qputenv( "QT_BEARER_POLL_TIMEOUT", QByteArray::number( std::numeric_limits<int>::max() ) );
 
     QCoreApplication::setAttribute( Qt::AA_DontShowIconsInMenus );
+}
+
+// A portable run takes over, on its first start, the data the portable package
+// kept in the user profile before #602 (#613). A failure only costs that data,
+// never the start.
+void takeOverOldPortableData()
+{
+    const auto takeOver = DataLocation::current().takeOverOldPortableData();
+    for ( const auto& copied : takeOver.copied ) {
+        LOG_INFO << "Took over portable data " << copied;
+    }
+    for ( const auto& skipped : takeOver.skipped ) {
+        LOG_INFO << "Did not take over portable data " << skipped;
+    }
+    for ( const auto& failed : takeOver.failed ) {
+        LOG_WARNING << "Could not take over portable data " << failed;
+    }
 }
 
 int main( int argc, char* argv[] )
@@ -160,6 +178,10 @@ int main( int argc, char* argv[] )
 
     // Logging is on now, so the warning about an unknown Encoding lands in it.
     resetUnknownDefaultEncoding( config );
+
+    // Before anything reads the data or configuration directory, and with
+    // logging on so the log says what was copied (#613).
+    takeOverOldPortableData();
 
     app.initCrashHandler();
     app.prepareForMainWindows();

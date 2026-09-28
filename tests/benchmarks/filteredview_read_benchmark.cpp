@@ -30,13 +30,13 @@
 #include "generated_log_file.h"
 #include "test_policies.h"
 
+#include "datalocation.h"
 #include "linemapping.h"
 #include "linessaver.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
-#include "persistentinfo.h"
 #include "regularexpressionpattern.h"
 
 #include <QBuffer>
@@ -60,7 +60,7 @@
 
 // The settings store the linked user interface library reads, as for the
 // other benchmarks linking it.
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 namespace {
 

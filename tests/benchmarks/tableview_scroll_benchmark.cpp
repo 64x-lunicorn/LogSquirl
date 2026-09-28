@@ -31,12 +31,12 @@
 // still computes it, the view no longer paints it.
 
 #include "configuration.h"
+#include "datalocation.h"
 #include "highlighterset.h"
 #include "isolated_settings.h"
 #include "logdata.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
-#include "persistentinfo.h"
 #include "test_policies.h"
 
 #include <QApplication>
@@ -56,7 +56,7 @@
 #include <vector>
 
 // The settings library, which the UI library links, asks every executable.
-const bool PersistentInfo::ForcePortable = true;
+const bool DataLocation::ForcePortable = true;
 
 namespace {
 

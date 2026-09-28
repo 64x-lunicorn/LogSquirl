@@ -40,6 +40,7 @@
 #include "savedsearches.h"
 #include "session.h"
 #include "sessioninfo.h"
+#include "stored_session.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
@@ -125,6 +126,11 @@ struct AbstractLogView::access_by<CrawlerWidgetPrivate> {
     static QuickFind* quickFind( const AbstractLogView& view )
     {
         return view.quickFind_;
+    }
+    // The selected Log Line, or the one in the middle of the view.
+    static OptionalLineNumber viewPosition( const AbstractLogView& view )
+    {
+        return view.getViewPosition();
     }
     // The Search Limits the view subdues the Log Lines outside of.
     static std::pair<LineNumber, LineNumber> searchLimits( const AbstractLogView& view )
@@ -2816,25 +2822,19 @@ namespace {
 struct RestoredWindow {
     // Before the Crawler Widgets, which it outlives.
     std::shared_ptr<Session> appSession;
+    // Before the window, which finds it in the Session (#608).
+    StoredSessionWindow stored;
     std::unique_ptr<WindowSession> window;
     std::vector<std::unique_ptr<CrawlerWidget>> tabs;
 
     // Restores the window with these Log Files and view contexts, the last one
-    // its current tab. Building a Session reads the settings store again, so
-    // the Session info is written after it.
+    // its current tab.
     RestoredWindow( const QString& windowId,
                     const std::vector<std::pair<QString, QString>>& openFiles )
         : appSession( std::make_shared<Session>( testSettingsPolicies(),
                                                  std::make_shared<LogFormatCatalog>() ) )
+        , stored( windowId, toOpenFiles( openFiles ) )
     {
-        std::vector<SessionInfo::OpenFile> saved;
-        for ( const auto& [ fileName, viewContext ] : openFiles ) {
-            saved.emplace_back( fileName, viewContext );
-        }
-        auto& readAtStartup = SessionInfo::get();
-        readAtStartup.add( windowId );
-        readAtStartup.setOpenFiles( windowId, saved );
-
         window = std::make_unique<WindowSession>( appSession, windowId, 0 );
         int currentFileIndex = -1;
         window->restore(
@@ -2849,12 +2849,21 @@ struct RestoredWindow {
     ~RestoredWindow()
     {
         tabs.clear();
-        // Leave the in-memory Session info as the settings store has it.
-        SessionInfo::getSynced();
     }
 
     RestoredWindow( const RestoredWindow& ) = delete;
     RestoredWindow& operator=( const RestoredWindow& ) = delete;
+
+private:
+    static std::vector<SessionInfo::OpenFile>
+    toOpenFiles( const std::vector<std::pair<QString, QString>>& openFiles )
+    {
+        std::vector<SessionInfo::OpenFile> saved;
+        for ( const auto& [ fileName, viewContext ] : openFiles ) {
+            saved.emplace_back( fileName, viewContext );
+        }
+        return saved;
+    }
 };
 
 } // namespace
@@ -3935,6 +3944,148 @@ SCENARIO( "A Log File replays the status of its last load to the window", "[ui][
                     REQUIRE( finished.first().at( 0 ).value<LoadingStatus>()
                              == LoadingStatus::Successful );
                 }
+            }
+        }
+    }
+}
+
+namespace {
+
+// What pressing the keys of action does: its shortcut in the Crawler Widget
+// fires.
+void pressShortcut( const CrawlerWidgetVisitor& crawlerVisitor, const std::string& action )
+{
+    const auto keys = ShortcutAction::shortcutKeys( action, Configuration::get().shortcuts() );
+    REQUIRE_FALSE( keys.isEmpty() );
+
+    for ( const auto& shortcut : shortcutsOf( *crawlerVisitor.crawler ) ) {
+        if ( !shortcut.isNull() && shortcut->key() == keys.front() ) {
+            Q_EMIT shortcut->activated();
+            QCoreApplication::processEvents();
+            return;
+        }
+    }
+    FAIL( "no shortcut registered for " << action );
+}
+
+} // namespace
+
+// Each visibility shortcut picks the mode of its name, not the entry at a fixed
+// position of the visibility list (#594).
+SCENARIO( "A visibility shortcut shows what its name says in the Filtered View", "[ui]" )
+{
+    using VisibilityFlags = LogFilteredData::VisibilityFlags;
+    using Visibility = FilteredView::Visibility;
+
+    QTemporaryFile file{ "crawler_visibility_XXXXXX" };
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    openCrawler( session, file, crawlerVisitor );
+
+    const auto [ action, shown ] = GENERATE( table<std::string, Visibility>( {
+        { ShortcutAction::CrawlerChangeVisibilityToMarksAndMatches,
+          VisibilityFlags::Marks | VisibilityFlags::Matches },
+        { ShortcutAction::CrawlerChangeVisibilityToMarks, VisibilityFlags::Marks },
+        { ShortcutAction::CrawlerChangeVisibilityToMatches, VisibilityFlags::Matches },
+    } ) );
+
+    GIVEN( "a Filtered View showing Marks, Matches and breadcrumbs, a mode no shortcut names" )
+    {
+        pressShortcut( crawlerVisitor, ShortcutAction::CrawlerChangeVisibilityForward );
+        REQUIRE(
+            crawlerVisitor.filteredView()->visibility()
+            == ( VisibilityFlags::Marks | VisibilityFlags::Matches | VisibilityFlags::Context ) );
+
+        DYNAMIC_SECTION( "When: the shortcut " << action << " is pressed" )
+        {
+            pressShortcut( crawlerVisitor, action );
+
+            THEN( "the Filtered View shows the mode of its name" )
+            {
+                REQUIRE( crawlerVisitor.filteredView()->visibility() == shown );
+            }
+        }
+    }
+}
+
+// A count and the Crawler Widget's digit shortcuts share the bare digits: a
+// count starts with 0, and the digits after it go to the view, not to the
+// shortcuts of 1 to 9 (#600, docs/adr/0016). The keys go through Qt's
+// shortcut dispatch, with the default shortcuts in place.
+SCENARIO( "A count typed after 0 moves the selection while a bare digit stays a shortcut", "[ui]" )
+{
+    using VisibilityFlags = LogFilteredData::VisibilityFlags;
+
+    QTemporaryFile file{ "crawler_count_XXXXXX" };
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    openCrawler( session, file, crawlerVisitor );
+    crawlerVisitor.crawler->activateWindow();
+    REQUIRE( QTest::qWaitForWindowActive( crawlerVisitor.crawler.get() ) );
+
+    auto* view = crawlerVisitor.textView();
+    const auto viewPosition = [ view ]() {
+        return AbstractLogView::access_by<CrawlerWidgetPrivate>::viewPosition( *view );
+    };
+    const auto typeKeys = [ view ]( std::initializer_list<Qt::Key> keys ) {
+        for ( const auto key : keys ) {
+            QTest::keyClick( view, key );
+        }
+        QCoreApplication::processEvents();
+    };
+
+    GIVEN( "the main view focused, with Log Line 20 selected" )
+    {
+        view->selectAndDisplayLine( 20_lnum );
+        view->setFocus();
+        QCoreApplication::processEvents();
+        REQUIRE( QApplication::focusWidget() == view );
+
+        const auto regexp = crawlerVisitor.useRegexpChecked();
+        const auto visibility = crawlerVisitor.filteredView()->visibility();
+
+        WHEN( "0, 5 and j are typed" )
+        {
+            typeKeys( { Qt::Key_0, Qt::Key_5, Qt::Key_J } );
+
+            THEN( "the selection moves five lines down and no search button toggles" )
+            {
+                REQUIRE( viewPosition() == OptionalLineNumber{ 25_lnum } );
+                REQUIRE( crawlerVisitor.useRegexpChecked() == regexp );
+            }
+        }
+
+        WHEN( "0, 1, 2 and k are typed" )
+        {
+            typeKeys( { Qt::Key_0, Qt::Key_1, Qt::Key_2, Qt::Key_K } );
+
+            THEN( "the selection moves twelve lines up and the visibility stays" )
+            {
+                REQUIRE( viewPosition() == OptionalLineNumber{ 8_lnum } );
+                REQUIRE( crawlerVisitor.filteredView()->visibility() == visibility );
+            }
+        }
+
+        WHEN( "5 is typed without a 0 before it" )
+        {
+            typeKeys( { Qt::Key_5 } );
+
+            THEN( "Use regex toggles, as its shortcut says" )
+            {
+                REQUIRE( crawlerVisitor.useRegexpChecked() != regexp );
+            }
+        }
+
+        WHEN( "a count moves the selection, then 2 is typed" )
+        {
+            typeKeys( { Qt::Key_0, Qt::Key_3, Qt::Key_J, Qt::Key_2 } );
+
+            THEN( "the count is spent and 2 shows the Marks in the Filtered View" )
+            {
+                REQUIRE( viewPosition() == OptionalLineNumber{ 23_lnum } );
+                REQUIRE( crawlerVisitor.filteredView()->visibility() == VisibilityFlags::Marks );
             }
         }
     }

@@ -20,7 +20,8 @@
 // The main window and the loads of its Log Files: what a tab brought to the
 // front says about its load (#540), a Filters-panel click that runs one
 // Search (#538), the tab a restored Session opens on (#542) and where its Log
-// Files stand (#559), and the loading progress of the tab in front (#541).
+// Files stand (#559), a Log File restored from its archive (#596), and the
+// loading progress of the tab in front (#541).
 // Unlike mainwindow_test.cpp these run on every platform.
 
 #include <catch2/catch_test_macros.hpp>
@@ -33,12 +34,16 @@
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
 #include <QTimer>
 #include <QToolBar>
 
+#include <kcompressiondevice.h>
+
 #include "applicationplugins.h"
+#include "archivemember.h"
 #include "crawlerwidget.h"
 #include "filterspanel.h"
 #include "logfiltereddata.h"
@@ -49,7 +54,7 @@
 #include "openlogfile.h"
 #include "pathline.h"
 #include "session.h"
-#include "sessioninfo.h"
+#include "stored_session.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -327,13 +332,10 @@ SCENARIO( "A restored window shows the tab that was in front", "[ui][session]" )
 
     auto appSession
         = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
-    // Stored after the Session was built, which reads the settings store.
-    auto& stored = SessionInfo::get();
-    stored.add( windowId );
-    stored.setOpenFiles( windowId,
-                         { { QFileInfo( firstFile ).absoluteFilePath(), QString{} },
-                           { QFileInfo( secondFile ).absoluteFilePath(), QString{} } },
-                         0 );
+    const StoredSessionWindow stored{ windowId,
+                                      { { QFileInfo( firstFile ).absoluteFilePath(), QString{} },
+                                        { QFileInfo( secondFile ).absoluteFilePath(), QString{} } },
+                                      0 };
     WindowSession windowSession{ appSession, windowId, 0 };
     const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
 
@@ -360,8 +362,6 @@ SCENARIO( "A restored window shows the tab that was in front", "[ui][session]" )
     }
 
     mainWindow.reset();
-    // Leave the in-memory Session info as the settings store has it.
-    SessionInfo::getSynced();
 }
 
 // A restored Log File shows the Log Line that was at the top of its Viewport
@@ -383,14 +383,12 @@ SCENARIO( "A restored Log File stands where it stood", "[ui][session]" )
 
     auto appSession
         = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
-    // Stored after the Session was built, which reads the settings store.
-    auto& stored = SessionInfo::get();
-    stored.add( windowId );
-    stored.setOpenFiles(
+    const StoredSessionWindow stored{
         windowId,
         { { QFileInfo( firstFile ).absoluteFilePath(), R"({"S":[400,100],"SP":1200})" },
           { QFileInfo( secondFile ).absoluteFilePath(), R"({"S":[400,100],"SP":900})" } },
-        0 );
+        0
+    };
     WindowSession windowSession{ appSession, windowId, 0 };
     const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
 
@@ -428,8 +426,287 @@ SCENARIO( "A restored Log File stands where it stood", "[ui][session]" )
     }
 
     mainWindow.reset();
-    // Leave the in-memory Session info as the settings store has it.
-    SessionInfo::getSynced();
+}
+
+namespace {
+
+// Waits until the archives of the window's restored Session are decompressed,
+// and their tabs added or left out (#610).
+bool waitForArchiveRestores( const MainWindow& window )
+{
+    const auto* restores = window.findChild<ArchiveMemberDecompression*>();
+    return restores != nullptr && waitUiState( [ restores ] { return restores->isIdle(); }, 10000 );
+}
+
+} // namespace
+
+// A Log File decompressed from an archive is read from a temporary file that
+// is gone by the next start. A restored window decompresses the archive again,
+// without asking, and the Log File comes back where it stood; one whose
+// archive is gone does not come back, and nothing is said about it (#596).
+SCENARIO( "A restored window reopens a decompressed Log File from its archive",
+          "[ui][session][archive]" )
+{
+    const auto windowId = QStringLiteral( "mainwindow_load_test_window_596" );
+
+    QTemporaryDir archives;
+    REQUIRE( archives.isValid() );
+    const auto archivePath = archives.filePath( "restored.log.gz" );
+    {
+        KCompressionDevice archive( archivePath, KCompressionDevice::GZip );
+        REQUIRE( archive.open( QIODevice::WriteOnly ) );
+        for ( auto line = 0; line < 3000; ++line ) {
+            archive.write( QByteArray( "Log Line " ) + QByteArray::number( line ) + '\n' );
+        }
+    }
+    const ArchiveMember member{ archivePath, { QString{} } };
+    const ArchiveMember goneMember{ archives.filePath( "gone.zip" ), { "app.log" } };
+
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    // Stored after the Session was built, which reads the settings store, and
+    // written to it, so that the window reads it too. The temporary files the
+    // two were read from are gone.
+    auto& stored = SessionInfo::getSynced();
+    stored.add( windowId );
+    stored.setOpenFiles(
+        windowId,
+        { { archives.filePath( "restored.log.gz.AbCdEf" ), R"({"S":[400,100],"SP":1200})", member },
+          { archives.filePath( "app.log.GhIjKl" ), QString{}, goneMember } },
+        0 );
+    stored.save();
+    WindowSession windowSession{ appSession, windowId, 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    // Whatever the window asks or reports is counted and closed.
+    int messagesShown = 0;
+    QTimer messageDriver;
+    QObject::connect( &messageDriver, &QTimer::timeout, [ &messagesShown ] {
+        if ( auto* box = qobject_cast<QMessageBox*>( QApplication::activeModalWidget() ) ) {
+            ++messagesShown;
+            box->reject();
+        }
+    } );
+    messageDriver.start( 10 );
+
+    WHEN( "the window's Session is restored" )
+    {
+        mainWindow->reloadSession();
+        auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+        REQUIRE( tabArea != nullptr );
+        // The archives decompress in the background (#610).
+        REQUIRE( waitForArchiveRestores( *mainWindow ) );
+        const auto logFileTabs = tabArea->logFileTabs();
+
+        THEN( "the Log File is back from its archive, where it stood, and nothing else is" )
+        {
+            REQUIRE( logFileTabs.size() == 1 );
+            auto* restored = qobject_cast<CrawlerWidget*>( tabArea->widget( logFileTabs.front() ) );
+            REQUIRE( restored != nullptr );
+            const auto& textView = LoadAccess::textView( *restored );
+            REQUIRE( waitUiState( [ & ] { return textView.getTopLine() == 1200_lnum; }, 10000 ) );
+            REQUIRE( LoadAccess::openLogFile( *restored ).logData()->getNbLine().get() == 3000 );
+            QTest::qWait( 50 );
+            REQUIRE( messagesShown == 0 );
+        }
+
+        AND_WHEN( "the application quits, which saves the Session" )
+        {
+            appSession->setExitRequested( true );
+            mainWindow->close();
+            appSession->setExitRequested( false );
+
+            THEN( "the Log File is saved with its archive once more" )
+            {
+                const auto saved = SessionInfo::get().openFiles( windowId );
+                REQUIRE( saved.size() == 1 );
+                REQUIRE( saved.front().archiveMember == member );
+            }
+        }
+    }
+
+    mainWindow.reset();
+    auto& left = SessionInfo::getSynced();
+    left.remove( windowId );
+    left.save();
+}
+
+// A restored window does not wait for the archives of its decompressed Log
+// Files: the other tabs are there, and in use, at once, and the tab of each
+// archive comes once it is decompressed, where it stood and with its view
+// state. It takes the front only while the window shows the tab the restore
+// put there. A broken archive's tab never comes, and nothing is said about
+// it; a window closed meanwhile saves the Log File with its archive (#610).
+SCENARIO( "A restored window is in use while the archive of a Log File decompresses",
+          "[ui][session][archive]" )
+{
+    const auto windowId = QStringLiteral( "mainwindow_load_test_window_610" );
+
+    QTemporaryDir archives;
+    REQUIRE( archives.isValid() );
+    const auto archivePath = archives.filePath( "restored.log.gz" );
+    {
+        KCompressionDevice archive( archivePath, KCompressionDevice::GZip );
+        REQUIRE( archive.open( QIODevice::WriteOnly ) );
+        for ( auto line = 0; line < 3000; ++line ) {
+            archive.write( QByteArray( "Log Line " ) + QByteArray::number( line ) + '\n' );
+        }
+    }
+    // Named as an archive, and none.
+    const auto brokenPath = archives.filePath( "broken.zip" );
+    {
+        QFile broken( brokenPath );
+        REQUIRE( broken.open( QIODevice::WriteOnly ) );
+        broken.write( "not an archive at all\n" );
+    }
+    const ArchiveMember member{ archivePath, { QString{} } };
+    const ArchiveMember brokenMember{ brokenPath, { "app.log" } };
+
+    QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_archive_first_XXXXXX" ) };
+    QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_archive_second_XXXXXX" ) };
+    for ( auto* file : { &firstFile, &secondFile } ) {
+        REQUIRE( file->open() );
+        file->write( "first Log Line\nsecond Log Line\n" );
+        file->flush();
+    }
+    const auto firstPath = QFileInfo( firstFile ).absoluteFilePath();
+    const auto secondPath = QFileInfo( secondFile ).absoluteFilePath();
+
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    // The Log File from the archive was in front. The temporary files the two
+    // decompressed ones were read from are gone.
+    const StoredSessionWindow stored{
+        windowId,
+        { { firstPath, QString{} },
+          { archives.filePath( "restored.log.gz.AbCdEf" ), R"({"S":[400,100],"SP":1200})", member },
+          { archives.filePath( "app.log.GhIjKl" ), QString{}, brokenMember },
+          { secondPath, QString{} } },
+        1
+    };
+    WindowSession windowSession{ appSession, windowId, 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    // Whatever the window asks or reports is counted and closed.
+    int messagesShown = 0;
+    QTimer messageDriver;
+    QObject::connect( &messageDriver, &QTimer::timeout, [ &messagesShown ] {
+        if ( auto* box = qobject_cast<QMessageBox*>( QApplication::activeModalWidget() ) ) {
+            ++messagesShown;
+            box->reject();
+        }
+    } );
+    messageDriver.start( 10 );
+
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    const auto crawlerAt = [ tabArea ]( qsizetype logFileTab ) {
+        return qobject_cast<CrawlerWidget*>(
+            tabArea->widget( tabArea->logFileTabs().at( logFileTab ) ) );
+    };
+    const auto pathOf = [ tabArea ]( qsizetype logFileTab ) {
+        return QDir::fromNativeSeparators(
+            tabArea->tabToolTip( tabArea->logFileTabs().at( logFileTab ) ) );
+    };
+
+    WHEN( "the window's Session is restored" )
+    {
+        mainWindow->reloadSession();
+
+        THEN( "the other tabs are there at once, the one before it in front" )
+        {
+            REQUIRE( tabArea->logFileTabs().size() == 2 );
+            REQUIRE( pathOf( 0 ) == firstPath );
+            REQUIRE( pathOf( 1 ) == secondPath );
+            REQUIRE( tabArea->currentWidget() == crawlerAt( 0 ) );
+        }
+
+        AND_THEN( "its tab comes once decompressed, where it stood, in front and with its view "
+                  "state, and the broken archive's never does" )
+        {
+            REQUIRE( waitForArchiveRestores( *mainWindow ) );
+            REQUIRE( tabArea->logFileTabs().size() == 3 );
+            REQUIRE( pathOf( 0 ) == firstPath );
+            REQUIRE( QFileInfo( pathOf( 1 ) ).fileName().startsWith( "restored.log.gz" ) );
+            REQUIRE( pathOf( 2 ) == secondPath );
+
+            auto* restored = crawlerAt( 1 );
+            REQUIRE( tabArea->currentWidget() == restored );
+            const auto& textView = LoadAccess::textView( *restored );
+            REQUIRE( waitUiState( [ & ] { return textView.getTopLine() == 1200_lnum; }, 10000 ) );
+            REQUIRE( LoadAccess::openLogFile( *restored ).logData()->getNbLine().get() == 3000 );
+            QTest::qWait( 50 );
+            REQUIRE( messagesShown == 0 );
+        }
+    }
+
+    WHEN( "the user brings another tab to the front before the archive is decompressed" )
+    {
+        mainWindow->reloadSession();
+        auto* chosen = crawlerAt( 1 );
+        tabArea->setCurrentWidget( chosen );
+        REQUIRE( waitForArchiveRestores( *mainWindow ) );
+
+        THEN( "its tab comes where it stood, behind the one the user chose" )
+        {
+            REQUIRE( tabArea->logFileTabs().size() == 3 );
+            REQUIRE( QFileInfo( pathOf( 1 ) ).fileName().startsWith( "restored.log.gz" ) );
+            REQUIRE( tabArea->currentWidget() == chosen );
+        }
+    }
+
+    WHEN( "the window closes, which saves the Session, before the archive is decompressed" )
+    {
+        mainWindow->reloadSession();
+        appSession->setExitRequested( true );
+        mainWindow->close();
+        appSession->setExitRequested( false );
+
+        THEN( "the Log Files are saved with their archives, where they stood, the one in front "
+              "still in front" )
+        {
+            const auto saved = SessionInfo::get().openFiles( windowId );
+            REQUIRE( saved.size() == 4 );
+            REQUIRE( saved[ 1 ].archiveMember == member );
+            REQUIRE( saved[ 2 ].archiveMember == brokenMember );
+            REQUIRE( SessionInfo::get().currentFile( windowId ) == 1 );
+        }
+
+        AND_THEN( "no tab comes to the closed window, and it goes without waiting for one" )
+        {
+            QTest::qWait( 200 );
+            REQUIRE( tabArea->logFileTabs().isEmpty() );
+            mainWindow.reset();
+        }
+    }
+
+    WHEN( "the window goes while the archive decompresses" )
+    {
+        mainWindow->reloadSession();
+        mainWindow.reset();
+
+        THEN( "nothing arrives after it" )
+        {
+            QTest::qWait( 200 );
+            REQUIRE( messagesShown == 0 );
+        }
+    }
+
+    mainWindow.reset();
 }
 
 namespace {
@@ -470,13 +747,10 @@ SCENARIO( "A Log File still loading in a background tab shows as loading when it
 
     auto appSession
         = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
-    // Stored after the Session was built, which reads the settings store.
-    auto& stored = SessionInfo::get();
-    stored.add( windowId );
-    stored.setOpenFiles( windowId,
-                         { { QFileInfo( firstFile ).absoluteFilePath(), QString{} },
-                           { QFileInfo( secondFile ).absoluteFilePath(), QString{} } },
-                         0 );
+    const StoredSessionWindow stored{ windowId,
+                                      { { QFileInfo( firstFile ).absoluteFilePath(), QString{} },
+                                        { QFileInfo( secondFile ).absoluteFilePath(), QString{} } },
+                                      0 };
     WindowSession windowSession{ appSession, windowId, 0 };
     const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
 
@@ -562,8 +836,6 @@ SCENARIO( "A Log File still loading in a background tab shows as loading when it
     }
 
     mainWindow.reset();
-    // Leave the in-memory Session info as the settings store has it.
-    SessionInfo::getSynced();
 }
 
 // The window shows the loading progress of the tab in front only. A tab keeps

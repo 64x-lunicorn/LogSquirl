@@ -11,7 +11,7 @@ add_subdirectory(searchline)
 add_subdirectory(ui)
 add_subdirectory(benchmarks)
 
-add_dependencies(ci_build logsquirl_grep logsquirl_tests logsquirl_compression_tests logsquirl_plugin_catalog_tests logsquirl_logdata_tests logsquirl_openlogfile_tests logsquirl_textviewscrolling_tests logsquirl_searchline_tests logsquirl_itests logsquirl_decoration_benchmark logsquirl_textviewscrolling_benchmark logsquirl_textview_scroll_benchmark logsquirl_logdata_benchmark logsquirl_logdata_read_benchmark logsquirl_session_restore_benchmark logsquirl_regex_matcher_benchmark logsquirl_tableview_paint_benchmark logsquirl_tableview_scroll_benchmark logsquirl_displayedlines_benchmark logsquirl_filteredview_read_benchmark logsquirl_chart_follow_benchmark logsquirl_chart_paint_benchmark logsquirl_overview_selection_benchmark logsquirl_timelookup_benchmark logsquirl_versioncheck_tests)
+add_dependencies(ci_build logsquirl_grep logsquirl_tests logsquirl_compression_tests logsquirl_plugin_catalog_tests logsquirl_logdata_tests logsquirl_openlogfile_tests logsquirl_textviewscrolling_tests logsquirl_searchline_tests logsquirl_itests logsquirl_decoration_benchmark logsquirl_textviewscrolling_benchmark logsquirl_textview_scroll_benchmark logsquirl_logdata_benchmark logsquirl_logdata_read_benchmark logsquirl_session_restore_benchmark logsquirl_regex_matcher_benchmark logsquirl_tableview_paint_benchmark logsquirl_tableview_scroll_benchmark logsquirl_displayedlines_benchmark logsquirl_filteredview_read_benchmark logsquirl_chart_follow_benchmark logsquirl_chart_paint_benchmark logsquirl_overview_selection_benchmark logsquirl_timelookup_benchmark logsquirl_versioncheck_tests logsquirl_documentation_tests)
 
 # TBB is a private dependency of the log data library: no public header of
 # it may include a TBB header (#168).
@@ -41,6 +41,17 @@ add_test(
             "-DWIDGETS_INCLUDE_DIRS=$<JOIN:$<TARGET_PROPERTY:Qt6::Widgets,INTERFACE_INCLUDE_DIRECTORIES>,|>"
             "-DLINK_LIBRARIES=$<JOIN:$<TARGET_PROPERTY:logsquirl_plugins,LINK_LIBRARIES>,|>"
             -P ${CMAKE_CURRENT_SOURCE_DIR}/plugins_no_qt_widgets.cmake
+)
+
+# The plugin developer guide shows the plugin API as its header declares it,
+# and its example plugin as the files the unit tests build and load (#598).
+add_test(
+    NAME plugin_sdk_guide_matches_api
+    COMMAND ${CMAKE_COMMAND}
+            -DGUIDE=${CMAKE_SOURCE_DIR}/docs/plugin-sdk.md
+            -DHEADER=${CMAKE_SOURCE_DIR}/src/plugins/include/logsquirl_plugin_api.h
+            -DEXAMPLE_DIR=${CMAKE_SOURCE_DIR}/docs/plugin-sdk/my_plugin
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/plugin_sdk_guide_matches_api.cmake
 )
 
 # The Open Log File builds without Qt Widgets: no file of it may include a Qt
@@ -99,6 +110,18 @@ add_test(
     COMMAND ${CMAKE_COMMAND}
             -DSOURCES_DIR=${CMAKE_SOURCE_DIR}/src/ui
             -P ${CMAKE_CURRENT_SOURCE_DIR}/ui_settings_store_allowlist.cmake
+)
+
+# Every shortcut action a view or window registers is listed in the shortcut
+# settings, so the user can give it a key (#601).
+add_test(
+    NAME registered_shortcuts_listed
+    COMMAND ${CMAKE_COMMAND}
+            -DSOURCES_ROOT=${CMAKE_SOURCE_DIR}/src
+            -DEXCLUDED_DIRS=settings
+            -DSHORTCUTS_HEADER=${CMAKE_SOURCE_DIR}/src/settings/include/shortcuts.h
+            -DSHORTCUTS_SOURCE=${CMAKE_SOURCE_DIR}/src/settings/src/shortcuts.cpp
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/registered_shortcuts_listed.cmake
 )
 
 # The compiler flags of an architecture follow the target, and the generic-CPU

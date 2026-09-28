@@ -1,0 +1,11 @@
+{
+    "id": "com.example.my-plugin",
+    "name": "My Plugin",
+    "version": "0.1.0",
+    "type": "ui",
+    "library": "my_plugin",
+    "api_version": 1,
+    "description": "Says hello from the Plugins menu.",
+    "author": "Your Name",
+    "license": "MIT"
+}

@@ -22,10 +22,16 @@
 // registers no meta types either: the library registers the types its queued
 // signals carry, so a host only opens a Log File (#394).
 
+#include "datalocation.h"
+
 #include <QCoreApplication>
 
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
+
+// The Log Format library asks every executable whether it runs portable;
+// a test runner stays beside its binary, as the other runners do (#617).
+const bool DataLocation::ForcePortable = true;
 
 int main( int argc, char* argv[] )
 {

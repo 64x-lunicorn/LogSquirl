@@ -220,7 +220,8 @@ public:
     TeamFolder( const TeamFolder& ) = delete;
     TeamFolder& operator=( const TeamFolder& ) = delete;
 
-    // Where the application keeps the clone: "teamfolder" in its data folder.
+    // Where the application keeps the clone: "teamfolder" in its data
+    // directory (DataLocation), beside the executable in a portable run.
     static QString defaultCloneDirectory();
 
     // Sets the Team Folder up as the Policy says: turns it on and syncs,

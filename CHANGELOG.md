@@ -1,7 +1,40 @@
 # Unreleased
 
+## Changes
+
+- **The portable package keeps its data beside the executable**: its Log
+  Formats, plugins, plugin configuration, Team Folder and theme stylesheets sit
+  beside `logsquirl_portable.exe`, next to its settings and crash dumps, instead
+  of in `%APPDATA%\logsquirl_portable`. Any LogSquirl that finds a
+  `logsquirl.conf` beside itself does the same (#602). On its first start it
+  copies what an earlier portable package kept in the old place beside the
+  executable, once, and leaves the old folders as they are (#613).
+- **A plugin installed from the catalog goes into the user plugin folder**:
+  installs and updates from Plugins → Plugin Management… go into the user
+  plugin directory, the one *Plugin Folder* opens, instead of the application's
+  folder, which is not writable on Windows and is inside the signed app bundle
+  on macOS. An updated copy of a plugin shipped with LogSquirl wins over the
+  shipped one (#595).
+- **A count before a command starts with 0**: type `0` and the number, then the
+  command (`05j` moves five lines down, `012k` twelve up). The digits `1`–`9` on
+  their own still switch the Filtered View's visibility and the search buttons
+  (#600).
+- **Plugin Management opens a plugin's configuration**: *Configure…* opens a
+  loaded plugin's own settings, when it offers any (#604).
+- **A plugin's menu action goes into the menu it names**: its `menu_path`
+  becomes submenus of the Plugins menu (`My Plugin/Sub`), and submenus left
+  empty when a plugin is unloaded go away (#603).
+- **Restoring a Session no longer waits for its archives**: the other tabs can
+  be used at once, and a Log File from an archive comes back where it stood,
+  with its view state, once the archive is decompressed again (#610).
+
 ## Documentation
 
+- **The user guide names only keys, menus and paths the app has**, and a test
+  checks every key of its keyboard table against the shortcut defaults (#599).
+- **The plugin developer guide matches the plugin API again**; its example
+  plugin is built and loaded by the tests, and a check fails when guide and
+  header drift apart (#598).
 - **The documentation is on the website, and its search finds it**: the
   website has a Documentation section, one page per topic of the user guide
   (`DOCUMENTATION.md`, the one the app shows under Help → Documentation), at
@@ -13,6 +46,35 @@
   portable Windows package (#587).
 
 ## Bug fixes
+
+- **The visibility shortcuts show what their names say**: *Change visibility to
+  Marks* and *Change visibility to Matches* (`2` and `3`) switch the Filtered
+  View to "Marks" and "Matches" instead of to a breadcrumbs mode (#594).
+- **A restored Session reopens a Log File from its archive, and leaves out a
+  download**: LogSquirl decompresses the archive again and opens the same file
+  with its view state, and skips the tab quietly if the archive is gone. A Log
+  File downloaded from a URL is not saved, so a start never downloads anything
+  unasked (#596).
+- **A Transient Log File leaves no trace**: standard input, a merged tab, a data
+  source, the clipboard and a converter plugin's output are not added to the
+  recent files, and renaming or grouping their tab stores nothing (#597, #605).
+- **Jump to line number can be bound to a key** in the shortcut settings
+  (#601), and *Select lines up* and *Select lines down* are named after what
+  they do (#611).
+- **A tab keeps the title it opened with**: "stdin" and a data source's name
+  stay after grouping or renaming tabs, and *Rename tab* offers the name without
+  the group's bullet (#606, #612).
+- **Closing a window right after it opened a followed Log File no longer reads
+  the freed tab** (#607).
+- **A Log File from an archive is known by its archive**: Recent Files lists
+  the archive instead of a temporary path, and its tab keeps its name and tab
+  group across a restart (#609).
+- **Jump to line number without a typed number stays where it is** instead of
+  jumping to the last line, and `0` goes to the first line (#614).
+- **Opening a converted Log File again shows its open tab** instead of
+  converting it into a second one (#615).
+- **A reload interrupted by a newer one leaves the tab open**: a merged tab
+  rebuilt twice in quick succession no longer closes by itself (#621).
 
 - **The Table View colors Matches and Marks in the Theme's colors**: the Row
   of a Match, a Mark and a Mark that is a Match is a subdued tint of red, blue

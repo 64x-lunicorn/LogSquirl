@@ -74,9 +74,37 @@ CI checks all of this, except the elevation prompt itself, on every build of
 the installer.
 
 For Windows there is also a portable package, `logsquirl-win-x64-portable.zip`:
-unpack it anywhere and start `logsquirl_portable.exe`. It keeps its settings in
-`logsquirl.conf` beside the executable instead of in the user profile; any
-*logsquirl* does so when it finds that file beside itself.
+unpack it anywhere and start `logsquirl_portable.exe`. It keeps everything it
+stores beside the executable instead of in the user profile; any *logsquirl*
+does so when it finds a `logsquirl.conf` beside itself:
+
+| Beside the executable      | What it holds                                    |
+|----------------------------|--------------------------------------------------|
+| `logsquirl.conf`           | the settings                                     |
+| `logsquirl_session.conf`   | the session                                      |
+| `formats\`                 | your own log formats                             |
+| `plugins\`                 | the plugins it comes with and those you install  |
+| `plugin_config\`           | the plugins' own configuration                   |
+| `teamfolder\`              | the Team Folder's clone of the team's repository |
+| `themes\`                  | your own theme stylesheets                       |
+| `logsquirl_dump\`          | crash dumps                                      |
+| `logsquirl_taken_over.txt` | what it took over from an earlier package        |
+
+Earlier portable packages kept your log formats, plugins, plugin configuration,
+Team Folder and themes in `%APPDATA%\logsquirl_portable\` and
+`%LOCALAPPDATA%\logsquirl_portable\`. On its first start, a portable
+*logsquirl* with none of that beside its executable yet copies what it finds
+there beside itself, once, and notes it in `logsquirl_taken_over.txt`. A plugin
+it comes with is kept rather than replaced by the older copy. The old folders
+are left as they are; delete them once you no longer need them. Nothing is
+copied when your own formats, plugin configuration, Team Folder or themes
+already sit beside the executable.
+
+Only the index cache stays in the user profile, and a log file written with
+logging turned on goes to the temporary folder. Unpack the package where you
+may write, not under `Program Files`. Since the plugins you install share the
+`plugins` folder with those it comes with, updating one from the catalog
+replaces the copy it came with.
 
 ### The Dashboard
 
@@ -162,7 +190,8 @@ To mark several lines at once select them and use the `'m'` hotkey or context me
 By default, the filtered view shows the marked lines as well as the matches.
 The list at the left of the search line switches it between *Marks and
 matches*, *Marks, matches + breadcrumbs*, *Matches + breadcrumbs*, *Marks* and
-*Matches*; `v` and `Shift+V` go through them.
+*Matches*; `v` and `Shift+V` go through them, and `1`, `2` and `3` pick
+*Marks and matches*, *Marks* and *Matches*.
 
 Marks also appear as blue lines in the match overview.
 
@@ -288,15 +317,26 @@ content or extension.
 decompressed to a temporary folder and then opened. The compression type is
 determined automatically by file content or extension.
 
+A file opened from an archive or a compressed file comes back with the session:
+on the next start *logsquirl* extracts the archive again, without asking, and
+opens the same file where it stood. If the archive is gone by then, its tab is
+left out. Its tab keeps the name you gave it and its tab group, and the recent
+files list the archive, which asks for the file again when you open it from
+there.
+
 #### Remote URLs
 
 *logsquirl* can open files from remote URLs. In that case, *logsquirl* will
 download the file to a temporary directory and open it from there.
+A downloaded file is not restored with the session: a start never downloads
+anything you did not ask for.
 
 #### Recent files
 
 *logsquirl* saves a history of recent opened files, available from the `File`
-menu: 5 by default, up to 25 as set in `Settings->File`.
+menu: 5 by default, up to 25 as set in `Settings->File`. Standard input, a
+merged tab, what a data source writes and text opened from the clipboard exist
+only while *logsquirl* runs, so they are not added to it.
 
 #### Favorites
 
@@ -328,14 +368,14 @@ be wrong, then the desired encoding can be selected from the `Encoding` menu.
 If some search patterns are used very often they can be saved as predefined filters.
 Predefined filters are configured from the `Tools` menu.
 
-Predefined filters are added to a dropdown near the search input and allow to 
-add several patterns to regular expression. Predefined filter has a name
-which is displayed in the dropdown, a pattern to add to search regular expression
-and a setting to treat pattern as a regular expression
-or simple text search.
+A predefined filter has a name, a pattern and a setting to treat the pattern as
+a regular expression or as plain text. The filters are listed in the Filters
+tab of the [Filters Panel](#filters-panel): checking filters there makes the
+checked ones the search pattern, as alternatives of each other, and
+double-clicking a filter or a group checks only that one.
 
-It is possible to save the current search pattern as a predefined filter from
-search input context menu.
+It is possible to save the current search pattern as a predefined filter with
+*Save as Filter* from the search input context menu.
 
 Predefined filters are kept in filter groups. The dialog lists the groups
 (*New Filter Group*, *Delete Filter Group*, *Move Group Up* and *Move Group Down*);
@@ -476,8 +516,11 @@ formats can be placed in the platform data directory:
 | Platform  | Path                                                     |
 |-----------|----------------------------------------------------------|
 | Linux     | `~/.local/share/logsquirl/formats/`                      |
-| macOS     | `~/Library/Application Support/LogSquirl/formats/`       |
-| Windows   | `%APPDATA%/LogSquirl/formats/`                            |
+| macOS     | `~/Library/Application Support/logsquirl/formats/`       |
+| Windows   | `%APPDATA%/logsquirl/formats/`                           |
+
+A portable *logsquirl* reads them from the `formats` folder beside its
+executable instead (see [Installing](#installing)).
 
 Format definitions are read when *logsquirl* starts and again whenever the
 Options dialog is applied. A file that is already open keeps the format it
@@ -677,7 +720,9 @@ Every file opens in a tab of its own. Its context menu closes it, the others,
 those to its left or right, or all, copies the file's full path and opens its
 folder. *Rename tab* gives the tab a name of your own instead of the file name;
 the name belongs to the file's path and comes back whenever that file is opened,
-until *Reset tab name*. The icon of a tab shows when its file has new lines, and
+until *Reset tab name*. The tab of a file that exists only while *logsquirl*
+runs -- standard input, a merged tab, a data source, the clipboard -- keeps its
+name until it closes. The icon of a tab shows when its file has new lines, and
 when those lines hold new matches.
 
 `Ctrl+Tab` and `Ctrl+Shift+Tab` (or `Ctrl+PgDown` and `Ctrl+PgUp`) go to the
@@ -697,7 +742,8 @@ and `Ungroup All`.
 `Tools->Manage Tab Groups...` opens a dialog listing the groups with their
 color, name and number of tabs, to rename, recolor or delete them without going
 through a tab. Group membership is remembered by the file's path and restored
-with the session.
+with the session; the tab of a file that exists only while *logsquirl* runs
+stays in its group until it closes.
 
 ### Filters Panel
 
@@ -794,10 +840,16 @@ before it is shown, and *UI extension* plugins add menu items, status bar
 widgets or panels. How to write one is described in the
 [Plugin SDK guide](https://github.com/64x-lunicorn/LogSquirl/blob/master/docs/plugin-sdk.md).
 
+A file a converter plugin turns into text is opened from a temporary copy of
+that text. It is not restored with the session; the recent files keep the file
+you opened, which is converted again when you open it from there.
+
 `Plugins->Plugin Management...` opens the Plugin Management dialog. It lists the
 plugins in the catalog and the ones installed on your machine under the tabs
 *All*, *Installed* and *Updates*, and can be searched. Each plugin offers
-*Install* (or *Update*) and *Enable* or *Disable*. With *Auto-load enabled
+*Install* (or *Update*) and *Enable* or *Disable*; an installed plugin also has
+*Configure...*, which opens the plugin's own settings and works only while the
+plugin is enabled and has settings. With *Auto-load enabled
 plugins on startup* the enabled plugins are loaded when *logsquirl* starts, and
 *Plugin Folder* opens the user plugin directory. The catalog
 is fetched when the dialog opens; if that fails, the error is shown in the
@@ -809,15 +861,29 @@ which streams logcat output from devices connected through ADB, and
 [Serial Monitor](https://github.com/64x-lunicorn/LogSquirl-Serial), which shows
 the output of serial ports. Both are in the catalog.
 
-A plugin is a folder with a `plugin.json` manifest and a shared library. One
-that is not in the catalog is installed by copying its folder into the user
-plugin directory and restarting *logsquirl*:
+A plugin is a folder with a `plugin.json` manifest and a shared library.
+*Install* and *Update* put a plugin from the catalog into the user plugin
+directory, the one *Plugin Folder* opens. One that is not in the catalog is
+installed by copying its folder there and restarting *logsquirl*:
 
 | Platform  | Path                                                     |
 |-----------|----------------------------------------------------------|
 | Linux     | `~/.local/share/logsquirl/plugins/`                      |
 | macOS     | `~/Library/Application Support/logsquirl/plugins/`       |
 | Windows   | `%APPDATA%/logsquirl/plugins/`                           |
+
+Plugins that come with *logsquirl* itself sit in the application folder
+(`Contents/PlugIns` in the macOS app, the `plugins` folder next to the program
+elsewhere) and are never changed. Updating one from the catalog puts the new
+version into the user plugin directory, and a plugin there is used instead of
+the one with the same id in the application folder. To go back to the version
+that came with *logsquirl*, delete the plugin's folder in the user plugin
+directory and restart *logsquirl*.
+
+A portable *logsquirl* has one plugin folder, `plugins` beside its executable:
+it holds the plugins it came with and is its user plugin directory too, so
+*Install* and *Update* put plugins there, and an update replaces the copy it
+came with.
 
 The `Sources` menu lists the installed data source plugins. Choosing one loads
 the plugin if needed and starts it; the stream opens as a new tab in the window
@@ -932,7 +998,10 @@ colors of the theme you choose, and keeps them when you choose another.
 A theme can be extended with a stylesheet of your own: put a `.qss` file named
 after the theme (`fusion-light.qss`, `dark.qss`, `high-contrast.qss`,
 `smyck.qss` or `smyck-light.qss`) into the `themes` directory of the
-configuration directory, and it is appended to the theme's stylesheet.
+configuration directory (`~/.config/logsquirl` on Linux,
+`~/Library/Preferences/logsquirl` on macOS, `%LOCALAPPDATA%\logsquirl` on
+Windows, the executable's folder for a portable *logsquirl*), and it is
+appended to the theme's stylesheet.
 
 #### Language
 
@@ -1059,16 +1128,15 @@ The main commands are:
 
 |Keys            |Actions                                                           |
 |----------------|------------------------------------------------------------------|
-|arrows          |scroll one line up/down or one column left/right                  |
-|\[number\] j/k  |move the selection 'number' (or one) line down/up                 |
-|h/l             |scroll left/right                                                 |
+|arrows          |move the selection one line up/down or scroll left/right          |
+|j or k          |move the selection one line down/up                               |
+|h or l          |scroll left/right                                                 |
 |\^ or \$        |scroll to beginning or end of selected line                       |
-|\[number\] g    |jump to the line number given or the first one if no number is    |
-|                |entered                                                           |
-|G               |jump to the first line of the file (selecting it)                 |
+|Ctrl+Home       |jump to the first line of the file (selecting it)                 |
+|Ctrl+End        |jump to the last line of the file (selecting it)                  |
 |Shift+G         |jump to the last line of the file (selecting it)                  |
-|Alt+G           |show jump to line dialog                                          |
-|Ctrl+Shift+L    |show go to timestamp dialog                                       |
+|Ctrl+L          |show the go to line dialog                                        |
+|Ctrl+Shift+L    |show the go to timestamp dialog                                   |
 |' or "          |start a quickfind search in the current screen                    |
 |                |(forward and backward)                                            |
 |n or N          |repeat the previous quickfind search forward/backward             |
@@ -1078,14 +1146,26 @@ The main commands are:
 |                |file (like "tail -f")                                             |
 |m               |put a mark on current selected line                               |
 |\[ or \]        |jump to previous or next marked line                              |
-|+ or -          |decrease/increase filtered view size                              |
+|+ or -          |increase/decrease main view size                                  |
 |v or Shift+V    |switch filtered view visibility mode, forward or backward          |
 |                |(see [Breadcrumbs](#breadcrumbs))                                 |
 |F5              |reload current file                                               |
 |Ctrl+S          |Set focus to search string edit box                               |
 |Ctrl+Shift+O    |Open dialog to switch to another file                             |
 
-All shortucts can be configured from the shortcuts tab in options dialog.
+Every key in this table is a default and can be changed in the shortcuts tab of
+the options dialog, where the commands without a default key, such as
+*Open scratchpad* or *Full Screen*, can be given one as well.
+
+A count before a command repeats it, as in *vi*: type `0`, the number, then
+the command. `05j` moves the selection five lines down, `012k` twelve lines up,
+and the arrow keys take a count as `j` and `k` do; *Jump to line number* goes to
+the line of the number typed, to the first line after a lone `0`, and stays
+where it is when no number was typed. The count starts with `0` because `1` to `9` on
+their own are the shortcuts of the filtered view's visibility and of the search
+buttons. Once `0` has started a count, the digits after it belong to the count
+until the command, or until two seconds pass without a key. `0` also scrolls to
+the beginning of the line, with or without a count after it.
 
 ## Mouse navigation
 

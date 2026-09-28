@@ -19,11 +19,13 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "datalocation.h"
 #include "plugincatalog.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 
 using logsquirl::plugins::PluginCatalog;
@@ -49,6 +51,16 @@ void writeManifest( const QString& root, const QString& subdirectory, const QStr
     })" )
                         .arg( id, name )
                         .toUtf8() );
+}
+
+/// This binary is an installed run, unless someone left a logsquirl.conf
+/// beside it: then its user plugin directory is the application plugin
+/// directory (#602), and what an installed run keeps apart cannot be checked.
+void skipWhenPortable()
+{
+    if ( DataLocation::current().isPortable() ) {
+        SKIP( "a logsquirl.conf beside the test binary makes this run portable" );
+    }
 }
 
 /// Writes a file with the given content into root/subdirectory.
@@ -205,20 +217,93 @@ SCENARIO( "Rediscovering replaces what the Plugin Catalog found before",
     }
 }
 
-SCENARIO( "The Plugin Catalog searches the application and the user plugin directories",
+SCENARIO( "The Plugin Catalog searches the user and then the application plugin directory",
           "[plugincatalog][plugins]" )
 {
-    GIVEN( "The default plugin directories" )
+    GIVEN( "The default plugin directories of an installed run" )
     {
+        skipWhenPortable();
         const auto dirs = PluginCatalog::defaultPluginDirectories();
 
-        THEN( "There is one next to the application and one in the user's data" )
+        THEN( "The user plugin directory in the user's data comes first" )
         {
             REQUIRE( dirs.size() == 2 );
-            CHECK( QDir::cleanPath( dirs[ 0 ] )
+            CHECK( dirs[ 0 ] == PluginCatalog::userPluginDirectory() );
+            CHECK( dirs[ 0 ]
+                   == QStandardPaths::writableLocation( QStandardPaths::AppDataLocation )
+                          + "/plugins" );
+        }
+
+        THEN( "The application plugin directory next to the application comes second" )
+        {
+            REQUIRE( dirs.size() == 2 );
+            CHECK( dirs[ 1 ] == PluginCatalog::applicationPluginDirectory() );
+            CHECK( QDir::cleanPath( dirs[ 1 ] )
                        .startsWith(
                            QDir::cleanPath( QCoreApplication::applicationDirPath() + "/.." ) ) );
-            CHECK( dirs[ 1 ].endsWith( "/plugins" ) );
+        }
+    }
+}
+
+SCENARIO( "A plugin from the catalog is installed into the user plugin directory",
+          "[plugincatalog][plugins]" )
+{
+    GIVEN( "The id of a plugin in the catalog, in an installed run" )
+    {
+        skipWhenPortable();
+        const auto pluginId = QStringLiteral( "com.test.installed" );
+
+        WHEN( "Its install directory is asked for" )
+        {
+            const auto installDir = PluginCatalog::installDirectory( pluginId );
+
+            THEN( "It is the plugin's folder in the user plugin directory" )
+            {
+                CHECK(
+                    QDir::cleanPath( installDir )
+                    == QDir::cleanPath( PluginCatalog::userPluginDirectory() + "/" + pluginId ) );
+            }
+
+            THEN( "It is not in the application plugin directory" )
+            {
+                CHECK_FALSE(
+                    QDir::cleanPath( installDir )
+                        .startsWith( QDir::cleanPath( PluginCatalog::applicationPluginDirectory() )
+                                     + "/" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A plugin updated into the user plugin directory wins over the shipped copy",
+          "[plugincatalog][plugins]" )
+{
+    GIVEN( "A shipped plugin and a newer copy of it in the user plugin directory" )
+    {
+        QTemporaryDir user;
+        QTemporaryDir application;
+        REQUIRE( user.isValid() );
+        REQUIRE( application.isValid() );
+        writeManifest( application.path(), "plugin", "com.test.shipped", "Shipped" );
+        writeManifest( application.path(), "other", "com.test.bundled", "Bundled" );
+        writeManifest( user.path(), "com.test.shipped", "com.test.shipped", "Updated" );
+
+        PluginCatalog catalog;
+
+        WHEN( "The directories are scanned in the default order" )
+        {
+            // The same order defaultPluginDirectories() returns, with temporary
+            // directories standing in for the real ones.
+            catalog.discoverPlugins( QStringList{ user.path(), application.path() } );
+
+            THEN( "The user's copy is listed and the other shipped plugin still is" )
+            {
+                REQUIRE( catalog.discoveredPlugins().size() == 2 );
+                const auto* shipped = catalog.findDiscovered( "com.test.shipped" );
+                REQUIRE( shipped != nullptr );
+                CHECK( shipped->name() == "Updated" );
+                CHECK( catalog.findDiscovered( "com.test.bundled" ) != nullptr );
+            }
         }
     }
 }

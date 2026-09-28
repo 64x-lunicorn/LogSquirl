@@ -45,6 +45,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savedsearches.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/selection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/session.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/archivemember.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/changed.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/sessioninfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/signalmux.h
@@ -132,6 +133,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/linemapping.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/selection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/session.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/archivemember.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sessioninfo.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/signalmux.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbedcrawlerwidget.cpp
@@ -195,6 +197,8 @@ target_link_libraries(
 # linessaver.cpp saves through a TBB flow graph; the log data library no
 # longer hands TBB on (#168).
 target_link_libraries(logsquirl_ui PRIVATE tbb)
+# Where the Team Folder clone is (#602).
+target_link_libraries(logsquirl_ui PUBLIC logsquirl_datalocation)
 
 if(WIN32)
   target_link_libraries(logsquirl_ui PUBLIC user32)
