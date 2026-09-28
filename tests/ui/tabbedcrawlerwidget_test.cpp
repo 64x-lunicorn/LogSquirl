@@ -144,6 +144,65 @@ SCENARIO( "A Transient Log File's tab is renamed and grouped without storing its
     TabGroupInfo::getSynced().removeGroup( groupId ).save();
 }
 
+// A Log File decompressed from an archive is read from a temporary path that
+// changes at every start. Its tab's name and group are stored by the key it was
+// added with, its archive and member, so that they name it again (#609).
+SCENARIO( "A tab added with a stored key keeps its name and group by that key", "[ui][tabs]" )
+{
+    const auto path = QStringLiteral( "/tmp/logsquirl/app.log.gz.AbCdEf" );
+    const auto key = QStringLiteral( "/logs/tabbedcrawlerwidget_test_609.log.gz!/" );
+    const auto groupColor = QColor( 0x60, 0x90, 0x09 );
+
+    auto& groups = TabGroupInfo::getSynced();
+    const auto groupId = groups.addGroup( QStringLiteral( "Group 609" ), groupColor );
+    groups.save();
+
+    {
+        TabbedCrawlerWidget tabArea;
+        const auto index
+            = tabArea.addCrawler( new StubCrawler, path, LogFileLifetime::Ordinary, key );
+        tabArea.renameTab( index, QStringLiteral( "Renamed 609" ) );
+        tabArea.addTabToGroup( index, groupId );
+
+        // Stored by the key, never by the path.
+        REQUIRE( TabNameMapping::getSynced().tabName( key ) == QStringLiteral( "Renamed 609" ) );
+        REQUIRE( TabNameMapping::get().tabName( path ).isEmpty() );
+        REQUIRE( TabGroupInfo::getSynced().groupForTab( key )->id == groupId );
+        REQUIRE_FALSE( TabGroupInfo::get().groupForTab( path ).has_value() );
+    }
+
+    WHEN( "the same member is added again under another temporary path" )
+    {
+        TabbedCrawlerWidget tabArea;
+        const auto index
+            = tabArea.addCrawler( new StubCrawler, QStringLiteral( "/tmp/other/app.log.gz.GhIjKl" ),
+                                  LogFileLifetime::Ordinary, key );
+
+        THEN( "its tab has the name and the group" )
+        {
+            REQUIRE( tabArea.tabText( index ) == QString::fromUtf8( "● Renamed 609" ) );
+            REQUIRE( tabArea.groupOfTab( index )->id == groupId );
+        }
+
+        AND_WHEN( "it is taken out of the group and its name is reset" )
+        {
+            tabArea.removeTabFromGroup( index );
+            tabArea.renameTab( index, {} );
+
+            THEN( "neither is stored for the key any longer" )
+            {
+                REQUIRE( TabNameMapping::getSynced().tabName( key ).isEmpty() );
+                REQUIRE_FALSE( TabGroupInfo::getSynced().groupForTab( key ).has_value() );
+                REQUIRE( tabArea.tabText( index ) == QStringLiteral( "app.log.gz.GhIjKl" ) );
+            }
+        }
+    }
+
+    // Leave the settings store as it was.
+    TabNameMapping::getSynced().setTabName( key, {} ).save();
+    TabGroupInfo::getSynced().removeGroup( groupId ).save();
+}
+
 // Standard input, a data source and a merge open a tab under a title of their
 // own, not their temporary file's name. Grouping, the Manage Tab Groups dialog
 // and a reset of a rename restyle the tabs: each gets back that title, never

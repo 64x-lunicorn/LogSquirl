@@ -62,10 +62,14 @@ public:
 
     // Adds the tab of a Log File, last or at `position`. The tab of a
     // Transient Log File can be renamed and grouped like any other, but
-    // neither is stored (#597).
+    // neither is stored (#597). The name and group of any other tab are stored
+    // by `storedKey`, or by `fileName` when it is empty: a Log File
+    // decompressed from an archive is stored by its archive and member, which
+    // name it again after a restart where its temporary path does not (#609).
     template <typename T>
     int addCrawler( T* crawler, const QString& fileName,
-                    LogFileLifetime lifetime = LogFileLifetime::Ordinary, int position = -1 )
+                    LogFileLifetime lifetime = LogFileLifetime::Ordinary,
+                    const QString& storedKey = {}, int position = -1 )
     {
         const auto index = QTabWidget::insertTab( position, crawler, QString{} );
 
@@ -79,7 +83,7 @@ public:
             }
         } );
 
-        addTabBarItem( index, fileName, lifetime );
+        addTabBarItem( index, fileName, lifetime, storedKey );
 
         return index;
     }
@@ -112,8 +116,9 @@ public:
     bool holdsTransientLogFile( int index ) const;
 
     // Renames the tab at `index`; an empty name gives it back its own. The
-    // name of an Ordinary Log File's tab is stored with its path, that of a
-    // Transient Log File's tab lasts until the tab closes (#597).
+    // name of an Ordinary Log File's tab is stored with its path, or with its
+    // archive and member for one decompressed from an archive (#609); that of
+    // a Transient Log File's tab lasts until the tab closes (#597).
     void renameTab( int index, const QString& name );
 
     // Puts the tab at `index` in the tab group `groupId`, or takes it out of
@@ -134,8 +139,12 @@ public:
     void refreshAllTabGroupAppearances();
 
 private:
-    void addTabBarItem( int index, const QString& fileName, LogFileLifetime lifetime );
+    void addTabBarItem( int index, const QString& fileName, LogFileLifetime lifetime,
+                        const QString& storedKey );
     QString tabPathAt( int index ) const;
+    // What the name and tab group of the tab at `index` are stored by: the
+    // key it was added with, else its path (#609).
+    QString storedKeyAt( int index ) const;
 
     // Applies group styling (bullet prefix + text colour) to a single tab.
     void updateTabGroupAppearance( int index );

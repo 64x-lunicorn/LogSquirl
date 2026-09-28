@@ -282,8 +282,9 @@ private:
     void openRemoteFile( const QUrl& url );
     void updateTitleBar( const QString& fileName );
     // The file the recent files keep for a Log File open with this lifetime:
-    // the Log File itself, the one a converted Log File was converted from
-    // (#605), or none for any other Transient Log File (#597).
+    // the Log File itself, the archive a decompressed Log File came from
+    // (#609), the one a converted Log File was converted from (#605), or none
+    // for any other Transient Log File (#597).
     QString recentFileOf( const QString& fileName, LogFileLifetime lifetime ) const;
     void addRecentFile( const QString& fileName );
     void updateRecentFileActions();
@@ -459,7 +460,8 @@ private:
 
     QTemporaryDir tempDir_;
     // Where each Log File decompressed into tempDir_ came from, by the path
-    // it is read from: the Session saves that instead (#596).
+    // it is read from: the Session saves that instead (#596), and the recent
+    // files, tab names and tab groups know it by that (#609).
     QHash<QString, ArchiveMember> archiveMembers_;
     // The Ordinary Log File each Log File a converter plugin wrote into
     // tempDir_ was converted from, by the path it is read from: the recent
