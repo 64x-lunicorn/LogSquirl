@@ -77,6 +77,7 @@
 #include "viewportlayout.h"
 #include "wrappedstring.h"
 
+class QKeyEvent;
 class QMenu;
 class QPainter;
 class QShortcut;
@@ -400,7 +401,12 @@ private Q_SLOTS:
     void setQuickFindResult( bool hasMatch, const Portion& selection );
 
 private:
-    // Digits buffer (for numeric keyboard entry)
+    // Whether keyEvent is a bare digit that continues the count being typed,
+    // which the view then takes before any shortcut of that key.
+    bool isCountDigit( const QKeyEvent& keyEvent ) const;
+
+    // Digits buffer (for numeric keyboard entry): the count of the next
+    // command, typed as 0 followed by the number (docs/adr/0015).
     DigitsBuffer digitsBuffer_;
 
     // Whether the view follows, as the owner of follow handed it last.
