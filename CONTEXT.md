@@ -494,5 +494,14 @@ It builds the views of every Log File it opens in one call, from one value: the 
 File, the QuickFind pattern, the Policies, the saved Searches and the view state to restore,
 if any — opening a Log File by hand and restoring it on start take the same path. After that
 it hands the views only what changed, one change per open Log File, and asks for their view
-state when it is saved.
+state when it is saved. It saves only Ordinary Log Files: a Transient Log File is left out.
 _Avoid_: workspace, project, layout
+
+**Transient Log File**:
+A Log File that exists only while the application runs: the spool of standard input, the
+file of a merged tab, what a data source writes, the text pasted from the clipboard, and
+later a command's output. Whoever opens it says it is transient; it is then shown and
+followed like any other, but the Session does not save it, so a restart neither opens a
+file that is gone nor reports an error for it. Every other Log File is an Ordinary one,
+saved and restored with its view state.
+_Avoid_: temporary tab, temp file, volatile source

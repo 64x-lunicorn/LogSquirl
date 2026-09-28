@@ -488,7 +488,9 @@ void MainWindow::openStandardInput()
     // The tab is named when it is opened, which is later than here when the
     // plugins have not loaded yet: it is the file's, not the current tab's.
     tabTitles_.insert( filePath, { tr( "stdin" ), tr( "Standard input\n%1" ).arg( filePath ) } );
-    if ( !loadFile( filePath, true ) ) {
+    // The spool lives as long as this window: it is not saved with the
+    // Session (#570).
+    if ( !loadFile( filePath, true, LogFileLifetime::Transient ) ) {
         tabTitles_.remove( filePath );
         standardInputWriter_.reset();
         return;
@@ -1524,7 +1526,9 @@ void MainWindow::tryOpenClipboard( int tryTimes )
             tempFile->write( text.toUtf8() );
             tempFile->flush();
 
-            loadFile( tempFile->fileName() );
+            // The file goes with this window: it is not saved with the
+            // Session (#570).
+            loadFile( tempFile->fileName(), false, LogFileLifetime::Transient );
         }
     }
 }
@@ -1878,7 +1882,9 @@ void MainWindow::handleDataSourceStarted( const QString& pluginId, const QString
     // that file when it opens.
     tabTitles_.insert( filePath,
                        { displayName, tr( "DataSource: %1\n%2" ).arg( displayName, filePath ) } );
-    if ( !loadFile( filePath, true ) ) {
+    // The file goes with the data source's run: it is not saved with the
+    // Session (#570).
+    if ( !loadFile( filePath, true, LogFileLifetime::Transient ) ) {
         tabTitles_.remove( filePath );
     }
 }
@@ -2027,10 +2033,11 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
     auto* controller = new MergeController( this );
     const auto mergedPath = controller->merge( filePaths, dedup );
 
-    // Open the merged temp file as a regular tab
+    // Open the merged temp file as a tab of its own. It goes with its tab, so
+    // it is not saved with the Session (#570).
     const auto direction = dedup ? tr( "Merged (dedup)" ) : tr( "Merged" );
     mainTabWidget_.setTransientTabName( mergedPath, direction );
-    loadFile( mergedPath );
+    loadFile( mergedPath, false, LogFileLifetime::Transient );
 
     // A file asked for before the plugins have loaded opens once they have,
     // so the tab is looked for after that.
@@ -2747,7 +2754,7 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
 // Create a CrawlerWidget for the passed file, start its loading
 // and update the title bar.
 // The loading is done asynchronously.
-bool MainWindow::loadFile( const QString& fileName, bool followFile )
+bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLifetime lifetime )
 {
     LOG_DEBUG << "loadFile ( " << fileName.toStdString() << " )";
 
@@ -2757,8 +2764,9 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
     // being opened without its converter (#303).
     if ( !plugins_->isLoaded() ) {
         LOG_INFO << "Opening " << fileName << " once the plugins have loaded";
-        plugins_->whenLoaded(
-            this, [ this, fileName, followFile ] { loadFile( fileName, followFile ); } );
+        plugins_->whenLoaded( this, [ this, fileName, followFile, lifetime ] {
+            loadFile( fileName, followFile, lifetime );
+        } );
         // A window just shown has them load once it is on screen; any other
         // window asks for them itself.
         if ( !waitingForExposure_ ) {
@@ -2816,10 +2824,13 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
             // The view context saved for this Log File, if any, is restored
             // as the Session restores it: while its views are built.
             CrawlerWidget* crawlerWidget = nullptr;
-            session_.open( fileName, [ &crawlerWidget ]( const ViewBuild& build ) {
-                crawlerWidget = new CrawlerWidget( build );
-                return crawlerWidget;
-            } );
+            session_.open(
+                fileName,
+                [ &crawlerWidget ]( const ViewBuild& build ) {
+                    crawlerWidget = new CrawlerWidget( build );
+                    return crawlerWidget;
+                },
+                lifetime );
 
             if ( !crawlerWidget ) {
                 LOG_ERROR << "Can't create crawler for " << fileName.toStdString();
