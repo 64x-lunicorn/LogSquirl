@@ -101,6 +101,18 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/ui_settings_store_allowlist.cmake
 )
 
+# Every shortcut action a view or window registers is listed in the shortcut
+# settings, so the user can give it a key (#601).
+add_test(
+    NAME registered_shortcuts_listed
+    COMMAND ${CMAKE_COMMAND}
+            -DSOURCES_ROOT=${CMAKE_SOURCE_DIR}/src
+            -DEXCLUDED_DIRS=settings
+            -DSHORTCUTS_HEADER=${CMAKE_SOURCE_DIR}/src/settings/include/shortcuts.h
+            -DSHORTCUTS_SOURCE=${CMAKE_SOURCE_DIR}/src/settings/src/shortcuts.cpp
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/registered_shortcuts_listed.cmake
+)
+
 # The compiler flags of an architecture follow the target, and the generic-CPU
 # option gives every architecture a portable baseline (#285).
 add_test(
