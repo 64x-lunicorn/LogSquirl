@@ -20,6 +20,7 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 
 // Where LogSquirl keeps what it stores (#602), decided in this one place.
 //
@@ -37,6 +38,18 @@
 // (QStandardPaths::AppDataLocation and AppConfigLocation).
 class DataLocation {
 public:
+    // What a portable run took over from the locations the portable package
+    // kept its data in before #602 (#613), for the log.
+    struct TakeOver {
+        // Each folder copied, as "from -> to".
+        QStringList copied;
+        // Each folder found in the old locations but left there, and why.
+        QStringList skipped;
+        // What could not be copied. A takeover that fails in part still lets
+        // the run start.
+        QStringList failed;
+    };
+
     // The location of this process. Whether it is portable is decided the
     // first time this is asked and holds for the rest of the run, so a
     // `logsquirl.conf` the run writes itself does not move its data.
@@ -44,7 +57,7 @@ public:
 
     // The location of a run of a build that forces portable or does not,
     // from an executable in executableDirectory.
-    DataLocation( bool forcePortable, QString executableDirectory );
+    DataLocation( bool forcePortable, const QString& executableDirectory );
 
     bool isPortable() const;
 
@@ -65,6 +78,30 @@ public:
     // for a portable run, QStandardPaths::AppConfigLocation otherwise. Empty
     // if the platform has none.
     QString configDirectory() const;
+
+    // The file a portable run writes beside its executable once it has taken
+    // over the data of the old locations, so it never takes it over again.
+    QString takeOverMarkerPath() const;
+
+    // Before #602 the portable package kept its Log Formats, plugins, plugin
+    // configuration and Team Folder clone in its AppDataLocation and its theme
+    // stylesheets in its AppConfigLocation, both named after the executable
+    // (#613). On the first start of a portable run with none of that data
+    // beside its executable yet, this copies what the old locations hold there,
+    // once, and writes the marker. The old locations are left as they are.
+    // Nothing is copied for an installed run, when the marker exists, or when
+    // `formats`, `plugin_config`, `teamfolder` or `themes` beside the
+    // executable holds anything. A plugin whose folder is already beside the
+    // executable, such as one the package ships, is kept and not replaced.
+    //
+    // The old locations are what QStandardPaths gives this run, so it is
+    // called after the application object exists and before anything reads
+    // the data directory.
+    TakeOver takeOverOldPortableData() const;
+
+    // The same, from old locations given by the caller.
+    TakeOver takeOverOldPortableData( const QString& oldDataDirectory,
+                                      const QString& oldConfigDirectory ) const;
 
 private:
     // Whether the build forces a portable run. Every executable defines it,
