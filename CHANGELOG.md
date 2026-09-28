@@ -26,6 +26,11 @@
   Formats match the same Log Lines, the more specific one wins, and the choice
   no longer changes from one start of LogSquirl to the next; CUPS logs and
   Java logs that could be taken for syslog are recognized correctly too (#589).
+- **A restored Session opens no tab whose source is gone**: a tab of standard
+  input, a merged tab, a data source's tab and a tab pasted from the clipboard
+  read a temporary file that is gone once LogSquirl quits. The Session no longer
+  saves them, so the next start neither reopens them nor shows an error; Log
+  Files opened from disk are restored as before (#570).
 
 # v26.10.0-beta3 (2026-09-28)
 
