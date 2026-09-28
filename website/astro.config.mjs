@@ -37,6 +37,7 @@ export default defineConfig({
       // pull requests as well as in the deploy (#311).
       plugins: [starlightLinksValidator()],
       sidebar: [
+        { label: 'Install', slug: 'install' },
         {
           label: 'About',
           items: [
