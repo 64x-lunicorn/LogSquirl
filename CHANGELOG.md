@@ -1,3 +1,22 @@
+# Unreleased
+
+## Changes
+
+- **A command's output opens as a followed Log File**: File → Open Command
+  Output… runs a command line through your login shell -- `ssh host tail -f
+  /var/log/syslog`, `docker logs -f web`, `kubectl logs -f deploy/api` -- and
+  follows what it writes in a new tab named after it. When the command ends,
+  the tab shows ` [exit N]` and the status bar says how it ended; closing the
+  tab stops the command and every process it started. The last 10 commands are
+  offered again, each with its working folder and whether standard error is
+  included. The tab is not saved with the session (#575).
+
+## Bug fixes
+
+- **A Log File that grows while it first loads shows all of it**: lines written
+  while a tab was still loading, such as the whole output of a short command,
+  no longer stay missing until the file grows again (#629).
+
 # v26.10.0 (2026-09-29)
 
 The stable release of 26.10. It contains everything from
