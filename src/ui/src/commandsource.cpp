@@ -25,6 +25,8 @@
 #include <QPointer>
 #include <QProcess>
 
+#include <mutex>
+
 #include "log.h"
 #include "stdinpump.h"
 #include "streamwriter.h"
@@ -158,6 +160,56 @@ void closeJob( void*& job )
 
 #endif
 
+// Removes a spool file with its folder, when that is left empty; whether the
+// file is gone.
+bool removeSpoolFile( const QString& path )
+{
+    if ( !QFile::remove( path ) && QFile::exists( path ) ) {
+        return false;
+    }
+    // Only removed when empty.
+    QDir().rmdir( QFileInfo( path ).absolutePath() );
+    return true;
+}
+
+// The spool files handed over that could not be removed with their tab: on
+// Windows, the secondary instance that writes one still has it open (#623).
+// They are removed again when the application exits.
+class LeftoverSpoolFiles {
+public:
+    static LeftoverSpoolFiles& instance()
+    {
+        static LeftoverSpoolFiles leftovers;
+        return leftovers;
+    }
+
+    LeftoverSpoolFiles( const LeftoverSpoolFiles& ) = delete;
+    LeftoverSpoolFiles& operator=( const LeftoverSpoolFiles& ) = delete;
+
+    void add( const QString& path )
+    {
+        const std::scoped_lock lock( mutex_ );
+        paths_.append( path );
+    }
+
+    void removeAll()
+    {
+        const std::scoped_lock lock( mutex_ );
+        paths_.removeIf( []( const QString& path ) { return removeSpoolFile( path ); } );
+    }
+
+private:
+    LeftoverSpoolFiles() = default;
+
+    ~LeftoverSpoolFiles()
+    {
+        removeAll();
+    }
+
+    std::mutex mutex_;
+    QStringList paths_;
+};
+
 // The shell the user runs commands in, as the environment names it.
 QString userShell()
 {
@@ -282,12 +334,16 @@ CommandSource::~CommandSource()
         writer_.reset();
     }
     else if ( kind_ == Kind::SpoolFile && !spoolPath_.isEmpty() ) {
-        if ( !QFile::remove( spoolPath_ ) && QFile::exists( spoolPath_ ) ) {
-            LOG_WARNING << "Could not remove the spool file " << spoolPath_;
+        if ( !removeSpoolFile( spoolPath_ ) ) {
+            LOG_INFO << "Could not remove the spool file " << spoolPath_ << " yet, will at exit";
+            LeftoverSpoolFiles::instance().add( spoolPath_ );
         }
-        // Only removed when empty.
-        QDir().rmdir( QFileInfo( spoolPath_ ).absolutePath() );
     }
+}
+
+void CommandSource::removeLeftoverSpoolFiles()
+{
+    LeftoverSpoolFiles::instance().removeAll();
 }
 
 QString CommandSource::startProcess()

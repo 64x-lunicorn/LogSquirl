@@ -168,6 +168,32 @@ TEST_CASE( "A spool file handed over is removed with its Command Source", "[comm
 
 #ifndef Q_OS_WIN
 
+// Windows keeps a file another process has open; a folder without write
+// permission does the same here (#623).
+TEST_CASE( "A spool file handed over that cannot be removed yet is removed later",
+           "[commandsource]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto folder = directory.filePath( "spool" );
+    REQUIRE( QDir().mkpath( folder ) );
+    const auto path = folder + "/stream.log";
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::WriteOnly ) );
+    file.close();
+
+    const auto writable = QFile::permissions( folder );
+    REQUIRE( QFile::setPermissions( folder, QFileDevice::ReadOwner | QFileDevice::ExeOwner ) );
+    CommandSource::adoptSpoolFile( path ).reset();
+    const auto keptWhileLocked = QFileInfo::exists( path );
+    REQUIRE( QFile::setPermissions( folder, writable ) );
+    CHECK( keptWhileLocked );
+
+    CommandSource::removeLeftoverSpoolFiles();
+    CHECK_FALSE( QFileInfo::exists( path ) );
+    CHECK_FALSE( QFileInfo::exists( folder ) );
+}
+
 TEST_CASE( "A command's output goes to its spool file, which goes with the Command Source",
            "[commandsource]" )
 {

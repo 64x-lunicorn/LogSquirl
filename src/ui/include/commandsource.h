@@ -114,8 +114,14 @@ public:
 
     // Takes over a spool file another process writes: this object removes it,
     // with its folder when that is left empty, when it is destroyed. It never
-    // ends by itself.
+    // ends by itself. A file that cannot be removed then -- on Windows, while
+    // the other process still has it open -- is removed again when the
+    // application exits (#623).
     static std::unique_ptr<CommandSource> adoptSpoolFile( const QString& path );
+
+    // Removes the spool files taken over that could not be removed with their
+    // Command Source. Runs by itself when the application exits.
+    static void removeLeftoverSpoolFiles();
 
     ~CommandSource() override;
 
