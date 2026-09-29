@@ -22,6 +22,8 @@
 #include "configuration.h"
 #include "configurationfixture.h"
 
+#include <algorithm>
+
 #include <QDir>
 #include <QFont>
 #include <QFontInfo>
@@ -529,6 +531,7 @@ const QStringList StoredSettingNames = {
     "archives.extract",
     "archives.extractAlways",
     "chartPresets",
+    "commandSource.recentCommands",
     "defaultView.encodingMib",
     "defaultView.searchAutoRefresh",
     "defaultView.searchIgnoreCase",
@@ -683,6 +686,7 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.pluginsAutoLoad() == expected.pluginsAutoLoad() );
     CHECK( actual.enabledPlugins() == expected.enabledPlugins() );
     CHECK( actual.chartPresets() == expected.chartPresets() );
+    CHECK( actual.recentCommands() == expected.recentCommands() );
     CHECK( actual.darkPalette() == expected.darkPalette() );
 }
 
@@ -690,6 +694,78 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
 
 // The main font is resolved as a fixed-pitch outline font. Every
 // Configuration resolves its own, not only the first one of the process (#229).
+// The command lines run for their output are remembered, the most recent first,
+// each with its working folder and whether standard error was included (#575).
+SCENARIO( "The last ten commands run for their output are remembered", "[configuration]" )
+{
+    const auto command = []( int number ) {
+        return RecentCommand{ QStringLiteral( "tail -f /var/log/%1.log" ).arg( number ),
+                              QStringLiteral( "/tmp/%1" ).arg( number ), number % 2 == 0 };
+    };
+
+    GIVEN( "A Configuration with no command run yet" )
+    {
+        Configuration config;
+        REQUIRE( config.recentCommands().empty() );
+
+        WHEN( "Twelve different commands are run" )
+        {
+            for ( int number = 1; number <= 12; ++number ) {
+                config.addRecentCommand( command( number ) );
+            }
+
+            THEN( "The last ten are kept, the most recent first" )
+            {
+                const auto& recent = config.recentCommands();
+                REQUIRE( recent.size() == 10 );
+                REQUIRE( recent.front() == command( 12 ) );
+                REQUIRE( recent.back() == command( 3 ) );
+            }
+
+            AND_WHEN( "An older one is run again, from another folder, without standard error" )
+            {
+                auto again = command( 5 );
+                again.workingFolder = QStringLiteral( "/srv" );
+                again.includeStandardError = !again.includeStandardError;
+                config.addRecentCommand( again );
+
+                THEN( "It moves to the top with what was chosen this time, and is kept once" )
+                {
+                    const auto& recent = config.recentCommands();
+                    REQUIRE( recent.size() == 10 );
+                    REQUIRE( recent.front() == again );
+                    REQUIRE(
+                        std::ranges::count( recent, again.commandLine, &RecentCommand::commandLine )
+                        == 1 );
+                    REQUIRE( recent.back() == command( 3 ) );
+                }
+            }
+
+            AND_WHEN( "The Configuration is saved and loaded" )
+            {
+                SettingsFile file;
+                file.write( config );
+                const auto restored = file.load();
+
+                THEN( "The same commands come back, in the same order" )
+                {
+                    REQUIRE( restored.recentCommands() == config.recentCommands() );
+                }
+            }
+        }
+
+        WHEN( "An empty command line is added" )
+        {
+            config.addRecentCommand( RecentCommand{ QStringLiteral( "  " ), {}, true } );
+
+            THEN( "Nothing is remembered" )
+            {
+                REQUIRE( config.recentCommands().empty() );
+            }
+        }
+    }
+}
+
 SCENARIO( "Every Configuration resolves its main font", "[configuration]" )
 {
     const auto isResolved = []( const QFont& font ) {
@@ -834,8 +910,9 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                 auto stored = storedSettings( config );
                 // Settings added after v26.07.0 are not in its file; loading it
                 // leaves them at their default.
-                for ( const auto* added : { "defaultView.searchWindowMinutes", "teamFolder.enabled",
-                                            "teamFolder.url", "teamFolder.subfolder" } ) {
+                for ( const auto* added :
+                      { "defaultView.searchWindowMinutes", "teamFolder.enabled", "teamFolder.url",
+                        "teamFolder.subfolder", "commandSource.recentCommands/size" } ) {
                     stored.remove( added );
                 }
                 CHECK( stored.keys() == release.keys() );

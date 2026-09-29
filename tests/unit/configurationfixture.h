@@ -257,6 +257,9 @@ inline Configuration nonDefaultConfiguration()
     config.setChartPreset( "Latency", R"({"series": [{"field": "duration", "unit": "ms"}]})" );
     config.setChartPreset( "Errors", "[]" );
 
+    config.addRecentCommand( RecentCommand{ "journalctl -f", "/var/log", false } );
+    config.addRecentCommand( RecentCommand{ "docker logs -f web", {}, true } );
+
     // Dark Token overrides have no setter; the settings file test covers them.
     return config;
 }
