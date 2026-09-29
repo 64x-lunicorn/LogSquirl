@@ -53,6 +53,17 @@
 
 static constexpr int MAX_RECENT_FILES = 25;
 
+// What Log Lines do with their ANSI color sequences (#573). Stored as its
+// numeric value, so the order is fixed.
+enum class AnsiColorSequences {
+    // Shown as characters, as the Log File holds them.
+    ShowAsText,
+    // Removed from every Log Line, for display and Search alike.
+    Hide,
+    // Removed as under Hide, and the Text View paints the colors they ask for.
+    ShowColors,
+};
+
 // Configuration class containing everything in the "Settings" dialog
 class Configuration final : public Persistable<Configuration> {
 public:
@@ -615,13 +626,13 @@ public:
         optimizeForNotLatinEncodings_ = enable;
     }
 
-    bool hideAnsiColorSequences() const
+    AnsiColorSequences ansiColorSequences() const
     {
-        return hideAnsiColorSequences_;
+        return ansiColorSequences_;
     }
-    void setHideAnsiColorSequences( bool hide )
+    void setAnsiColorSequences( AnsiColorSequences ansiColorSequences )
     {
-        hideAnsiColorSequences_ = hide;
+        ansiColorSequences_ = ansiColorSequences;
     }
 
     // The separator and the header row the last CSV export used: a comma,
@@ -828,7 +839,7 @@ private:
 
     bool optimizeForNotLatinEncodings_{};
 
-    bool hideAnsiColorSequences_{};
+    AnsiColorSequences ansiColorSequences_{};
 
     int defaultEncodingMib_{};
 

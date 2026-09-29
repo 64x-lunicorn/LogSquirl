@@ -231,7 +231,7 @@ inline Configuration nonDefaultConfiguration()
     config.setFilteredLineNumbersVisible( false );
     config.setMinimizeToTray( true );
     config.setContextLinesCount( 10 );
-    config.setHideAnsiColorSequences( true );
+    config.setAnsiColorSequences( AnsiColorSequences::ShowColors );
     config.setUseTextWrap( true );
     config.setStyle( Theme::DarkKey );
 

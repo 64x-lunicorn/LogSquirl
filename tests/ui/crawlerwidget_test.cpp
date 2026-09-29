@@ -1625,11 +1625,11 @@ SCENARIO( "Hiding ANSI color sequences reaches an open Log File through its Deco
                   "still shows them" )
         {
             auto& config = Configuration::get();
-            const auto hideAnsiColorSequences = config.hideAnsiColorSequences();
-            config.setHideAnsiColorSequences( false );
+            const auto ansiColorSequences = config.ansiColorSequences();
+            config.setAnsiColorSequences( AnsiColorSequences::ShowAsText );
             crawlerVisitor.crawler->applyChange(
                 ViewChange{ .rereadSettingsWithoutPolicy = true } );
-            config.setHideAnsiColorSequences( hideAnsiColorSequences );
+            config.setAnsiColorSequences( ansiColorSequences );
 
             THEN( "the Log Line still reads without them: only the Policy decides" )
             {
