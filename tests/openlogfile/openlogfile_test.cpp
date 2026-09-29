@@ -1164,7 +1164,8 @@ SCENARIO( "An Open Log File stops watching its Log File once what it holds is lo
 
     OpenedLogFile logFile( path );
     int stops = 0;
-    QObject::connect( &logFile.openLogFile, &OpenLogFile::watchingStopped, [ &stops ] { ++stops; } );
+    QObject::connect( &logFile.openLogFile, &OpenLogFile::watchingStopped,
+                      [ &stops ] { ++stops; } );
 
     const auto appendUnreported = [ &path ]( int count, int firstNumber ) {
         QFile file( path );

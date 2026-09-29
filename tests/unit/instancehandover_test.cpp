@@ -151,8 +151,8 @@ TEST_CASE( "The marker of a spool file taken over is next to it", "[handover]" )
 
 TEST_CASE( "A hand-over message from another version is not read", "[handover]" )
 {
-    const auto message = handOverMessage( HandOver{ { "/logs/a.log" }, "/tmp/x/stream.log", "stdin" },
-                                          QStringLiteral( "26.10.0" ) );
+    const auto message = handOverMessage(
+        HandOver{ { "/logs/a.log" }, "/tmp/x/stream.log", "stdin" }, QStringLiteral( "26.10.0" ) );
 
     CHECK_FALSE( readHandOverMessage( message, Version ).has_value() );
     CHECK_FALSE( readHandOverMessage( QByteArray( "not cbor" ), Version ).has_value() );
@@ -281,7 +281,8 @@ TEST_CASE( "A secondary instance whose spool file is not taken over says so and 
             }
             return true;
         },
-        errors, HandOverWaits{ std::chrono::milliseconds( 200 ), std::chrono::milliseconds( 50 ) } );
+        errors,
+        HandOverWaits{ std::chrono::milliseconds( 200 ), std::chrono::milliseconds( 50 ) } );
     ::close( fds[ 1 ] );
     ::close( fds[ 0 ] );
 
@@ -305,9 +306,9 @@ TEST_CASE( "A secondary instance stops reading standard input once its tab is cl
     // instance does -- once it arrived; the pipe stays open.
     std::thread primary( [ & ] {
         const auto written = ::write( fds[ 1 ], "1\n", 2 ) == 2;
-        tabClosed = written && eventually( [ & ] {
-                        return spoolKnown && contentOf( spool ) == "1\n";
-                    } ) && QFile::remove( spoolAdoptionMarker( spool ) );
+        tabClosed = written
+                    && eventually( [ & ] { return spoolKnown && contentOf( spool ) == "1\n"; } )
+                    && QFile::remove( spoolAdoptionMarker( spool ) );
     } );
 
     std::ostringstream errors;
@@ -321,7 +322,8 @@ TEST_CASE( "A secondary instance stops reading standard input once its tab is cl
             }
             return true;
         },
-        errors, HandOverWaits{ std::chrono::milliseconds( 5000 ), std::chrono::milliseconds( 50 ) } );
+        errors,
+        HandOverWaits{ std::chrono::milliseconds( 5000 ), std::chrono::milliseconds( 50 ) } );
     primary.join();
     ::close( fds[ 1 ] );
     ::close( fds[ 0 ] );

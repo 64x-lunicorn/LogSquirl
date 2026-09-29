@@ -245,8 +245,7 @@ TEST_CASE( "A command's output goes to its spool file, which goes with the Comma
 
 // Windows keeps a file the tab still has open when the Command Source goes
 // before the tab; a folder without write permission does the same here.
-TEST_CASE( "A command's spool file that cannot be removed yet is removed later",
-           "[commandsource]" )
+TEST_CASE( "A command's spool file that cannot be removed yet is removed later", "[commandsource]" )
 {
     if ( ::geteuid() == 0 ) {
         SKIP( "root removes files from a folder without write permission" );
@@ -355,8 +354,8 @@ TEST_CASE( "A command that is stopped has its grace period to end on its own", "
     auto source = CommandSource::startCommand( RecentCommand{ commandLine, {}, true }, &error );
     INFO( error.toStdString() );
     REQUIRE( source != nullptr );
-    REQUIRE( waitUiState(
-        [ & ] { return contentOf( source->spoolPath() ).startsWith( "ready" ); }, 10'000 ) );
+    REQUIRE( waitUiState( [ & ] { return contentOf( source->spoolPath() ).startsWith( "ready" ); },
+                          10'000 ) );
 
     QElapsedTimer stopping;
     stopping.start();

@@ -301,9 +301,8 @@ void applyTabLabels( const WindowSnapshot& window,
     if ( window.tabs.size() != window.files.size() ) {
         return;
     }
-    const auto applies = [ &window, &isOpened ]( size_t i ) {
-        return !isOpened || isOpened( window.files[ i ] );
-    };
+    const auto applies
+        = [ &window, &isOpened ]( size_t i ) { return !isOpened || isOpened( window.files[ i ] ); };
 
     auto& names = TabNameMapping::getSynced();
     for ( size_t i = 0; i < window.files.size(); ++i ) {

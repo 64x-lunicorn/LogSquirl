@@ -1179,7 +1179,8 @@ SCENARIO( "A Session File names and groups only the Log Files that open", "[ui][
 
     QTemporaryDir folder;
     REQUIRE( folder.isValid() );
-    const auto logPath = QDir::cleanPath( QFileInfo( folder.filePath( "kept.log" ) ).absoluteFilePath() );
+    const auto logPath
+        = QDir::cleanPath( QFileInfo( folder.filePath( "kept.log" ) ).absoluteFilePath() );
     {
         QFile file( logPath );
         REQUIRE( file.open( QIODevice::WriteOnly ) );
@@ -1192,7 +1193,8 @@ SCENARIO( "A Session File names and groups only the Log Files that open", "[ui][
                           { folder.filePath( "gone.log.AbCdEf" ), QString{}, goneMember } };
     read.window.currentFile = 0;
     read.window.tabs = { { "Kept", "Opened576" }, { "Gone", "Gone576" } };
-    read.window.groups = { { "Opened576", QColor( "#3a7bd5" ) }, { "Gone576", QColor( "#d53a3a" ) } };
+    read.window.groups
+        = { { "Opened576", QColor( "#3a7bd5" ) }, { "Gone576", QColor( "#d53a3a" ) } };
 
     auto appSession
         = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
@@ -1218,8 +1220,9 @@ SCENARIO( "A Session File names and groups only the Log Files that open", "[ui][
 
     REQUIRE( TabNameMapping::get().tabName( goneMember.key() ).isEmpty() );
     REQUIRE_FALSE( TabGroupInfo::get().groupForTab( goneMember.key() ).has_value() );
-    REQUIRE( std::ranges::none_of( TabGroupInfo::get().groups(),
-                                   []( const auto& stored ) { return stored.name == "Gone576"; } ) );
+    REQUIRE( std::ranges::none_of( TabGroupInfo::get().groups(), []( const auto& stored ) {
+        return stored.name == "Gone576";
+    } ) );
 
     opened.reset();
     auto& left = SessionInfo::getSynced();

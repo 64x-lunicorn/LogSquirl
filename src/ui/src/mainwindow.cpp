@@ -622,8 +622,7 @@ void MainWindow::openStandardInput()
     openCommandSource( std::move( source ), tr( "stdin" ), standardInputToolTip( filePath ) );
 }
 
-void MainWindow::openHandedOverStandardInput( const QString& spoolPath,
-                                              const QString& displayName )
+void MainWindow::openHandedOverStandardInput( const QString& spoolPath, const QString& displayName )
 {
     const auto title = displayName.isEmpty() ? tr( "stdin" ) : displayName;
     const auto toolTip = standardInputToolTip( spoolPath );

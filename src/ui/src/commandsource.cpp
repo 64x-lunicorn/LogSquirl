@@ -558,11 +558,10 @@ QString CommandSource::endedMessage( const QString& title, const CommandEnd& end
 {
     switch ( end.kind ) {
     case CommandEnd::Kind::Exited:
-        return end.commandNotFound()
-                   ? tr( "\"%1\" ended with exit code %2: command not found" )
-                         .arg( title, QString::number( end.exitCode ) )
-                   : tr( "\"%1\" ended with exit code %2" )
-                         .arg( title, QString::number( end.exitCode ) );
+        return end.commandNotFound() ? tr( "\"%1\" ended with exit code %2: command not found" )
+                                           .arg( title, QString::number( end.exitCode ) )
+                                     : tr( "\"%1\" ended with exit code %2" )
+                                           .arg( title, QString::number( end.exitCode ) );
     case CommandEnd::Kind::Stopped:
         return tr( "\"%1\" was stopped" ).arg( title );
     case CommandEnd::Kind::InputClosed:
