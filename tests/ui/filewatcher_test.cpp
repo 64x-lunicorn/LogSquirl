@@ -107,7 +107,7 @@ void requireNativeChangeReported( SafeQSignalSpy& changedSpy, const QString& fil
     if ( !reported ) {
         WARN( "Native watch event not observed -- FSEvents did not deliver in "
               "this environment (a real failure to register is logged as "
-              "\"failed to add watch\" with an efsw error from -1 to -8); "
+              "\"failed to add watch\" with an efsw error); "
               "native watching also runs behind polling in the shipped "
               "defaults on this platform." );
     }

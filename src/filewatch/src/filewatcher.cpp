@@ -90,7 +90,7 @@ public:
         if ( enable ) {
             for ( auto& dir : watchedPaths_ ) {
                 LOG_INFO << "Will reenable watch for " << dir.name;
-                dir.watchId = watcher_.addWatch( dir.name, this, false );
+                dir.watchId = tryWatchDirectory( dir.name );
             }
         }
         else {
@@ -123,21 +123,6 @@ public:
         auto watchedDirectory
             = std::find_if( watchedPaths_.begin(), watchedPaths_.end(),
                             [ &directory ]( const auto& wd ) { return wd.name == directory; } );
-
-        const auto tryWatchDirectory = [ this ]( const std::string& path ) {
-            if ( !nativeWatchEnabled_ ) {
-                LOG_DEBUG << "native watching is off, only polling may watch " << path;
-                return NotWatchedNatively;
-            }
-
-            const auto watchId = watcher_.addWatch( path, this, false );
-
-            if ( watchId < 0 ) {
-                LOG_WARNING << "failed to add watch " << path << " error " << watchId;
-            }
-
-            return watchId;
-        };
 
         if ( watchedDirectory == watchedPaths_.end() ) {
             watchedPaths_.push_back(
@@ -377,6 +362,23 @@ public:
     }
 
 private:
+    // Called with mutex_ held.
+    efsw::WatchID tryWatchDirectory( const std::string& path )
+    {
+        if ( !nativeWatchEnabled_ ) {
+            LOG_DEBUG << "native watching is off, only polling may watch " << path;
+            return NotWatchedNatively;
+        }
+
+        const auto watchId = watcher_.addWatch( path, this, false );
+
+        if ( watchId < 0 ) {
+            LOG_WARNING << "failed to add watch " << path << " error " << watchId;
+        }
+
+        return watchId;
+    }
+
     efsw::FileWatcher watcher_;
     std::vector<WatchedDirectory> watchedPaths_;
     FileWatcher* parent_;
