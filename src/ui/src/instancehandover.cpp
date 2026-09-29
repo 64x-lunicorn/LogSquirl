@@ -48,9 +48,6 @@ const auto AdoptionMarkerName = QStringLiteral( "adopted" );
 // How often a secondary instance looks for the marker while it waits for it.
 constexpr std::chrono::milliseconds AdoptionPollInterval{ 20 };
 
-// The name StreamWriter gives the file in its folder.
-const auto SpoolFileName = QStringLiteral( "stream.log" );
-
 } // namespace
 
 QByteArray handOverMessage( const HandOver& handOver, const QString& version )
@@ -96,7 +93,7 @@ bool isStandardInputSpool( const QString& path )
         return false;
     }
     const QFileInfo file( path );
-    if ( file.fileName() != SpoolFileName || !file.isFile() ) {
+    if ( file.fileName() != logsquirl::plugins::StreamWriter::fileName() || !file.isFile() ) {
         return false;
     }
     const QFileInfo folder( file.absolutePath() );

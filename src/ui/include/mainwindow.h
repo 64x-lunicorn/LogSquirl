@@ -343,6 +343,8 @@ private:
     // The tooltip of a command's tab: its whole command line, its working
     // folder and its spool file.
     static QString commandToolTip( const CommandSource& source );
+    // The tooltip of a standard input's tab: what it is, and its spool file.
+    static QString standardInputToolTip( const QString& spoolPath );
     // Shows how the Command Source of the tab of `spoolPath` ended.
     void showCommandSourceEnded( const QString& spoolPath, const CommandEnd& end );
     void updateTitleBar( const QString& fileName );

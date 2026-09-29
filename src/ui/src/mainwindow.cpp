@@ -619,15 +619,14 @@ void MainWindow::openStandardInput()
         return;
     }
     const auto filePath = source->spoolPath();
-    openCommandSource( std::move( source ), tr( "stdin" ),
-                       tr( "Standard input\n%1" ).arg( filePath ) );
+    openCommandSource( std::move( source ), tr( "stdin" ), standardInputToolTip( filePath ) );
 }
 
 void MainWindow::openHandedOverStandardInput( const QString& spoolPath,
                                               const QString& displayName )
 {
     const auto title = displayName.isEmpty() ? tr( "stdin" ) : displayName;
-    const auto toolTip = tr( "Standard input\n%1" ).arg( QDir::toNativeSeparators( spoolPath ) );
+    const auto toolTip = standardInputToolTip( spoolPath );
     if ( isStandardInputSpool( spoolPath ) ) {
         openCommandSource( CommandSource::adoptSpoolFile( spoolPath ), title, toolTip );
     }
@@ -640,6 +639,11 @@ void MainWindow::openHandedOverStandardInput( const QString& spoolPath,
         }
     }
     bringToFront();
+}
+
+QString MainWindow::standardInputToolTip( const QString& spoolPath )
+{
+    return tr( "Standard input\n%1" ).arg( QDir::toNativeSeparators( spoolPath ) );
 }
 
 QString MainWindow::commandToolTip( const CommandSource& source )
