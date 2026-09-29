@@ -9,6 +9,7 @@
    - [Auto Log Format Detection (Table View)](#auto-log-format-detection-table-view)
    - [Chart Panel](#chart-panel)
    - [Tab groups](#tab-groups)
+   - [Session files](#session-files)
 1. [The menu bar](#the-menu-bar)
 1. [Plugins](#Plugins)
 1. [Settings](#Settings)
@@ -745,6 +746,47 @@ through a tab. Group membership is remembered by the file's path and restored
 with the session; the tab of a file that exists only while *logsquirl* runs
 stays in its group until it closes.
 
+### Session files
+
+*logsquirl* restores the files of every window on the next start by itself
+(see [Session options](#session-options)). A window's session can also be kept
+in a file of its own, to come back to an investigation later or to hand it to
+a colleague.
+
+`File->Save Session As...` writes the current window's session to a file with
+the extension `.logsquirl-session` (its content is JSON). It holds:
+
+- the open files in tab order, and which tab was in front;
+- each tab's view state: the splitter position, the search options, `follow`
+  mode, the marked lines, the charts and the line the view stands on;
+- the custom tab names and the [tab groups](#tab-groups) (name and color) of
+  these files;
+- for a file opened from an archive, the archive and the member taken from it.
+
+It does not hold the window's size and position or the sidebar width, which
+depend on the screen, nor the search pattern, the kept searches or the search
+limits. A file that exists only while *logsquirl* runs -- standard input, a
+merged tab, text pasted from the clipboard, a file downloaded from a URL, the
+output of a converter plugin or a data source -- is not written.
+
+`File->Open Session...` opens a session file in a **new window**: the files in
+their saved order, the saved tab in front, each with its view state, tab name
+and group. A file from an archive is decompressed again. A group with the same
+name as one you already have is that group and keeps its color; any other is
+created. A file that is missing, or already open in another window, is left
+out (it stays where it is open), and a notice names it; the others open. When
+none of them can be opened, only the notice is shown. A file that is not a
+session file, or one saved by a newer *logsquirl*, is refused with a message
+and no window opens.
+
+Every file is stored with its absolute path and with its path relative to the
+folder of the session file. Opening tries the absolute path first, then the
+relative one. So a folder holding the logs and the session file beside or above
+them can be moved, or zipped and unpacked on another machine, and still opens.
+
+Both entries have no key by default; one can be given in the shortcut settings,
+and both are in the Command Palette.
+
 ### Filters Panel
 
 The Filters Panel is a right sidebar dock that provides quick access to filters
@@ -798,7 +840,9 @@ whole list, with what the entries not explained elsewhere do.
 
 - **File**: `New window`, `Open...`, `Open from clipboard` and
   `Open from URL...` (see [Opening files](#opening-files)), `Open Recent`
-  with `Clear List`, `Close`, `Close All`, `Preferences...` and `Exit`.
+  with `Clear List`, `Open Session...` and `Save Session As...` (see
+  [Session files](#session-files)), `Close`, `Close All`, `Preferences...` and
+  `Exit`.
 - **Edit**: `Copy`, `Select All`, `Find...` (the QuickFind bar), `Go to line...`
   and `Go to timestamp...`, then `Copy full path` (of the current file to the
   clipboard), `Open containing folder`, `Open in editor` (in the default

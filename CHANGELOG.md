@@ -1,3 +1,16 @@
+# Unreleased
+
+## Changes
+
+- **A session saves to and opens from a file**: *File → Save Session As…*
+  writes the window's open files, their order, the tab in front, each tab's
+  view state, tab names and groups to a `.logsquirl-session` file, and
+  *File → Open Session…* opens it in a new window. Files are found by their
+  absolute path or by their path relative to the session file, so a folder of
+  logs and its session still opens after it is moved to another machine; a
+  missing file, or one already open in another window, is left out and named.
+  (#576)
+
 # v26.10.0 (2026-09-29)
 
 The stable release of 26.10. It contains everything from

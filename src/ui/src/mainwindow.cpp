@@ -75,6 +75,7 @@
 #include <QPointer>
 #include <QProgressDialog>
 #include <QResource>
+#include <QSaveFile>
 #include <QScreen>
 #include <QScrollArea>
 #include <QSettings>
@@ -425,6 +426,11 @@ void MainWindow::reloadGeometry()
 
 void MainWindow::reloadSession()
 {
+    restoreWindow( session_.storedSnapshot() );
+}
+
+void MainWindow::restoreWindow( const WindowSnapshot& window )
+{
     const auto& config = Configuration::get();
     const auto followFileOnLoad
         = config.followFileOnLoad() && session_.watchPolicy().anyWatchEnabled();
@@ -435,6 +441,7 @@ void MainWindow::reloadSession()
     int currentFileIndex = -1;
     std::vector<WindowSession::DeferredArchiveFile> fromArchives;
     const auto openedFiles = session_.restore(
+        window,
         [ &crawlers ]( const ViewBuild& build ) {
             crawlers.push_back( new CrawlerWidget( build ) );
             return crawlers.back();
@@ -710,6 +717,11 @@ void MainWindow::reTranslateUI()
     openUrlAction->setText( transAction( action::openUrlText ) );
     openUrlAction->setStatusTip( transAction( action::openUrlStatusTip ) );
 
+    openSessionAction->setText( transAction( action::openSessionText ) );
+    openSessionAction->setStatusTip( transAction( action::openSessionStatusTip ) );
+    saveSessionAsAction->setText( transAction( action::saveSessionAsText ) );
+    saveSessionAsAction->setStatusTip( transAction( action::saveSessionAsStatusTip ) );
+
     overviewVisibleAction->setText( transAction( action::overviewVisibleText ) );
 
     lineNumbersVisibleInMainAction->setText( transAction( action::lineNumbersVisibleInMainText ) );
@@ -925,6 +937,16 @@ void MainWindow::createActions()
     openUrlAction->setStatusTip( tr( action::openUrlStatusTip ) );
     connect( openUrlAction, &QAction::triggered, this, [ this ]( auto ) { this->openUrl(); } );
 
+    openSessionAction = new QAction( tr( action::openSessionText ), this );
+    openSessionAction->setStatusTip( tr( action::openSessionStatusTip ) );
+    connect( openSessionAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->openSession(); } );
+
+    saveSessionAsAction = new QAction( tr( action::saveSessionAsText ), this );
+    saveSessionAsAction->setStatusTip( tr( action::saveSessionAsStatusTip ) );
+    connect( saveSessionAsAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->saveSessionAs(); } );
+
     overviewVisibleAction = new QAction( tr( action::overviewVisibleText ), this );
     overviewVisibleAction->setCheckable( true );
     overviewVisibleAction->setChecked( config.isOverviewVisible() );
@@ -1132,6 +1154,8 @@ void MainWindow::updateShortcuts()
     setShortcuts( copyPathToClipboardAction, ShortcutAction::MainWindowCopyPathToClipboard );
     setShortcuts( openClipboardAction, ShortcutAction::MainWindowOpenFromClipboard );
     setShortcuts( openUrlAction, ShortcutAction::MainWindowOpenFromUrl );
+    setShortcuts( openSessionAction, ShortcutAction::MainWindowOpenSession );
+    setShortcuts( saveSessionAsAction, ShortcutAction::MainWindowSaveSessionAs );
     setShortcuts( followAction, ShortcutAction::MainWindowFollowFile );
     setShortcuts( textWrapAction, ShortcutAction::MainWindowTextWrap );
     setShortcuts( reloadAction, ShortcutAction::MainWindowReload );
@@ -1204,6 +1228,10 @@ void MainWindow::createMenus()
     recentFilesMenu->addSeparator();
     recentFilesMenu->addAction( recentFilesCleanup );
     recentFilesMenu->setEnabled( false );
+    fileMenu->addSeparator();
+
+    fileMenu->addAction( openSessionAction );
+    fileMenu->addAction( saveSessionAsAction );
     fileMenu->addSeparator();
 
     fileMenu->addAction( closeAction );
@@ -3487,20 +3515,138 @@ void MainWindow::showInfoLabels( bool show )
     }
 }
 
-// Write settings to permanent storage
-void MainWindow::writeSettings()
+std::vector<SaveFileInfo> MainWindow::tabViewStates() const
 {
-    // Save the session
     // Generate the ordered list of widgets and their view state
     std::vector<SaveFileInfo> widget_list;
     for ( const auto i : mainTabWidget_.logFileTabs() ) {
         const auto* view = qobject_cast<const CrawlerWidget*>( mainTabWidget_.widget( i ) );
         widget_list.emplace_back( view, view->context() );
     }
+    return widget_list;
+}
+
+// Write settings to permanent storage
+void MainWindow::writeSettings()
+{
+    // Save the session
     if ( sidebarWidthApplied_ && sidebarDock_->isVisible() && !sidebarDock_->isFloating() ) {
         sidebarWidth_ = sidebarDock_->width();
     }
-    session_.save( widget_list, currentCrawlerWidget(), saveGeometry(), sidebarWidth_ );
+    session_.save( tabViewStates(), currentCrawlerWidget(), saveGeometry(), sidebarWidth_ );
+}
+
+void MainWindow::saveSessionAs()
+{
+    // Beside the Log File in front, where a folder of logs keeps its session.
+    QString proposed = QDir::home().filePath( QStringLiteral( "session" ) );
+    if ( const auto* current = currentCrawlerWidget() ) {
+        // A decompressed Log File is read from a temporary file: beside its
+        // archive instead.
+        const auto fileName = session_.getFilename( current );
+        const auto member = archiveMembers_.value( fileName );
+        const auto shown = member.isEmpty() ? fileName : member.archive;
+        proposed = QFileInfo( shown ).dir().filePath( QStringLiteral( "session" ) );
+    }
+    proposed += QStringLiteral( "." ) + SessionFileExtension;
+
+    auto path = QFileDialog::getSaveFileName(
+        this, tr( "Save Session As" ), proposed,
+        tr( "LogSquirl sessions (*.%1)" ).arg( SessionFileExtension ) );
+    if ( path.isEmpty() ) {
+        return;
+    }
+    if ( QFileInfo( path ).suffix() != QLatin1String( SessionFileExtension ) ) {
+        path += QStringLiteral( "." ) + SessionFileExtension;
+    }
+    saveSessionFile( path );
+}
+
+bool MainWindow::saveSessionFile( const QString& path )
+{
+    // The same snapshot the automatic Session saves, and the tab names and
+    // groups of its Log Files.
+    auto window = session_.snapshot( tabViewStates(), currentCrawlerWidget() );
+    takeTabLabels( window );
+
+    const auto text = writeSessionFile( window, QFileInfo( path ).absoluteDir() );
+    QSaveFile file( path );
+    if ( !file.open( QIODevice::WriteOnly ) || file.write( text ) != text.size()
+         || !file.commit() ) {
+        LOG_ERROR << "Cannot write the session file " << path << ": " << file.errorString();
+        QMessageBox::critical( this, tr( "Save Session As" ),
+                               tr( "The session could not be saved to %1:\n%2" )
+                                   .arg( QDir::toNativeSeparators( path ), file.errorString() ) );
+        return false;
+    }
+    return true;
+}
+
+void MainWindow::openSession()
+{
+    const auto path = QFileDialog::getOpenFileName(
+        this, tr( "Open Session" ), QDir::homePath(),
+        tr( "LogSquirl sessions (*.%1)" ).arg( SessionFileExtension ) );
+    if ( path.isEmpty() ) {
+        return;
+    }
+    openSessionFile( path );
+}
+
+void MainWindow::openSessionFile( const QString& path )
+{
+    const auto title = tr( "Open Session" );
+
+    QFile file( path );
+    if ( !file.open( QIODevice::ReadOnly ) ) {
+        QMessageBox::critical( this, title,
+                               tr( "The session file %1 could not be read:\n%2" )
+                                   .arg( QDir::toNativeSeparators( path ), file.errorString() ) );
+        return;
+    }
+
+    auto read = readSessionFile( file.readAll(), QFileInfo( path ).absoluteDir() );
+    if ( !read ) {
+        QMessageBox::critical( this, title, sessionFileErrorText( read.error() ) );
+        return;
+    }
+
+    // A Log File is open once in the application: where it is open already,
+    // it stays.
+    read->leaveOut(
+        [ this ]( const SessionInfo::OpenFile& openFile ) { return session_.isOpen( openFile ); } );
+
+    if ( read->window.files.empty() ) {
+        // No window is left empty: the notice alone.
+        QMessageBox::information(
+            this, title,
+            read->leftOut.isEmpty()
+                ? tr( "The session holds no log files." )
+                : tr( "None of the log files of this session could be opened. They are missing "
+                      "or already open:\n\n%1" )
+                      .arg( read->leftOut.join( QLatin1Char( '\n' ) ) ) );
+        return;
+    }
+
+    Q_EMIT sessionFileOpened( *read );
+}
+
+void MainWindow::restoreSessionFile( const SessionFileRead& read )
+{
+    // Named and grouped as they were before their tabs are added.
+    applyTabLabels( read.window );
+    restoreWindow( read.window );
+
+    if ( !read.leftOut.isEmpty() ) {
+        // Once the window is shown.
+        QTimer::singleShot( 0, this, [ this, leftOut = read.leftOut ] {
+            QMessageBox::information(
+                this, tr( "Open Session" ),
+                tr( "These log files of the session were left out. They are missing or "
+                    "already open in another window:\n\n%1" )
+                    .arg( leftOut.join( QLatin1Char( '\n' ) ) ) );
+        } );
+    }
 }
 
 // Read settings from permanent storage

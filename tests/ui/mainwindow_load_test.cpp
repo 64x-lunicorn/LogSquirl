@@ -54,8 +54,12 @@
 #include "openlogfile.h"
 #include "pathline.h"
 #include "session.h"
+#include "sessionfile.h"
+#include "shortcuts.h"
 #include "stored_session.h"
 #include "tabbedcrawlerwidget.h"
+#include "tabgroupinfo.h"
+#include "tabnamemapping.h"
 #include "test_policies.h"
 #include "test_utils.h"
 #include "textencoding.h"
@@ -937,4 +941,230 @@ SCENARIO( "Loading progress follows the tab in front", "[ui][loading]" )
     }
 
     mainWindow.reset();
+}
+
+namespace {
+
+// Leaves the stored tab names and groups as they were once it goes.
+class KeptTabLabels {
+public:
+    KeptTabLabels()
+        : names_( TabNameMapping::getSynced() )
+        , groups_( TabGroupInfo::getSynced() )
+    {
+    }
+
+    ~KeptTabLabels()
+    {
+        names_.save();
+        TabNameMapping::getSynced();
+        groups_.save();
+        TabGroupInfo::getSynced();
+    }
+
+    KeptTabLabels( const KeptTabLabels& ) = delete;
+    KeptTabLabels& operator=( const KeptTabLabels& ) = delete;
+    KeptTabLabels( KeptTabLabels&& ) = delete;
+    KeptTabLabels& operator=( KeptTabLabels&& ) = delete;
+
+private:
+    const TabNameMapping names_;
+    const TabGroupInfo groups_;
+};
+
+} // namespace
+
+// File > Save Session As... writes the window's Session to a Session File, and
+// File > Open Session... opens it in a new window: the Log Files in their
+// order, the tab in front, each where it stood, with its tab name and group,
+// and one from an archive decompressed again. A Log File open already stays
+// where it is; when none can be opened, the notice alone shows (#576).
+SCENARIO( "A window's Session saves to a Session File and opens from it in a new window",
+          "[ui][session][file]" )
+{
+    const auto windowId = QStringLiteral( "mainwindow_load_test_window_576" );
+    const auto openerId = QStringLiteral( "mainwindow_load_test_window_576_opener" );
+    const auto openedId = QStringLiteral( "mainwindow_load_test_window_576_opened" );
+    const KeptTabLabels keptLabels;
+
+    QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+    const auto logPath = [ &folder ]( const QString& name ) {
+        const auto path
+            = QDir::cleanPath( QFileInfo( folder.filePath( name ) ).absoluteFilePath() );
+        QFile file( path );
+        REQUIRE( file.open( QIODevice::WriteOnly ) );
+        for ( auto line = 0; line < 3000; ++line ) {
+            file.write( QByteArray( "Log Line " ) + QByteArray::number( line ) + '\n' );
+        }
+        return path;
+    };
+    const auto firstPath = logPath( "first.log" );
+    const auto secondPath = logPath( "second.log" );
+    const auto archivePath = folder.filePath( "archived.log.gz" );
+    {
+        KCompressionDevice archive( archivePath, KCompressionDevice::GZip );
+        REQUIRE( archive.open( QIODevice::WriteOnly ) );
+        archive.write( "archived Log Line\n" );
+    }
+    const ArchiveMember member{ archivePath, { QString{} } };
+    const auto sessionPath = folder.filePath( "incident.logsquirl-session" );
+
+    TabNameMapping::getSynced().setTabName( firstPath, "Alpha" ).save();
+    auto& groups = TabGroupInfo::getSynced();
+    groups.addTabToGroup( groups.addGroup( "Session576", QColor( "#3a7bd5" ) ), secondPath );
+    groups.save();
+
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    const StoredSessionWindow stored{ windowId,
+                                      { { firstPath, QString{} },
+                                        { folder.filePath( "archived.log.AbCdEf" ), QString{},
+                                          member },
+                                        { secondPath, R"({"S":[400,100],"SP":1200})" } },
+                                      2 };
+    WindowSession windowSession{ appSession, windowId, 0 };
+    WindowSession openerSession{ appSession, openerId, 1 };
+    WindowSession openedSession{ appSession, openedId, 2 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    std::unique_ptr<MainWindow> opener;
+    std::unique_ptr<MainWindow> opened;
+    QTimer::singleShot( 0, [ & ] {
+        mainWindow.reset( new MainWindow( windowSession, plugins ) );
+        opener.reset( new MainWindow( openerSession, plugins ) );
+    } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    REQUIRE( opener != nullptr );
+    mainWindow->show();
+
+    // The new window the application would open for a Session File.
+    int windowsAskedFor = 0;
+    QObject::connect( opener.get(), &MainWindow::sessionFileOpened,
+                      [ & ]( const SessionFileRead& read ) {
+                          ++windowsAskedFor;
+                          opened.reset( new MainWindow( openedSession, plugins ) );
+                          opened->restoreSessionFile( read );
+                          opened->show();
+                      } );
+
+    // Whatever a window says is kept and closed.
+    QStringList messages;
+    QTimer messageDriver;
+    QObject::connect( &messageDriver, &QTimer::timeout, [ &messages ] {
+        if ( auto* box = qobject_cast<QMessageBox*>( QApplication::activeModalWidget() ) ) {
+            messages.append( box->text() );
+            box->reject();
+        }
+    } );
+    messageDriver.start( 10 );
+
+    mainWindow->reloadSession();
+    REQUIRE( waitForArchiveRestores( *mainWindow ) );
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    REQUIRE( tabArea->logFileTabs().size() == 3 );
+
+    THEN( "the File menu offers both, and each can be given a shortcut" )
+    {
+        REQUIRE( windowAction( *mainWindow, "Open Session..." ) != nullptr );
+        REQUIRE( windowAction( *mainWindow, "Save Session As..." ) != nullptr );
+        const auto& shortcuts = ShortcutAction::defaultShortcutList();
+        REQUIRE( shortcuts.contains( ShortcutAction::MainWindowOpenSession ) );
+        REQUIRE( shortcuts.contains( ShortcutAction::MainWindowSaveSessionAs ) );
+    }
+
+    WHEN( "the window's Session is saved to a Session File" )
+    {
+        REQUIRE( mainWindow->saveSessionFile( sessionPath ) );
+        REQUIRE( QFileInfo::exists( sessionPath ) );
+
+        AND_WHEN( "it is opened while its Log Files are open in the window" )
+        {
+            opener->openSessionFile( sessionPath );
+
+            THEN( "no window opens, and the notice names the Log Files" )
+            {
+                REQUIRE( waitUiState( [ & ] { return !messages.isEmpty(); }, 5000 ) );
+                REQUIRE( windowsAskedFor == 0 );
+                REQUIRE( messages.front().contains( QDir::toNativeSeparators( firstPath ) ) );
+            }
+        }
+
+        AND_WHEN( "the window is closed and the Session File opened" )
+        {
+            appSession->setExitRequested( true );
+            mainWindow->close();
+            appSession->setExitRequested( false );
+            mainWindow.reset();
+            // What the tabs are named and grouped in comes from the file.
+            TabNameMapping::getSynced().setTabName( firstPath, QString{} ).save();
+            TabGroupInfo::getSynced().removeTabFromGroup( secondPath ).save();
+
+            opener->openSessionFile( sessionPath );
+            REQUIRE( windowsAskedFor == 1 );
+            REQUIRE( opened != nullptr );
+            REQUIRE( waitForArchiveRestores( *opened ) );
+            auto* openedTabs = opened->findChild<TabbedCrawlerWidget*>();
+            REQUIRE( openedTabs != nullptr );
+            const auto tabs = openedTabs->logFileTabs();
+
+            THEN( "a new window shows its Log Files in order, the saved tab in front where it "
+                  "stood, with their names and groups, and nothing is said" )
+            {
+                REQUIRE( tabs.size() == 3 );
+                const auto pathOf = [ openedTabs ]( int index ) {
+                    return QDir::fromNativeSeparators( openedTabs->tabToolTip( index ) );
+                };
+                REQUIRE( pathOf( tabs[ 0 ] ) == firstPath );
+                REQUIRE( QFileInfo( pathOf( tabs[ 1 ] ) ).fileName().startsWith( "archived.log" ) );
+                REQUIRE( pathOf( tabs[ 2 ] ) == secondPath );
+                REQUIRE( openedTabs->currentIndex() == tabs[ 2 ] );
+                REQUIRE( openedTabs->tabText( tabs[ 0 ] ) == "Alpha" );
+                const auto group = openedTabs->groupOfTab( tabs[ 2 ] );
+                REQUIRE( group.has_value() );
+                REQUIRE( group->name == "Session576" );
+                REQUIRE( group->color == QColor( "#3a7bd5" ) );
+
+                auto* front = qobject_cast<CrawlerWidget*>( openedTabs->widget( tabs[ 2 ] ) );
+                REQUIRE( front != nullptr );
+                const auto& textView = LoadAccess::textView( *front );
+                REQUIRE(
+                    waitUiState( [ & ] { return textView.getTopLine() == 1200_lnum; }, 10000 ) );
+                QTest::qWait( 50 );
+                REQUIRE( messages.isEmpty() );
+            }
+        }
+    }
+
+    WHEN( "a file that is not a Session File is opened" )
+    {
+        const auto notSession = folder.filePath( "not.logsquirl-session" );
+        {
+            QFile file( notSession );
+            REQUIRE( file.open( QIODevice::WriteOnly ) );
+            file.write( R"({"format":"something-else","version":1})" );
+        }
+        opener->openSessionFile( notSession );
+
+        THEN( "it says so, and no window opens" )
+        {
+            REQUIRE( waitUiState( [ & ] { return !messages.isEmpty(); }, 5000 ) );
+            REQUIRE( messages.front()
+                     == sessionFileErrorText( SessionFileError::NotASessionFile ) );
+            REQUIRE( windowsAskedFor == 0 );
+        }
+    }
+
+    messageDriver.stop();
+    opened.reset();
+    opener.reset();
+    mainWindow.reset();
+    auto& left = SessionInfo::getSynced();
+    for ( const auto& id : { windowId, openerId, openedId } ) {
+        left.remove( id );
+    }
+    left.save();
 }

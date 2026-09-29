@@ -51,6 +51,8 @@ struct ShortcutAction {
 
     static constexpr auto MainWindowOpenFile = "mainwindow.open_file";
     static constexpr auto MainWindowNewWindow = "mainwindow.new_window";
+    static constexpr auto MainWindowOpenSession = "mainwindow.open_session";
+    static constexpr auto MainWindowSaveSessionAs = "mainwindow.save_session_as";
     static constexpr auto MainWindowCloseFile = "mainwindow.close_file";
     static constexpr auto MainWindowCloseAll = "mainwindow.close_all";
     static constexpr auto MainWindowQuit = "mainwindow.quit";

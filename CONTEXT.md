@@ -502,6 +502,18 @@ tab names and the tab groups know such a Log File by its archive and member too,
 its temporary file.
 _Avoid_: workspace, project, layout
 
+**Session File**:
+One window's Session saved to a file the user picks (`.logsquirl-session`, JSON) and opened
+again in a new window: its Log Files in tab order, the tab in front, each one's view state,
+and their tab names and groups — the same window snapshot the automatic Session saves and
+restores, plus the names and groups. Transient Log Files are not in it; one decompressed
+from an archive is, with its archive and member. Every Log File is written with its absolute
+path and its path relative to the Session File's folder, and opening tries both, so a
+folder of logs and its Session File still opens once moved. A Log File that is missing or
+already open in another window is left out and named. Window geometry and the search
+pattern are not part of it.
+_Avoid_: workspace file, project file, saved layout
+
 **Transient Log File**:
 A Log File that exists only while the application runs: the spool of standard input, the
 file of a merged tab, what a data source writes, the text pasted from the clipboard, a file
