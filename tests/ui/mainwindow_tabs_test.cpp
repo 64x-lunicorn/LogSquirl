@@ -63,6 +63,7 @@
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "filewatcher.h"
+#include "instancehandover.h"
 #include "loadingstatus.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
@@ -1378,8 +1379,10 @@ SCENARIO( "Standard input handed over by another instance opens in a stdin tab, 
     const auto second = handedOverSpool( "a\n" );
     REQUIRE( first != second );
 
+    // The name a secondary instance sends is the tab's, "stdin" when it sent
+    // none.
     window.mainWindow->openHandedOverStandardInput( first );
-    window.mainWindow->openHandedOverStandardInput( second );
+    window.mainWindow->openHandedOverStandardInput( second, "stdin" );
 
     REQUIRE( waitUiState( [ & ] { return tabsTitled( *window.tabArea, "stdin" ).size() == 2; },
                           UiTimeoutMs ) );
@@ -1387,6 +1390,9 @@ SCENARIO( "Standard input handed over by another instance opens in a stdin tab, 
     REQUIRE( spoolOf( window, tabs[ 0 ] ) == first );
     REQUIRE( spoolOf( window, tabs[ 1 ] ) == second );
     REQUIRE( window.tabArea->holdsTransientLogFile( tabs[ 0 ] ) );
+    // The secondary instances are told the spool files were taken over.
+    REQUIRE( QFileInfo::exists( spoolAdoptionMarker( first ) ) );
+    REQUIRE( QFileInfo::exists( spoolAdoptionMarker( second ) ) );
     // The last one handed over is in front.
     REQUIRE( window.tabArea->currentIndex() == tabs[ 1 ] );
 
@@ -1402,11 +1408,13 @@ SCENARIO( "Standard input handed over by another instance opens in a stdin tab, 
     {
         Q_EMIT window.tabArea->tabCloseRequested( tabs[ 0 ] );
 
-        THEN( "its spool file and folder are removed, and the other tab keeps its own" )
+        THEN( "its spool file, marker and folder are removed, and the other tab keeps its own" )
         {
             REQUIRE( waitUiState( [ & ] { return !QFileInfo::exists( first ); }, UiTimeoutMs ) );
+            REQUIRE_FALSE( QFileInfo::exists( spoolAdoptionMarker( first ) ) );
             REQUIRE_FALSE( QFileInfo::exists( QFileInfo( first ).absolutePath() ) );
             REQUIRE( QFileInfo::exists( second ) );
+            REQUIRE( QFileInfo::exists( spoolAdoptionMarker( second ) ) );
         }
     }
 
@@ -1426,13 +1434,14 @@ SCENARIO( "A handed-over file that is no spool of standard input opens but is no
     file.write( "keep me\n" );
     file.close();
 
-    window.mainWindow->openHandedOverStandardInput( path );
-    REQUIRE( waitUiState( [ & ] { return tabsTitled( *window.tabArea, "stdin" ).size() == 1; },
+    window.mainWindow->openHandedOverStandardInput( path, "journal" );
+    REQUIRE( waitUiState( [ & ] { return tabsTitled( *window.tabArea, "journal" ).size() == 1; },
                           UiTimeoutMs ) );
 
-    Q_EMIT window.tabArea->tabCloseRequested( tabsTitled( *window.tabArea, "stdin" ).front() );
+    Q_EMIT window.tabArea->tabCloseRequested( tabsTitled( *window.tabArea, "journal" ).front() );
     QTest::qWait( 200 );
     REQUIRE( QFileInfo::exists( path ) );
+    REQUIRE_FALSE( QFileInfo::exists( spoolAdoptionMarker( path ) ) );
 }
 
 #endif

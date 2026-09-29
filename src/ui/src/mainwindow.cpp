@@ -613,16 +613,18 @@ void MainWindow::openStandardInput()
                        tr( "Standard input\n%1" ).arg( filePath ) );
 }
 
-void MainWindow::openHandedOverStandardInput( const QString& spoolPath )
+void MainWindow::openHandedOverStandardInput( const QString& spoolPath,
+                                              const QString& displayName )
 {
+    const auto title = displayName.isEmpty() ? tr( "stdin" ) : displayName;
     const auto toolTip = tr( "Standard input\n%1" ).arg( QDir::toNativeSeparators( spoolPath ) );
     if ( isStandardInputSpool( spoolPath ) ) {
-        openCommandSource( CommandSource::adoptSpoolFile( spoolPath ), tr( "stdin" ), toolTip );
+        openCommandSource( CommandSource::adoptSpoolFile( spoolPath ), title, toolTip );
     }
     else {
         // Not a file this window may remove: opened, and left where it is.
         LOG_WARNING << "Handed over as standard input, but no spool file: " << spoolPath;
-        mainTabWidget_.setOpeningTitle( spoolPath, tr( "stdin" ), toolTip );
+        mainTabWidget_.setOpeningTitle( spoolPath, title, toolTip );
         if ( !loadFile( spoolPath, true, LogFileLifetime::Transient ) ) {
             mainTabWidget_.setOpeningTitle( spoolPath, {} );
         }

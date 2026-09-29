@@ -59,9 +59,11 @@ QByteArray contentOf( const QString& path )
     return file.readAll();
 }
 
-// Removes a spool file the test was handed, and its folder.
+// Removes a spool file the test was handed, with the marker of its adoption,
+// and its folder.
 void removeSpool( const QString& path )
 {
+    QFile::remove( spoolAdoptionMarker( path ) );
     QFile::remove( path );
     QDir().rmdir( QFileInfo( path ).absolutePath() );
 }
@@ -83,18 +85,19 @@ bool eventually( Condition&& condition )
 TEST_CASE( "A hand-over message carries the Log Files and the spool of standard input",
            "[handover]" )
 {
-    const HandOver sent{ { "/logs/a.log", "/logs/b.log" }, "/tmp/logsquirl-x/stream.log" };
+    const HandOver sent{ { "/logs/a.log", "/logs/b.log" }, "/tmp/logsquirl-x/stream.log", "stdin" };
 
     const auto received = readHandOverMessage( handOverMessage( sent, Version ), Version );
 
     REQUIRE( received.has_value() );
     CHECK( received->files == sent.files );
     CHECK( received->standardInputSpool == sent.standardInputSpool );
+    CHECK( received->standardInputName == "stdin" );
 }
 
 TEST_CASE( "A hand-over without standard input is the message of before #623", "[handover]" )
 {
-    const auto message = handOverMessage( HandOver{ { "/logs/a.log" }, {} }, Version );
+    const auto message = handOverMessage( HandOver{ { "/logs/a.log" }, {}, {} }, Version );
     const auto map = QCborValue::fromCbor( message ).toMap();
 
     CHECK( map.size() == 2 );
@@ -114,11 +117,41 @@ TEST_CASE( "A hand-over message from before #623 has no standard input", "[hando
     REQUIRE( received.has_value() );
     CHECK( received->files == std::vector<QString>{ "/logs/a.log" } );
     CHECK( received->standardInputSpool.isEmpty() );
+    CHECK( received->standardInputName.isEmpty() );
+}
+
+TEST_CASE( "A hand-over of standard input without its name, from an earlier build, is read",
+           "[handover]" )
+{
+    QCborMap earlier;
+    earlier.insert( QStringLiteral( "version" ), Version );
+    earlier.insert( QStringLiteral( "files" ), QCborArray{} );
+    earlier.insert( QStringLiteral( "stdinSpool" ), QStringLiteral( "/tmp/x/stream.log" ) );
+
+    const auto received = readHandOverMessage( earlier.toCborValue().toCbor(), Version );
+
+    REQUIRE( received.has_value() );
+    CHECK( received->standardInputSpool == "/tmp/x/stream.log" );
+    CHECK( received->standardInputName.isEmpty() );
+}
+
+TEST_CASE( "The marker of a spool file taken over is next to it", "[handover]" )
+{
+    StreamWriter writer( "stdin" );
+    REQUIRE_FALSE( writer.filePath().isEmpty() );
+    const auto marker = spoolAdoptionMarker( writer.filePath() );
+    CHECK( QFileInfo( marker ).absolutePath() == QFileInfo( writer.filePath() ).absolutePath() );
+    CHECK_FALSE( QFileInfo::exists( marker ) );
+
+    REQUIRE( markSpoolAdopted( writer.filePath() ) );
+    CHECK( QFileInfo::exists( marker ) );
+    // It does not make the file any less a spool of standard input.
+    CHECK( isStandardInputSpool( writer.filePath() ) );
 }
 
 TEST_CASE( "A hand-over message from another version is not read", "[handover]" )
 {
-    const auto message = handOverMessage( HandOver{ { "/logs/a.log" }, "/tmp/x/stream.log" },
+    const auto message = handOverMessage( HandOver{ { "/logs/a.log" }, "/tmp/x/stream.log", "stdin" },
                                           QStringLiteral( "26.10.0" ) );
 
     CHECK_FALSE( readHandOverMessage( message, Version ).has_value() );
@@ -175,8 +208,11 @@ TEST_CASE( "A secondary instance hands standard input over and writes it as it a
             if ( handOver ) {
                 spool = handOver->standardInputSpool;
                 sentBeforeInput = handOver->files == std::vector<QString>{ "/logs/a.log" }
+                                  && handOver->standardInputName == "stdin"
                                   && QFileInfo::exists( spool );
                 spoolKnown = true;
+                // As the primary instance does when it takes the file over.
+                markSpoolAdopted( spool );
             }
             return true;
         },
@@ -223,6 +259,78 @@ TEST_CASE( "A secondary instance that cannot hand standard input over says so an
     REQUIRE_FALSE( spool.isEmpty() );
     CHECK_FALSE( QFileInfo::exists( spool ) );
     CHECK_FALSE( QFileInfo::exists( QFileInfo( spool ).absolutePath() ) );
+}
+
+// A primary instance of another version drops the message: nothing takes the
+// spool file over, and standard input would be lost without a word (#623).
+TEST_CASE( "A secondary instance whose spool file is not taken over says so and leaves no "
+           "spool file",
+           "[handover]" )
+{
+    int fds[ 2 ];
+    REQUIRE( ::pipe( fds ) == 0 );
+    REQUIRE( ::write( fds[ 1 ], "1\n", 2 ) == 2 );
+
+    QString spool;
+    std::ostringstream errors;
+    const auto exitCode = handOverStandardInput(
+        {}, fds[ 0 ], Version,
+        [ & ]( const QByteArray& message ) {
+            if ( const auto handOver = readHandOverMessage( message, Version ) ) {
+                spool = handOver->standardInputSpool;
+            }
+            return true;
+        },
+        errors, HandOverWaits{ std::chrono::milliseconds( 200 ), std::chrono::milliseconds( 50 ) } );
+    ::close( fds[ 1 ] );
+    ::close( fds[ 0 ] );
+
+    CHECK( exitCode != EXIT_SUCCESS );
+    CHECK_FALSE( errors.str().empty() );
+    REQUIRE_FALSE( spool.isEmpty() );
+    CHECK_FALSE( QFileInfo::exists( spool ) );
+    CHECK_FALSE( QFileInfo::exists( QFileInfo( spool ).absolutePath() ) );
+}
+
+TEST_CASE( "A secondary instance stops reading standard input once its tab is closed",
+           "[handover]" )
+{
+    int fds[ 2 ];
+    REQUIRE( ::pipe( fds ) == 0 );
+
+    QString spool;
+    std::atomic_bool spoolKnown = false;
+    std::atomic_bool tabClosed = false;
+    // Writes a line, and closes the tab -- removes the marker, as the primary
+    // instance does -- once it arrived; the pipe stays open.
+    std::thread primary( [ & ] {
+        const auto written = ::write( fds[ 1 ], "1\n", 2 ) == 2;
+        tabClosed = written && eventually( [ & ] {
+                        return spoolKnown && contentOf( spool ) == "1\n";
+                    } ) && QFile::remove( spoolAdoptionMarker( spool ) );
+    } );
+
+    std::ostringstream errors;
+    const auto exitCode = handOverStandardInput(
+        {}, fds[ 0 ], Version,
+        [ & ]( const QByteArray& message ) {
+            if ( const auto handOver = readHandOverMessage( message, Version ) ) {
+                spool = handOver->standardInputSpool;
+                markSpoolAdopted( spool );
+                spoolKnown = true;
+            }
+            return true;
+        },
+        errors, HandOverWaits{ std::chrono::milliseconds( 5000 ), std::chrono::milliseconds( 50 ) } );
+    primary.join();
+    ::close( fds[ 1 ] );
+    ::close( fds[ 0 ] );
+
+    CHECK( tabClosed );
+    CHECK( exitCode == EXIT_SUCCESS );
+    CHECK( errors.str().empty() );
+    // The primary instance removes the spool file with its tab.
+    removeSpool( spool );
 }
 
 #endif

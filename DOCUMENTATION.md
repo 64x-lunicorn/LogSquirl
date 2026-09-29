@@ -318,11 +318,13 @@ files by clicking them in the file manager.
 
 * When *logsquirl* is already running, what is piped in opens as a `stdin` tab
   in the running window, with the files given beside it. The `logsquirl`
-  process at the end of the pipe keeps reading until the pipe closes and then
-  exits; `Ctrl+C` ends it early, and the tab keeps what arrived until then.
-  Every `… | logsquirl -` opens a tab of its own. If the running *logsquirl*
-  cannot be reached, it says so, exits with a non-zero status and leaves
-  nothing behind. With `--multi`, `-` opens in a window of its own instead.
+  process at the end of the pipe keeps reading until the pipe closes, or its
+  tab is closed, and then exits; `Ctrl+C` ends it early, and the tab keeps what
+  arrived until then. Every `… | logsquirl -` opens a tab of its own. If the
+  running *logsquirl* cannot be reached, or does not take standard input over
+  within 5 s (one of another version does not), it says so, exits with a
+  non-zero status and leaves nothing behind. With `--multi`, `-` opens in a
+  window of its own instead.
 * What arrives is kept in a temporary file in the application's temporary
   directory, and the tab (named `stdin`) follows it like any growing Log File:
   Search and Marks work as they do for a file on disk.

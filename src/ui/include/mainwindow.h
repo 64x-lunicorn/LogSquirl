@@ -133,12 +133,14 @@ public:
     // A window reads it once.
     void openStandardInput();
 
-    // Opens, in a followed `stdin` tab, the spool file a secondary instance
-    // writes what arrives on its standard input to, and brings the window to
-    // the front (#623). The tab owns the file and removes it as it closes --
-    // when the file is a spool of standard input in the temporary folder;
-    // any other file is only opened. Each hand-over is a tab of its own.
-    void openHandedOverStandardInput( const QString& spoolPath );
+    // Opens, in a followed tab named `displayName` -- `stdin` when empty --
+    // the spool file a secondary instance writes what arrives on its standard
+    // input to, and brings the window to the front (#623). The tab owns the
+    // file, tells the secondary instance so (see spoolAdoptionMarker()) and
+    // removes it as it closes -- when the file is a spool of standard input
+    // in the temporary folder; any other file is only opened. Each hand-over
+    // is a tab of its own.
+    void openHandedOverStandardInput( const QString& spoolPath, const QString& displayName = {} );
 
     // Runs the command line through the user's shell and opens its output as
     // a Transient Log File that is followed, titled by the command line

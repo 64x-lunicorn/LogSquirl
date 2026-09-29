@@ -29,6 +29,7 @@
 #include <mutex>
 #include <utility>
 
+#include "instancehandover.h"
 #include "log.h"
 #include "stdinpump.h"
 #include "streamwriter.h"
@@ -322,6 +323,10 @@ std::unique_ptr<CommandSource> CommandSource::adoptSpoolFile( const QString& pat
 {
     std::unique_ptr<CommandSource> source( new CommandSource( Kind::SpoolFile ) );
     source->spoolPath_ = path;
+    // The process that writes it goes on for as long as this is there.
+    if ( !markSpoolAdopted( path ) ) {
+        LOG_WARNING << "Could not mark the spool file " << path << " as taken over";
+    }
     return source;
 }
 
@@ -334,6 +339,9 @@ CommandSource::~CommandSource()
         writer_.reset();
     }
     else if ( kind_ == Kind::SpoolFile && !spoolPath_.isEmpty() ) {
+        // First, so that the process that writes the file stops, and lets go
+        // of it on Windows.
+        QFile::remove( spoolAdoptionMarker( spoolPath_ ) );
         if ( !removeSpoolFile( spoolPath_ ) ) {
             LOG_INFO << "Could not remove the spool file " << spoolPath_ << " yet, will at exit";
             LeftoverSpoolFiles::instance().add( spoolPath_ );

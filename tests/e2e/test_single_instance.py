@@ -110,7 +110,9 @@ def test_piped_standard_input_opens_in_the_running_instance_as_it_arrives(instan
 
         spool = Path(_wait_for_spool_opened(instances, set()))
         _wait_for_content(spool, "1\n")
-        # Still reading for the primary instance.
+        # The primary took the spool file over, and the secondary is still
+        # reading for it.
+        assert (spool.parent / "adopted").exists()
         assert secondary.poll() is None
 
         secondary.stdin.write("2\n3\n4\n5\n")

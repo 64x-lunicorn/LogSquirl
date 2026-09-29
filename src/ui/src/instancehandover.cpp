@@ -25,8 +25,12 @@
 #include <QDir>
 #include <QFileInfo>
 
+#include <QFile>
+
 #include <cstdlib>
 #include <future>
+#include <optional>
+#include <thread>
 
 #include "log.h"
 #include "stdinpump.h"
@@ -37,6 +41,12 @@ namespace {
 const auto VersionKey = QStringLiteral( "version" );
 const auto FilesKey = QStringLiteral( "files" );
 const auto StandardInputSpoolKey = QStringLiteral( "stdinSpool" );
+const auto StandardInputNameKey = QStringLiteral( "stdinName" );
+
+// The name the primary instance gives the marker of a spool file it took over.
+const auto AdoptionMarkerName = QStringLiteral( "adopted" );
+// How often a secondary instance looks for the marker while it waits for it.
+constexpr std::chrono::milliseconds AdoptionPollInterval{ 20 };
 
 // The name StreamWriter gives the file in its folder.
 const auto SpoolFileName = QStringLiteral( "stream.log" );
@@ -55,6 +65,7 @@ QByteArray handOverMessage( const HandOver& handOver, const QString& version )
     message.insert( FilesKey, files );
     if ( !handOver.standardInputSpool.isEmpty() ) {
         message.insert( StandardInputSpoolKey, handOver.standardInputSpool );
+        message.insert( StandardInputNameKey, handOver.standardInputName );
     }
     return message.toCborValue().toCbor();
 }
@@ -75,6 +86,7 @@ std::optional<HandOver> readHandOverMessage( const QByteArray& message, const QS
         handOver.files.push_back( file.toString() );
     }
     handOver.standardInputSpool = map.value( StandardInputSpoolKey ).toString();
+    handOver.standardInputName = map.value( StandardInputNameKey ).toString();
     return handOver;
 }
 
@@ -93,8 +105,20 @@ bool isStandardInputSpool( const QString& path )
            == temporaryFolder.canonicalFilePath();
 }
 
+QString spoolAdoptionMarker( const QString& spoolPath )
+{
+    return QFileInfo( spoolPath ).absoluteDir().filePath( AdoptionMarkerName );
+}
+
+bool markSpoolAdopted( const QString& spoolPath )
+{
+    QFile marker( spoolAdoptionMarker( spoolPath ) );
+    return marker.open( QIODevice::WriteOnly );
+}
+
 int handOverStandardInput( const std::vector<QString>& files, int fd, const QString& version,
-                           const SendToPrimaryInstance& send, std::ostream& errors )
+                           const SendToPrimaryInstance& send, std::ostream& errors,
+                           const HandOverWaits& waits )
 {
     logsquirl::plugins::StreamWriter writer( QStringLiteral( "stdin" ) );
     const auto spool = writer.filePath();
@@ -103,21 +127,48 @@ int handOverStandardInput( const std::vector<QString>& files, int fd, const QStr
         return EXIT_FAILURE;
     }
 
+    constexpr auto CannotHandOver
+        = "logsquirl: could not hand standard input over to the running logsquirl. "
+          "'logsquirl --multi -' opens it in a window of its own.\n";
+
     LOG_INFO << "Handing over " << files.size() << " file(s) and standard input, spooled to "
              << spool << ", to the primary instance";
-    if ( !send( handOverMessage( HandOver{ files, spool }, version ) ) ) {
+    if ( !send( handOverMessage( HandOver{ files, spool, writer.displayName() }, version ) ) ) {
         // The writer removes the spool file as it goes.
-        errors << "logsquirl: could not hand standard input over to the running logsquirl. "
-                  "'logsquirl --multi -' opens it in a window of its own.\n";
+        errors << CannotHandOver;
         return EXIT_FAILURE;
     }
-    writer.keepFile();
 
     std::promise<void> closed;
     auto inputClosed = closed.get_future();
-    {
-        const logsquirl::plugins::StdinPump pump( fd, writer, [ &closed ] { closed.set_value(); } );
-        inputClosed.wait();
+    // Read at once, so that the writer is not held up while the primary
+    // instance gets to the message.
+    std::optional<logsquirl::plugins::StdinPump> pump;
+    pump.emplace( fd, writer, [ &closed ] { closed.set_value(); } );
+
+    // The primary instance takes the spool file over, or drops the message.
+    const auto marker = spoolAdoptionMarker( spool );
+    const auto adoptionDeadline = std::chrono::steady_clock::now() + waits.adoption;
+    while ( !QFileInfo::exists( marker ) ) {
+        if ( std::chrono::steady_clock::now() >= adoptionDeadline ) {
+            LOG_ERROR << "The primary instance did not take " << spool << " over";
+            pump.reset();
+            // The writer removes the spool file as it goes.
+            errors << CannotHandOver;
+            return EXIT_FAILURE;
+        }
+        std::this_thread::sleep_for( AdoptionPollInterval );
     }
+    writer.keepFile();
+
+    // Until standard input closes, or its tab does: nobody reads the spool
+    // file then, which would only grow.
+    while ( inputClosed.wait_for( waits.adoptionCheck ) != std::future_status::ready ) {
+        if ( !QFileInfo::exists( marker ) ) {
+            LOG_INFO << "The tab of " << spool << " was closed, standard input is no longer read";
+            break;
+        }
+    }
+    pump.reset();
     return EXIT_SUCCESS;
 }
