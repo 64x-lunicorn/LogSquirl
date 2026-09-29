@@ -1075,22 +1075,22 @@ Without a date, %1 is used.</source>
         <translation>切換表格檢視</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2012"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2019"/>
         <source>Group %1</source>
         <translation>群組 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2013"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2020"/>
         <source>Group %1 (%2)</source>
         <translation>群組 %1（%2）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2041"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2048"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>「%2」的群組 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2505"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2512"/>
         <source>Toggle table/text view (%1)</source>
         <translation>切換表格/文字檢視（%1）</translation>
     </message>
@@ -1120,12 +1120,12 @@ Without a date, %1 is used.</source>
         <translation>磁碟上的檔案已被截斷</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2384"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2391"/>
         <source>Displayed as %1</source>
         <translation>顯示為 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2384"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2391"/>
         <source>Detected as %1</source>
         <translation>偵測為 %1</translation>
     </message>
@@ -1192,6 +1192,34 @@ Without a date, %1 is used.</source>
         <location filename="../../ui/src/csvexportdialog.cpp" line="98"/>
         <source>Export...</source>
         <translation>匯出...</translation>
+    </message>
+</context>
+<context>
+    <name>FilteredView</name>
+    <message>
+        <location filename="../../ui/src/filteredview.cpp" line="99"/>
+        <source>Line</source>
+        <translation>行號</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filteredview.cpp" line="100"/>
+        <source>Type</source>
+        <translation>類型</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filteredview.cpp" line="113"/>
+        <source>All shown lines</source>
+        <translation>所有顯示的行</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filteredview.cpp" line="114"/>
+        <source>Selected lines</source>
+        <translation>所選行</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filteredview.cpp" line="117"/>
+        <source>Include Context Lines</source>
+        <translation>包含前後文行</translation>
     </message>
 </context>
 <context>
@@ -1644,7 +1672,7 @@ Without a date, %1 is used.</source>
         <translation>計算值</translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="1082"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1080"/>
         <source>Line</source>
         <translation>行號</translation>
     </message>

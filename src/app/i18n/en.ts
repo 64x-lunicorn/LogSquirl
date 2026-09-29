@@ -1075,22 +1075,22 @@ Without a date, %1 is used.</translation>
         <translation>Toggle table view</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2012"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2019"/>
         <source>Group %1</source>
         <translation>Group %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2013"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2020"/>
         <source>Group %1 (%2)</source>
         <translation>Group %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2041"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2048"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>group %1 of &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2505"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2512"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Toggle table/text view (%1)</translation>
     </message>
@@ -1120,12 +1120,12 @@ Without a date, %1 is used.</translation>
         <translation>File truncated on disk</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2384"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2391"/>
         <source>Displayed as %1</source>
         <translation>Displayed as %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2384"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2391"/>
         <source>Detected as %1</source>
         <translation>Detected as %1</translation>
     </message>
@@ -1192,6 +1192,34 @@ Without a date, %1 is used.</translation>
         <location filename="../../ui/src/csvexportdialog.cpp" line="98"/>
         <source>Export...</source>
         <translation>Export...</translation>
+    </message>
+</context>
+<context>
+    <name>FilteredView</name>
+    <message>
+        <location filename="../../ui/src/filteredview.cpp" line="99"/>
+        <source>Line</source>
+        <translation>Line</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filteredview.cpp" line="100"/>
+        <source>Type</source>
+        <translation>Type</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filteredview.cpp" line="113"/>
+        <source>All shown lines</source>
+        <translation>All shown lines</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filteredview.cpp" line="114"/>
+        <source>Selected lines</source>
+        <translation>Selected lines</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filteredview.cpp" line="117"/>
+        <source>Include Context Lines</source>
+        <translation>Include Context Lines</translation>
     </message>
 </context>
 <context>
@@ -1644,7 +1672,7 @@ Without a date, %1 is used.</translation>
         <translation>Count values</translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="1082"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1080"/>
         <source>Line</source>
         <translation>Line</translation>
     </message>
