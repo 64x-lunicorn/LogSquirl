@@ -200,6 +200,10 @@ TEST_CASE( "A spool file handed over is removed with its Command Source", "[comm
 TEST_CASE( "A spool file handed over that cannot be removed yet is removed later",
            "[commandsource]" )
 {
+    if ( ::geteuid() == 0 ) {
+        SKIP( "root removes files from a folder without write permission" );
+    }
+
     QTemporaryDir directory;
     REQUIRE( directory.isValid() );
     const auto folder = directory.filePath( "spool" );
@@ -209,12 +213,11 @@ TEST_CASE( "A spool file handed over that cannot be removed yet is removed later
     REQUIRE( file.open( QIODevice::WriteOnly ) );
     file.close();
 
-    const auto writable = QFile::permissions( folder );
-    REQUIRE( QFile::setPermissions( folder, QFileDevice::ReadOwner | QFileDevice::ExeOwner ) );
-    CommandSource::adoptSpoolFile( path ).reset();
-    const auto keptWhileLocked = QFileInfo::exists( path );
-    REQUIRE( QFile::setPermissions( folder, writable ) );
-    CHECK( keptWhileLocked );
+    {
+        const ReadOnlyFolder locked( folder );
+        CommandSource::adoptSpoolFile( path ).reset();
+        CHECK( QFileInfo::exists( path ) );
+    }
 
     CommandSource::removeLeftoverSpoolFiles();
     CHECK_FALSE( QFileInfo::exists( path ) );
