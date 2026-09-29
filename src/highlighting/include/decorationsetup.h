@@ -83,8 +83,9 @@ public:
     // what it is drawn on -- its ANSI background, else the palette's base --
     // is blended toward the palette's text color until it reaches 3:1, and
     // is that text color at worst. A color left to the line is invalid.
-    logsquirl::vector<HighlightedMatch> ansiColorsFor( const logsquirl::vector<AnsiColorSpan>& spans,
-                                                       const LinePalette& palette ) const;
+    logsquirl::vector<HighlightedMatch>
+    ansiColorsFor( const logsquirl::vector<AnsiColorSpan>& spans,
+                   const LinePalette& palette ) const;
 
     // Point at the QuickFind pattern to color matches of. Not owned: the
     // caller keeps it alive, and its matcher is read afresh for every

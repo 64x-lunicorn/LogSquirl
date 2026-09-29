@@ -1118,12 +1118,10 @@ SCENARIO( "Every Theme gives the 16 basic ANSI colors", "[theme][ansi]" )
         THEN( "they give the SMYCK scheme's colors, in ANSI order" )
         {
             const std::array<QColor, AnsiBasicColorCount> smyck{
-                QColor( "#000000" ), QColor( "#C75646" ), QColor( "#8EB33B" ),
-                QColor( "#D0B03C" ), QColor( "#4E90A7" ), QColor( "#C8A0D1" ),
-                QColor( "#218693" ), QColor( "#B0B0B0" ), QColor( "#5D5D5D" ),
-                QColor( "#E09690" ), QColor( "#CDEE69" ), QColor( "#FFE377" ),
-                QColor( "#9CD9F0" ), QColor( "#FBB1F9" ), QColor( "#77DFD8" ),
-                QColor( "#F7F7F7" ),
+                QColor( "#000000" ), QColor( "#C75646" ), QColor( "#8EB33B" ), QColor( "#D0B03C" ),
+                QColor( "#4E90A7" ), QColor( "#C8A0D1" ), QColor( "#218693" ), QColor( "#B0B0B0" ),
+                QColor( "#5D5D5D" ), QColor( "#E09690" ), QColor( "#CDEE69" ), QColor( "#FFE377" ),
+                QColor( "#9CD9F0" ), QColor( "#FBB1F9" ), QColor( "#77DFD8" ), QColor( "#F7F7F7" ),
             };
             for ( const auto name : { Theme::SmyckKey, Theme::SmyckLightKey } ) {
                 INFO( name.data() );

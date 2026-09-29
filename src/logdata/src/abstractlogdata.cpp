@@ -93,8 +93,8 @@ logsquirl::vector<AnsiColoredText> AbstractLogData::getAnsiColoredLines( LineNum
     return doGetAnsiColoredLines( first_line, number );
 }
 
-logsquirl::vector<AnsiColoredText>
-AbstractLogData::doGetAnsiColoredLines( LineNumber first_line, LinesCount number ) const
+logsquirl::vector<AnsiColoredText> AbstractLogData::doGetAnsiColoredLines( LineNumber first_line,
+                                                                           LinesCount number ) const
 {
     auto lines = doGetLines( first_line, number );
     logsquirl::vector<AnsiColoredText> colored;

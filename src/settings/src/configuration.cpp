@@ -550,8 +550,8 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
     visit( "view.lineNumbersVisibleInFiltered", config.lineNumbersVisibleInFiltered_, true );
     visit( "view.minimizeToTray", config.minimizeToTray_, false );
     visit( "view.contextLinesCount", config.contextLinesCount_, 5 );
-    visit( { "view.ansiColorSequences", "view.hideAnsiColorSequences" },
-           config.ansiColorSequences_, AnsiColorSequences::ShowAsText, knownAnsiColorSequences );
+    visit( { "view.ansiColorSequences", "view.hideAnsiColorSequences" }, config.ansiColorSequences_,
+           AnsiColorSequences::ShowAsText, knownAnsiColorSequences );
     visit( "view.textWrap", config.useTextWrap_, false );
     visit( "view.style", config.style_, QString{}, availableStyle );
     visit( "view.showSplashScreen", config.showSplashScreen_, false );

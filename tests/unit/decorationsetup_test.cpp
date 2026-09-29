@@ -417,9 +417,10 @@ SCENARIO( "A foreground ANSI color too faint to read is moved toward the Theme's
 
         THEN( "the contrast is taken against the ANSI background" )
         {
-            const auto colors = setup.ansiColorsFor(
-                { AnsiColorSpan{ 0, 3, AnsiColor::rgb( 250, 250, 250 ), AnsiColor::rgb( 255, 255, 255 ) } },
-                palette );
+            const auto colors
+                = setup.ansiColorsFor( { AnsiColorSpan{ 0, 3, AnsiColor::rgb( 250, 250, 250 ),
+                                                        AnsiColor::rgb( 255, 255, 255 ) } },
+                                       palette );
             REQUIRE( colors[ 0 ].backColor() == QColor( 255, 255, 255 ) );
             // No blend toward the Theme's white text reaches 3:1 on white:
             // at worst the foreground becomes that text color.
@@ -433,8 +434,8 @@ SCENARIO( "A foreground ANSI color too faint to read is moved toward the Theme's
 
         THEN( "it is left as it is" )
         {
-            const auto colors = setup.ansiColorsFor(
-                { foregroundSpan( AnsiColor::rgb( 0, 0, 180 ) ) }, palette );
+            const auto colors
+                = setup.ansiColorsFor( { foregroundSpan( AnsiColor::rgb( 0, 0, 180 ) ) }, palette );
             REQUIRE( colors[ 0 ].foreColor() == QColor( 0, 0, 180 ) );
         }
     }

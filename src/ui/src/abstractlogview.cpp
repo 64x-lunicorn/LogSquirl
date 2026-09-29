@@ -1301,7 +1301,8 @@ void AbstractLogView::setColorLabels( const std::vector<QStringList>& labels )
 
 void AbstractLogView::setDecorationPolicy( const DecorationPolicy& policy )
 {
-    const bool ansiColorsChanged = policy.showAnsiColors != decorationSetup_.policy().showAnsiColors;
+    const bool ansiColorsChanged
+        = policy.showAnsiColors != decorationSetup_.policy().showAnsiColors;
     decorationSetup_.setPolicy( policy );
     if ( ansiColorsChanged ) {
         // The Log Lines in the Viewport are read again, with their ANSI

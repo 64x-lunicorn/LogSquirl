@@ -1173,8 +1173,7 @@ SCENARIO( "ANSI colors are the Line Decorator's lowest source", "[linedecorator]
     GIVEN( "a plain Log Line with ANSI colors" )
     {
         LineDecorator decorator{ emptyContext() };
-        const auto decoration
-            = decorator.decorate( text, LineVerdict{}, std::nullopt, AnsiColors );
+        const auto decoration = decorator.decorate( text, LineVerdict{}, std::nullopt, AnsiColors );
 
         THEN( "it shows them, and the line's own colors where they leave one unset" )
         {
@@ -1232,11 +1231,11 @@ SCENARIO( "ANSI colors are the Line Decorator's lowest source", "[linedecorator]
     GIVEN( "a Log Line a whole-line Highlighter matches" )
     {
         LineDecorator decorator{ emptyContext() };
-        const LineVerdict verdict{
-            HighlightColor{ QColor{ Qt::white }, QColor{ Qt::red } },
-            LineTypeFlags::Plain,
-            false,
-            { HighlightedMatch{ 0_lcol, 11_length, QColor{ Qt::white }, QColor{ Qt::red } } } };
+        const LineVerdict verdict{ HighlightColor{ QColor{ Qt::white }, QColor{ Qt::red } },
+                                   LineTypeFlags::Plain,
+                                   false,
+                                   { HighlightedMatch{ 0_lcol, 11_length, QColor{ Qt::white },
+                                                       QColor{ Qt::red } } } };
 
         THEN( "it shows the Highlighter's colors, not the ANSI colors" )
         {

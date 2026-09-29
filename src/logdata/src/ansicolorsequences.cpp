@@ -192,8 +192,8 @@ SgrColors applySgr( SgrColors colors, QStringView parameterText )
 
     auto result = colors;
     SgrParameters parameters( parameterText );
-    while ( !parameters.atEnd() ) {
-        const auto code = *parameters.next();
+    for ( auto next = parameters.next(); next.has_value(); next = parameters.next() ) {
+        const auto code = *next;
         if ( code == 0 ) {
             result = {};
         }

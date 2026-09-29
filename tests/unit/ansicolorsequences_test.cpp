@@ -232,8 +232,8 @@ const std::vector<QString> PatternCases{
 // does not: every way a sequence can be almost right is in them.
 std::vector<QString> generatedTexts()
 {
-    const QString alphabet = QString( "\x1B\x1B\x1B[[[0123456789;;::mMkKx \t" ) + QChar( 0x212A )
-                             + QChar( 0x00E9 );
+    const QString alphabet
+        = QString( "\x1B\x1B\x1B[[[0123456789;;::mMkKx \t" ) + QChar( 0x212A ) + QChar( 0x00E9 );
     std::mt19937 random{ 573 };
     std::uniform_int_distribution<int> length( 0, 40 );
     std::uniform_int_distribution<qsizetype> pick( 0, alphabet.size() - 1 );

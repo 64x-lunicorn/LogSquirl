@@ -70,8 +70,9 @@ void appendLogLine( std::uint64_t index, bool colored, std::string& out )
 {
     const auto scrambled = index * 2654435761u;
     const char* level = ( index % 97 == 0 ) ? "ERROR" : ( index % 13 == 0 ) ? "WARN " : "INFO ";
-    const char* levelColor = ( index % 97 == 0 ) ? "\x1B[31m" : ( index % 13 == 0 ) ? "\x1B[33m"
-                                                                                     : "\x1B[32m";
+    const char* levelColor = ( index % 97 == 0 )   ? "\x1B[31m"
+                             : ( index % 13 == 0 ) ? "\x1B[33m"
+                                                   : "\x1B[32m";
     const auto color = [ colored, &out ]( const char* sequence ) {
         if ( colored ) {
             out += sequence;
@@ -184,13 +185,14 @@ bool scrollWithAnsiColors( const Data& logData, double& milliseconds )
 {
     if constexpr ( requires { logData.getAnsiColoredLines( LineNumber( 0 ), LinesCount( 1 ) ); } ) {
         const auto start = Clock::now();
-        const auto characters = scroll( logData, [ &logData ]( LineNumber first, LinesCount count ) {
-            std::uint64_t size = 0;
-            for ( const auto& line : logData.getAnsiColoredLines( first, count ) ) {
-                size += static_cast<std::uint64_t>( line.text.size() ) + line.spans.size();
-            }
-            return size;
-        } );
+        const auto characters
+            = scroll( logData, [ &logData ]( LineNumber first, LinesCount count ) {
+                  std::uint64_t size = 0;
+                  for ( const auto& line : logData.getAnsiColoredLines( first, count ) ) {
+                      size += static_cast<std::uint64_t>( line.text.size() ) + line.spans.size();
+                  }
+                  return size;
+              } );
         milliseconds = millisecondsSince( start );
         return characters > 0;
     }
@@ -260,7 +262,8 @@ TEST_CASE( "loading, scrolling and searching a Log File with ANSI color sequence
             // A regular expression that, with the sequences shown as text,
             // also matches the colored Log Lines: it runs over every one.
             start = Clock::now();
-            const auto matches = search( *logData, QStringLiteral( "ERROR.*handled in 1[0-9] ms" ) );
+            const auto matches
+                = search( *logData, QStringLiteral( "ERROR.*handled in 1[0-9] ms" ) );
             report( fileKind, mode, "search", millisecondsSince( start ) );
             REQUIRE( matches.get() > 0 );
         }

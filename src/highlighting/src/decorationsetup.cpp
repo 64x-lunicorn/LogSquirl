@@ -57,11 +57,11 @@ QColor readableOn( const QColor& foreground, const QColor& background, const QCo
     }
     for ( int step = 1; step < ContrastBlendSteps; ++step ) {
         const auto weight = static_cast<float>( step ) / ContrastBlendSteps;
-        const auto blend = [ weight ]( float from, float to ) { return from + ( to - from ) * weight; };
-        const auto blended
-            = QColor::fromRgbF( blend( foreground.redF(), text.redF() ),
-                                blend( foreground.greenF(), text.greenF() ),
-                                blend( foreground.blueF(), text.blueF() ) );
+        const auto blend
+            = [ weight ]( float from, float to ) { return from + ( to - from ) * weight; };
+        const auto blended = QColor::fromRgbF( blend( foreground.redF(), text.redF() ),
+                                               blend( foreground.greenF(), text.greenF() ),
+                                               blend( foreground.blueF(), text.blueF() ) );
         if ( contrastRatio( blended, background ) >= MinimumAnsiContrast ) {
             return blended;
         }

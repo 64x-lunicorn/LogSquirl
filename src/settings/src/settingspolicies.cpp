@@ -87,12 +87,12 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
         .decoding = { .hideAnsiColorSequences
                       = config.ansiColorSequences() != AnsiColorSequences::ShowAsText },
 
-        .decoration = { .mainSearchHighlight = config.mainSearchHighlight(),
-                        .variateMainSearchHighlight = config.variateMainSearchHighlight(),
-                        .mainSearchBackColor = config.mainSearchBackColor(),
-                        .quickFindBackColor = config.qfBackColor(),
-                        .showAnsiColors
-                        = config.ansiColorSequences() == AnsiColorSequences::ShowColors },
+        .decoration
+        = { .mainSearchHighlight = config.mainSearchHighlight(),
+            .variateMainSearchHighlight = config.variateMainSearchHighlight(),
+            .mainSearchBackColor = config.mainSearchBackColor(),
+            .quickFindBackColor = config.qfBackColor(),
+            .showAnsiColors = config.ansiColorSequences() == AnsiColorSequences::ShowColors },
 
         .presentation = { .useTextWrap = config.useTextWrap(),
                           .fastScrollEnabled = config.fastScrollEnabled(),

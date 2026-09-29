@@ -117,8 +117,8 @@ AnsiColoredText ansiColoredLogLineText( QString&& decodedLine, bool /*hideAnsiCo
 
     // Only a carriage return at the end and byte order marks at the start
     // are trimmed.
-    const auto trimmedAtStart = static_cast<int>( untrimmedSize - parsed.text.size()
-                                                  - ( withCarriageReturn ? 1 : 0 ) );
+    const auto trimmedAtStart
+        = static_cast<int>( untrimmedSize - parsed.text.size() - ( withCarriageReturn ? 1 : 0 ) );
     const auto size = static_cast<int>( parsed.text.size() );
     logsquirl::vector<AnsiColorSpan> spans;
     spans.reserve( parsed.spans.size() );
@@ -185,8 +185,8 @@ logsquirl::vector<Line> decodeRawLines( const RawLines& rawLines, ToLine toLine 
 
     decodedLines.reserve( endOfLines.size() - decodedLines.size() );
     while ( decodedLines.size() < endOfLines.size() ) {
-        decodedLines.push_back(
-            Line{ QStringLiteral( "LOGSQUIRL WARNING: failed to decode some lines before this one" ) } );
+        decodedLines.push_back( Line{
+            QStringLiteral( "LOGSQUIRL WARNING: failed to decode some lines before this one" ) } );
     }
 
     return decodedLines;
@@ -764,10 +764,10 @@ logsquirl::vector<Line> LogData::getSparseLinesFromFile( std::span<const LineNum
                 // reach the next, and a byte order mark starting any of them
                 // is dropped.
                 textDecoder.decoder->resetState();
-                text[ line.request ] = toLine(
-                    textDecoder.decode( line.bytes.data(),
-                                        static_cast<qsizetype>( line.bytes.size() ) ),
-                    line.hideAnsiColorSequences );
+                text[ line.request ]
+                    = toLine( textDecoder.decode( line.bytes.data(),
+                                                  static_cast<qsizetype>( line.bytes.size() ) ),
+                              line.hideAnsiColorSequences );
             }
             isRead[ line.request ] = true;
         } );

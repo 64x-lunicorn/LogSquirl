@@ -1862,8 +1862,9 @@ SCENARIO( "Show colors paints the ANSI colors in the main and the Filtered View"
         {
             crawlerVisitor.showTableView( true );
             auto* table = crawlerVisitor.tableView();
-            REQUIRE( waitUiState(
-                [ table ]() { return table->model() != nullptr && table->model()->rowCount() == 3; } ) );
+            REQUIRE( waitUiState( [ table ]() {
+                return table->model() != nullptr && table->model()->rowCount() == 3;
+            } ) );
             QStringList cells;
             for ( int column = 0; column < table->model()->columnCount(); ++column ) {
                 cells << table->model()->index( 1, column ).data( Qt::DisplayRole ).toString();
