@@ -219,9 +219,10 @@ entry is absent. The dialog differs in these points:
 - **Rows**: *All shown lines*, in the filtered view's order under its current
   mode (matches, marks or both), or *Selected lines*, the selected ones in
   that order.
-- **Include Context Lines**: whether the breadcrumbs are written as well. It
-  is off at first, and can only be checked while the filtered view shows
-  breadcrumbs; unchecked, only matches and marks are written.
+- **Include Context Lines**: whether the context lines around matches and
+  marks, the [breadcrumbs](#breadcrumbs), are written as well. It is off at
+  first, and can only be checked while the filtered view shows them;
+  unchecked, only matches and marks are written.
 - **Columns**: *Line* and **Type** (both unchecked at first), then every
   column of the table view, **Δt** included. *Type* holds `Match`, `Mark`,
   `Match+Mark` or `Context`, always in English, so a spreadsheet can filter
