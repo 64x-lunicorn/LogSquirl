@@ -624,19 +624,16 @@ void MainWindow::openStandardInput()
 
 void MainWindow::openHandedOverStandardInput( const QString& spoolPath, const QString& displayName )
 {
-    const auto title = displayName.isEmpty() ? tr( "stdin" ) : displayName;
-    const auto toolTip = standardInputToolTip( spoolPath );
-    if ( isStandardInputSpool( spoolPath ) ) {
-        openCommandSource( CommandSource::adoptSpoolFile( spoolPath ), title, toolTip );
-    }
-    else {
-        // Not a file this window may remove: opened, and left where it is.
+    if ( !isStandardInputSpool( spoolPath ) ) {
+        // Not a file this window may own and remove. It is not taken over, so
+        // the secondary instance finds no marker, reports the failed hand-over
+        // and removes its file itself.
         LOG_WARNING << "Handed over as standard input, but no spool file: " << spoolPath;
-        mainTabWidget_.setOpeningTitle( spoolPath, title, toolTip );
-        if ( !loadFile( spoolPath, true, LogFileLifetime::Transient ) ) {
-            mainTabWidget_.setOpeningTitle( spoolPath, {} );
-        }
+        return;
     }
+    const auto title = displayName.isEmpty() ? tr( "stdin" ) : displayName;
+    openCommandSource( CommandSource::adoptSpoolFile( spoolPath ), title,
+                       standardInputToolTip( spoolPath ) );
     bringToFront();
 }
 

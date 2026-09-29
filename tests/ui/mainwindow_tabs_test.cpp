@@ -1450,7 +1450,10 @@ SCENARIO( "Standard input handed over by another instance opens in a stdin tab, 
     REQUIRE( waitUiState( [ & ] { return !QFileInfo::exists( second ); }, UiTimeoutMs ) );
 }
 
-SCENARIO( "A handed-over file that is no spool of standard input opens but is not removed",
+// A path the window can't own is not taken over at all: the secondary instance
+// then finds no marker, reports the failed hand-over and removes its own file,
+// instead of stopping half-way under an open tab.
+SCENARIO( "A handed-over file that is no spool of standard input is not taken over",
           "[ui][tabs][command]" )
 {
     TabsWindow window( false );
@@ -1461,13 +1464,12 @@ SCENARIO( "A handed-over file that is no spool of standard input opens but is no
     REQUIRE( file.open( QIODevice::WriteOnly ) );
     file.write( "keep me\n" );
     file.close();
+    const auto tabsBefore = window.tabArea->count();
 
     window.mainWindow->openHandedOverStandardInput( path, "journal" );
-    REQUIRE( waitUiState( [ & ] { return tabsTitled( *window.tabArea, "journal" ).size() == 1; },
-                          UiTimeoutMs ) );
-
-    Q_EMIT window.tabArea->tabCloseRequested( tabsTitled( *window.tabArea, "journal" ).front() );
     QTest::qWait( 200 );
+
+    REQUIRE( window.tabArea->count() == tabsBefore );
     REQUIRE( QFileInfo::exists( path ) );
     REQUIRE_FALSE( QFileInfo::exists( spoolAdoptionMarker( path ) ) );
 }
