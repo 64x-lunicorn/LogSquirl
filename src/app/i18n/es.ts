@@ -2477,222 +2477,217 @@ Sin fecha, se usa %1.</translation>
         <translation>Varios</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="476"/>
-        <source>Hide ANSI Colors (search performance will be reduced)</source>
-        <translation>Ocultar colores ANSI (el rendimiento de búsqueda se reducirá)</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="486"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="522"/>
         <source>Enable fast scrolling with Alt key</source>
         <translation>Habilitar desplazamiento rápido con la tecla Alt</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="495"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="531"/>
         <source>Fast scroll multiplier</source>
         <translation>Multiplicador de desplazamiento rápido</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="519"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="555"/>
         <source>Context lines around matches (0 = off)</source>
         <translation>Líneas de contexto alrededor de las coincidencias (0 = desactivado)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="558"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="594"/>
         <source>File</source>
         <translation>Archivo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="564"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="600"/>
         <source>File change monitoring</source>
         <translation>Monitoreo de cambios de archivo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="570"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="606"/>
         <source>Enable filesystem change monitoring</source>
         <translation>Habilitar monitoreo de cambios del sistema de archivos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="577"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="613"/>
         <source>Enable polling</source>
         <translation>Habilitar sondeo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="586"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="622"/>
         <source>Polling interval (ms):</source>
         <translation>Intervalo de sondeo (ms):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="608"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="644"/>
         <source>Use fast modification detection</source>
         <translation>Usar detección rápida de modificaciones</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="615"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="651"/>
         <source>Turn on follow on scroll past the end</source>
         <translation>Activar seguimiento al desplazar más allá del final</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="625"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="661"/>
         <source>Encoding</source>
         <translation>Codificación</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="633"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="669"/>
         <source>Encoding for new files</source>
         <translation>Codificación para nuevos archivos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="657"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="693"/>
         <source>Recent files</source>
         <translation>Archivos recientes</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="671"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="707"/>
         <source>Show the number of recently opened files:</source>
         <translation>Mostrar la cantidad de archivos abiertos recientemente:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="693"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="729"/>
         <source>Archives</source>
         <translation>Archivos comprimidos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="699"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="735"/>
         <source>Extract archives</source>
         <translation>Extraer archivos comprimidos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="706"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="742"/>
         <source>Extract archives without confirmation</source>
         <translation>Extraer archivos comprimidos sin confirmación</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="716"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="752"/>
         <source>File download</source>
         <translation>Descarga de archivos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="722"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="758"/>
         <source>Verify certificates for https connections</source>
         <translation>Verificar certificados para conexiones HTTPS</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="749"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="785"/>
         <source>Shortcuts</source>
         <translation>Atajos de teclado</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="783"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="819"/>
         <source>Restore defaults</source>
         <translation>Restablecer valores predeterminados</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="796"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="832"/>
         <source>Advanced</source>
         <translation>Avanzado</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="802"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="838"/>
         <source>Indexing and search</source>
         <translation>Indexación y búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="812"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="848"/>
         <source>Regular expressions engine:</source>
         <translation>Motor de expresiones regulares:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="877"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="913"/>
         <source>Keep file closed (file reload required)</source>
         <translation>Mantener el archivo cerrado (requiere recargar el archivo)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="884"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="920"/>
         <source>Use compressed index (file reload required)</source>
         <translation>Usar índice comprimido (requiere recargar el archivo)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="894"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="930"/>
         <source>Use parallel search</source>
         <translation>Usar búsqueda paralela</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1057"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1093"/>
         <source>Team Folder</source>
         <translation>Carpeta de equipo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1063"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1099"/>
         <source>Share Filter Groups with the team through a Team Folder</source>
         <translation>Compartir grupos de filtros con el equipo mediante una carpeta de equipo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1072"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1108"/>
         <source>Repository URL:</source>
         <translation>URL del repositorio:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1082"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1118"/>
         <source>https://… or git@…</source>
         <translation>https://… o git@…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1089"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1125"/>
         <source>Subfolder:</source>
         <translation>Subcarpeta:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1099"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1135"/>
         <source>The repository&apos;s top folder</source>
         <translation>La carpeta superior del repositorio</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1108"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1144"/>
         <source>LogSquirl clones the repository into its own data folder with the Git installed on this computer, and signs in the way Git does for you. Turning the Team Folder off or changing the repository leaves your own groups as they are.</source>
         <translation>LogSquirl clona el repositorio en su propia carpeta de datos con el Git instalado en este equipo e inicia sesión como lo hace Git por usted. Desactivar la carpeta de equipo o cambiar el repositorio deja sus propios grupos como están.</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1136"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1172"/>
         <source>Sync Now</source>
         <translation>Sincronizar ahora</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1159"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1195"/>
         <source>Log Formats</source>
         <translation>Formatos de registro</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1165"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1201"/>
         <source>Auto-detect log format (table view)</source>
         <translation>Detectar automáticamente el formato de registro (vista de tabla)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1172"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1208"/>
         <source>Automatically switch to table view when format is detected</source>
         <translation>Cambiar automáticamente a la vista de tabla cuando se detecta el formato</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1179"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1215"/>
         <source>Available Formats:</source>
         <translation>Formatos disponibles:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1205"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1241"/>
         <source>Name</source>
         <translation>Nombre</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1210"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1246"/>
         <source>Description</source>
         <translation>Descripción</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1218"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1254"/>
         <source>Open Formats Folder…</source>
         <translation>Abrir carpeta de formatos…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="829"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="865"/>
         <source>Index file read buffer (Mib):</source>
         <translation>Búfer de lectura de archivo de índice (MiB):</translation>
     </message>
@@ -2707,62 +2702,87 @@ Sin fecha, se usa %1.</translation>
         <translation>Habilitar ajuste de línea al abrir archivos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="849"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="475"/>
+        <source>ANSI color sequences:</source>
+        <translation>Secuencias de color ANSI:</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="492"/>
+        <source>Show as text</source>
+        <translation>Mostrar como texto</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="497"/>
+        <source>Hide</source>
+        <translation>Ocultar</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="502"/>
+        <source>Show colors</source>
+        <translation>Mostrar colores</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="512"/>
+        <source>Hide and Show colors reduce search performance</source>
+        <translation>Ocultar y Mostrar colores reducen el rendimiento de búsqueda</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="885"/>
         <source>Search read buffer (lines):</source>
         <translation>Búfer de lectura de búsqueda (líneas):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="874"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="910"/>
         <source>File will be kept closed as much as possible. Affects only files opened after check state changed</source>
         <translation>El archivo se mantendrá cerrado tanto como sea posible. Solo afecta archivos abiertos después del cambio</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="904"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="940"/>
         <source>Optimize search for non-latin encodings</source>
         <translation>Optimizar búsqueda para codificaciones no latinas</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="916"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="952"/>
         <source>Caching</source>
         <translation>Almacenamiento en caché</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="931"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="967"/>
         <source>Enable search results cache</source>
         <translation>Habilitar caché de resultados de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="941"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="977"/>
         <source>Search cache size (lines):</source>
         <translation>Tamaño de caché de búsqueda (líneas):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="964"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1000"/>
         <source>Cache file indexes to disk so re-opening a file skips indexing</source>
         <translation>Guardar en caché los índices de archivos en disco para que al volver a abrir un archivo se omita la indexación</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="967"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1003"/>
         <source>Enable index cache (persist indexes to disk)</source>
         <translation>Habilitar caché de índices (guardar índices en disco)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="977"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1013"/>
         <source>Index cache max size (MB):</source>
         <translation>Tamaño máximo de la caché de índices (MB):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1006"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1042"/>
         <source>Logging</source>
         <translation>Registro</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1012"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1048"/>
         <source>Enable logging</source>
         <translation>Habilitar registro</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1021"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1057"/>
         <source>Verbosity</source>
         <translation>Nivel de detalle</translation>
     </message>
@@ -2787,34 +2807,34 @@ Sin fecha, se usa %1.</translation>
         <translation>Vectorscan</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="488"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="489"/>
         <source>Turned off when LogSquirl was installed. Run the installer again to turn it back on.</source>
         <translation>Desactivada al instalar LogSquirl. Vuelva a ejecutar el instalador para activarla de nuevo.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="742"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="744"/>
         <source>LogSquirl needs to be restarted to apply some changes. </source>
         <translation>Es necesario reiniciar LogSquirl para aplicar algunos cambios. </translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="930"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="932"/>
         <source>Click or press Enter to record a shortcut, Escape cancels.
 Backspace or Delete clears the shortcut.</source>
         <translation>Haga clic o pulse Intro para grabar un atajo; Escape cancela.
 Retroceso o Suprimir borra el atajo.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="945"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="947"/>
         <source>Action</source>
         <translation>Acción</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="946"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="948"/>
         <source>Primary shortcut</source>
         <translation>Atajo principal</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="948"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="950"/>
         <source>Secondary shortcut</source>
         <translation>Atajo secundario</translation>
     </message>

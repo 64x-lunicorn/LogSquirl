@@ -2476,222 +2476,217 @@ Without a date, %1 is used.</source>
         <translation>其他</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="476"/>
-        <source>Hide ANSI Colors (search performance will be reduced)</source>
-        <translation>隐藏 ANSI 颜色（搜索性能会降低）</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="486"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="522"/>
         <source>Enable fast scrolling with Alt key</source>
         <translation>启用 Alt 键快速滚动</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="495"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="531"/>
         <source>Fast scroll multiplier</source>
         <translation>快速滚动倍数</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="519"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="555"/>
         <source>Context lines around matches (0 = off)</source>
         <translation>匹配项周围的上下文行数（0 = 关闭）</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="558"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="594"/>
         <source>File</source>
         <translation>文件</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="564"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="600"/>
         <source>File change monitoring</source>
         <translation>文件变化时检测</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="570"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="606"/>
         <source>Enable filesystem change monitoring</source>
         <translation>启用文件系统变化监控</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="577"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="613"/>
         <source>Enable polling</source>
         <translation>启用轮询</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="586"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="622"/>
         <source>Polling interval (ms):</source>
         <translation>轮询间隔 (ms):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="608"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="644"/>
         <source>Use fast modification detection</source>
         <translation>使用快速修改检测</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="615"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="651"/>
         <source>Turn on follow on scroll past the end</source>
         <translation>允许越界滚动</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="625"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="661"/>
         <source>Encoding</source>
         <translation>编码</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="633"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="669"/>
         <source>Encoding for new files</source>
         <translation>新文件的编码</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="657"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="693"/>
         <source>Recent files</source>
         <translation>最近打开文件</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="671"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="707"/>
         <source>Show the number of recently opened files:</source>
         <translation>显示最近打开文件的数量：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="693"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="729"/>
         <source>Archives</source>
         <translation>压缩包</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="699"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="735"/>
         <source>Extract archives</source>
         <translation>解压压缩包</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="706"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="742"/>
         <source>Extract archives without confirmation</source>
         <translation>无需确认即解压压缩包</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="716"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="752"/>
         <source>File download</source>
         <translation>文件下载</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="722"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="758"/>
         <source>Verify certificates for https connections</source>
         <translation>验证HTTPS连接证书</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="749"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="785"/>
         <source>Shortcuts</source>
         <translation>快捷键</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="783"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="819"/>
         <source>Restore defaults</source>
         <translation>恢复默认值</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="796"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="832"/>
         <source>Advanced</source>
         <translation>高级</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="802"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="838"/>
         <source>Indexing and search</source>
         <translation>索引和搜索</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="812"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="848"/>
         <source>Regular expressions engine:</source>
         <translation>正则表达式引擎:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="877"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="913"/>
         <source>Keep file closed (file reload required)</source>
         <translation>保持文件关闭（需要重新加载文件）</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="884"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="920"/>
         <source>Use compressed index (file reload required)</source>
         <translation>使用压缩索引（需要重新加载文件）</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="894"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="930"/>
         <source>Use parallel search</source>
         <translation>使用并行搜索</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1057"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1093"/>
         <source>Team Folder</source>
         <translation>团队文件夹</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1063"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1099"/>
         <source>Share Filter Groups with the team through a Team Folder</source>
         <translation>通过团队文件夹与团队共享过滤器分组</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1072"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1108"/>
         <source>Repository URL:</source>
         <translation>仓库 URL：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1082"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1118"/>
         <source>https://… or git@…</source>
         <translation>https://… 或 git@…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1089"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1125"/>
         <source>Subfolder:</source>
         <translation>子文件夹：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1099"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1135"/>
         <source>The repository&apos;s top folder</source>
         <translation>仓库的顶层文件夹</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1108"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1144"/>
         <source>LogSquirl clones the repository into its own data folder with the Git installed on this computer, and signs in the way Git does for you. Turning the Team Folder off or changing the repository leaves your own groups as they are.</source>
         <translation>LogSquirl 使用本机安装的 Git 将仓库克隆到自己的数据文件夹中，并按 Git 为您配置的方式登录。关闭团队文件夹或更换仓库不会影响您自己的分组。</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1136"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1172"/>
         <source>Sync Now</source>
         <translation>立即同步</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1159"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1195"/>
         <source>Log Formats</source>
         <translation>日志格式</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1165"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1201"/>
         <source>Auto-detect log format (table view)</source>
         <translation>自动检测日志格式（表格视图）</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1172"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1208"/>
         <source>Automatically switch to table view when format is detected</source>
         <translation>检测到格式时自动切换到表格视图</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1179"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1215"/>
         <source>Available Formats:</source>
         <translation>可用格式：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1205"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1241"/>
         <source>Name</source>
         <translation>名称</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1210"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1246"/>
         <source>Description</source>
         <translation>描述</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1218"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1254"/>
         <source>Open Formats Folder…</source>
         <translation>打开格式文件夹…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="829"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="865"/>
         <source>Index file read buffer (Mib):</source>
         <translation>索引文件读取缓冲区大小 (Mib)：</translation>
     </message>
@@ -2706,62 +2701,87 @@ Without a date, %1 is used.</source>
         <translation>打开文件时启用自动换行</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="849"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="475"/>
+        <source>ANSI color sequences:</source>
+        <translation>ANSI 颜色序列：</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="492"/>
+        <source>Show as text</source>
+        <translation>显示为文本</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="497"/>
+        <source>Hide</source>
+        <translation>隐藏</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="502"/>
+        <source>Show colors</source>
+        <translation>显示颜色</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="512"/>
+        <source>Hide and Show colors reduce search performance</source>
+        <translation>“隐藏”和“显示颜色”会降低搜索性能</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="885"/>
         <source>Search read buffer (lines):</source>
         <translation>搜索读取缓冲区大小（行）：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="874"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="910"/>
         <source>File will be kept closed as much as possible. Affects only files opened after check state changed</source>
         <translation>文件将尽可能保持关闭状态。仅影响更改此选项后打开的文件</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="904"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="940"/>
         <source>Optimize search for non-latin encodings</source>
         <translation>优化非拉丁编码的搜索</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="916"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="952"/>
         <source>Caching</source>
         <translation>缓存</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="931"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="967"/>
         <source>Enable search results cache</source>
         <translation>启用搜索结果缓存</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="941"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="977"/>
         <source>Search cache size (lines):</source>
         <translation>搜索缓存大小（行）：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="964"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1000"/>
         <source>Cache file indexes to disk so re-opening a file skips indexing</source>
         <translation>将文件索引缓存到磁盘，重新打开文件时可跳过索引</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="967"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1003"/>
         <source>Enable index cache (persist indexes to disk)</source>
         <translation>启用索引缓存（将索引保存到磁盘）</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="977"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1013"/>
         <source>Index cache max size (MB):</source>
         <translation>索引缓存最大大小 (MB)：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1006"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1042"/>
         <source>Logging</source>
         <translation>日志</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1012"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1048"/>
         <source>Enable logging</source>
         <translation>启用日志记录</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1021"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1057"/>
         <source>Verbosity</source>
         <translation>详细级别</translation>
     </message>
@@ -2786,34 +2806,34 @@ Without a date, %1 is used.</source>
         <translation>Vectorscan</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="488"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="489"/>
         <source>Turned off when LogSquirl was installed. Run the installer again to turn it back on.</source>
         <translation>安装 LogSquirl 时已关闭。再次运行安装程序即可重新开启。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="742"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="744"/>
         <source>LogSquirl needs to be restarted to apply some changes. </source>
         <translation>LogSquirl 需要重新启动才能应用部分更改。 </translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="930"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="932"/>
         <source>Click or press Enter to record a shortcut, Escape cancels.
 Backspace or Delete clears the shortcut.</source>
         <translation>单击或按 Enter 键录制快捷键，按 Escape 键取消。
 按 Backspace 或 Delete 键清除快捷键。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="945"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="947"/>
         <source>Action</source>
         <translation>操作</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="946"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="948"/>
         <source>Primary shortcut</source>
         <translation>主快捷键</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="948"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="950"/>
         <source>Secondary shortcut</source>
         <translation>备用快捷键</translation>
     </message>
