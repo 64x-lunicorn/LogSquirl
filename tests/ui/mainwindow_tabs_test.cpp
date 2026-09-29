@@ -1108,8 +1108,6 @@ SCENARIO( "Closing tabs asks once and remembers the Log Files only when the user
 
 // --- A command's output (#575) ---
 
-#ifndef Q_OS_WIN
-
 namespace {
 
 // The tab whose title starts with `title`, -1 when none does.
@@ -1135,6 +1133,12 @@ int waitForTab( const TabsWindow& window, const QString& title )
         UiTimeoutMs ) );
     return tab;
 }
+
+} // namespace
+
+#ifndef Q_OS_WIN
+
+namespace {
 
 // The spool file a tab reads.
 QString spoolOf( const TabsWindow& window, int tab )
