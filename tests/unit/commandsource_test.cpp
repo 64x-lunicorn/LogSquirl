@@ -280,4 +280,32 @@ TEST_CASE( "Destroying a Command Source stops the command and every process it s
     CHECK( waitUiState( [ grandchild ] { return !processIsRunning( grandchild ); }, 8'000 ) );
 }
 
+TEST_CASE( "A command that is stopped has its grace period to end on its own", "[commandsource]" )
+{
+    const ShellForTests shell;
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto farewell = directory.filePath( "farewell" );
+
+    // The shell runs its trap once SIGTERM has ended the command it waits
+    // for. A loop, since some shells exec a last simple command even with a
+    // trap set.
+    const auto commandLine = QStringLiteral( "trap 'echo bye > \"%1\"; exit 0' TERM; echo ready; "
+                                             "while :; do sleep 1; done" )
+                                 .arg( farewell );
+    QString error;
+    auto source = CommandSource::startCommand( RecentCommand{ commandLine, {}, true }, &error );
+    INFO( error.toStdString() );
+    REQUIRE( source != nullptr );
+    REQUIRE( waitUiState(
+        [ & ] { return contentOf( source->spoolPath() ).startsWith( "ready" ); }, 10'000 ) );
+
+    QElapsedTimer stopping;
+    stopping.start();
+    source.reset();
+    CHECK( stopping.elapsed() < 500 );
+
+    CHECK( waitUiState( [ & ] { return contentOf( farewell ) == "bye\n"; }, 5'000 ) );
+}
+
 #endif

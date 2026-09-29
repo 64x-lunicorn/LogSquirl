@@ -84,10 +84,10 @@ QString commandTabTitle( const QString& commandLine );
 // destroys it with the tab. Destroying it stops what feeds the file and
 // removes the file:
 //  - a command runs in a session and process group of its own on macOS and
-//    Linux; the group gets SIGTERM, and SIGKILL 2 s later if any of it is
-//    still there. That wait happens off the calling thread: stopping never
-//    blocks it. A command still running when the application exits gets
-//    SIGKILL then.
+//    Linux; the group -- its shell with the rest -- gets SIGTERM, and SIGKILL
+//    2 s later if any of it is still there. That wait happens off the calling
+//    thread: stopping never blocks it. A command still running when the
+//    application exits gets SIGKILL then.
 //  - On Windows a command runs in a Job Object that kills every process of
 //    the job when it is closed, so that no child process escapes.
 // Once the command's shell has ended on its own, whatever it left running in

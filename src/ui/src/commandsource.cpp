@@ -19,6 +19,7 @@
 
 #include "commandsource.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -26,6 +27,7 @@
 #include <QProcess>
 
 #include <mutex>
+#include <utility>
 
 #include "log.h"
 #include "stdinpump.h"
@@ -48,8 +50,6 @@ namespace {
 
 // How long a shell may take to start before it counts as not started.
 constexpr int StartTimeoutMs = 10'000;
-// How long reaping a shell that was just killed may take.
-constexpr int ReapTimeoutMs = 1000;
 // The length a command's tab title is elided to.
 constexpr qsizetype TitleLength = 40;
 
@@ -490,14 +490,28 @@ void CommandSource::stopProcess()
         return;
     }
 
-    // The shell itself is killed outright, so that reaping it takes no time;
-    // the rest of its group had its chance with SIGTERM.
-    if ( process_->state() != QProcess::NotRunning ) {
-        process_->kill();
-        process_->waitForFinished( ReapTimeoutMs );
+    auto* process = std::exchange( process_, nullptr );
+    if ( process->state() == QProcess::NotRunning ) {
+        delete process;
+        return;
     }
-    delete process_;
-    process_ = nullptr;
+
+#ifdef Q_OS_WIN
+    // Closing the job ended the shell already, unless there was no job.
+    process->kill();
+#endif
+    // The shell has its grace period like the rest of its group: it may be
+    // running a trap for SIGTERM. Deleting its QProcess now would kill it and
+    // wait for it on this thread, so the QProcess is let go instead: it goes
+    // once it has seen the shell end -- with SIGTERM, or with the SIGKILL the
+    // Group Reaper sends to the group 2 s later -- and with the application
+    // otherwise, whose destruction kills the shell first.
+    process->setParent( nullptr );
+    if ( auto* application = QCoreApplication::instance();
+         application != nullptr && application->thread() == process->thread() ) {
+        process->setParent( application );
+    }
+    connect( process, &QProcess::finished, process, &QObject::deleteLater );
 }
 
 QString CommandSource::endedTitle( const QString& title, const CommandEnd& end )
