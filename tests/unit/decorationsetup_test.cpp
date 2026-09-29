@@ -19,6 +19,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+
 #include "decorationsetup.h"
 
 // The Decoration Setup is the one module that builds the Line Decorator's
@@ -259,5 +263,179 @@ SCENARIO( "The Mark and Match colors of the gutter and the overview are defined 
     {
         REQUIRE( LineStatusColors::markedMatch() != LineStatusColors::match() );
         REQUIRE( LineStatusColors::markedMatch() != LineStatusColors::mark() );
+    }
+}
+
+namespace {
+
+// Contrast as the Decoration Setup reckons it: WCAG 2.
+double contrastRatio( const QColor& a, const QColor& b )
+{
+    const auto luminance = []( const QColor& color ) {
+        const auto linear = []( float value ) {
+            const double channel = static_cast<double>( value );
+            return channel <= 0.04045 ? channel / 12.92
+                                      : std::pow( ( channel + 0.055 ) / 1.055, 2.4 );
+        };
+        return 0.2126 * linear( color.redF() ) + 0.7152 * linear( color.greenF() )
+               + 0.0722 * linear( color.blueF() );
+    };
+    const auto first = luminance( a );
+    const auto second = luminance( b );
+    return ( std::max( first, second ) + 0.05 ) / ( std::min( first, second ) + 0.05 );
+}
+
+// A Theme's 16 basic colors, told apart from any other color here.
+std::array<QColor, 16> testAnsiColors()
+{
+    std::array<QColor, 16> colors;
+    for ( std::size_t index = 0; index < colors.size(); ++index ) {
+        colors[ index ] = QColor( 100 + static_cast<int>( index ), 50, 150 );
+    }
+    return colors;
+}
+
+DecorationSetup ansiSetup( bool showAnsiColors )
+{
+    DecorationSetup setup;
+    auto policy = colorfulPolicy();
+    policy.showAnsiColors = showAnsiColors;
+    setup.setPolicy( policy );
+    setup.setAnsiColors( testAnsiColors() );
+    return setup;
+}
+
+LinePalette paletteOn( const QColor& text, const QColor& base )
+{
+    LinePalette palette;
+    palette.text = text;
+    palette.base = base;
+    return palette;
+}
+
+AnsiColorSpan foregroundSpan( AnsiColor color )
+{
+    return AnsiColorSpan{ 0, 3, color, AnsiColor{} };
+}
+
+} // namespace
+
+SCENARIO( "A Decoration Setup resolves ANSI colors against the Theme", "[decorationsetup][ansi]" )
+{
+    // Mid-gray on mid-gray would fail the contrast rule for nearly anything;
+    // black text on white leaves the test colors alone.
+    const auto palette = paletteOn( QColor( Qt::black ), QColor( Qt::white ) );
+
+    GIVEN( "a Decoration Policy that shows ANSI colors, and a Theme's basic colors" )
+    {
+        const auto setup = ansiSetup( true );
+
+        THEN( "a basic color is the Theme's" )
+        {
+            const auto colors
+                = setup.ansiColorsFor( { foregroundSpan( AnsiColor::indexed( 4 ) ) }, palette );
+            REQUIRE( colors.size() == 1 );
+            REQUIRE( colors[ 0 ].startColumn() == 0_lcol );
+            REQUIRE( colors[ 0 ].size() == 3_length );
+            REQUIRE( colors[ 0 ].foreColor() == testAnsiColors()[ 4 ] );
+            REQUIRE_FALSE( colors[ 0 ].backColor().isValid() );
+        }
+
+        THEN( "an indexed color past 15 is xterm's, from its cube or its gray ramp" )
+        {
+            const auto colors = setup.ansiColorsFor(
+                { AnsiColorSpan{ 0, 1, AnsiColor{}, AnsiColor::indexed( 196 ) },
+                  AnsiColorSpan{ 1, 1, AnsiColor{}, AnsiColor::indexed( 67 ) },
+                  AnsiColorSpan{ 2, 1, AnsiColor{}, AnsiColor::indexed( 244 ) } },
+                palette );
+            REQUIRE( colors.size() == 3 );
+            REQUIRE( colors[ 0 ].backColor() == QColor( 255, 0, 0 ) );
+            REQUIRE( colors[ 1 ].backColor() == QColor( 95, 135, 175 ) );
+            REQUIRE( colors[ 2 ].backColor() == QColor( 128, 128, 128 ) );
+        }
+
+        THEN( "a truecolor is as given" )
+        {
+            const auto colors = setup.ansiColorsFor(
+                { AnsiColorSpan{ 0, 1, AnsiColor{}, AnsiColor::rgb( 1, 2, 3 ) } }, palette );
+            REQUIRE( colors[ 0 ].backColor() == QColor( 1, 2, 3 ) );
+        }
+    }
+
+    GIVEN( "a Decoration Policy that does not show ANSI colors" )
+    {
+        const auto setup = ansiSetup( false );
+
+        THEN( "no color is resolved" )
+        {
+            REQUIRE( setup.ansiColorsFor( { foregroundSpan( AnsiColor::indexed( 1 ) ) }, palette )
+                         .empty() );
+        }
+    }
+}
+
+SCENARIO( "A foreground ANSI color too faint to read is moved toward the Theme's text color",
+          "[decorationsetup][ansi]" )
+{
+    DecorationSetup setup;
+    auto policy = colorfulPolicy();
+    policy.showAnsiColors = true;
+    setup.setPolicy( policy );
+
+    GIVEN( "a dark Theme and a dark foreground" )
+    {
+        // Smyck's background and text; its own black.
+        const auto palette = paletteOn( QColor( "#F7F7F7" ), QColor( "#1B1B1B" ) );
+        setup.setAnsiColors( { QColor( "#000000" ) } );
+
+        THEN( "the foreground reaches 3:1 against the background, and no more than it needs" )
+        {
+            const auto colors
+                = setup.ansiColorsFor( { foregroundSpan( AnsiColor::indexed( 0 ) ) }, palette );
+            const auto foreground = colors[ 0 ].foreColor();
+            REQUIRE( contrastRatio( foreground, palette.base ) >= 3.0 );
+            REQUIRE( foreground != palette.text );
+        }
+    }
+
+    GIVEN( "a light Theme and a light foreground" )
+    {
+        const auto palette = paletteOn( QColor( Qt::black ), QColor( Qt::white ) );
+
+        THEN( "the foreground reaches 3:1 against the background" )
+        {
+            const auto colors = setup.ansiColorsFor(
+                { foregroundSpan( AnsiColor::rgb( 255, 255, 0 ) ) }, palette );
+            REQUIRE( contrastRatio( colors[ 0 ].foreColor(), palette.base ) >= 3.0 );
+            REQUIRE( colors[ 0 ].foreColor() != QColor( 255, 255, 0 ) );
+        }
+    }
+
+    GIVEN( "a foreground on an ANSI background it is hard to read on" )
+    {
+        const auto palette = paletteOn( QColor( Qt::white ), QColor( Qt::black ) );
+
+        THEN( "the contrast is taken against the ANSI background" )
+        {
+            const auto colors = setup.ansiColorsFor(
+                { AnsiColorSpan{ 0, 3, AnsiColor::rgb( 250, 250, 250 ), AnsiColor::rgb( 255, 255, 255 ) } },
+                palette );
+            REQUIRE( colors[ 0 ].backColor() == QColor( 255, 255, 255 ) );
+            // No blend toward the Theme's white text reaches 3:1 on white:
+            // at worst the foreground becomes that text color.
+            REQUIRE( colors[ 0 ].foreColor() == QColor( Qt::white ) );
+        }
+    }
+
+    GIVEN( "a foreground that reads well" )
+    {
+        const auto palette = paletteOn( QColor( Qt::black ), QColor( Qt::white ) );
+
+        THEN( "it is left as it is" )
+        {
+            const auto colors = setup.ansiColorsFor(
+                { foregroundSpan( AnsiColor::rgb( 0, 0, 180 ) ) }, palette );
+            REQUIRE( colors[ 0 ].foreColor() == QColor( 0, 0, 180 ) );
+        }
     }
 }

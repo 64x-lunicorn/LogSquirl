@@ -132,7 +132,9 @@ struct RecognitionPolicy {
 // needs, beyond the Encoding, and nothing else. It applies to every read:
 // the Log Lines a view paints and the ones a Search matches.
 struct DecodingPolicy {
-    // Whether ANSI color sequences are removed from every Log Line.
+    // Whether ANSI color sequences are removed from every Log Line: under
+    // the setting's Hide and Show colors alike, which differ only in how the
+    // Text View paints the Log Lines (see DecorationPolicy::showAnsiColors).
     bool hideAnsiColorSequences{};
 
     bool operator==( const DecodingPolicy& ) const = default;
@@ -158,6 +160,11 @@ struct DecorationPolicy {
     QColor mainSearchBackColor{};
     // The background a QuickFind match is painted in.
     QColor quickFindBackColor{};
+    // Whether the Text View paints Log Lines in the colors their ANSI color
+    // sequences ask for, beneath every other source. Only ever true where the
+    // Decoding Policy hides the sequences, so switching it re-reads no Log
+    // File and re-runs no Search (#573).
+    bool showAnsiColors{};
 
     bool operator==( const DecorationPolicy& ) const = default;
 };

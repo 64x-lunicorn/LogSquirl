@@ -1140,3 +1140,151 @@ SCENARIO( "A Highlighter matches with the pattern it has now",
         }
     }
 }
+
+namespace {
+
+const QColor AnsiRed{ 205, 0, 0 };
+const QColor AnsiBlueBack{ 0, 0, 238 };
+
+// "hello world" with "hello" in ANSI red on blue and " world" in red.
+const logsquirl::vector<HighlightedMatch> AnsiColors{
+    HighlightedMatch{ 0_lcol, 5_length, AnsiRed, AnsiBlueBack },
+    HighlightedMatch{ 5_lcol, 6_length, AnsiRed, QColor{} },
+};
+
+// The fore and back color of the span of decoration covering column.
+std::pair<QColor, QColor> colorsAt( const Decoration& decoration, int column )
+{
+    for ( const auto& span : decoration.spans() ) {
+        const auto start = static_cast<int>( span.startColumn().get() );
+        if ( column >= start && column < start + static_cast<int>( span.size().get() ) ) {
+            return { span.foreColor(), span.backColor() };
+        }
+    }
+    return {};
+}
+
+} // namespace
+
+SCENARIO( "ANSI colors are the Line Decorator's lowest source", "[linedecorator][ansi]" )
+{
+    const QString text = "hello world";
+
+    GIVEN( "a plain Log Line with ANSI colors" )
+    {
+        LineDecorator decorator{ emptyContext() };
+        const auto decoration
+            = decorator.decorate( text, LineVerdict{}, std::nullopt, AnsiColors );
+
+        THEN( "it shows them, and the line's own colors where they leave one unset" )
+        {
+            REQUIRE( coversWithoutGaps( decoration, 11 ) );
+            REQUIRE( colorsAt( decoration, 0 ) == std::pair{ AnsiRed, AnsiBlueBack } );
+            REQUIRE( colorsAt( decoration, 6 ) == std::pair{ AnsiRed, TestPalette.base } );
+            REQUIRE( decoration.lineColors().backColor == TestPalette.base );
+        }
+    }
+
+    GIVEN( "every other source matching part of it" )
+    {
+        auto context = emptyContext();
+        context.mainSearch
+            = Highlighter{ "llo", false, true, QColor{ Qt::black }, QColor{ Qt::yellow } };
+        context.colorLabels.push_back(
+            Highlighter{ "wo", false, true, QColor{ Qt::black }, QColor{ Qt::green } } );
+        {
+            QRegularExpression qfRegex{ "rl" };
+            context.quickFind = QuickFindMatcher{ true, qfRegex };
+        }
+        context.quickFindColor = QColor{ Qt::cyan };
+        LineDecorator decorator{ std::move( context ) };
+
+        // A word Highlighter on "he".
+        const LineVerdict verdict{ std::nullopt,
+                                   LineTypeFlags::Plain,
+                                   false,
+                                   { HighlightedMatch{ 0_lcol, 2_length, QColor{ Qt::white },
+                                                       QColor{ Qt::magenta } } } };
+        const HighlightedMatch selection{ 10_lcol, 1_length, TestPalette.selectedText,
+                                          TestPalette.selection };
+
+        const auto decoration = decorator.decorate( text, verdict, selection, AnsiColors );
+
+        THEN( "each of them paints over the ANSI colors" )
+        {
+            REQUIRE( coversWithoutGaps( decoration, 11 ) );
+            // The word Highlighter, the main Search, the Color Label,
+            // QuickFind and the selection.
+            REQUIRE( colorsAt( decoration, 0 ).second == QColor{ Qt::magenta } );
+            REQUIRE( colorsAt( decoration, 2 ).second == QColor{ Qt::yellow } );
+            REQUIRE( colorsAt( decoration, 6 ).second == QColor{ Qt::green } );
+            REQUIRE( colorsAt( decoration, 8 ).second == QColor{ Qt::cyan } );
+            REQUIRE( colorsAt( decoration, 10 )
+                     == std::pair{ TestPalette.selectedText, TestPalette.selection } );
+        }
+
+        THEN( "the ANSI colors show where nothing else matched" )
+        {
+            REQUIRE( colorsAt( decoration, 5 ) == std::pair{ AnsiRed, TestPalette.base } );
+        }
+    }
+
+    GIVEN( "a Log Line a whole-line Highlighter matches" )
+    {
+        LineDecorator decorator{ emptyContext() };
+        const LineVerdict verdict{
+            HighlightColor{ QColor{ Qt::white }, QColor{ Qt::red } },
+            LineTypeFlags::Plain,
+            false,
+            { HighlightedMatch{ 0_lcol, 11_length, QColor{ Qt::white }, QColor{ Qt::red } } } };
+
+        THEN( "it shows the Highlighter's colors, not the ANSI colors" )
+        {
+            const auto decoration = decorator.decorate( text, verdict, std::nullopt, AnsiColors );
+            for ( const auto& span : decoration.spans() ) {
+                REQUIRE( span.foreColor() == QColor{ Qt::white } );
+                REQUIRE( span.backColor() == QColor{ Qt::red } );
+            }
+        }
+    }
+
+    GIVEN( "a Log Line outside the Search Limits" )
+    {
+        LineDecorator decorator{ emptyContext() };
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Plain, true };
+
+        THEN( "it shows no ANSI colors" )
+        {
+            const auto decoration = decorator.decorate( text, verdict, std::nullopt, AnsiColors );
+            REQUIRE( colorsAt( decoration, 0 )
+                     == std::pair{ TestPalette.subduedText, TestPalette.base } );
+        }
+    }
+
+    GIVEN( "a Log Line selected as a whole" )
+    {
+        LineDecorator decorator{ emptyContext() };
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Plain, false, {}, true };
+
+        THEN( "it shows the selection colors, not the ANSI colors" )
+        {
+            const auto decoration = decorator.decorate( text, verdict, std::nullopt, AnsiColors );
+            REQUIRE( colorsAt( decoration, 0 )
+                     == std::pair{ TestPalette.selectedText, TestPalette.selection } );
+        }
+    }
+
+    GIVEN( "a Context Line" )
+    {
+        LineDecorator decorator{ emptyContext() };
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Context, false };
+
+        THEN( "its ANSI foreground is dimmed, as its own text color is" )
+        {
+            const auto decoration = decorator.decorate( text, verdict, std::nullopt, AnsiColors );
+            auto dimmed = AnsiRed;
+            dimmed.setAlpha( 128 );
+            REQUIRE( colorsAt( decoration, 0 ) == std::pair{ dimmed, AnsiBlueBack } );
+        }
+    }
+}

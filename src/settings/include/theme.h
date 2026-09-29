@@ -183,6 +183,9 @@ struct ColorLabelColors {
     QColor backColor;
 };
 
+// The number of basic ANSI colors a Theme gives: 8 normal and 8 bright.
+inline constexpr std::size_t AnsiBasicColorCount = 16;
+
 // The look of the application: one set of Tokens, from which both the
 // QPalette and the application stylesheet are derived.
 class Theme {
@@ -241,6 +244,11 @@ public:
     // Token, these color Log Lines: a Color Label follows the Theme unless
     // the user chose its colors (ADR-0006).
     const std::array<ColorLabelColors, ColorLabelCount>& colorLabels() const;
+
+    // The 16 basic ANSI colors this Theme paints Log Lines in when their ANSI
+    // color sequences are shown as colors: black, red, green, yellow, blue,
+    // magenta, cyan and white, then their bright variants (#573).
+    const std::array<QColor, AnsiBasicColorCount>& ansiColors() const;
 
     // Whether these are the colors a built-in Theme gives the Color Label of
     // slot, and the Color Label may therefore follow the Theme. Colors the
@@ -321,6 +329,7 @@ private:
     std::array<QColor, ColorTokenCount> colors_;
     std::array<QString, StyleTokenCount> values_;
     std::array<ColorLabelColors, ColorLabelCount> colorLabels_;
+    std::array<QColor, AnsiBasicColorCount> ansiColors_;
 };
 
 #endif
