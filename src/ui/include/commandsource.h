@@ -150,7 +150,8 @@ public:
     void stop();
 
     // The title a command's tab has once it ended: " [exit N]" or
-    // " [stopped]" after `title`.
+    // " [stopped]" after `title`. Standard input's tab keeps its title, and
+    // gets no tooltip line or message from these.
     static QString endedTitle( const QString& title, const CommandEnd& end );
     // The line its tooltip gets then.
     static QString endedToolTip( const CommandEnd& end );

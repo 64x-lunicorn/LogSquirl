@@ -257,12 +257,12 @@ std::unique_ptr<CommandSource> CommandSource::readStandardInput( int fd, QString
     // The pump calls back on its own thread, and is stopped before this
     // object goes: what it posts here is dropped with this object.
     auto* self = source.get();
-    source->pump_ = std::make_unique<logsquirl::plugins::StdinPump>(
-        fd, *source->writer_, [ self ] {
-            QMetaObject::invokeMethod( self, [ self ] {
-                self->finish( CommandEnd{ CommandEnd::Kind::InputClosed, 0 } );
-            } );
-        } );
+    source->pump_
+        = std::make_unique<logsquirl::plugins::StdinPump>( fd, *source->writer_, [ self ] {
+              QMetaObject::invokeMethod( self, [ self ] {
+                  self->finish( CommandEnd{ CommandEnd::Kind::InputClosed, 0 } );
+              } );
+          } );
     return source;
 }
 
@@ -469,7 +469,7 @@ QString CommandSource::endedToolTip( const CommandEnd& end )
     case CommandEnd::Kind::InputClosed:
         break;
     }
-    return tr( "Standard input closed" );
+    return {};
 }
 
 QString CommandSource::endedMessage( const QString& title, const CommandEnd& end )
@@ -486,5 +486,5 @@ QString CommandSource::endedMessage( const QString& title, const CommandEnd& end
     case CommandEnd::Kind::InputClosed:
         break;
     }
-    return tr( "Standard input closed" );
+    return {};
 }

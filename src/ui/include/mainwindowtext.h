@@ -64,6 +64,8 @@ extern const char* openClipboardText;
 extern const char* openClipboardStatusTip;
 extern const char* openUrlText;
 extern const char* openUrlStatusTip;
+extern const char* openCommandOutputText;
+extern const char* openCommandOutputStatusTip;
 extern const char* overviewVisibleText;
 extern const char* lineNumbersVisibleInMainText;
 extern const char* lineNumbersVisibleInFilteredText;

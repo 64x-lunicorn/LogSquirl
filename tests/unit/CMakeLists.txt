@@ -13,6 +13,7 @@ add_executable(logsquirl_tests
     chartseries_test.cpp
     charttemplategenerator_test.cpp
     chipmunkimporter_test.cpp
+    commandoutputdialog_test.cpp
     commandsource_test.cpp
     compressedlinestorage_test.cpp
     configuration_test.cpp

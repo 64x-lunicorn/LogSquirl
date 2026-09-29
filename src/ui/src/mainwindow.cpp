@@ -40,6 +40,7 @@
 // managing the menus, the toolbar, and the CrawlerWidget. It also
 // load/save the settings on opening/closing of the app
 
+#include "commandoutputdialog.h"
 #include "configuration.h"
 #include "containers.h"
 #include "log.h"
@@ -587,45 +588,84 @@ void MainWindow::loadInitialFile( QString fileName, bool followFile )
 
 void MainWindow::openStandardInput()
 {
-    if ( standardInputWriter_ ) {
+    if ( std::ranges::any_of( commandSources_, []( const auto& source ) {
+             return source.second->kind() == CommandSource::Kind::StandardInput;
+         } ) ) {
         return;
     }
 
-    standardInputWriter_ = std::make_unique<logsquirl::plugins::StreamWriter>( "stdin" );
-    const auto filePath = standardInputWriter_->filePath();
-    if ( filePath.isEmpty() ) {
-        QMessageBox::warning( this, tr( "Standard input" ),
-                              tr( "Could not create a file for the data read from standard "
-                                  "input." ) );
-        standardInputWriter_.reset();
+    QString error;
+    auto source = CommandSource::readStandardInput( 0, &error );
+    if ( !source ) {
+        QMessageBox::warning( this, tr( "Standard input" ), error );
         return;
     }
+    const auto filePath = source->spoolPath();
+    openCommandSource( std::move( source ), tr( "stdin" ),
+                       tr( "Standard input\n%1" ).arg( filePath ) );
+}
+
+QString MainWindow::commandToolTip( const CommandSource& source )
+{
+    const auto& command = source.command();
+    return tr( "%1\nWorking folder: %2\n%3" )
+        .arg( command.commandLine, QDir::toNativeSeparators( command.workingFolder ),
+              QDir::toNativeSeparators( source.spoolPath() ) );
+}
+
+bool MainWindow::openCommandOutput( const RecentCommand& command )
+{
+    QString error;
+    auto source = CommandSource::startCommand( command, &error );
+    if ( !source ) {
+        QMessageBox::warning( this, tr( "Open Command Output" ), error );
+        return false;
+    }
+    const auto title = commandTabTitle( source->command().commandLine );
+    const auto toolTip = commandToolTip( *source );
+    return openCommandSource( std::move( source ), title, toolTip );
+}
+
+bool MainWindow::openCommandSource( std::unique_ptr<CommandSource> source, const QString& title,
+                                    const QString& toolTip )
+{
+    const auto filePath = source->spoolPath();
 
     // The tab is named when it is opened, which is later than here when the
     // plugins have not loaded yet: it is the file's, not the current tab's.
-    mainTabWidget_.setOpeningTitle( filePath, tr( "stdin" ),
-                                    tr( "Standard input\n%1" ).arg( filePath ) );
-    // The spool lives as long as this window: it is not saved with the
-    // Session (#570).
+    mainTabWidget_.setOpeningTitle( filePath, title, toolTip );
+    // The spool lives as long as its tab: it is not saved with the Session
+    // (#570).
     if ( !loadFile( filePath, true, LogFileLifetime::Transient ) ) {
         mainTabWidget_.setOpeningTitle( filePath, {} );
-        standardInputWriter_.reset();
+        return false;
+    }
+
+    connect(
+        source.get(), &CommandSource::ended, this,
+        [ this, filePath ]( const CommandEnd& end ) { showCommandSourceEnded( filePath, end ); } );
+    commandSources_[ filePath ] = std::move( source );
+    return true;
+}
+
+void MainWindow::showCommandSourceEnded( const QString& spoolPath, const CommandEnd& end )
+{
+    const auto source = commandSources_.find( spoolPath );
+    if ( source == commandSources_.end() ) {
+        return;
+    }
+    if ( source->second->kind() != CommandSource::Kind::Command ) {
+        statusBar()->showMessage( tr( "Standard input closed" ) );
         return;
     }
 
-    // The pump calls back on its own thread: hop over to this window's.
-    const QPointer<MainWindow> self( this );
-    standardInputPump_
-        = std::make_unique<logsquirl::plugins::StdinPump>( 0, *standardInputWriter_, [ self ] {
-              if ( !self ) {
-                  return;
-              }
-              QMetaObject::invokeMethod( self.data(), [ self ] {
-                  if ( self ) {
-                      self->statusBar()->showMessage( tr( "Standard input closed" ) );
-                  }
-              } );
-          } );
+    // The tab keeps what the command wrote; its title and tooltip tell how
+    // the command ended.
+    const auto title = commandTabTitle( source->second->command().commandLine );
+    mainTabWidget_.setOpeningTitle( spoolPath, CommandSource::endedTitle( title, end ),
+                                    commandToolTip( *source->second ) + "\n"
+                                        + CommandSource::endedToolTip( end ) );
+    showStatusMessage( CommandSource::endedMessage( title, end ) );
 }
 
 void MainWindow::reTranslateUI()
@@ -709,6 +749,9 @@ void MainWindow::reTranslateUI()
 
     openUrlAction->setText( transAction( action::openUrlText ) );
     openUrlAction->setStatusTip( transAction( action::openUrlStatusTip ) );
+
+    openCommandOutputAction->setText( transAction( action::openCommandOutputText ) );
+    openCommandOutputAction->setStatusTip( transAction( action::openCommandOutputStatusTip ) );
 
     overviewVisibleAction->setText( transAction( action::overviewVisibleText ) );
 
@@ -925,6 +968,11 @@ void MainWindow::createActions()
     openUrlAction->setStatusTip( tr( action::openUrlStatusTip ) );
     connect( openUrlAction, &QAction::triggered, this, [ this ]( auto ) { this->openUrl(); } );
 
+    openCommandOutputAction = new QAction( tr( action::openCommandOutputText ), this );
+    openCommandOutputAction->setStatusTip( tr( action::openCommandOutputStatusTip ) );
+    connect( openCommandOutputAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->openCommandOutputDialog(); } );
+
     overviewVisibleAction = new QAction( tr( action::overviewVisibleText ), this );
     overviewVisibleAction->setCheckable( true );
     overviewVisibleAction->setChecked( config.isOverviewVisible() );
@@ -1132,6 +1180,7 @@ void MainWindow::updateShortcuts()
     setShortcuts( copyPathToClipboardAction, ShortcutAction::MainWindowCopyPathToClipboard );
     setShortcuts( openClipboardAction, ShortcutAction::MainWindowOpenFromClipboard );
     setShortcuts( openUrlAction, ShortcutAction::MainWindowOpenFromUrl );
+    setShortcuts( openCommandOutputAction, ShortcutAction::MainWindowOpenCommandOutput );
     setShortcuts( followAction, ShortcutAction::MainWindowFollowFile );
     setShortcuts( textWrapAction, ShortcutAction::MainWindowTextWrap );
     setShortcuts( reloadAction, ShortcutAction::MainWindowReload );
@@ -1196,6 +1245,7 @@ void MainWindow::createMenus()
     fileMenu->addAction( newWindowAction );
     fileMenu->addAction( openAction );
     fileMenu->addAction( openClipboardAction );
+    fileMenu->addAction( openCommandOutputAction );
     fileMenu->addAction( openUrlAction );
     recentFilesMenu = fileMenu->addMenu( tr( "Open Recent" ) );
     for ( auto i = 0u; i < recentFileActions.size(); ++i ) {
@@ -1668,6 +1718,23 @@ void MainWindow::openUrl()
                                  QLineEdit::Normal, selectedUrl, &ok );
     if ( ok && !url.isEmpty() ) {
         openRemoteFile( url );
+    }
+}
+
+void MainWindow::openCommandOutputDialog()
+{
+    CommandOutputDialog dialog( Configuration::get().recentCommands(), this );
+    if ( dialog.exec() != QDialog::Accepted ) {
+        return;
+    }
+    const auto command = dialog.command();
+    if ( command.commandLine.isEmpty() ) {
+        return;
+    }
+    if ( openCommandOutput( command ) ) {
+        auto& config = Configuration::get();
+        config.addRecentCommand( command );
+        config.save();
     }
 }
 
@@ -2562,12 +2629,21 @@ void MainWindow::closeTabs( const QList<int>& indices, ActionInitiator initiator
         }
 
         // Opening the file it was converted from converts it anew (#615).
-        convertedFrom_.remove( session_.getFilename( crawler ) );
+        const auto fileName = session_.getFilename( crawler );
+        convertedFrom_.remove( fileName );
 
         crawler->stopLoading();
         mainTabWidget_.removeCrawler( index );
         session_.close( crawler );
         crawler->deleteLater();
+
+        // What feeds the tab stops now; its spool file goes after the tab,
+        // which still reads it until then (#575).
+        if ( auto source = commandSources_.extract( fileName ) ) {
+            source.mapped()->stop();
+            source.mapped()->setParent( this );
+            source.mapped().release()->deleteLater();
+        }
     }
 
     updateOpenedFilesMenu();
