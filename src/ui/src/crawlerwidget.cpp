@@ -221,6 +221,20 @@ void CrawlerWidget::followSet( bool follow )
     }
 }
 
+void CrawlerWidget::endFollowing()
+{
+    // Followed until the last Log Lines are loaded, so that the views show
+    // them.
+    connect(
+        openLogFile_.get(), &OpenLogFile::watchingStopped, this,
+        [ this ] {
+            followEnded_ = true;
+            applyWatchPolicy( watchPolicy_ );
+        },
+        Qt::SingleShotConnection );
+    openLogFile_->stopWatching();
+}
+
 bool CrawlerWidget::isTextWrapEnabled() const
 {
     return logMainView_->isTextWrapEnabled();
@@ -671,7 +685,7 @@ void CrawlerWidget::applyWatchPolicy( const WatchPolicy& policy )
     // Takes following away from every view of this Log File, or gives it
     // back, without the Log File being opened again.
     const bool followed = viewSet_.follows();
-    viewSet_.setFollowAllowed( policy.anyWatchEnabled() );
+    viewSet_.setFollowAllowed( policy.anyWatchEnabled() && !followEnded_ );
     if ( viewSet_.follows() != followed ) {
         Q_EMIT followModeChanged( viewSet_.follows() );
     }

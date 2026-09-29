@@ -35,8 +35,9 @@
   Output… runs a command line through your login shell -- `ssh host tail -f
   /var/log/syslog`, `docker logs -f web`, `kubectl logs -f deploy/api` -- and
   follows what it writes in a new tab named after it. When the command ends,
-  the tab shows ` [exit N]` and the status bar says how it ended; closing the
-  tab stops the command and every process it started. The last 10 commands are
+  the tab keeps its output and is no longer followed, shows ` [exit N]`, and
+  the status bar says how it ended; closing the tab stops the command and
+  every process it started. The last 10 commands are
   offered again, each with its working folder and whether standard error is
   included. The tab is not saved with the session (#575).
 - **ANSI color sequences can be shown as colors**: *Hide ANSI Colors* in

@@ -74,6 +74,12 @@ OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPoli
     connect( logData_.get(), &LogData::loadingProgressed, this, &OpenLogFile::loadingProgressed );
     connect( logData_.get(), &LogData::loadingFinished, this, &OpenLogFile::handleLoadingFinished );
     connect( logData_.get(), &LogData::fileChanged, this, &OpenLogFile::handleFileChanged );
+    connect( logData_.get(), &LogData::fileUnchanged, this, [ this ] {
+        if ( watching_ == Watching::Stopping ) {
+            watching_ = Watching::Stopped;
+            Q_EMIT watchingStopped();
+        }
+    } );
     connect( logData_.get(), &LogData::decodingPolicyChanged, this,
              &OpenLogFile::decodingPolicyChanged );
 
@@ -411,7 +417,7 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     // Watched once a load has succeeded, and asked again after every one,
     // as the log data always did: the port ignores a file it already
     // watches.
-    if ( status == LoadingStatus::Successful && fileWatch_ ) {
+    if ( status == LoadingStatus::Successful && fileWatch_ && watching_ == Watching::On ) {
         fileWatch_->addFile( fileName_ );
         if ( !watched_ ) {
             watched_ = true;
@@ -497,6 +503,52 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     if ( encodingSettledAnew ) {
         Q_EMIT encodingChanged();
     }
+
+    // Whatever this load brought, the Log File may have grown during it: it
+    // is checked again until a check finds nothing new.
+    if ( watching_ == Watching::Stopping ) {
+        if ( status == LoadingStatus::Successful ) {
+            checkBeforeWatchingStops();
+        }
+        else {
+            watching_ = Watching::Stopped;
+            Q_EMIT watchingStopped();
+        }
+    }
+}
+
+void OpenLogFile::stopWatching()
+{
+    if ( watching_ != Watching::On ) {
+        return;
+    }
+    watching_ = Watching::Stopping;
+
+    if ( fileWatch_ ) {
+        disconnect( fileWatch_.get(), nullptr, this, nullptr );
+        if ( watched_ ) {
+            fileWatch_->removeFile( fileName_ );
+            watched_ = false;
+        }
+    }
+
+    // Before its first load there is nothing to check: that load reads it
+    // all, and the check after it finds it unchanged.
+    if ( !fileName_.isEmpty() ) {
+        checkBeforeWatchingStops();
+    }
+}
+
+void OpenLogFile::checkBeforeWatchingStops()
+{
+    constexpr int MaxChecks = 5;
+    if ( ++checksBeforeStopping_ > MaxChecks ) {
+        LOG_WARNING << "The Log File " << fileName_ << " still changes, no longer checked";
+        watching_ = Watching::Stopped;
+        Q_EMIT watchingStopped();
+        return;
+    }
+    logData_->fileChangedOnDisk( fileName_ );
 }
 
 void OpenLogFile::handleChangeOnDisk( const QString& fileName )

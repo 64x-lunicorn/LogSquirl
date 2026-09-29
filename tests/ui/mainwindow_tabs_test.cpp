@@ -1186,7 +1186,8 @@ SCENARIO( "A command's output opens in a followed tab that tells how the command
         auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( tab ) );
         REQUIRE( crawler != nullptr );
 
-        THEN( "its tab shows the output, is transient and followed, and names the exit code" )
+        THEN( "its tab shows the output, is transient, names the exit code and is no longer "
+              "followed" )
         {
             REQUIRE( waitUiState(
                 [ & ] {
@@ -1196,9 +1197,9 @@ SCENARIO( "A command's output opens in a followed tab that tells how the command
                 UiTimeoutMs ) );
             const auto index = window.tabArea->indexOf( crawler );
             REQUIRE( window.tabArea->holdsTransientLogFile( index ) );
-            if ( window.session->watchPolicy().anyWatchEnabled() ) {
-                REQUIRE( crawler->isFollowEnabled() );
-            }
+            REQUIRE( waitUiState( [ & ] { return !crawler->isFollowEnabled(); }, UiTimeoutMs ) );
+            crawler->followSet( true );
+            REQUIRE_FALSE( crawler->isFollowEnabled() );
 
             const auto toolTip = window.tabArea->tabToolTip( index );
             REQUIRE( toolTip.startsWith( commandLine + "\n" ) );

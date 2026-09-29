@@ -679,6 +679,15 @@ void MainWindow::showCommandSourceEnded( const QString& spoolPath, const Command
     if ( source == commandSources_.end() ) {
         return;
     }
+
+    // The spool file grows no more. A tab not open yet -- waiting for the
+    // plugins to load -- ends following when it opens.
+    if ( const auto tab = mainTabWidget_.tabOfPath( spoolPath ); tab >= 0 ) {
+        if ( auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( tab ) ) ) {
+            crawler->endFollowing();
+        }
+    }
+
     if ( source->second->kind() != CommandSource::Kind::Command ) {
         statusBar()->showMessage( tr( "Standard input closed" ) );
         return;
@@ -3159,6 +3168,11 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLife
                  && ( followFile || config.followFileOnLoad() ) ) {
                 signalCrawlerToFollowFile( crawlerWidget );
                 followAction->setChecked( true );
+            }
+            // A command or standard input that ended before its tab opened.
+            if ( const auto source = commandSources_.find( fileName );
+                 source != commandSources_.end() && source->second->hasEnded() ) {
+                crawlerWidget->endFollowing();
             }
         } catch ( ... ) {
             LOG_ERROR << "Can't open file " << fileName.toStdString();

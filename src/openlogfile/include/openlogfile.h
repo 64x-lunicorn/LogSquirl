@@ -158,6 +158,11 @@ public:
     // Stops the Search in flight and the load in progress, if any.
     void stopLoading();
 
+    // The Log File grows no more -- its writer has ended (#575): it is no
+    // longer watched, and never again. What it holds now is loaded all the
+    // same, and watchingStopped() tells when it is.
+    void stopWatching();
+
     // The log data, for as long as this object lives: to read its Log Lines.
     const std::shared_ptr<LogData>& logData() const;
 
@@ -281,11 +286,16 @@ Q_SIGNALS:
     // Searches kept too, may read differently. Told after loadingFinished()
     // when a load settled it.
     void encodingChanged();
+    // After stopWatching(): the Log File, as it was on disk then, is loaded.
+    // Told once.
+    void watchingStopped();
 
 private:
     void handleLoadingFinished( LoadingStatus status, const QString& failure );
     void handleChangeOnDisk( const QString& fileName );
     void handleFileChanged( MonitoredFileStatus status, const QString& failure );
+    // Checks the Log File once more on the way to watchingStopped().
+    void checkBeforeWatchingStops();
     // Starts the Search again with the pattern last requested, over the
     // Search Limits.
     void restartSearch();
@@ -304,6 +314,13 @@ private:
     QString fileName_;
     // Whether the Log File was handed to the port to watch.
     bool watched_ = false;
+    // Watching the Log File, stopping it -- the Log File is checked until a
+    // check finds it unchanged -- or stopped.
+    enum class Watching { On, Stopping, Stopped };
+    Watching watching_ = Watching::On;
+    // The checks made while stopping: a Log File that keeps changing is not
+    // waited for for ever.
+    int checksBeforeStopping_ = 0;
 
     // Declared before the Searches built from it, so it outlives them.
     std::shared_ptr<LogData> logData_;
