@@ -3763,7 +3763,8 @@ void MainWindow::restoreSessionFile( const SessionFileRead& read )
     // that did now, and those from an archive as each opens.
     const auto tabsAdded = restoreWindow( read.window );
     applyTabLabels( read.window, [ &tabsAdded ]( const SessionInfo::OpenFile& file ) {
-        return file.archiveMember.isEmpty() && std::ranges::contains( tabsAdded, file.fileName );
+        return file.archiveMember.isEmpty()
+               && std::ranges::find( tabsAdded, file.fileName ) != tabsAdded.end();
     } );
     pendingTabLabels_ = read.window;
     mainTabWidget_.refreshAllTabGroupAppearances();
