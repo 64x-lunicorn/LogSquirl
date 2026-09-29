@@ -26,6 +26,7 @@
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "settingspolicies.h"
+#include "theme.h"
 
 #include <QColor>
 #include <QStringList>
@@ -74,7 +75,7 @@ public:
 
     // Hand over the Theme's 16 basic ANSI colors, which ANSI color indices
     // 0-15 stand for.
-    void setAnsiColors( const std::array<QColor, 16>& basicColors );
+    void setAnsiColors( const std::array<QColor, AnsiBasicColorCount>& basicColors );
 
     // The ANSI colors of a Log Line as the Line Decorator's lowest source, in
     // the columns the spans are in; none unless the Policy shows ANSI colors.
@@ -121,7 +122,7 @@ private:
     std::vector<QStringList> colorLabelWords_;
     std::vector<HighlightColor> colorLabelColors_;
     const QuickFindPattern* quickFindPattern_ = nullptr;
-    std::array<QColor, 16> ansiBasicColors_;
+    std::array<QColor, AnsiBasicColorCount> ansiBasicColors_;
 
     std::optional<Highlighter> cachedMainSearch_;
     logsquirl::vector<Highlighter> cachedColorLabels_;

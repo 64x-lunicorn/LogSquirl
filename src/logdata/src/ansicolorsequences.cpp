@@ -105,7 +105,7 @@ std::optional<qsizetype> sequenceEnd( QStringView text, qsizetype start )
     case u'M':
     case u'k':
     case u'K':
-    case u'K':
+    case u'\u212A': // KELVIN SIGN, which looks like K
         return position + 1;
     default:
         return std::nullopt;

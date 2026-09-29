@@ -76,8 +76,7 @@ QColor extremeOn( const QColor& background )
 {
     const QColor black( Qt::black );
     const QColor white( Qt::white );
-    return contrastRatio( black, background ) >= contrastRatio( white, background ) ? black
-                                                                                    : white;
+    return contrastRatio( black, background ) >= contrastRatio( white, background ) ? black : white;
 }
 
 // One step of xterm's 6x6x6 color cube.
@@ -87,7 +86,8 @@ int xtermCubeLevel( int step )
 }
 
 // The color an ANSI color stands for; invalid for the line's own.
-QColor resolvedAnsiColor( const AnsiColor& color, const std::array<QColor, 16>& basicColors )
+QColor resolvedAnsiColor( const AnsiColor& color,
+                          const std::array<QColor, AnsiBasicColorCount>& basicColors )
 {
     switch ( color.kind() ) {
     case AnsiColor::Kind::LineColor:
@@ -99,7 +99,7 @@ QColor resolvedAnsiColor( const AnsiColor& color, const std::array<QColor, 16>& 
     }
 
     const int index = color.index();
-    if ( index < 16 ) {
+    if ( static_cast<std::size_t>( index ) < AnsiBasicColorCount ) {
         return basicColors[ static_cast<std::size_t>( index ) ];
     }
     if ( index < 232 ) {
@@ -133,7 +133,7 @@ void DecorationSetup::setColorLabels( const std::vector<QStringList>& words,
     rebuildColorLabels();
 }
 
-void DecorationSetup::setAnsiColors( const std::array<QColor, 16>& basicColors )
+void DecorationSetup::setAnsiColors( const std::array<QColor, AnsiBasicColorCount>& basicColors )
 {
     ansiBasicColors_ = basicColors;
 }
