@@ -25,9 +25,11 @@
 #include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QVBoxLayout>
@@ -40,6 +42,13 @@ CsvExportDialog::CsvExportDialog( Setup setup, QWidget* parent )
     , chooseFileName_( []( QWidget* dialogParent, const QString& proposed ) {
         return QFileDialog::getSaveFileName( dialogParent, tr( "Export as CSV" ), proposed,
                                              tr( "CSV files (*.csv)" ) );
+    } )
+    , confirmOverwrite_( []( QWidget* dialogParent, const QString& fileName ) {
+        return QMessageBox::question( dialogParent, tr( "Export as CSV" ),
+                                      tr( "%1 already exists.\nDo you want to replace it?" )
+                                          .arg( QFileInfo( fileName ).fileName() ),
+                                      QMessageBox::Yes | QMessageBox::No, QMessageBox::No )
+               == QMessageBox::Yes;
     } )
 {
     setWindowTitle( tr( "Export as CSV" ) );
@@ -116,6 +125,11 @@ void CsvExportDialog::setFileNameChooser( FileNameChooser chooser )
     chooseFileName_ = std::move( chooser );
 }
 
+void CsvExportDialog::setOverwriteConfirmer( OverwriteConfirmer confirmer )
+{
+    confirmOverwrite_ = std::move( confirmer );
+}
+
 CsvExportDialog::Choices CsvExportDialog::choices() const
 {
     Choices chosen;
@@ -153,6 +167,10 @@ void CsvExportDialog::exportChosen()
     }
     if ( !fileName.endsWith( QLatin1String( ".csv" ), Qt::CaseInsensitive ) ) {
         fileName += QLatin1String( ".csv" );
+        // The file dialog asked about replacing the name without ".csv"
+        if ( QFileInfo::exists( fileName ) && !confirmOverwrite_( this, fileName ) ) {
+            return;
+        }
     }
     fileName_ = std::move( fileName );
 

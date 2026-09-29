@@ -22,9 +22,12 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <QCheckBox>
+#include <QFile>
 #include <QListWidget>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QStringList>
+#include <QTemporaryDir>
 
 #include "configuration.h"
 #include "csvexportdialog.h"
@@ -222,6 +225,95 @@ SCENARIO( "The dialog Export as CSV remembers the separator and the header row",
             {
                 REQUIRE( dialog.result() != QDialog::Accepted );
                 REQUIRE( Configuration::get().csvSeparator() == QChar( ',' ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "The dialog Export as CSV asks before replacing the file .csv is added to",
+          "[csvexport][dialog]" )
+{
+    const KeptConfiguration kept;
+    Configuration::get().setCsvSeparator( ',' );
+    const QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+    const auto chosenName = folder.filePath( "errors" );
+    const auto finalName = folder.filePath( "errors.csv" );
+
+    CsvExportDialog dialog( tableSetup( false ) );
+    radioButton( dialog, "Semicolon" )->setChecked( true );
+    dialog.setFileNameChooser( [ &chosenName ]( QWidget*, const QString& ) { return chosenName; } );
+    QStringList asked;
+    bool replace = false;
+    dialog.setOverwriteConfirmer( [ &asked, &replace ]( QWidget*, const QString& fileName ) {
+        asked.push_back( fileName );
+        return replace;
+    } );
+
+    GIVEN( "no file with .csv added exists" )
+    {
+        WHEN( "the user exports" )
+        {
+            exportButton( dialog )->click();
+
+            THEN( "nothing is asked, and that file is written" )
+            {
+                REQUIRE( asked.isEmpty() );
+                REQUIRE( dialog.result() == QDialog::Accepted );
+                REQUIRE( dialog.choices().fileName == finalName );
+            }
+        }
+    }
+
+    GIVEN( "the file with .csv added exists" )
+    {
+        QFile existing( finalName );
+        REQUIRE( existing.open( QIODevice::WriteOnly ) );
+        existing.close();
+
+        WHEN( "the user exports and declines to replace it" )
+        {
+            exportButton( dialog )->click();
+
+            THEN( "the user is asked about that file, the dialog stays open, and nothing is "
+                  "remembered" )
+            {
+                REQUIRE( asked == QStringList{ finalName } );
+                REQUIRE( dialog.result() != QDialog::Accepted );
+                REQUIRE( Configuration::get().csvSeparator() == QChar( ',' ) );
+            }
+        }
+
+        WHEN( "the user exports and replaces it" )
+        {
+            replace = true;
+            exportButton( dialog )->click();
+
+            THEN( "that file is written" )
+            {
+                REQUIRE( asked == QStringList{ finalName } );
+                REQUIRE( dialog.result() == QDialog::Accepted );
+                REQUIRE( dialog.choices().fileName == finalName );
+            }
+        }
+    }
+
+    GIVEN( "a file chosen with .csv, which exists" )
+    {
+        QFile existing( finalName );
+        REQUIRE( existing.open( QIODevice::WriteOnly ) );
+        existing.close();
+        dialog.setFileNameChooser(
+            [ &finalName ]( QWidget*, const QString& ) { return finalName; } );
+
+        WHEN( "the user exports" )
+        {
+            exportButton( dialog )->click();
+
+            THEN( "nothing is asked again: the file dialog asked about it" )
+            {
+                REQUIRE( asked.isEmpty() );
+                REQUIRE( dialog.result() == QDialog::Accepted );
             }
         }
     }

@@ -655,8 +655,9 @@ chooses what is written:
 - **Write column names as the first row**: the header row.
 
 **Export...** then asks for the file, proposing the log file's name with
-`.csv` added, and adds `.csv` to a name without it. The separator and the
-header row are remembered for the next export; the rows and columns are not.
+`.csv` added, and adds `.csv` to a name without it, asking first when a file
+of that name exists. The separator and the header row are remembered for the
+next export; the rows and columns are not.
 
 Every value is exactly what the table shows, the elapsed time and the raw
 text of a non-matching line included. The file is UTF-8 with a byte order

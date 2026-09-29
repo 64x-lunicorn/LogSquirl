@@ -1234,63 +1234,71 @@ Sans date, %1 est utilisé.</translation>
 <context>
     <name>CsvExportDialog</name>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="41"/>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="45"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="43"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="47"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="54"/>
         <source>Export as CSV</source>
         <translation>Exporter en CSV</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="42"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="44"/>
         <source>CSV files (*.csv)</source>
         <translation>Fichiers CSV (*.csv)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="47"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="48"/>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <translation>%1 existe déjà.
+Voulez-vous le remplacer ?</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="56"/>
         <source>Rows</source>
         <translation>Lignes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="50"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="59"/>
         <source>All rows</source>
         <translation>Toutes les lignes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="51"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="60"/>
         <source>Selected rows</source>
         <translation>Lignes sélectionnées</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="65"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="74"/>
         <source>Columns</source>
         <translation>Colonnes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="77"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="86"/>
         <source>Separator</source>
         <translation>Séparateur</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="79"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="88"/>
         <source>Comma</source>
         <translation>Virgule</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="80"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="89"/>
         <source>Semicolon</source>
         <translation>Point-virgule</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="81"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="90"/>
         <source>Tab</source>
         <translation>Tabulation</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="94"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="103"/>
         <source>Write column names as the first row</source>
         <translation>Écrire les noms de colonnes en première ligne</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="98"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="107"/>
         <source>Export...</source>
         <translation>Exporter...</translation>
     </message>
