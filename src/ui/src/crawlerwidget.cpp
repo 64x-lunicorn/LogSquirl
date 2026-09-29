@@ -1901,6 +1901,13 @@ FilteredView* CrawlerWidget::buildFilteredView( LogFilteredData* search )
     auto* view = new FilteredView( search, quickFindPattern_.get(),
                                    viewSet_.presentationPolicy().useTextWrap );
     view->setContentsMargins( 2, 0, 2, 0 );
+    // Asked each time, so every Filtered View, those of kept Searches too,
+    // exports with the Log Format recognized now.
+    view->setRecognizedFormat( [ this ]() {
+        return FilteredView::RecognizedFormat{ recognizedFormat_,
+                                               openLogFile_->lastModified().date(),
+                                               openLogFile_->fileName() };
+    } );
     return view;
 }
 

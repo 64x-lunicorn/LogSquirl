@@ -2174,8 +2174,19 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
     entries.saveSplitterPosition = [ this ]() { Q_EMIT saveDefaultSplitterSizes(); };
     entries.saveToFile = [ this ]() { saveToFile(); };
     entries.saveSelectedToFile = [ this ]() { saveSelectedToFile(); };
+    entries.exportAsCsv = exportAsCsvAction();
 
     return PresentationMenu::create( this, report, entries );
+}
+
+std::function<void()> AbstractLogView::exportAsCsvAction()
+{
+    return {};
+}
+
+logsquirl::vector<LineNumber> AbstractLogView::selectedLogLines() const
+{
+    return selection_.getLines( *lines_ );
 }
 
 void AbstractLogView::considerMouseHovering( int xPos, int yPos )

@@ -5,6 +5,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewscrolling_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewquickfind_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewsave_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewcsvexport_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewselection_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/marknavigation_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/jumptolinenumber_test.cpp

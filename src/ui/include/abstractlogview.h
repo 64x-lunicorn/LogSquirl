@@ -275,6 +275,13 @@ protected:
     // The context menu for the current selection, opened at pos in viewport
     // coordinates; built by PresentationMenu, and not yet shown.
     std::unique_ptr<QMenu> createContextMenu( const QPoint& pos );
+    // What the context menu's Export as CSV... does. Empty, and the menu
+    // offers no such entry, unless the view can split its Log Lines into the
+    // fields of a Log Format.
+    virtual std::function<void()> exportAsCsvAction();
+
+    // The selected Log Lines, in order (see Selection::getLines()).
+    logsquirl::vector<LineNumber> selectedLogLines() const;
 
     void registerShortcut( const std::string& action, std::function<void()> func );
 

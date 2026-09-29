@@ -128,6 +128,16 @@ struct CrawlerWidget::access_by<FormatRecognitionAccess> {
         return crawler->openLogFile_->logFormatCatalog().get();
     }
 
+    // The names of the columns the Filtered View's Export as CSV offers.
+    QStringList filteredViewCsvColumns() const
+    {
+        QStringList names;
+        for ( const auto& column : crawler->currentFilteredView()->csvExportSetup().columns ) {
+            names << column.name;
+        }
+        return names;
+    }
+
     bool isTableViewToggled() const
     {
         return crawler->tableViewToggle_->isChecked();
@@ -283,6 +293,11 @@ SCENARIO( "A changed Recognition Policy takes effect at the next Format Recognit
                 REQUIRE( logFile->logFormat() == nullptr );
             }
 
+            THEN( "the Filtered View's CSV export offers no column of a Log Format" )
+            {
+                REQUIRE( logFile->filteredViewCsvColumns() == QStringList{ "Line", "Type" } );
+            }
+
             AND_WHEN( "the Log File is reloaded" )
             {
                 logFile->reload();
@@ -291,6 +306,14 @@ SCENARIO( "A changed Recognition Policy takes effect at the next Format Recognit
                 {
                     REQUIRE( waitUiState( [ & ] { return logFile->logFormat() != nullptr; } ) );
                     REQUIRE( logFile->logFormat()->name() == "recognition_test_log" );
+                }
+
+                THEN( "the Filtered View's CSV export offers the columns of that Log Format" )
+                {
+                    REQUIRE( waitUiState( [ & ] { return logFile->logFormat() != nullptr; } ) );
+                    REQUIRE( logFile->filteredViewCsvColumns()
+                             == QStringList{ "Line", "Type", "timestamp", "Δt", "level", "thread",
+                                             "body" } );
                 }
             }
         }
