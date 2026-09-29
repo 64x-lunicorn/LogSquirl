@@ -165,7 +165,7 @@ int main( int argc, char* argv[] )
         logging::enableFileLogging( parameters.log_to_file, logLevel );
 
         LOG_INFO << "Found another logsquirl, pid " << app.primaryPid();
-        return app.handOverToPrimaryInstance( parameters.filenames );
+        return app.handOverToPrimaryInstance( parameters.filenames, parameters.read_stdin );
     }
 
     auto& config = Configuration::getSynced();

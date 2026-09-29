@@ -268,10 +268,15 @@ class IsolatedLogSquirl:
         if ready is not None:
             self.wait_for_primary_line(ready, timeout)
 
-    def launch(self, *args: str) -> subprocess.Popen:
-        """Starts an instance in this environment, without waiting for it."""
+    def launch(self, *args: str, stdin=None) -> subprocess.Popen:
+        """Starts an instance in this environment, without waiting for it.
+
+        stdin is handed to subprocess.Popen: subprocess.PIPE lets a test pipe
+        into ``logsquirl -`` (#623).
+        """
         return subprocess.Popen(
             [str(self.binary), *args],
+            stdin=stdin,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=self.env,

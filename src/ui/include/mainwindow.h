@@ -133,6 +133,13 @@ public:
     // A window reads it once.
     void openStandardInput();
 
+    // Opens, in a followed `stdin` tab, the spool file a secondary instance
+    // writes what arrives on its standard input to, and brings the window to
+    // the front (#623). The tab owns the file and removes it as it closes --
+    // when the file is a spool of standard input in the temporary folder;
+    // any other file is only opened. Each hand-over is a tab of its own.
+    void openHandedOverStandardInput( const QString& spoolPath );
+
     // Runs the command line through the user's shell and opens its output as
     // a Transient Log File that is followed, titled by the command line
     // (#575). A working folder that does not exist, a spool file that cannot
@@ -318,6 +325,9 @@ private:
     // closes it once none is.
     void showArchiveRestoreProgress( const QString& archive );
     void closeArchiveRestoreProgress();
+    // Raises the window and gives it the focus, as a hand-over from another
+    // instance does.
+    void bringToFront();
     // The view of this Log File open in any window, or of the Log File a
     // converter plugin converted it into (#615); nullptr while neither is.
     const ViewInterface* openViewOf( const QString& fileName ) const;

@@ -37,6 +37,7 @@ add_executable(logsquirl_tests
     highlighterpresets_test.cpp
     indexedhash_test.cpp
     indexjobrule_test.cpp
+    instancehandover_test.cpp
     jwtdecoder_test.cpp
     linedecorator_test.cpp
     logger_test.cpp

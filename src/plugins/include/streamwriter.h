@@ -83,6 +83,13 @@ public:
      */
     void pushBytes( const char* data, size_t len );
 
+    /**
+     * Keep the backing file and its folder when this writer is destroyed:
+     * somebody else owns them from then on, such as the primary instance a
+     * secondary one hands standard input over to (#623).
+     */
+    void keepFile();
+
     /** Mark the stream as complete (no more data expected). */
     void signalEos();
 

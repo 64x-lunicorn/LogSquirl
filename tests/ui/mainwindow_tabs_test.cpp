@@ -52,8 +52,8 @@
 #include <QTimer>
 
 #include <algorithm>
-#include <functional>
 #include <cstdio>
+#include <functional>
 #include <optional>
 #include <utility>
 
@@ -74,6 +74,7 @@
 #include "recentfiles.h"
 #include "session.h"
 #include "sessioninfo.h"
+#include "streamwriter.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabgroupinfo.h"
 #include "tabnamemapping.h"
@@ -1332,6 +1333,101 @@ SCENARIO( "Two commands and standard input are read side by side in one window",
             }
         }
     }
+}
+
+// --- Standard input handed over by a secondary instance (#623) ---
+
+namespace {
+
+// A spool file of standard input as a secondary instance makes and hands
+// over: the secondary keeps writing, the window owns it.
+QString handedOverSpool( const QByteArray& content )
+{
+    logsquirl::plugins::StreamWriter writer( "stdin" );
+    writer.pushBytes( content.constData(), static_cast<size_t>( content.size() ) );
+    writer.keepFile();
+    return writer.filePath();
+}
+
+// The tabs titled exactly `title`.
+std::vector<int> tabsTitled( const TabbedCrawlerWidget& tabs, const QString& title )
+{
+    std::vector<int> found;
+    for ( int i = 0; i < tabs.count(); ++i ) {
+        if ( tabs.tabText( i ) == title ) {
+            found.push_back( i );
+        }
+    }
+    return found;
+}
+
+} // namespace
+
+SCENARIO( "Standard input handed over by another instance opens in a stdin tab, as often as it "
+          "comes",
+          "[ui][tabs][command]" )
+{
+    TabsWindow window( false, FileWatcher::sharedFileWatcher() );
+
+    const auto first = handedOverSpool( "1\n2\n3\n4\n5\n" );
+    const auto second = handedOverSpool( "a\n" );
+    REQUIRE( first != second );
+
+    window.mainWindow->openHandedOverStandardInput( first );
+    window.mainWindow->openHandedOverStandardInput( second );
+
+    REQUIRE( waitUiState( [ & ] { return tabsTitled( *window.tabArea, "stdin" ).size() == 2; },
+                          UiTimeoutMs ) );
+    const auto tabs = tabsTitled( *window.tabArea, "stdin" );
+    REQUIRE( spoolOf( window, tabs[ 0 ] ) == first );
+    REQUIRE( spoolOf( window, tabs[ 1 ] ) == second );
+    REQUIRE( window.tabArea->holdsTransientLogFile( tabs[ 0 ] ) );
+    // The last one handed over is in front.
+    REQUIRE( window.tabArea->currentIndex() == tabs[ 1 ] );
+
+    auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( tabs[ 0 ] ) );
+    REQUIRE( crawler != nullptr );
+    REQUIRE( waitUiState(
+        [ & ] {
+            return CrawlerWidget::access_by<MainWindowTabsAccess>{ *crawler }.nbLines().get() == 5;
+        },
+        UiTimeoutMs ) );
+
+    WHEN( "a stdin tab is closed" )
+    {
+        Q_EMIT window.tabArea->tabCloseRequested( tabs[ 0 ] );
+
+        THEN( "its spool file and folder are removed, and the other tab keeps its own" )
+        {
+            REQUIRE( waitUiState( [ & ] { return !QFileInfo::exists( first ); }, UiTimeoutMs ) );
+            REQUIRE_FALSE( QFileInfo::exists( QFileInfo( first ).absolutePath() ) );
+            REQUIRE( QFileInfo::exists( second ) );
+        }
+    }
+
+    window.mainWindow->close();
+    REQUIRE( waitUiState( [ & ] { return !QFileInfo::exists( second ); }, UiTimeoutMs ) );
+}
+
+SCENARIO( "A handed-over file that is no spool of standard input opens but is not removed",
+          "[ui][tabs][command]" )
+{
+    TabsWindow window( false );
+    QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+    const auto path = folder.filePath( "mine.log" );
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::WriteOnly ) );
+    file.write( "keep me\n" );
+    file.close();
+
+    window.mainWindow->openHandedOverStandardInput( path );
+    REQUIRE( waitUiState( [ & ] { return tabsTitled( *window.tabArea, "stdin" ).size() == 1; },
+                          UiTimeoutMs ) );
+
+    Q_EMIT window.tabArea->tabCloseRequested( tabsTitled( *window.tabArea, "stdin" ).front() );
+    QTest::qWait( 200 );
+    REQUIRE( QFileInfo::exists( path ) );
 }
 
 #endif

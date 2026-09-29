@@ -24,6 +24,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdlib>
+#include <iostream>
 #include <iterator>
 #include <numeric>
 #include <qapplication.h>
@@ -65,6 +66,7 @@
 #include <kdsingleapplication.h>
 
 #include "installsource.h"
+#include "instancehandover.h"
 #include "mainwindow.h"
 #include "messagereceiver.h"
 #include "versionchecker.h"
@@ -108,6 +110,8 @@ public:
 
             QObject::connect( &messageReceiver_, &MessageReceiver::loadFile, this,
                               &LogSquirlApp::loadFileNonInteractive );
+            QObject::connect( &messageReceiver_, &MessageReceiver::openStandardInputSpool, this,
+                              &LogSquirlApp::openHandedOverStandardInput );
         }
     }
 
@@ -179,9 +183,20 @@ public:
     }
 
     // Hands the Log Files given on the command line over to the primary
-    // instance and returns the exit code for this secondary instance.
-    int handOverToPrimaryInstance( const std::vector<QString>& filenames )
+    // instance and returns the exit code for this secondary instance. Given
+    // "-", it hands standard input over with them and keeps reading it for the
+    // primary instance until its writer closes it (#623).
+    int handOverToPrimaryInstance( const std::vector<QString>& filenames, bool readStdin )
     {
+        if ( readStdin ) {
+            // No event loop runs meanwhile: a Log File macOS would deliver
+            // as a QFileOpenEvent is not waited for.
+            return handOverStandardInput(
+                filenames, 0, logsquirlVersion(),
+                [ this ]( const QByteArray& message ) { return sendToPrimaryInstance( message ); },
+                std::cerr );
+        }
+
         if ( !filenames.empty() ) {
             return sendFilesToPrimaryInstance( filenames ) ? EXIT_SUCCESS : EXIT_FAILURE;
         }
@@ -206,25 +221,22 @@ public:
     // within the timeout does this fail.
     bool sendFilesToPrimaryInstance( const std::vector<QString>& filenames )
     {
+        LOG_INFO << "Handing over " << filenames.size() << " file(s) to the primary instance";
+        return sendToPrimaryInstance(
+            handOverMessage( HandOver{ filenames, {} }, logsquirlVersion() ) );
+    }
+
+    bool sendToPrimaryInstance( const QByteArray& message )
+    {
 #ifdef Q_OS_WIN
         // TODO: fix pid passing
         ::AllowSetForegroundWindow( static_cast<DWORD>( primaryPid() ) );
 #endif
 
-        LOG_INFO << "Handing over " << filenames.size() << " file(s) to the primary instance";
-
-        QStringList filesToOpen;
-        std::copy( filenames.cbegin(), filenames.cend(), std::back_inserter( filesToOpen ) );
-
-        QVariantMap data;
-        data.insert( "version", logsquirlVersion() );
-        data.insert( "files", QVariant{ filesToOpen } );
-
         constexpr auto SendTimeoutMs = 5000;
-        const auto cbor = QCborValue::fromVariant( data );
-        const auto sent = singleApplication_.sendMessageWithTimeout( cbor.toCbor(), SendTimeoutMs );
+        const auto sent = singleApplication_.sendMessageWithTimeout( message, SendTimeoutMs );
         if ( !sent ) {
-            LOG_ERROR << "Could not hand files over to the primary instance, pid " << primaryPid();
+            LOG_ERROR << "Could not hand over to the primary instance, pid " << primaryPid();
         }
         return sent;
     }
@@ -308,6 +320,21 @@ public:
         }
 
         activeWindows_.top()->loadFileNonInteractive( file );
+    }
+
+    // Opens standard input a secondary instance spools to `spoolPath` in the
+    // window the Log Files handed over open in (#623).
+    void openHandedOverStandardInput( const QString& spoolPath )
+    {
+        while ( !activeWindows_.empty() && activeWindows_.top().isNull() ) {
+            activeWindows_.pop();
+        }
+
+        if ( activeWindows_.empty() ) {
+            newWindow();
+        }
+
+        activeWindows_.top()->openHandedOverStandardInput( spoolPath );
     }
 
     void startBackgroundTasks()

@@ -107,6 +107,7 @@
 #include "highlightersdialog.h"
 #include "highlightersmenu.h"
 #include "indexcache.h"
+#include "instancehandover.h"
 #include "issuereporter.h"
 #include "logger.h"
 #include "logsquirl_version.h"
@@ -610,6 +611,23 @@ void MainWindow::openStandardInput()
     const auto filePath = source->spoolPath();
     openCommandSource( std::move( source ), tr( "stdin" ),
                        tr( "Standard input\n%1" ).arg( filePath ) );
+}
+
+void MainWindow::openHandedOverStandardInput( const QString& spoolPath )
+{
+    const auto toolTip = tr( "Standard input\n%1" ).arg( QDir::toNativeSeparators( spoolPath ) );
+    if ( isStandardInputSpool( spoolPath ) ) {
+        openCommandSource( CommandSource::adoptSpoolFile( spoolPath ), tr( "stdin" ), toolTip );
+    }
+    else {
+        // Not a file this window may remove: opened, and left where it is.
+        LOG_WARNING << "Handed over as standard input, but no spool file: " << spoolPath;
+        mainTabWidget_.setOpeningTitle( spoolPath, tr( "stdin" ), toolTip );
+        if ( !loadFile( spoolPath, true, LogFileLifetime::Transient ) ) {
+            mainTabWidget_.setOpeningTitle( spoolPath, {} );
+        }
+    }
+    bringToFront();
 }
 
 QString MainWindow::commandToolTip( const CommandSource& source )
@@ -2753,7 +2771,11 @@ void MainWindow::loadFileNonInteractive( const QString& file_name )
     LOG_DEBUG << "loadFileNonInteractive( " << file_name.toStdString() << " )";
 
     loadFile( file_name );
+    bringToFront();
+}
 
+void MainWindow::bringToFront()
+{
     // Try to get the window to the front
     // This is a bit of a hack but has been tested on:
     // Qt 5.3 / Gnome / Linux
