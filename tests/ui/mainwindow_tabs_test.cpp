@@ -52,8 +52,8 @@
 #include <QTimer>
 
 #include <algorithm>
-#include <functional>
 #include <cstdio>
+#include <functional>
 #include <optional>
 #include <utility>
 
