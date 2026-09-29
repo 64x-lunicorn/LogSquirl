@@ -1130,6 +1130,28 @@ SCENARIO( "An Open Log File loads what was written to its Log File before it was
         10'000 ) );
 }
 
+// The check once it is watched finds nothing to load then (#629).
+SCENARIO( "An Open Log File does not load again a Log File that did not change before it was "
+          "watched",
+          "[openlogfile][filewatch]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "unchanged_while_loading.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    int unchangedChecks = 0;
+    QObject::connect( logFile.openLogFile.logData().get(), &LogData::fileUnchanged,
+                      [ &unchangedChecks ] { ++unchangedChecks; } );
+
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+    // The Log File was checked once it was watched, and found as it was.
+    REQUIRE( waitUiState( [ & ] { return unchangedChecks >= 1; }, 10'000 ) );
+    REQUIRE_FALSE( waitUiState( [ & ] { return logFile.observer.loads.size() > 1; }, 500 ) );
+    REQUIRE( logFile.nbLines() == LinesCount( FirstLineCount ) );
+}
+
 // A Log File whose writer has ended -- a command's output, standard input --
 // grows no more: it is loaded as it is and no longer watched (#575).
 SCENARIO( "An Open Log File stops watching its Log File once what it holds is loaded",
