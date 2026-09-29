@@ -40,6 +40,8 @@ set(ALLOWED_FILES
     src/plugindialog.cpp  # Persists which plugins are enabled, and auto-load.
     src/quickfindwidget.cpp # Writes back the QuickFind ignore-case toggle.
     src/chartpanel.cpp    # Saves, loads and deletes the Chart Presets.
+    # Remembers the separator and header row of the last CSV export (#572).
+    src/csvexportdialog.cpp
 
     # Window chrome, one consumer each: no Axis of its own (#183).
     # minimize-to-tray, confirm-tab-close (read, and written from its

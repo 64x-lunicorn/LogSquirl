@@ -19,6 +19,8 @@
 
 #include "csvexportdialog.h"
 
+#include <utility>
+
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QDialogButtonBox>
@@ -152,7 +154,7 @@ void CsvExportDialog::exportChosen()
     if ( !fileName.endsWith( QLatin1String( ".csv" ), Qt::CaseInsensitive ) ) {
         fileName += QLatin1String( ".csv" );
     }
-    fileName_ = fileName;
+    fileName_ = std::move( fileName );
 
     const auto chosen = choices();
     auto& config = Configuration::getSynced();
