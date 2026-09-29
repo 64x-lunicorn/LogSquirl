@@ -415,7 +415,8 @@ void OptionsDialog::updateDialogFromConfig()
         styleComboBox->setCurrentText( style );
     }
 
-    hideAnsiColorsCheckBox->setChecked( config.hideAnsiColorSequences() );
+    // The items are in the order of the values.
+    ansiColorSequencesComboBox->setCurrentIndex( static_cast<int>( config.ansiColorSequences() ) );
 
     contextLinesSpinBox->setValue( config.contextLinesCount() );
 
@@ -698,7 +699,8 @@ void OptionsDialog::updateConfigFromDialog()
     if ( themeChanged ) {
         Theme::apply( config.style() );
     }
-    config.setHideAnsiColorSequences( hideAnsiColorsCheckBox->isChecked() );
+    config.setAnsiColorSequences(
+        static_cast<AnsiColorSequences>( ansiColorSequencesComboBox->currentIndex() ) );
 
     config.setContextLinesCount( contextLinesSpinBox->value() );
 

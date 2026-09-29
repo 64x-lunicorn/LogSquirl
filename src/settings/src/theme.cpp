@@ -187,6 +187,32 @@ const std::array<ColorLabelColors, ColorLabelCount>& smyckColorLabels()
     return labels;
 }
 
+// The basic ANSI colors of Light, Dark and High Contrast: xterm's defaults,
+// which most terminals start from.
+const std::array<QColor, AnsiBasicColorCount>& xtermAnsiColors()
+{
+    static const std::array<QColor, AnsiBasicColorCount> colors{
+        QColor( "#000000" ), QColor( "#CD0000" ), QColor( "#00CD00" ), QColor( "#CDCD00" ),
+        QColor( "#0000EE" ), QColor( "#CD00CD" ), QColor( "#00CDCD" ), QColor( "#E5E5E5" ),
+        QColor( "#7F7F7F" ), QColor( "#FF0000" ), QColor( "#00FF00" ), QColor( "#FFFF00" ),
+        QColor( "#5C5CFF" ), QColor( "#FF00FF" ), QColor( "#00FFFF" ), QColor( "#FFFFFF" ),
+    };
+    return colors;
+}
+
+// The basic ANSI colors of both Smyck Themes: the SMYCK scheme's own
+// (https://color.smyck.org/, the `colors` file of its repository).
+const std::array<QColor, AnsiBasicColorCount>& smyckAnsiColors()
+{
+    static const std::array<QColor, AnsiBasicColorCount> colors{
+        QColor( "#000000" ), QColor( "#C75646" ), QColor( "#8EB33B" ), QColor( "#D0B03C" ),
+        QColor( "#4E90A7" ), QColor( "#C8A0D1" ), QColor( "#218693" ), QColor( "#B0B0B0" ),
+        QColor( "#5D5D5D" ), QColor( "#E09690" ), QColor( "#CDEE69" ), QColor( "#FFE377" ),
+        QColor( "#9CD9F0" ), QColor( "#FBB1F9" ), QColor( "#77DFD8" ), QColor( "#F7F7F7" ),
+    };
+    return colors;
+}
+
 // Every earlier version saved its full default dark palette. A stored color
 // that was the default before a Dark Token changed is that old default, not
 // a choice, so it does not override the new one.
@@ -210,6 +236,7 @@ Theme Theme::light()
     theme.isDark_ = false;
     theme.userStyleSheetFileName_ = QStringLiteral( "fusion-light.qss" );
     theme.colorLabels_ = classicColorLabels();
+    theme.ansiColors_ = xtermAnsiColors();
 
     using enum ColorToken;
     theme.setColors( {
@@ -351,6 +378,7 @@ Theme Theme::dark()
     theme.isDark_ = true;
     theme.userStyleSheetFileName_ = QStringLiteral( "dark.qss" );
     theme.colorLabels_ = classicColorLabels();
+    theme.ansiColors_ = xtermAnsiColors();
 
     using enum ColorToken;
     theme.setColors( {
@@ -495,6 +523,7 @@ Theme Theme::highContrast()
     theme.isDark_ = true;
     theme.userStyleSheetFileName_ = QStringLiteral( "high-contrast.qss" );
     theme.colorLabels_ = classicColorLabels();
+    theme.ansiColors_ = xtermAnsiColors();
 
     using enum ColorToken;
     theme.setColors( {
@@ -647,6 +676,7 @@ Theme Theme::smyck()
     theme.isDark_ = true;
     theme.userStyleSheetFileName_ = QStringLiteral( "smyck.qss" );
     theme.colorLabels_ = smyckColorLabels();
+    theme.ansiColors_ = smyckAnsiColors();
 
     using enum ColorToken;
     theme.setColors( {
@@ -805,6 +835,7 @@ Theme Theme::smyckLight()
     theme.isDark_ = false;
     theme.userStyleSheetFileName_ = QStringLiteral( "smyck-light.qss" );
     theme.colorLabels_ = smyckColorLabels();
+    theme.ansiColors_ = smyckAnsiColors();
 
     using enum ColorToken;
     theme.setColors( {
@@ -1089,6 +1120,11 @@ QString Theme::value( StyleToken token ) const
 const std::array<ColorLabelColors, ColorLabelCount>& Theme::colorLabels() const
 {
     return colorLabels_;
+}
+
+const std::array<QColor, AnsiBasicColorCount>& Theme::ansiColors() const
+{
+    return ansiColors_;
 }
 
 bool Theme::sameColorLabelColor( const QColor& lhs, const QColor& rhs )

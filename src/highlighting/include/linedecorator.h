@@ -279,13 +279,20 @@ public:
 
     // Turn a run of text plus its Line Verdict into a Decoration covering
     // the whole text, in the coordinate space of the text passed in.
-    // Precedence, low to high: the line's own colors, whole-line
+    // Precedence, low to high: the line's own colors, ANSI colors, whole-line
     // Highlighter, main search, Color Labels, QuickFind, selection.
     // Overlapping sources are resolved by splitting and overriding. A line
     // outside the Search Limits shows only QuickFind and selection; a line
-    // selected as a whole shows only QuickFind.
+    // selected as a whole shows only QuickFind. A line a whole-line
+    // Highlighter matches shows no ANSI colors, and a Context Line's ANSI
+    // foreground is dimmed as its own text is.
+    //
+    // ansiColors are the colors the Log Line's ANSI color sequences ask for,
+    // resolved by the Decoration Setup (DecorationSetup::ansiColorsFor()) in
+    // the columns of text; empty where the Presentation shows none.
     Decoration decorate( const QString& text, const LineVerdict& verdict,
-                         const std::optional<HighlightedMatch>& selection = std::nullopt ) const;
+                         const std::optional<HighlightedMatch>& selection = std::nullopt,
+                         const logsquirl::vector<HighlightedMatch>& ansiColors = {} ) const;
 
 private:
     Context context_;

@@ -257,3 +257,54 @@ SCENARIO( "A changed Decoding Policy reaches an Open Log File that has loaded",
         }
     }
 }
+
+// Hide and Show colors hide ANSI color sequences alike: the Decoding Policy
+// is the same, and only the Decoration Policy, which the Open Log File does
+// not hold, tells them apart (#573). A view that shows the colors reads them
+// from the Log File as it is, next to the Search already run.
+SCENARIO( "Showing ANSI colors needs no other Decoding Policy than hiding the sequences",
+          "[openlogfile][settings][ansi]" )
+{
+    QTemporaryFile file{ "policy_change_ansi_colors_XXXXXX" };
+    REQUIRE( file.open() );
+    file.write( "plain line\n" );
+    file.write( "\x1B[31mERROR\x1B[0m: disk full\n" );
+    file.write( "another plain line\n" );
+    file.flush();
+
+    GIVEN( "a Log File opened hiding its ANSI color sequences, with a Search run" )
+    {
+        auto policies = testSettingsPolicies();
+        policies.search.useResultsCache = false;
+        policies.decoding.hideAnsiColorSequences = true;
+
+        OpenedLogFile logFile( file.fileName(), policies );
+        logFile.searchForSingleLine( "ERROR: disk full" );
+        const auto& logData = *logFile.openLogFile.logData();
+        const auto& search = logFile.openLogFile.filteredData();
+
+        WHEN( "a view that shows the colors reads the Log Lines it shows" )
+        {
+            QSignalSpy told( &logFile.openLogFile, &OpenLogFile::decodingPolicyChanged );
+            QSignalSpy searchRuns( search.get(), &LogFilteredData::searchStateChanged );
+
+            const auto mainLines = logData.getAnsiColoredLines( 0_lnum, 3_lcount );
+            const auto filteredLines = search->getAnsiColoredLines( 0_lnum, 1_lcount );
+
+            THEN( "they come with their colors and the text the Search matched" )
+            {
+                REQUIRE( mainLines[ 1 ].text == logData.getLineString( 1_lnum ) );
+                REQUIRE( mainLines[ 1 ].spans.size() == 1 );
+                REQUIRE( filteredLines[ 0 ].text == "ERROR: disk full" );
+                REQUIRE( filteredLines[ 0 ].spans == mainLines[ 1 ].spans );
+            }
+
+            THEN( "the Log File is not read again and the Search not run again" )
+            {
+                REQUIRE( told.isEmpty() );
+                REQUIRE( searchRuns.isEmpty() );
+                REQUIRE( search->getNbMatches() == 1_lcount );
+            }
+        }
+    }
+}

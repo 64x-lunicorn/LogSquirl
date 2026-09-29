@@ -339,6 +339,17 @@ logsquirl::vector<QString> LogFilteredData::readDisplayedLines(
     return lines;
 }
 
+logsquirl::vector<AnsiColoredText> LogFilteredData::doGetAnsiColoredLines( LineNumber first_line,
+                                                                           LinesCount number ) const
+{
+    // Forwarded to the Log File by Log Line number, as readDisplayedLines()
+    // reads them.
+    const auto logLines = displayedLines_.cursorAt( first_line ).takeForward( number );
+    auto lines = sourceLogData_->getAnsiColoredLinesSparse( logLines );
+    lines.resize( number.get() );
+    return lines;
+}
+
 LineNumber LogFilteredData::doGetLineNumber( LineNumber index ) const
 {
     return getMatchingLineNumber( index );

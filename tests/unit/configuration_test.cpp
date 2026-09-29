@@ -151,9 +151,9 @@ SCENARIO( "Configuration default values", "[configuration]" )
             REQUIRE_FALSE( config.useTextWrap() );
         }
 
-        THEN( "Hide ANSI color sequences is disabled" )
+        THEN( "ANSI color sequences are shown as text" )
         {
-            REQUIRE_FALSE( config.hideAnsiColorSequences() );
+            REQUIRE( config.ansiColorSequences() == AnsiColorSequences::ShowAsText );
         }
 
         THEN( "Context lines count defaults to 5" )
@@ -299,7 +299,7 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
         config.setOverviewVisible( false );
         config.setEnableLogging( true );
         config.setLoggingLevel( 2 );
-        config.setHideAnsiColorSequences( true );
+        config.setAnsiColorSequences( AnsiColorSequences::Hide );
         config.setUseTextWrap( true );
         config.setContextLinesCount( 10 );
         config.setCsvSeparator( '\t' );
@@ -371,7 +371,7 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
 
             THEN( "Feature flags are preserved" )
             {
-                REQUIRE( restored.hideAnsiColorSequences() );
+                REQUIRE( restored.ansiColorSequences() == AnsiColorSequences::Hide );
                 REQUIRE( restored.useTextWrap() );
                 REQUIRE( restored.contextLinesCount() == 10 );
             }
@@ -603,8 +603,8 @@ const QStringList StoredSettingNames = {
     "versionchecker.enabled",
     "view.contextLinesCount",
     "view.fastScrollEnabled",
+    "view.ansiColorSequences",
     "view.fastScrollMultiplier",
-    "view.hideAnsiColorSequences",
     "view.language",
     "view.lineNumbersVisibleInFiltered",
     "view.lineNumbersVisibleInMain",
@@ -682,7 +682,7 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.filteredLineNumbersVisible() == expected.filteredLineNumbersVisible() );
     CHECK( actual.minimizeToTray() == expected.minimizeToTray() );
     CHECK( actual.contextLinesCount() == expected.contextLinesCount() );
-    CHECK( actual.hideAnsiColorSequences() == expected.hideAnsiColorSequences() );
+    CHECK( actual.ansiColorSequences() == expected.ansiColorSequences() );
     CHECK( actual.useTextWrap() == expected.useTextWrap() );
     CHECK( actual.style() == expected.style() );
 
@@ -926,6 +926,13 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
             THEN( "Saving writes back every value unchanged" )
             {
                 auto stored = storedSettings( config );
+                // The ANSI color sequences checkbox became a setting of three
+                // values under a new key; the scenario on retired keys covers
+                // it.
+                auto releaseValues = release;
+                releaseValues.remove( "view.hideAnsiColorSequences" );
+                REQUIRE( stored.contains( "view.ansiColorSequences" ) );
+                stored.remove( "view.ansiColorSequences" );
                 // Settings added after v26.07.0 are not in its file; loading it
                 // leaves them at their default.
                 for ( const auto* added :
@@ -934,14 +941,14 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                         "commandSource.recentCommands/size" } ) {
                     stored.remove( added );
                 }
-                CHECK( stored.keys() == release.keys() );
-                for ( const auto& key : release.keys() ) {
+                CHECK( stored.keys() == releaseValues.keys() );
+                for ( const auto& key : releaseValues.keys() ) {
                     // The stored family is the one the platform resolves.
                     if ( key == "mainFont.family" ) {
                         continue;
                     }
                     INFO( key.toStdString() );
-                    CHECK( stored.value( key ) == release.value( key ) );
+                    CHECK( stored.value( key ) == releaseValues.value( key ) );
                 }
             }
 
@@ -953,6 +960,8 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                 CHECK( config.mainRegexpType() == SearchRegexpType::FixedString );
                 CHECK( config.quickfindRegexpType() == SearchRegexpType::ExtendedRegexp );
                 CHECK( config.regexpEngine() == RegexpEngine::QRegularExpression );
+                // Its hideAnsiColorSequences=true.
+                CHECK( config.ansiColorSequences() == AnsiColorSequences::Hide );
                 CHECK( config.mainSearchBackColor() == QColor( 0x12, 0x34, 0x56, 0x80 ) );
                 CHECK( config.qfBackColor() == QColor( 0xab, 0xcd, 0xef ) );
                 CHECK( config.searchResultsCacheLines() == 500000u );
@@ -1038,6 +1047,70 @@ SCENARIO( "Settings stored under retired keys are moved to the current keys", "[
     }
 }
 
+SCENARIO( "The ANSI color sequences checkbox of earlier releases becomes the three-valued setting",
+          "[configuration]" )
+{
+    const auto retiredKey = QStringLiteral( "view.hideAnsiColorSequences" );
+
+    GIVEN( "a settings file whose checkbox hid ANSI color sequences" )
+    {
+        SettingsFile file;
+        file.setValue( retiredKey, true );
+
+        WHEN( "it is loaded" )
+        {
+            const auto config = file.load();
+
+            THEN( "they are hidden" )
+            {
+                CHECK( config.ansiColorSequences() == AnsiColorSequences::Hide );
+            }
+
+            THEN( "the retired key is removed" )
+            {
+                CHECK_FALSE( file.values().contains( retiredKey ) );
+            }
+        }
+    }
+
+    GIVEN( "a settings file whose checkbox showed them" )
+    {
+        SettingsFile file;
+        file.setValue( retiredKey, false );
+
+        THEN( "they are shown as text, and the retired key is removed" )
+        {
+            CHECK( file.load().ansiColorSequences() == AnsiColorSequences::ShowAsText );
+            CHECK_FALSE( file.values().contains( retiredKey ) );
+        }
+    }
+
+    GIVEN( "a settings file without either key" )
+    {
+        SettingsFile file;
+        file.setValue( "view.textWrap", true );
+
+        THEN( "they are shown as text" )
+        {
+            CHECK( file.load().ansiColorSequences() == AnsiColorSequences::ShowAsText );
+        }
+    }
+
+    GIVEN( "a settings file with the retired and the current key" )
+    {
+        SettingsFile file;
+        file.setValue( retiredKey, true );
+        file.setValue( "view.ansiColorSequences",
+                       static_cast<int>( AnsiColorSequences::ShowColors ) );
+
+        THEN( "the current key wins, and the retired key is removed" )
+        {
+            CHECK( file.load().ansiColorSequences() == AnsiColorSequences::ShowColors );
+            CHECK_FALSE( file.values().contains( retiredKey ) );
+        }
+    }
+}
+
 SCENARIO( "Stored values outside their range are corrected on load", "[configuration]" )
 {
     GIVEN( "An index cache size below zero" )
@@ -1067,6 +1140,16 @@ SCENARIO( "Stored values outside their range are corrected on load", "[configura
         THEN( "The platform's default style is loaded" )
         {
             CHECK( file.load().style() == Theme::defaultTheme() );
+        }
+    }
+
+    GIVEN( "An ANSI color sequences value that does not exist" )
+    {
+        SettingsFile file;
+        file.setValue( "view.ansiColorSequences", 7 );
+        THEN( "They are shown as text" )
+        {
+            CHECK( file.load().ansiColorSequences() == AnsiColorSequences::ShowAsText );
         }
     }
 

@@ -81,12 +81,18 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
 
         .recognition = { .enabled = config.autoDetectLogFormats() },
 
-        .decoding = { .hideAnsiColorSequences = config.hideAnsiColorSequences() },
+        // Show colors hides the sequences as Hide does: the two differ only
+        // in the Decoration Policy, so switching between them re-reads no Log
+        // File and re-runs no Search (#573).
+        .decoding = { .hideAnsiColorSequences
+                      = config.ansiColorSequences() != AnsiColorSequences::ShowAsText },
 
-        .decoration = { .mainSearchHighlight = config.mainSearchHighlight(),
-                        .variateMainSearchHighlight = config.variateMainSearchHighlight(),
-                        .mainSearchBackColor = config.mainSearchBackColor(),
-                        .quickFindBackColor = config.qfBackColor() },
+        .decoration
+        = { .mainSearchHighlight = config.mainSearchHighlight(),
+            .variateMainSearchHighlight = config.variateMainSearchHighlight(),
+            .mainSearchBackColor = config.mainSearchBackColor(),
+            .quickFindBackColor = config.qfBackColor(),
+            .showAnsiColors = config.ansiColorSequences() == AnsiColorSequences::ShowColors },
 
         .presentation = { .useTextWrap = config.useTextWrap(),
                           .fastScrollEnabled = config.fastScrollEnabled(),

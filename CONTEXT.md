@@ -254,8 +254,8 @@ _Avoid_: quick highlighter, tag
 **Decoration**:
 The finished visual result for a piece of displayed text: an ordered, non-overlapping
 sequence of colored spans that covers the whole text, where text no source colors carries
-the line's own colors. What every source of color — Highlighter Set, Search, QuickFind,
-Color Label, selection, Line Verdict — is resolved *into*. Both Presentations draw a
+the line's own colors. What every source of color — ANSI colors, Highlighter Set, Search,
+QuickFind, Color Label, selection, Line Verdict — is resolved *into*. Both Presentations draw a
 Decoration as it is; neither decides a color for itself.
 _Avoid_: styling, formatting, markup
 
@@ -269,8 +269,19 @@ _Avoid_: line state, line flags
 
 **Line Decorator**:
 The single owner of the precedence rule that turns a Line Verdict plus a piece of text
-into a Decoration. It decides which color wins where; it does not draw.
+into a Decoration. It decides which color wins where; it does not draw. From low to high:
+ANSI colors, whole-line Highlighter, main Search, Color Labels, QuickFind, selection. A line
+a whole-line Highlighter matches, one outside the Search Limits and one selected as a whole
+show no ANSI colors.
 _Avoid_: renderer, painter, highlighter (a Highlighter is a user's rule, not this)
+
+**ANSI colors**:
+The foreground and background colors a Log Line's ANSI color sequences ask for, painted by
+the Text View (main and Filtered View) when the setting *ANSI color sequences* is *Show
+colors*. The lowest source of a Decoration. The sequences themselves are hidden as under
+*Hide*, so the text every Search, QuickFind, selection and copy works on is the same under
+both; each Log Line starts in its own colors. The 16 basic colors are the Theme's.
+_Avoid_: terminal colors, escape codes (those are the sequences, not their colors)
 
 ### Appearance
 
@@ -280,8 +291,8 @@ Light, or System, which becomes Light or Dark from the operating system's color 
 follows it while the application runs. Choosing a Theme takes effect at once, in every open
 window. A Theme is exactly one set of Tokens, and it carries the colors of the Color Labels;
 the application's palette and stylesheet are both derived from it. Beyond the Color Labels and
-the Row colors of a Match, a Mark and a Mark that is a Match in the Table View (ADR-0013), a
-Theme does not color Log Lines — Highlighters and Highlighter Sets are the user's alone.
+the Row colors of a Match, a Mark and a Mark that is a Match in the Table View (ADR-0013) and
+the 16 basic ANSI colors, a Theme does not color Log Lines — Highlighters and Highlighter Sets are the user's alone.
 _Avoid_: style, skin, palette (a palette is derived from a Theme)
 
 **Token**:

@@ -162,6 +162,32 @@ struct Codec<Enum> {
     }
 };
 
+// Stored as its numeric value. Releases before #573 stored a checkbox under
+// the retired key instead, which hid the sequences when true: it is read when
+// the current key has no value, and removed.
+template <>
+struct Codec<AnsiColorSequences> {
+    static AnsiColorSequences read( QSettings& settings, const SettingKey& key,
+                                    AnsiColorSequences defaultValue )
+    {
+        auto value = defaultValue;
+        if ( key.retiredName != nullptr && settings.contains( key.retiredName ) ) {
+            value = settings.value( key.retiredName ).toBool() ? AnsiColorSequences::Hide
+                                                               : AnsiColorSequences::ShowAsText;
+            settings.remove( key.retiredName );
+        }
+        if ( settings.contains( key.name ) ) {
+            value = static_cast<AnsiColorSequences>( settings.value( key.name ).toInt() );
+        }
+        return value;
+    }
+
+    static void write( QSettings& settings, const SettingKey& key, AnsiColorSequences value )
+    {
+        settings.setValue( key.name, static_cast<int>( value ) );
+    }
+};
+
 // Colors are stored as #AARRGGBB.
 template <>
 struct Codec<QColor> {
@@ -471,6 +497,18 @@ QString knownCsvSeparator( QString name )
     return name;
 }
 
+// Show as text for a value no release stores.
+AnsiColorSequences knownAnsiColorSequences( AnsiColorSequences value )
+{
+    switch ( value ) {
+    case AnsiColorSequences::ShowAsText:
+    case AnsiColorSequences::Hide:
+    case AnsiColorSequences::ShowColors:
+        return value;
+    }
+    return AnsiColorSequences::ShowAsText;
+}
+
 QString availableStyle( QString style )
 {
     const auto styles = Theme::availableThemes();
@@ -556,7 +594,8 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
     visit( "view.lineNumbersVisibleInFiltered", config.lineNumbersVisibleInFiltered_, true );
     visit( "view.minimizeToTray", config.minimizeToTray_, false );
     visit( "view.contextLinesCount", config.contextLinesCount_, 5 );
-    visit( "view.hideAnsiColorSequences", config.hideAnsiColorSequences_, false );
+    visit( { "view.ansiColorSequences", "view.hideAnsiColorSequences" }, config.ansiColorSequences_,
+           AnsiColorSequences::ShowAsText, knownAnsiColorSequences );
     visit( "view.textWrap", config.useTextWrap_, false );
     visit( "view.style", config.style_, QString{}, availableStyle );
     visit( "view.showSplashScreen", config.showSplashScreen_, false );

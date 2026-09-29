@@ -403,6 +403,7 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     // Policy of its own. The QuickFind pattern outlives this view and is not
     // owned by the setup.
     decorationSetup_.setQuickFindPattern( quickFindPattern_ );
+    decorationSetup_.setAnsiColors( Theme::active().ansiColors() );
 
     // Initialise char dimensions from the pixmap-based font metrics so that
     // updateScrollBars() computes sensible values even before the first
@@ -422,6 +423,8 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
         // the words were set, so they are read again here and every line is
         // decorated again with them (ADR-0006).
         decorationSetup_.setColorLabels( colorLabelWords_, colorLabelColors() );
+        // So do the ANSI colors.
+        decorationSetup_.setAnsiColors( Theme::active().ansiColors() );
         pullToFollowCache_.nb_columns_ = 0_length;
         updateDecorations();
         viewport()->update();
@@ -1298,8 +1301,17 @@ void AbstractLogView::setColorLabels( const std::vector<QStringList>& labels )
 
 void AbstractLogView::setDecorationPolicy( const DecorationPolicy& policy )
 {
+    const bool ansiColorsChanged
+        = policy.showAnsiColors != decorationSetup_.policy().showAnsiColors;
     decorationSetup_.setPolicy( policy );
-    updateDecorations();
+    if ( ansiColorsChanged ) {
+        // The Log Lines in the Viewport are read again, with their ANSI
+        // colors or without: only those, not the Log File, and no Search.
+        refresh( ViewportChange::Text );
+    }
+    else {
+        updateDecorations();
+    }
 }
 
 void AbstractLogView::setPresentationPolicy( const PresentationPolicy& policy )
@@ -1844,8 +1856,11 @@ AbstractLogView::buildViewportContent( std::optional<ViewportContent> previous )
     content.logLines.reserve( nbLines.get() );
     content.visualLines.reserve( maxVisualLines );
 
-    // Log Lines not kept, read together as far as the next one kept.
+    // Log Lines not kept, read together as far as the next one kept. With
+    // their ANSI colors only while they are shown: that read parses them.
+    const bool readsAnsiColors = decorationSetup_.policy().showAnsiColors;
     logsquirl::vector<QString> readLines;
+    logsquirl::vector<AnsiColoredText> readColoredLines;
     LineNumber readFrom{ 0 };
 
     for ( size_t index = 0; index < nbLines.get() && content.visualLines.size() < maxVisualLines;
@@ -1859,7 +1874,17 @@ AbstractLogView::buildViewportContent( std::optional<ViewportContent> previous )
                         && kept( position + count ) == nullptr ) {
                     count = count + 1_lcount;
                 }
-                readLines = logData_->getLines( position, count );
+                if ( readsAnsiColors ) {
+                    readColoredLines = logData_->getAnsiColoredLines( position, count );
+                    readLines.clear();
+                    readLines.reserve( readColoredLines.size() );
+                    for ( auto& coloredLine : readColoredLines ) {
+                        readLines.push_back( std::move( coloredLine.text ) );
+                    }
+                }
+                else {
+                    readLines = logData_->getLines( position, count );
+                }
                 readFrom = position;
             }
             if ( position.get() - readFrom.get() >= readLines.size() ) {
@@ -1872,11 +1897,16 @@ AbstractLogView::buildViewportContent( std::optional<ViewportContent> previous )
             if ( auto* keptLine = kept( position ); keptLine != nullptr ) {
                 return std::move( *keptLine );
             }
-            auto& text = readLines[ position.get() - readFrom.get() ];
+            const auto readIndex = position.get() - readFrom.get();
+            auto& text = readLines[ readIndex ];
             auto wrapped = scrolling_.wrap( text, visibleColumns );
+            auto ansiColors = readsAnsiColors && readIndex < readColoredLines.size()
+                                  ? std::move( readColoredLines[ readIndex ].spans )
+                                  : logsquirl::vector<AnsiColorSpan>{};
             return ViewportLogLine{ position,
                                     lines_->logLineAt( position ).value_or( position ),
                                     std::move( text ),
+                                    std::move( ansiColors ),
                                     std::move( wrapped ),
                                     0,
                                     0,
@@ -2398,8 +2428,9 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
     painter->drawLine( BulletAreaWidth, 0, BulletAreaWidth, paintDeviceHeight - 1 );
 
     // The Line Decorator owns every colour decision: the line's own
-    // colours, and which of the whole-line Highlighter, main search, Color
-    // Labels, QuickFind and selection wins where. It is constructed once per
+    // colours, and which of the ANSI colors, whole-line Highlighter, main
+    // search, Color Labels, QuickFind and selection wins where, in that
+    // order from low to high. It is constructed once per
     // repaint with the stable context, not once per line. That context is
     // built by the Decoration Setup, the one module that builds one for
     // either Presentation -- painting reads no setting and builds no
@@ -2413,9 +2444,10 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
     // display to raw columns before decorating, and the finished Decoration
     // to display columns once afterwards. Tab expansion stays this view's
     // step.
+    const auto linePalette = LinePalette::fromPalette( palette );
     const LineDecorator lineDecorator{ decorationSetup_.context(
-        highlighterSet, SearchLimits{ searchStart_, searchEnd_ },
-        LinePalette::fromPalette( palette ), LineStatusDisplay::InGutter ) };
+        highlighterSet, SearchLimits{ searchStart_, searchEnd_ }, linePalette,
+        LineStatusDisplay::InGutter ) };
 
     // Position in pixel of the base line of the line to print
     int yPos = 0;
@@ -2461,11 +2493,17 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
                                       palette.color( QPalette::Highlight ) } );
             }
 
-            viewportLogLine.decorated
-                = DecoratedLogLine{ key, lineType,
-                                    lineDecorator.decorate( logLine, verdict, rawSelection )
-                                        .inDisplayColumns( logLine,
-                                                           LineLength{ expandedLine.size() } ) };
+            // The ANSI colors were read with the Log Line; they are resolved
+            // against the Theme here, once for as long as this Decoration
+            // holds, and are the lowest source.
+            const auto ansiColors
+                = decorationSetup_.ansiColorsFor( viewportLogLine.ansiColors, linePalette );
+
+            viewportLogLine.decorated = DecoratedLogLine{
+                key, lineType,
+                lineDecorator.decorate( logLine, verdict, rawSelection, ansiColors )
+                    .inDisplayColumns( logLine, LineLength{ expandedLine.size() } )
+            };
         }
 
         using LineTypeFlags = AbstractLogData::LineTypeFlags;

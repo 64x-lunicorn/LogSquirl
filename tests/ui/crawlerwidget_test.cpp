@@ -1625,11 +1625,11 @@ SCENARIO( "Hiding ANSI color sequences reaches an open Log File through its Deco
                   "still shows them" )
         {
             auto& config = Configuration::get();
-            const auto hideAnsiColorSequences = config.hideAnsiColorSequences();
-            config.setHideAnsiColorSequences( false );
+            const auto ansiColorSequences = config.ansiColorSequences();
+            config.setAnsiColorSequences( AnsiColorSequences::ShowAsText );
             crawlerVisitor.crawler->applyChange(
                 ViewChange{ .rereadSettingsWithoutPolicy = true } );
-            config.setHideAnsiColorSequences( hideAnsiColorSequences );
+            config.setAnsiColorSequences( ansiColorSequences );
 
             THEN( "the Log Line still reads without them: only the Policy decides" )
             {
@@ -1747,6 +1747,164 @@ SCENARIO( "Every view of every open Log File shows its Log Lines under a changed
             }
         }
     }
+}
+
+namespace {
+
+// The background an ANSI truecolor sequence asks for in the Log File below.
+const QColor AnsiTruecolorBack{ 0x12, 0x34, 0x56 };
+
+// A Log File whose second Log Line has an ANSI truecolor background, a word
+// after it and a tab after that, and whose third a basic background the
+// Theme colors. Its source and body fit the Log Format showTableView() sets.
+void writeAnsiColoredLogFile( QTemporaryFile& file )
+{
+    REQUIRE( file.open() );
+    file.write( "app plain line\n" );
+    file.write( "app \x1B[48;2;18;52;86mERROR\x1B[0m: disk\tfull\n" );
+    file.write( "app \x1B[44mblue\x1B[49m and plain\n" );
+    file.flush();
+}
+
+// The text of a Log Line the view selected, after a QuickFind for pattern
+// from the top.
+QString quickFound( AbstractLogView& view, QuickFindPattern& quickFindPattern,
+                    const QString& pattern )
+{
+    view.selectAndDisplayLine( 0_lnum );
+    quickFindPattern.changeSearchPattern( pattern, false, false, false );
+    QSignalSpy done( AbstractLogView::access_by<CrawlerWidgetPrivate>::quickFind( view ),
+                     &QuickFind::searchDone );
+    view.searchForward();
+    REQUIRE( waitUiState( [ &done ] { return !done.isEmpty(); } ) );
+    return view.getSelectedText();
+}
+
+} // namespace
+
+SCENARIO( "Show colors paints the ANSI colors in the main and the Filtered View",
+          "[ui][settings][ansi]" )
+{
+    QTemporaryFile file{ "crawler_ansi_colors_XXXXXX" };
+    writeAnsiColoredLogFile( file );
+
+    // A Theme of its own, so the basic ANSI colors are Light's.
+    Theme::apply( Theme::LightKey );
+
+    // Hide, as the settings derive it.
+    auto policies = testSettingsPolicies();
+    policies.decoding.hideAnsiColorSequences = true;
+    policies.decoration.showAnsiColors = false;
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ &crawlerVisitor ]() {
+        return crawlerVisitor.getLogNbLines().get() == 3 && crawlerVisitor.isLoadingFinished();
+    } ) );
+    crawlerVisitor.showSized();
+    searchFor( crawlerVisitor, "disk" );
+
+    const auto xtermBlue = QColor( "#0000EE" );
+    REQUIRE_FALSE( showsColor( crawlerVisitor.textView(), AnsiTruecolorBack ) );
+    REQUIRE_FALSE( showsColor( crawlerVisitor.filteredView(), AnsiTruecolorBack ) );
+
+    auto& quickFindPattern = *crawlerVisitor.quickFindPattern();
+    const auto hiddenMatch = quickFound( *crawlerVisitor.textView(), quickFindPattern, "disk" );
+    const auto hiddenMatchAfterTab
+        = quickFound( *crawlerVisitor.textView(), quickFindPattern, "full" );
+    crawlerVisitor.selectAllInMainView();
+    const auto hiddenCopy = crawlerVisitor.mainViewSelectedText();
+    REQUIRE( hiddenMatch == "disk" );
+    REQUIRE( hiddenMatchAfterTab == "full" );
+    REQUIRE_FALSE( hiddenCopy.contains( QChar( 0x1B ) ) );
+    // A Log Line selected as a whole shows the selection colors instead of
+    // its own: only the first one stays selected.
+    crawlerVisitor.textView()->selectAndDisplayLine( 0_lnum );
+
+    GIVEN( "Show colors chosen in the settings" )
+    {
+        QSignalSpy decodingChanged( &crawlerVisitor.openLogFile(),
+                                    &OpenLogFile::decodingPolicyChanged );
+        auto* search = const_cast<LogFilteredData*>( crawlerVisitor.currentSearch().lock().get() );
+        REQUIRE( search != nullptr );
+        QSignalSpy searchRuns( search, &LogFilteredData::searchStateChanged );
+
+        policies.decoration.showAnsiColors = true;
+        session.applyPolicies( policies );
+        QTest::qWait( 50 );
+
+        THEN( "the main and the Filtered View paint the colors the sequences ask for" )
+        {
+            REQUIRE( showsColor( crawlerVisitor.textView(), AnsiTruecolorBack ) );
+            REQUIRE( showsColor( crawlerVisitor.textView(), xtermBlue ) );
+            REQUIRE( showsColor( crawlerVisitor.filteredView(), AnsiTruecolorBack ) );
+        }
+
+        THEN( "the Log File is not read again and the Search not run again" )
+        {
+            REQUIRE( decodingChanged.isEmpty() );
+            REQUIRE( searchRuns.isEmpty() );
+            REQUIRE( crawlerVisitor.getLogFilteredNbLines() == 1_lcount );
+        }
+
+        THEN( "QuickFind, selection and copy use the same columns as under Hide" )
+        {
+            REQUIRE( quickFound( *crawlerVisitor.textView(), quickFindPattern, "disk" )
+                     == hiddenMatch );
+            REQUIRE( quickFound( *crawlerVisitor.textView(), quickFindPattern, "full" )
+                     == hiddenMatchAfterTab );
+            crawlerVisitor.selectAllInMainView();
+            REQUIRE( crawlerVisitor.mainViewSelectedText() == hiddenCopy );
+        }
+
+        THEN( "the Table View shows the text as under Hide, without the colors" )
+        {
+            crawlerVisitor.showTableView( true );
+            auto* table = crawlerVisitor.tableView();
+            REQUIRE( waitUiState( [ table ]() {
+                return table->model() != nullptr && table->model()->rowCount() == 3;
+            } ) );
+            QStringList cells;
+            for ( int column = 0; column < table->model()->columnCount(); ++column ) {
+                cells << table->model()->index( 1, column ).data( Qt::DisplayRole ).toString();
+            }
+            REQUIRE( cells.contains( "ERROR: disk\tfull" ) );
+            REQUIRE_FALSE( cells.join( QString() ).contains( QChar( 0x1B ) ) );
+            REQUIRE_FALSE( showsColor( table, AnsiTruecolorBack ) );
+            REQUIRE_FALSE( showsColor( table, xtermBlue ) );
+            crawlerVisitor.showTableView( false );
+        }
+
+        WHEN( "the Theme changes" )
+        {
+            Theme::apply( Theme::SmyckKey );
+            QTest::qWait( 50 );
+
+            THEN( "the basic colors are the new Theme's" )
+            {
+                REQUIRE( showsColor( crawlerVisitor.textView(), QColor( "#4E90A7" ) ) );
+                REQUIRE_FALSE( showsColor( crawlerVisitor.textView(), xtermBlue ) );
+            }
+        }
+
+        WHEN( "Hide is chosen again" )
+        {
+            policies.decoration.showAnsiColors = false;
+            session.applyPolicies( policies );
+            QTest::qWait( 50 );
+
+            THEN( "the colors are gone, still without reading the Log File again" )
+            {
+                REQUIRE_FALSE( showsColor( crawlerVisitor.textView(), AnsiTruecolorBack ) );
+                REQUIRE_FALSE( showsColor( crawlerVisitor.filteredView(), AnsiTruecolorBack ) );
+                REQUIRE( decodingChanged.isEmpty() );
+                REQUIRE( searchRuns.isEmpty() );
+            }
+        }
+    }
+
+    Theme::apply( Theme::defaultTheme() );
 }
 
 namespace {
