@@ -9,6 +9,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfmtlogline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logformattablemodel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/rowmapping.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/tablerowcells.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/timestampreader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/timelookup.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logformatparser.cpp
@@ -19,6 +20,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfmtlogline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logformattablemodel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/rowmapping.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tablerowcells.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/timestampreader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/timelookup.cpp
   ${CMAKE_SOURCE_DIR}/Resources/formats/formats.qrc
