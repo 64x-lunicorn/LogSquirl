@@ -115,6 +115,13 @@ public:
     // command ended (#575).
     void setOpeningTitle( const QString& path, const QString& title, const QString& toolTip = {} );
 
+    // What the tab of `path` shows of its name -- the rename or the opening
+    // title -- with %1 standing for the name: a command's tab says how the
+    // command ended after whatever it is named (#575). Empty shows the name
+    // alone. It lasts until the tab closes; the name offered for a rename is
+    // the name alone.
+    void setTitleFormat( const QString& path, const QString& format );
+
     // Whether the tab at `index` holds a Transient Log File.
     bool holdsTransientLogFile( int index ) const;
 
@@ -184,6 +191,8 @@ private:
     };
     // The opening titles, by path (#606).
     QHash<QString, OpeningTitle> openingTitles_;
+    // The title formats, by path (#575).
+    QHash<QString, QString> titleFormats_;
     // What the user made of the tabs of Transient Log Files, by path: their
     // names and the ids of their tab groups. Never stored (#597).
     QHash<QString, QString> renamedTransientTabs_;

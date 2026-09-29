@@ -531,7 +531,8 @@ QString CommandSource::endedTitle( const QString& title, const CommandEnd& end )
 {
     switch ( end.kind ) {
     case CommandEnd::Kind::Exited:
-        return tr( "%1 [exit %2]" ).arg( title ).arg( end.exitCode );
+        // At once, so that a title with a %1 in it is kept as it is.
+        return tr( "%1 [exit %2]" ).arg( title, QString::number( end.exitCode ) );
     case CommandEnd::Kind::Stopped:
         return tr( "%1 [stopped]" ).arg( title );
     case CommandEnd::Kind::InputClosed:
@@ -561,9 +562,9 @@ QString CommandSource::endedMessage( const QString& title, const CommandEnd& end
     case CommandEnd::Kind::Exited:
         return end.commandNotFound()
                    ? tr( "\"%1\" ended with exit code %2: command not found" )
-                         .arg( title )
-                         .arg( end.exitCode )
-                   : tr( "\"%1\" ended with exit code %2" ).arg( title ).arg( end.exitCode );
+                         .arg( title, QString::number( end.exitCode ) )
+                   : tr( "\"%1\" ended with exit code %2" )
+                         .arg( title, QString::number( end.exitCode ) );
     case CommandEnd::Kind::Stopped:
         return tr( "\"%1\" was stopped" ).arg( title );
     case CommandEnd::Kind::InputClosed:

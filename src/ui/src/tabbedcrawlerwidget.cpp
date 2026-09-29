@@ -154,10 +154,24 @@ QString TabbedCrawlerWidget::baseTabName( int index ) const
     return openingTitle.isEmpty() ? QFileInfo( path ).fileName() : openingTitle;
 }
 
+void TabbedCrawlerWidget::setTitleFormat( const QString& path, const QString& format )
+{
+    if ( format.isEmpty() ) {
+        titleFormats_.remove( path );
+    }
+    else {
+        titleFormats_.insert( path, format );
+    }
+    if ( const auto index = tabOfPath( path ); index >= 0 ) {
+        updateTabGroupAppearance( index );
+    }
+}
+
 void TabbedCrawlerWidget::updateTabGroupAppearance( int index )
 {
     const auto group = groupOfTab( index );
-    const auto name = baseTabName( index );
+    const auto format = titleFormats_.value( tabPathAt( index ) );
+    const auto name = format.isEmpty() ? baseTabName( index ) : format.arg( baseTabName( index ) );
 
     if ( group.has_value() ) {
         myTabBar_.setTabText( index, QString::fromUtf8( "\u25CF " ) + name );
@@ -251,6 +265,7 @@ void TabbedCrawlerWidget::removeCrawler( int index )
         transientTabGroups_.remove( path );
     }
     openingTitles_.remove( path );
+    titleFormats_.remove( path );
 
     QTabWidget::removeTab( index );
 

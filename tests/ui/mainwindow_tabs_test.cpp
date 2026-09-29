@@ -1226,6 +1226,34 @@ SCENARIO( "A command's output opens in a followed tab that tells how the command
         }
     }
 
+    GIVEN( "a command whose tab is renamed while it runs" )
+    {
+        const auto commandLine = QStringLiteral( "sleep 1; exit 2" );
+        REQUIRE( window.mainWindow->openCommandOutput(
+            RecentCommand{ commandLine, folder.path(), true } ) );
+        const auto tab = waitForTab( window, commandLine );
+        auto* crawler = window.tabArea->widget( tab );
+        window.tabArea->renameTab( tab, "Build" );
+        REQUIRE( window.tabArea->tabText( tab ) == "Build" );
+
+        THEN( "its new name tells how the command ended" )
+        {
+            REQUIRE( waitUiState(
+                [ & ] {
+                    return window.tabArea->tabText( window.tabArea->indexOf( crawler ) )
+                           == "Build [exit 2]";
+                },
+                UiTimeoutMs ) );
+
+            AND_THEN( "a name it is given after the end does too" )
+            {
+                window.tabArea->renameTab( window.tabArea->indexOf( crawler ), "Done" );
+                REQUIRE( window.tabArea->tabText( window.tabArea->indexOf( crawler ) )
+                         == "Done [exit 2]" );
+            }
+        }
+    }
+
     GIVEN( "a command the shell does not know" )
     {
         const auto commandLine = QStringLiteral( "no_such_command_for_logsquirl_575" );

@@ -705,12 +705,14 @@ void MainWindow::showCommandSourceEnded( const QString& spoolPath, const Command
         return;
     }
 
-    // The tab keeps what the command wrote; its title and tooltip tell how
-    // the command ended.
+    // The tab keeps what the command wrote; its title, whatever the tab is
+    // named, and its tooltip tell how the command ended.
     const auto title = commandTabTitle( source->second->command().commandLine );
-    mainTabWidget_.setOpeningTitle( spoolPath, CommandSource::endedTitle( title, end ),
+    mainTabWidget_.setOpeningTitle( spoolPath, title,
                                     commandToolTip( *source->second ) + "\n"
                                         + CommandSource::endedToolTip( end ) );
+    mainTabWidget_.setTitleFormat( spoolPath,
+                                   CommandSource::endedTitle( QStringLiteral( "%1" ), end ) );
     showStatusMessage( CommandSource::endedMessage( title, end ) );
 }
 

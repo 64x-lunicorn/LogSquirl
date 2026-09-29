@@ -140,8 +140,11 @@ TEST_CASE( "The title and status of an ended command tell how it ended", "[comma
 {
     const CommandEnd exited{ CommandEnd::Kind::Exited, 3 };
     CHECK( CommandSource::endedTitle( "make", exited ) == "make [exit 3]" );
+    CHECK( CommandSource::endedTitle( "date +%1", exited ) == "date +%1 [exit 3]" );
     CHECK( CommandSource::endedToolTip( exited ) == "Ended with exit code 3" );
     CHECK( CommandSource::endedMessage( "make", exited ) == "\"make\" ended with exit code 3" );
+    CHECK( CommandSource::endedMessage( "echo %2", exited )
+           == "\"echo %2\" ended with exit code 3" );
 
 #ifdef Q_OS_WIN
     const CommandEnd notFound{ CommandEnd::Kind::Exited, 9009 };
