@@ -22,7 +22,6 @@
 #include <QHash>
 #include <QStringList>
 
-#include "abstractlogdata.h"
 #include "csv.h"
 #include "logformatdefinition.h"
 #include "tablerowcells.h"
@@ -43,6 +42,73 @@ CsvColumn CsvColumn::lineNumber( const QString& name )
     column.value
         = []( size_t, LineNumber logLine ) { return QString::number( logLine.get() + 1 ); };
     return column;
+}
+
+CsvColumn CsvColumn::lineTypes( const QString& name,
+                                logsquirl::vector<AbstractLogData::LineType> types )
+{
+    CsvColumn column;
+    column.name = name;
+    column.value = [ types = std::make_shared<const logsquirl::vector<AbstractLogData::LineType>>(
+                         std::move( types ) ) ]( size_t position, LineNumber ) {
+        return position < types->size() ? typeName( ( *types )[ position ] ) : QString{};
+    };
+    return column;
+}
+
+std::vector<CsvColumn> CsvColumn::ofTable( const LogFormatDefinition& format )
+{
+    const TableRowCells cells( format );
+    std::vector<CsvColumn> columns;
+    columns.reserve( static_cast<size_t>( cells.columnCount() ) );
+    for ( int column = 0; column < cells.columnCount(); ++column ) {
+        columns.push_back( ofTable( column, cells.columnName( column ) ) );
+    }
+    return columns;
+}
+
+QString CsvColumn::typeName( AbstractLogData::LineType type )
+{
+    using Flags = AbstractLogData::LineTypeFlags;
+    const bool match = type.testFlag( Flags::Match );
+    const bool mark = type.testFlag( Flags::Mark );
+    if ( match && mark ) {
+        return QStringLiteral( "Match+Mark" );
+    }
+    if ( match ) {
+        return QStringLiteral( "Match" );
+    }
+    if ( mark ) {
+        return QStringLiteral( "Mark" );
+    }
+    if ( type.testFlag( Flags::Context ) ) {
+        return QStringLiteral( "Context" );
+    }
+    return {};
+}
+
+std::vector<CsvExportDialog::Column> csvDialogColumns( const std::vector<CsvColumn>& offered,
+                                                       size_t unchecked )
+{
+    std::vector<CsvExportDialog::Column> listed;
+    listed.reserve( offered.size() );
+    for ( size_t index = 0; index < offered.size(); ++index ) {
+        listed.push_back( { offered[ index ].name, index >= unchecked } );
+    }
+    return listed;
+}
+
+void applyCsvChoices( CsvExport& csvExport, const CsvExportDialog::Choices& choices,
+                      const std::vector<CsvColumn>& offered )
+{
+    csvExport.columns.clear();
+    for ( const auto index : choices.columns ) {
+        if ( index < offered.size() ) {
+            csvExport.columns.push_back( offered[ index ] );
+        }
+    }
+    csvExport.separator = choices.separator;
+    csvExport.header = choices.header;
 }
 
 LineNumber csvLineCount( const CsvExport& csvExport )

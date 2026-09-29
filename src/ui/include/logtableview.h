@@ -29,6 +29,7 @@
 
 #include "colorlabelsmanager.h"
 #include "containers.h"
+#include "csvexport.h"
 #include "csvexportdialog.h"
 #include "linetypes.h"
 #include "logfileview.h"
@@ -248,6 +249,8 @@ private:
     void saveToFile();
     // Opens the dialog Export as CSV, and exports as chosen there.
     void exportAsCsv();
+    // The columns the CSV export offers: Line, then every column of the table.
+    std::vector<CsvColumn> csvColumns() const;
 
     // Column widths
     void saveColumnWidths();

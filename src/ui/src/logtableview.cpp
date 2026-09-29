@@ -1075,17 +1075,21 @@ void LogTableView::setLogFilePath( const QString& path )
     logFilePath_ = path;
 }
 
+std::vector<CsvColumn> LogTableView::csvColumns() const
+{
+    std::vector<CsvColumn> columns{ CsvColumn::lineNumber( tr( "Line" ) ) };
+    if ( format_ ) {
+        const auto tableColumns = CsvColumn::ofTable( *format_ );
+        columns.insert( columns.end(), tableColumns.begin(), tableColumns.end() );
+    }
+    return columns;
+}
+
 CsvExportDialog::Setup LogTableView::csvExportSetup() const
 {
     CsvExportDialog::Setup setup;
     setup.hasSelection = !selectedLogLines().empty();
-    setup.columns.push_back( { tr( "Line" ), false } );
-    if ( model_ ) {
-        for ( int column = 0; column < model_->columnCount(); ++column ) {
-            setup.columns.push_back(
-                { model_->headerData( column, Qt::Horizontal ).toString(), true } );
-        }
-    }
+    setup.columns = csvDialogColumns( csvColumns(), 1 );
     if ( !logFilePath_.isEmpty() ) {
         setup.proposedFileName = logFilePath_ + QStringLiteral( ".csv" );
     }
@@ -1130,23 +1134,10 @@ void LogTableView::exportCsvTo( const CsvExportDialog::Choices& choices )
         return;
     }
 
-    // Offered as csvExportSetup() lists them: Line, then the table's columns.
-    const auto setup = csvExportSetup();
-    for ( const auto index : choices.columns ) {
-        if ( index >= setup.columns.size() ) {
-            continue;
-        }
-        const auto& name = setup.columns[ index ].name;
-        csvExport.columns.push_back(
-            index == 0 ? CsvColumn::lineNumber( name )
-                       : CsvColumn::ofTable( static_cast<int>( index ) - 1, name ) );
-    }
-
+    applyCsvChoices( csvExport, choices, csvColumns() );
     csvExport.format = std::make_shared<const LogFormatDefinition>( *format_ );
     csvExport.modificationDate = modificationDate_;
     csvExport.logData = logData_;
-    csvExport.separator = choices.separator;
-    csvExport.header = choices.header;
 
     exportCsvWithProgress( this, choices.fileName, std::move( csvExport ) );
 }
