@@ -61,6 +61,7 @@ constexpr bool PollingEnabledByDefault = false;
 using Shortcuts = std::map<std::string, QStringList>;
 using ChartPresets = QMap<QString, QString>;
 using DarkPalette = std::map<QString, QString>;
+using RecentCommands = std::vector<RecentCommand>;
 
 // The key a setting is stored under, and the key an older release stored it
 // under, if there was one.
@@ -325,6 +326,49 @@ private:
     static constexpr auto DefinitionsKey = "definitions";
 };
 
+// The recent commands are stored as an array of maps, the most recent first.
+template <>
+struct Codec<RecentCommands> {
+    static RecentCommands read( QSettings& settings, const SettingKey& key,
+                                const RecentCommands& defaultValue )
+    {
+        auto commands = defaultValue;
+        const auto count = settings.beginReadArray( key.name );
+        for ( auto index = 0; index < count; ++index ) {
+            settings.setArrayIndex( index );
+            RecentCommand command;
+            command.commandLine = settings.value( CommandLineKey ).toString();
+            command.workingFolder = settings.value( WorkingFolderKey ).toString();
+            command.includeStandardError = settings.value( StandardErrorKey, true ).toBool();
+            if ( !command.commandLine.trimmed().isEmpty()
+                 && commands.size() < Configuration::MaxRecentCommands ) {
+                commands.push_back( command );
+            }
+        }
+        settings.endArray();
+
+        return commands;
+    }
+
+    static void write( QSettings& settings, const SettingKey& key, const RecentCommands& commands )
+    {
+        settings.beginWriteArray( key.name );
+        auto index = 0;
+        for ( const auto& command : commands ) {
+            settings.setArrayIndex( index++ );
+            settings.setValue( CommandLineKey, command.commandLine );
+            settings.setValue( WorkingFolderKey, command.workingFolder );
+            settings.setValue( StandardErrorKey, command.includeStandardError );
+        }
+        settings.endArray();
+    }
+
+private:
+    static constexpr auto CommandLineKey = "commandLine";
+    static constexpr auto WorkingFolderKey = "workingFolder";
+    static constexpr auto StandardErrorKey = "includeStandardError";
+};
+
 // Overrides of Dark Tokens are stored as a group of color names by Token
 // name; exactly the stored entries are overrides (see Theme::fromName()).
 template <>
@@ -540,6 +584,8 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
            knownCsvSeparator );
     visit( "export.csvHeader", config.csvHeader_, true );
 
+    visit( "commandSource.recentCommands", config.recentCommands_, RecentCommands{} );
+
     // Only overrides are stored; the Dark Theme holds the Tokens themselves.
     visit( "dark", config.darkPalette_, DarkPalette{} );
 }
@@ -577,6 +623,20 @@ void Configuration::setCsvSeparator( QChar separator )
     }
     else {
         csvSeparator_ = QStringLiteral( "comma" );
+    }
+}
+
+void Configuration::addRecentCommand( const RecentCommand& command )
+{
+    if ( command.commandLine.trimmed().isEmpty() ) {
+        return;
+    }
+    std::erase_if( recentCommands_, [ &command ]( const RecentCommand& recent ) {
+        return recent.commandLine == command.commandLine;
+    } );
+    recentCommands_.insert( recentCommands_.begin(), command );
+    if ( recentCommands_.size() > MaxRecentCommands ) {
+        recentCommands_.resize( MaxRecentCommands );
     }
 }
 

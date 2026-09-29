@@ -260,6 +260,9 @@ inline Configuration nonDefaultConfiguration()
     config.setCsvSeparator( ';' );
     config.setCsvHeader( false );
 
+    config.addRecentCommand( RecentCommand{ "journalctl -f", "/var/log", false } );
+    config.addRecentCommand( RecentCommand{ "docker logs -f web", {}, true } );
+
     // Dark Token overrides have no setter; the settings file test covers them.
     return config;
 }

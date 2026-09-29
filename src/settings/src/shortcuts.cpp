@@ -259,6 +259,13 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
             },
         },
         {
+            MainWindowOpenCommandOutput,
+            {
+                QApplication::tr( "Open command output" ),
+                QStringList{},
+            },
+        },
+        {
             MainWindowCommandPalette,
             {
                 QApplication::tr( "Command Palette" ),

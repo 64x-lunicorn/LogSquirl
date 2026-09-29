@@ -32,9 +32,11 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QColor>
+#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QGridLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -44,18 +46,23 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QSignalSpy>
+#include <QStatusBar>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 
 #include <algorithm>
 #include <functional>
+#include <cstdio>
 #include <optional>
 #include <utility>
 
 #include "applicationplugins.h"
+#include "commandoutputdialog.h"
+#include "commandsource.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
+#include "filewatcher.h"
 #include "loadingstatus.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
@@ -73,6 +80,10 @@
 #include "test_policies.h"
 #include "test_utils.h"
 #include "welcomedashboard.h"
+
+#ifndef Q_OS_WIN
+#include "command_process_probe.h"
+#endif
 
 // What the merge scenario reads from a Crawler Widget beyond its public face:
 // how many Log Lines its Log File holds.
@@ -103,12 +114,14 @@ bool writeLines( const QString& path, const QByteArray& lines, QIODevice::OpenMo
 
 // A main window over a Session of its own, shown and active. It is built with
 // the dashboard on or off in the settings when one is given, else as the
-// settings have it.
+// settings have it. Its Log Files are watched only through `fileWatch`.
 struct TabsWindow {
-    explicit TabsWindow( std::optional<bool> showDashboard = {} )
+    explicit TabsWindow( std::optional<bool> showDashboard = {},
+                         std::shared_ptr<PolicyFileWatchPort> fileWatch = {} )
         : previousShowDashboard( Configuration::get().showDashboard() )
         , session( std::make_shared<Session>( testSettingsPolicies(),
-                                              std::make_shared<LogFormatCatalog>() ) )
+                                              std::make_shared<LogFormatCatalog>(),
+                                              std::move( fileWatch ) ) )
         , plugins( std::make_shared<logsquirl::plugins::ApplicationPlugins>() )
     {
         if ( showDashboard.has_value() ) {
@@ -1090,4 +1103,274 @@ SCENARIO( "Closing tabs asks once and remembers the Log Files only when the user
     }
 
     forgetRecentFiles();
+}
+
+// --- A command's output (#575) ---
+
+#ifndef Q_OS_WIN
+
+namespace {
+
+// The tab whose title starts with `title`, -1 when none does.
+int tabTitled( const TabbedCrawlerWidget& tabs, const QString& title )
+{
+    for ( int i = 0; i < tabs.count(); ++i ) {
+        if ( tabs.tabText( i ).startsWith( title ) ) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Waits for the tab titled `title` to open and returns it.
+int waitForTab( const TabsWindow& window, const QString& title )
+{
+    int tab = -1;
+    REQUIRE( waitUiState(
+        [ & ] {
+            tab = tabTitled( *window.tabArea, title );
+            return tab >= 0;
+        },
+        UiTimeoutMs ) );
+    return tab;
+}
+
+// The spool file a tab reads.
+QString spoolOf( const TabsWindow& window, int tab )
+{
+    auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( tab ) );
+    REQUIRE( crawler != nullptr );
+    return window.session->getFilename( crawler );
+}
+
+// The process id a command wrote as the first line of its output.
+qint64 processIdIn( const QString& spool )
+{
+    qint64 pid = 0;
+    REQUIRE( waitUiState(
+        [ & ] {
+            QFile file( spool );
+            if ( file.open( QIODevice::ReadOnly ) ) {
+                pid = file.readLine().trimmed().toLongLong();
+            }
+            return pid > 0;
+        },
+        UiTimeoutMs ) );
+    return pid;
+}
+
+} // namespace
+
+SCENARIO( "A command's output opens in a followed tab that tells how the command ended",
+          "[ui][tabs][command]" )
+{
+    const ShellForTests shell;
+    // Watched as the application watches it: the output arrives after the
+    // tab has started loading.
+    TabsWindow window( false, FileWatcher::sharedFileWatcher() );
+    QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+
+    GIVEN( "a command that writes two lines and exits with 4" )
+    {
+        const auto commandLine = QStringLiteral( "printf 'first\\nsecond\\n'; exit 4" );
+        REQUIRE( window.mainWindow->openCommandOutput(
+            RecentCommand{ commandLine, folder.path(), true } ) );
+
+        const auto tab = waitForTab( window, commandLine );
+        auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( tab ) );
+        REQUIRE( crawler != nullptr );
+
+        THEN( "its tab shows the output, is transient and followed, and names the exit code" )
+        {
+            REQUIRE( waitUiState(
+                [ & ] {
+                    return window.tabArea->tabText( window.tabArea->indexOf( crawler ) )
+                           == commandLine + " [exit 4]";
+                },
+                UiTimeoutMs ) );
+            const auto index = window.tabArea->indexOf( crawler );
+            REQUIRE( window.tabArea->holdsTransientLogFile( index ) );
+            if ( window.session->watchPolicy().anyWatchEnabled() ) {
+                REQUIRE( crawler->isFollowEnabled() );
+            }
+
+            const auto toolTip = window.tabArea->tabToolTip( index );
+            REQUIRE( toolTip.startsWith( commandLine + "\n" ) );
+            REQUIRE( toolTip.contains( "Working folder: "
+                                       + QDir::toNativeSeparators( folder.path() ) ) );
+            REQUIRE( toolTip.contains( QDir::toNativeSeparators( spoolOf( window, index ) ) ) );
+            REQUIRE( toolTip.endsWith( "\nEnded with exit code 4" ) );
+
+            REQUIRE( window.mainWindow->statusBar()->currentMessage()
+                     == "\"" + commandLine + "\" ended with exit code 4" );
+
+            const auto linesLoaded = waitUiState(
+                [ & ] {
+                    return CrawlerWidget::access_by<MainWindowTabsAccess>{ *crawler }
+                               .nbLines()
+                               .get()
+                           == 2;
+                },
+                UiTimeoutMs );
+            INFO( "lines: "
+                  << CrawlerWidget::access_by<MainWindowTabsAccess>{ *crawler }.nbLines().get() );
+            REQUIRE( linesLoaded );
+        }
+    }
+
+    GIVEN( "a command the shell does not know" )
+    {
+        const auto commandLine = QStringLiteral( "no_such_command_for_logsquirl_575" );
+        REQUIRE( window.mainWindow->openCommandOutput(
+            RecentCommand{ commandLine, folder.path(), true } ) );
+
+        THEN( "its tab opens and ends with 127, which the status bar calls not found" )
+        {
+            REQUIRE( waitUiState(
+                [ & ] { return tabTitled( *window.tabArea, commandLine + " [exit 127]" ) >= 0; },
+                UiTimeoutMs ) );
+            REQUIRE( window.mainWindow->statusBar()->currentMessage()
+                     == "\"" + commandLine + "\" ended with exit code 127: command not found" );
+        }
+    }
+}
+
+SCENARIO( "A command does not open in a working folder that does not exist", "[ui][tabs][command]" )
+{
+    TabsWindow window( false );
+    QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+    const auto missing = folder.filePath( "missing" );
+    const auto tabsBefore = window.tabArea->count();
+
+    QString shownText;
+    QTimer answerer;
+    QObject::connect( &answerer, &QTimer::timeout, [ &shownText ] {
+        if ( auto* box = qobject_cast<QMessageBox*>( QApplication::activeModalWidget() ) ) {
+            shownText = box->text();
+            box->accept();
+        }
+    } );
+    answerer.start( 20 );
+
+    const auto opened
+        = window.mainWindow->openCommandOutput( RecentCommand{ "echo hello", missing, true } );
+    answerer.stop();
+
+    REQUIRE_FALSE( opened );
+    REQUIRE( shownText.contains( QDir::toNativeSeparators( missing ) ) );
+    QTest::qWait( 100 );
+    REQUIRE( window.tabArea->count() == tabsBefore );
+}
+
+SCENARIO( "Closing a command's tab or window stops the command and its child processes",
+          "[ui][tabs][command]" )
+{
+    const ShellForTests shell;
+    TabsWindow window( false );
+
+    // The command starts a grandchild and tells its process id.
+    const auto commandLine = QStringLiteral( "sleep 60 & echo $!; wait" );
+    REQUIRE( window.mainWindow->openCommandOutput( RecentCommand{ commandLine, {}, true } ) );
+    const auto tab = waitForTab( window, commandLine );
+    const auto spool = spoolOf( window, tab );
+    const auto grandchild = processIdIn( spool );
+    REQUIRE( processIsRunning( grandchild ) );
+
+    const auto closeWindow = GENERATE( false, true );
+    if ( closeWindow ) {
+        window.mainWindow->close();
+    }
+    else {
+        Q_EMIT window.tabArea->tabCloseRequested( tab );
+        REQUIRE( tabTitled( *window.tabArea, commandLine ) < 0 );
+    }
+
+    CHECK( waitUiState( [ grandchild ] { return !processIsRunning( grandchild ); }, UiTimeoutMs ) );
+    CHECK( waitUiState( [ &spool ] { return !QFileInfo::exists( spool ); }, UiTimeoutMs ) );
+}
+
+SCENARIO( "Two commands and standard input are read side by side in one window",
+          "[ui][tabs][command]" )
+{
+    const ShellForTests shell;
+    // The window reads from a stream that ends at once, not from the tests'
+    // own.
+    REQUIRE( std::freopen( "/dev/null", "r", stdin ) != nullptr );
+
+    TabsWindow window( false );
+    const auto first = QStringLiteral( "echo first; sleep 30" );
+    const auto second = QStringLiteral( "echo second; sleep 30" );
+    REQUIRE( window.mainWindow->openCommandOutput( RecentCommand{ first, {}, true } ) );
+    window.mainWindow->openStandardInput();
+    REQUIRE( window.mainWindow->openCommandOutput( RecentCommand{ second, {}, true } ) );
+
+    const auto firstTab = waitForTab( window, first );
+    const auto secondTab = waitForTab( window, second );
+    const auto stdinTab = waitForTab( window, "stdin" );
+    REQUIRE( window.tabArea->logFileTabs().size() == 3 );
+    const QStringList spools{ spoolOf( window, firstTab ), spoolOf( window, secondTab ),
+                              spoolOf( window, stdinTab ) };
+    auto distinct = spools;
+    REQUIRE( distinct.removeDuplicates() == 0 );
+
+    WHEN( "the window is saved and closed as the application quits" )
+    {
+        window.session->setExitRequested( true );
+        window.mainWindow->close();
+        window.session->setExitRequested( false );
+
+        THEN( "none of them is saved with the Session" )
+        {
+            const auto saved = SessionInfo::get().openFiles( "Main" );
+            for ( const auto& spool : spools ) {
+                REQUIRE(
+                    std::none_of( saved.cbegin(), saved.cend(), [ &spool ]( const auto& file ) {
+                        return file.fileName == spool;
+                    } ) );
+            }
+        }
+    }
+}
+
+#endif
+
+// The File menu runs a command from its dialog, and the command is remembered
+// (#575).
+SCENARIO( "Open Command Output asks for a command and remembers it", "[ui][tabs][command]" )
+{
+#ifndef Q_OS_WIN
+    const ShellForTests shell;
+#endif
+    const auto savedConfiguration = Configuration::get();
+    TabsWindow window( false );
+
+    auto* openCommand = fileMenuAction( *window.mainWindow,
+                                        logsquirl::mainwindow::action::openCommandOutputText );
+    REQUIRE( openCommand != nullptr );
+
+    const auto commandLine = QStringLiteral( "echo from the dialog" );
+    bool answered = false;
+    QTimer answerer;
+    QObject::connect( &answerer, &QTimer::timeout, [ & ] {
+        auto* dialog = qobject_cast<CommandOutputDialog*>( QApplication::activeModalWidget() );
+        if ( dialog == nullptr ) {
+            return;
+        }
+        dialog->commandBox()->setEditText( commandLine );
+        dialog->standardErrorBox()->setChecked( false );
+        answered = true;
+        dialog->accept();
+    } );
+    answerer.start( 20 );
+    openCommand->trigger();
+    answerer.stop();
+    REQUIRE( answered );
+
+    waitForTab( window, commandLine );
+    const auto recent = Configuration::get().recentCommands();
+    Configuration::get() = savedConfiguration;
+    REQUIRE_FALSE( recent.empty() );
+    REQUIRE( recent.front() == RecentCommand{ commandLine, {}, false } );
 }

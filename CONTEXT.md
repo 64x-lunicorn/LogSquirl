@@ -518,14 +518,25 @@ _Avoid_: workspace file, project file, saved layout
 A Log File that exists only while the application runs: the spool of standard input, the
 file of a merged tab, what a data source writes, the text pasted from the clipboard, a file
 downloaded from a URL — a start never fetches anything unasked — what a converter plugin
-writes for a Log File it converts, and later a command's output. Whoever opens it says it
-is transient; it is then shown and
+writes for a Log File it converts, and the output of a command run for it (see Command
+Source). Whoever opens it says it is transient; it is then shown and
 followed like any other, but the Session does not save it, so a restart neither opens a
 file that is gone nor reports an error for it. Every other Log File is an Ordinary one,
 saved and restored with its view state. A converted Log File is not converted again on
 restore, as the Session is restored before the plugins load; the recent files keep the
 Log File it was converted from, when that one is Ordinary.
 _Avoid_: temporary tab, temp file, volatile source
+
+**Command Source**:
+What feeds the Transient Log File of one tab, and its owner: a command line run through
+the user's login shell (`$SHELL -l -c`, `cmd.exe /d /s /c` on Windows), standard input, or
+a spool file another process writes and hands over. It writes what arrives to the tab's
+spool file and tells how its command ended -- an exit code, or stopped by a signal. The
+window keeps one per tab and destroys it with the tab: that stops the command with every
+process it started (its own process group, a Job Object on Windows) and removes the spool
+file. One tab is one run; a command is never run again by itself, not even when the
+Session is restored.
+_Avoid_: process tab, command tab, stream source
 
 **Ordinary Log File**:
 A Log File that is not a Transient Log File: a file on disk the user opened, or one

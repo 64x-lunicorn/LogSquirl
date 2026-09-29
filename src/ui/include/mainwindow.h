@@ -54,10 +54,12 @@
 #include <QToolButton>
 #include <QTranslator>
 #include <array>
+#include <map>
 #include <memory>
 #include <mutex>
 
 #include "applicationplugins.h"
+#include "commandsource.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "downloader.h"
@@ -70,8 +72,6 @@
 #include "session.h"
 #include "sessionfile.h"
 #include "signalmux.h"
-#include "stdinpump.h"
-#include "streamwriter.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabbedscratchpad.h"
 #include "tabgroupmanagerdialog.h"
@@ -130,7 +130,15 @@ public:
 
     // Opens what arrives on standard input as a Log File that is followed. The
     // window keeps reading until the writing end closes or it is destroyed.
+    // A window reads it once.
     void openStandardInput();
+
+    // Runs the command line through the user's shell and opens its output as
+    // a Transient Log File that is followed, titled by the command line
+    // (#575). A working folder that does not exist, a spool file that cannot
+    // be created or a shell that does not start is reported, and no tab
+    // opens; returns whether one does. Closing the tab stops the command.
+    bool openCommandOutput( const RecentCommand& command );
 
     void reTranslateUI();
 
@@ -183,6 +191,8 @@ private Q_SLOTS:
     void openInEditor();
     void openClipboard();
     void openUrl();
+    // Asks for a command to run for its output (#575).
+    void openCommandOutputDialog();
     void editHighlighters();
     void editPredefinedFilters( const QString& newFilter = {} );
     void options();
@@ -312,6 +322,16 @@ private:
     // converter plugin converted it into (#615); nullptr while neither is.
     const ViewInterface* openViewOf( const QString& fileName ) const;
     void openRemoteFile( const QUrl& url );
+    // Opens the spool file of a Command Source in a followed tab and keeps
+    // the source with it until the tab closes; the title and tooltip are the
+    // tab's. Returns whether the tab opens.
+    bool openCommandSource( std::unique_ptr<CommandSource> source, const QString& title,
+                            const QString& toolTip );
+    // The tooltip of a command's tab: its whole command line, its working
+    // folder and its spool file.
+    static QString commandToolTip( const CommandSource& source );
+    // Shows how the Command Source of the tab of `spoolPath` ended.
+    void showCommandSourceEnded( const QString& spoolPath, const CommandEnd& end );
     void updateTitleBar( const QString& fileName );
     // The file the recent files keep for a Log File open with this lifetime:
     // the Log File itself, the archive a decompressed Log File came from
@@ -413,6 +433,7 @@ private:
     QAction* openUrlAction;
     QAction* openSessionAction;
     QAction* saveSessionAsAction;
+    QAction* openCommandOutputAction;
     QAction* overviewVisibleAction;
     QAction* lineNumbersVisibleInMainAction;
     QAction* lineNumbersVisibleInFilteredAction;
@@ -521,9 +542,10 @@ private:
     // window and loaded once, after the first window shows (#303).
     std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins_;
 
-    // Declared in this order: the pump reads into the writer, so it goes first.
-    std::unique_ptr<logsquirl::plugins::StreamWriter> standardInputWriter_;
-    std::unique_ptr<logsquirl::plugins::StdinPump> standardInputPump_;
+    // The Command Source of each tab that has one -- standard input, a
+    // command's output -- by the tab's path, its spool file (#575). It goes
+    // with the tab.
+    std::map<QString, std::unique_ptr<CommandSource>> commandSources_;
 
     // Shows what plugins contribute, when this window is the one the Plugin
     // Host shows them in: the first window built.

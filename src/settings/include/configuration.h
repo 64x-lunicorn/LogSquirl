@@ -46,12 +46,25 @@
 #include <qcolor.h>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "persistable.h"
 #include "regexpengine.h"
 #include "searchregexptype.h"
 
 static constexpr int MAX_RECENT_FILES = 25;
+
+// A command line run for its output, as the recent commands remember it: the
+// line the user typed, the folder it ran in and whether its standard error
+// went into the tab with its output (#575).
+struct RecentCommand {
+    QString commandLine;
+    // Empty: the user's home folder.
+    QString workingFolder;
+    bool includeStandardError = true;
+
+    bool operator==( const RecentCommand& ) const = default;
+};
 
 // Configuration class containing everything in the "Settings" dialog
 class Configuration final : public Persistable<Configuration> {
@@ -735,6 +748,17 @@ public:
         chartPresets_.remove( name );
     }
 
+    // The command lines last run for their output, the most recent first
+    // (#575). Adding one puts it on top: one with the same command line moves
+    // there with what was chosen this time, and only the last
+    // MaxRecentCommands are kept. An empty command line is not remembered.
+    static constexpr std::size_t MaxRecentCommands = 10;
+    const std::vector<RecentCommand>& recentCommands() const
+    {
+        return recentCommands_;
+    }
+    void addRecentCommand( const RecentCommand& command );
+
     // Reads/writes the current config in the QSettings object passed
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
@@ -855,6 +879,8 @@ private:
     std::map<std::string, QStringList> shortcuts_;
 
     QMap<QString, QString> chartPresets_;
+
+    std::vector<RecentCommand> recentCommands_;
 
     std::map<QString, QString> darkPalette_;
 };

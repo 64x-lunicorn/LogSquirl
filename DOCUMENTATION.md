@@ -302,6 +302,7 @@ if Hyperscan can't handle the search pattern. However, in this case search will 
 * downloading files from a provided url
 * providing one or many files via the command line
 * piping a stream into `logsquirl -` (see [Reading standard input](#Reading-standard-input))
+* running a command and following its output (see [Command output](#Command-output))
 * using recent files or favorite menu items.
 
 On Windows, the installer adds *logsquirl* to the *Open with* menu of the file manager, and makes it
@@ -332,6 +333,49 @@ files by clicking them in the file manager.
 * Windows: reading standard input redirected into the GUI executable has not
   been verified. If it cannot be read, the window stays empty.
 
+#### Command output
+
+`File->Open Command Output...` runs a command and opens what it writes in a new
+tab that follows it, like standard input. This covers remote and container logs
+without anything else to install: `ssh host tail -f /var/log/syslog`,
+`docker logs -f web`, `kubectl logs -f deploy/api`, `journalctl -f`.
+
+* The dialog asks for the **Command** line, the **Working folder** it runs in
+  (empty: your home folder) and whether to **Include standard error** (on by
+  default). The last 10 commands are offered in the command's list, the most
+  recent first; choosing one fills in its working folder and standard error
+  choice too.
+* The command line runs through your shell, as in a terminal, so pipes and
+  quoting work (`kubectl logs -f api | grep ERROR`): on macOS and Linux as a
+  login shell (`$SHELL -l -c "…"`, `/bin/sh` when `SHELL` is not set), so that
+  the programs of your `PATH` are found even when *logsquirl* was started from
+  the Finder or the Dock; on Windows through `cmd.exe /d /s /c "…"`.
+* The tab is named after the command line, shortened in the middle to 40
+  characters; its tooltip shows the whole command line, the working folder and
+  the temporary file the output is kept in.
+* When the command ends, the tab stays with everything it received. Its name
+  gets ` [exit N]` with the command's exit code, or ` [stopped]` when it was
+  killed by a signal or crashed, and the status bar says so. Exit code 127
+  (9009 on Windows) is a command the shell did not find: the status bar says
+  *command not found*.
+* A working folder that does not exist, or a shell that cannot be started, is
+  reported and no tab opens.
+* Closing the tab, its window or *logsquirl* stops the command and every
+  process it started: on macOS and Linux they get `SIGTERM`, and `SIGKILL` 2 s
+  later if they are still there; on Windows they are ended together. Whatever
+  the command left running is stopped when it ends, too. One tab is one run:
+  run the command again from the dialog.
+* The tab is not saved with the session: a start never runs a command by
+  itself. Its temporary file is removed when the tab closes.
+* The command does not run in a terminal, and many programs then keep their
+  output in a buffer instead of writing each line at once (Python, for
+  example): lines arrive late and in bursts. Ask the program to write each
+  line: `python -u script.py`, `stdbuf -oL some-tool` (Linux),
+  `grep --line-buffered ERROR`.
+* Any number of commands and standard input can be followed side by side in
+  one window. `File->Open Command Output...` can be given a key in
+  `Settings->Shortcuts`, and it is in the command palette.
+
 #### Archives
 
 *logsquirl* can open archives (`zip`, `7z`, and `tar`). The archive is extracted
@@ -361,8 +405,8 @@ anything you did not ask for.
 
 *logsquirl* saves a history of recent opened files, available from the `File`
 menu: 5 by default, up to 25 as set in `Settings->File`. Standard input, a
-merged tab, what a data source writes and text opened from the clipboard exist
-only while *logsquirl* runs, so they are not added to it.
+command's output, a merged tab, what a data source writes and text opened from
+the clipboard exist only while *logsquirl* runs, so they are not added to it.
 
 #### Favorites
 
@@ -785,9 +829,9 @@ those to its left or right, or all, copies the file's full path and opens its
 folder. *Rename tab* gives the tab a name of your own instead of the file name;
 the name belongs to the file's path and comes back whenever that file is opened,
 until *Reset tab name*. The tab of a file that exists only while *logsquirl*
-runs -- standard input, a merged tab, a data source, the clipboard -- keeps its
-name until it closes. The icon of a tab shows when its file has new lines, and
-when those lines hold new matches.
+runs -- standard input, a command's output, a merged tab, a data source, the
+clipboard -- keeps its name until it closes. The icon of a tab shows when its
+file has new lines, and when those lines hold new matches.
 
 `Ctrl+Tab` and `Ctrl+Shift+Tab` (or `Ctrl+PgDown` and `Ctrl+PgUp`) go to the
 next and the previous tab, `Ctrl+1` to `Ctrl+8` to the first eight and `Ctrl+9`
@@ -901,7 +945,8 @@ bytes.
 Most of the menu bar is described where its feature is explained; this is the
 whole list, with what the entries not explained elsewhere do.
 
-- **File**: `New window`, `Open...`, `Open from clipboard` and
+- **File**: `New window`, `Open...`, `Open from clipboard`,
+  `Open Command Output...` (see [Command output](#command-output)) and
   `Open from URL...` (see [Opening files](#opening-files)), `Open Recent`
   with `Clear List`, `Open Session...` and `Save Session As...` (see
   [Session files](#session-files)), `Close`, `Close All`, `Preferences...` and

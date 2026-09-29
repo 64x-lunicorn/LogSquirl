@@ -68,6 +68,8 @@ extern const char* openSessionText;
 extern const char* openSessionStatusTip;
 extern const char* saveSessionAsText;
 extern const char* saveSessionAsStatusTip;
+extern const char* openCommandOutputText;
+extern const char* openCommandOutputStatusTip;
 extern const char* overviewVisibleText;
 extern const char* lineNumbersVisibleInMainText;
 extern const char* lineNumbersVisibleInFilteredText;

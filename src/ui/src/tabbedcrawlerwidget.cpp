@@ -106,6 +106,14 @@ void TabbedCrawlerWidget::setOpeningTitle( const QString& path, const QString& t
     else {
         openingTitles_.insert( path, { title, toolTip } );
     }
+
+    // The tab of a command that ended is open already (#575).
+    if ( const auto index = tabOfPath( path ); index >= 0 ) {
+        myTabBar_.setTabToolTip( index, toolTip.isEmpty() || title.isEmpty()
+                                            ? QDir::toNativeSeparators( path )
+                                            : toolTip );
+        updateTabGroupAppearance( index );
+    }
 }
 
 void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName,

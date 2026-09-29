@@ -1104,6 +1104,32 @@ SCENARIO( "An Open Log File has its Log File watched from its first load until i
     }
 }
 
+// A Log File written to while its first load runs, before it is watched, is
+// checked once it is: no watcher reports that change (#629).
+SCENARIO( "An Open Log File loads what was written to its Log File before it was watched",
+          "[openlogfile][filewatch]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "written_while_loading.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    logFile.fileWatch->whenFirstAdded = []( const QString& fileName ) {
+        QFile file( fileName );
+        REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Append ) );
+        const auto added = logLines( 5, FirstLineCount );
+        REQUIRE( file.write( added ) == added.size() );
+    };
+
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+    REQUIRE( waitUiState(
+        [ & ] {
+            return logFile.openLogFile.logData()->getNbLine() == LinesCount( FirstLineCount + 5 );
+        },
+        10'000 ) );
+}
+
 SCENARIO( "A Search requested while the Log File loads runs once it has loaded",
           "[openlogfile][pendingsearch]" )
 {

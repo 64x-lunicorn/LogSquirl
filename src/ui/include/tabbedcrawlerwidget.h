@@ -107,10 +107,12 @@ public:
 
     // The opening title of the tab of `path`: the title and tooltip it gets,
     // instead of its file's name and path, when it opens -- standard input, a
-    // data source or a merge. It lasts until the tab closes and is never
-    // stored. A rename by the user wins over it; grouping and a reset of the
-    // rename give it back, never the file's name (#606). An empty title
-    // forgets it; an empty tooltip leaves the path.
+    // data source, a command's output or a merge. It lasts until the tab
+    // closes and is never stored. A rename by the user wins over it; grouping
+    // and a reset of the rename give it back, never the file's name (#606).
+    // An empty title forgets it; an empty tooltip leaves the path. Given while
+    // the tab is open, it shows at once: a command's tab tells how the
+    // command ended (#575).
     void setOpeningTitle( const QString& path, const QString& title, const QString& toolTip = {} );
 
     // Whether the tab at `index` holds a Transient Log File.
