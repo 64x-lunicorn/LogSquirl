@@ -79,6 +79,8 @@ public:
         // a restore decompresses again; empty for any other Log File, and in
         // a Session stored before it was saved (#596).
         ArchiveMember archiveMember;
+
+        bool operator==( const OpenFile& ) const = default;
     };
 
     struct Window {

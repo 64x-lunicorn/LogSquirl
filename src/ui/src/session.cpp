@@ -447,6 +447,18 @@ void WindowSession::save( const std::vector<SaveFileInfo>& view_list,
 {
     LOG_DEBUG << "Session::save";
 
+    const auto window = snapshot( view_list, currentView );
+
+    auto& session = SessionInfo::getSynced();
+    session.setOpenFiles( windowId_, window.files, window.currentFile );
+    session.setGeometry( windowId_, geometry );
+    session.setSidebarWidth( windowId_, sidebarWidth );
+    session.save();
+}
+
+WindowSnapshot WindowSession::snapshot( const std::vector<SaveFileInfo>& view_list,
+                                        const ViewInterface* currentView ) const
+{
     std::vector<SessionInfo::OpenFile> session_files;
     auto currentFile = -1;
 
@@ -508,11 +520,29 @@ void WindowSession::save( const std::vector<SaveFileInfo>& view_list,
     }
     saveWaitingUpTo( view_list.size() );
 
-    auto& session = SessionInfo::getSynced();
-    session.setOpenFiles( windowId_, session_files, currentFile );
-    session.setGeometry( windowId_, geometry );
-    session.setSidebarWidth( windowId_, sidebarWidth );
-    session.save();
+    WindowSnapshot window;
+    window.files = std::move( session_files );
+    window.currentFile = currentFile;
+    return window;
+}
+
+WindowSnapshot WindowSession::storedSnapshot() const
+{
+    const auto& session = SessionInfo::get();
+    WindowSnapshot window;
+    window.files = session.openFiles( windowId_ );
+    window.currentFile = session.currentFile( windowId_ );
+    return window;
+}
+
+bool WindowSession::isOpen( const SessionInfo::OpenFile& file ) const
+{
+    if ( file.archiveMember.isEmpty() ) {
+        return appSession_->getViewIfOpen( file.fileName ) != nullptr;
+    }
+    return std::ranges::any_of( appSession_->openFiles_, [ &file ]( const auto& open ) {
+        return open.second.archiveMember == file.archiveMember;
+    } );
 }
 
 ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& viewFactory,
@@ -547,15 +577,21 @@ OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* cur
                                         const ArchiveMemberDecompressor& decompressor,
                                         std::vector<DeferredArchiveFile>* deferred )
 {
-    const auto& session = SessionInfo::get();
+    return restore( storedSnapshot(), viewFactory, currentFileIndex, decompressor, deferred );
+}
 
-    std::vector<SessionInfo::OpenFile> session_files = session.openFiles( windowId_ );
+OpenedFilesList WindowSession::restore( const WindowSnapshot& snapshot,
+                                        const ViewFactory& viewFactory, int* currentFileIndex,
+                                        const ArchiveMemberDecompressor& decompressor,
+                                        std::vector<DeferredArchiveFile>* deferred )
+{
+    std::vector<SessionInfo::OpenFile> session_files = snapshot.files;
     LOG_DEBUG << "Session returned " << session_files.size();
     OpenedFilesList result;
 
     // The current file is the one whose tab was in front; a Session stored
     // before that was saved makes it the last one (#542).
-    auto savedCurrentFile = session.currentFile( windowId_ );
+    auto savedCurrentFile = snapshot.currentFile;
     if ( savedCurrentFile < 0 || savedCurrentFile >= logsquirl::isize( session_files ) ) {
         savedCurrentFile = logsquirl::isize( session_files ) - 1;
     }

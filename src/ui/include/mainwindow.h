@@ -68,6 +68,7 @@
 #include "quickfindmux.h"
 #include "quickfindwidget.h"
 #include "session.h"
+#include "sessionfile.h"
 #include "signalmux.h"
 #include "stdinpump.h"
 #include "streamwriter.h"
@@ -107,6 +108,23 @@ public:
     void reloadGeometry();
     // Re-load the files from the previous session
     void reloadSession();
+
+    // Writes this window's Session to the Session File at `path` (#576):
+    // its Log Files in tab order with their view states, the tab in front,
+    // and their tab names and groups. Says why when it cannot be written, and
+    // returns whether it was.
+    bool saveSessionFile( const QString& path );
+    // Reads the Session File at `path` and asks for a new window to open it
+    // in with sessionFileOpened(). A Log File that is missing, or open in any
+    // window already, is left out, and the new window names it. When the file
+    // cannot be read, or none of its Log Files can be opened, it says so here
+    // and no window is asked for.
+    void openSessionFile( const QString& path );
+    // Opens what openSessionFile() read in this window, a new one, as a
+    // restored Session opens: the tab in front loads first, a Log File from
+    // an archive is decompressed again. Its tab names and groups are merged
+    // into the stored ones first.
+    void restoreSessionFile( const SessionFileRead& read );
     // Loads the initial file (parameter passed or from config file)
     void loadInitialFile( QString fileName, bool followFile );
 
@@ -251,6 +269,8 @@ Q_SIGNALS:
     void exitingQuickFind();
 
     void newWindow();
+    // A Session File was read, to be opened in a new window (#576).
+    void sessionFileOpened( const SessionFileRead& read );
     void windowActivated();
     void windowClosed();
     void exitRequested();
@@ -271,6 +291,15 @@ private:
     bool loadFile( const QString& fileName, bool followFile = false,
                    LogFileLifetime lifetime = LogFileLifetime::Ordinary );
     bool extractAndLoadFile( const QString& fileName );
+    // Opens the Log Files of `window` as a restore does, and reloadSession()
+    // does with the window stored in the Session (#576).
+    void restoreWindow( const WindowSnapshot& window );
+    // The views of the window's Log File tabs in tab order, each with its
+    // view state, as the Session saves them.
+    std::vector<SaveFileInfo> tabViewStates() const;
+    // The File menu's "Save Session As..." and "Open Session..." (#576).
+    void saveSessionAs();
+    void openSession();
     // Adds the tab of a restored Log File whose archive decompressed after
     // the restore, `fileName`, where it stood among the tabs (#610).
     void openRestoredFromArchive( int deferredId, const ArchiveMember& member,
@@ -382,6 +411,8 @@ private:
     QAction* openInEditorAction;
     QAction* openClipboardAction;
     QAction* openUrlAction;
+    QAction* openSessionAction;
+    QAction* saveSessionAsAction;
     QAction* overviewVisibleAction;
     QAction* lineNumbersVisibleInMainAction;
     QAction* lineNumbersVisibleInFilteredAction;

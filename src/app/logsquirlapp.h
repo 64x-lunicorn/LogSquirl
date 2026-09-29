@@ -349,6 +349,13 @@ private:
 
         LOG_INFO << "Window " << &window << " created";
         connect( window, &MainWindow::newWindow, [ =, this ]() { newWindow()->show(); } );
+        // A Session File opens in a new window, saved from then on with the
+        // automatic Session as any window is (#576).
+        connect( window, &MainWindow::sessionFileOpened, [ this ]( const SessionFileRead& read ) {
+            auto* opened = newWindow();
+            opened->restoreSessionFile( read );
+            opened->show();
+        } );
         connect( window, &MainWindow::windowActivated,
                  [ this, window ]() { onWindowActivated( *window ); } );
         connect( window, &MainWindow::windowClosed,
