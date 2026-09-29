@@ -1,3 +1,15 @@
+# Unreleased
+
+## Changes
+
+- **The Table View exports as CSV**: *Export as CSV...* in the Table View's
+  context menu writes all rows or the selected ones, with the chosen columns
+  (an optional *Line* column, and the elapsed time), a comma, semicolon or tab
+  as separator and an optional header row, exactly as the table shows them. The
+  file is UTF-8 with a byte order mark and CR LF line ends, written in the
+  background with progress; a cancelled export leaves the target file as it
+  was. The separator and the header row are remembered. (#572)
+
 # v26.10.0 (2026-09-29)
 
 The stable release of 26.10. It contains everything from
