@@ -39,6 +39,16 @@
   tab stops the command and every process it started. The last 10 commands are
   offered again, each with its working folder and whether standard error is
   included. The tab is not saved with the session (#575).
+- **ANSI color sequences can be shown as colors**: *Hide ANSI Colors* in
+  *Settings → View → Miscellaneous* becomes *ANSI color sequences* with three
+  values. *Show as text* (the default) and *Hide* work as the checkbox did off
+  and on; *Show colors* hides the sequences and paints the lines of the main
+  and the Filtered View in the foreground and background colors they ask for —
+  16 basic colors from the Theme, the 256-color palette and truecolor — with
+  Highlighters, Search, Color Labels, QuickFind and the selection painted over
+  them. Search, QuickFind, selection and copy work as under *Hide*, and the
+  Table View shows no ANSI colors. A ticked checkbox from an earlier version
+  opens as *Hide*. (#573)
 
 ## Bug fixes
 
@@ -50,16 +60,6 @@
   given, and follows as it arrives; the piping process exits when the pipe
   closes. Each pipe gets a tab of its own, and closing the tab removes its
   temporary file. Before, the input was lost. (#623)
-- **ANSI color sequences can be shown as colors**: *Hide ANSI Colors* in
-  *Settings → View → Miscellaneous* becomes *ANSI color sequences* with three
-  values. *Show as text* (the default) and *Hide* work as the checkbox did off
-  and on; *Show colors* hides the sequences and paints the lines of the main
-  and the filtered view in the foreground and background colors they ask for —
-  16 basic colors from the Theme, the 256-color palette and truecolor — with
-  Highlighters, Search, Color Labels, QuickFind and the selection painted over
-  them. Search, QuickFind, selection and copy work as under *Hide*, and the
-  table view shows no ANSI colors. A ticked checkbox from an earlier version
-  opens as *Hide*. (#573)
 
 # v26.10.0 (2026-09-29)
 
