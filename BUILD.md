@@ -743,6 +743,9 @@ for the refs its deployment policy admits:
 | `github-pages` | branch `master`, tags `v*` | none | Publish Packages `deploy` |
 | `website` | branch `master` | `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` | Deploy Website `deploy` |
 
+CI Release calls Publish Packages with `secrets: inherit`. Without it the `release` environment's secrets reach
+the called workflow empty, although its `build` job names the environment (actions/runner#4453, #626).
+
 CI Build never signs and references no signing secret: a pull request, a push
 to master and a `workflow_dispatch` on any branch all produce the same unsigned
 macOS and Windows packages. A manual CI Release dispatched from a branch fails
