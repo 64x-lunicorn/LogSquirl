@@ -961,136 +961,136 @@ Sin fecha, se usa %1.</translation>
         <translation>Ninguna línea de registro tiene una marca de tiempo que este formato de registro pueda leer.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1397"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1398"/>
         <source>Marks and matches</source>
         <translation>Marcas y coincidencias</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1403"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1404"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>Marcas, coincidencias + contexto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1408"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1409"/>
         <source>Matches + breadcrumbs</source>
         <translation>Coincidencias + contexto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1413"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1414"/>
         <source>Marks</source>
         <translation>Marcas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1417"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1418"/>
         <source>Matches</source>
         <translation>Coincidencias</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1470"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1471"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1472"/>
         <source>Match case</source>
         <translation>Coincidir mayúsculas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1477"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1478"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1479"/>
         <source>Use regex</source>
         <translation>Usar regex</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1484"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1485"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1486"/>
         <source>Inverse match</source>
         <translation>Coincidencia inversa</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1491"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1492"/>
         <source>Enable regular expression logical combining</source>
         <translation>Habilitar combinación lógica de expresiones regulares</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1492"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1493"/>
         <source>Boolean combining</source>
         <translation>Combinación booleana</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1498"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1499"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1500"/>
         <source>Auto-refresh</source>
         <translation>Actualización automática</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1517"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1518"/>
         <source>Search pattern</source>
         <translation>Patrón de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1526"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1527"/>
         <source>Clear search history</source>
         <translation>Borrar historial de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1527"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1528"/>
         <source>Edit search history</source>
         <translation>Editar historial de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1528"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1529"/>
         <source>Save as Filter</source>
         <translation>Guardar como filtro</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1533"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1534"/>
         <source>Count values of capture group</source>
         <translation>Contar valores del grupo de captura</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1542"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1543"/>
         <source>Clear search text</source>
         <translation>Borrar texto de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1547"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1548"/>
         <source>Search</source>
         <translation>Buscar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1552"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1553"/>
         <source>Keep Results</source>
         <translation>Conservar resultados</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1554"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1555"/>
         <source>Keep these results and show subsequent results in a new window</source>
         <translation>Conservar estos resultados y mostrar los resultados siguientes en una nueva ventana</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1582"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1583"/>
         <source>Toggle table/text view</source>
         <translation>Alternar vista de tabla/texto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1583"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1584"/>
         <source>Toggle table view</source>
         <translation>Alternar vista de tabla</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2011"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2012"/>
         <source>Group %1</source>
         <translation>Grupo %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2012"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2013"/>
         <source>Group %1 (%2)</source>
         <translation>Grupo %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2040"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2041"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>grupo %1 de &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2503"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2504"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Alternar vista de tabla/texto (%1)</translation>
     </message>
@@ -1120,12 +1120,12 @@ Sin fecha, se usa %1.</translation>
         <translation>Archivo truncado en disco</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2383"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2384"/>
         <source>Displayed as %1</source>
         <translation>Mostrado como %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2383"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2384"/>
         <source>Detected as %1</source>
         <translation>Detectado como %1</translation>
     </message>
@@ -1609,7 +1609,7 @@ Sin fecha, se usa %1.</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1429"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2876"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2884"/>
         <source>All files (*)</source>
         <translation>Todos los archivos (*)</translation>
     </message>
@@ -1641,7 +1641,7 @@ Sin fecha, se usa %1.</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="352"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2614"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2622"/>
         <source>Dashboard</source>
         <translation>Panel de inicio</translation>
     </message>
@@ -1930,37 +1930,37 @@ Sin fecha, se usa %1.</translation>
         <translation> - Indexando líneas... (%1 %)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2428"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2436"/>
         <source>Not enough memory.</source>
         <translation>Memoria insuficiente.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2430"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2438"/>
         <source>The system does not have enough memory to hold the index for this file. The file will now be closed.</source>
         <translation>El sistema no tiene suficiente memoria para mantener el índice de este archivo. El archivo se cerrará ahora.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2513"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2521"/>
         <source>Close Tab</source>
         <translation>Cerrar pestaña</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2514"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2522"/>
         <source>Close tab &quot;%1&quot;?</source>
         <translation>¿Cerrar la pestaña &quot;%1&quot;?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2523"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2531"/>
         <source>Don&apos;t ask again</source>
         <translation>No volver a preguntar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2517"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2525"/>
         <source>Close Tabs</source>
         <translation>Cerrar pestañas</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../ui/src/mainwindow.cpp" line="2518"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2526"/>
         <source>Close %n tab(s)?</source>
         <translation>
             <numerusform>¿Cerrar %n pestaña?</numerusform>
@@ -1968,86 +1968,86 @@ Sin fecha, se usa %1.</translation>
         </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2816"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2861"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2893"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3097"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2824"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2869"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2901"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3105"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2817"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2825"/>
         <source>Extract archive to temp folder?</source>
         <translation>¿Extraer archivo a carpeta temporal?</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="567"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2833"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2841"/>
         <source>Extracting %1</source>
         <translation>Extrayendo %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2862"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2870"/>
         <source>Failed to decompress %1</source>
         <translation>Error al descomprimir %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2876"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2884"/>
         <source>Open file from archive</source>
         <translation>Abrir archivo desde archivo comprimido</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2894"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2902"/>
         <source>Failed to extract %1</source>
         <translation>Error al extraer %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3087"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3095"/>
         <source>Untitled</source>
         <translation>Sin título</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3097"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3105"/>
         <source>%1 - %2%3</source>
         <translation>%1 - %2%3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3098"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3106"/>
         <source> (build </source>
         <translation> (compilación </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3137"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3145"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3230"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3238"/>
         <source>modified on %1</source>
         <translation>modificado el %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3356"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3364"/>
         <source>Remove from favorites</source>
         <translation>Eliminar de favoritos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3357"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3365"/>
         <source>Select item to remove from favorites</source>
         <translation>Seleccionar elemento para eliminar de favoritos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3402"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3410"/>
         <source>logsquirl -- switch to file</source>
         <translation>logsquirl -- Cambiar a archivo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3556"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3564"/>
         <source>logsquirl - generate crash dump</source>
         <translation>logsquirl - Generar informe de error</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3557"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3565"/>
         <source>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</source>
         <translation>Esto cerrará LogSquirl y generará un informe de diagnóstico de error. ¿Continuar?</translation>
     </message>
@@ -2066,6 +2066,44 @@ Sin fecha, se usa %1.</translation>
         <location filename="../../ui/src/pluginuiadapter.cpp" line="311"/>
         <source>Plugin action from %1</source>
         <translation>Acción de plugin de %1</translation>
+    </message>
+</context>
+<context>
+    <name>MergeDialog</name>
+    <message>
+        <location filename="../../ui/src/mergedialog.cpp" line="38"/>
+        <source>Merge Log Files</source>
+        <translation>Combinar archivos de registro</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mergedialog.cpp" line="41"/>
+        <source>Check the Log Files to merge and put them in the order they are written in.</source>
+        <translation>Marque los archivos de registro que desea combinar y póngalos en el orden en que se escriben.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mergedialog.cpp" line="57"/>
+        <source>Move Up</source>
+        <translation>Subir</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mergedialog.cpp" line="58"/>
+        <source>Move Down</source>
+        <translation>Bajar</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mergedialog.cpp" line="72"/>
+        <source>Drop duplicate lines</source>
+        <translation>Omitir líneas duplicadas</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mergedialog.cpp" line="73"/>
+        <source>Leaves out a line identical to one already written, from any of the files.</source>
+        <translation>Omite una línea idéntica a otra ya escrita, de cualquiera de los archivos.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mergedialog.cpp" line="77"/>
+        <source>Merge</source>
+        <translation>Combinar</translation>
     </message>
 </context>
 <context>
@@ -3845,137 +3883,122 @@ Reinicie LogSquirl para volver a intentarlo.</translation>
 <context>
     <name>TabbedCrawlerWidget</name>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="335"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="337"/>
         <source>Close this</source>
         <translation>Cerrar esta</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="336"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="338"/>
         <source>Close others</source>
         <translation>Cerrar otras</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="337"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="339"/>
         <source>Close to the left</source>
         <translation>Cerrar a la izquierda</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="338"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="340"/>
         <source>Close to the right</source>
         <translation>Cerrar a la derecha</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="339"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="341"/>
         <source>Close all</source>
         <translation>Cerrar todas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="341"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="343"/>
         <source>Copy full path</source>
         <translation>Copiar ruta completa</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="342"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="344"/>
         <source>Open containing folder</source>
         <translation>Abrir carpeta contenedora</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="344"/>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="377"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="346"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="379"/>
         <source>Rename tab</source>
         <translation>Renombrar pestaña</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="345"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="347"/>
         <source>Reset tab name</source>
         <translation>Restablecer nombre de pestaña</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="377"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="379"/>
         <source>Tab name</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="394"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="396"/>
         <source>Add to Group</source>
         <translation>Agregar al grupo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="409"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="411"/>
         <source>New Group...</source>
         <translation>Nuevo grupo...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="412"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="414"/>
         <source>New Tab Group</source>
         <translation>Nuevo grupo de pestañas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="412"/>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="442"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="414"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="444"/>
         <source>Group name:</source>
         <translation>Nombre del grupo:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="417"/>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="453"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="419"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="455"/>
         <source>Group Color</source>
         <translation>Color del grupo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="428"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="430"/>
         <source>Remove from Group</source>
         <translation>Quitar del grupo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="435"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="437"/>
         <source>Group: %1</source>
         <translation>Grupo: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="438"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="440"/>
         <source>Rename Group...</source>
         <translation>Renombrar grupo...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="442"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="444"/>
         <source>Rename Group</source>
         <translation>Renombrar grupo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="450"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="452"/>
         <source>Change Group Color...</source>
         <translation>Cambiar color del grupo...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="462"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="464"/>
         <source>Close All in Group</source>
         <translation>Cerrar todas las del grupo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="476"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="478"/>
         <source>Ungroup All</source>
         <translation>Desagrupar todas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="496"/>
-        <source>Merge All Left</source>
-        <translation>Fusionar todas a la izquierda</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="501"/>
-        <source>Merge All Left (dedup)</source>
-        <translation>Fusionar todas a la izquierda (sin duplicados)</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="508"/>
-        <source>Merge All Right</source>
-        <translation>Fusionar todas a la derecha</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="514"/>
-        <source>Merge All Right (dedup)</source>
-        <translation>Fusionar todas a la derecha (sin duplicados)</translation>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="489"/>
+        <source>Merge…</source>
+        <translation>Combinar…</translation>
     </message>
 </context>
 <context>
