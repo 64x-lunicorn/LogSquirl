@@ -1,3 +1,69 @@
+# Unreleased
+
+## Changes
+
+- **A session saves to and opens from a file**: *File → Save Session As…*
+  writes the window's open files, their order, the tab in front, each tab's
+  view state, tab names and groups to a `.logsquirl-session` file, and
+  *File → Open Session…* opens it in a new window. Files are found by their
+  absolute path or by their path relative to the session file, so a folder of
+  logs and its session still opens after it is moved to another machine; a
+  missing file, or one already open in another window, is left out and named.
+  (#576)
+- **The Table View exports as CSV**: *Export as CSV...* in the Table View's
+  context menu writes all rows or the selected ones, with the chosen columns
+  (an optional *Line* column, and the elapsed time), a comma, semicolon or tab
+  as separator and an optional header row, exactly as the table shows them. The
+  file is UTF-8 with a byte order mark and CR LF line ends, written in the
+  background with progress; a cancelled export leaves the target file as it
+  was. The separator and the header row are remembered. (#572)
+- **Merge… picks and orders the files to merge**: the tab context menu has one
+  *Merge…* entry instead of *Merge All Left*, *Merge All Right* and their
+  *(dedup)* variants. Its dialog lists every open file in tab order, all
+  checked: uncheck the files to leave out, drag them or use *Move Up* / *Move
+  Down* to set the order they are written in, and check *Drop duplicate lines*
+  to drop duplicates. The merged tab and its rebuild on changes stay as before.
+  (#571)
+- **The Filtered View exports as CSV**: for a Log File with a recognized Log
+  Format, *Export as CSV...* in the Filtered View's context menu writes the
+  Log Lines it shows, or the selected ones, split into the Table View's columns
+  with the values the Table View shows, Δt included. Context Lines are written
+  only when *Include Context Lines* is checked, and an optional *Type* column
+  says whether each line is a `Match`, `Mark`, `Match+Mark` or `Context`.
+  (#577)
+- **A command's output opens as a followed Log File**: File → Open Command
+  Output… runs a command line through your login shell -- `ssh host tail -f
+  /var/log/syslog`, `docker logs -f web`, `kubectl logs -f deploy/api` -- and
+  follows what it writes in a new tab named after it. When the command ends,
+  the tab keeps its output and is no longer followed, shows ` [exit N]`, and
+  the status bar says how it ended; closing the tab stops the command and
+  every process it started. The last 10 commands are
+  offered again, each with its working folder and whether standard error is
+  included. The tab is not saved with the session (#575).
+- **ANSI color sequences can be shown as colors**: *Hide ANSI Colors* in
+  *Settings → View → Miscellaneous* becomes *ANSI color sequences* with three
+  values. *Show as text* (the default) and *Hide* work as the checkbox did off
+  and on; *Show colors* hides the sequences and paints the lines of the main
+  and the Filtered View in the foreground and background colors they ask for —
+  16 basic colors from the Theme, the 256-color palette and truecolor — with
+  Highlighters, Search, Color Labels, QuickFind and the selection painted over
+  them. Search, QuickFind, selection and copy work as under *Hide*, and the
+  Table View shows no ANSI colors. A ticked checkbox from an earlier version
+  opens as *Hide*. (#573)
+
+## Bug fixes
+
+- **A Log File that grows while it first loads shows all of it**: lines written
+  while a tab was still loading, such as the whole output of a short command,
+  no longer stay missing until the file grows again (#629).
+- **Piping into `logsquirl -` while LogSquirl runs opens a tab**: what is piped
+  in opens as a `stdin` tab in the running window, together with any files
+  given, and follows as it arrives; the piping process exits when the pipe
+  closes or the tab does. Each pipe gets a tab of its own, and closing the tab
+  removes its temporary file. A running LogSquirl that does not take the input
+  over, such as one of another version, is reported instead. Before, the input
+  was lost. (#623)
+
 # v26.10.0 (2026-09-29)
 
 The stable release of 26.10. It contains everything from

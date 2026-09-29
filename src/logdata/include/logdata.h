@@ -175,6 +175,12 @@ public:
     // getExpandedLinesSparse(), from AbstractLogData, reads Log Lines the
     // same way, with tabs expanded.
 
+    // As getLinesSparse(), as getAnsiColoredLines() reads them: as their text
+    // under a Decoding Policy that hides ANSI color sequences, with the
+    // colors the sequences ask for, whatever the Decoding Policy is.
+    logsquirl::vector<AnsiColoredText>
+    getAnsiColoredLinesSparse( std::span<const LineNumber> lines ) const;
+
     // As getLinesSparse(), as UTF-8: for each Log Line asked for, in the order
     // asked, what getLineString() returns converted to UTF-8, followed by a
     // line feed -- byte for byte. A Log Line that is UTF-8 in a UTF-8 Log
@@ -209,6 +215,8 @@ Q_SIGNALS:
     // checking the file failed, failure describes what went wrong and the
     // file is taken as truncated.
     void fileChanged( MonitoredFileStatus status, const QString& failure = {} );
+    // Sent when the file on disk was checked and had not changed.
+    void fileUnchanged();
     // Sent when the Decoding Policy was replaced: every Log Line may read
     // differently now, though the Log File itself did not change.
     void decodingPolicyChanged();
@@ -228,6 +236,8 @@ private:
                                                    LinesCount number ) const override;
     logsquirl::vector<QString>
     doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const override;
+    logsquirl::vector<AnsiColoredText> doGetAnsiColoredLines( LineNumber first,
+                                                              LinesCount number ) const override;
     LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
@@ -243,9 +253,11 @@ private:
 
     logsquirl::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
                                                  QString ( *processLine )( QString&& ) ) const;
-    logsquirl::vector<QString>
-    getSparseLinesFromFile( std::span<const LineNumber> lines,
-                            QString ( *processLine )( QString&& ) ) const;
+    // The Log Lines asked for, read as getLinesSparse() does, each made a
+    // Line by toLine( QString&& decodedLine, bool hideAnsiColorSequences ).
+    template <typename Line, typename ToLine>
+    logsquirl::vector<Line> getSparseLinesFromFile( std::span<const LineNumber> lines,
+                                                    ToLine toLine ) const;
 
     // A Log Line of a sparse read, as the Log File gave it.
     struct SparseReadLine {

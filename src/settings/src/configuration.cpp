@@ -61,6 +61,7 @@ constexpr bool PollingEnabledByDefault = false;
 using Shortcuts = std::map<std::string, QStringList>;
 using ChartPresets = QMap<QString, QString>;
 using DarkPalette = std::map<QString, QString>;
+using RecentCommands = std::vector<RecentCommand>;
 
 // The key a setting is stored under, and the key an older release stored it
 // under, if there was one.
@@ -156,6 +157,32 @@ struct Codec<Enum> {
     }
 
     static void write( QSettings& settings, const SettingKey& key, Enum value )
+    {
+        settings.setValue( key.name, static_cast<int>( value ) );
+    }
+};
+
+// Stored as its numeric value. Releases before #573 stored a checkbox under
+// the retired key instead, which hid the sequences when true: it is read when
+// the current key has no value, and removed.
+template <>
+struct Codec<AnsiColorSequences> {
+    static AnsiColorSequences read( QSettings& settings, const SettingKey& key,
+                                    AnsiColorSequences defaultValue )
+    {
+        auto value = defaultValue;
+        if ( key.retiredName != nullptr && settings.contains( key.retiredName ) ) {
+            value = settings.value( key.retiredName ).toBool() ? AnsiColorSequences::Hide
+                                                               : AnsiColorSequences::ShowAsText;
+            settings.remove( key.retiredName );
+        }
+        if ( settings.contains( key.name ) ) {
+            value = static_cast<AnsiColorSequences>( settings.value( key.name ).toInt() );
+        }
+        return value;
+    }
+
+    static void write( QSettings& settings, const SettingKey& key, AnsiColorSequences value )
     {
         settings.setValue( key.name, static_cast<int>( value ) );
     }
@@ -325,6 +352,49 @@ private:
     static constexpr auto DefinitionsKey = "definitions";
 };
 
+// The recent commands are stored as an array of maps, the most recent first.
+template <>
+struct Codec<RecentCommands> {
+    static RecentCommands read( QSettings& settings, const SettingKey& key,
+                                const RecentCommands& defaultValue )
+    {
+        auto commands = defaultValue;
+        const auto count = settings.beginReadArray( key.name );
+        for ( auto index = 0; index < count; ++index ) {
+            settings.setArrayIndex( index );
+            RecentCommand command;
+            command.commandLine = settings.value( CommandLineKey ).toString();
+            command.workingFolder = settings.value( WorkingFolderKey ).toString();
+            command.includeStandardError = settings.value( StandardErrorKey, true ).toBool();
+            if ( !command.commandLine.trimmed().isEmpty()
+                 && commands.size() < Configuration::MaxRecentCommands ) {
+                commands.push_back( command );
+            }
+        }
+        settings.endArray();
+
+        return commands;
+    }
+
+    static void write( QSettings& settings, const SettingKey& key, const RecentCommands& commands )
+    {
+        settings.beginWriteArray( key.name );
+        auto index = 0;
+        for ( const auto& command : commands ) {
+            settings.setArrayIndex( index++ );
+            settings.setValue( CommandLineKey, command.commandLine );
+            settings.setValue( WorkingFolderKey, command.workingFolder );
+            settings.setValue( StandardErrorKey, command.includeStandardError );
+        }
+        settings.endArray();
+    }
+
+private:
+    static constexpr auto CommandLineKey = "commandLine";
+    static constexpr auto WorkingFolderKey = "workingFolder";
+    static constexpr auto StandardErrorKey = "includeStandardError";
+};
+
 // Overrides of Dark Tokens are stored as a group of color names by Token
 // name; exactly the stored entries are overrides (see Theme::fromName()).
 template <>
@@ -418,6 +488,27 @@ QFont resolvedMainFont( QFont font )
     return font;
 }
 
+// The name a CSV separator is stored under, a comma for an unknown one.
+QString knownCsvSeparator( QString name )
+{
+    if ( name != QLatin1String( "semicolon" ) && name != QLatin1String( "tab" ) ) {
+        name = QStringLiteral( "comma" );
+    }
+    return name;
+}
+
+// Show as text for a value no release stores.
+AnsiColorSequences knownAnsiColorSequences( AnsiColorSequences value )
+{
+    switch ( value ) {
+    case AnsiColorSequences::ShowAsText:
+    case AnsiColorSequences::Hide:
+    case AnsiColorSequences::ShowColors:
+        return value;
+    }
+    return AnsiColorSequences::ShowAsText;
+}
+
 QString availableStyle( QString style )
 {
     const auto styles = Theme::availableThemes();
@@ -503,7 +594,8 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
     visit( "view.lineNumbersVisibleInFiltered", config.lineNumbersVisibleInFiltered_, true );
     visit( "view.minimizeToTray", config.minimizeToTray_, false );
     visit( "view.contextLinesCount", config.contextLinesCount_, 5 );
-    visit( "view.hideAnsiColorSequences", config.hideAnsiColorSequences_, false );
+    visit( { "view.ansiColorSequences", "view.hideAnsiColorSequences" }, config.ansiColorSequences_,
+           AnsiColorSequences::ShowAsText, knownAnsiColorSequences );
     visit( "view.textWrap", config.useTextWrap_, false );
     visit( "view.style", config.style_, QString{}, availableStyle );
     visit( "view.showSplashScreen", config.showSplashScreen_, false );
@@ -527,6 +619,12 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
 
     visit( "chartPresets", config.chartPresets_, ChartPresets{} );
 
+    visit( "export.csvSeparator", config.csvSeparator_, QStringLiteral( "comma" ),
+           knownCsvSeparator );
+    visit( "export.csvHeader", config.csvHeader_, true );
+
+    visit( "commandSource.recentCommands", config.recentCommands_, RecentCommands{} );
+
     // Only overrides are stored; the Dark Theme holds the Tokens themselves.
     visit( "dark", config.darkPalette_, DarkPalette{} );
 }
@@ -543,6 +641,44 @@ QString Configuration::indexCacheDirectory() const
 }
 
 // Accessor functions
+QChar Configuration::csvSeparator() const
+{
+    if ( csvSeparator_ == QLatin1String( "semicolon" ) ) {
+        return QLatin1Char( ';' );
+    }
+    if ( csvSeparator_ == QLatin1String( "tab" ) ) {
+        return QLatin1Char( '\t' );
+    }
+    return QLatin1Char( ',' );
+}
+
+void Configuration::setCsvSeparator( QChar separator )
+{
+    if ( separator == QLatin1Char( ';' ) ) {
+        csvSeparator_ = QStringLiteral( "semicolon" );
+    }
+    else if ( separator == QLatin1Char( '\t' ) ) {
+        csvSeparator_ = QStringLiteral( "tab" );
+    }
+    else {
+        csvSeparator_ = QStringLiteral( "comma" );
+    }
+}
+
+void Configuration::addRecentCommand( const RecentCommand& command )
+{
+    if ( command.commandLine.trimmed().isEmpty() ) {
+        return;
+    }
+    std::erase_if( recentCommands_, [ &command ]( const RecentCommand& recent ) {
+        return recent.commandLine == command.commandLine;
+    } );
+    recentCommands_.insert( recentCommands_.begin(), command );
+    if ( recentCommands_.size() > MaxRecentCommands ) {
+        recentCommands_.resize( MaxRecentCommands );
+    }
+}
+
 QFont Configuration::mainFont() const
 {
     return mainFont_;

@@ -87,6 +87,24 @@ AbstractLogData::doGetExpandedLinesSparse( std::span<const LineNumber> lines ) c
     return text;
 }
 
+logsquirl::vector<AnsiColoredText> AbstractLogData::getAnsiColoredLines( LineNumber first_line,
+                                                                         LinesCount number ) const
+{
+    return doGetAnsiColoredLines( first_line, number );
+}
+
+logsquirl::vector<AnsiColoredText> AbstractLogData::doGetAnsiColoredLines( LineNumber first_line,
+                                                                           LinesCount number ) const
+{
+    auto lines = doGetLines( first_line, number );
+    logsquirl::vector<AnsiColoredText> colored;
+    colored.reserve( lines.size() );
+    for ( auto& line : lines ) {
+        colored.push_back( parseAnsiColorSequences( std::move( line ) ) );
+    }
+    return colored;
+}
+
 LineNumber AbstractLogData::getLineNumber( LineNumber index ) const
 {
     LineNumber ln = doGetLineNumber( index );

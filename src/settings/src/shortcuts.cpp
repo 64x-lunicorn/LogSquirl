@@ -245,6 +245,27 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
             },
         },
         {
+            MainWindowOpenSession,
+            {
+                QApplication::tr( "Open session" ),
+                QStringList{},
+            },
+        },
+        {
+            MainWindowSaveSessionAs,
+            {
+                QApplication::tr( "Save session as" ),
+                QStringList{},
+            },
+        },
+        {
+            MainWindowOpenCommandOutput,
+            {
+                QApplication::tr( "Open command output" ),
+                QStringList{},
+            },
+        },
+        {
             MainWindowCommandPalette,
             {
                 QApplication::tr( "Command Palette" ),

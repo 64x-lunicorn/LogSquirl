@@ -46,12 +46,36 @@
 #include <qcolor.h>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "persistable.h"
 #include "regexpengine.h"
 #include "searchregexptype.h"
 
 static constexpr int MAX_RECENT_FILES = 25;
+
+// A command line run for its output, as the recent commands remember it: the
+// line the user typed, the folder it ran in and whether its standard error
+// went into the tab with its output (#575).
+struct RecentCommand {
+    QString commandLine;
+    // Empty: the user's home folder.
+    QString workingFolder;
+    bool includeStandardError = true;
+
+    bool operator==( const RecentCommand& ) const = default;
+};
+
+// What Log Lines do with their ANSI color sequences (#573). Stored as its
+// numeric value, so the order is fixed.
+enum class AnsiColorSequences {
+    // Shown as characters, as the Log File holds them.
+    ShowAsText,
+    // Removed from every Log Line, for display and Search alike.
+    Hide,
+    // Removed as under Hide, and the Text View paints the colors they ask for.
+    ShowColors,
+};
 
 // Configuration class containing everything in the "Settings" dialog
 class Configuration final : public Persistable<Configuration> {
@@ -615,13 +639,26 @@ public:
         optimizeForNotLatinEncodings_ = enable;
     }
 
-    bool hideAnsiColorSequences() const
+    AnsiColorSequences ansiColorSequences() const
     {
-        return hideAnsiColorSequences_;
+        return ansiColorSequences_;
     }
-    void setHideAnsiColorSequences( bool hide )
+    void setAnsiColorSequences( AnsiColorSequences ansiColorSequences )
     {
-        hideAnsiColorSequences_ = hide;
+        ansiColorSequences_ = ansiColorSequences;
+    }
+
+    // The separator and the header row the last CSV export used: a comma,
+    // a semicolon or a tab.
+    QChar csvSeparator() const;
+    void setCsvSeparator( QChar separator );
+    bool csvHeader() const
+    {
+        return csvHeader_;
+    }
+    void setCsvHeader( bool header )
+    {
+        csvHeader_ = header;
     }
 
     int defaultEncodingMib() const
@@ -722,6 +759,17 @@ public:
         chartPresets_.remove( name );
     }
 
+    // The command lines last run for their output, the most recent first
+    // (#575). Adding one puts it on top: one with the same command line moves
+    // there with what was chosen this time, and only the last
+    // MaxRecentCommands are kept. An empty command line is not remembered.
+    static constexpr std::size_t MaxRecentCommands = 10;
+    const std::vector<RecentCommand>& recentCommands() const
+    {
+        return recentCommands_;
+    }
+    void addRecentCommand( const RecentCommand& command );
+
     // Reads/writes the current config in the QSettings object passed
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
@@ -815,9 +863,13 @@ private:
 
     bool optimizeForNotLatinEncodings_{};
 
-    bool hideAnsiColorSequences_{};
+    AnsiColorSequences ansiColorSequences_{};
 
     int defaultEncodingMib_{};
+
+    // Stored by name: "comma", "semicolon" or "tab".
+    QString csvSeparator_;
+    bool csvHeader_{};
 
     bool showSplashScreen_{};
 
@@ -838,6 +890,8 @@ private:
     std::map<std::string, QStringList> shortcuts_;
 
     QMap<QString, QString> chartPresets_;
+
+    std::vector<RecentCommand> recentCommands_;
 
     std::map<QString, QString> darkPalette_;
 };

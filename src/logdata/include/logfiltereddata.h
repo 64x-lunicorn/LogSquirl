@@ -196,6 +196,8 @@ private:
         LineNumber first, LinesCount number,
         logsquirl::vector<QString> ( LogData::*readSparse )( std::span<const LineNumber> )
             const ) const;
+    logsquirl::vector<AnsiColoredText> doGetAnsiColoredLines( LineNumber first,
+                                                              LinesCount number ) const override;
     LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;

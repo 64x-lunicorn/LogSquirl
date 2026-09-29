@@ -20,6 +20,98 @@
 #include "decorationsetup.h"
 
 #include <algorithm>
+#include <cmath>
+
+namespace {
+
+// The WCAG 2 relative luminance of an opaque color.
+double relativeLuminance( const QColor& color )
+{
+    const auto linear = []( float value ) {
+        const auto channel = static_cast<double>( value );
+        return channel <= 0.04045 ? channel / 12.92 : std::pow( ( channel + 0.055 ) / 1.055, 2.4 );
+    };
+    return 0.2126 * linear( color.redF() ) + 0.7152 * linear( color.greenF() )
+           + 0.0722 * linear( color.blueF() );
+}
+
+// The WCAG 2 contrast ratio of two opaque colors, from 1 to 21.
+double contrastRatio( const QColor& first, const QColor& second )
+{
+    const auto a = relativeLuminance( first );
+    const auto b = relativeLuminance( second );
+    return ( std::max( a, b ) + 0.05 ) / ( std::min( a, b ) + 0.05 );
+}
+
+// The least a foreground ANSI color has to contrast with what it is drawn on.
+constexpr double MinimumAnsiContrast = 3.0;
+
+// How many steps a foreground is blended toward the text color in, at most.
+constexpr int ContrastBlendSteps = 10;
+
+// foreground, blended toward target step by step until it reads on
+// background; target at worst.
+QColor readableOn( const QColor& foreground, const QColor& background, const QColor& target )
+{
+    if ( !background.isValid() || contrastRatio( foreground, background ) >= MinimumAnsiContrast ) {
+        return foreground;
+    }
+    for ( int step = 1; step < ContrastBlendSteps; ++step ) {
+        const auto weight = static_cast<float>( step ) / ContrastBlendSteps;
+        const auto blend
+            = [ weight ]( float from, float to ) { return from + ( to - from ) * weight; };
+        const auto blended = QColor::fromRgbF( blend( foreground.redF(), target.redF() ),
+                                               blend( foreground.greenF(), target.greenF() ),
+                                               blend( foreground.blueF(), target.blueF() ) );
+        if ( contrastRatio( blended, background ) >= MinimumAnsiContrast ) {
+            return blended;
+        }
+    }
+    return target;
+}
+
+// Black or white, whichever contrasts more with background. One of them
+// always reaches 3:1 (at least about 4.6:1) on any opaque color.
+QColor extremeOn( const QColor& background )
+{
+    const QColor black( Qt::black );
+    const QColor white( Qt::white );
+    return contrastRatio( black, background ) >= contrastRatio( white, background ) ? black : white;
+}
+
+// One step of xterm's 6x6x6 color cube.
+int xtermCubeLevel( int step )
+{
+    return step == 0 ? 0 : 55 + 40 * step;
+}
+
+// The color an ANSI color stands for; invalid for the line's own.
+QColor resolvedAnsiColor( const AnsiColor& color,
+                          const std::array<QColor, AnsiBasicColorCount>& basicColors )
+{
+    switch ( color.kind() ) {
+    case AnsiColor::Kind::LineColor:
+        return {};
+    case AnsiColor::Kind::Rgb:
+        return QColor::fromRgb( static_cast<QRgb>( color.rgbValue() ) );
+    case AnsiColor::Kind::Indexed:
+        break;
+    }
+
+    const int index = color.index();
+    if ( static_cast<std::size_t>( index ) < AnsiBasicColorCount ) {
+        return basicColors[ static_cast<std::size_t>( index ) ];
+    }
+    if ( index < 232 ) {
+        const int cube = index - 16;
+        return QColor( xtermCubeLevel( cube / 36 ), xtermCubeLevel( ( cube / 6 ) % 6 ),
+                       xtermCubeLevel( cube % 6 ) );
+    }
+    const int gray = 8 + 10 * ( index - 232 );
+    return QColor( gray, gray, gray );
+}
+
+} // namespace
 
 void DecorationSetup::setPolicy( const DecorationPolicy& policy )
 {
@@ -39,6 +131,45 @@ void DecorationSetup::setColorLabels( const std::vector<QStringList>& words,
     colorLabelWords_ = words;
     colorLabelColors_ = colors;
     rebuildColorLabels();
+}
+
+void DecorationSetup::setAnsiColors( const std::array<QColor, AnsiBasicColorCount>& basicColors )
+{
+    ansiBasicColors_ = basicColors;
+}
+
+logsquirl::vector<HighlightedMatch>
+DecorationSetup::ansiColorsFor( const logsquirl::vector<AnsiColorSpan>& spans,
+                                const LinePalette& palette ) const
+{
+    logsquirl::vector<HighlightedMatch> colors;
+    if ( !policy_.showAnsiColors ) {
+        return colors;
+    }
+
+    colors.reserve( spans.size() );
+    for ( const auto& span : spans ) {
+        const auto background = resolvedAnsiColor( span.background, ansiBasicColors_ );
+        auto foreground = resolvedAnsiColor( span.foreground, ansiBasicColors_ );
+        if ( foreground.isValid() ) {
+            foreground = readableOn( foreground, background.isValid() ? background : palette.base,
+                                     palette.text );
+        }
+        else if ( background.isValid()
+                  && contrastRatio( palette.text, background ) < MinimumAnsiContrast ) {
+            // A span with only a background leaves its text in the line's
+            // own color, the Theme's text color -- so blending toward that
+            // cannot help (ESC[47m under Dark: light text on near-white).
+            // Instead the text color is blended toward black or white,
+            // whichever reads better on the background, until it reaches
+            // 3:1; at worst it becomes that black or white. A text color
+            // that already reads on the background is left to the line.
+            foreground = readableOn( palette.text, background, extremeOn( background ) );
+        }
+        colors.emplace_back( LineColumn{ span.start }, LineLength{ span.length }, foreground,
+                             background );
+    }
+    return colors;
 }
 
 void DecorationSetup::setQuickFindPattern( const QuickFindPattern* pattern )

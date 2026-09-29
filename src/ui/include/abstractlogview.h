@@ -275,6 +275,13 @@ protected:
     // The context menu for the current selection, opened at pos in viewport
     // coordinates; built by PresentationMenu, and not yet shown.
     std::unique_ptr<QMenu> createContextMenu( const QPoint& pos );
+    // What the context menu's Export as CSV... does. Empty, and the menu
+    // offers no such entry, unless the view can split its Log Lines into the
+    // fields of a Log Format.
+    virtual std::function<void()> exportAsCsvAction();
+
+    // The selected Log Lines, in order (see Selection::getLines()).
+    logsquirl::vector<LineNumber> selectedLogLines() const;
 
     void registerShortcut( const std::string& action, std::function<void()> func );
 
@@ -518,6 +525,10 @@ private:
         LineNumber lineNumber{ 0 };
         // The text as the Log File holds it, which the Line Decorator matches against.
         QString text;
+        // The colors its ANSI color sequences ask for, in the columns of text.
+        // Read only while the Decoration Policy shows ANSI colors, with the
+        // text, once as the Log Line enters the Viewport (#573).
+        logsquirl::vector<AnsiColorSpan> ansiColors;
         // The text with its tabs expanded, split into the Visual Lines it is drawn as.
         WrappedString wrapped;
         // The first of its Visual Lines in the Viewport. Past 0 only for the Log

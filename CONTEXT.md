@@ -254,8 +254,8 @@ _Avoid_: quick highlighter, tag
 **Decoration**:
 The finished visual result for a piece of displayed text: an ordered, non-overlapping
 sequence of colored spans that covers the whole text, where text no source colors carries
-the line's own colors. What every source of color — Highlighter Set, Search, QuickFind,
-Color Label, selection, Line Verdict — is resolved *into*. Both Presentations draw a
+the line's own colors. What every source of color — ANSI colors, Highlighter Set, Search,
+QuickFind, Color Label, selection, Line Verdict — is resolved *into*. Both Presentations draw a
 Decoration as it is; neither decides a color for itself.
 _Avoid_: styling, formatting, markup
 
@@ -269,8 +269,19 @@ _Avoid_: line state, line flags
 
 **Line Decorator**:
 The single owner of the precedence rule that turns a Line Verdict plus a piece of text
-into a Decoration. It decides which color wins where; it does not draw.
+into a Decoration. It decides which color wins where; it does not draw. From low to high:
+ANSI colors, whole-line Highlighter, main Search, Color Labels, QuickFind, selection. A line
+a whole-line Highlighter matches, one outside the Search Limits and one selected as a whole
+show no ANSI colors.
 _Avoid_: renderer, painter, highlighter (a Highlighter is a user's rule, not this)
+
+**ANSI colors**:
+The foreground and background colors a Log Line's ANSI color sequences ask for, painted by
+the Text View (main and Filtered View) when the setting *ANSI color sequences* is *Show
+colors*. The lowest source of a Decoration. The sequences themselves are hidden as under
+*Hide*, so the text every Search, QuickFind, selection and copy works on is the same under
+both; each Log Line starts in its own colors. The 16 basic colors are the Theme's.
+_Avoid_: terminal colors, escape codes (those are the sequences, not their colors)
 
 ### Appearance
 
@@ -280,8 +291,8 @@ Light, or System, which becomes Light or Dark from the operating system's color 
 follows it while the application runs. Choosing a Theme takes effect at once, in every open
 window. A Theme is exactly one set of Tokens, and it carries the colors of the Color Labels;
 the application's palette and stylesheet are both derived from it. Beyond the Color Labels and
-the Row colors of a Match, a Mark and a Mark that is a Match in the Table View (ADR-0013), a
-Theme does not color Log Lines — Highlighters and Highlighter Sets are the user's alone.
+the Row colors of a Match, a Mark and a Mark that is a Match in the Table View (ADR-0013) and
+the 16 basic ANSI colors, a Theme does not color Log Lines — Highlighters and Highlighter Sets are the user's alone.
 _Avoid_: style, skin, palette (a palette is derived from a Theme)
 
 **Token**:
@@ -502,18 +513,43 @@ tab names and the tab groups know such a Log File by its archive and member too,
 its temporary file.
 _Avoid_: workspace, project, layout
 
+**Session File**:
+One window's Session saved to a file the user picks (`.logsquirl-session`, JSON) and opened
+again in a new window: its Log Files in tab order, the tab in front, each one's view state,
+and their tab names and groups — the same window snapshot the automatic Session saves and
+restores, plus the names and groups. Transient Log Files are not in it; one decompressed
+from an archive is, with its archive and member. Every Log File is written with its absolute
+path and its path relative to the Session File's folder, and opening tries both, so a
+folder of logs and its Session File still opens once moved. A Log File that is missing or
+already open in another window is left out and named. Window geometry and the search
+pattern are not part of it.
+_Avoid_: workspace file, project file, saved layout
+
 **Transient Log File**:
 A Log File that exists only while the application runs: the spool of standard input, the
 file of a merged tab, what a data source writes, the text pasted from the clipboard, a file
 downloaded from a URL — a start never fetches anything unasked — what a converter plugin
-writes for a Log File it converts, and later a command's output. Whoever opens it says it
-is transient; it is then shown and
+writes for a Log File it converts, and the output of a command run for it (see Command
+Source). Whoever opens it says it is transient; it is then shown and
 followed like any other, but the Session does not save it, so a restart neither opens a
 file that is gone nor reports an error for it. Every other Log File is an Ordinary one,
 saved and restored with its view state. A converted Log File is not converted again on
 restore, as the Session is restored before the plugins load; the recent files keep the
 Log File it was converted from, when that one is Ordinary.
 _Avoid_: temporary tab, temp file, volatile source
+
+**Command Source**:
+What feeds the Transient Log File of one tab, and its owner: a command line run through
+the user's login shell (`$SHELL -l -c`, `cmd.exe /d /s /c` on Windows), standard input, or
+a spool file another process writes and hands over -- a `logsquirl -` started while
+LogSquirl runs reads standard input for the running one. It writes what arrives to the tab's
+spool file and tells how its command ended -- an exit code, or stopped by a signal. The
+window keeps one per tab and destroys it with the tab: that stops the command with every
+process it started (its own process group, a Job Object on Windows) and removes the spool
+file, or, while the file is still held open, removes it when the application exits. One
+tab is one run; a command is never run again by itself, not even when the Session is
+restored.
+_Avoid_: process tab, command tab, stream source
 
 **Ordinary Log File**:
 A Log File that is not a Transient Log File: a file on disk the user opened, or one

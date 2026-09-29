@@ -87,10 +87,10 @@ const QStringList DialogSettingNames = {
     "teamFolder.url",
     "versionchecker.betaEnabled",
     "versionchecker.enabled",
+    "view.ansiColorSequences",
     "view.contextLinesCount",
     "view.fastScrollEnabled",
     "view.fastScrollMultiplier",
-    "view.hideAnsiColorSequences",
     "view.language",
     "view.minimizeToTray",
     "view.qtHiDpi",
@@ -212,6 +212,43 @@ SCENARIO( "The Options Dialog reads and writes the same settings",
                     INFO( key.toStdString() );
                     CHECK( written.value( key ) == defaults.value( key ) );
                 }
+            }
+        }
+    }
+}
+
+SCENARIO( "The Options Dialog offers three ways to show ANSI color sequences",
+          "[configuration][optionsdialog][ansi]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+
+    GIVEN( "An Options Dialog showing a new installation's settings" )
+    {
+        Configuration::get() = Configuration{};
+        LogFormatCatalog catalog;
+        OptionsDialog dialog( catalog );
+        const auto* comboBox = dialog.ansiColorSequencesComboBox;
+
+        THEN( "it offers Show as text, Hide and Show colors, with Show as text chosen" )
+        {
+            REQUIRE( comboBox->count() == 3 );
+            CHECK( comboBox->itemText( 0 ) == "Show as text" );
+            CHECK( comboBox->itemText( 1 ) == "Hide" );
+            CHECK( comboBox->itemText( 2 ) == "Show colors" );
+            CHECK( comboBox->currentIndex() == 0 );
+        }
+
+        WHEN( "Show colors is chosen and applied" )
+        {
+            dialog.ansiColorSequencesComboBox->setCurrentIndex( 2 );
+            dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+
+            THEN( "the settings show the colors" )
+            {
+                CHECK( Configuration::get().ansiColorSequences()
+                       == AnsiColorSequences::ShowColors );
             }
         }
     }

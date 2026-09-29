@@ -42,8 +42,17 @@ class QWidget;
 using DisplayedLinesReader
     = std::function<logsquirl::vector<QString>( LineNumber first, LinesCount count )>;
 
+// How each saved line ends.
+enum class LineEnds {
+    // As Save to file writes them: CR LF, and LF on Windows.
+    SavedText,
+    // CR LF everywhere, as a CSV file (RFC 4180) needs.
+    CrLf,
+};
+
 // Writes the lines at positions [begin, end) to output, encoded with codec
-// (UTF-8 when null) and preceded by the Byte Order Mark of a Unicode codec.
+// (UTF-8 when null) and preceded by the Byte Order Mark of a Unicode codec,
+// each line ended as lineEnds says.
 //
 // Blocks on the calling thread until the lines are written or interrupt is
 // set. progress receives values from 0 to 1000, on any thread. Returns false
@@ -51,7 +60,8 @@ using DisplayedLinesReader
 // committed.
 bool saveDisplayedLines( const DisplayedLinesReader& readLines, LineNumber begin, LineNumber end,
                          const TextEncoding* codec, QIODevice& output, const AtomicFlag& interrupt,
-                         const std::function<void( int )>& progress );
+                         const std::function<void( int )>& progress,
+                         LineEnds lineEnds = LineEnds::SavedText );
 
 // Runs saveDisplayedLines off the UI thread, and reports its progress and its
 // end on the thread the LinesSaver lives in.
@@ -66,7 +76,8 @@ public:
     // else may use output until finished() is emitted or waitForResult()
     // returned.
     void save( DisplayedLinesReader readLines, LineNumber begin, LineNumber end,
-               const TextEncoding* codec, QIODevice* output, const AtomicFlag& interrupt );
+               const TextEncoding* codec, QIODevice* output, const AtomicFlag& interrupt,
+               LineEnds lineEnds = LineEnds::SavedText );
 
     // Waits for the save to end; true if every line was written.
     bool waitForResult();
@@ -88,6 +99,6 @@ private:
 // it as it was.
 void saveLinesWithProgress( QWidget* parent, const QString& filename,
                             DisplayedLinesReader readLines, LineNumber begin, LineNumber end,
-                            const TextEncoding* codec );
+                            const TextEncoding* codec, LineEnds lineEnds = LineEnds::SavedText );
 
 #endif // LOGSQUIRL_LINESSAVER_H

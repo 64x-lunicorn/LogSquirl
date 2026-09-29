@@ -276,8 +276,9 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
         // Shipped disabled, so enabling it is the distinctive value.
         config.setAutoDetectLogFormats( true );
 
-        // Shipped showing them, so hiding them is the distinctive value.
-        config.setHideAnsiColorSequences( true );
+        // Shipped showing them as text, so hiding them is the distinctive
+        // value.
+        config.setAnsiColorSequences( AnsiColorSequences::Hide );
 
         // A different value in each neighbouring field, so a mapping that
         // reads the wrong getter cannot pass unnoticed.
@@ -506,7 +507,7 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
 
         WHEN( "ANSI color sequences are shown and the Policies are derived again" )
         {
-            config.setHideAnsiColorSequences( false );
+            config.setAnsiColorSequences( AnsiColorSequences::ShowAsText );
             const auto policies = deriveSettingsPolicies( config );
 
             THEN( "the Decoding Policy says so" )
@@ -516,7 +517,7 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
 
             THEN( "only the Decoding axis differs from the hiding derivation" )
             {
-                config.setHideAnsiColorSequences( true );
+                config.setAnsiColorSequences( AnsiColorSequences::Hide );
                 const auto hiding = deriveSettingsPolicies( config );
                 REQUIRE( policies.decoding != hiding.decoding );
                 REQUIRE( policies.indexing == hiding.indexing );
@@ -524,6 +525,35 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.watch == hiding.watch );
                 REQUIRE( policies.fileAccess == hiding.fileAccess );
                 REQUIRE( policies.recognition == hiding.recognition );
+            }
+        }
+
+        WHEN( "ANSI color sequences are shown as colors and the Policies are derived again" )
+        {
+            config.setAnsiColorSequences( AnsiColorSequences::ShowColors );
+            const auto policies = deriveSettingsPolicies( config );
+
+            THEN( "the Decoding Policy hides them, and the Decoration Policy shows their colors" )
+            {
+                REQUIRE( policies.decoding.hideAnsiColorSequences );
+                REQUIRE( policies.decoration.showAnsiColors );
+            }
+
+            THEN( "only the Decoration axis differs from the hiding derivation, so switching "
+                  "between the two re-reads no Log File and re-runs no Search" )
+            {
+                config.setAnsiColorSequences( AnsiColorSequences::Hide );
+                const auto hiding = deriveSettingsPolicies( config );
+                REQUIRE_FALSE( hiding.decoration.showAnsiColors );
+                REQUIRE( policies.decoration != hiding.decoration );
+                REQUIRE( policies.decoding == hiding.decoding );
+                REQUIRE( policies.indexing == hiding.indexing );
+                REQUIRE( policies.search == hiding.search );
+                REQUIRE( policies.watch == hiding.watch );
+                REQUIRE( policies.fileAccess == hiding.fileAccess );
+                REQUIRE( policies.recognition == hiding.recognition );
+                REQUIRE( policies.presentation == hiding.presentation );
+                REQUIRE( policies.quickFind == hiding.quickFind );
             }
         }
 

@@ -29,6 +29,8 @@
 
 #include "colorlabelsmanager.h"
 #include "containers.h"
+#include "csvexport.h"
+#include "csvexportdialog.h"
 #include "linetypes.h"
 #include "logfileview.h"
 #include "logformatdefinition.h"
@@ -140,6 +142,15 @@ public:
     // Saves the Log Lines of the selected Rows, in Log Line order.
     void saveSelectedTo( const QString& filename ) override;
 
+    // The Log File shown, whose name the CSV export proposes.
+    void setLogFilePath( const QString& path );
+    // What the dialog Export as CSV starts with: every Row or the selected
+    // ones, the Line column (unchecked) and every column of the table.
+    CsvExportDialog::Setup csvExportSetup() const;
+    // Exports the Rows to a CSV file as chosen in that dialog: every Row in
+    // its order, or the selected ones in Log Line order.
+    void exportCsvTo( const CsvExportDialog::Choices& choices );
+
     // SearchableWidgetInterface: QuickFind from quickFindStart(), over every
     // Log Line the Rows show, with the window's QuickFind pattern. Aborting an
     // incremental search selects the Row it started from.
@@ -236,6 +247,10 @@ private:
     void saveSelectedToFile();
     // Asks for a file, and saves the Log Lines of every Row to it.
     void saveToFile();
+    // Opens the dialog Export as CSV, and exports as chosen there.
+    void exportAsCsv();
+    // The columns the CSV export offers: Line, then every column of the table.
+    std::vector<CsvColumn> csvColumns() const;
 
     // Column widths
     void saveColumnWidths();
@@ -311,6 +326,9 @@ private:
     // Not owned: the coordinator holds the Log Format for as long as it is set
     const LogFormatDefinition* format_ = nullptr;
     AbstractLogData* logData_ = nullptr;
+    QString logFilePath_;
+    // When the Log File was last written, as handed to updateData().
+    QDate modificationDate_;
     // What the Table View shows over the text of its Rows; its delegate
     // paints from it.
     TableViewState state_;

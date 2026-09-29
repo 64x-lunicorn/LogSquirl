@@ -47,6 +47,7 @@
 #include "test_utils.h"
 
 #include "logdata.h"
+#include "logfiltereddata.h"
 
 static const qint64 SL_NB_LINES = 500LL;
 static const qint64 VBL_NB_LINES = 50000LL;
@@ -442,6 +443,86 @@ std::vector<QString> asStd( const logsquirl::vector<QString>& lines )
 }
 
 } // namespace
+
+SCENARIO( "A Log File's Log Lines read with the colors of their ANSI color sequences",
+          "[logdata][ansi]" )
+{
+    QTemporaryFile file{ "logdata_test_ansi_colors_XXXXXX" };
+    REQUIRE( file.open() );
+    file.write( "plain line\n" );
+    file.write( "\x1B[31mERROR\x1B[0m: disk full\n" );
+    // A carriage return is trimmed from a Log Line's text after its
+    // sequences are removed.
+    file.write( "\x1B[42mgreen\tback\x1B[m\r\n" );
+    file.write( "\x1B[38;5;196m256\x1B[48;2;1;2;3m truecolor\n" );
+    file.flush();
+
+    const auto hideAnsiColorSequences = GENERATE( false, true );
+    CAPTURE( hideAnsiColorSequences );
+    auto policies = testSettingsPolicies();
+    policies.decoding.hideAnsiColorSequences = hideAnsiColorSequences;
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    REQUIRE( logData.getNbLine() == 4_lcount );
+
+    const std::vector<QString> texts{ "plain line", "ERROR: disk full", "green\tback",
+                                      "256 truecolor" };
+    const std::vector<logsquirl::vector<AnsiColorSpan>> spans{
+        {},
+        { { 0, 5, AnsiColor::indexed( 1 ), AnsiColor{} } },
+        { { 0, 10, AnsiColor{}, AnsiColor::indexed( 2 ) } },
+        { { 0, 3, AnsiColor::indexed( 196 ), AnsiColor{} },
+          { 3, 10, AnsiColor::indexed( 196 ), AnsiColor::rgb( 1, 2, 3 ) } },
+    };
+
+    GIVEN( "Log Lines with and without ANSI color sequences, under either Decoding Policy" )
+    {
+        THEN( "each reads as its text hiding them, with the colors they ask for" )
+        {
+            const auto lines = logData.getAnsiColoredLines( 0_lnum, 4_lcount );
+            REQUIRE( lines.size() == 4 );
+            for ( std::size_t line = 0; line < lines.size(); ++line ) {
+                CAPTURE( line );
+                CHECK( lines[ line ].text == texts[ line ] );
+                CHECK( lines[ line ].spans == spans[ line ] );
+            }
+        }
+
+        THEN( "a block reaching past the last Log Line reads as getLines() reads it, without a "
+              "color" )
+        {
+            const auto lines = logData.getAnsiColoredLines( 3_lnum, 2_lcount );
+            const auto plain = logData.getLines( 3_lnum, 2_lcount );
+            REQUIRE( lines.size() == 2 );
+            for ( std::size_t line = 0; line < lines.size(); ++line ) {
+                CHECK( lines[ line ].text == plain[ line ] );
+                CHECK( lines[ line ].spans.empty() );
+            }
+        }
+    }
+
+    GIVEN( "a Filtered View's data showing two of them" )
+    {
+        auto filtered = logData.getNewFilteredData();
+        filtered->addMark( 1_lnum );
+        filtered->addMark( 3_lnum );
+        REQUIRE( filtered->getNbLine() == 2_lcount );
+
+        THEN( "it reads them from the Log File by Log Line number, with their colors" )
+        {
+            const auto lines = filtered->getAnsiColoredLines( 0_lnum, 2_lcount );
+            REQUIRE( lines.size() == 2 );
+            CHECK( lines[ 0 ].text == texts[ 1 ] );
+            CHECK( lines[ 0 ].spans == spans[ 1 ] );
+            CHECK( lines[ 1 ].text == texts[ 3 ] );
+            CHECK( lines[ 1 ].spans == spans[ 3 ] );
+        }
+    }
+}
 
 SCENARIO( "A sparse set of Log Lines reads as each of them does on its own",
           "[logdata][sparse-read]" )

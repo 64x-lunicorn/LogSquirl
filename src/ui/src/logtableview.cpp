@@ -37,6 +37,7 @@
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
 #include "clipboard.h"
+#include "csvexport.h"
 #include "linessaver.h"
 #include "logfiltereddata.h"
 #include "logformattablemodel.h"
@@ -205,6 +206,7 @@ void LogTableView::updateData( bool follow, const QDate& modificationDate )
     const auto lineCount = logData_->getNbLine().get();
     const int lineCountInt
         = static_cast<int>( std::min( lineCount, static_cast<uint64_t>( INT_MAX ) ) );
+    modificationDate_ = modificationDate;
     model_->setModificationDate( modificationDate );
     model_->setLineCount( lineCountInt );
     // New Log Lines may match where QuickFind last found nothing more.
@@ -782,6 +784,9 @@ std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
     entries.saveSplitterPosition = [ this ]() { Q_EMIT saveDefaultSplitterSizes(); };
     entries.saveToFile = [ this ]() { saveToFile(); };
     entries.saveSelectedToFile = [ this ]() { saveSelectedToFile(); };
+    if ( model_ && format_ ) {
+        entries.exportAsCsv = [ this ]() { exportAsCsv(); };
+    }
 
     return PresentationMenu::create( this, report, entries );
 }
@@ -1063,6 +1068,78 @@ void LogTableView::saveSelectedTo( const QString& filename )
 
     saveLinesWithProgress( this, filename, std::move( readLines ), 0_lnum, end,
                            logData_->getDisplayEncoding() );
+}
+
+void LogTableView::setLogFilePath( const QString& path )
+{
+    logFilePath_ = path;
+}
+
+std::vector<CsvColumn> LogTableView::csvColumns() const
+{
+    std::vector<CsvColumn> columns{ CsvColumn::lineNumber( tr( "Line" ) ) };
+    if ( format_ ) {
+        const auto tableColumns = CsvColumn::ofTable( *format_ );
+        columns.insert( columns.end(), tableColumns.begin(), tableColumns.end() );
+    }
+    return columns;
+}
+
+CsvExportDialog::Setup LogTableView::csvExportSetup() const
+{
+    CsvExportDialog::Setup setup;
+    setup.hasSelection = !selectedLogLines().empty();
+    setup.columns = csvDialogColumns( csvColumns(), 1 );
+    if ( !logFilePath_.isEmpty() ) {
+        setup.proposedFileName = logFilePath_ + QStringLiteral( ".csv" );
+    }
+    return setup;
+}
+
+void LogTableView::exportAsCsv()
+{
+    if ( !model_ || !format_ || !logData_ ) {
+        return;
+    }
+    if ( const auto choices = CsvExportDialog::ask( this, csvExportSetup() ) ) {
+        exportCsvTo( *choices );
+    }
+}
+
+void LogTableView::exportCsvTo( const CsvExportDialog::Choices& choices )
+{
+    if ( !model_ || !format_ || !logData_ || choices.fileName.isEmpty()
+         || choices.columns.empty() ) {
+        return;
+    }
+
+    // The Log Lines are copied here, on the UI thread: the export reads them
+    // off it.
+    CsvExport csvExport;
+    if ( choices.selectedRowsOnly ) {
+        csvExport.logLines = selectedLogLines();
+        std::sort( csvExport.logLines.begin(), csvExport.logLines.end() );
+        csvExport.logLines.erase(
+            std::unique( csvExport.logLines.begin(), csvExport.logLines.end() ),
+            csvExport.logLines.end() );
+    }
+    else {
+        const auto rowCount = model_->rowCount();
+        csvExport.logLines.reserve( static_cast<size_t>( rowCount ) );
+        for ( int row = 0; row < rowCount; ++row ) {
+            csvExport.logLines.push_back( rows_->logLineAt( row ) );
+        }
+    }
+    if ( csvExport.logLines.empty() ) {
+        return;
+    }
+
+    applyCsvChoices( csvExport, choices, csvColumns() );
+    csvExport.format = std::make_shared<const LogFormatDefinition>( *format_ );
+    csvExport.modificationDate = modificationDate_;
+    csvExport.logData = logData_;
+
+    exportCsvWithProgress( this, choices.fileName, std::move( csvExport ) );
 }
 
 // Mark or unmark the Log Lines of the selected Rows.

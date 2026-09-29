@@ -703,3 +703,45 @@ unchanged on such a commit:
 cmake --build build-release --target logsquirl_linepositionarray_benchmark
 ./build-release/output/logsquirl_linepositionarray_benchmark --benchmark-samples 20 > after.txt
 ```
+
+# ANSI color benchmarks
+
+Three binaries measure what showing ANSI color sequences costs (#573).
+
+`logsquirl_ansicolorsequences_benchmark` parses a screen of 60 Log Lines into
+their text and colors (`parseAnsiColorSequences()`) next to removing their
+sequences as *Hide* does (`removeAnsiColorSequences()`): colored logger
+lines, long lines with 256-color and truecolor words, and lines without an
+escape character. Links `logsquirl_logdata` only.
+
+`logsquirl_ansi_log_file_benchmark` writes two Log Files of about 1 GB, one
+colored in every Log Line and the same without the sequences, and for *Show
+as text* and *Hide* measures loading it, reading a screen of 60 Log Lines at
+2,000 places spread over it, and a regular-expression Search. Where log data
+offers `getAnsiColoredLines()` it also reads the screens as *Show colors*
+does. A sample of loading 1 GB takes seconds, so each case runs once per
+process and prints a `RESULT` line with its milliseconds; run the binaries of
+the two sides alternately several times and compare the medians.
+`LOGSQUIRL_BENCHMARK_LOG_FILE_MB` sets a smaller size. The file uses only what
+log data offered before #573, so it builds unchanged on such a commit: copy it
+into a worktree of that commit as above, with
+
+```cmake
+add_executable(logsquirl_ansi_log_file_benchmark ansi_log_file_benchmark.cpp)
+target_link_libraries(logsquirl_ansi_log_file_benchmark logsquirl_logdata Catch2::Catch2 test_utils)
+```
+
+`logsquirl_textview_ansi_benchmark` shows a Text View of a million Log Lines,
+every one colored, with and without text wrapping, under *Hide* and *Show
+colors*: **one screen** reads, parses, decorates and paints the whole
+Viewport again (`updateData()` and a repaint); **keys** scrolls 20 Visual
+Lines down and up one at a time, each painted. The *Hide* cases are the
+reference for *Show colors*.
+
+All three need an optimized build:
+
+```bash
+cmake --build build-release --target logsquirl_ansicolorsequences_benchmark \
+    logsquirl_ansi_log_file_benchmark logsquirl_textview_ansi_benchmark
+./build-release/output/logsquirl_textview_ansi_benchmark --benchmark-samples 50
+```

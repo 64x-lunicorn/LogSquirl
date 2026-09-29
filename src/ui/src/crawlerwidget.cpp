@@ -221,6 +221,20 @@ void CrawlerWidget::followSet( bool follow )
     }
 }
 
+void CrawlerWidget::endFollowing()
+{
+    // Followed until the last Log Lines are loaded, so that the views show
+    // them.
+    connect(
+        openLogFile_.get(), &OpenLogFile::watchingStopped, this,
+        [ this ] {
+            followEnded_ = true;
+            applyWatchPolicy( watchPolicy_ );
+        },
+        Qt::SingleShotConnection );
+    openLogFile_->stopWatching();
+}
+
 bool CrawlerWidget::isTextWrapEnabled() const
 {
     return logMainView_->isTextWrapEnabled();
@@ -671,7 +685,7 @@ void CrawlerWidget::applyWatchPolicy( const WatchPolicy& policy )
     // Takes following away from every view of this Log File, or gives it
     // back, without the Log File being opened again.
     const bool followed = viewSet_.follows();
-    viewSet_.setFollowAllowed( policy.anyWatchEnabled() );
+    viewSet_.setFollowAllowed( policy.anyWatchEnabled() && !followEnded_ );
     if ( viewSet_.follows() != followed ) {
         Q_EMIT followModeChanged( viewSet_.follows() );
     }
@@ -1901,6 +1915,13 @@ FilteredView* CrawlerWidget::buildFilteredView( LogFilteredData* search )
     auto* view = new FilteredView( search, quickFindPattern_.get(),
                                    viewSet_.presentationPolicy().useTextWrap );
     view->setContentsMargins( 2, 0, 2, 0 );
+    // Asked each time, so every Filtered View, those of kept Searches too,
+    // exports with the Log Format recognized now.
+    view->setRecognizedFormat( [ this ]() {
+        return FilteredView::RecognizedFormat{ recognizedFormat_,
+                                               openLogFile_->lastModified().date(),
+                                               openLogFile_->fileName() };
+    } );
     return view;
 }
 
@@ -2499,6 +2520,7 @@ void CrawlerWidget::showRecognizedFormat()
     const auto previousFormat = std::exchange( recognizedFormat_, std::move( recognized ) );
     cancelTimeLookup();
     logTableView_->setLogFormat( recognizedFormat_.get(), openLogFile_->logData().get() );
+    logTableView_->setLogFilePath( openLogFile_->fileName() );
     tableViewToggle_->setVisible( true );
     tableViewToggle_->setToolTip(
         tr( "Toggle table/text view (%1)" ).arg( recognizedFormat_->title() ) );

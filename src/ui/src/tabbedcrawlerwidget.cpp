@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <vector>
 
 #include <QApplication>
 #include <QClipboard>
@@ -39,6 +40,7 @@
 #include "clipboard.h"
 #include "iconloader.h"
 #include "log.h"
+#include "mergedialog.h"
 #include "openfilehelper.h"
 #include "tabbarstyle.h"
 #include "tabgroupinfo.h"
@@ -104,6 +106,14 @@ void TabbedCrawlerWidget::setOpeningTitle( const QString& path, const QString& t
     else {
         openingTitles_.insert( path, { title, toolTip } );
     }
+
+    // The tab of a command that ended is open already (#575).
+    if ( const auto index = tabOfPath( path ); index >= 0 ) {
+        myTabBar_.setTabToolTip( index, toolTip.isEmpty() || title.isEmpty()
+                                            ? QDir::toNativeSeparators( path )
+                                            : toolTip );
+        updateTabGroupAppearance( index );
+    }
 }
 
 void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName,
@@ -144,10 +154,24 @@ QString TabbedCrawlerWidget::baseTabName( int index ) const
     return openingTitle.isEmpty() ? QFileInfo( path ).fileName() : openingTitle;
 }
 
+void TabbedCrawlerWidget::setTitleFormat( const QString& path, const QString& format )
+{
+    if ( format.isEmpty() ) {
+        titleFormats_.remove( path );
+    }
+    else {
+        titleFormats_.insert( path, format );
+    }
+    if ( const auto index = tabOfPath( path ); index >= 0 ) {
+        updateTabGroupAppearance( index );
+    }
+}
+
 void TabbedCrawlerWidget::updateTabGroupAppearance( int index )
 {
     const auto group = groupOfTab( index );
-    const auto name = baseTabName( index );
+    const auto format = titleFormats_.value( tabPathAt( index ) );
+    const auto name = format.isEmpty() ? baseTabName( index ) : format.arg( baseTabName( index ) );
 
     if ( group.has_value() ) {
         myTabBar_.setTabText( index, QString::fromUtf8( "\u25CF " ) + name );
@@ -241,6 +265,7 @@ void TabbedCrawlerWidget::removeCrawler( int index )
         transientTabGroups_.remove( path );
     }
     openingTitles_.remove( path );
+    titleFormats_.remove( path );
 
     QTabWidget::removeTab( index );
 
@@ -481,44 +506,28 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
     }
 
     // --- Merge operations ---
+    // Which Log Files, in which order, the dialog asks (#571).
     if ( logFiles.size() > 1 ) {
         menu.addSeparator();
-
-        const auto pathsOf = [ this ]( const QList<int>& tabs ) {
-            QStringList paths;
-            for ( const auto i : tabs ) {
-                paths.append( tabPathAt( i ) );
-            }
-            return paths;
-        };
-
-        if ( !leftOfTab.isEmpty() ) {
-            auto* mergeLeft = menu.addAction( tr( "Merge All Left" ) );
-            connect( mergeLeft, &QAction::triggered, this, [ this, paths = pathsOf( leftOfTab ) ] {
-                Q_EMIT mergeRequested( paths, false );
-            } );
-
-            auto* mergeLeftDedup = menu.addAction( tr( "Merge All Left (dedup)" ) );
-            connect(
-                mergeLeftDedup, &QAction::triggered, this,
-                [ this, paths = pathsOf( leftOfTab ) ] { Q_EMIT mergeRequested( paths, true ); } );
-        }
-
-        if ( !rightOfTab.isEmpty() ) {
-            auto* mergeRight = menu.addAction( tr( "Merge All Right" ) );
-            connect( mergeRight, &QAction::triggered, this,
-                     [ this, paths = pathsOf( rightOfTab ) ] {
-                         Q_EMIT mergeRequested( paths, false );
-                     } );
-
-            auto* mergeRightDedup = menu.addAction( tr( "Merge All Right (dedup)" ) );
-            connect(
-                mergeRightDedup, &QAction::triggered, this,
-                [ this, paths = pathsOf( rightOfTab ) ] { Q_EMIT mergeRequested( paths, true ); } );
-        }
+        auto* merge = menu.addAction( tr( "Merge…" ) );
+        connect( merge, &QAction::triggered, this, [ this ] { chooseFilesToMerge(); } );
     }
 
     menu.exec( globalPoint );
+}
+
+void TabbedCrawlerWidget::chooseFilesToMerge()
+{
+    std::vector<MergeCandidate> candidates;
+    for ( const auto i : logFileTabs() ) {
+        candidates.push_back(
+            { tabPathAt( i ), myTabBar_.tabText( i ), myTabBar_.tabToolTip( i ) } );
+    }
+
+    MergeDialog dialog( candidates, this );
+    if ( dialog.exec() == QDialog::Accepted ) {
+        Q_EMIT mergeRequested( dialog.checkedPaths(), dialog.dropsDuplicates() );
+    }
 }
 
 void TabbedCrawlerWidget::keyPressEvent( QKeyEvent* event )

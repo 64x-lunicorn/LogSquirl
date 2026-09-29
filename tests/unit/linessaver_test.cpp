@@ -135,6 +135,28 @@ SCENARIO( "saving lines writes each line encoded, with its line ending, after th
     }
 }
 
+SCENARIO( "saving lines with CR LF line ends ends every line with CR LF on every platform",
+          "[linessaver]" )
+{
+    GIVEN( "a few lines" )
+    {
+        const FakeLogData logFile{ { QStringLiteral( "a" ), QStringLiteral( "b" ) } };
+
+        THEN( "each is followed by CR LF" )
+        {
+            QBuffer output;
+            output.open( QIODevice::WriteOnly );
+            AtomicFlag interrupt;
+            REQUIRE( saveDisplayedLines(
+                readerOf( logFile ), 0_lnum, 2_lnum, nullptr, output, interrupt, []( int ) {},
+                LineEnds::CrLf ) );
+            REQUIRE( output.data()
+                     == "\xEF\xBB\xBF"
+                        "a\r\nb\r\n" );
+        }
+    }
+}
+
 SCENARIO( "saving lines writes every line of the range, whatever its size", "[linessaver]" )
 {
     GIVEN( "a Log File of two chunks of 5,000 lines and some more" )

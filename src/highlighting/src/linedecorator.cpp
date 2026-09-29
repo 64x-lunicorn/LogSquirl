@@ -124,11 +124,26 @@ HighlightColor LineDecorator::lineColorsFor( const LineVerdict& verdict ) const
 }
 
 Decoration LineDecorator::decorate( const QString& text, const LineVerdict& verdict,
-                                    const std::optional<HighlightedMatch>& selection ) const
+                                    const std::optional<HighlightedMatch>& selection,
+                                    const logsquirl::vector<HighlightedMatch>& ansiColors ) const
 {
     HighlightedMatchRanges ranges;
 
     if ( !verdict.isOutsideSearchLimits() && !verdict.isSelectedAsWhole() ) {
+        // The lowest source: everything below paints over it. They come
+        // sorted and apart, so each is appended.
+        if ( !verdict.wholeLineHighlight().has_value() ) {
+            for ( auto ansiColor : ansiColors ) {
+                if ( verdict.isContextLine() && ansiColor.foreColor().isValid() ) {
+                    auto dimmed = ansiColor.foreColor();
+                    dimmed.setAlpha( 128 );
+                    ansiColor = HighlightedMatch{ ansiColor.startColumn(), ansiColor.size(), dimmed,
+                                                  ansiColor.backColor() };
+                }
+                ranges.addMatch( ansiColor );
+            }
+        }
+
         ranges.addMatches( verdict.highlighterSpans() );
 
         if ( context_.mainSearch.has_value() ) {

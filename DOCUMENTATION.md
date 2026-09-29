@@ -9,6 +9,7 @@
    - [Auto Log Format Detection (Table View)](#auto-log-format-detection-table-view)
    - [Chart Panel](#chart-panel)
    - [Tab groups](#tab-groups)
+   - [Session files](#session-files)
 1. [The menu bar](#the-menu-bar)
 1. [Plugins](#Plugins)
 1. [Settings](#Settings)
@@ -205,6 +206,32 @@ to the main view: 5 lines before and after by default. *Context lines around
 matches* in `Settings->View` sets the number, and 0 turns them off. Where the
 lines around two matches overlap, each line is shown once.
 
+#### Exporting the filtered view as CSV
+
+When the log file's format was recognized (see
+[Auto Log Format Detection](#auto-log-format-detection-table-view)), the
+filtered view's context menu offers **Export as CSV...** too. It writes the
+lines the filtered view shows, split into the columns of the table view, with
+the same dialog, file format and background export as
+[the table view's export](#exporting-as-csv). Without a recognized format the
+entry is absent. The dialog differs in these points:
+
+- **Rows**: *All shown lines*, in the filtered view's order under its current
+  mode (matches, marks or both), or *Selected lines*, the selected ones in
+  that order.
+- **Include Context Lines**: whether the context lines around matches and
+  marks, the [breadcrumbs](#breadcrumbs), are written as well. It is off at
+  first, and can only be checked while the filtered view shows them;
+  unchecked, only matches and marks are written.
+- **Columns**: *Line* and **Type** (both unchecked at first), then every
+  column of the table view, **Δt** included. *Type* holds `Match`, `Mark`,
+  `Match+Mark` or `Context`, always in English, so a spreadsheet can filter
+  on it in any language.
+
+Every value is what the table view shows for that line: **Δt** is the time
+since the nearest earlier line of the log file with a timestamp, not since the
+previous line exported.
+
 #### QuickFind
 
 QuickFind searches the view you are in, the main view or the filtered view,
@@ -276,6 +303,7 @@ if Hyperscan can't handle the search pattern. However, in this case search will 
 * downloading files from a provided url
 * providing one or many files via the command line
 * piping a stream into `logsquirl -` (see [Reading standard input](#Reading-standard-input))
+* running a command and following its output (see [Command output](#Command-output))
 * using recent files or favorite menu items.
 
 On Windows, the installer adds *logsquirl* to the *Open with* menu of the file manager, and makes it
@@ -289,15 +317,22 @@ files by clicking them in the file manager.
 `journalctl -f | logsquirl -`. It can be combined with files
 (`… | logsquirl - other.log`): they open in the same window.
 
-* `-` always starts a window of its own, as `--multi` does, even when
-  *logsquirl* is already running: the process at the end of the pipe has to
-  keep reading until the pipe closes.
+* When *logsquirl* is already running, what is piped in opens as a `stdin` tab
+  in the running window, with the files given beside it. The `logsquirl`
+  process at the end of the pipe keeps reading until the pipe closes, or its
+  tab is closed, and then exits; `Ctrl+C` ends it early, and the tab keeps what
+  arrived until then. Every `… | logsquirl -` opens a tab of its own. If the
+  running *logsquirl* cannot be reached, or does not take standard input over
+  within 5 s (one of another version does not), it says so, exits with a
+  non-zero status and leaves nothing behind. With `--multi`, `-` opens in a
+  window of its own instead.
 * What arrives is kept in a temporary file in the application's temporary
   directory, and the tab (named `stdin`) follows it like any growing Log File:
   Search and Marks work as they do for a file on disk.
 * The temporary file grows without bound for as long as the stream runs. It is
-  removed when the window closes or *logsquirl* exits; the data is not kept
-  and there is no "save as" for it.
+  removed when its tab or the window closes, or *logsquirl* exits; the data is
+  not kept and there is no "save as" for it. On Windows, a file the piping
+  process still writes is removed when *logsquirl* exits.
 * When the writing end closes, following stops, every received byte is in the
   Log File (including a last line without a trailing newline) and the status bar
   says `Standard input closed`.
@@ -305,6 +340,49 @@ files by clicking them in the file manager.
   and exits with a non-zero status, without opening a window.
 * Windows: reading standard input redirected into the GUI executable has not
   been verified. If it cannot be read, the window stays empty.
+
+#### Command output
+
+`File->Open Command Output...` runs a command and opens what it writes in a new
+tab that follows it, like standard input. This covers remote and container logs
+without anything else to install: `ssh host tail -f /var/log/syslog`,
+`docker logs -f web`, `kubectl logs -f deploy/api`, `journalctl -f`.
+
+* The dialog asks for the **Command** line, the **Working folder** it runs in
+  (empty: your home folder) and whether to **Include standard error** (on by
+  default). The last 10 commands are offered in the command's list, the most
+  recent first; choosing one fills in its working folder and standard error
+  choice too.
+* The command line runs through your shell, as in a terminal, so pipes and
+  quoting work (`kubectl logs -f api | grep ERROR`): on macOS and Linux as a
+  login shell (`$SHELL -l -c "…"`, `/bin/sh` when `SHELL` is not set), so that
+  the programs of your `PATH` are found even when *logsquirl* was started from
+  the Finder or the Dock; on Windows through `cmd.exe /d /s /c "…"`.
+* The tab is named after the command line, shortened in the middle to 40
+  characters; its tooltip shows the whole command line, the working folder and
+  the temporary file the output is kept in.
+* When the command ends, the tab stays with everything it received and is no
+  longer followed: the file does not grow any more. Its name gets ` [exit N]`
+  with the command's exit code, or ` [stopped]` when it was killed by a signal
+  or crashed, and the status bar says so. Exit code 127 (9009 on Windows) is a
+  command the shell did not find: the status bar says *command not found*.
+* A working folder that does not exist, or a shell that cannot be started, is
+  reported and no tab opens.
+* Closing the tab, its window or *logsquirl* stops the command and every
+  process it started: on macOS and Linux they get `SIGTERM`, and `SIGKILL` 2 s
+  later if they are still there; on Windows they are ended together. Whatever
+  the command left running is stopped when it ends, too. One tab is one run:
+  run the command again from the dialog.
+* The tab is not saved with the session: a start never runs a command by
+  itself. Its temporary file is removed when the tab closes.
+* The command does not run in a terminal, and many programs then keep their
+  output in a buffer instead of writing each line at once (Python, for
+  example): lines arrive late and in bursts. Ask the program to write each
+  line: `python -u script.py`, `stdbuf -oL some-tool` (Linux),
+  `grep --line-buffered ERROR`.
+* Any number of commands and standard input can be followed side by side in
+  one window. `File->Open Command Output...` can be given a key in
+  `Settings->Shortcuts`, and it is in the command palette.
 
 #### Archives
 
@@ -335,8 +413,8 @@ anything you did not ask for.
 
 *logsquirl* saves a history of recent opened files, available from the `File`
 menu: 5 by default, up to 25 as set in `Settings->File`. Standard input, a
-merged tab, what a data source writes and text opened from the clipboard exist
-only while *logsquirl* runs, so they are not added to it.
+command's output, a merged tab, what a data source writes and text opened from
+the clipboard exist only while *logsquirl* runs, so they are not added to it.
 
 #### Favorites
 
@@ -561,6 +639,39 @@ Lines that do not match the detected format's regex are displayed in the
 **body** column with all other columns empty. This ensures no data is lost
 in the table view.
 
+#### Exporting as CSV
+
+Right-click the table and choose **Export as CSV...** to write the table to a
+file for a spreadsheet, pandas and the like. The main text view has no such
+entry; the filtered view has one
+([Exporting the filtered view as CSV](#exporting-the-filtered-view-as-csv)).
+Without a recognized format there is no table view and no export. A dialog
+chooses what is written:
+
+- **Rows**: *All rows*, every row the table shows, in its order, or
+  *Selected rows*, the selected ones in line order. *Selected rows* can only
+  be chosen while rows are selected, and is then chosen at first.
+- **Columns**: *Line*, the 1-based line number as *Copy with line numbers*
+  writes it (unchecked at first), then every column of the table, **Δt**
+  included (all checked). At least one column must be checked.
+- **Separator**: *Comma*, *Semicolon* or *Tab*.
+- **Write column names as the first row**: the header row.
+
+**Export...** then asks for the file, proposing the log file's name with
+`.csv` added, and adds `.csv` to a name without it, asking first when a file
+of that name exists. The separator and the header row are remembered for the
+next export; the rows and columns are not.
+
+Every value is exactly what the table shows, the elapsed time and the raw
+text of a non-matching line included. The file is UTF-8 with a byte order
+mark, so that Excel reads accented characters correctly when the file is
+double-clicked (pandas reads it with `encoding="utf-8-sig"`), and its lines
+end with CR LF. A field is quoted with `"` when it holds the separator, a
+`"`, or a line break, and a `"` inside it is doubled (RFC 4180).
+
+The export runs in the background with a progress dialog. Cancelling it, or
+a failed write, leaves an existing file as it was and creates no new one.
+
 ### Chart Panel
 
 The Chart Panel lets you plot numeric values extracted from log lines using
@@ -700,11 +811,17 @@ following file mode is also disabled.
 
 ### Merging Log Files
 
-Right-click a tab and choose "Merge All Left" or "Merge All Right" (or the
-"(dedup)" variants, which drop duplicate lines) to combine that tab with the
-tabs on one side of it into one merged tab, named "Merged" or "Merged (dedup)".
-The sources are written one after the other, in tab order; lines are not sorted
-by time.
+Right-click a tab and choose *Merge…* (offered while at least two files are
+open) to combine files into one merged tab. The dialog *Merge Log Files* lists
+every open file -- standard input, another merged tab and command output
+included -- in tab order, all checked. Uncheck the files to leave out, and put
+the others in the order they are written in: drag a file within the list, or
+select it and use *Move Up* and *Move Down*. *Drop duplicate lines* (off by
+default) leaves out a line identical to one already written, from any of the
+files. *Merge* is enabled while at least two files are checked; it opens the
+merged tab, named "Merged" or "Merged (dedup)". The sources are written one
+after the other, in the order of the dialog; lines are not sorted by time. The
+dialog remembers nothing: it opens in the current tab order every time.
 
 The merged tab follows its sources. When a source changes, the merged file is
 rebuilt after a short pause (300 ms) and the tab reloads. The rebuild always
@@ -721,9 +838,9 @@ those to its left or right, or all, copies the file's full path and opens its
 folder. *Rename tab* gives the tab a name of your own instead of the file name;
 the name belongs to the file's path and comes back whenever that file is opened,
 until *Reset tab name*. The tab of a file that exists only while *logsquirl*
-runs -- standard input, a merged tab, a data source, the clipboard -- keeps its
-name until it closes. The icon of a tab shows when its file has new lines, and
-when those lines hold new matches.
+runs -- standard input, a command's output, a merged tab, a data source, the
+clipboard -- keeps its name until it closes. The icon of a tab shows when its
+file has new lines, and when those lines hold new matches.
 
 `Ctrl+Tab` and `Ctrl+Shift+Tab` (or `Ctrl+PgDown` and `Ctrl+PgUp`) go to the
 next and the previous tab, `Ctrl+1` to `Ctrl+8` to the first eight and `Ctrl+9`
@@ -744,6 +861,47 @@ color, name and number of tabs, to rename, recolor or delete them without going
 through a tab. Group membership is remembered by the file's path and restored
 with the session; the tab of a file that exists only while *logsquirl* runs
 stays in its group until it closes.
+
+### Session files
+
+*logsquirl* restores the files of every window on the next start by itself
+(see [Session options](#session-options)). A window's session can also be kept
+in a file of its own, to come back to an investigation later or to hand it to
+a colleague.
+
+`File->Save Session As...` writes the current window's session to a file with
+the extension `.logsquirl-session` (its content is JSON). It holds:
+
+- the open files in tab order, and which tab was in front;
+- each tab's view state: the splitter position, the search options, `follow`
+  mode, the marked lines, the charts and the line the view stands on;
+- the custom tab names and the [tab groups](#tab-groups) (name and color) of
+  these files;
+- for a file opened from an archive, the archive and the member taken from it.
+
+It does not hold the window's size and position or the sidebar width, which
+depend on the screen, nor the search pattern, the kept searches or the search
+limits. A file that exists only while *logsquirl* runs -- standard input, a
+merged tab, text pasted from the clipboard, a file downloaded from a URL, the
+output of a converter plugin or a data source -- is not written.
+
+`File->Open Session...` opens a session file in a **new window**: the files in
+their saved order, the saved tab in front, each with its view state, tab name
+and group. A file from an archive is decompressed again. A group with the same
+name as one you already have is that group and keeps its color; any other is
+created. A file that is missing, or already open in another window, is left
+out (it stays where it is open), and a notice names it; the others open. When
+none of them can be opened, only the notice is shown. A file that is not a
+session file, or one saved by a newer *logsquirl*, is refused with a message
+and no window opens.
+
+Every file is stored with its absolute path and with its path relative to the
+folder of the session file. Opening tries the absolute path first, then the
+relative one. So a folder holding the logs and the session file beside or above
+them can be moved, or zipped and unpacked on another machine, and still opens.
+
+Both entries have no key by default; one can be given in the shortcut settings,
+and both are in the Command Palette.
 
 ### Filters Panel
 
@@ -796,9 +954,12 @@ bytes.
 Most of the menu bar is described where its feature is explained; this is the
 whole list, with what the entries not explained elsewhere do.
 
-- **File**: `New window`, `Open...`, `Open from clipboard` and
+- **File**: `New window`, `Open...`, `Open from clipboard`,
+  `Open Command Output...` (see [Command output](#command-output)) and
   `Open from URL...` (see [Opening files](#opening-files)), `Open Recent`
-  with `Clear List`, `Close`, `Close All`, `Preferences...` and `Exit`.
+  with `Clear List`, `Open Session...` and `Save Session As...` (see
+  [Session files](#session-files)), `Close`, `Close All`, `Preferences...` and
+  `Exit`.
 - **Edit**: `Copy`, `Select All`, `Find...` (the QuickFind bar), `Go to line...`
   and `Go to timestamp...`, then `Copy full path` (of the current file to the
   clipboard), `Open containing folder`, `Open in editor` (in the default
@@ -1028,9 +1189,30 @@ shown before and after each match (5 by default, 0 turns them off). With
 *Fast scroll multiplier* times (5) as far while `Alt` is held.
 
 Some log files contain ANSI color codes to be displayed by terminals with
-color support. These color codes create visual noise, so *logsquirl* provides
-an option to hide them from both main and filtered view. However, enabling
-this option will cause regular expression search to be slower.
+color support: the output of `ls --color`, of a test runner or of a colored
+logger. *ANSI color sequences* says what *logsquirl* does with them:
+
+- *Show as text* (the default) shows the escape sequences as characters, as
+  the file holds them.
+- *Hide* removes them from every line: the main and the filtered view show the
+  text without them, and Search, QuickFind, selection and copy work on that
+  text.
+- *Show colors* removes them as *Hide* does and paints the lines in the colors
+  they ask for, in the main and the filtered view. Foreground and background
+  colors are shown (the 16 basic colors, the 256-color palette and truecolor);
+  bold, underline and the other attributes are not. Each line starts in its
+  own colors. The 16 basic colors are the Theme's: Smyck and Smyck Light use
+  the SMYCK scheme's, the other Themes xterm's, and a foreground too faint to
+  read on its background is moved toward the Theme's text color. Text with
+  only a background color, where the Theme's text color is too faint to read
+  on it, is moved toward black or white instead. Highlighters, the search
+  highlight, Color Labels, QuickFind and the selection paint over the ANSI
+  colors. Search, QuickFind, selection and copy work exactly as under
+  *Hide*, and switching between the two reloads nothing and runs no search
+  again. The table view shows the text as under *Hide*, without ANSI colors.
+
+*Hide* and *Show colors* make regular expression search slower: every line is
+read without its sequences first.
 
 ### File
 
@@ -1184,7 +1366,7 @@ Scrolling sideways, on a trackpad or a tilting wheel, scrolls horizontally.
 |-n,--new-session   |do not load the previous session (default when a file is passed) |
 |-l,--log           |save the log to a file                                    |
 |-f,--follow        |follow initial opened files                               |
-|-                 |read a Log File from standard input, in a window of its own (as with -m); can be combined with files |
+|-                 |read a Log File from standard input, in the running *logsquirl* if there is one (in a window of its own with -m); can be combined with files |
 |-d,--debug         |output more debug (include multiple times for more verbosity e.g. -dddd) |
 
 ## The command line tool

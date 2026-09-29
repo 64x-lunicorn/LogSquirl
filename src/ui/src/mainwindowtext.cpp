@@ -70,6 +70,15 @@ const char* action::openClipboardText = QT_TR_NOOP( "Open from clipboard" );
 const char* action::openClipboardStatusTip = QT_TR_NOOP( "Open clipboard as log file" );
 const char* action::openUrlText = QT_TR_NOOP( "Open from URL..." );
 const char* action::openUrlStatusTip = QT_TR_NOOP( "Open URL as log file" );
+const char* action::openSessionText = QT_TR_NOOP( "Open Session..." );
+const char* action::openSessionStatusTip
+    = QT_TR_NOOP( "Open the log files of a saved session in a new window" );
+const char* action::saveSessionAsText = QT_TR_NOOP( "Save Session As..." );
+const char* action::saveSessionAsStatusTip
+    = QT_TR_NOOP( "Save this window's log files, tabs and view states to a session file" );
+const char* action::openCommandOutputText = QT_TR_NOOP( "Open Command Output..." );
+const char* action::openCommandOutputStatusTip
+    = QT_TR_NOOP( "Run a command and open its output as a followed log file" );
 const char* action::overviewVisibleText = QT_TR_NOOP( "Matches &overview" );
 const char* action::lineNumbersVisibleInMainText = QT_TR_NOOP( "Line &numbers in main view" );
 const char* action::lineNumbersVisibleInFilteredText

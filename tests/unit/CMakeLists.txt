@@ -13,9 +13,14 @@ add_executable(logsquirl_tests
     chartseries_test.cpp
     charttemplategenerator_test.cpp
     chipmunkimporter_test.cpp
+    commandoutputdialog_test.cpp
+    commandsource_test.cpp
     compressedlinestorage_test.cpp
     configuration_test.cpp
     crashreports_test.cpp
+    csv_test.cpp
+    csvexport_test.cpp
+    csvexportdialog_test.cpp
     datalocation_test.cpp
     decorationsetup_test.cpp
     displayedlines_test.cpp
@@ -32,6 +37,7 @@ add_executable(logsquirl_tests
     highlighterpresets_test.cpp
     indexedhash_test.cpp
     indexjobrule_test.cpp
+    instancehandover_test.cpp
     jwtdecoder_test.cpp
     linedecorator_test.cpp
     logger_test.cpp

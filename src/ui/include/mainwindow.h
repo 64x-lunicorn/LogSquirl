@@ -54,10 +54,12 @@
 #include <QToolButton>
 #include <QTranslator>
 #include <array>
+#include <map>
 #include <memory>
 #include <mutex>
 
 #include "applicationplugins.h"
+#include "commandsource.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "downloader.h"
@@ -68,9 +70,8 @@
 #include "quickfindmux.h"
 #include "quickfindwidget.h"
 #include "session.h"
+#include "sessionfile.h"
 #include "signalmux.h"
-#include "stdinpump.h"
-#include "streamwriter.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabbedscratchpad.h"
 #include "tabgroupmanagerdialog.h"
@@ -107,12 +108,46 @@ public:
     void reloadGeometry();
     // Re-load the files from the previous session
     void reloadSession();
+
+    // Writes this window's Session to the Session File at `path` (#576):
+    // its Log Files in tab order with their view states, the tab in front,
+    // and their tab names and groups. Says why when it cannot be written, and
+    // returns whether it was.
+    bool saveSessionFile( const QString& path );
+    // Reads the Session File at `path` and asks for a new window to open it
+    // in with sessionFileOpened(). A Log File that is missing, or open in any
+    // window already, is left out, and the new window names it. When the file
+    // cannot be read, or none of its Log Files can be opened, it says so here
+    // and no window is asked for.
+    void openSessionFile( const QString& path );
+    // Opens what openSessionFile() read in this window, a new one, as a
+    // restored Session opens: the tab in front loads first, a Log File from
+    // an archive is decompressed again. Its tab names and groups are merged
+    // into the stored ones first.
+    void restoreSessionFile( const SessionFileRead& read );
     // Loads the initial file (parameter passed or from config file)
     void loadInitialFile( QString fileName, bool followFile );
 
     // Opens what arrives on standard input as a Log File that is followed. The
     // window keeps reading until the writing end closes or it is destroyed.
+    // A window reads it once.
     void openStandardInput();
+
+    // Opens, in a followed tab named `displayName` -- `stdin` when empty --
+    // the spool file a secondary instance writes what arrives on its standard
+    // input to, and brings the window to the front (#623). The tab owns the
+    // file, tells the secondary instance so (see spoolAdoptionMarker()) and
+    // removes it as it closes -- when the file is a spool of standard input
+    // in the temporary folder; any other file is only opened. Each hand-over
+    // is a tab of its own.
+    void openHandedOverStandardInput( const QString& spoolPath, const QString& displayName = {} );
+
+    // Runs the command line through the user's shell and opens its output as
+    // a Transient Log File that is followed, titled by the command line
+    // (#575). A working folder that does not exist, a spool file that cannot
+    // be created or a shell that does not start is reported, and no tab
+    // opens; returns whether one does. Closing the tab stops the command.
+    bool openCommandOutput( const RecentCommand& command );
 
     void reTranslateUI();
 
@@ -165,6 +200,8 @@ private Q_SLOTS:
     void openInEditor();
     void openClipboard();
     void openUrl();
+    // Asks for a command to run for its output (#575).
+    void openCommandOutputDialog();
     void editHighlighters();
     void editPredefinedFilters( const QString& newFilter = {} );
     void options();
@@ -251,6 +288,8 @@ Q_SIGNALS:
     void exitingQuickFind();
 
     void newWindow();
+    // A Session File was read, to be opened in a new window (#576).
+    void sessionFileOpened( const SessionFileRead& read );
     void windowActivated();
     void windowClosed();
     void exitRequested();
@@ -271,6 +310,16 @@ private:
     bool loadFile( const QString& fileName, bool followFile = false,
                    LogFileLifetime lifetime = LogFileLifetime::Ordinary );
     bool extractAndLoadFile( const QString& fileName );
+    // Opens the Log Files of `window` as a restore does, and reloadSession()
+    // does with the window stored in the Session (#576). Returns the paths of
+    // those whose tabs it added; the ones from an archive come later.
+    std::vector<QString> restoreWindow( const WindowSnapshot& window );
+    // The views of the window's Log File tabs in tab order, each with its
+    // view state, as the Session saves them.
+    std::vector<SaveFileInfo> tabViewStates() const;
+    // The File menu's "Save Session As..." and "Open Session..." (#576).
+    void saveSessionAs();
+    void openSession();
     // Adds the tab of a restored Log File whose archive decompressed after
     // the restore, `fileName`, where it stood among the tabs (#610).
     void openRestoredFromArchive( int deferredId, const ArchiveMember& member,
@@ -279,10 +328,25 @@ private:
     // closes it once none is.
     void showArchiveRestoreProgress( const QString& archive );
     void closeArchiveRestoreProgress();
+    // Raises the window and gives it the focus, as a hand-over from another
+    // instance does.
+    void bringToFront();
     // The view of this Log File open in any window, or of the Log File a
     // converter plugin converted it into (#615); nullptr while neither is.
     const ViewInterface* openViewOf( const QString& fileName ) const;
     void openRemoteFile( const QUrl& url );
+    // Opens the spool file of a Command Source in a followed tab and keeps
+    // the source with it until the tab closes; the title and tooltip are the
+    // tab's. Returns whether the tab opens.
+    bool openCommandSource( std::unique_ptr<CommandSource> source, const QString& title,
+                            const QString& toolTip );
+    // The tooltip of a command's tab: its whole command line, its working
+    // folder and its spool file.
+    static QString commandToolTip( const CommandSource& source );
+    // The tooltip of a standard input's tab: what it is, and its spool file.
+    static QString standardInputToolTip( const QString& spoolPath );
+    // Shows how the Command Source of the tab of `spoolPath` ended.
+    void showCommandSourceEnded( const QString& spoolPath, const CommandEnd& end );
     void updateTitleBar( const QString& fileName );
     // The file the recent files keep for a Log File open with this lifetime:
     // the Log File itself, the archive a decompressed Log File came from
@@ -382,6 +446,9 @@ private:
     QAction* openInEditorAction;
     QAction* openClipboardAction;
     QAction* openUrlAction;
+    QAction* openSessionAction;
+    QAction* saveSessionAsAction;
+    QAction* openCommandOutputAction;
     QAction* overviewVisibleAction;
     QAction* lineNumbersVisibleInMainAction;
     QAction* lineNumbersVisibleInFilteredAction;
@@ -466,6 +533,9 @@ private:
     // it is read from: the Session saves that instead (#596), and the recent
     // files, tab names and tab groups know it by that (#609).
     QHash<QString, ArchiveMember> archiveMembers_;
+    // The tab names and groups of a Session File for its Log Files from an
+    // archive, applied to each as it opens (#576).
+    WindowSnapshot pendingTabLabels_;
     // The Ordinary Log File each Log File a converter plugin wrote into
     // tempDir_ was converted from, by the path it is read from: the recent
     // files keep that instead (#605), and opening it again shows that tab
@@ -490,9 +560,10 @@ private:
     // window and loaded once, after the first window shows (#303).
     std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins_;
 
-    // Declared in this order: the pump reads into the writer, so it goes first.
-    std::unique_ptr<logsquirl::plugins::StreamWriter> standardInputWriter_;
-    std::unique_ptr<logsquirl::plugins::StdinPump> standardInputPump_;
+    // The Command Source of each tab that has one -- standard input, a
+    // command's output -- by the tab's path, its spool file (#575). It goes
+    // with the tab.
+    std::map<QString, std::unique_ptr<CommandSource>> commandSources_;
 
     // Shows what plugins contribute, when this window is the one the Plugin
     // Host shows them in: the first window built.

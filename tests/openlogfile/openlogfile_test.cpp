@@ -1104,6 +1104,118 @@ SCENARIO( "An Open Log File has its Log File watched from its first load until i
     }
 }
 
+// A Log File written to while its first load runs, before it is watched, is
+// checked once it is: no watcher reports that change (#629).
+SCENARIO( "An Open Log File loads what was written to its Log File before it was watched",
+          "[openlogfile][filewatch]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "written_while_loading.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    logFile.fileWatch->whenFirstAdded = []( const QString& fileName ) {
+        QFile file( fileName );
+        REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Append ) );
+        const auto added = logLines( 5, FirstLineCount );
+        REQUIRE( file.write( added ) == added.size() );
+    };
+
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+    REQUIRE( waitUiState(
+        [ & ] {
+            return logFile.openLogFile.logData()->getNbLine() == LinesCount( FirstLineCount + 5 );
+        },
+        10'000 ) );
+}
+
+// The check once it is watched finds nothing to load then (#629).
+SCENARIO( "An Open Log File does not load again a Log File that did not change before it was "
+          "watched",
+          "[openlogfile][filewatch]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "unchanged_while_loading.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    int unchangedChecks = 0;
+    QObject::connect( logFile.openLogFile.logData().get(), &LogData::fileUnchanged,
+                      [ &unchangedChecks ] { ++unchangedChecks; } );
+
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+    // The Log File was checked once it was watched, and found as it was.
+    REQUIRE( waitUiState( [ & ] { return unchangedChecks >= 1; }, 10'000 ) );
+    REQUIRE_FALSE( waitUiState( [ & ] { return logFile.observer.loads.size() > 1; }, 500 ) );
+    REQUIRE( logFile.nbLines() == LinesCount( FirstLineCount ) );
+}
+
+// A Log File whose writer has ended -- a command's output, standard input --
+// grows no more: it is loaded as it is and no longer watched (#575).
+SCENARIO( "An Open Log File stops watching its Log File once what it holds is loaded",
+          "[openlogfile][filewatch]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "ended.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    int stops = 0;
+    QObject::connect( &logFile.openLogFile, &OpenLogFile::watchingStopped,
+                      [ &stops ] { ++stops; } );
+
+    const auto appendUnreported = [ &path ]( int count, int firstNumber ) {
+        QFile file( path );
+        REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Append ) );
+        const auto added = logLines( count, firstNumber );
+        REQUIRE( file.write( added ) == added.size() );
+    };
+
+    GIVEN( "it has loaded, and its last Log Lines were written without a change heard of" )
+    {
+        REQUIRE( logFile.observer.waitLoads( 1 ) );
+        REQUIRE( waitUiState( [ & ] { return logFile.fileWatch->isWatched( path ); }, 10'000 ) );
+        appendUnreported( 5, FirstLineCount );
+
+        WHEN( "it is told to stop watching" )
+        {
+            logFile.openLogFile.stopWatching();
+
+            THEN( "the last Log Lines are loaded, then it says it stopped, and nothing watches" )
+            {
+                REQUIRE( waitUiState( [ & ] { return stops == 1; }, 10'000 ) );
+                REQUIRE( logFile.nbLines() == LinesCount( FirstLineCount + 5 ) );
+                REQUIRE( logFile.fileWatch->watchedFiles().empty() );
+
+                AND_THEN( "it is not watched again, and says it only once" )
+                {
+                    logFile.openLogFile.stopWatching();
+                    logFile.openLogFile.reload();
+                    REQUIRE( logFile.observer.waitLoads( logFile.observer.loads.size() + 1 ) );
+                    QCoreApplication::processEvents();
+                    REQUIRE( logFile.fileWatch->watchedFiles().empty() );
+                    REQUIRE( stops == 1 );
+                }
+            }
+        }
+    }
+
+    GIVEN( "it is told to stop watching before its first load has finished" )
+    {
+        logFile.openLogFile.stopWatching();
+
+        THEN( "it loads the Log File, says it stopped, and never watches it" )
+        {
+            REQUIRE( waitUiState( [ & ] { return stops == 1; }, 10'000 ) );
+            REQUIRE( logFile.nbLines() == LinesCount( FirstLineCount ) );
+            REQUIRE( logFile.fileWatch->watchedFiles().empty() );
+        }
+    }
+}
+
 SCENARIO( "A Search requested while the Log File loads runs once it has loaded",
           "[openlogfile][pendingsearch]" )
 {

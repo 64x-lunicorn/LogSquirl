@@ -40,6 +40,7 @@
 // managing the menus, the toolbar, and the CrawlerWidget. It also
 // load/save the settings on opening/closing of the app
 
+#include "commandoutputdialog.h"
 #include "configuration.h"
 #include "containers.h"
 #include "log.h"
@@ -75,6 +76,7 @@
 #include <QPointer>
 #include <QProgressDialog>
 #include <QResource>
+#include <QSaveFile>
 #include <QScreen>
 #include <QScrollArea>
 #include <QSettings>
@@ -105,6 +107,7 @@
 #include "highlightersdialog.h"
 #include "highlightersmenu.h"
 #include "indexcache.h"
+#include "instancehandover.h"
 #include "issuereporter.h"
 #include "logger.h"
 #include "logsquirl_version.h"
@@ -425,6 +428,11 @@ void MainWindow::reloadGeometry()
 
 void MainWindow::reloadSession()
 {
+    restoreWindow( session_.storedSnapshot() );
+}
+
+std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
+{
     const auto& config = Configuration::get();
     const auto followFileOnLoad
         = config.followFileOnLoad() && session_.watchPolicy().anyWatchEnabled();
@@ -435,6 +443,7 @@ void MainWindow::reloadSession()
     int currentFileIndex = -1;
     std::vector<WindowSession::DeferredArchiveFile> fromArchives;
     const auto openedFiles = session_.restore(
+        window,
         [ &crawlers ]( const ViewBuild& build ) {
             crawlers.push_back( new CrawlerWidget( build ) );
             return crawlers.back();
@@ -445,9 +454,11 @@ void MainWindow::reloadSession()
     // Adding a tab makes it current for a moment, which is not the user
     // activating it.
     restoringSession_ = true;
+    std::vector<QString> tabsAdded;
     for ( size_t i = 0; i < crawlers.size() && i < openedFiles.size(); ++i ) {
         auto* crawlerWidget = crawlers[ i ];
         const auto& fileName = openedFiles[ i ].first;
+        tabsAdded.push_back( fileName );
         // Its name and group are found by its archive, not by the new
         // temporary path (#609).
         mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary,
@@ -482,6 +493,8 @@ void MainWindow::reloadSession()
                 openRestoredFromArchive( id, member, fileName );
             } );
     }
+
+    return tabsAdded;
 }
 
 void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& member,
@@ -512,6 +525,12 @@ void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& m
     if ( !crawlerWidget ) {
         return;
     }
+
+    // Named and grouped as the Session File it came from says, now that it
+    // opens (#576).
+    applyTabLabels( pendingTabLabels_, [ &member ]( const SessionInfo::OpenFile& file ) {
+        return file.archiveMember.key() == member.key();
+    } );
 
     // Where it stood among the tabs: before the Log File tab at its position,
     // else after the last one.
@@ -587,45 +606,114 @@ void MainWindow::loadInitialFile( QString fileName, bool followFile )
 
 void MainWindow::openStandardInput()
 {
-    if ( standardInputWriter_ ) {
+    if ( std::ranges::any_of( commandSources_, []( const auto& source ) {
+             return source.second->kind() == CommandSource::Kind::StandardInput;
+         } ) ) {
         return;
     }
 
-    standardInputWriter_ = std::make_unique<logsquirl::plugins::StreamWriter>( "stdin" );
-    const auto filePath = standardInputWriter_->filePath();
-    if ( filePath.isEmpty() ) {
-        QMessageBox::warning( this, tr( "Standard input" ),
-                              tr( "Could not create a file for the data read from standard "
-                                  "input." ) );
-        standardInputWriter_.reset();
+    QString error;
+    auto source = CommandSource::readStandardInput( 0, &error );
+    if ( !source ) {
+        QMessageBox::warning( this, tr( "Standard input" ), error );
         return;
     }
+    const auto filePath = source->spoolPath();
+    openCommandSource( std::move( source ), tr( "stdin" ), standardInputToolTip( filePath ) );
+}
+
+void MainWindow::openHandedOverStandardInput( const QString& spoolPath, const QString& displayName )
+{
+    if ( !isStandardInputSpool( spoolPath ) ) {
+        // Not a file this window may own and remove. It is not taken over, so
+        // the secondary instance finds no marker, reports the failed hand-over
+        // and removes its file itself.
+        LOG_WARNING << "Handed over as standard input, but no spool file: " << spoolPath;
+        return;
+    }
+    const auto title = displayName.isEmpty() ? tr( "stdin" ) : displayName;
+    openCommandSource( CommandSource::adoptSpoolFile( spoolPath ), title,
+                       standardInputToolTip( spoolPath ) );
+    bringToFront();
+}
+
+QString MainWindow::standardInputToolTip( const QString& spoolPath )
+{
+    return tr( "Standard input\n%1" ).arg( QDir::toNativeSeparators( spoolPath ) );
+}
+
+QString MainWindow::commandToolTip( const CommandSource& source )
+{
+    const auto& command = source.command();
+    return tr( "%1\nWorking folder: %2\n%3" )
+        .arg( command.commandLine, QDir::toNativeSeparators( command.workingFolder ),
+              QDir::toNativeSeparators( source.spoolPath() ) );
+}
+
+bool MainWindow::openCommandOutput( const RecentCommand& command )
+{
+    QString error;
+    auto source = CommandSource::startCommand( command, &error );
+    if ( !source ) {
+        QMessageBox::warning( this, tr( "Open Command Output" ), error );
+        return false;
+    }
+    const auto title = commandTabTitle( source->command().commandLine );
+    const auto toolTip = commandToolTip( *source );
+    return openCommandSource( std::move( source ), title, toolTip );
+}
+
+bool MainWindow::openCommandSource( std::unique_ptr<CommandSource> source, const QString& title,
+                                    const QString& toolTip )
+{
+    const auto filePath = source->spoolPath();
 
     // The tab is named when it is opened, which is later than here when the
     // plugins have not loaded yet: it is the file's, not the current tab's.
-    mainTabWidget_.setOpeningTitle( filePath, tr( "stdin" ),
-                                    tr( "Standard input\n%1" ).arg( filePath ) );
-    // The spool lives as long as this window: it is not saved with the
-    // Session (#570).
+    mainTabWidget_.setOpeningTitle( filePath, title, toolTip );
+    // The spool lives as long as its tab: it is not saved with the Session
+    // (#570).
     if ( !loadFile( filePath, true, LogFileLifetime::Transient ) ) {
         mainTabWidget_.setOpeningTitle( filePath, {} );
-        standardInputWriter_.reset();
+        return false;
+    }
+
+    connect(
+        source.get(), &CommandSource::ended, this,
+        [ this, filePath ]( const CommandEnd& end ) { showCommandSourceEnded( filePath, end ); } );
+    commandSources_[ filePath ] = std::move( source );
+    return true;
+}
+
+void MainWindow::showCommandSourceEnded( const QString& spoolPath, const CommandEnd& end )
+{
+    const auto source = commandSources_.find( spoolPath );
+    if ( source == commandSources_.end() ) {
         return;
     }
 
-    // The pump calls back on its own thread: hop over to this window's.
-    const QPointer<MainWindow> self( this );
-    standardInputPump_
-        = std::make_unique<logsquirl::plugins::StdinPump>( 0, *standardInputWriter_, [ self ] {
-              if ( !self ) {
-                  return;
-              }
-              QMetaObject::invokeMethod( self.data(), [ self ] {
-                  if ( self ) {
-                      self->statusBar()->showMessage( tr( "Standard input closed" ) );
-                  }
-              } );
-          } );
+    // The spool file grows no more. A tab not open yet -- waiting for the
+    // plugins to load -- ends following when it opens.
+    if ( const auto tab = mainTabWidget_.tabOfPath( spoolPath ); tab >= 0 ) {
+        if ( auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( tab ) ) ) {
+            crawler->endFollowing();
+        }
+    }
+
+    if ( source->second->kind() != CommandSource::Kind::Command ) {
+        statusBar()->showMessage( tr( "Standard input closed" ) );
+        return;
+    }
+
+    // The tab keeps what the command wrote; its title, whatever the tab is
+    // named, and its tooltip tell how the command ended.
+    const auto title = commandTabTitle( source->second->command().commandLine );
+    mainTabWidget_.setOpeningTitle( spoolPath, title,
+                                    commandToolTip( *source->second ) + "\n"
+                                        + CommandSource::endedToolTip( end ) );
+    mainTabWidget_.setTitleFormat( spoolPath,
+                                   CommandSource::endedTitle( QStringLiteral( "%1" ), end ) );
+    showStatusMessage( CommandSource::endedMessage( title, end ) );
 }
 
 void MainWindow::reTranslateUI()
@@ -709,6 +797,14 @@ void MainWindow::reTranslateUI()
 
     openUrlAction->setText( transAction( action::openUrlText ) );
     openUrlAction->setStatusTip( transAction( action::openUrlStatusTip ) );
+
+    openSessionAction->setText( transAction( action::openSessionText ) );
+    openSessionAction->setStatusTip( transAction( action::openSessionStatusTip ) );
+    saveSessionAsAction->setText( transAction( action::saveSessionAsText ) );
+    saveSessionAsAction->setStatusTip( transAction( action::saveSessionAsStatusTip ) );
+
+    openCommandOutputAction->setText( transAction( action::openCommandOutputText ) );
+    openCommandOutputAction->setStatusTip( transAction( action::openCommandOutputStatusTip ) );
 
     overviewVisibleAction->setText( transAction( action::overviewVisibleText ) );
 
@@ -925,6 +1021,21 @@ void MainWindow::createActions()
     openUrlAction->setStatusTip( tr( action::openUrlStatusTip ) );
     connect( openUrlAction, &QAction::triggered, this, [ this ]( auto ) { this->openUrl(); } );
 
+    openSessionAction = new QAction( tr( action::openSessionText ), this );
+    openSessionAction->setStatusTip( tr( action::openSessionStatusTip ) );
+    connect( openSessionAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->openSession(); } );
+
+    saveSessionAsAction = new QAction( tr( action::saveSessionAsText ), this );
+    saveSessionAsAction->setStatusTip( tr( action::saveSessionAsStatusTip ) );
+    connect( saveSessionAsAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->saveSessionAs(); } );
+
+    openCommandOutputAction = new QAction( tr( action::openCommandOutputText ), this );
+    openCommandOutputAction->setStatusTip( tr( action::openCommandOutputStatusTip ) );
+    connect( openCommandOutputAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->openCommandOutputDialog(); } );
+
     overviewVisibleAction = new QAction( tr( action::overviewVisibleText ), this );
     overviewVisibleAction->setCheckable( true );
     overviewVisibleAction->setChecked( config.isOverviewVisible() );
@@ -1132,6 +1243,9 @@ void MainWindow::updateShortcuts()
     setShortcuts( copyPathToClipboardAction, ShortcutAction::MainWindowCopyPathToClipboard );
     setShortcuts( openClipboardAction, ShortcutAction::MainWindowOpenFromClipboard );
     setShortcuts( openUrlAction, ShortcutAction::MainWindowOpenFromUrl );
+    setShortcuts( openSessionAction, ShortcutAction::MainWindowOpenSession );
+    setShortcuts( saveSessionAsAction, ShortcutAction::MainWindowSaveSessionAs );
+    setShortcuts( openCommandOutputAction, ShortcutAction::MainWindowOpenCommandOutput );
     setShortcuts( followAction, ShortcutAction::MainWindowFollowFile );
     setShortcuts( textWrapAction, ShortcutAction::MainWindowTextWrap );
     setShortcuts( reloadAction, ShortcutAction::MainWindowReload );
@@ -1196,6 +1310,7 @@ void MainWindow::createMenus()
     fileMenu->addAction( newWindowAction );
     fileMenu->addAction( openAction );
     fileMenu->addAction( openClipboardAction );
+    fileMenu->addAction( openCommandOutputAction );
     fileMenu->addAction( openUrlAction );
     recentFilesMenu = fileMenu->addMenu( tr( "Open Recent" ) );
     for ( auto i = 0u; i < recentFileActions.size(); ++i ) {
@@ -1204,6 +1319,10 @@ void MainWindow::createMenus()
     recentFilesMenu->addSeparator();
     recentFilesMenu->addAction( recentFilesCleanup );
     recentFilesMenu->setEnabled( false );
+    fileMenu->addSeparator();
+
+    fileMenu->addAction( openSessionAction );
+    fileMenu->addAction( saveSessionAsAction );
     fileMenu->addSeparator();
 
     fileMenu->addAction( closeAction );
@@ -1668,6 +1787,23 @@ void MainWindow::openUrl()
                                  QLineEdit::Normal, selectedUrl, &ok );
     if ( ok && !url.isEmpty() ) {
         openRemoteFile( url );
+    }
+}
+
+void MainWindow::openCommandOutputDialog()
+{
+    CommandOutputDialog dialog( Configuration::get().recentCommands(), this );
+    if ( dialog.exec() != QDialog::Accepted ) {
+        return;
+    }
+    const auto command = dialog.command();
+    if ( command.commandLine.isEmpty() ) {
+        return;
+    }
+    if ( openCommandOutput( command ) ) {
+        auto& config = Configuration::get();
+        config.addRecentCommand( command );
+        config.save();
     }
 }
 
@@ -2562,12 +2698,21 @@ void MainWindow::closeTabs( const QList<int>& indices, ActionInitiator initiator
         }
 
         // Opening the file it was converted from converts it anew (#615).
-        convertedFrom_.remove( session_.getFilename( crawler ) );
+        const auto fileName = session_.getFilename( crawler );
+        convertedFrom_.remove( fileName );
 
         crawler->stopLoading();
         mainTabWidget_.removeCrawler( index );
         session_.close( crawler );
         crawler->deleteLater();
+
+        // What feeds the tab stops now; its spool file goes after the tab,
+        // which still reads it until then (#575).
+        if ( auto source = commandSources_.extract( fileName ) ) {
+            source.mapped()->stop();
+            source.mapped()->setParent( this );
+            source.mapped().release()->deleteLater();
+        }
     }
 
     updateOpenedFilesMenu();
@@ -2649,7 +2794,11 @@ void MainWindow::loadFileNonInteractive( const QString& file_name )
     LOG_DEBUG << "loadFileNonInteractive( " << file_name.toStdString() << " )";
 
     loadFile( file_name );
+    bringToFront();
+}
 
+void MainWindow::bringToFront()
+{
     // Try to get the window to the front
     // This is a bit of a hack but has been tested on:
     // Qt 5.3 / Gnome / Linux
@@ -3033,6 +3182,11 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLife
                  && ( followFile || config.followFileOnLoad() ) ) {
                 signalCrawlerToFollowFile( crawlerWidget );
                 followAction->setChecked( true );
+            }
+            // A command or standard input that ended before its tab opened.
+            if ( const auto source = commandSources_.find( fileName );
+                 source != commandSources_.end() && source->second->hasEnded() ) {
+                crawlerWidget->endFollowing();
             }
         } catch ( ... ) {
             LOG_ERROR << "Can't open file " << fileName.toStdString();
@@ -3487,20 +3641,144 @@ void MainWindow::showInfoLabels( bool show )
     }
 }
 
-// Write settings to permanent storage
-void MainWindow::writeSettings()
+std::vector<SaveFileInfo> MainWindow::tabViewStates() const
 {
-    // Save the session
     // Generate the ordered list of widgets and their view state
     std::vector<SaveFileInfo> widget_list;
     for ( const auto i : mainTabWidget_.logFileTabs() ) {
         const auto* view = qobject_cast<const CrawlerWidget*>( mainTabWidget_.widget( i ) );
         widget_list.emplace_back( view, view->context() );
     }
+    return widget_list;
+}
+
+// Write settings to permanent storage
+void MainWindow::writeSettings()
+{
+    // Save the session
     if ( sidebarWidthApplied_ && sidebarDock_->isVisible() && !sidebarDock_->isFloating() ) {
         sidebarWidth_ = sidebarDock_->width();
     }
-    session_.save( widget_list, currentCrawlerWidget(), saveGeometry(), sidebarWidth_ );
+    session_.save( tabViewStates(), currentCrawlerWidget(), saveGeometry(), sidebarWidth_ );
+}
+
+void MainWindow::saveSessionAs()
+{
+    // Beside the Log File in front, where a folder of logs keeps its session.
+    QString proposed = QDir::home().filePath( QStringLiteral( "session" ) );
+    if ( const auto* current = currentCrawlerWidget() ) {
+        // A decompressed Log File is read from a temporary file: beside its
+        // archive instead.
+        const auto fileName = session_.getFilename( current );
+        const auto member = archiveMembers_.value( fileName );
+        const auto shown = member.isEmpty() ? fileName : member.archive;
+        proposed = QFileInfo( shown ).dir().filePath( QStringLiteral( "session" ) );
+    }
+    proposed += QStringLiteral( "." ) + SessionFileExtension;
+
+    auto path = QFileDialog::getSaveFileName(
+        this, tr( "Save Session As" ), proposed,
+        tr( "LogSquirl sessions (*.%1)" ).arg( SessionFileExtension ) );
+    if ( path.isEmpty() ) {
+        return;
+    }
+    if ( QFileInfo( path ).suffix() != QLatin1String( SessionFileExtension ) ) {
+        path += QStringLiteral( "." ) + SessionFileExtension;
+    }
+    saveSessionFile( path );
+}
+
+bool MainWindow::saveSessionFile( const QString& path )
+{
+    // The same snapshot the automatic Session saves, and the tab names and
+    // groups of its Log Files.
+    auto window = session_.snapshot( tabViewStates(), currentCrawlerWidget() );
+    takeTabLabels( window );
+
+    const auto text = writeSessionFile( window, QFileInfo( path ).absoluteDir() );
+    QSaveFile file( path );
+    if ( !file.open( QIODevice::WriteOnly ) || file.write( text ) != text.size()
+         || !file.commit() ) {
+        LOG_ERROR << "Cannot write the session file " << path << ": " << file.errorString();
+        QMessageBox::critical( this, tr( "Save Session As" ),
+                               tr( "The session could not be saved to %1:\n%2" )
+                                   .arg( QDir::toNativeSeparators( path ), file.errorString() ) );
+        return false;
+    }
+    return true;
+}
+
+void MainWindow::openSession()
+{
+    const auto path = QFileDialog::getOpenFileName(
+        this, tr( "Open Session" ), QDir::homePath(),
+        tr( "LogSquirl sessions (*.%1)" ).arg( SessionFileExtension ) );
+    if ( path.isEmpty() ) {
+        return;
+    }
+    openSessionFile( path );
+}
+
+void MainWindow::openSessionFile( const QString& path )
+{
+    const auto title = tr( "Open Session" );
+
+    QFile file( path );
+    if ( !file.open( QIODevice::ReadOnly ) ) {
+        QMessageBox::critical( this, title,
+                               tr( "The session file %1 could not be read:\n%2" )
+                                   .arg( QDir::toNativeSeparators( path ), file.errorString() ) );
+        return;
+    }
+
+    auto read = readSessionFile( file.readAll(), QFileInfo( path ).absoluteDir() );
+    if ( !read ) {
+        QMessageBox::critical( this, title, sessionFileErrorText( read.error() ) );
+        return;
+    }
+
+    // A Log File is open once in the application: where it is open already,
+    // it stays.
+    read->leaveOut(
+        [ this ]( const SessionInfo::OpenFile& openFile ) { return session_.isOpen( openFile ); } );
+
+    if ( read->window.files.empty() ) {
+        // No window is left empty: the notice alone.
+        QMessageBox::information(
+            this, title,
+            read->leftOut.isEmpty()
+                ? tr( "The session holds no log files." )
+                : tr( "None of the log files of this session could be opened. They are missing "
+                      "or already open:\n\n%1" )
+                      .arg( read->leftOut.join( QLatin1Char( '\n' ) ) ) );
+        return;
+    }
+
+    Q_EMIT sessionFileOpened( *read );
+}
+
+void MainWindow::restoreSessionFile( const SessionFileRead& read )
+{
+    // Named and grouped as they were, but only the Log Files that open: those
+    // that did now, and those from an archive as each opens.
+    const auto tabsAdded = restoreWindow( read.window );
+    applyTabLabels( read.window, [ &tabsAdded ]( const SessionInfo::OpenFile& file ) {
+        return file.archiveMember.isEmpty()
+               && std::ranges::find( tabsAdded, file.fileName ) != tabsAdded.end();
+    } );
+    pendingTabLabels_ = read.window;
+    mainTabWidget_.refreshAllTabGroupAppearances();
+
+    if ( !read.leftOut.isEmpty() ) {
+        // Once the window is shown.
+        QTimer::singleShot( 0, this, [ this, leftOut = read.leftOut ] {
+            QMessageBox::information(
+                this, tr( "Open Session" ),
+                tr( "These log files of the session were left out. They are missing or "
+                    "already open in another window:\n\n%1" )
+                    .arg( leftOut.join( QLatin1Char( '\n' ) ) ) );
+        } );
+    }
 }
 
 // Read settings from permanent storage

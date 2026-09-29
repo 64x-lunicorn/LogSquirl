@@ -90,6 +90,108 @@ QString untabified( QString&& lineText )
     return untabify( std::move( lineText ) );
 }
 
+// A Log Line decoded, as its text (loglinetext.h): its ANSI color sequences
+// removed when hideAnsiColorSequences, then trimmed.
+QString logLineText( QString&& decodedLine, bool hideAnsiColorSequences )
+{
+    if ( hideAnsiColorSequences ) {
+        removeAnsiColorSequences( decodedLine );
+    }
+    trimToLogLineText( decodedLine );
+    return std::move( decodedLine );
+}
+
+// A Log Line decoded, as its text under a Decoding Policy that hides ANSI
+// color sequences, with the colors they ask for. The sequences are parsed
+// out before the text is trimmed, as they are removed before it is trimmed
+// for its text: what the trimming cuts off is cut off the colors too.
+AnsiColoredText ansiColoredLogLineText( QString&& decodedLine, bool /*hideAnsiColorSequences*/ )
+{
+    auto parsed = parseAnsiColorSequences( std::move( decodedLine ) );
+    const auto untrimmedSize = parsed.text.size();
+    const auto withCarriageReturn = parsed.text.endsWith( QChar::CarriageReturn );
+    trimToLogLineText( parsed.text );
+    if ( parsed.spans.empty() ) {
+        return parsed;
+    }
+
+    // Only a carriage return at the end and byte order marks at the start
+    // are trimmed.
+    const auto trimmedAtStart
+        = static_cast<int>( untrimmedSize - parsed.text.size() - ( withCarriageReturn ? 1 : 0 ) );
+    const auto size = static_cast<int>( parsed.text.size() );
+    logsquirl::vector<AnsiColorSpan> spans;
+    spans.reserve( parsed.spans.size() );
+    for ( auto span : parsed.spans ) {
+        const auto start = std::clamp( span.start - trimmedAtStart, 0, size );
+        const auto end = std::clamp( span.start + span.length - trimmedAtStart, 0, size );
+        if ( end > start ) {
+            span.start = start;
+            span.length = end - start;
+            spans.push_back( span );
+        }
+    }
+    parsed.spans = std::move( spans );
+    return parsed;
+}
+
+// Every Log Line of a block, decoded and made a Line by toLine( QString&&
+// decodedLine, bool hideAnsiColorSequences ). A Log Line that cannot be
+// decoded reads as a warning, and so does every one after it.
+template <typename Line, typename ToLine>
+logsquirl::vector<Line> decodeRawLines( const RawLines& rawLines, ToLine toLine )
+{
+    const auto& endOfLines = rawLines.endOfLines;
+    if ( endOfLines.empty() ) {
+        return logsquirl::vector<Line>();
+    }
+
+    logsquirl::vector<Line> decodedLines;
+    decodedLines.reserve( endOfLines.size() );
+
+    try {
+        qint64 lineStart = 0;
+        size_t currentLineIndex = 0;
+        const auto& textDecoder = rawLines.textDecoder;
+        const auto lineFeedWidth = textDecoder.encodingParams.lineFeedWidth;
+        for ( const auto& lineEnd : endOfLines ) {
+            const auto length = lineEnd - lineStart - lineFeedWidth;
+            LOG_DEBUG << "line " << rawLines.startLine.get() + currentLineIndex << ", length "
+                      << length;
+
+            constexpr auto maxlength = std::numeric_limits<int>::max() / 2;
+            if ( length >= maxlength ) {
+                decodedLines.push_back( Line{ asQString( LineTooLongWarning ) } );
+                break;
+            }
+
+            if ( lineStart + length > logsquirl::ssize( rawLines.buffer ) ) {
+                decodedLines.push_back( Line{ asQString( FileReadFailedWarning ) } );
+                LOG_WARNING << "not enough data in buffer";
+                break;
+            }
+
+            auto decodedLine = textDecoder.decode( rawLines.buffer.data() + lineStart,
+                                                   type_safe::narrow_cast<int>( length ) );
+            decodedLines.push_back(
+                toLine( std::move( decodedLine ), rawLines.hideAnsiColorSequences ) );
+
+            lineStart = lineEnd;
+        }
+    } catch ( const std::bad_alloc& ) {
+        LOG_ERROR << "not enough memory";
+        decodedLines.push_back( Line{ asQString( NotEnoughMemoryWarning ) } );
+    }
+
+    decodedLines.reserve( endOfLines.size() - decodedLines.size() );
+    while ( decodedLines.size() < endOfLines.size() ) {
+        decodedLines.push_back( Line{
+            QStringLiteral( "LOGSQUIRL WARNING: failed to decode some lines before this one" ) } );
+    }
+
+    return decodedLines;
+}
+
 } // namespace
 
 LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
@@ -335,6 +437,9 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QStrin
     if ( status != MonitoredFileStatus::Unchanged ) {
         Q_EMIT fileChanged( status, failure );
     }
+    else {
+        Q_EMIT fileUnchanged();
+    }
 
     operationQueue_.finishJobAndStartNext();
 }
@@ -572,13 +677,16 @@ logsquirl::vector<QString> LogData::getLinesFromFile( LineNumber firstLine, Line
 
 logsquirl::vector<QString> LogData::getLinesSparse( std::span<const LineNumber> lines ) const
 {
-    return getSparseLinesFromFile( lines, unchanged );
+    return getSparseLinesFromFile<QString>( lines, logLineText );
 }
 
 logsquirl::vector<QString>
 LogData::doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const
 {
-    return getSparseLinesFromFile( lines, untabified );
+    return getSparseLinesFromFile<QString>(
+        lines, []( QString&& decodedLine, bool hideAnsiColorSequences ) {
+            return untabified( logLineText( std::move( decodedLine ), hideAnsiColorSequences ) );
+        } );
 }
 
 template <typename OnLine>
@@ -638,11 +746,11 @@ void LogData::readSparseLines( std::span<const LineNumber> lines, OnLine&& onLin
     }
 }
 
-logsquirl::vector<QString>
-LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
-                                 QString ( *processLine )( QString&& ) ) const
+template <typename Line, typename ToLine>
+logsquirl::vector<Line> LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
+                                                         ToLine toLine ) const
 {
-    logsquirl::vector<QString> text( lines.size() );
+    logsquirl::vector<Line> text( lines.size() );
     logsquirl::vector<bool> isRead( lines.size(), false );
 
     try {
@@ -650,9 +758,8 @@ LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
         // for the legacy Encodings. Its state is reset for every Log Line.
         const auto textDecoder = codec_.makeDecoder();
         readSparseLines( lines, [ & ]( const SparseReadLine& line ) {
-            QString decodedLine;
             if ( !line.warning.empty() ) {
-                decodedLine = asQString( line.warning );
+                text[ line.request ] = Line{ asQString( line.warning ) };
             }
             else {
                 // Each Log Line is decoded on its own, as getLineString()
@@ -660,22 +767,18 @@ LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
                 // reach the next, and a byte order mark starting any of them
                 // is dropped.
                 textDecoder.decoder->resetState();
-                decodedLine = textDecoder.decode( line.bytes.data(),
-                                                  static_cast<qsizetype>( line.bytes.size() ) );
-                if ( line.hideAnsiColorSequences ) {
-                    removeAnsiColorSequences( decodedLine );
-                }
-                trimToLogLineText( decodedLine );
+                text[ line.request ]
+                    = toLine( textDecoder.decode( line.bytes.data(),
+                                                  static_cast<qsizetype>( line.bytes.size() ) ),
+                              line.hideAnsiColorSequences );
             }
-
-            text[ line.request ] = processLine( std::move( decodedLine ) );
             isRead[ line.request ] = true;
         } );
     } catch ( const std::bad_alloc& e ) {
         LOG_ERROR << "not enough memory " << e.what();
         for ( std::size_t request = 0; request < lines.size(); ++request ) {
             if ( !isRead[ request ] ) {
-                text[ request ] = asQString( NotEnoughMemoryWarning );
+                text[ request ] = Line{ asQString( NotEnoughMemoryWarning ) };
                 isRead[ request ] = true;
             }
         }
@@ -685,11 +788,39 @@ LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
     // not happen: the same as when it is read on its own.
     for ( std::size_t request = 0; request < lines.size(); ++request ) {
         if ( !isRead[ request ] ) {
-            text[ request ] = asQString( LinesNotReadWarning );
+            text[ request ] = Line{ asQString( LinesNotReadWarning ) };
         }
     }
 
     return text;
+}
+
+logsquirl::vector<AnsiColoredText>
+LogData::getAnsiColoredLinesSparse( std::span<const LineNumber> lines ) const
+{
+    return getSparseLinesFromFile<AnsiColoredText>( lines, ansiColoredLogLineText );
+}
+
+logsquirl::vector<AnsiColoredText> LogData::doGetAnsiColoredLines( LineNumber firstLine,
+                                                                   LinesCount number ) const
+{
+    if ( number.get() == 0 ) {
+        return {};
+    }
+
+    logsquirl::vector<AnsiColoredText> lines;
+    try {
+        lines = decodeRawLines<AnsiColoredText>( getLinesRaw( firstLine, number ),
+                                                 ansiColoredLogLineText );
+    } catch ( const std::bad_alloc& e ) {
+        LOG_ERROR << "not enough memory " << e.what();
+        lines.push_back( AnsiColoredText{ asQString( NotEnoughMemoryWarning ) } );
+    }
+
+    while ( lines.size() < number.get() ) {
+        lines.push_back( AnsiColoredText{ asQString( LinesNotReadWarning ) } );
+    }
+    return lines;
 }
 
 std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) const
@@ -805,58 +936,7 @@ void LogData::doDetachReader() const
 
 logsquirl::vector<QString> RawLines::decodeLines() const
 {
-    if ( this->endOfLines.empty() ) {
-        return logsquirl::vector<QString>();
-    }
-
-    logsquirl::vector<QString> decodedLines;
-    decodedLines.reserve( this->endOfLines.size() );
-
-    try {
-        qint64 lineStart = 0;
-        size_t currentLineIndex = 0;
-        const auto lineFeedWidth = textDecoder.encodingParams.lineFeedWidth;
-        for ( const auto& lineEnd : this->endOfLines ) {
-            const auto length = lineEnd - lineStart - lineFeedWidth;
-            LOG_DEBUG << "line " << this->startLine.get() + currentLineIndex << ", length "
-                      << length;
-
-            constexpr auto maxlength = std::numeric_limits<int>::max() / 2;
-            if ( length >= maxlength ) {
-                decodedLines.push_back( asQString( LineTooLongWarning ) );
-                break;
-            }
-
-            if ( lineStart + length > logsquirl::ssize( buffer ) ) {
-                decodedLines.push_back( asQString( FileReadFailedWarning ) );
-                LOG_WARNING << "not enough data in buffer";
-                break;
-            }
-
-            auto decodedLine = textDecoder.decode( buffer.data() + lineStart,
-                                                   type_safe::narrow_cast<int>( length ) );
-
-            if ( hideAnsiColorSequences ) {
-                removeAnsiColorSequences( decodedLine );
-            }
-            trimToLogLineText( decodedLine );
-
-            decodedLines.push_back( std::move( decodedLine ) );
-
-            lineStart = lineEnd;
-        }
-    } catch ( const std::bad_alloc& ) {
-        LOG_ERROR << "not enough memory";
-        decodedLines.push_back( asQString( NotEnoughMemoryWarning ) );
-    }
-
-    decodedLines.reserve( this->endOfLines.size() - decodedLines.size() );
-    while ( decodedLines.size() < this->endOfLines.size() ) {
-        decodedLines.emplace_back(
-            "LOGSQUIRL WARNING: failed to decode some lines before this one" );
-    }
-
-    return decodedLines;
+    return decodeRawLines<QString>( *this, logLineText );
 }
 
 namespace {

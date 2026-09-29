@@ -32,6 +32,9 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/keptsearches.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindow.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/commandoutputdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/commandsource.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/instancehandover.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindowtext.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/menu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/optionsdialog.h
@@ -45,6 +48,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savedsearches.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/selection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/session.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/sessionfile.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/archivemember.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/changed.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/sessioninfo.h
@@ -67,6 +71,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabgroupinfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabgroupmanagerdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mergecontroller.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/mergedialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/welcomedashboard.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartseries.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartextraction.h
@@ -81,6 +86,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayfilepath.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/downloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linessaver.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/csvexport.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/csvexportdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fontutils.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/colorlabelsmanager.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/plugindialog.h
@@ -120,6 +127,9 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewstatecodec.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/presentationmenu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindow.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/commandoutputdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/commandsource.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/instancehandover.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindowtext.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/menu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/optionsdialog.cpp
@@ -133,6 +143,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/linemapping.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/selection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/session.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/sessionfile.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/archivemember.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sessioninfo.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/signalmux.cpp
@@ -147,6 +158,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabgroupinfo.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabgroupmanagerdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mergecontroller.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/mergedialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/welcomedashboard.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartextraction.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartplot.cpp
@@ -160,6 +172,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayfilepath.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/downloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/linessaver.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/csvexport.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/csvexportdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/colorlabelsmanager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/commandpalette.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/plugindialog.cpp

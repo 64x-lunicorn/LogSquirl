@@ -19,16 +19,19 @@
 
 #pragma once
 
+#include "ansicolorsequences.h"
 #include "containers.h"
 #include "highlighter.h"
 #include "linedecorator.h"
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "settingspolicies.h"
+#include "theme.h"
 
 #include <QColor>
 #include <QStringList>
 
+#include <array>
 #include <optional>
 #include <vector>
 
@@ -70,6 +73,24 @@ public:
     void setColorLabels( const std::vector<QStringList>& words,
                          const std::vector<HighlightColor>& colors );
 
+    // Hand over the Theme's 16 basic ANSI colors, which ANSI color indices
+    // 0-15 stand for.
+    void setAnsiColors( const std::array<QColor, AnsiBasicColorCount>& basicColors );
+
+    // The ANSI colors of a Log Line as the Line Decorator's lowest source, in
+    // the columns the spans are in; none unless the Policy shows ANSI colors.
+    // Indices 0-15 are the Theme's basic colors, the others xterm's, and a
+    // truecolor is as given. A foreground below 3:1 contrast (WCAG) against
+    // what it is drawn on -- its ANSI background, else the palette's base --
+    // is blended toward the palette's text color until it reaches 3:1, and
+    // is that text color at worst. Where a span has only a background and
+    // the palette's text color falls below 3:1 on it, the text color is
+    // blended toward black or white instead, whichever reads better there.
+    // A color left to the line is invalid.
+    logsquirl::vector<HighlightedMatch>
+    ansiColorsFor( const logsquirl::vector<AnsiColorSpan>& spans,
+                   const LinePalette& palette ) const;
+
     // Point at the QuickFind pattern to color matches of. Not owned: the
     // caller keeps it alive, and its matcher is read afresh for every
     // Context, so what the user is typing right now is what gets colored.
@@ -101,6 +122,7 @@ private:
     std::vector<QStringList> colorLabelWords_;
     std::vector<HighlightColor> colorLabelColors_;
     const QuickFindPattern* quickFindPattern_ = nullptr;
+    std::array<QColor, AnsiBasicColorCount> ansiBasicColors_;
 
     std::optional<Highlighter> cachedMainSearch_;
     logsquirl::vector<Highlighter> cachedColorLabels_;

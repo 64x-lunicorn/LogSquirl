@@ -27,6 +27,7 @@
 #include <QtCore/QString>
 #include <QtCore/QVariant>
 
+#include "instancehandover.h"
 #include "log.h"
 #include "logsquirl_version.h"
 
@@ -45,22 +46,30 @@ public:
 
 Q_SIGNALS:
     void loadFile( const QString& filename );
+    // Standard input a secondary instance reads and spools to `spoolPath`,
+    // which it hands over to be opened and owned here, in a tab named
+    // `displayName` -- empty when it sent none (#623).
+    void openStandardInputSpool( const QString& spoolPath, const QString& displayName );
 
 public Q_SLOTS:
     void receiveMessage( const QByteArray& message )
     {
-        const auto data = QCborValue::fromCbor( message ).toVariant().toMap();
+        LOG_INFO
+            << "Message "
+            << QJsonDocument::fromVariant( QCborValue::fromCbor( message ).toVariant() ).toJson();
 
-        LOG_INFO << "Message " << QJsonDocument::fromVariant( data ).toJson();
-
-        if ( data[ "version" ].toString() != logsquirlVersion() ) {
+        const auto handOver = readHandOverMessage( message, logsquirlVersion() );
+        if ( !handOver ) {
             return;
         }
 
-        QStringList filenames = data[ "files" ].toStringList();
-
-        for ( const auto& f : filenames ) {
+        for ( const auto& f : handOver->files ) {
             Q_EMIT loadFile( f );
+        }
+        // Last, so that its tab is the one in front.
+        if ( !handOver->standardInputSpool.isEmpty() ) {
+            Q_EMIT openStandardInputSpool( handOver->standardInputSpool,
+                                           handOver->standardInputName );
         }
     }
 };

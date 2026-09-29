@@ -51,6 +51,8 @@ struct ShortcutAction {
 
     static constexpr auto MainWindowOpenFile = "mainwindow.open_file";
     static constexpr auto MainWindowNewWindow = "mainwindow.new_window";
+    static constexpr auto MainWindowOpenSession = "mainwindow.open_session";
+    static constexpr auto MainWindowSaveSessionAs = "mainwindow.save_session_as";
     static constexpr auto MainWindowCloseFile = "mainwindow.close_file";
     static constexpr auto MainWindowCloseAll = "mainwindow.close_all";
     static constexpr auto MainWindowQuit = "mainwindow.quit";
@@ -76,6 +78,7 @@ struct ShortcutAction {
     static constexpr auto MainWindowCopyPathToClipboard = "mainwindow.copy_path_to_clipboard";
     static constexpr auto MainWindowOpenFromClipboard = "mainwindow.open_from_clipboard";
     static constexpr auto MainWindowOpenFromUrl = "mainwindow.open_from_url";
+    static constexpr auto MainWindowOpenCommandOutput = "mainwindow.open_command_output";
     static constexpr auto MainWindowCommandPalette = "mainwindow.command_palette";
 
     static constexpr auto LogViewMark = "logview.mark";

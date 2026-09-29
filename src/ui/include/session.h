@@ -30,6 +30,7 @@
 #include <vector>
 
 #include <QByteArray>
+#include <QColor>
 #include <QDateTime>
 #include <QMetaObject>
 
@@ -37,6 +38,7 @@
 #include "changed.h"
 #include "log.h"
 #include "quickfindpattern.h"
+#include "sessioninfo.h"
 #include "settingspolicies.h"
 #include "viewinterface.h"
 
@@ -374,6 +376,43 @@ using ArchiveMemberDecompressor = std::function<QString( const ArchiveMember& )>
 // A view and its view state, which holds where it stands (#559).
 using SaveFileInfo = std::tuple<const ViewInterface*, std::shared_ptr<const ViewContextInterface>>;
 
+// What a window's Session is: its Log Files in tab order, each with its view
+// state, and which of them was in front. The automatic Session saves and
+// restores a window through it, and so does a Session File (#576), so that
+// the two cannot drift apart.
+struct WindowSnapshot {
+    // In tab order. A Transient Log File is never in it (#570); one
+    // decompressed from an archive is, with its archive and member (#596).
+    std::vector<SessionInfo::OpenFile> files;
+    // The index in `files` of the Log File whose tab was in front, -1 for
+    // none.
+    int currentFile = -1;
+
+    // What the tabs of these Log Files are named and grouped in. The
+    // automatic Session leaves these empty: tab names and groups live in
+    // their own stores, keyed by each Log File's path or archive key (#609).
+    // A Session File carries them, as the tabs had them when it was saved.
+    struct Tab {
+        // The custom tab name; empty for none.
+        QString name;
+        // The name of its tab group; empty for none.
+        QString group;
+        bool operator==( const Tab& ) const = default;
+    };
+    // Parallel to `files` when taken, else empty.
+    std::vector<Tab> tabs;
+
+    struct Group {
+        QString name;
+        QColor color;
+        bool operator==( const Group& ) const = default;
+    };
+    // The groups some tab is in, each once.
+    std::vector<Group> groups;
+
+    bool operator==( const WindowSnapshot& ) const = default;
+};
+
 class WindowSession {
 public:
     WindowSession( std::shared_ptr<Session> appSession, const QString& id, size_t index );
@@ -524,6 +563,23 @@ public:
                              const ArchiveMemberDecompressor& decompressor = {},
                              std::vector<DeferredArchiveFile>* deferred = nullptr );
 
+    // The same for the Log Files of `snapshot` rather than the stored
+    // Session's: what restore() above does with the window stored for this
+    // one, and what opening a Session File does in a new window (#576). Its
+    // tab names and groups are not touched here.
+    OpenedFilesList restore( const WindowSnapshot& snapshot, const ViewFactory& viewFactory,
+                             int* currentFileIndex,
+                             const ArchiveMemberDecompressor& decompressor = {},
+                             std::vector<DeferredArchiveFile>* deferred = nullptr );
+
+    // This window as the stored Session holds it.
+    WindowSnapshot storedSnapshot() const;
+
+    // Whether this Log File is open in any window of the application: by its
+    // path, or, decompressed from an archive, by its archive and member,
+    // whatever temporary file it was decompressed to.
+    bool isOpen( const SessionInfo::OpenFile& file ) const;
+
     // Opens `fileName`, decompressed for the deferred Log File `id`, with the
     // view state saved for it, as restore() would have. `tabs` are the views
     // of the window's Log Files in tab order, and `currentView` the ones in
@@ -576,6 +632,12 @@ public:
     // width of the sidebar beside it (0 when there is none to keep).
     void save( const std::vector<SaveFileInfo>& view_list, const ViewInterface* currentView,
                const QByteArray& geometry, int sidebarWidth );
+
+    // What save() saves of the Log Files, without saving it: the window's
+    // snapshot, as a Session File writes it too (#576). Its tab names and
+    // groups are not taken here.
+    WindowSnapshot snapshot( const std::vector<SaveFileInfo>& view_list,
+                             const ViewInterface* currentView ) const;
 
     // returns true if caller needs to save settings
     bool close();

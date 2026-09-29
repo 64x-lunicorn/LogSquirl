@@ -52,6 +52,9 @@ public:
     StreamWriter( const StreamWriter& ) = delete;
     StreamWriter& operator=( const StreamWriter& ) = delete;
 
+    /** The name of the backing file in its temporary folder. */
+    static QString fileName();
+
     /** Return the absolute path to the backing temporary file. */
     QString filePath() const;
 
@@ -82,6 +85,13 @@ public:
      * Thread-safe — may be called from any thread.
      */
     void pushBytes( const char* data, size_t len );
+
+    /**
+     * Keep the backing file and its folder when this writer is destroyed:
+     * somebody else owns them from then on, such as the primary instance a
+     * secondary one hands standard input over to (#623).
+     */
+    void keepFile();
 
     /** Mark the stream as complete (no more data expected). */
     void signalEos();

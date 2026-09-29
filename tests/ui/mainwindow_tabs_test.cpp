@@ -18,10 +18,10 @@
  */
 
 // The main window's tabs: which of them hold a Log File, whether or not the
-// window shows the dashboard (#535), the merged Log File whose rebuild ends
-// with its tab (#537), and the dashboard setting, which reaches the windows
-// opened after it changes (#562). Every close of tabs takes one path, whoever
-// asks for it (#536).
+// window shows the dashboard (#535), what Merge… merges (#571), the merged Log
+// File whose rebuild ends with its tab (#537), and the dashboard setting,
+// which reaches the windows opened after it changes (#562). Every close of
+// tabs takes one path, whoever asks for it (#536).
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -29,46 +29,63 @@
 #include <QAction>
 #include <QActionEvent>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QColor>
+#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QGridLayout>
 #include <QInputDialog>
 #include <QLabel>
+#include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPointer>
 #include <QPushButton>
 #include <QSignalSpy>
+#include <QStatusBar>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 
 #include <algorithm>
+#include <cstdio>
+#include <functional>
 #include <optional>
 #include <utility>
 
 #include "applicationplugins.h"
+#include "commandoutputdialog.h"
+#include "commandsource.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
+#include "filewatcher.h"
+#include "instancehandover.h"
 #include "loadingstatus.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
 #include "mergecontroller.h"
+#include "mergedialog.h"
 #include "openlogfile.h"
 #include "optionsdialog.h"
 #include "recentfiles.h"
 #include "session.h"
 #include "sessioninfo.h"
+#include "streamwriter.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabgroupinfo.h"
 #include "tabnamemapping.h"
 #include "test_policies.h"
 #include "test_utils.h"
 #include "welcomedashboard.h"
+
+#ifndef Q_OS_WIN
+#include "command_process_probe.h"
+#endif
 
 // What the merge scenario reads from a Crawler Widget beyond its public face:
 // how many Log Lines its Log File holds.
@@ -99,12 +116,14 @@ bool writeLines( const QString& path, const QByteArray& lines, QIODevice::OpenMo
 
 // A main window over a Session of its own, shown and active. It is built with
 // the dashboard on or off in the settings when one is given, else as the
-// settings have it.
+// settings have it. Its Log Files are watched only through `fileWatch`.
 struct TabsWindow {
-    explicit TabsWindow( std::optional<bool> showDashboard = {} )
+    explicit TabsWindow( std::optional<bool> showDashboard = {},
+                         std::shared_ptr<PolicyFileWatchPort> fileWatch = {} )
         : previousShowDashboard( Configuration::get().showDashboard() )
         , session( std::make_shared<Session>( testSettingsPolicies(),
-                                              std::make_shared<LogFormatCatalog>() ) )
+                                              std::make_shared<LogFormatCatalog>(),
+                                              std::move( fileWatch ) ) )
         , plugins( std::make_shared<logsquirl::plugins::ApplicationPlugins>() )
     {
         if ( showDashboard.has_value() ) {
@@ -354,6 +373,40 @@ private:
     QTimer driver_;
 };
 
+// Answers the Merge dialog with what `answer` does to it, once.
+class MergeDialogAnswerer {
+public:
+    explicit MergeDialogAnswerer( std::function<void( MergeDialog& )> answer )
+        : answer_( std::move( answer ) )
+    {
+        QObject::connect( &driver_, &QTimer::timeout, [ this ] {
+            if ( auto* dialog = qobject_cast<MergeDialog*>( QApplication::activeModalWidget() ) ) {
+                if ( dialog->isVisible() ) {
+                    driver_.stop();
+                    answer_( *dialog );
+                }
+            }
+        } );
+        driver_.start( 10 );
+    }
+
+private:
+    std::function<void( MergeDialog& )> answer_;
+    QTimer driver_;
+};
+
+QPushButton* buttonOf( const MergeDialog& dialog, const char* text )
+{
+    const auto translated = QApplication::translate( "MergeDialog", text );
+    for ( auto* button : dialog.findChildren<QPushButton*>() ) {
+        if ( button->text() == translated ) {
+            return button;
+        }
+    }
+    FAIL( "The Merge dialog has no button " << text );
+    return nullptr;
+}
+
 // Turns the confirmation of a tab close on for its lifetime.
 struct ConfirmTabClose {
     ConfirmTabClose()
@@ -495,16 +548,56 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
             }
         }
 
-        WHEN( "Merge All Left is chosen from the menu of the last Log File's tab" )
+        WHEN( "Merge… is chosen from a tab's menu, and the dialog confirmed with the first Log "
+              "File unchecked, the last moved first and duplicate lines dropped" )
         {
             QSignalSpy mergeRequested( window.tabArea, &TabbedCrawlerWidget::mergeRequested );
-            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Merge All Left" ) );
+            QStringList offered;
+            MergeDialogAnswerer answerer( [ &offered ]( MergeDialog& dialog ) {
+                auto* list = dialog.findChild<QListWidget*>();
+                for ( int row = 0; row < list->count(); ++row ) {
+                    offered.append( QDir::fromNativeSeparators( list->item( row )->toolTip() ) );
+                }
+                list->item( 0 )->setCheckState( Qt::Unchecked );
+                list->setCurrentRow( 2 );
+                buttonOf( dialog, "Move Up" )->click();
+                buttonOf( dialog, "Move Up" )->click();
+                dialog.findChild<QCheckBox*>()->setChecked( true );
+                buttonOf( dialog, "Merge" )->click();
+            } );
+            REQUIRE( window.chooseFromTabMenu( firstLogFileTab, "Merge…" ) );
 
-            THEN( "the two Log Files left of it are merged, the first one among them" )
+            THEN( "the dialog offered every Log File in tab order, and exactly the checked ones "
+                  "are merged in the order chosen" )
             {
+                REQUIRE( offered == paths );
                 REQUIRE( mergeRequested.size() == 1 );
                 REQUIRE( mergeRequested.at( 0 ).at( 0 ).toStringList()
-                         == QStringList{ paths[ 0 ], paths[ 1 ] } );
+                         == QStringList{ paths[ 2 ], paths[ 1 ] } );
+                REQUIRE( mergeRequested.at( 0 ).at( 1 ).toBool() );
+            }
+        }
+
+        WHEN( "Merge… is chosen, and the dialog cancelled" )
+        {
+            QSignalSpy mergeRequested( window.tabArea, &TabbedCrawlerWidget::mergeRequested );
+            MergeDialogAnswerer answerer( []( MergeDialog& dialog ) { dialog.reject(); } );
+            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Merge…" ) );
+
+            THEN( "nothing is merged" )
+            {
+                REQUIRE( mergeRequested.isEmpty() );
+            }
+        }
+
+        WHEN( "the menu of a Log File's tab is opened" )
+        {
+            THEN( "it offers none of the former Merge All entries" )
+            {
+                for ( const auto* entry : { "Merge All Left", "Merge All Left (dedup)",
+                                            "Merge All Right", "Merge All Right (dedup)" } ) {
+                    REQUIRE_FALSE( window.chooseFromTabMenu( firstLogFileTab + 1, entry ) );
+                }
             }
         }
 
@@ -1012,4 +1105,412 @@ SCENARIO( "Closing tabs asks once and remembers the Log Files only when the user
     }
 
     forgetRecentFiles();
+}
+
+// --- A command's output (#575) ---
+
+namespace {
+
+// The tab whose title starts with `title`, -1 when none does.
+int tabTitled( const TabbedCrawlerWidget& tabs, const QString& title )
+{
+    for ( int i = 0; i < tabs.count(); ++i ) {
+        if ( tabs.tabText( i ).startsWith( title ) ) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Waits for the tab titled `title` to open and returns it.
+int waitForTab( const TabsWindow& window, const QString& title )
+{
+    int tab = -1;
+    REQUIRE( waitUiState(
+        [ & ] {
+            tab = tabTitled( *window.tabArea, title );
+            return tab >= 0;
+        },
+        UiTimeoutMs ) );
+    return tab;
+}
+
+} // namespace
+
+#ifndef Q_OS_WIN
+
+namespace {
+
+// The spool file a tab reads.
+QString spoolOf( const TabsWindow& window, int tab )
+{
+    auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( tab ) );
+    REQUIRE( crawler != nullptr );
+    return window.session->getFilename( crawler );
+}
+
+// The process id a command wrote as the first line of its output.
+qint64 processIdIn( const QString& spool )
+{
+    qint64 pid = 0;
+    REQUIRE( waitUiState(
+        [ & ] {
+            QFile file( spool );
+            if ( file.open( QIODevice::ReadOnly ) ) {
+                pid = file.readLine().trimmed().toLongLong();
+            }
+            return pid > 0;
+        },
+        UiTimeoutMs ) );
+    return pid;
+}
+
+} // namespace
+
+SCENARIO( "A command's output opens in a followed tab that tells how the command ended",
+          "[ui][tabs][command]" )
+{
+    const ShellForTests shell;
+    // Watched as the application watches it: the output arrives after the
+    // tab has started loading.
+    TabsWindow window( false, FileWatcher::sharedFileWatcher() );
+    QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+
+    GIVEN( "a command that writes two lines and exits with 4" )
+    {
+        const auto commandLine = QStringLiteral( "printf 'first\\nsecond\\n'; exit 4" );
+        REQUIRE( window.mainWindow->openCommandOutput(
+            RecentCommand{ commandLine, folder.path(), true } ) );
+
+        const auto tab = waitForTab( window, commandLine );
+        auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( tab ) );
+        REQUIRE( crawler != nullptr );
+
+        THEN( "its tab shows the output, is transient, names the exit code and is no longer "
+              "followed" )
+        {
+            REQUIRE( waitUiState(
+                [ & ] {
+                    return window.tabArea->tabText( window.tabArea->indexOf( crawler ) )
+                           == commandLine + " [exit 4]";
+                },
+                UiTimeoutMs ) );
+            const auto index = window.tabArea->indexOf( crawler );
+            REQUIRE( window.tabArea->holdsTransientLogFile( index ) );
+            REQUIRE( waitUiState( [ & ] { return !crawler->isFollowEnabled(); }, UiTimeoutMs ) );
+            crawler->followSet( true );
+            REQUIRE_FALSE( crawler->isFollowEnabled() );
+
+            const auto toolTip = window.tabArea->tabToolTip( index );
+            REQUIRE( toolTip.startsWith( commandLine + "\n" ) );
+            REQUIRE( toolTip.contains( "Working folder: "
+                                       + QDir::toNativeSeparators( folder.path() ) ) );
+            REQUIRE( toolTip.contains( QDir::toNativeSeparators( spoolOf( window, index ) ) ) );
+            REQUIRE( toolTip.endsWith( "\nEnded with exit code 4" ) );
+
+            REQUIRE( window.mainWindow->statusBar()->currentMessage()
+                     == "\"" + commandLine + "\" ended with exit code 4" );
+
+            const auto linesLoaded = waitUiState(
+                [ & ] {
+                    return CrawlerWidget::access_by<MainWindowTabsAccess>{ *crawler }
+                               .nbLines()
+                               .get()
+                           == 2;
+                },
+                UiTimeoutMs );
+            INFO( "lines: "
+                  << CrawlerWidget::access_by<MainWindowTabsAccess>{ *crawler }.nbLines().get() );
+            REQUIRE( linesLoaded );
+        }
+    }
+
+    GIVEN( "a command whose tab is renamed while it runs" )
+    {
+        const auto commandLine = QStringLiteral( "sleep 1; exit 2" );
+        REQUIRE( window.mainWindow->openCommandOutput(
+            RecentCommand{ commandLine, folder.path(), true } ) );
+        const auto tab = waitForTab( window, commandLine );
+        auto* crawler = window.tabArea->widget( tab );
+        window.tabArea->renameTab( tab, "Build" );
+        REQUIRE( window.tabArea->tabText( tab ) == "Build" );
+
+        THEN( "its new name tells how the command ended" )
+        {
+            REQUIRE( waitUiState(
+                [ & ] {
+                    return window.tabArea->tabText( window.tabArea->indexOf( crawler ) )
+                           == "Build [exit 2]";
+                },
+                UiTimeoutMs ) );
+
+            AND_THEN( "a name it is given after the end does too" )
+            {
+                window.tabArea->renameTab( window.tabArea->indexOf( crawler ), "Done" );
+                REQUIRE( window.tabArea->tabText( window.tabArea->indexOf( crawler ) )
+                         == "Done [exit 2]" );
+            }
+        }
+    }
+
+    GIVEN( "a command the shell does not know" )
+    {
+        const auto commandLine = QStringLiteral( "no_such_command_for_logsquirl_575" );
+        REQUIRE( window.mainWindow->openCommandOutput(
+            RecentCommand{ commandLine, folder.path(), true } ) );
+
+        THEN( "its tab opens and ends with 127, which the status bar calls not found" )
+        {
+            REQUIRE( waitUiState(
+                [ & ] { return tabTitled( *window.tabArea, commandLine + " [exit 127]" ) >= 0; },
+                UiTimeoutMs ) );
+            REQUIRE( window.mainWindow->statusBar()->currentMessage()
+                     == "\"" + commandLine + "\" ended with exit code 127: command not found" );
+        }
+    }
+}
+
+SCENARIO( "A command does not open in a working folder that does not exist", "[ui][tabs][command]" )
+{
+    TabsWindow window( false );
+    QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+    const auto missing = folder.filePath( "missing" );
+    const auto tabsBefore = window.tabArea->count();
+
+    QString shownText;
+    QTimer answerer;
+    QObject::connect( &answerer, &QTimer::timeout, [ &shownText ] {
+        if ( auto* box = qobject_cast<QMessageBox*>( QApplication::activeModalWidget() ) ) {
+            shownText = box->text();
+            box->accept();
+        }
+    } );
+    answerer.start( 20 );
+
+    const auto opened
+        = window.mainWindow->openCommandOutput( RecentCommand{ "echo hello", missing, true } );
+    answerer.stop();
+
+    REQUIRE_FALSE( opened );
+    REQUIRE( shownText.contains( QDir::toNativeSeparators( missing ) ) );
+    QTest::qWait( 100 );
+    REQUIRE( window.tabArea->count() == tabsBefore );
+}
+
+SCENARIO( "Closing a command's tab or window stops the command and its child processes",
+          "[ui][tabs][command]" )
+{
+    const ShellForTests shell;
+    TabsWindow window( false );
+
+    // The command starts a grandchild and tells its process id.
+    const auto commandLine = QStringLiteral( "sleep 60 & echo $!; wait" );
+    REQUIRE( window.mainWindow->openCommandOutput( RecentCommand{ commandLine, {}, true } ) );
+    const auto tab = waitForTab( window, commandLine );
+    const auto spool = spoolOf( window, tab );
+    const auto grandchild = processIdIn( spool );
+    REQUIRE( processIsRunning( grandchild ) );
+
+    const auto closeWindow = GENERATE( false, true );
+    if ( closeWindow ) {
+        window.mainWindow->close();
+    }
+    else {
+        Q_EMIT window.tabArea->tabCloseRequested( tab );
+        REQUIRE( tabTitled( *window.tabArea, commandLine ) < 0 );
+    }
+
+    CHECK( waitUiState( [ grandchild ] { return !processIsRunning( grandchild ); }, UiTimeoutMs ) );
+    CHECK( waitUiState( [ &spool ] { return !QFileInfo::exists( spool ); }, UiTimeoutMs ) );
+}
+
+SCENARIO( "Two commands and standard input are read side by side in one window",
+          "[ui][tabs][command]" )
+{
+    const ShellForTests shell;
+    // The window reads from a stream that ends at once, not from the tests'
+    // own.
+    REQUIRE( std::freopen( "/dev/null", "r", stdin ) != nullptr );
+
+    TabsWindow window( false );
+    const auto first = QStringLiteral( "echo first; sleep 30" );
+    const auto second = QStringLiteral( "echo second; sleep 30" );
+    REQUIRE( window.mainWindow->openCommandOutput( RecentCommand{ first, {}, true } ) );
+    window.mainWindow->openStandardInput();
+    REQUIRE( window.mainWindow->openCommandOutput( RecentCommand{ second, {}, true } ) );
+
+    const auto firstTab = waitForTab( window, first );
+    const auto secondTab = waitForTab( window, second );
+    const auto stdinTab = waitForTab( window, "stdin" );
+    REQUIRE( window.tabArea->logFileTabs().size() == 3 );
+    const QStringList spools{ spoolOf( window, firstTab ), spoolOf( window, secondTab ),
+                              spoolOf( window, stdinTab ) };
+    auto distinct = spools;
+    REQUIRE( distinct.removeDuplicates() == 0 );
+
+    WHEN( "the window is saved and closed as the application quits" )
+    {
+        window.session->setExitRequested( true );
+        window.mainWindow->close();
+        window.session->setExitRequested( false );
+
+        THEN( "none of them is saved with the Session" )
+        {
+            const auto saved = SessionInfo::get().openFiles( "Main" );
+            for ( const auto& spool : spools ) {
+                REQUIRE(
+                    std::none_of( saved.cbegin(), saved.cend(), [ &spool ]( const auto& file ) {
+                        return file.fileName == spool;
+                    } ) );
+            }
+        }
+    }
+}
+
+// --- Standard input handed over by a secondary instance (#623) ---
+
+namespace {
+
+// A spool file of standard input as a secondary instance makes and hands
+// over: the secondary keeps writing, the window owns it.
+QString handedOverSpool( const QByteArray& content )
+{
+    logsquirl::plugins::StreamWriter writer( "stdin" );
+    writer.pushBytes( content.constData(), static_cast<size_t>( content.size() ) );
+    writer.keepFile();
+    return writer.filePath();
+}
+
+// The tabs titled exactly `title`.
+std::vector<int> tabsTitled( const TabbedCrawlerWidget& tabs, const QString& title )
+{
+    std::vector<int> found;
+    for ( int i = 0; i < tabs.count(); ++i ) {
+        if ( tabs.tabText( i ) == title ) {
+            found.push_back( i );
+        }
+    }
+    return found;
+}
+
+} // namespace
+
+SCENARIO( "Standard input handed over by another instance opens in a stdin tab, as often as it "
+          "comes",
+          "[ui][tabs][command]" )
+{
+    TabsWindow window( false, FileWatcher::sharedFileWatcher() );
+
+    const auto first = handedOverSpool( "1\n2\n3\n4\n5\n" );
+    const auto second = handedOverSpool( "a\n" );
+    REQUIRE( first != second );
+
+    // The name a secondary instance sends is the tab's, "stdin" when it sent
+    // none.
+    window.mainWindow->openHandedOverStandardInput( first );
+    window.mainWindow->openHandedOverStandardInput( second, "stdin" );
+
+    REQUIRE( waitUiState( [ & ] { return tabsTitled( *window.tabArea, "stdin" ).size() == 2; },
+                          UiTimeoutMs ) );
+    const auto tabs = tabsTitled( *window.tabArea, "stdin" );
+    REQUIRE( spoolOf( window, tabs[ 0 ] ) == first );
+    REQUIRE( spoolOf( window, tabs[ 1 ] ) == second );
+    REQUIRE( window.tabArea->holdsTransientLogFile( tabs[ 0 ] ) );
+    // The secondary instances are told the spool files were taken over.
+    REQUIRE( QFileInfo::exists( spoolAdoptionMarker( first ) ) );
+    REQUIRE( QFileInfo::exists( spoolAdoptionMarker( second ) ) );
+    // The last one handed over is in front.
+    REQUIRE( window.tabArea->currentIndex() == tabs[ 1 ] );
+
+    auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( tabs[ 0 ] ) );
+    REQUIRE( crawler != nullptr );
+    REQUIRE( waitUiState(
+        [ & ] {
+            return CrawlerWidget::access_by<MainWindowTabsAccess>{ *crawler }.nbLines().get() == 5;
+        },
+        UiTimeoutMs ) );
+
+    WHEN( "a stdin tab is closed" )
+    {
+        Q_EMIT window.tabArea->tabCloseRequested( tabs[ 0 ] );
+
+        THEN( "its spool file, marker and folder are removed, and the other tab keeps its own" )
+        {
+            REQUIRE( waitUiState( [ & ] { return !QFileInfo::exists( first ); }, UiTimeoutMs ) );
+            REQUIRE_FALSE( QFileInfo::exists( spoolAdoptionMarker( first ) ) );
+            REQUIRE_FALSE( QFileInfo::exists( QFileInfo( first ).absolutePath() ) );
+            REQUIRE( QFileInfo::exists( second ) );
+            REQUIRE( QFileInfo::exists( spoolAdoptionMarker( second ) ) );
+        }
+    }
+
+    window.mainWindow->close();
+    REQUIRE( waitUiState( [ & ] { return !QFileInfo::exists( second ); }, UiTimeoutMs ) );
+}
+
+// A path the window can't own is not taken over at all: the secondary instance
+// then finds no marker, reports the failed hand-over and removes its own file,
+// instead of stopping half-way under an open tab.
+SCENARIO( "A handed-over file that is no spool of standard input is not taken over",
+          "[ui][tabs][command]" )
+{
+    TabsWindow window( false );
+    QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+    const auto path = folder.filePath( "mine.log" );
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::WriteOnly ) );
+    file.write( "keep me\n" );
+    file.close();
+    const auto tabsBefore = window.tabArea->count();
+
+    window.mainWindow->openHandedOverStandardInput( path, "journal" );
+    QTest::qWait( 200 );
+
+    REQUIRE( window.tabArea->count() == tabsBefore );
+    REQUIRE( QFileInfo::exists( path ) );
+    REQUIRE_FALSE( QFileInfo::exists( spoolAdoptionMarker( path ) ) );
+}
+
+#endif
+
+// The File menu runs a command from its dialog, and the command is remembered
+// (#575).
+SCENARIO( "Open Command Output asks for a command and remembers it", "[ui][tabs][command]" )
+{
+#ifndef Q_OS_WIN
+    const ShellForTests shell;
+#endif
+    const auto savedConfiguration = Configuration::get();
+    TabsWindow window( false );
+
+    auto* openCommand = fileMenuAction( *window.mainWindow,
+                                        logsquirl::mainwindow::action::openCommandOutputText );
+    REQUIRE( openCommand != nullptr );
+
+    const auto commandLine = QStringLiteral( "echo from the dialog" );
+    bool answered = false;
+    QTimer answerer;
+    QObject::connect( &answerer, &QTimer::timeout, [ & ] {
+        auto* dialog = qobject_cast<CommandOutputDialog*>( QApplication::activeModalWidget() );
+        if ( dialog == nullptr ) {
+            return;
+        }
+        dialog->commandBox()->setEditText( commandLine );
+        dialog->standardErrorBox()->setChecked( false );
+        answered = true;
+        dialog->accept();
+    } );
+    answerer.start( 20 );
+    openCommand->trigger();
+    answerer.stop();
+    REQUIRE( answered );
+
+    waitForTab( window, commandLine );
+    const auto recent = Configuration::get().recentCommands();
+    Configuration::get() = savedConfiguration;
+    REQUIRE_FALSE( recent.empty() );
+    REQUIRE( recent.front() == RecentCommand{ commandLine, {}, false } );
 }

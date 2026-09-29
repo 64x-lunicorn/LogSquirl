@@ -28,6 +28,7 @@
 #include <QString>
 
 #include <algorithm>
+#include <functional>
 #include <vector>
 
 // A File Watch Port that watches nothing on its own: it reports a change to a
@@ -55,8 +56,16 @@ public:
     {
         if ( !isWatched( fileName ) ) {
             watchedFiles_.push_back( fileName );
+            if ( whenFirstAdded ) {
+                whenFirstAdded( fileName );
+            }
         }
     }
+
+    // Runs when a file is first watched: a test changes it there, the way a
+    // file changes before a real watcher has started watching it, so that
+    // nothing reports that change.
+    std::function<void( const QString& )> whenFirstAdded;
 
     void removeFile( const QString& fileName ) override
     {

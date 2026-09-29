@@ -96,6 +96,9 @@ public:
         std::function<void()> saveSplitterPosition;
         std::function<void()> saveToFile;
         std::function<void()> saveSelectedToFile;
+        // Only for a Presentation that shows Log Lines split into the fields
+        // of a Log Format; left empty, the menu offers no Export as CSV.
+        std::function<void()> exportAsCsv;
     };
 
     // The context menu for what report says, owned by the caller and a child

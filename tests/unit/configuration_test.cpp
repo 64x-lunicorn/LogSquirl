@@ -22,6 +22,8 @@
 #include "configuration.h"
 #include "configurationfixture.h"
 
+#include <algorithm>
+
 #include <QDir>
 #include <QFont>
 #include <QFontInfo>
@@ -149,9 +151,9 @@ SCENARIO( "Configuration default values", "[configuration]" )
             REQUIRE_FALSE( config.useTextWrap() );
         }
 
-        THEN( "Hide ANSI color sequences is disabled" )
+        THEN( "ANSI color sequences are shown as text" )
         {
-            REQUIRE_FALSE( config.hideAnsiColorSequences() );
+            REQUIRE( config.ansiColorSequences() == AnsiColorSequences::ShowAsText );
         }
 
         THEN( "Context lines count defaults to 5" )
@@ -162,6 +164,12 @@ SCENARIO( "Configuration default values", "[configuration]" )
         THEN( "Logging is disabled" )
         {
             REQUIRE_FALSE( config.enableLogging() );
+        }
+
+        THEN( "A CSV export is separated by commas and has a header row" )
+        {
+            REQUIRE( config.csvSeparator() == QChar( ',' ) );
+            REQUIRE( config.csvHeader() );
         }
     }
 }
@@ -291,9 +299,11 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
         config.setOverviewVisible( false );
         config.setEnableLogging( true );
         config.setLoggingLevel( 2 );
-        config.setHideAnsiColorSequences( true );
+        config.setAnsiColorSequences( AnsiColorSequences::Hide );
         config.setUseTextWrap( true );
         config.setContextLinesCount( 10 );
+        config.setCsvSeparator( '\t' );
+        config.setCsvHeader( false );
 
         WHEN( "Saved to QSettings and restored" )
         {
@@ -361,9 +371,15 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
 
             THEN( "Feature flags are preserved" )
             {
-                REQUIRE( restored.hideAnsiColorSequences() );
+                REQUIRE( restored.ansiColorSequences() == AnsiColorSequences::Hide );
                 REQUIRE( restored.useTextWrap() );
                 REQUIRE( restored.contextLinesCount() == 10 );
+            }
+
+            THEN( "The CSV export's separator and header row are preserved" )
+            {
+                REQUIRE( restored.csvSeparator() == QChar( '\t' ) );
+                REQUIRE_FALSE( restored.csvHeader() );
             }
         }
     }
@@ -529,12 +545,15 @@ const QStringList StoredSettingNames = {
     "archives.extract",
     "archives.extractAlways",
     "chartPresets",
+    "commandSource.recentCommands",
     "defaultView.encodingMib",
     "defaultView.searchAutoRefresh",
     "defaultView.searchIgnoreCase",
     "defaultView.searchLogicalCombining",
     "defaultView.searchWindowMinutes",
     "defaultView.splitterSizes",
+    "export.csvHeader",
+    "export.csvSeparator",
     "filewatch.allowFollowOnScroll",
     "filewatch.fastModificationDetection",
     "filewatch.pollingIntervalMs",
@@ -584,8 +603,8 @@ const QStringList StoredSettingNames = {
     "versionchecker.enabled",
     "view.contextLinesCount",
     "view.fastScrollEnabled",
+    "view.ansiColorSequences",
     "view.fastScrollMultiplier",
-    "view.hideAnsiColorSequences",
     "view.language",
     "view.lineNumbersVisibleInFiltered",
     "view.lineNumbersVisibleInMain",
@@ -663,7 +682,7 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.filteredLineNumbersVisible() == expected.filteredLineNumbersVisible() );
     CHECK( actual.minimizeToTray() == expected.minimizeToTray() );
     CHECK( actual.contextLinesCount() == expected.contextLinesCount() );
-    CHECK( actual.hideAnsiColorSequences() == expected.hideAnsiColorSequences() );
+    CHECK( actual.ansiColorSequences() == expected.ansiColorSequences() );
     CHECK( actual.useTextWrap() == expected.useTextWrap() );
     CHECK( actual.style() == expected.style() );
 
@@ -683,6 +702,9 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.pluginsAutoLoad() == expected.pluginsAutoLoad() );
     CHECK( actual.enabledPlugins() == expected.enabledPlugins() );
     CHECK( actual.chartPresets() == expected.chartPresets() );
+    CHECK( actual.csvSeparator() == expected.csvSeparator() );
+    CHECK( actual.csvHeader() == expected.csvHeader() );
+    CHECK( actual.recentCommands() == expected.recentCommands() );
     CHECK( actual.darkPalette() == expected.darkPalette() );
 }
 
@@ -690,6 +712,78 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
 
 // The main font is resolved as a fixed-pitch outline font. Every
 // Configuration resolves its own, not only the first one of the process (#229).
+// The command lines run for their output are remembered, the most recent first,
+// each with its working folder and whether standard error was included (#575).
+SCENARIO( "The last ten commands run for their output are remembered", "[configuration]" )
+{
+    const auto command = []( int number ) {
+        return RecentCommand{ QStringLiteral( "tail -f /var/log/%1.log" ).arg( number ),
+                              QStringLiteral( "/tmp/%1" ).arg( number ), number % 2 == 0 };
+    };
+
+    GIVEN( "A Configuration with no command run yet" )
+    {
+        Configuration config;
+        REQUIRE( config.recentCommands().empty() );
+
+        WHEN( "Twelve different commands are run" )
+        {
+            for ( int number = 1; number <= 12; ++number ) {
+                config.addRecentCommand( command( number ) );
+            }
+
+            THEN( "The last ten are kept, the most recent first" )
+            {
+                const auto& recent = config.recentCommands();
+                REQUIRE( recent.size() == 10 );
+                REQUIRE( recent.front() == command( 12 ) );
+                REQUIRE( recent.back() == command( 3 ) );
+            }
+
+            AND_WHEN( "An older one is run again, from another folder, without standard error" )
+            {
+                auto again = command( 5 );
+                again.workingFolder = QStringLiteral( "/srv" );
+                again.includeStandardError = !again.includeStandardError;
+                config.addRecentCommand( again );
+
+                THEN( "It moves to the top with what was chosen this time, and is kept once" )
+                {
+                    const auto& recent = config.recentCommands();
+                    REQUIRE( recent.size() == 10 );
+                    REQUIRE( recent.front() == again );
+                    REQUIRE(
+                        std::ranges::count( recent, again.commandLine, &RecentCommand::commandLine )
+                        == 1 );
+                    REQUIRE( recent.back() == command( 3 ) );
+                }
+            }
+
+            AND_WHEN( "The Configuration is saved and loaded" )
+            {
+                SettingsFile file;
+                file.write( config );
+                const auto restored = file.load();
+
+                THEN( "The same commands come back, in the same order" )
+                {
+                    REQUIRE( restored.recentCommands() == config.recentCommands() );
+                }
+            }
+        }
+
+        WHEN( "An empty command line is added" )
+        {
+            config.addRecentCommand( RecentCommand{ QStringLiteral( "  " ), {}, true } );
+
+            THEN( "Nothing is remembered" )
+            {
+                REQUIRE( config.recentCommands().empty() );
+            }
+        }
+    }
+}
+
 SCENARIO( "Every Configuration resolves its main font", "[configuration]" )
 {
     const auto isResolved = []( const QFont& font ) {
@@ -832,20 +926,29 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
             THEN( "Saving writes back every value unchanged" )
             {
                 auto stored = storedSettings( config );
+                // The ANSI color sequences checkbox became a setting of three
+                // values under a new key; the scenario on retired keys covers
+                // it.
+                auto releaseValues = release;
+                releaseValues.remove( "view.hideAnsiColorSequences" );
+                REQUIRE( stored.contains( "view.ansiColorSequences" ) );
+                stored.remove( "view.ansiColorSequences" );
                 // Settings added after v26.07.0 are not in its file; loading it
                 // leaves them at their default.
-                for ( const auto* added : { "defaultView.searchWindowMinutes", "teamFolder.enabled",
-                                            "teamFolder.url", "teamFolder.subfolder" } ) {
+                for ( const auto* added :
+                      { "defaultView.searchWindowMinutes", "teamFolder.enabled", "teamFolder.url",
+                        "teamFolder.subfolder", "export.csvSeparator", "export.csvHeader",
+                        "commandSource.recentCommands/size" } ) {
                     stored.remove( added );
                 }
-                CHECK( stored.keys() == release.keys() );
-                for ( const auto& key : release.keys() ) {
+                CHECK( stored.keys() == releaseValues.keys() );
+                for ( const auto& key : releaseValues.keys() ) {
                     // The stored family is the one the platform resolves.
                     if ( key == "mainFont.family" ) {
                         continue;
                     }
                     INFO( key.toStdString() );
-                    CHECK( stored.value( key ) == release.value( key ) );
+                    CHECK( stored.value( key ) == releaseValues.value( key ) );
                 }
             }
 
@@ -857,6 +960,8 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                 CHECK( config.mainRegexpType() == SearchRegexpType::FixedString );
                 CHECK( config.quickfindRegexpType() == SearchRegexpType::ExtendedRegexp );
                 CHECK( config.regexpEngine() == RegexpEngine::QRegularExpression );
+                // Its hideAnsiColorSequences=true.
+                CHECK( config.ansiColorSequences() == AnsiColorSequences::Hide );
                 CHECK( config.mainSearchBackColor() == QColor( 0x12, 0x34, 0x56, 0x80 ) );
                 CHECK( config.qfBackColor() == QColor( 0xab, 0xcd, 0xef ) );
                 CHECK( config.searchResultsCacheLines() == 500000u );
@@ -942,6 +1047,70 @@ SCENARIO( "Settings stored under retired keys are moved to the current keys", "[
     }
 }
 
+SCENARIO( "The ANSI color sequences checkbox of earlier releases becomes the three-valued setting",
+          "[configuration]" )
+{
+    const auto retiredKey = QStringLiteral( "view.hideAnsiColorSequences" );
+
+    GIVEN( "a settings file whose checkbox hid ANSI color sequences" )
+    {
+        SettingsFile file;
+        file.setValue( retiredKey, true );
+
+        WHEN( "it is loaded" )
+        {
+            const auto config = file.load();
+
+            THEN( "they are hidden" )
+            {
+                CHECK( config.ansiColorSequences() == AnsiColorSequences::Hide );
+            }
+
+            THEN( "the retired key is removed" )
+            {
+                CHECK_FALSE( file.values().contains( retiredKey ) );
+            }
+        }
+    }
+
+    GIVEN( "a settings file whose checkbox showed them" )
+    {
+        SettingsFile file;
+        file.setValue( retiredKey, false );
+
+        THEN( "they are shown as text, and the retired key is removed" )
+        {
+            CHECK( file.load().ansiColorSequences() == AnsiColorSequences::ShowAsText );
+            CHECK_FALSE( file.values().contains( retiredKey ) );
+        }
+    }
+
+    GIVEN( "a settings file without either key" )
+    {
+        SettingsFile file;
+        file.setValue( "view.textWrap", true );
+
+        THEN( "they are shown as text" )
+        {
+            CHECK( file.load().ansiColorSequences() == AnsiColorSequences::ShowAsText );
+        }
+    }
+
+    GIVEN( "a settings file with the retired and the current key" )
+    {
+        SettingsFile file;
+        file.setValue( retiredKey, true );
+        file.setValue( "view.ansiColorSequences",
+                       static_cast<int>( AnsiColorSequences::ShowColors ) );
+
+        THEN( "the current key wins, and the retired key is removed" )
+        {
+            CHECK( file.load().ansiColorSequences() == AnsiColorSequences::ShowColors );
+            CHECK_FALSE( file.values().contains( retiredKey ) );
+        }
+    }
+}
+
 SCENARIO( "Stored values outside their range are corrected on load", "[configuration]" )
 {
     GIVEN( "An index cache size below zero" )
@@ -971,6 +1140,26 @@ SCENARIO( "Stored values outside their range are corrected on load", "[configura
         THEN( "The platform's default style is loaded" )
         {
             CHECK( file.load().style() == Theme::defaultTheme() );
+        }
+    }
+
+    GIVEN( "An ANSI color sequences value that does not exist" )
+    {
+        SettingsFile file;
+        file.setValue( "view.ansiColorSequences", 7 );
+        THEN( "They are shown as text" )
+        {
+            CHECK( file.load().ansiColorSequences() == AnsiColorSequences::ShowAsText );
+        }
+    }
+
+    GIVEN( "A CSV separator that does not exist" )
+    {
+        SettingsFile file;
+        file.setValue( "export.csvSeparator", "pipe" );
+        THEN( "The comma is loaded" )
+        {
+            CHECK( file.load().csvSeparator() == QChar( ',' ) );
         }
     }
 }

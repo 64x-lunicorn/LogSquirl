@@ -157,3 +157,30 @@ add_executable(logsquirl_timelookup_benchmark
 
 target_include_directories(logsquirl_timelookup_benchmark PRIVATE "${CMAKE_SOURCE_DIR}/tests/helpers")
 target_link_libraries(logsquirl_timelookup_benchmark logsquirl_logformat logsquirl_logdata Catch2::Catch2)
+
+# Parsing the ANSI color sequences of a screen of Log Lines into their text and
+# colors, next to removing them (#573). Links logsquirl_logdata only.
+add_executable(logsquirl_ansicolorsequences_benchmark
+    ansicolorsequences_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_ansicolorsequences_benchmark logsquirl_logdata Catch2::Catch2WithMain)
+
+# Loading, scrolling and searching a Log File of about 1 GB with and without
+# ANSI color sequences, showing them as text and hiding them (#573). Uses only
+# what log data offered before #573, so the same file measures both sides of
+# an A/B comparison (see README.md).
+add_executable(logsquirl_ansi_log_file_benchmark
+    ansi_log_file_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_ansi_log_file_benchmark logsquirl_logdata Catch2::Catch2 test_utils)
+
+# What Show colors costs a shown text view (#573): one screen's Viewport
+# content computed and painted, and scrolling one Visual Line at a time, on
+# Log Lines with ANSI color sequences in every one, under Hide and Show colors.
+add_executable(logsquirl_textview_ansi_benchmark
+    textview_ansi_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_textview_ansi_benchmark logsquirl_ui Catch2::Catch2 test_utils)
