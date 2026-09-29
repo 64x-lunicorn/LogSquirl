@@ -59,6 +59,10 @@ struct WatchedDirectory {
     std::vector<WatchedFile> files;
 };
 
+// The watch ID of a directory native watching is off for: not an efsw error
+// (those run from -1 to -8), but the Watch Policy's choice (#619).
+constexpr efsw::WatchID NotWatchedNatively = -111;
+
 bool isOnlyForPolling( const WatchedDirectory& wd )
 {
     return wd.watchId < 0;
@@ -86,13 +90,16 @@ public:
         if ( enable ) {
             for ( auto& dir : watchedPaths_ ) {
                 LOG_INFO << "Will reenable watch for " << dir.name;
-                dir.watchId = watcher_.addWatch( dir.name, this, false );
+                dir.watchId = tryWatchDirectory( dir.name );
             }
         }
         else {
-            for ( const auto& dir : watchedPaths_ ) {
+            for ( auto& dir : watchedPaths_ ) {
                 LOG_INFO << "Will disable watch for " << dir.name;
-                watcher_.removeWatch( dir.watchId );
+                if ( !isOnlyForPolling( dir ) ) {
+                    watcher_.removeWatch( dir.watchId );
+                }
+                dir.watchId = NotWatchedNatively;
             }
         }
     }
@@ -116,16 +123,6 @@ public:
         auto watchedDirectory
             = std::find_if( watchedPaths_.begin(), watchedPaths_.end(),
                             [ &directory ]( const auto& wd ) { return wd.name == directory; } );
-
-        const auto tryWatchDirectory = [ this ]( const std::string& path ) {
-            auto watchId = nativeWatchEnabled_ ? watcher_.addWatch( path, this, false ) : -111;
-
-            if ( watchId < 0 ) {
-                LOG_WARNING << "failed to add watch " << path << " error " << watchId;
-            }
-
-            return watchId;
-        };
 
         if ( watchedDirectory == watchedPaths_.end() ) {
             watchedPaths_.push_back(
@@ -365,6 +362,23 @@ public:
     }
 
 private:
+    // Called with mutex_ held.
+    efsw::WatchID tryWatchDirectory( const std::string& path )
+    {
+        if ( !nativeWatchEnabled_ ) {
+            LOG_DEBUG << "native watching is off, only polling may watch " << path;
+            return NotWatchedNatively;
+        }
+
+        const auto watchId = watcher_.addWatch( path, this, false );
+
+        if ( watchId < 0 ) {
+            LOG_WARNING << "failed to add watch " << path << " error " << watchId;
+        }
+
+        return watchId;
+    }
+
     efsw::FileWatcher watcher_;
     std::vector<WatchedDirectory> watchedPaths_;
     FileWatcher* parent_;
@@ -468,6 +482,11 @@ FileWatcher& FileWatcher::getFileWatcher()
 {
     static auto* const instance = new FileWatcher;
     return *instance;
+}
+
+FileWatcher& FileWatcher::createForTesting()
+{
+    return *new FileWatcher;
 }
 
 std::shared_ptr<FileWatcher> FileWatcher::sharedFileWatcher()

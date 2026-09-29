@@ -96,19 +96,19 @@ void requireNativeChangeReported( SafeQSignalSpy& changedSpy, const QString& fil
     const bool reported = waitUiState( changeReported, 10000 );
 
 #ifdef Q_OS_MAC
-    // FSEvents -- efsw's native backend on this platform -- fails to
-    // register a watch at all in some sandboxed CI and local dev
-    // environments (observed error -111, not specific to a Log File or this
-    // test), independently of this codebase: it is why the shipped default
-    // already pairs native watching with polling on macOS (see
-    // qtests_main.cpp / Configuration's platform defaults) rather than
-    // relying on native watching alone. Assert when the platform delivers,
-    // but do not fail the build over an environment that cannot register
-    // the watch.
+    // FSEvents -- efsw's native backend on this platform -- may not deliver
+    // in a sandboxed environment; the shipped default pairs native watching
+    // with polling on macOS (see qtests_main.cpp / Configuration's platform
+    // defaults) rather than relying on it alone. Assert when the platform
+    // delivers, but do not fail the build over one that does not. The
+    // "error -111" once taken as a sign of it is no efsw error at all: it
+    // was the watch ID of a directory whose Policy had native watching off
+    // (#619), which is now logged as that, not as a failure.
     if ( !reported ) {
-        WARN( "Native watch event not observed -- FSEvents unavailable in this "
-              "environment (see EfswFileWatcher::addFile's \"failed to add watch\" "
-              "log); native watching also runs behind polling in the shipped "
+        WARN( "Native watch event not observed -- FSEvents did not deliver in "
+              "this environment (a real failure to register is logged as "
+              "\"failed to add watch\" with an efsw error); "
+              "native watching also runs behind polling in the shipped "
               "defaults on this platform." );
     }
 #else
@@ -297,6 +297,10 @@ SCENARIO( "Polling does not run on the UI thread", "[filewatch]" )
 // and Qt's application object must not be destroyed while one does: under a
 // Qt built with ThreadSanitizer, every FileWatcher itest reported the poll
 // thread dispatching an event while main() tore QApplication down (#510).
+//
+// Ends the polling of a watcher of its own: the process-wide one's poll
+// thread, once ended, stays ended, and every polling test Catch2's random
+// order ran after this one never saw its change reported (#619).
 SCENARIO( "The poll thread ends before the application does", "[filewatch]" )
 {
     GIVEN( "a watcher polling a file" )
@@ -304,7 +308,7 @@ SCENARIO( "The poll thread ends before the application does", "[filewatch]" )
         QTemporaryDir tempDir;
         const auto fileName = writeFile( tempDir, "one\n" );
 
-        auto& watcher = FileWatcher::getFileWatcher();
+        auto& watcher = FileWatcher::createForTesting();
         watcher.setWatchPolicy( WatchPolicy{
             .nativeWatchEnabled = false, .pollingEnabled = true, .pollIntervalMs = 50 } );
         watcher.addFile( fileName );

@@ -61,11 +61,11 @@ struct EfswFileWatcherDeleter {
 // Watches files with efsw, natively and by polling as its Watch Policy says:
 // the File Watch Port adapter the application hands every Open Log File.
 //
-// There is one per process, and it is never destroyed: tearing down efsw's
-// watches at exit gains nothing and has corrupted the heap before (#145). Only
-// the application, the one place that composes the engine, looks it up; the
-// Session is handed it as a PolicyFileWatchPort, and the engine as a
-// FileWatchPort.
+// There is one per process (and one more in a test that ends its polling),
+// and it is never destroyed: tearing down efsw's watches at exit gains nothing
+// and has corrupted the heap before (#145). Only the application, the one
+// place that composes the engine, looks it up; the Session is handed it as a
+// PolicyFileWatchPort, and the engine as a FileWatchPort.
 class FileWatcher : public PolicyFileWatchPort {
     Q_OBJECT
 public:
@@ -76,6 +76,13 @@ public:
     FileWatcher& operator=( FileWatcher&& ) = delete;
 
     static FileWatcher& getFileWatcher();
+
+    // A second watcher, apart from the process-wide one and never destroyed
+    // either, for a test that ends its polling (#619): stopPolling() is for
+    // good, and ending the shared watcher's poll thread left every test that
+    // ran after it in the same process waiting for a change no poll would
+    // ever report. Not for anything but that.
+    static FileWatcher& createForTesting();
 
     // The same one watcher, to hand to what holds its port. The pointer owns
     // nothing: the watcher lives until the process ends, whoever still holds
