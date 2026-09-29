@@ -17,6 +17,13 @@
   file is UTF-8 with a byte order mark and CR LF line ends, written in the
   background with progress; a cancelled export leaves the target file as it
   was. The separator and the header row are remembered. (#572)
+- **The filtered view exports as CSV**: for a log file with a recognized
+  format, *Export as CSV...* in the filtered view's context menu writes the
+  lines it shows, or the selected ones, split into the table view's columns
+  with the values the table view shows, Δt included. Breadcrumbs are written
+  only when *Include Context Lines* is checked, and an optional *Type* column
+  says whether each line is a `Match`, `Mark`, `Match+Mark` or `Context`.
+  (#577)
 
 # v26.10.0 (2026-09-29)
 

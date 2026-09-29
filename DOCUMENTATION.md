@@ -206,6 +206,31 @@ to the main view: 5 lines before and after by default. *Context lines around
 matches* in `Settings->View` sets the number, and 0 turns them off. Where the
 lines around two matches overlap, each line is shown once.
 
+#### Exporting the filtered view as CSV
+
+When the log file's format was recognized (see
+[Auto Log Format Detection](#auto-log-format-detection-table-view)), the
+filtered view's context menu offers **Export as CSV...** too. It writes the
+lines the filtered view shows, split into the columns of the table view, with
+the same dialog, file format and background export as
+[the table view's export](#exporting-as-csv). Without a recognized format the
+entry is absent. The dialog differs in these points:
+
+- **Rows**: *All shown lines*, in the filtered view's order under its current
+  mode (matches, marks or both), or *Selected lines*, the selected ones in
+  that order.
+- **Include Context Lines**: whether the breadcrumbs are written as well. It
+  is off at first, and can only be checked while the filtered view shows
+  breadcrumbs; unchecked, only matches and marks are written.
+- **Columns**: *Line* and **Type** (both unchecked at first), then every
+  column of the table view, **Δt** included. *Type* holds `Match`, `Mark`,
+  `Match+Mark` or `Context`, always in English, so a spreadsheet can filter
+  on it in any language.
+
+Every value is what the table view shows for that line: **Δt** is the time
+since the nearest earlier line of the log file with a timestamp, not since the
+previous line exported.
+
 #### QuickFind
 
 QuickFind searches the view you are in, the main view or the filtered view,
@@ -565,9 +590,11 @@ in the table view.
 #### Exporting as CSV
 
 Right-click the table and choose **Export as CSV...** to write the table to a
-file for a spreadsheet, pandas and the like. The entry is only in the table
-view; without a recognized format there is no table view and no export. A
-dialog chooses what is written:
+file for a spreadsheet, pandas and the like. The main text view has no such
+entry; the filtered view has one
+([Exporting the filtered view as CSV](#exporting-the-filtered-view-as-csv)).
+Without a recognized format there is no table view and no export. A dialog
+chooses what is written:
 
 - **Rows**: *All rows*, every row the table shows, in its order, or
   *Selected rows*, the selected ones in line order. *Selected rows* can only
