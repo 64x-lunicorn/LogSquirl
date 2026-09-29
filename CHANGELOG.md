@@ -24,10 +24,10 @@
   Down* to set the order they are written in, and check *Drop duplicate lines*
   to drop duplicates. The merged tab and its rebuild on changes stay as before.
   (#571)
-- **The filtered view exports as CSV**: for a log file with a recognized
-  format, *Export as CSV...* in the filtered view's context menu writes the
-  lines it shows, or the selected ones, split into the table view's columns
-  with the values the table view shows, Δt included. Context Lines are written
+- **The Filtered View exports as CSV**: for a Log File with a recognized Log
+  Format, *Export as CSV...* in the Filtered View's context menu writes the
+  Log Lines it shows, or the selected ones, split into the Table View's columns
+  with the values the Table View shows, Δt included. Context Lines are written
   only when *Include Context Lines* is checked, and an optional *Type* column
   says whether each line is a `Match`, `Mark`, `Match+Mark` or `Context`.
   (#577)
