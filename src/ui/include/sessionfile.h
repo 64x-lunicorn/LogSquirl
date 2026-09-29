@@ -105,11 +105,13 @@ std::expected<SessionFileRead, SessionFileError> readSessionFile( const QByteArr
 void takeTabLabels( WindowSnapshot& window );
 
 // Merges the tab names and groups of `window` into the stored ones, for its
-// Log Files as they are opened: a name replaces the stored one, a group with
-// the same name as a stored one is that group and keeps its color, any other
-// is created, and a Log File in another group is moved to its own. A Log File
-// with no name or group in it keeps what is stored for it.
-void applyTabLabels( const WindowSnapshot& window );
+// Log Files as they are opened -- those `isOpened` says, or all of them: a
+// name replaces the stored one, a group with the same name as a stored one is
+// that group and keeps its color, any other is created, and a Log File in
+// another group is moved to its own. A Log File with no name or group in it
+// keeps what is stored for it.
+void applyTabLabels( const WindowSnapshot& window,
+                     const std::function<bool( const SessionInfo::OpenFile& )>& isOpened = {} );
 
 // What a Log File's tab name and group are stored by: its path, or, for one
 // decompressed from an archive, the archive and its member (#609).

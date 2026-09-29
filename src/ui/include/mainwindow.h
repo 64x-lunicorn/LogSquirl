@@ -311,8 +311,9 @@ private:
                    LogFileLifetime lifetime = LogFileLifetime::Ordinary );
     bool extractAndLoadFile( const QString& fileName );
     // Opens the Log Files of `window` as a restore does, and reloadSession()
-    // does with the window stored in the Session (#576).
-    void restoreWindow( const WindowSnapshot& window );
+    // does with the window stored in the Session (#576). Returns the paths of
+    // those whose tabs it added; the ones from an archive come later.
+    std::vector<QString> restoreWindow( const WindowSnapshot& window );
     // The views of the window's Log File tabs in tab order, each with its
     // view state, as the Session saves them.
     std::vector<SaveFileInfo> tabViewStates() const;
@@ -530,6 +531,9 @@ private:
     // it is read from: the Session saves that instead (#596), and the recent
     // files, tab names and tab groups know it by that (#609).
     QHash<QString, ArchiveMember> archiveMembers_;
+    // The tab names and groups of a Session File for its Log Files from an
+    // archive, applied to each as it opens (#576).
+    WindowSnapshot pendingTabLabels_;
     // The Ordinary Log File each Log File a converter plugin wrote into
     // tempDir_ was converted from, by the path it is read from: the recent
     // files keep that instead (#605), and opening it again shows that tab

@@ -431,7 +431,7 @@ void MainWindow::reloadSession()
     restoreWindow( session_.storedSnapshot() );
 }
 
-void MainWindow::restoreWindow( const WindowSnapshot& window )
+std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
 {
     const auto& config = Configuration::get();
     const auto followFileOnLoad
@@ -454,9 +454,11 @@ void MainWindow::restoreWindow( const WindowSnapshot& window )
     // Adding a tab makes it current for a moment, which is not the user
     // activating it.
     restoringSession_ = true;
+    std::vector<QString> tabsAdded;
     for ( size_t i = 0; i < crawlers.size() && i < openedFiles.size(); ++i ) {
         auto* crawlerWidget = crawlers[ i ];
         const auto& fileName = openedFiles[ i ].first;
+        tabsAdded.push_back( fileName );
         // Its name and group are found by its archive, not by the new
         // temporary path (#609).
         mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary,
@@ -491,6 +493,8 @@ void MainWindow::restoreWindow( const WindowSnapshot& window )
                 openRestoredFromArchive( id, member, fileName );
             } );
     }
+
+    return tabsAdded;
 }
 
 void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& member,
@@ -521,6 +525,12 @@ void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& m
     if ( !crawlerWidget ) {
         return;
     }
+
+    // Named and grouped as the Session File it came from says, now that it
+    // opens (#576).
+    applyTabLabels( pendingTabLabels_, [ &member ]( const SessionInfo::OpenFile& file ) {
+        return file.archiveMember.key() == member.key();
+    } );
 
     // Where it stood among the tabs: before the Log File tab at its position,
     // else after the last one.
@@ -3747,9 +3757,14 @@ void MainWindow::openSessionFile( const QString& path )
 
 void MainWindow::restoreSessionFile( const SessionFileRead& read )
 {
-    // Named and grouped as they were before their tabs are added.
-    applyTabLabels( read.window );
-    restoreWindow( read.window );
+    // Named and grouped as they were, but only the Log Files that open: those
+    // that did now, and those from an archive as each opens.
+    const auto tabsAdded = restoreWindow( read.window );
+    applyTabLabels( read.window, [ &tabsAdded ]( const SessionInfo::OpenFile& file ) {
+        return file.archiveMember.isEmpty() && std::ranges::contains( tabsAdded, file.fileName );
+    } );
+    pendingTabLabels_ = read.window;
+    mainTabWidget_.refreshAllTabGroupAppearances();
 
     if ( !read.leftOut.isEmpty() ) {
         // Once the window is shown.

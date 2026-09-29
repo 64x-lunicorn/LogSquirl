@@ -1168,3 +1168,61 @@ SCENARIO( "A window's Session saves to a Session File and opens from it in a new
     }
     left.save();
 }
+
+// A Session File names and groups the tabs of the Log Files that open from
+// it; one whose archive cannot be decompressed again opens no tab, and its
+// name and group are not stored (#576).
+SCENARIO( "A Session File names and groups only the Log Files that open", "[ui][session][file]" )
+{
+    const auto openedId = QStringLiteral( "mainwindow_load_test_window_576_labels" );
+    const KeptTabLabels keptLabels;
+
+    QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+    const auto logPath = QDir::cleanPath( QFileInfo( folder.filePath( "kept.log" ) ).absoluteFilePath() );
+    {
+        QFile file( logPath );
+        REQUIRE( file.open( QIODevice::WriteOnly ) );
+        file.write( "a Log Line\n" );
+    }
+    const ArchiveMember goneMember{ folder.filePath( "gone.log.gz" ), { QString{} } };
+
+    SessionFileRead read;
+    read.window.files = { { logPath, QString{} },
+                          { folder.filePath( "gone.log.AbCdEf" ), QString{}, goneMember } };
+    read.window.currentFile = 0;
+    read.window.tabs = { { "Kept", "Opened576" }, { "Gone", "Gone576" } };
+    read.window.groups = { { "Opened576", QColor( "#3a7bd5" ) }, { "Gone576", QColor( "#d53a3a" ) } };
+
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    WindowSession openedSession{ appSession, openedId, 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> opened;
+    QTimer::singleShot( 0, [ & ] { opened.reset( new MainWindow( openedSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( opened != nullptr );
+    opened->restoreSessionFile( read );
+    opened->show();
+    REQUIRE( waitForArchiveRestores( *opened ) );
+
+    auto* tabs = opened->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabs != nullptr );
+    const auto logFileTabs = tabs->logFileTabs();
+    REQUIRE( logFileTabs.size() == 1 );
+    const auto group = tabs->groupOfTab( logFileTabs.front() );
+    REQUIRE( group.has_value() );
+    REQUIRE( group->name == "Opened576" );
+    REQUIRE( tabs->tabText( logFileTabs.front() ).endsWith( "Kept" ) );
+
+    REQUIRE( TabNameMapping::get().tabName( goneMember.key() ).isEmpty() );
+    REQUIRE_FALSE( TabGroupInfo::get().groupForTab( goneMember.key() ).has_value() );
+    REQUIRE( std::ranges::none_of( TabGroupInfo::get().groups(),
+                                   []( const auto& stored ) { return stored.name == "Gone576"; } ) );
+
+    opened.reset();
+    auto& left = SessionInfo::getSynced();
+    left.remove( openedId );
+    left.save();
+}
