@@ -18,7 +18,8 @@
  */
 
 // Fuzz target: every line shown in a view goes through the ANSI color
-// sequence filter (#319).
+// sequence filter (#319), or through the parser that keeps their colors,
+// which leaves exactly the same text (#573).
 
 #include "ansicolorsequences.h"
 
@@ -26,11 +27,21 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 
 extern "C" int LLVMFuzzerTestOneInput( const uint8_t* data, size_t size )
 {
     auto text = QString::fromUtf8( reinterpret_cast<const char*>( data ),
                                    static_cast<qsizetype>( size ) );
+    auto parsed = parseAnsiColorSequences( text );
     removeAnsiColorSequences( text );
+    if ( parsed.text != text ) {
+        std::abort();
+    }
+    for ( const auto& span : parsed.spans ) {
+        if ( span.length <= 0 || span.start < 0 || span.start + span.length > text.size() ) {
+            std::abort();
+        }
+    }
     return 0;
 }
