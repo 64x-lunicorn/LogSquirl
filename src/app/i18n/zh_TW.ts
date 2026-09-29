@@ -1234,63 +1234,71 @@ Without a date, %1 is used.</source>
 <context>
     <name>CsvExportDialog</name>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="41"/>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="45"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="43"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="47"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="54"/>
         <source>Export as CSV</source>
         <translation>匯出為 CSV</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="42"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="44"/>
         <source>CSV files (*.csv)</source>
         <translation>CSV 檔案 (*.csv)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="47"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="48"/>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <translation>%1 已存在。
+是否要取代它？</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="56"/>
         <source>Rows</source>
         <translation>列</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="50"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="59"/>
         <source>All rows</source>
         <translation>所有列</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="51"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="60"/>
         <source>Selected rows</source>
         <translation>所選列</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="65"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="74"/>
         <source>Columns</source>
         <translation>欄</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="77"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="86"/>
         <source>Separator</source>
         <translation>分隔符號</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="79"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="88"/>
         <source>Comma</source>
         <translation>逗號</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="80"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="89"/>
         <source>Semicolon</source>
         <translation>分號</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="81"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="90"/>
         <source>Tab</source>
         <translation>定位字元</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="94"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="103"/>
         <source>Write column names as the first row</source>
         <translation>將欄名寫為第一列</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="98"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="107"/>
         <source>Export...</source>
         <translation>匯出...</translation>
     </message>

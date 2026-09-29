@@ -93,6 +93,13 @@ public:
     using FileNameChooser = std::function<QString( QWidget* parent, const QString& proposed )>;
     void setFileNameChooser( FileNameChooser chooser );
 
+    // Asks whether to replace a file that exists; true to replace it. Asked
+    // only when ".csv" is added to the file chosen, since the file dialog
+    // asked about the name without it. A QMessageBox unless a test hands its
+    // own.
+    using OverwriteConfirmer = std::function<bool( QWidget* parent, const QString& fileName )>;
+    void setOverwriteConfirmer( OverwriteConfirmer confirmer );
+
     // Runs the dialog; the choices when the user chose a file and exported.
     static std::optional<Choices> ask( QWidget* parent, Setup setup );
 
@@ -103,6 +110,7 @@ private:
 
     Setup setup_;
     FileNameChooser chooseFileName_;
+    OverwriteConfirmer confirmOverwrite_;
     QString fileName_;
 
     QRadioButton* allRows_ = nullptr;

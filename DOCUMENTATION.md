@@ -219,9 +219,10 @@ entry is absent. The dialog differs in these points:
 - **Rows**: *All shown lines*, in the filtered view's order under its current
   mode (matches, marks or both), or *Selected lines*, the selected ones in
   that order.
-- **Include Context Lines**: whether the breadcrumbs are written as well. It
-  is off at first, and can only be checked while the filtered view shows
-  breadcrumbs; unchecked, only matches and marks are written.
+- **Include Context Lines**: whether the context lines around matches and
+  marks, the [breadcrumbs](#breadcrumbs), are written as well. It is off at
+  first, and can only be checked while the filtered view shows them;
+  unchecked, only matches and marks are written.
 - **Columns**: *Line* and **Type** (both unchecked at first), then every
   column of the table view, **Δt** included. *Type* holds `Match`, `Mark`,
   `Match+Mark` or `Context`, always in English, so a spreadsheet can filter
@@ -655,8 +656,9 @@ chooses what is written:
 - **Write column names as the first row**: the header row.
 
 **Export...** then asks for the file, proposing the log file's name with
-`.csv` added, and adds `.csv` to a name without it. The separator and the
-header row are remembered for the next export; the rows and columns are not.
+`.csv` added, and adds `.csv` to a name without it, asking first when a file
+of that name exists. The separator and the header row are remembered for the
+next export; the rows and columns are not.
 
 Every value is exactly what the table shows, the elapsed time and the raw
 text of a non-matching line included. The file is UTF-8 with a byte order

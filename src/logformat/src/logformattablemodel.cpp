@@ -223,7 +223,7 @@ LogFormatTableModel::columnSpans( int row ) const
     std::vector<std::optional<TextSpan>> spans( static_cast<size_t>( columnCount() ) );
     const auto fieldSpans = cells_->extractor().fieldSpans( line );
     if ( !fieldSpans ) {
-        // As extractRow() shows it: the whole Log Line in the last column
+        // As TableRowCells::rowOf() shows it: the whole Log Line in the last field
         const auto lastField = static_cast<int>( fieldNames.size() ) - 1;
         if ( !line.isEmpty() ) {
             spans[ static_cast<size_t>( cells_->columnOfField( lastField ) ) ]
