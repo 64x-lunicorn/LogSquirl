@@ -13,6 +13,17 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
 
+## Release planning: milestones
+
+Which release a ticket is planned for is its **milestone**, never a label. Labels say what kind of ticket it is and where it stands in triage.
+
+- **One milestone per planned release**, named like the release tag without the `v`: `26.11.0`, `26.12.0`, …
+- **No milestone means backlog**: wanted, but not planned for a release yet. There is no "Later" milestone.
+- **Only the maintainer sets, moves or removes a milestone.** An agent never does, not even for a ticket it files or finishes. It may suggest one in its report.
+- **An agent may filter by milestone** to find the planned work: `gh issue list --milestone "26.11.0" --state open`. Among `ready-for-agent` tickets, those in the nearest open milestone come first.
+- **A release that has gone into beta takes fixes only.** New features go into the next milestone.
+- **At release** the maintainer closes the milestone. Anything still open is moved to the next milestone or back to the backlog, deliberately.
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
