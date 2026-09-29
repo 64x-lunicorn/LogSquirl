@@ -17,6 +17,13 @@
   file is UTF-8 with a byte order mark and CR LF line ends, written in the
   background with progress; a cancelled export leaves the target file as it
   was. The separator and the header row are remembered. (#572)
+- **Merge… picks and orders the files to merge**: the tab context menu has one
+  *Merge…* entry instead of *Merge All Left*, *Merge All Right* and their
+  *(dedup)* variants. Its dialog lists every open file in tab order, all
+  checked: uncheck the files to leave out, drag them or use *Move Up* / *Move
+  Down* to set the order they are written in, and check *Drop duplicate lines*
+  to drop duplicates. The merged tab and its rebuild on changes stay as before.
+  (#571)
 
 # v26.10.0 (2026-09-29)
 

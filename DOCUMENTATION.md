@@ -731,11 +731,17 @@ following file mode is also disabled.
 
 ### Merging Log Files
 
-Right-click a tab and choose "Merge All Left" or "Merge All Right" (or the
-"(dedup)" variants, which drop duplicate lines) to combine that tab with the
-tabs on one side of it into one merged tab, named "Merged" or "Merged (dedup)".
-The sources are written one after the other, in tab order; lines are not sorted
-by time.
+Right-click a tab and choose *Merge…* (offered while at least two files are
+open) to combine files into one merged tab. The dialog *Merge Log Files* lists
+every open file -- standard input, another merged tab and command output
+included -- in tab order, all checked. Uncheck the files to leave out, and put
+the others in the order they are written in: drag a file within the list, or
+select it and use *Move Up* and *Move Down*. *Drop duplicate lines* (off by
+default) leaves out a line identical to one already written, from any of the
+files. *Merge* is enabled while at least two files are checked; it opens the
+merged tab, named "Merged" or "Merged (dedup)". The sources are written one
+after the other, in the order of the dialog; lines are not sorted by time. The
+dialog remembers nothing: it opens in the current tab order every time.
 
 The merged tab follows its sources. When a source changes, the merged file is
 rebuilt after a short pause (300 ms) and the tab reloads. The rebuild always

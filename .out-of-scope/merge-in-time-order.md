@@ -1,8 +1,8 @@
 # Merging Log Files in Time Order
 
 Log Merge puts its sources one after the other: every Log Line of the first
-source, then every Log Line of the second, and so on, in the order of the tabs
-the user merged ("Merge All Left" / "Merge All Right"). It does not interleave
+source, then every Log Line of the second, and so on, in the order the user
+put them in the dialog of *Merge…* (#571). It does not interleave
 the Log Lines of its sources by their timestamps, and it does not add a marker
 saying which source a Log Line came from.
 
@@ -15,7 +15,7 @@ after the other, and that is how it is meant to be.
 What the concatenation gives, and a time-ordered merge would take away:
 
 - The order of the merged Log File is the order the user chose, by arranging
-  the tabs. Nothing about it depends on whether a timestamp could be parsed.
+  the files in the dialog. Nothing about it depends on whether a timestamp could be parsed.
 - Every Log Line stays exactly as it is in its source. No prefix, no column,
   no reordering of continuation lines such as stack traces.
 - It works the same for every Log File, recognized Log Format or not, so there

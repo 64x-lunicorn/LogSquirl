@@ -56,8 +56,9 @@ public:
     // Emitted when multiple tabs should be closed at once (indices in order).
     Q_SIGNAL void bulkTabCloseRequested( QList<int> indices );
 
-    // Emitted when the user requests a merge of tabs left or right of the given tab.
-    // `dedup` is true when duplicate-line removal was requested.
+    // Emitted when the user confirms Merge… in a tab's context menu: the
+    // paths of the Log Files checked in its dialog, in the order chosen there
+    // (#571). `dedup` is true when duplicate lines are to be dropped.
     Q_SIGNAL void mergeRequested( QStringList filePaths, bool dedup );
 
     // Adds the tab of a Log File, last or at `position`. The tab of a
@@ -152,6 +153,10 @@ private:
     // The name a tab shows, before its group's bullet: the user's rename,
     // else its opening title, else its file's name (#606).
     QString baseTabName( int index ) const;
+
+    // Asks with the Merge dialog which Log Files to merge, in which order,
+    // and requests that merge when the user confirms (#571).
+    void chooseFilesToMerge();
 
     // Set the data status (icon) for the tab number 'index'
     void setTabDataStatus( int index, DataStatus status );

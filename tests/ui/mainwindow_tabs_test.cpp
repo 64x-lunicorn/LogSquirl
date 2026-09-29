@@ -18,10 +18,10 @@
  */
 
 // The main window's tabs: which of them hold a Log File, whether or not the
-// window shows the dashboard (#535), the merged Log File whose rebuild ends
-// with its tab (#537), and the dashboard setting, which reaches the windows
-// opened after it changes (#562). Every close of tabs takes one path, whoever
-// asks for it (#536).
+// window shows the dashboard (#535), what Merge… merges (#571), the merged Log
+// File whose rebuild ends with its tab (#537), and the dashboard setting,
+// which reaches the windows opened after it changes (#562). Every close of
+// tabs takes one path, whoever asks for it (#536).
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -29,6 +29,7 @@
 #include <QAction>
 #include <QActionEvent>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QColor>
 #include <QDialogButtonBox>
@@ -37,6 +38,7 @@
 #include <QGridLayout>
 #include <QInputDialog>
 #include <QLabel>
+#include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPointer>
@@ -47,6 +49,7 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <functional>
 #include <optional>
 #include <utility>
 
@@ -58,6 +61,7 @@
 #include "mainwindow.h"
 #include "mainwindowtext.h"
 #include "mergecontroller.h"
+#include "mergedialog.h"
 #include "openlogfile.h"
 #include "optionsdialog.h"
 #include "recentfiles.h"
@@ -354,6 +358,40 @@ private:
     QTimer driver_;
 };
 
+// Answers the Merge dialog with what `answer` does to it, once.
+class MergeDialogAnswerer {
+public:
+    explicit MergeDialogAnswerer( std::function<void( MergeDialog& )> answer )
+        : answer_( std::move( answer ) )
+    {
+        QObject::connect( &driver_, &QTimer::timeout, [ this ] {
+            if ( auto* dialog = qobject_cast<MergeDialog*>( QApplication::activeModalWidget() ) ) {
+                if ( dialog->isVisible() ) {
+                    driver_.stop();
+                    answer_( *dialog );
+                }
+            }
+        } );
+        driver_.start( 10 );
+    }
+
+private:
+    std::function<void( MergeDialog& )> answer_;
+    QTimer driver_;
+};
+
+QPushButton* buttonOf( const MergeDialog& dialog, const char* text )
+{
+    const auto translated = QApplication::translate( "MergeDialog", text );
+    for ( auto* button : dialog.findChildren<QPushButton*>() ) {
+        if ( button->text() == translated ) {
+            return button;
+        }
+    }
+    FAIL( "The Merge dialog has no button " << text );
+    return nullptr;
+}
+
 // Turns the confirmation of a tab close on for its lifetime.
 struct ConfirmTabClose {
     ConfirmTabClose()
@@ -495,16 +533,56 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
             }
         }
 
-        WHEN( "Merge All Left is chosen from the menu of the last Log File's tab" )
+        WHEN( "Merge… is chosen from a tab's menu, and the dialog confirmed with the first Log "
+              "File unchecked, the last moved first and duplicate lines dropped" )
         {
             QSignalSpy mergeRequested( window.tabArea, &TabbedCrawlerWidget::mergeRequested );
-            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Merge All Left" ) );
+            QStringList offered;
+            MergeDialogAnswerer answerer( [ &offered ]( MergeDialog& dialog ) {
+                auto* list = dialog.findChild<QListWidget*>();
+                for ( int row = 0; row < list->count(); ++row ) {
+                    offered.append( QDir::fromNativeSeparators( list->item( row )->toolTip() ) );
+                }
+                list->item( 0 )->setCheckState( Qt::Unchecked );
+                list->setCurrentRow( 2 );
+                buttonOf( dialog, "Move Up" )->click();
+                buttonOf( dialog, "Move Up" )->click();
+                dialog.findChild<QCheckBox*>()->setChecked( true );
+                buttonOf( dialog, "Merge" )->click();
+            } );
+            REQUIRE( window.chooseFromTabMenu( firstLogFileTab, "Merge…" ) );
 
-            THEN( "the two Log Files left of it are merged, the first one among them" )
+            THEN( "the dialog offered every Log File in tab order, and exactly the checked ones "
+                  "are merged in the order chosen" )
             {
+                REQUIRE( offered == paths );
                 REQUIRE( mergeRequested.size() == 1 );
                 REQUIRE( mergeRequested.at( 0 ).at( 0 ).toStringList()
-                         == QStringList{ paths[ 0 ], paths[ 1 ] } );
+                         == QStringList{ paths[ 2 ], paths[ 1 ] } );
+                REQUIRE( mergeRequested.at( 0 ).at( 1 ).toBool() );
+            }
+        }
+
+        WHEN( "Merge… is chosen, and the dialog cancelled" )
+        {
+            QSignalSpy mergeRequested( window.tabArea, &TabbedCrawlerWidget::mergeRequested );
+            MergeDialogAnswerer answerer( []( MergeDialog& dialog ) { dialog.reject(); } );
+            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Merge…" ) );
+
+            THEN( "nothing is merged" )
+            {
+                REQUIRE( mergeRequested.isEmpty() );
+            }
+        }
+
+        WHEN( "the menu of a Log File's tab is opened" )
+        {
+            THEN( "it offers none of the former Merge All entries" )
+            {
+                for ( const auto* entry : { "Merge All Left", "Merge All Left (dedup)",
+                                            "Merge All Right", "Merge All Right (dedup)" } ) {
+                    REQUIRE_FALSE( window.chooseFromTabMenu( firstLogFileTab + 1, entry ) );
+                }
             }
         }
 

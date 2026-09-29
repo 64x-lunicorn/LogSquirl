@@ -68,6 +68,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabgroupinfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabgroupmanagerdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mergecontroller.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/mergedialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/welcomedashboard.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartseries.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartextraction.h
@@ -151,6 +152,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabgroupinfo.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabgroupmanagerdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mergecontroller.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/mergedialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/welcomedashboard.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartextraction.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartplot.cpp
