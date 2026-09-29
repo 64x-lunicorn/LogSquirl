@@ -120,8 +120,9 @@ public:
     // it open -- is removed again when the application exits (#623).
     static std::unique_ptr<CommandSource> adoptSpoolFile( const QString& path );
 
-    // Removes the spool files taken over that could not be removed with their
-    // Command Source. Runs by itself when the application exits.
+    // Removes the spool files that could not be removed with their Command
+    // Source -- on Windows, while a tab or another process still has one open.
+    // Runs by itself when the application exits.
     static void removeLeftoverSpoolFiles();
 
     ~CommandSource() override;

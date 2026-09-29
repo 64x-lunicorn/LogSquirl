@@ -173,9 +173,10 @@ bool removeSpoolFile( const QString& path )
     return true;
 }
 
-// The spool files handed over that could not be removed with their tab: on
-// Windows, the secondary instance that writes one still has it open (#623).
-// They are removed again when the application exits.
+// The spool files that could not be removed with their Command Source: on
+// Windows, one the secondary instance that writes it still has open (#623),
+// or one a tab still reads when the window goes before it. They are removed
+// again when the application exits.
 class LeftoverSpoolFiles {
 public:
     static LeftoverSpoolFiles& instance()
@@ -334,18 +335,22 @@ CommandSource::~CommandSource()
 {
     stop();
 
-    // The spool file goes with this object.
-    if ( writer_ ) {
-        writer_.reset();
+    // The spool file goes with this object. The writer removes the one it
+    // wrote.
+    writer_.reset();
+    if ( spoolPath_.isEmpty() ) {
+        return;
     }
-    else if ( kind_ == Kind::SpoolFile && !spoolPath_.isEmpty() ) {
+    if ( kind_ == Kind::SpoolFile ) {
         // First, so that the process that writes the file stops, and lets go
         // of it on Windows.
         QFile::remove( spoolAdoptionMarker( spoolPath_ ) );
-        if ( !removeSpoolFile( spoolPath_ ) ) {
-            LOG_INFO << "Could not remove the spool file " << spoolPath_ << " yet, will at exit";
-            LeftoverSpoolFiles::instance().add( spoolPath_ );
-        }
+    }
+    // On Windows a file the tab still has open stays -- the window may go
+    // before its tabs -- and so does one another process writes.
+    if ( !removeSpoolFile( spoolPath_ ) ) {
+        LOG_INFO << "Could not remove the spool file " << spoolPath_ << " yet, will at exit";
+        LeftoverSpoolFiles::instance().add( spoolPath_ );
     }
 }
 

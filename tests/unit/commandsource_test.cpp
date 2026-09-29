@@ -35,9 +35,12 @@
 #include <QTemporaryDir>
 
 #include <optional>
+#include <utility>
 
 #ifndef Q_OS_WIN
 #include "command_process_probe.h"
+
+#include <unistd.h>
 #endif
 
 namespace {
@@ -52,6 +55,30 @@ QByteArray contentOf( const QString& path )
 }
 
 #ifndef Q_OS_WIN
+
+// Takes the write permission from a folder while it lives, so that nothing in
+// it can be removed, and gives it back however the test goes on.
+class ReadOnlyFolder {
+public:
+    explicit ReadOnlyFolder( QString folder )
+        : folder_( std::move( folder ) )
+        , permissions_( QFile::permissions( folder_ ) )
+    {
+        REQUIRE( QFile::setPermissions( folder_, QFileDevice::ReadOwner | QFileDevice::ExeOwner ) );
+    }
+
+    ~ReadOnlyFolder()
+    {
+        QFile::setPermissions( folder_, permissions_ );
+    }
+
+    ReadOnlyFolder( const ReadOnlyFolder& ) = delete;
+    ReadOnlyFolder& operator=( const ReadOnlyFolder& ) = delete;
+
+private:
+    QString folder_;
+    QFileDevice::Permissions permissions_;
+};
 
 // Runs `commandLine` and waits for it to end: what it wrote and how it ended.
 struct Run {
@@ -208,6 +235,31 @@ TEST_CASE( "A command's output goes to its spool file, which goes with the Comma
 
     run.source.reset();
     CHECK_FALSE( QFileInfo::exists( spool ) );
+}
+
+// Windows keeps a file the tab still has open when the Command Source goes
+// before the tab; a folder without write permission does the same here.
+TEST_CASE( "A command's spool file that cannot be removed yet is removed later",
+           "[commandsource]" )
+{
+    if ( ::geteuid() == 0 ) {
+        SKIP( "root removes files from a folder without write permission" );
+    }
+
+    auto run = runToEnd( "echo one" );
+    const auto spool = run.source->spoolPath();
+    const auto folder = QFileInfo( spool ).absolutePath();
+    REQUIRE( QFileInfo::exists( spool ) );
+
+    {
+        const ReadOnlyFolder locked( folder );
+        run.source.reset();
+        CHECK( QFileInfo::exists( spool ) );
+    }
+
+    CommandSource::removeLeftoverSpoolFiles();
+    CHECK_FALSE( QFileInfo::exists( spool ) );
+    CHECK_FALSE( QFileInfo::exists( folder ) );
 }
 
 TEST_CASE( "A command's standard error is in its output only when asked for", "[commandsource]" )
