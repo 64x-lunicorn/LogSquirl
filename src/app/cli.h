@@ -178,12 +178,10 @@ struct CliParameters {
             positional
                 = logsquirl::plugins::splitPositionalArguments( parser.positionalArguments() );
         }
-        if ( positional.readStdin ) {
-            read_stdin = true;
-            // The process at the end of the pipe has to keep reading until the
-            // pipe closes: it cannot hand the stream over to another instance.
-            multi_instance = true;
-        }
+        // With an instance running, the process at the end of the pipe hands
+        // the stream over to it and keeps reading until the pipe closes
+        // (#623).
+        read_stdin = positional.readStdin;
         for ( const auto& file : positional.files ) {
             const auto fileInfo = QFileInfo( file );
             filenames.emplace_back( fileInfo.absoluteFilePath() );

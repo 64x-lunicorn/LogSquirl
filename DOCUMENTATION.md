@@ -316,15 +316,20 @@ files by clicking them in the file manager.
 `journalctl -f | logsquirl -`. It can be combined with files
 (`… | logsquirl - other.log`): they open in the same window.
 
-* `-` always starts a window of its own, as `--multi` does, even when
-  *logsquirl* is already running: the process at the end of the pipe has to
-  keep reading until the pipe closes.
+* When *logsquirl* is already running, what is piped in opens as a `stdin` tab
+  in the running window, with the files given beside it. The `logsquirl`
+  process at the end of the pipe keeps reading until the pipe closes and then
+  exits; `Ctrl+C` ends it early, and the tab keeps what arrived until then.
+  Every `… | logsquirl -` opens a tab of its own. If the running *logsquirl*
+  cannot be reached, it says so, exits with a non-zero status and leaves
+  nothing behind. With `--multi`, `-` opens in a window of its own instead.
 * What arrives is kept in a temporary file in the application's temporary
   directory, and the tab (named `stdin`) follows it like any growing Log File:
   Search and Marks work as they do for a file on disk.
 * The temporary file grows without bound for as long as the stream runs. It is
-  removed when the window closes or *logsquirl* exits; the data is not kept
-  and there is no "save as" for it.
+  removed when its tab or the window closes, or *logsquirl* exits; the data is
+  not kept and there is no "save as" for it. On Windows, a file the piping
+  process still writes is removed when *logsquirl* exits.
 * When the writing end closes, following stops, every received byte is in the
   Log File (including a last line without a trailing newline) and the status bar
   says `Standard input closed`.
@@ -1336,7 +1341,7 @@ Scrolling sideways, on a trackpad or a tilting wheel, scrolls horizontally.
 |-n,--new-session   |do not load the previous session (default when a file is passed) |
 |-l,--log           |save the log to a file                                    |
 |-f,--follow        |follow initial opened files                               |
-|-                 |read a Log File from standard input, in a window of its own (as with -m); can be combined with files |
+|-                 |read a Log File from standard input, in the running *logsquirl* if there is one (in a window of its own with -m); can be combined with files |
 |-d,--debug         |output more debug (include multiple times for more verbosity e.g. -dddd) |
 
 ## The command line tool

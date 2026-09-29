@@ -45,6 +45,11 @@
 - **A Log File that grows while it first loads shows all of it**: lines written
   while a tab was still loading, such as the whole output of a short command,
   no longer stay missing until the file grows again (#629).
+- **Piping into `logsquirl -` while LogSquirl runs opens a tab**: what is piped
+  in opens as a `stdin` tab in the running window, together with any files
+  given, and follows as it arrives; the piping process exits when the pipe
+  closes. Each pipe gets a tab of its own, and closing the tab removes its
+  temporary file. Before, the input was lost. (#623)
 
 # v26.10.0 (2026-09-29)
 
