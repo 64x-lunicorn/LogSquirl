@@ -20,6 +20,7 @@
 #pragma once
 
 #include <cstdint>
+#include <utility>
 
 #include <QString>
 
@@ -104,6 +105,13 @@ struct AnsiColorSpan {
 // A Log Line's text without its ANSI color sequences, and the colors they
 // asked for.
 struct AnsiColoredText {
+    AnsiColoredText() = default;
+    explicit AnsiColoredText( QString lineText, logsquirl::vector<AnsiColorSpan> colorSpans = {} )
+        : text( std::move( lineText ) )
+        , spans( std::move( colorSpans ) )
+    {
+    }
+
     QString text;
     logsquirl::vector<AnsiColorSpan> spans;
 };

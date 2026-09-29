@@ -46,6 +46,7 @@
 
 #include <span>
 
+#include "ansicolorsequences.h"
 #include "linetypes.h"
 
 // Base class representing a set of data.
@@ -67,6 +68,12 @@ public:
     // getExpandedLineString() returns. lines may come in any order and
     // repeat. A Log File on disk reads nearby Log Lines together.
     logsquirl::vector<QString> getExpandedLinesSparse( std::span<const LineNumber> lines ) const;
+    // The Log Lines [first_line, first_line + number) as their text under a
+    // Decoding Policy that hides ANSI color sequences -- what getLines()
+    // returns under it -- each with the colors its sequences ask for,
+    // whatever the Decoding Policy is. For a view that shows the colors.
+    logsquirl::vector<AnsiColoredText> getAnsiColoredLines( LineNumber first_line,
+                                                            LinesCount number ) const;
     // Returns the line numer
     LineNumber getLineNumber( LineNumber index ) const;
     // Returns the total number of lines
@@ -113,6 +120,12 @@ protected:
     // default each is read on its own.
     virtual logsquirl::vector<QString>
     doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const;
+
+    // Internal function called to get a set of lines with their ANSI
+    // colors. By default the lines getLines() reads are parsed: data that
+    // does not hide ANSI color sequences has them in its lines.
+    virtual logsquirl::vector<AnsiColoredText> doGetAnsiColoredLines( LineNumber first_line,
+                                                                      LinesCount number ) const;
 
     // Internal function called to get the index of given line
     virtual LineNumber doGetLineNumber( LineNumber index ) const = 0;
