@@ -5,7 +5,8 @@
 # its child ended in its own words and then exits with 1: a case killed under
 # `ctest -j8` failed with "the test case failed: 1" and nothing else. This runs
 # a stand-in for a test binary through cmake/CatchTestDiscoveryRunTest.cmake
-# twice: once it kills itself, and the runner has to name the signal; once it
+# three times: once it kills itself, and the runner has to name the signal;
+# once it skips itself as Catch2 does, and the runner has to pass it (#633); once it
 # prints the environment it was started with and leaves a ThreadSanitizer
 # report where TSAN_OPTIONS says, and the runner has to have set the
 # environment and sorted the report -- in every build, not only a TSan one.
@@ -33,6 +34,10 @@ case "$1" in
   kill)
     echo "fake case: killing itself"
     kill -KILL $$
+    ;;
+  skip)
+    echo "SKIPPED: fake case skips itself"
+    exit 4
     ;;
   env)
     echo "isolated: $LOGSQUIRL_TEST_SETTINGS_ISOLATED"
@@ -73,6 +78,16 @@ if(NOT _output MATCHES "the test case failed: Subprocess killed")
   string(APPEND _failed "\n  kill: the runner did not name the signal:\n${_output}")
 endif()
 
+# Catch2 ends with 4 when every case it ran skipped itself (#633): skipped,
+# not failed, and said in the words ctest's SKIP_REGULAR_EXPRESSION looks for.
+run_case(skip)
+if(NOT _result STREQUAL "0")
+  string(APPEND _failed "\n  skip: the runner failed a case that skipped itself:\n${_output}")
+endif()
+if(NOT _output MATCHES "LogSquirl test runner: the test case skipped itself")
+  string(APPEND _failed "\n  skip: the runner did not say the case was skipped")
+endif()
+
 run_case(env)
 if(_result STREQUAL "0")
   string(APPEND _failed "\n  env: the runner passed a case with a ThreadSanitizer report")
@@ -101,4 +116,4 @@ if(_failed)
   message(FATAL_ERROR "The ctest runner did not run the case the way it should:${_failed}\n"
                       "  last output:\n${_output}")
 endif()
-message("Case runner: a signal is named, the environment reaches the case")
+message("Case runner: a signal is named, a skip is no failure, the environment reaches the case")

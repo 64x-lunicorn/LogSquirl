@@ -102,7 +102,9 @@ foreach(_logsquirl_catch_name IN LISTS _logsquirl_catch_lines)
         "${_logsquirl_catch_cmake}" "-DTEST_BINARY=${_logsquirl_catch_executable}"
         -P "${_logsquirl_catch_run_script}"
         -- "${_logsquirl_catch_spec}" --warn UnmatchedTestSpec ${_logsquirl_catch_extra_args})
+    # A case that skipped itself is reported as skipped, not passed (#633).
     set_tests_properties("${_logsquirl_catch_test}" PROPERTIES
         TIMEOUT "${_logsquirl_catch_timeout}"
-        WORKING_DIRECTORY "${_logsquirl_catch_working_dir}")
+        WORKING_DIRECTORY "${_logsquirl_catch_working_dir}"
+        SKIP_REGULAR_EXPRESSION "LogSquirl test runner: the test case skipped itself")
 endforeach()

@@ -169,10 +169,21 @@ logsquirl_empty_work_dir()
 # A signal is reported as its name ("Subprocess killed", "Segmentation fault"),
 # so a case that crashed says so instead of ending in an exit code nobody can
 # read.
-if(NOT _result STREQUAL "0")
+#
+# Catch2 ends with 4 when every case it ran skipped itself (SKIP()). That is no
+# failure: the line below is what the case's SKIP_REGULAR_EXPRESSION
+# (CatchTestDiscoveryAddTests.cmake) matches, so ctest reports it as skipped
+# (#633). What TSan found still fails it.
+set(_skipped FALSE)
+if(_result STREQUAL "4")
+  set(_skipped TRUE)
+elseif(NOT _result STREQUAL "0")
   message(FATAL_ERROR "the test case failed: ${_result}")
 endif()
 if(NOT _tsan_failures EQUAL 0)
   message(FATAL_ERROR
     "ThreadSanitizer: ${_tsan_failures} finding(s) in LogSquirl's code or of TSan itself, printed above")
+endif()
+if(_skipped)
+  message("LogSquirl test runner: the test case skipped itself")
 endif()
