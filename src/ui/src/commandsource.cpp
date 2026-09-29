@@ -23,7 +23,6 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QPointer>
 #include <QProcess>
 
 #include <mutex>
@@ -40,7 +39,6 @@
 #include <cerrno>
 #include <chrono>
 #include <condition_variable>
-#include <mutex>
 #include <signal.h>
 #include <thread>
 #include <unistd.h>

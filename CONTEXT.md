@@ -546,8 +546,9 @@ LogSquirl runs reads standard input for the running one. It writes what arrives 
 spool file and tells how its command ended -- an exit code, or stopped by a signal. The
 window keeps one per tab and destroys it with the tab: that stops the command with every
 process it started (its own process group, a Job Object on Windows) and removes the spool
-file, or, while another process still holds it open, removes it when the application exits. One tab is one run; a command is never run again by itself, not even when the
-Session is restored.
+file, or, while the file is still held open, removes it when the application exits. One
+tab is one run; a command is never run again by itself, not even when the Session is
+restored.
 _Avoid_: process tab, command tab, stream source
 
 **Ordinary Log File**:
