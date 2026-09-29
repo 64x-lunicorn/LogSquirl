@@ -59,8 +59,10 @@
 - **Piping into `logsquirl -` while LogSquirl runs opens a tab**: what is piped
   in opens as a `stdin` tab in the running window, together with any files
   given, and follows as it arrives; the piping process exits when the pipe
-  closes. Each pipe gets a tab of its own, and closing the tab removes its
-  temporary file. Before, the input was lost. (#623)
+  closes or the tab does. Each pipe gets a tab of its own, and closing the tab
+  removes its temporary file. A running LogSquirl that does not take the input
+  over, such as one of another version, is reported instead. Before, the input
+  was lost. (#623)
 
 # v26.10.0 (2026-09-29)
 
