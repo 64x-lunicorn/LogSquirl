@@ -525,6 +525,10 @@ private:
         LineNumber lineNumber{ 0 };
         // The text as the Log File holds it, which the Line Decorator matches against.
         QString text;
+        // The colors its ANSI color sequences ask for, in the columns of text.
+        // Read only while the Decoration Policy shows ANSI colors, with the
+        // text, once as the Log Line enters the Viewport (#573).
+        logsquirl::vector<AnsiColorSpan> ansiColors;
         // The text with its tabs expanded, split into the Visual Lines it is drawn as.
         WrappedString wrapped;
         // The first of its Visual Lines in the Viewport. Past 0 only for the Log
