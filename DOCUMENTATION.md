@@ -1135,9 +1135,28 @@ shown before and after each match (5 by default, 0 turns them off). With
 *Fast scroll multiplier* times (5) as far while `Alt` is held.
 
 Some log files contain ANSI color codes to be displayed by terminals with
-color support. These color codes create visual noise, so *logsquirl* provides
-an option to hide them from both main and filtered view. However, enabling
-this option will cause regular expression search to be slower.
+color support: the output of `ls --color`, of a test runner or of a colored
+logger. *ANSI color sequences* says what *logsquirl* does with them:
+
+- *Show as text* (the default) shows the escape sequences as characters, as
+  the file holds them.
+- *Hide* removes them from every line: the main and the filtered view show the
+  text without them, and Search, QuickFind, selection and copy work on that
+  text.
+- *Show colors* removes them as *Hide* does and paints the lines in the colors
+  they ask for, in the main and the filtered view. Foreground and background
+  colors are shown (the 16 basic colors, the 256-color palette and truecolor);
+  bold, underline and the other attributes are not. Each line starts in its
+  own colors. The 16 basic colors are the Theme's: Smyck and Smyck Light use
+  the SMYCK scheme's, the other Themes xterm's, and a foreground too faint to
+  read on its background is moved toward the Theme's text color. Highlighters,
+  the search highlight, Color Labels, QuickFind and the selection paint over
+  the ANSI colors. Search, QuickFind, selection and copy work exactly as under
+  *Hide*, and switching between the two reloads nothing and runs no search
+  again. The table view shows the text as under *Hide*, without ANSI colors.
+
+*Hide* and *Show colors* make regular expression search slower: every line is
+read without its sequences first.
 
 ### File
 

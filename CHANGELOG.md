@@ -31,6 +31,16 @@
   only when *Include Context Lines* is checked, and an optional *Type* column
   says whether each line is a `Match`, `Mark`, `Match+Mark` or `Context`.
   (#577)
+- **ANSI color sequences can be shown as colors**: *Hide ANSI Colors* in
+  *Settings → View → Miscellaneous* becomes *ANSI color sequences* with three
+  values. *Show as text* (the default) and *Hide* work as the checkbox did off
+  and on; *Show colors* hides the sequences and paints the lines of the main
+  and the filtered view in the foreground and background colors they ask for —
+  16 basic colors from the Theme, the 256-color palette and truecolor — with
+  Highlighters, Search, Color Labels, QuickFind and the selection painted over
+  them. Search, QuickFind, selection and copy work as under *Hide*, and the
+  table view shows no ANSI colors. A ticked checkbox from an earlier version
+  opens as *Hide*. (#573)
 
 # v26.10.0 (2026-09-29)
 
