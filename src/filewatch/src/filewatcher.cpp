@@ -59,6 +59,10 @@ struct WatchedDirectory {
     std::vector<WatchedFile> files;
 };
 
+// The watch ID of a directory native watching is off for: not an efsw error
+// (those run from -1 to -8), but the Watch Policy's choice (#619).
+constexpr efsw::WatchID NotWatchedNatively = -111;
+
 bool isOnlyForPolling( const WatchedDirectory& wd )
 {
     return wd.watchId < 0;
@@ -90,9 +94,12 @@ public:
             }
         }
         else {
-            for ( const auto& dir : watchedPaths_ ) {
+            for ( auto& dir : watchedPaths_ ) {
                 LOG_INFO << "Will disable watch for " << dir.name;
-                watcher_.removeWatch( dir.watchId );
+                if ( !isOnlyForPolling( dir ) ) {
+                    watcher_.removeWatch( dir.watchId );
+                }
+                dir.watchId = NotWatchedNatively;
             }
         }
     }
@@ -118,7 +125,12 @@ public:
                             [ &directory ]( const auto& wd ) { return wd.name == directory; } );
 
         const auto tryWatchDirectory = [ this ]( const std::string& path ) {
-            auto watchId = nativeWatchEnabled_ ? watcher_.addWatch( path, this, false ) : -111;
+            if ( !nativeWatchEnabled_ ) {
+                LOG_DEBUG << "native watching is off, only polling may watch " << path;
+                return NotWatchedNatively;
+            }
+
+            const auto watchId = watcher_.addWatch( path, this, false );
 
             if ( watchId < 0 ) {
                 LOG_WARNING << "failed to add watch " << path << " error " << watchId;
@@ -468,6 +480,11 @@ FileWatcher& FileWatcher::getFileWatcher()
 {
     static auto* const instance = new FileWatcher;
     return *instance;
+}
+
+FileWatcher& FileWatcher::createForTesting()
+{
+    return *new FileWatcher;
 }
 
 std::shared_ptr<FileWatcher> FileWatcher::sharedFileWatcher()
