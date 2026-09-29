@@ -223,6 +223,9 @@ std::unique_ptr<QMenu> PresentationMenu::create( QWidget* parent, const Report& 
     addEntry( *menu, tr( "Save to file" ), entries.saveToFile );
     addEntry( *menu, tr( "Save selected to file" ), entries.saveSelectedToFile )
         ->setEnabled( hasSelection );
+    if ( entries.exportAsCsv ) {
+        addEntry( *menu, tr( "Export as CSV..." ), entries.exportAsCsv );
+    }
 
     return menu;
 }

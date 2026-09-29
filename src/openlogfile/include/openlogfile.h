@@ -122,6 +122,11 @@ public:
 
     // Starts loading the Log File. It can be opened once.
     void open( const QString& fileName );
+    // The Log File opened, empty before open().
+    const QString& fileName() const
+    {
+        return fileName_;
+    }
 
     // Marks saved with the Session for this Log File, applied once, when the
     // first load has finished. Hand them over before that.

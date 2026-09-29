@@ -557,10 +557,10 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
             const auto textMenu = textView.createContextMenu( QPoint( 100, 2 ) );
             const auto tableMenu = tableView.createContextMenu( centerOfRow( tableView, 0 ) );
 
-            THEN( "both offer the same entries in the same order, and only the Text View lets "
-                  "a selection start and end be set" )
+            THEN( "both offer the same entries in the same order, only the Text View lets a "
+                  "selection start and end be set, and only the Table View exports as CSV" )
             {
-                const QStringList tableEntries = {
+                QStringList tableEntries = {
                     "Highlighters",
                     "Color labels",
                     "&Mark",
@@ -584,6 +584,7 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
                 const auto beforeSplitter = textEntries.indexOf( "Save splitter position" );
                 textEntries.insert( beforeSplitter, "Set selection end" );
                 textEntries.insert( beforeSplitter, "Set selection start" );
+                tableEntries << "Export as CSV...";
 
                 REQUIRE( entriesOf( *tableMenu ) == tableEntries );
                 REQUIRE( entriesOf( *textMenu ) == textEntries );
@@ -1418,6 +1419,123 @@ SCENARIO( "A followed Table View stays at the bottom when its viewport shrinks",
             REQUIRE_FALSE( isAtBottom( view ) );
             REQUIRE( followChanged.count() == 1 );
             REQUIRE( followChanged.front().front().toBool() == false );
+        }
+    }
+}
+
+namespace {
+
+// The Log Lines of RowsFromLogLine100 as a Table View shows them, with a quote
+// and a separator in a message.
+QStringList csvLines()
+{
+    auto lines = offsetLines();
+    lines[ 102 ] = R"(Jan  1 12:00:02 host2 said "hi", then left)";
+    return lines;
+}
+
+QByteArray csvFile( std::initializer_list<QByteArray> lines )
+{
+    QByteArray bytes = "\xEF\xBB\xBF";
+    for ( const auto& line : lines ) {
+        bytes += line + "\r\n";
+    }
+    return bytes;
+}
+
+} // namespace
+
+SCENARIO( "Export as CSV in the Table View writes the chosen Rows and columns",
+          "[logtableview][csvexport]" )
+{
+    const auto format = makeFormat();
+    FakeLogData logData( csvLines() );
+    LogTableView view( std::make_shared<RowsFromLogLine100>() );
+    open( view, format, logData );
+    view.setLogFilePath( "/logs/app.log" );
+
+    const QTemporaryDir dir;
+    REQUIRE( dir.isValid() );
+    CsvExportDialog::Choices choices;
+    choices.fileName = dir.filePath( "export.csv" );
+
+    GIVEN( "a Row selected" )
+    {
+        selectRows( view, { 3 } );
+
+        WHEN( "the dialog is set up" )
+        {
+            const auto setup = view.csvExportSetup();
+
+            THEN( "it offers the selected Rows, the Line column unchecked and every column of "
+                  "the table checked, and proposes the Log File's name" )
+            {
+                REQUIRE( setup.hasSelection );
+                QStringList names;
+                std::vector<bool> checked;
+                for ( const auto& column : setup.columns ) {
+                    names << column.name;
+                    checked.push_back( column.checked );
+                }
+                REQUIRE( names
+                         == QStringList{ "Line", "timestamp", "Δt", "level", "host", "body" } );
+                REQUIRE( checked == std::vector<bool>{ false, true, true, true, true, true } );
+                REQUIRE( setup.proposedFileName == "/logs/app.log.csv" );
+            }
+        }
+    }
+
+    GIVEN( "no Row selected" )
+    {
+        view.clearSelection();
+
+        THEN( "the dialog does not offer the selected Rows" )
+        {
+            REQUIRE( !view.csvExportSetup().hasSelection );
+        }
+    }
+
+    GIVEN( "every Row, with the Line column and a header row" )
+    {
+        choices.columns = { 0, 1, 5 };
+        choices.header = true;
+
+        WHEN( "the Table View exports" )
+        {
+            view.exportCsvTo( choices );
+
+            THEN( "the file holds every Row in the table's order, each Log Line numbered from 1" )
+            {
+                REQUIRE( contentOf( choices.fileName )
+                         == csvFile( { "Line,timestamp,body", "101,Jan  1 12:00:00,message 00",
+                                       "102,Jan  1 12:00:01,message 01",
+                                       R"(103,Jan  1 12:00:02,"said ""hi"", then left")",
+                                       "104,Jan  1 12:00:03,message 03",
+                                       "105,Jan  1 12:00:04,message 04" } ) );
+            }
+        }
+    }
+
+    GIVEN( "Rows selected out of order, separated by tabs, without a header row" )
+    {
+        selectRows( view, { 4, 2 } );
+        choices.selectedRowsOnly = true;
+        choices.columns = { 4, 5 };
+        choices.separator = '\t';
+        choices.header = false;
+
+        WHEN( "the Table View exports" )
+        {
+            view.exportCsvTo( choices );
+
+            THEN( "the file holds only those Rows, in Log Line order" )
+            {
+                REQUIRE( contentOf( choices.fileName )
+                         == csvFile( { R"(host2)"
+                                       "\t"
+                                       R"("said ""hi"", then left")",
+                                       "host04\tmessage 04" } ) );
+            }
         }
     }
 }

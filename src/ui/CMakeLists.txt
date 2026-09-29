@@ -81,6 +81,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayfilepath.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/downloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linessaver.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/csvexport.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/csvexportdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fontutils.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/colorlabelsmanager.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/plugindialog.h
@@ -160,6 +162,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayfilepath.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/downloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/linessaver.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/csvexport.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/csvexportdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/colorlabelsmanager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/commandpalette.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/plugindialog.cpp

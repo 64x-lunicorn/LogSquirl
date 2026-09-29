@@ -2499,6 +2499,7 @@ void CrawlerWidget::showRecognizedFormat()
     const auto previousFormat = std::exchange( recognizedFormat_, std::move( recognized ) );
     cancelTimeLookup();
     logTableView_->setLogFormat( recognizedFormat_.get(), openLogFile_->logData().get() );
+    logTableView_->setLogFilePath( openLogFile_->fileName() );
     tableViewToggle_->setVisible( true );
     tableViewToggle_->setToolTip(
         tr( "Toggle table/text view (%1)" ).arg( recognizedFormat_->title() ) );
