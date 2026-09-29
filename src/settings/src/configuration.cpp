@@ -418,6 +418,15 @@ QFont resolvedMainFont( QFont font )
     return font;
 }
 
+// The name a CSV separator is stored under, a comma for an unknown one.
+QString knownCsvSeparator( QString name )
+{
+    if ( name != QLatin1String( "semicolon" ) && name != QLatin1String( "tab" ) ) {
+        name = QStringLiteral( "comma" );
+    }
+    return name;
+}
+
 QString availableStyle( QString style )
 {
     const auto styles = Theme::availableThemes();
@@ -527,6 +536,10 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
 
     visit( "chartPresets", config.chartPresets_, ChartPresets{} );
 
+    visit( "export.csvSeparator", config.csvSeparator_, QStringLiteral( "comma" ),
+           knownCsvSeparator );
+    visit( "export.csvHeader", config.csvHeader_, true );
+
     // Only overrides are stored; the Dark Theme holds the Tokens themselves.
     visit( "dark", config.darkPalette_, DarkPalette{} );
 }
@@ -543,6 +556,30 @@ QString Configuration::indexCacheDirectory() const
 }
 
 // Accessor functions
+QChar Configuration::csvSeparator() const
+{
+    if ( csvSeparator_ == QLatin1String( "semicolon" ) ) {
+        return QLatin1Char( ';' );
+    }
+    if ( csvSeparator_ == QLatin1String( "tab" ) ) {
+        return QLatin1Char( '\t' );
+    }
+    return QLatin1Char( ',' );
+}
+
+void Configuration::setCsvSeparator( QChar separator )
+{
+    if ( separator == QLatin1Char( ';' ) ) {
+        csvSeparator_ = QStringLiteral( "semicolon" );
+    }
+    else if ( separator == QLatin1Char( '\t' ) ) {
+        csvSeparator_ = QStringLiteral( "tab" );
+    }
+    else {
+        csvSeparator_ = QStringLiteral( "comma" );
+    }
+}
+
 QFont Configuration::mainFont() const
 {
     return mainFont_;

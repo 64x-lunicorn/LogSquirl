@@ -562,6 +562,36 @@ Lines that do not match the detected format's regex are displayed in the
 **body** column with all other columns empty. This ensures no data is lost
 in the table view.
 
+#### Exporting as CSV
+
+Right-click the table and choose **Export as CSV...** to write the table to a
+file for a spreadsheet, pandas and the like. The entry is only in the table
+view; without a recognized format there is no table view and no export. A
+dialog chooses what is written:
+
+- **Rows**: *All rows*, every row the table shows, in its order, or
+  *Selected rows*, the selected ones in line order. *Selected rows* can only
+  be chosen while rows are selected, and is then chosen at first.
+- **Columns**: *Line*, the 1-based line number as *Copy with line numbers*
+  writes it (unchecked at first), then every column of the table, **Δt**
+  included (all checked). At least one column must be checked.
+- **Separator**: *Comma*, *Semicolon* or *Tab*.
+- **Write column names as the first row**: the header row.
+
+**Export...** then asks for the file, proposing the log file's name with
+`.csv` added, and adds `.csv` to a name without it. The separator and the
+header row are remembered for the next export; the rows and columns are not.
+
+Every value is exactly what the table shows, the elapsed time and the raw
+text of a non-matching line included. The file is UTF-8 with a byte order
+mark, so that Excel reads accented characters correctly when the file is
+double-clicked (pandas reads it with `encoding="utf-8-sig"`), and its lines
+end with CR LF. A field is quoted with `"` when it holds the separator, a
+`"`, or a line break, and a `"` inside it is doubled (RFC 4180).
+
+The export runs in the background with a progress dialog. Cancelling it, or
+a failed write, leaves an existing file as it was and creates no new one.
+
 ### Chart Panel
 
 The Chart Panel lets you plot numeric values extracted from log lines using

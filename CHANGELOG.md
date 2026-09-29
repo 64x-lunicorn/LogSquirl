@@ -10,6 +10,13 @@
   logs and its session still opens after it is moved to another machine; a
   missing file, or one already open in another window, is left out and named.
   (#576)
+- **The Table View exports as CSV**: *Export as CSV...* in the Table View's
+  context menu writes all rows or the selected ones, with the chosen columns
+  (an optional *Line* column, and the elapsed time), a comma, semicolon or tab
+  as separator and an optional header row, exactly as the table shows them. The
+  file is UTF-8 with a byte order mark and CR LF line ends, written in the
+  background with progress; a cancelled export leaves the target file as it
+  was. The separator and the header row are remembered. (#572)
 
 # v26.10.0 (2026-09-29)
 

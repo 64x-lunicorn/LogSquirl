@@ -37,7 +37,7 @@
 
 bool saveDisplayedLines( const DisplayedLinesReader& readLines, LineNumber begin, LineNumber end,
                          const TextEncoding* codec, QIODevice& output, const AtomicFlag& interrupt,
-                         const std::function<void( int )>& progress )
+                         const std::function<void( int )>& progress, LineEnds lineEnds )
 {
     // The lines are read and written in chunks of chunkSize lines; only the
     // last chunk may be shorter, and an empty range has no chunk.
@@ -82,7 +82,7 @@ bool saveDisplayedLines( const DisplayedLinesReader& readLines, LineNumber begin
     using LinesData = logsquirl::vector<QString>;
     auto lineReader = tbb::flow::input_node<LinesData>(
         saveFileGraph,
-        [ &readLines, &offsets, &isStopped, &progress,
+        [ &readLines, &offsets, &isStopped, &progress, lineEnds,
           offsetIndex = 0u ]( tbb::flow_control& fc ) mutable -> LinesData {
             if ( isStopped() || offsetIndex >= offsets.size() ) {
                 fc.stop();
@@ -91,10 +91,16 @@ bool saveDisplayedLines( const DisplayedLinesReader& readLines, LineNumber begin
 
             const auto& offset = offsets.at( offsetIndex );
             auto lines = readLines( offset.first, offset.second );
-            for ( auto& l : lines ) {
-#if !defined( Q_OS_WIN )
-                l.append( QChar::CarriageReturn );
+#if defined( Q_OS_WIN )
+            const bool carriageReturn = lineEnds == LineEnds::CrLf;
+#else
+            const bool carriageReturn = true;
+            Q_UNUSED( lineEnds );
 #endif
+            for ( auto& l : lines ) {
+                if ( carriageReturn ) {
+                    l.append( QChar::CarriageReturn );
+                }
                 l.append( QChar::LineFeed );
             }
 
@@ -147,20 +153,21 @@ LinesSaver::~LinesSaver()
 }
 
 void LinesSaver::save( DisplayedLinesReader readLines, LineNumber begin, LineNumber end,
-                       const TextEncoding* codec, QIODevice* output, const AtomicFlag& interrupt )
+                       const TextEncoding* codec, QIODevice* output, const AtomicFlag& interrupt,
+                       LineEnds lineEnds )
 {
     // Progress is posted to this object's thread and emitted there, so every
     // slot connected to progressed() runs on that thread. The destructor waits
     // for the save, and destroying this object discards what is still posted.
-    future_ = QtConcurrent::run(
-        [ this, readLines = std::move( readLines ), begin, end, codec, output, &interrupt ]() {
-            const auto reportProgress = [ this ]( int value ) {
-                QMetaObject::invokeMethod(
-                    this, [ this, value ]() { Q_EMIT progressed( value ); }, Qt::QueuedConnection );
-            };
-            return saveDisplayedLines( readLines, begin, end, codec, *output, interrupt,
-                                       reportProgress );
-        } );
+    future_ = QtConcurrent::run( [ this, readLines = std::move( readLines ), begin, end, codec,
+                                   output, &interrupt, lineEnds ]() {
+        const auto reportProgress = [ this ]( int value ) {
+            QMetaObject::invokeMethod(
+                this, [ this, value ]() { Q_EMIT progressed( value ); }, Qt::QueuedConnection );
+        };
+        return saveDisplayedLines( readLines, begin, end, codec, *output, interrupt, reportProgress,
+                                   lineEnds );
+    } );
     watcher_.setFuture( future_ );
 }
 
@@ -171,7 +178,7 @@ bool LinesSaver::waitForResult()
 
 void saveLinesWithProgress( QWidget* parent, const QString& filename,
                             DisplayedLinesReader readLines, LineNumber begin, LineNumber end,
-                            const TextEncoding* codec )
+                            const TextEncoding* codec, LineEnds lineEnds )
 {
     QSaveFile saveFile{ filename };
     if ( !saveFile.open( QIODevice::WriteOnly | QIODevice::Truncate ) ) {
@@ -198,7 +205,8 @@ void saveLinesWithProgress( QWidget* parent, const QString& filename,
     QObject::connect( &linesSaver, &LinesSaver::finished, &progressDialog,
                       [ &progressDialog ]() { progressDialog.done( QDialog::Accepted ); } );
 
-    linesSaver.save( std::move( readLines ), begin, end, codec, &saveFile, interruptRequest );
+    linesSaver.save( std::move( readLines ), begin, end, codec, &saveFile, interruptRequest,
+                     lineEnds );
 
     if ( progressDialog.exec() != QDialog::Accepted ) {
         interruptRequest.set();

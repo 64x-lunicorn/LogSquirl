@@ -624,6 +624,19 @@ public:
         hideAnsiColorSequences_ = hide;
     }
 
+    // The separator and the header row the last CSV export used: a comma,
+    // a semicolon or a tab.
+    QChar csvSeparator() const;
+    void setCsvSeparator( QChar separator );
+    bool csvHeader() const
+    {
+        return csvHeader_;
+    }
+    void setCsvHeader( bool header )
+    {
+        csvHeader_ = header;
+    }
+
     int defaultEncodingMib() const
     {
         return defaultEncodingMib_;
@@ -818,6 +831,10 @@ private:
     bool hideAnsiColorSequences_{};
 
     int defaultEncodingMib_{};
+
+    // Stored by name: "comma", "semicolon" or "tab".
+    QString csvSeparator_;
+    bool csvHeader_{};
 
     bool showSplashScreen_{};
 

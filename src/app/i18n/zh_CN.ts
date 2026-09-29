@@ -1090,7 +1090,7 @@ Without a date, %1 is used.</source>
         <translation>“%2”的分组 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2504"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2505"/>
         <source>Toggle table/text view (%1)</source>
         <translation>切换表格/文本视图 (%1)</translation>
     </message>
@@ -1128,6 +1128,70 @@ Without a date, %1 is used.</source>
         <location filename="../../ui/src/crawlerwidget.cpp" line="2384"/>
         <source>Detected as %1</source>
         <translation>检测到编码：%1</translation>
+    </message>
+</context>
+<context>
+    <name>CsvExportDialog</name>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="41"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="45"/>
+        <source>Export as CSV</source>
+        <translation>导出为 CSV</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="42"/>
+        <source>CSV files (*.csv)</source>
+        <translation>CSV 文件 (*.csv)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="47"/>
+        <source>Rows</source>
+        <translation>行</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="50"/>
+        <source>All rows</source>
+        <translation>所有行</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="51"/>
+        <source>Selected rows</source>
+        <translation>所选行</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="65"/>
+        <source>Columns</source>
+        <translation>列</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="77"/>
+        <source>Separator</source>
+        <translation>分隔符</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="79"/>
+        <source>Comma</source>
+        <translation>逗号</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="80"/>
+        <source>Semicolon</source>
+        <translation>分号</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="81"/>
+        <source>Tab</source>
+        <translation>制表符</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="94"/>
+        <source>Write column names as the first row</source>
+        <translation>将列名写为第一行</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="98"/>
+        <source>Export...</source>
+        <translation>导出...</translation>
     </message>
 </context>
 <context>
@@ -1575,9 +1639,14 @@ Without a date, %1 is used.</source>
 <context>
     <name>LogTableView</name>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="730"/>
+        <location filename="../../ui/src/logtableview.cpp" line="732"/>
         <source>Count values</source>
         <translation>统计值</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/logtableview.cpp" line="1082"/>
+        <source>Line</source>
+        <translation>行号</translation>
     </message>
 </context>
 <context>
@@ -3290,6 +3359,11 @@ Restart LogSquirl to try again.</source>
         <source>Save selected to file</source>
         <translation>将选中内容保存到文件</translation>
     </message>
+    <message>
+        <location filename="../../ui/src/presentationmenu.cpp" line="227"/>
+        <source>Export as CSV...</source>
+        <translation>导出为 CSV...</translation>
+    </message>
 </context>
 <context>
     <name>QApplication</name>
@@ -3834,7 +3908,7 @@ Restart LogSquirl to try again.</source>
         <translation>字段：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/linessaver.cpp" line="192"/>
+        <location filename="../../ui/src/linessaver.cpp" line="199"/>
         <source>Saving content to %1</source>
         <translation>正在将内容保存到 %1</translation>
     </message>

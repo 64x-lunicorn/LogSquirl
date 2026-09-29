@@ -1090,7 +1090,7 @@ Without a date, %1 is used.</translation>
         <translation>group %1 of &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2504"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2505"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Toggle table/text view (%1)</translation>
     </message>
@@ -1128,6 +1128,70 @@ Without a date, %1 is used.</translation>
         <location filename="../../ui/src/crawlerwidget.cpp" line="2384"/>
         <source>Detected as %1</source>
         <translation>Detected as %1</translation>
+    </message>
+</context>
+<context>
+    <name>CsvExportDialog</name>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="41"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="45"/>
+        <source>Export as CSV</source>
+        <translation>Export as CSV</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="42"/>
+        <source>CSV files (*.csv)</source>
+        <translation>CSV files (*.csv)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="47"/>
+        <source>Rows</source>
+        <translation>Rows</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="50"/>
+        <source>All rows</source>
+        <translation>All rows</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="51"/>
+        <source>Selected rows</source>
+        <translation>Selected rows</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="65"/>
+        <source>Columns</source>
+        <translation>Columns</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="77"/>
+        <source>Separator</source>
+        <translation>Separator</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="79"/>
+        <source>Comma</source>
+        <translation>Comma</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="80"/>
+        <source>Semicolon</source>
+        <translation>Semicolon</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="81"/>
+        <source>Tab</source>
+        <translation>Tab</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="94"/>
+        <source>Write column names as the first row</source>
+        <translation>Write column names as the first row</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="98"/>
+        <source>Export...</source>
+        <translation>Export...</translation>
     </message>
 </context>
 <context>
@@ -1575,9 +1639,14 @@ Without a date, %1 is used.</translation>
 <context>
     <name>LogTableView</name>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="730"/>
+        <location filename="../../ui/src/logtableview.cpp" line="732"/>
         <source>Count values</source>
         <translation>Count values</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/logtableview.cpp" line="1082"/>
+        <source>Line</source>
+        <translation>Line</translation>
     </message>
 </context>
 <context>
@@ -3291,6 +3360,11 @@ Restart LogSquirl to try again.</translation>
         <source>Save selected to file</source>
         <translation>Save selected to file</translation>
     </message>
+    <message>
+        <location filename="../../ui/src/presentationmenu.cpp" line="227"/>
+        <source>Export as CSV...</source>
+        <translation>Export as CSV...</translation>
+    </message>
 </context>
 <context>
     <name>QApplication</name>
@@ -3835,7 +3909,7 @@ Restart LogSquirl to try again.</translation>
         <translation>Field: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/linessaver.cpp" line="192"/>
+        <location filename="../../ui/src/linessaver.cpp" line="199"/>
         <source>Saving content to %1</source>
         <translation>Saving content to %1</translation>
     </message>

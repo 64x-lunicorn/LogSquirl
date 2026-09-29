@@ -1090,7 +1090,7 @@ Without a date, %1 is used.</source>
         <translation>група %1 з &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2504"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2505"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Перемкнути табличний/текстовий вигляд (%1)</translation>
     </message>
@@ -1128,6 +1128,70 @@ Without a date, %1 is used.</source>
         <location filename="../../ui/src/crawlerwidget.cpp" line="2384"/>
         <source>Detected as %1</source>
         <translation>Визначено як %1</translation>
+    </message>
+</context>
+<context>
+    <name>CsvExportDialog</name>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="41"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="45"/>
+        <source>Export as CSV</source>
+        <translation>Експорт у CSV</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="42"/>
+        <source>CSV files (*.csv)</source>
+        <translation>Файли CSV (*.csv)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="47"/>
+        <source>Rows</source>
+        <translation>Рядки</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="50"/>
+        <source>All rows</source>
+        <translation>Усі рядки</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="51"/>
+        <source>Selected rows</source>
+        <translation>Вибрані рядки</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="65"/>
+        <source>Columns</source>
+        <translation>Стовпці</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="77"/>
+        <source>Separator</source>
+        <translation>Роздільник</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="79"/>
+        <source>Comma</source>
+        <translation>Кома</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="80"/>
+        <source>Semicolon</source>
+        <translation>Крапка з комою</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="81"/>
+        <source>Tab</source>
+        <translation>Табуляція</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="94"/>
+        <source>Write column names as the first row</source>
+        <translation>Записати назви стовпців першим рядком</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="98"/>
+        <source>Export...</source>
+        <translation>Експортувати...</translation>
     </message>
 </context>
 <context>
@@ -1575,9 +1639,14 @@ Without a date, %1 is used.</source>
 <context>
     <name>LogTableView</name>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="730"/>
+        <location filename="../../ui/src/logtableview.cpp" line="732"/>
         <source>Count values</source>
         <translation>Підрахунок значень</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/logtableview.cpp" line="1082"/>
+        <source>Line</source>
+        <translation>Рядок</translation>
     </message>
 </context>
 <context>
@@ -3292,6 +3361,11 @@ Restart LogSquirl to try again.</source>
         <source>Save selected to file</source>
         <translation>Зберегти вибране у файл</translation>
     </message>
+    <message>
+        <location filename="../../ui/src/presentationmenu.cpp" line="227"/>
+        <source>Export as CSV...</source>
+        <translation>Експорт у CSV...</translation>
+    </message>
 </context>
 <context>
     <name>QApplication</name>
@@ -3836,7 +3910,7 @@ Restart LogSquirl to try again.</source>
         <translation>Поле: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/linessaver.cpp" line="192"/>
+        <location filename="../../ui/src/linessaver.cpp" line="199"/>
         <source>Saving content to %1</source>
         <translation>Збереження вмісту до %1</translation>
     </message>

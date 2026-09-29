@@ -16,6 +16,9 @@ add_executable(logsquirl_tests
     compressedlinestorage_test.cpp
     configuration_test.cpp
     crashreports_test.cpp
+    csv_test.cpp
+    csvexport_test.cpp
+    csvexportdialog_test.cpp
     datalocation_test.cpp
     decorationsetup_test.cpp
     displayedlines_test.cpp

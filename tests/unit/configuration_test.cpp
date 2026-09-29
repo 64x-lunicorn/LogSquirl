@@ -163,6 +163,12 @@ SCENARIO( "Configuration default values", "[configuration]" )
         {
             REQUIRE_FALSE( config.enableLogging() );
         }
+
+        THEN( "A CSV export is separated by commas and has a header row" )
+        {
+            REQUIRE( config.csvSeparator() == QChar( ',' ) );
+            REQUIRE( config.csvHeader() );
+        }
     }
 }
 
@@ -294,6 +300,8 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
         config.setHideAnsiColorSequences( true );
         config.setUseTextWrap( true );
         config.setContextLinesCount( 10 );
+        config.setCsvSeparator( '\t' );
+        config.setCsvHeader( false );
 
         WHEN( "Saved to QSettings and restored" )
         {
@@ -364,6 +372,12 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
                 REQUIRE( restored.hideAnsiColorSequences() );
                 REQUIRE( restored.useTextWrap() );
                 REQUIRE( restored.contextLinesCount() == 10 );
+            }
+
+            THEN( "The CSV export's separator and header row are preserved" )
+            {
+                REQUIRE( restored.csvSeparator() == QChar( '\t' ) );
+                REQUIRE_FALSE( restored.csvHeader() );
             }
         }
     }
@@ -535,6 +549,8 @@ const QStringList StoredSettingNames = {
     "defaultView.searchLogicalCombining",
     "defaultView.searchWindowMinutes",
     "defaultView.splitterSizes",
+    "export.csvHeader",
+    "export.csvSeparator",
     "filewatch.allowFollowOnScroll",
     "filewatch.fastModificationDetection",
     "filewatch.pollingIntervalMs",
@@ -683,6 +699,8 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.pluginsAutoLoad() == expected.pluginsAutoLoad() );
     CHECK( actual.enabledPlugins() == expected.enabledPlugins() );
     CHECK( actual.chartPresets() == expected.chartPresets() );
+    CHECK( actual.csvSeparator() == expected.csvSeparator() );
+    CHECK( actual.csvHeader() == expected.csvHeader() );
     CHECK( actual.darkPalette() == expected.darkPalette() );
 }
 
@@ -834,8 +852,9 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                 auto stored = storedSettings( config );
                 // Settings added after v26.07.0 are not in its file; loading it
                 // leaves them at their default.
-                for ( const auto* added : { "defaultView.searchWindowMinutes", "teamFolder.enabled",
-                                            "teamFolder.url", "teamFolder.subfolder" } ) {
+                for ( const auto* added :
+                      { "defaultView.searchWindowMinutes", "teamFolder.enabled", "teamFolder.url",
+                        "teamFolder.subfolder", "export.csvSeparator", "export.csvHeader" } ) {
                     stored.remove( added );
                 }
                 CHECK( stored.keys() == release.keys() );
@@ -971,6 +990,16 @@ SCENARIO( "Stored values outside their range are corrected on load", "[configura
         THEN( "The platform's default style is loaded" )
         {
             CHECK( file.load().style() == Theme::defaultTheme() );
+        }
+    }
+
+    GIVEN( "A CSV separator that does not exist" )
+    {
+        SettingsFile file;
+        file.setValue( "export.csvSeparator", "pipe" );
+        THEN( "The comma is loaded" )
+        {
+            CHECK( file.load().csvSeparator() == QChar( ',' ) );
         }
     }
 }

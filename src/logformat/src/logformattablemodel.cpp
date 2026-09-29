@@ -32,63 +32,20 @@ LogFormatTableModel::LogFormatTableModel( const LogFormatDefinition& format,
                                           AbstractLogData* logData,
                                           std::shared_ptr<const RowMapping> rows, QObject* parent )
     : QAbstractTableModel( parent )
-    , extractor_( format )
     , format_( format )
-    , columnNames_( extractor_.columnNames() )
+    , cells_( std::make_unique<const TableRowCells>( format ) )
     , logData_( logData )
     , rows_( std::move( rows ) )
 {
-    if ( TimestampReader::isAvailableFor( format ) ) {
-        timestampField_ = static_cast<int>( columnNames_.indexOf( format.timestampField() ) );
-        if ( timestampField_ >= 0 ) {
-            elapsedColumn_ = timestampField_ + 1;
-            reader_ = std::make_unique<TimestampReader>( format );
-        }
-    }
-}
-
-QString LogFormatTableModel::formatElapsed( qint64 milliseconds )
-{
-    const auto sign = milliseconds < 0 ? QLatin1Char( '-' ) : QLatin1Char( '+' );
-    const auto magnitude = milliseconds < 0 ? -milliseconds : milliseconds;
-
-    if ( magnitude < 1000 ) {
-        return QString( sign )
-               + QStringLiteral( "0.%1s" ).arg( magnitude, 3, 10, QLatin1Char( '0' ) );
-    }
-    // Rounded before it is cut into units, so 59.96 s does not read "60.0s".
-    const auto tenths = ( magnitude + 50 ) / 100;
-    if ( tenths < 600 ) {
-        return QStringLiteral( "%1%2.%3s" ).arg( sign ).arg( tenths / 10 ).arg( tenths % 10 );
-    }
-    const auto seconds = ( magnitude + 500 ) / 1000;
-    if ( seconds < 3600 ) {
-        return QStringLiteral( "%1%2m%3s" )
-            .arg( sign )
-            .arg( seconds / 60 )
-            .arg( seconds % 60, 2, 10, QLatin1Char( '0' ) );
-    }
-    const auto minutes = ( magnitude + 30'000 ) / 60'000;
-    if ( minutes < 24 * 60 ) {
-        return QStringLiteral( "%1%2h%3m" )
-            .arg( sign )
-            .arg( minutes / 60 )
-            .arg( minutes % 60, 2, 10, QLatin1Char( '0' ) );
-    }
-    const auto hours = ( magnitude + 1'800'000 ) / 3'600'000;
-    return QStringLiteral( "%1%2d%3h" )
-        .arg( sign )
-        .arg( hours / 24 )
-        .arg( hours % 24, 2, 10, QLatin1Char( '0' ) );
 }
 
 void LogFormatTableModel::setModificationDate( const QDate& date )
 {
-    if ( date == modificationDate_ || !reader_ ) {
+    if ( date == modificationDate_ || cells_->elapsedColumn() < 0 ) {
         return;
     }
     modificationDate_ = date;
-    reader_ = std::make_unique<TimestampReader>( format_, 0, date );
+    cells_ = std::make_unique<const TableRowCells>( format_, date );
     forgetTimestamps();
     rereadRows();
 }
@@ -113,24 +70,9 @@ std::optional<QDateTime> LogFormatTableModel::timestampOfLogLine( LineNumber lin
     if ( known != timestampCache_.constEnd() ) {
         return known.value();
     }
-    auto timestamp = reader_->timestampOf( logData_->getLineString( line ) );
+    auto timestamp = cells_->timestampOf( logData_->getLineString( line ) );
     rememberTimestamp( line.get(), timestamp );
     return timestamp;
-}
-
-QString LogFormatTableModel::elapsedBefore( LineNumber line,
-                                            const std::optional<QDateTime>& timestamp ) const
-{
-    if ( !timestamp ) {
-        return {};
-    }
-    const auto lookBack = std::min( ElapsedLookBack, line.get() );
-    for ( uint64_t back = 1; back <= lookBack; ++back ) {
-        if ( const auto previous = timestampOfLogLine( LineNumber( line.get() - back ) ) ) {
-            return formatElapsed( previous->msecsTo( *timestamp ) );
-        }
-    }
-    return {};
 }
 
 void LogFormatTableModel::setLineCount( int logLineCount )
@@ -173,7 +115,7 @@ void LogFormatTableModel::rereadRows()
 
     // Not a reset: the Rows stay where they are, and so do the selection and
     // the scroll position.
-    if ( lineCount_ > 0 && !columnNames_.isEmpty() ) {
+    if ( lineCount_ > 0 && !cells_->fieldNames().isEmpty() ) {
         const auto lastColumn = columnCount() - 1;
         Q_EMIT dataChanged( index( 0, 0 ), index( lineCount_ - 1, lastColumn ) );
     }
@@ -192,7 +134,7 @@ int LogFormatTableModel::columnCount( const QModelIndex& parent ) const
     if ( parent.isValid() ) {
         return 0;
     }
-    return static_cast<int>( columnNames_.size() ) + ( elapsedColumn_ >= 0 ? 1 : 0 );
+    return cells_->columnCount();
 }
 
 QVariant LogFormatTableModel::data( const QModelIndex& index, int role ) const
@@ -222,11 +164,7 @@ QVariant LogFormatTableModel::data( const QModelIndex& index, int role ) const
     if ( col < 0 || col >= columnCount() ) {
         return {};
     }
-    if ( col == elapsedColumn_ ) {
-        return cached.elapsed;
-    }
-
-    return cached.columns[ fieldColumn( col ) ];
+    return cached.cells.at( col );
 }
 
 QVariant LogFormatTableModel::headerData( int section, Qt::Orientation orientation, int role ) const
@@ -238,11 +176,7 @@ QVariant LogFormatTableModel::headerData( int section, Qt::Orientation orientati
     if ( section < 0 || section >= columnCount() ) {
         return {};
     }
-    if ( section == elapsedColumn_ ) {
-        return QString( QChar( 0x0394 ) ) + QLatin1Char( 't' );
-    }
-
-    return columnNames_[ fieldColumn( section ) ];
+    return cells_->columnName( section );
 }
 
 const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) const
@@ -255,9 +189,13 @@ const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) 
     }
 
     // Extract from logData_ — read the line once from disk
-    auto line = logData_->getLineString( rows_->logLineAt( row ) );
-    bool fieldsMatched = false;
-    auto extracted = extractRow( line, fieldsMatched );
+    const auto logLine = rows_->logLineAt( row );
+    auto line = logData_->getLineString( logLine );
+    auto computed = cells_->rowOf(
+        logLine, line, [ this ]( LineNumber earlier ) { return timestampOfLogLine( earlier ); } );
+    if ( cells_->elapsedColumn() >= 0 ) {
+        rememberTimestamp( logLine.get(), computed.timestamp );
+    }
 
     // Evict oldest if cache is full
     if ( static_cast<int>( rowCacheMap_.size() ) >= RowCacheCapacity ) {
@@ -266,32 +204,7 @@ const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) 
         rowCacheList_.pop_back();
     }
 
-    QString elapsed;
-    if ( reader_ ) {
-        // The Timestamp comes from the field already extracted where the Log
-        // Format is a regex one; the others read the Log Line.
-        const auto logLine = rows_->logLineAt( row );
-        std::optional<QDateTime> timestamp;
-        const auto known = timestampCache_.constFind( logLine.get() );
-        if ( known != timestampCache_.constEnd() ) {
-            timestamp = known.value();
-        }
-        else {
-            if ( format_.kind() == LogFormatKind::Regex ) {
-                const auto& cell = extracted[ timestampField_ ];
-                if ( !cell.isEmpty() && fieldsMatched ) {
-                    timestamp = reader_->parseField( cell );
-                }
-            }
-            else {
-                timestamp = reader_->timestampOf( line );
-            }
-            rememberTimestamp( logLine.get(), timestamp );
-        }
-        elapsed = elapsedBefore( logLine, timestamp );
-    }
-
-    CachedRow entry{ std::move( line ), std::move( extracted ), std::move( elapsed ) };
+    CachedRow entry{ std::move( line ), std::move( computed.cells ) };
     rowCacheList_.emplace_front( row, std::move( entry ) );
     rowCacheMap_[ row ] = rowCacheList_.begin();
     return rowCacheList_.front().second;
@@ -300,56 +213,31 @@ const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) 
 std::optional<std::vector<std::optional<LogFormatTableModel::TextSpan>>>
 LogFormatTableModel::columnSpans( int row ) const
 {
+    const auto& fieldNames = cells_->fieldNames();
     if ( format_.kind() != LogFormatKind::Regex || row < 0 || row >= lineCount_
-         || columnNames_.isEmpty() ) {
+         || fieldNames.isEmpty() ) {
         return std::nullopt;
     }
 
     const auto& line = cachedRow( row ).rawLine;
     std::vector<std::optional<TextSpan>> spans( static_cast<size_t>( columnCount() ) );
-    const auto fieldSpans = extractor_.fieldSpans( line );
+    const auto fieldSpans = cells_->extractor().fieldSpans( line );
     if ( !fieldSpans ) {
         // As extractRow() shows it: the whole Log Line in the last column
-        const auto lastField = static_cast<int>( columnNames_.size() ) - 1;
+        const auto lastField = static_cast<int>( fieldNames.size() ) - 1;
         if ( !line.isEmpty() ) {
-            spans[ static_cast<size_t>( modelColumn( lastField ) ) ]
+            spans[ static_cast<size_t>( cells_->columnOfField( lastField ) ) ]
                 = TextSpan{ 0, static_cast<int>( line.size() ) };
         }
         return spans;
     }
 
-    for ( int field = 0; field < columnNames_.size(); ++field ) {
-        const auto span = fieldSpans->constFind( columnNames_[ field ] );
+    for ( int field = 0; field < fieldNames.size(); ++field ) {
+        const auto span = fieldSpans->constFind( fieldNames[ field ] );
         if ( span != fieldSpans->constEnd() ) {
-            spans[ static_cast<size_t>( modelColumn( field ) ) ]
+            spans[ static_cast<size_t>( cells_->columnOfField( field ) ) ]
                 = TextSpan{ span->first, span->second };
         }
     }
     return spans;
-}
-
-QVector<QString> LogFormatTableModel::extractRow( const QString& line, bool& matched ) const
-{
-    auto fields = extractor_.extractFields( line );
-    matched = fields.isValid();
-
-    QVector<QString> row( columnNames_.size() );
-
-    if ( fields.isValid() ) {
-        for ( int i = 0; i < columnNames_.size(); ++i ) {
-            const auto& colName = columnNames_[ i ];
-            const auto val = fields.value( colName );
-            if ( !val.isEmpty() ) {
-                row[ i ] = val;
-            }
-        }
-    }
-    else {
-        // Non-matching line: put the raw line in the body column (last)
-        if ( !columnNames_.isEmpty() ) {
-            row[ columnNames_.size() - 1 ] = line;
-        }
-    }
-
-    return row;
 }

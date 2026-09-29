@@ -257,6 +257,9 @@ inline Configuration nonDefaultConfiguration()
     config.setChartPreset( "Latency", R"({"series": [{"field": "duration", "unit": "ms"}]})" );
     config.setChartPreset( "Errors", "[]" );
 
+    config.setCsvSeparator( ';' );
+    config.setCsvHeader( false );
+
     // Dark Token overrides have no setter; the settings file test covers them.
     return config;
 }
