@@ -1,4 +1,11 @@
-# Unreleased
+# v26.10.0 (2026-09-29)
+
+The stable release of 26.10. It contains everything from
+[26.10.0-beta2](https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.10.0-beta2)
+and [26.10.0-beta3](https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.10.0-beta3),
+whose release notes list those changes, and the changes below, made since
+beta3. What 26.10 brings compared to 26.07.0 is summarized at
+https://logsquirl.lunicorn-lab.de/news/release-26-10/.
 
 ## Changes
 
@@ -75,7 +82,6 @@
   converting it into a second one (#615).
 - **A reload interrupted by a newer one leaves the tab open**: a merged tab
   rebuilt twice in quick succession no longer closes by itself (#621).
-
 - **The Table View colors Matches and Marks in the Theme's colors**: the Row
   of a Match, a Mark and a Mark that is a Match is a subdued tint of red, blue
   and violet that fits the Theme, instead of pure red, blue and violet in every
