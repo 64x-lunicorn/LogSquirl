@@ -413,7 +413,14 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     // watches.
     if ( status == LoadingStatus::Successful && fileWatch_ ) {
         fileWatch_->addFile( fileName_ );
-        watched_ = true;
+        if ( !watched_ ) {
+            watched_ = true;
+            // What was written to it while the first load ran, before it was
+            // watched, no watcher reports: it is checked for once, the way a
+            // change the port reports is (#629).
+            QMetaObject::invokeMethod(
+                this, [ this ] { handleChangeOnDisk( fileName_ ); }, Qt::QueuedConnection );
+        }
     }
 
     const auto lineCount = logData_->getNbLine();
