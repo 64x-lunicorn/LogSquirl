@@ -35,9 +35,12 @@
 #include <QTemporaryDir>
 
 #include <optional>
+#include <utility>
 
 #ifndef Q_OS_WIN
 #include "command_process_probe.h"
+
+#include <unistd.h>
 #endif
 
 namespace {
@@ -52,6 +55,30 @@ QByteArray contentOf( const QString& path )
 }
 
 #ifndef Q_OS_WIN
+
+// Takes the write permission from a folder while it lives, so that nothing in
+// it can be removed, and gives it back however the test goes on.
+class ReadOnlyFolder {
+public:
+    explicit ReadOnlyFolder( QString folder )
+        : folder_( std::move( folder ) )
+        , permissions_( QFile::permissions( folder_ ) )
+    {
+        REQUIRE( QFile::setPermissions( folder_, QFileDevice::ReadOwner | QFileDevice::ExeOwner ) );
+    }
+
+    ~ReadOnlyFolder()
+    {
+        QFile::setPermissions( folder_, permissions_ );
+    }
+
+    ReadOnlyFolder( const ReadOnlyFolder& ) = delete;
+    ReadOnlyFolder& operator=( const ReadOnlyFolder& ) = delete;
+
+private:
+    QString folder_;
+    QFileDevice::Permissions permissions_;
+};
 
 // Runs `commandLine` and waits for it to end: what it wrote and how it ended.
 struct Run {
@@ -113,8 +140,11 @@ TEST_CASE( "The title and status of an ended command tell how it ended", "[comma
 {
     const CommandEnd exited{ CommandEnd::Kind::Exited, 3 };
     CHECK( CommandSource::endedTitle( "make", exited ) == "make [exit 3]" );
+    CHECK( CommandSource::endedTitle( "date +%1", exited ) == "date +%1 [exit 3]" );
     CHECK( CommandSource::endedToolTip( exited ) == "Ended with exit code 3" );
     CHECK( CommandSource::endedMessage( "make", exited ) == "\"make\" ended with exit code 3" );
+    CHECK( CommandSource::endedMessage( "echo %2", exited )
+           == "\"echo %2\" ended with exit code 3" );
 
 #ifdef Q_OS_WIN
     const CommandEnd notFound{ CommandEnd::Kind::Exited, 9009 };
@@ -173,6 +203,10 @@ TEST_CASE( "A spool file handed over is removed with its Command Source", "[comm
 TEST_CASE( "A spool file handed over that cannot be removed yet is removed later",
            "[commandsource]" )
 {
+    if ( ::geteuid() == 0 ) {
+        SKIP( "root removes files from a folder without write permission" );
+    }
+
     QTemporaryDir directory;
     REQUIRE( directory.isValid() );
     const auto folder = directory.filePath( "spool" );
@@ -182,12 +216,11 @@ TEST_CASE( "A spool file handed over that cannot be removed yet is removed later
     REQUIRE( file.open( QIODevice::WriteOnly ) );
     file.close();
 
-    const auto writable = QFile::permissions( folder );
-    REQUIRE( QFile::setPermissions( folder, QFileDevice::ReadOwner | QFileDevice::ExeOwner ) );
-    CommandSource::adoptSpoolFile( path ).reset();
-    const auto keptWhileLocked = QFileInfo::exists( path );
-    REQUIRE( QFile::setPermissions( folder, writable ) );
-    CHECK( keptWhileLocked );
+    {
+        const ReadOnlyFolder locked( folder );
+        CommandSource::adoptSpoolFile( path ).reset();
+        CHECK( QFileInfo::exists( path ) );
+    }
 
     CommandSource::removeLeftoverSpoolFiles();
     CHECK_FALSE( QFileInfo::exists( path ) );
@@ -208,6 +241,30 @@ TEST_CASE( "A command's output goes to its spool file, which goes with the Comma
 
     run.source.reset();
     CHECK_FALSE( QFileInfo::exists( spool ) );
+}
+
+// Windows keeps a file the tab still has open when the Command Source goes
+// before the tab; a folder without write permission does the same here.
+TEST_CASE( "A command's spool file that cannot be removed yet is removed later", "[commandsource]" )
+{
+    if ( ::geteuid() == 0 ) {
+        SKIP( "root removes files from a folder without write permission" );
+    }
+
+    auto run = runToEnd( "echo one" );
+    const auto spool = run.source->spoolPath();
+    const auto folder = QFileInfo( spool ).absolutePath();
+    REQUIRE( QFileInfo::exists( spool ) );
+
+    {
+        const ReadOnlyFolder locked( folder );
+        run.source.reset();
+        CHECK( QFileInfo::exists( spool ) );
+    }
+
+    CommandSource::removeLeftoverSpoolFiles();
+    CHECK_FALSE( QFileInfo::exists( spool ) );
+    CHECK_FALSE( QFileInfo::exists( folder ) );
 }
 
 TEST_CASE( "A command's standard error is in its output only when asked for", "[commandsource]" )
@@ -278,6 +335,34 @@ TEST_CASE( "Destroying a Command Source stops the command and every process it s
 
     // SIGKILL follows SIGTERM after 2 s.
     CHECK( waitUiState( [ grandchild ] { return !processIsRunning( grandchild ); }, 8'000 ) );
+}
+
+TEST_CASE( "A command that is stopped has its grace period to end on its own", "[commandsource]" )
+{
+    const ShellForTests shell;
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto farewell = directory.filePath( "farewell" );
+
+    // The shell runs its trap once SIGTERM has ended the command it waits
+    // for. A loop, since some shells exec a last simple command even with a
+    // trap set.
+    const auto commandLine = QStringLiteral( "trap 'echo bye > \"%1\"; exit 0' TERM; echo ready; "
+                                             "while :; do sleep 1; done" )
+                                 .arg( farewell );
+    QString error;
+    auto source = CommandSource::startCommand( RecentCommand{ commandLine, {}, true }, &error );
+    INFO( error.toStdString() );
+    REQUIRE( source != nullptr );
+    REQUIRE( waitUiState( [ & ] { return contentOf( source->spoolPath() ).startsWith( "ready" ); },
+                          10'000 ) );
+
+    QElapsedTimer stopping;
+    stopping.start();
+    source.reset();
+    CHECK( stopping.elapsed() < 500 );
+
+    CHECK( waitUiState( [ & ] { return contentOf( farewell ) == "bye\n"; }, 5'000 ) );
 }
 
 #endif

@@ -431,7 +431,7 @@ void MainWindow::reloadSession()
     restoreWindow( session_.storedSnapshot() );
 }
 
-void MainWindow::restoreWindow( const WindowSnapshot& window )
+std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
 {
     const auto& config = Configuration::get();
     const auto followFileOnLoad
@@ -454,9 +454,11 @@ void MainWindow::restoreWindow( const WindowSnapshot& window )
     // Adding a tab makes it current for a moment, which is not the user
     // activating it.
     restoringSession_ = true;
+    std::vector<QString> tabsAdded;
     for ( size_t i = 0; i < crawlers.size() && i < openedFiles.size(); ++i ) {
         auto* crawlerWidget = crawlers[ i ];
         const auto& fileName = openedFiles[ i ].first;
+        tabsAdded.push_back( fileName );
         // Its name and group are found by its archive, not by the new
         // temporary path (#609).
         mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary,
@@ -491,6 +493,8 @@ void MainWindow::restoreWindow( const WindowSnapshot& window )
                 openRestoredFromArchive( id, member, fileName );
             } );
     }
+
+    return tabsAdded;
 }
 
 void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& member,
@@ -521,6 +525,12 @@ void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& m
     if ( !crawlerWidget ) {
         return;
     }
+
+    // Named and grouped as the Session File it came from says, now that it
+    // opens (#576).
+    applyTabLabels( pendingTabLabels_, [ &member ]( const SessionInfo::OpenFile& file ) {
+        return file.archiveMember.key() == member.key();
+    } );
 
     // Where it stood among the tabs: before the Log File tab at its position,
     // else after the last one.
@@ -609,25 +619,30 @@ void MainWindow::openStandardInput()
         return;
     }
     const auto filePath = source->spoolPath();
-    openCommandSource( std::move( source ), tr( "stdin" ),
-                       tr( "Standard input\n%1" ).arg( filePath ) );
+    openCommandSource( std::move( source ), tr( "stdin" ), standardInputToolTip( filePath ) );
 }
 
-void MainWindow::openHandedOverStandardInput( const QString& spoolPath )
+void MainWindow::openHandedOverStandardInput( const QString& spoolPath, const QString& displayName )
 {
-    const auto toolTip = tr( "Standard input\n%1" ).arg( QDir::toNativeSeparators( spoolPath ) );
+    const auto title = displayName.isEmpty() ? tr( "stdin" ) : displayName;
+    const auto toolTip = standardInputToolTip( spoolPath );
     if ( isStandardInputSpool( spoolPath ) ) {
-        openCommandSource( CommandSource::adoptSpoolFile( spoolPath ), tr( "stdin" ), toolTip );
+        openCommandSource( CommandSource::adoptSpoolFile( spoolPath ), title, toolTip );
     }
     else {
         // Not a file this window may remove: opened, and left where it is.
         LOG_WARNING << "Handed over as standard input, but no spool file: " << spoolPath;
-        mainTabWidget_.setOpeningTitle( spoolPath, tr( "stdin" ), toolTip );
+        mainTabWidget_.setOpeningTitle( spoolPath, title, toolTip );
         if ( !loadFile( spoolPath, true, LogFileLifetime::Transient ) ) {
             mainTabWidget_.setOpeningTitle( spoolPath, {} );
         }
     }
     bringToFront();
+}
+
+QString MainWindow::standardInputToolTip( const QString& spoolPath )
+{
+    return tr( "Standard input\n%1" ).arg( QDir::toNativeSeparators( spoolPath ) );
 }
 
 QString MainWindow::commandToolTip( const CommandSource& source )
@@ -679,17 +694,28 @@ void MainWindow::showCommandSourceEnded( const QString& spoolPath, const Command
     if ( source == commandSources_.end() ) {
         return;
     }
+
+    // The spool file grows no more. A tab not open yet -- waiting for the
+    // plugins to load -- ends following when it opens.
+    if ( const auto tab = mainTabWidget_.tabOfPath( spoolPath ); tab >= 0 ) {
+        if ( auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( tab ) ) ) {
+            crawler->endFollowing();
+        }
+    }
+
     if ( source->second->kind() != CommandSource::Kind::Command ) {
         statusBar()->showMessage( tr( "Standard input closed" ) );
         return;
     }
 
-    // The tab keeps what the command wrote; its title and tooltip tell how
-    // the command ended.
+    // The tab keeps what the command wrote; its title, whatever the tab is
+    // named, and its tooltip tell how the command ended.
     const auto title = commandTabTitle( source->second->command().commandLine );
-    mainTabWidget_.setOpeningTitle( spoolPath, CommandSource::endedTitle( title, end ),
+    mainTabWidget_.setOpeningTitle( spoolPath, title,
                                     commandToolTip( *source->second ) + "\n"
                                         + CommandSource::endedToolTip( end ) );
+    mainTabWidget_.setTitleFormat( spoolPath,
+                                   CommandSource::endedTitle( QStringLiteral( "%1" ), end ) );
     showStatusMessage( CommandSource::endedMessage( title, end ) );
 }
 
@@ -3160,6 +3186,11 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileLife
                 signalCrawlerToFollowFile( crawlerWidget );
                 followAction->setChecked( true );
             }
+            // A command or standard input that ended before its tab opened.
+            if ( const auto source = commandSources_.find( fileName );
+                 source != commandSources_.end() && source->second->hasEnded() ) {
+                crawlerWidget->endFollowing();
+            }
         } catch ( ... ) {
             LOG_ERROR << "Can't open file " << fileName.toStdString();
             return false;
@@ -3731,9 +3762,14 @@ void MainWindow::openSessionFile( const QString& path )
 
 void MainWindow::restoreSessionFile( const SessionFileRead& read )
 {
-    // Named and grouped as they were before their tabs are added.
-    applyTabLabels( read.window );
-    restoreWindow( read.window );
+    // Named and grouped as they were, but only the Log Files that open: those
+    // that did now, and those from an archive as each opens.
+    const auto tabsAdded = restoreWindow( read.window );
+    applyTabLabels( read.window, [ &tabsAdded ]( const SessionInfo::OpenFile& file ) {
+        return file.archiveMember.isEmpty() && std::ranges::contains( tabsAdded, file.fileName );
+    } );
+    pendingTabLabels_ = read.window;
+    mainTabWidget_.refreshAllTabGroupAppearances();
 
     if ( !read.leftOut.isEmpty() ) {
         // Once the window is shown.

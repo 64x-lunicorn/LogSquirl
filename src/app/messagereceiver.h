@@ -47,8 +47,9 @@ public:
 Q_SIGNALS:
     void loadFile( const QString& filename );
     // Standard input a secondary instance reads and spools to `spoolPath`,
-    // which it hands over to be opened and owned here (#623).
-    void openStandardInputSpool( const QString& spoolPath );
+    // which it hands over to be opened and owned here, in a tab named
+    // `displayName` -- empty when it sent none (#623).
+    void openStandardInputSpool( const QString& spoolPath, const QString& displayName );
 
 public Q_SLOTS:
     void receiveMessage( const QByteArray& message )
@@ -67,7 +68,8 @@ public Q_SLOTS:
         }
         // Last, so that its tab is the one in front.
         if ( !handOver->standardInputSpool.isEmpty() ) {
-            Q_EMIT openStandardInputSpool( handOver->standardInputSpool );
+            Q_EMIT openStandardInputSpool( handOver->standardInputSpool,
+                                           handOver->standardInputName );
         }
     }
 };

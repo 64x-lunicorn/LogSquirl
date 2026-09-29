@@ -295,15 +295,18 @@ void takeTabLabels( WindowSnapshot& window )
     }
 }
 
-void applyTabLabels( const WindowSnapshot& window )
+void applyTabLabels( const WindowSnapshot& window,
+                     const std::function<bool( const SessionInfo::OpenFile& )>& isOpened )
 {
     if ( window.tabs.size() != window.files.size() ) {
         return;
     }
+    const auto applies
+        = [ &window, &isOpened ]( size_t i ) { return !isOpened || isOpened( window.files[ i ] ); };
 
     auto& names = TabNameMapping::getSynced();
     for ( size_t i = 0; i < window.files.size(); ++i ) {
-        if ( !window.tabs[ i ].name.isEmpty() ) {
+        if ( applies( i ) && !window.tabs[ i ].name.isEmpty() ) {
             names.setTabName( tabLabelKey( window.files[ i ] ), window.tabs[ i ].name );
         }
     }
@@ -312,7 +315,7 @@ void applyTabLabels( const WindowSnapshot& window )
     auto& groups = TabGroupInfo::getSynced();
     for ( size_t i = 0; i < window.files.size(); ++i ) {
         const auto& name = window.tabs[ i ].group;
-        if ( name.isEmpty() ) {
+        if ( !applies( i ) || name.isEmpty() ) {
             continue;
         }
         const auto& stored = groups.groups();

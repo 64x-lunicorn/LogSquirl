@@ -19,14 +19,16 @@
 
 #include "commandsource.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QPointer>
 #include <QProcess>
 
 #include <mutex>
+#include <utility>
 
+#include "instancehandover.h"
 #include "log.h"
 #include "stdinpump.h"
 #include "streamwriter.h"
@@ -37,7 +39,6 @@
 #include <cerrno>
 #include <chrono>
 #include <condition_variable>
-#include <mutex>
 #include <signal.h>
 #include <thread>
 #include <unistd.h>
@@ -48,8 +49,6 @@ namespace {
 
 // How long a shell may take to start before it counts as not started.
 constexpr int StartTimeoutMs = 10'000;
-// How long reaping a shell that was just killed may take.
-constexpr int ReapTimeoutMs = 1000;
 // The length a command's tab title is elided to.
 constexpr qsizetype TitleLength = 40;
 
@@ -172,9 +171,10 @@ bool removeSpoolFile( const QString& path )
     return true;
 }
 
-// The spool files handed over that could not be removed with their tab: on
-// Windows, the secondary instance that writes one still has it open (#623).
-// They are removed again when the application exits.
+// The spool files that could not be removed with their Command Source: on
+// Windows, one the secondary instance that writes it still has open (#623),
+// or one a tab still reads when the window goes before it. They are removed
+// again when the application exits.
 class LeftoverSpoolFiles {
 public:
     static LeftoverSpoolFiles& instance()
@@ -322,6 +322,10 @@ std::unique_ptr<CommandSource> CommandSource::adoptSpoolFile( const QString& pat
 {
     std::unique_ptr<CommandSource> source( new CommandSource( Kind::SpoolFile ) );
     source->spoolPath_ = path;
+    // The process that writes it goes on for as long as this is there.
+    if ( !markSpoolAdopted( path ) ) {
+        LOG_WARNING << "Could not mark the spool file " << path << " as taken over";
+    }
     return source;
 }
 
@@ -329,15 +333,22 @@ CommandSource::~CommandSource()
 {
     stop();
 
-    // The spool file goes with this object.
-    if ( writer_ ) {
-        writer_.reset();
+    // The spool file goes with this object. The writer removes the one it
+    // wrote.
+    writer_.reset();
+    if ( spoolPath_.isEmpty() ) {
+        return;
     }
-    else if ( kind_ == Kind::SpoolFile && !spoolPath_.isEmpty() ) {
-        if ( !removeSpoolFile( spoolPath_ ) ) {
-            LOG_INFO << "Could not remove the spool file " << spoolPath_ << " yet, will at exit";
-            LeftoverSpoolFiles::instance().add( spoolPath_ );
-        }
+    if ( kind_ == Kind::SpoolFile ) {
+        // First, so that the process that writes the file stops, and lets go
+        // of it on Windows.
+        QFile::remove( spoolAdoptionMarker( spoolPath_ ) );
+    }
+    // On Windows a file the tab still has open stays -- the window may go
+    // before its tabs -- and so does one another process writes.
+    if ( !removeSpoolFile( spoolPath_ ) ) {
+        LOG_INFO << "Could not remove the spool file " << spoolPath_ << " yet, will at exit";
+        LeftoverSpoolFiles::instance().add( spoolPath_ );
     }
 }
 
@@ -490,21 +501,36 @@ void CommandSource::stopProcess()
         return;
     }
 
-    // The shell itself is killed outright, so that reaping it takes no time;
-    // the rest of its group had its chance with SIGTERM.
-    if ( process_->state() != QProcess::NotRunning ) {
-        process_->kill();
-        process_->waitForFinished( ReapTimeoutMs );
+    auto* process = std::exchange( process_, nullptr );
+    if ( process->state() == QProcess::NotRunning ) {
+        delete process;
+        return;
     }
-    delete process_;
-    process_ = nullptr;
+
+#ifdef Q_OS_WIN
+    // Closing the job ended the shell already, unless there was no job.
+    process->kill();
+#endif
+    // The shell has its grace period like the rest of its group: it may be
+    // running a trap for SIGTERM. Deleting its QProcess now would kill it and
+    // wait for it on this thread, so the QProcess is let go instead: it goes
+    // once it has seen the shell end -- with SIGTERM, or with the SIGKILL the
+    // Group Reaper sends to the group 2 s later -- and with the application
+    // otherwise, whose destruction kills the shell first.
+    process->setParent( nullptr );
+    if ( auto* application = QCoreApplication::instance();
+         application != nullptr && application->thread() == process->thread() ) {
+        process->setParent( application );
+    }
+    connect( process, &QProcess::finished, process, &QObject::deleteLater );
 }
 
 QString CommandSource::endedTitle( const QString& title, const CommandEnd& end )
 {
     switch ( end.kind ) {
     case CommandEnd::Kind::Exited:
-        return tr( "%1 [exit %2]" ).arg( title ).arg( end.exitCode );
+        // At once, so that a title with a %1 in it is kept as it is.
+        return tr( "%1 [exit %2]" ).arg( title, QString::number( end.exitCode ) );
     case CommandEnd::Kind::Stopped:
         return tr( "%1 [stopped]" ).arg( title );
     case CommandEnd::Kind::InputClosed:
@@ -532,11 +558,10 @@ QString CommandSource::endedMessage( const QString& title, const CommandEnd& end
 {
     switch ( end.kind ) {
     case CommandEnd::Kind::Exited:
-        return end.commandNotFound()
-                   ? tr( "\"%1\" ended with exit code %2: command not found" )
-                         .arg( title )
-                         .arg( end.exitCode )
-                   : tr( "\"%1\" ended with exit code %2" ).arg( title ).arg( end.exitCode );
+        return end.commandNotFound() ? tr( "\"%1\" ended with exit code %2: command not found" )
+                                           .arg( title, QString::number( end.exitCode ) )
+                                     : tr( "\"%1\" ended with exit code %2" )
+                                           .arg( title, QString::number( end.exitCode ) );
     case CommandEnd::Kind::Stopped:
         return tr( "\"%1\" was stopped" ).arg( title );
     case CommandEnd::Kind::InputClosed:

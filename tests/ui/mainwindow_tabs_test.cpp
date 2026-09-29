@@ -63,6 +63,7 @@
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "filewatcher.h"
+#include "instancehandover.h"
 #include "loadingstatus.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
@@ -1186,7 +1187,8 @@ SCENARIO( "A command's output opens in a followed tab that tells how the command
         auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( tab ) );
         REQUIRE( crawler != nullptr );
 
-        THEN( "its tab shows the output, is transient and followed, and names the exit code" )
+        THEN( "its tab shows the output, is transient, names the exit code and is no longer "
+              "followed" )
         {
             REQUIRE( waitUiState(
                 [ & ] {
@@ -1196,9 +1198,9 @@ SCENARIO( "A command's output opens in a followed tab that tells how the command
                 UiTimeoutMs ) );
             const auto index = window.tabArea->indexOf( crawler );
             REQUIRE( window.tabArea->holdsTransientLogFile( index ) );
-            if ( window.session->watchPolicy().anyWatchEnabled() ) {
-                REQUIRE( crawler->isFollowEnabled() );
-            }
+            REQUIRE( waitUiState( [ & ] { return !crawler->isFollowEnabled(); }, UiTimeoutMs ) );
+            crawler->followSet( true );
+            REQUIRE_FALSE( crawler->isFollowEnabled() );
 
             const auto toolTip = window.tabArea->tabToolTip( index );
             REQUIRE( toolTip.startsWith( commandLine + "\n" ) );
@@ -1221,6 +1223,34 @@ SCENARIO( "A command's output opens in a followed tab that tells how the command
             INFO( "lines: "
                   << CrawlerWidget::access_by<MainWindowTabsAccess>{ *crawler }.nbLines().get() );
             REQUIRE( linesLoaded );
+        }
+    }
+
+    GIVEN( "a command whose tab is renamed while it runs" )
+    {
+        const auto commandLine = QStringLiteral( "sleep 1; exit 2" );
+        REQUIRE( window.mainWindow->openCommandOutput(
+            RecentCommand{ commandLine, folder.path(), true } ) );
+        const auto tab = waitForTab( window, commandLine );
+        auto* crawler = window.tabArea->widget( tab );
+        window.tabArea->renameTab( tab, "Build" );
+        REQUIRE( window.tabArea->tabText( tab ) == "Build" );
+
+        THEN( "its new name tells how the command ended" )
+        {
+            REQUIRE( waitUiState(
+                [ & ] {
+                    return window.tabArea->tabText( window.tabArea->indexOf( crawler ) )
+                           == "Build [exit 2]";
+                },
+                UiTimeoutMs ) );
+
+            AND_THEN( "a name it is given after the end does too" )
+            {
+                window.tabArea->renameTab( window.tabArea->indexOf( crawler ), "Done" );
+                REQUIRE( window.tabArea->tabText( window.tabArea->indexOf( crawler ) )
+                         == "Done [exit 2]" );
+            }
         }
     }
 
@@ -1377,8 +1407,10 @@ SCENARIO( "Standard input handed over by another instance opens in a stdin tab, 
     const auto second = handedOverSpool( "a\n" );
     REQUIRE( first != second );
 
+    // The name a secondary instance sends is the tab's, "stdin" when it sent
+    // none.
     window.mainWindow->openHandedOverStandardInput( first );
-    window.mainWindow->openHandedOverStandardInput( second );
+    window.mainWindow->openHandedOverStandardInput( second, "stdin" );
 
     REQUIRE( waitUiState( [ & ] { return tabsTitled( *window.tabArea, "stdin" ).size() == 2; },
                           UiTimeoutMs ) );
@@ -1386,6 +1418,9 @@ SCENARIO( "Standard input handed over by another instance opens in a stdin tab, 
     REQUIRE( spoolOf( window, tabs[ 0 ] ) == first );
     REQUIRE( spoolOf( window, tabs[ 1 ] ) == second );
     REQUIRE( window.tabArea->holdsTransientLogFile( tabs[ 0 ] ) );
+    // The secondary instances are told the spool files were taken over.
+    REQUIRE( QFileInfo::exists( spoolAdoptionMarker( first ) ) );
+    REQUIRE( QFileInfo::exists( spoolAdoptionMarker( second ) ) );
     // The last one handed over is in front.
     REQUIRE( window.tabArea->currentIndex() == tabs[ 1 ] );
 
@@ -1401,11 +1436,13 @@ SCENARIO( "Standard input handed over by another instance opens in a stdin tab, 
     {
         Q_EMIT window.tabArea->tabCloseRequested( tabs[ 0 ] );
 
-        THEN( "its spool file and folder are removed, and the other tab keeps its own" )
+        THEN( "its spool file, marker and folder are removed, and the other tab keeps its own" )
         {
             REQUIRE( waitUiState( [ & ] { return !QFileInfo::exists( first ); }, UiTimeoutMs ) );
+            REQUIRE_FALSE( QFileInfo::exists( spoolAdoptionMarker( first ) ) );
             REQUIRE_FALSE( QFileInfo::exists( QFileInfo( first ).absolutePath() ) );
             REQUIRE( QFileInfo::exists( second ) );
+            REQUIRE( QFileInfo::exists( spoolAdoptionMarker( second ) ) );
         }
     }
 
@@ -1425,13 +1462,14 @@ SCENARIO( "A handed-over file that is no spool of standard input opens but is no
     file.write( "keep me\n" );
     file.close();
 
-    window.mainWindow->openHandedOverStandardInput( path );
-    REQUIRE( waitUiState( [ & ] { return tabsTitled( *window.tabArea, "stdin" ).size() == 1; },
+    window.mainWindow->openHandedOverStandardInput( path, "journal" );
+    REQUIRE( waitUiState( [ & ] { return tabsTitled( *window.tabArea, "journal" ).size() == 1; },
                           UiTimeoutMs ) );
 
-    Q_EMIT window.tabArea->tabCloseRequested( tabsTitled( *window.tabArea, "stdin" ).front() );
+    Q_EMIT window.tabArea->tabCloseRequested( tabsTitled( *window.tabArea, "journal" ).front() );
     QTest::qWait( 200 );
     REQUIRE( QFileInfo::exists( path ) );
+    REQUIRE_FALSE( QFileInfo::exists( spoolAdoptionMarker( path ) ) );
 }
 
 #endif

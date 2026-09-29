@@ -84,10 +84,10 @@ QString commandTabTitle( const QString& commandLine );
 // destroys it with the tab. Destroying it stops what feeds the file and
 // removes the file:
 //  - a command runs in a session and process group of its own on macOS and
-//    Linux; the group gets SIGTERM, and SIGKILL 2 s later if any of it is
-//    still there. That wait happens off the calling thread: stopping never
-//    blocks it. A command still running when the application exits gets
-//    SIGKILL then.
+//    Linux; the group -- its shell with the rest -- gets SIGTERM, and SIGKILL
+//    2 s later if any of it is still there. That wait happens off the calling
+//    thread: stopping never blocks it. A command still running when the
+//    application exits gets SIGKILL then.
 //  - On Windows a command runs in a Job Object that kills every process of
 //    the job when it is closed, so that no child process escapes.
 // Once the command's shell has ended on its own, whatever it left running in
@@ -112,15 +112,17 @@ public:
     // created.
     static std::unique_ptr<CommandSource> readStandardInput( int fd, QString* error );
 
-    // Takes over a spool file another process writes: this object removes it,
-    // with its folder when that is left empty, when it is destroyed. It never
-    // ends by itself. A file that cannot be removed then -- on Windows, while
-    // the other process still has it open -- is removed again when the
-    // application exits (#623).
+    // Takes over a spool file another process writes, and tells that process
+    // so with the marker of its adoption (see spoolAdoptionMarker()): this
+    // object removes the marker, then the file, with its folder when that is
+    // left empty, when it is destroyed. It never ends by itself. A file that
+    // cannot be removed then -- on Windows, while the other process still has
+    // it open -- is removed again when the application exits (#623).
     static std::unique_ptr<CommandSource> adoptSpoolFile( const QString& path );
 
-    // Removes the spool files taken over that could not be removed with their
-    // Command Source. Runs by itself when the application exits.
+    // Removes the spool files that could not be removed with their Command
+    // Source -- on Windows, while a tab or another process still has one open.
+    // Runs by itself when the application exits.
     static void removeLeftoverSpoolFiles();
 
     ~CommandSource() override;

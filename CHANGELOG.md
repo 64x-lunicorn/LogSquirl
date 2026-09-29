@@ -35,8 +35,9 @@
   Output… runs a command line through your login shell -- `ssh host tail -f
   /var/log/syslog`, `docker logs -f web`, `kubectl logs -f deploy/api` -- and
   follows what it writes in a new tab named after it. When the command ends,
-  the tab shows ` [exit N]` and the status bar says how it ended; closing the
-  tab stops the command and every process it started. The last 10 commands are
+  the tab keeps its output and is no longer followed, shows ` [exit N]`, and
+  the status bar says how it ended; closing the tab stops the command and
+  every process it started. The last 10 commands are
   offered again, each with its working folder and whether standard error is
   included. The tab is not saved with the session (#575).
 - **ANSI color sequences can be shown as colors**: *Hide ANSI Colors* in
@@ -58,8 +59,10 @@
 - **Piping into `logsquirl -` while LogSquirl runs opens a tab**: what is piped
   in opens as a `stdin` tab in the running window, together with any files
   given, and follows as it arrives; the piping process exits when the pipe
-  closes. Each pipe gets a tab of its own, and closing the tab removes its
-  temporary file. Before, the input was lost. (#623)
+  closes or the tab does. Each pipe gets a tab of its own, and closing the tab
+  removes its temporary file. A running LogSquirl that does not take the input
+  over, such as one of another version, is reported instead. Before, the input
+  was lost. (#623)
 
 # v26.10.0 (2026-09-29)
 

@@ -223,7 +223,7 @@ public:
     {
         LOG_INFO << "Handing over " << filenames.size() << " file(s) to the primary instance";
         return sendToPrimaryInstance(
-            handOverMessage( HandOver{ filenames, {} }, logsquirlVersion() ) );
+            handOverMessage( HandOver{ filenames, {}, {} }, logsquirlVersion() ) );
     }
 
     bool sendToPrimaryInstance( const QByteArray& message )
@@ -324,7 +324,7 @@ public:
 
     // Opens standard input a secondary instance spools to `spoolPath` in the
     // window the Log Files handed over open in (#623).
-    void openHandedOverStandardInput( const QString& spoolPath )
+    void openHandedOverStandardInput( const QString& spoolPath, const QString& displayName )
     {
         while ( !activeWindows_.empty() && activeWindows_.top().isNull() ) {
             activeWindows_.pop();
@@ -334,7 +334,7 @@ public:
             newWindow();
         }
 
-        activeWindows_.top()->openHandedOverStandardInput( spoolPath );
+        activeWindows_.top()->openHandedOverStandardInput( spoolPath, displayName );
     }
 
     void startBackgroundTasks()

@@ -35,7 +35,7 @@ StreamWriter::StreamWriter( const QString& displayName )
     }
 
     // Use a .log extension so FileWatcher treats it normally
-    const auto path = tempDir_.path() + "/stream.log";
+    const auto path = tempDir_.path() + "/" + fileName();
     file_.setFileName( path );
 
     if ( !file_.open( QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text ) ) {
@@ -54,6 +54,11 @@ StreamWriter::~StreamWriter()
     }
     // QTemporaryDir removes the file and its folder, unless keepFile() said
     // otherwise.
+}
+
+QString StreamWriter::fileName()
+{
+    return QStringLiteral( "stream.log" );
 }
 
 QString StreamWriter::filePath() const

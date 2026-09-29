@@ -52,6 +52,9 @@ public:
     StreamWriter( const StreamWriter& ) = delete;
     StreamWriter& operator=( const StreamWriter& ) = delete;
 
+    /** The name of the backing file in its temporary folder. */
+    static QString fileName();
+
     /** Return the absolute path to the backing temporary file. */
     QString filePath() const;
 

@@ -128,6 +128,11 @@ public:
     // says (#558).
     bool isFollowEnabled() const;
 
+    // The Log File grows no more -- the command or standard input that wrote
+    // it has ended (#575): once what it holds is loaded, it is no longer
+    // followed, and cannot be again.
+    void endFollowing();
+
     // Whether a load of its Log File has finished successfully in this tab:
     // an interrupted reload then leaves the tab open (#621).
     bool hasLoaded() const
@@ -592,6 +597,8 @@ private:
 
     // Whether this Log File may be followed.
     WatchPolicy watchPolicy_;
+    // Whether following ended for good with endFollowing().
+    bool followEnded_ = false;
     // How the Search line reads a pattern, and a saved view context's
     // regexp flag. No view reads it: the window's QuickFind takes it from
     // the Session (#563).

@@ -215,6 +215,8 @@ Q_SIGNALS:
     // checking the file failed, failure describes what went wrong and the
     // file is taken as truncated.
     void fileChanged( MonitoredFileStatus status, const QString& failure = {} );
+    // Sent when the file on disk was checked and had not changed.
+    void fileUnchanged();
     // Sent when the Decoding Policy was replaced: every Log Line may read
     // differently now, though the Log File itself did not change.
     void decodingPolicyChanged();

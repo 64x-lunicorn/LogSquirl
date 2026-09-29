@@ -437,6 +437,9 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QStrin
     if ( status != MonitoredFileStatus::Unchanged ) {
         Q_EMIT fileChanged( status, failure );
     }
+    else {
+        Q_EMIT fileUnchanged();
+    }
 
     operationQueue_.finishJobAndStartNext();
 }

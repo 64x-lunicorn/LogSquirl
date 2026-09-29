@@ -319,11 +319,13 @@ files by clicking them in the file manager.
 
 * When *logsquirl* is already running, what is piped in opens as a `stdin` tab
   in the running window, with the files given beside it. The `logsquirl`
-  process at the end of the pipe keeps reading until the pipe closes and then
-  exits; `Ctrl+C` ends it early, and the tab keeps what arrived until then.
-  Every `… | logsquirl -` opens a tab of its own. If the running *logsquirl*
-  cannot be reached, it says so, exits with a non-zero status and leaves
-  nothing behind. With `--multi`, `-` opens in a window of its own instead.
+  process at the end of the pipe keeps reading until the pipe closes, or its
+  tab is closed, and then exits; `Ctrl+C` ends it early, and the tab keeps what
+  arrived until then. Every `… | logsquirl -` opens a tab of its own. If the
+  running *logsquirl* cannot be reached, or does not take standard input over
+  within 5 s (one of another version does not), it says so, exits with a
+  non-zero status and leaves nothing behind. With `--multi`, `-` opens in a
+  window of its own instead.
 * What arrives is kept in a temporary file in the application's temporary
   directory, and the tab (named `stdin`) follows it like any growing Log File:
   Search and Marks work as they do for a file on disk.
@@ -359,11 +361,11 @@ without anything else to install: `ssh host tail -f /var/log/syslog`,
 * The tab is named after the command line, shortened in the middle to 40
   characters; its tooltip shows the whole command line, the working folder and
   the temporary file the output is kept in.
-* When the command ends, the tab stays with everything it received. Its name
-  gets ` [exit N]` with the command's exit code, or ` [stopped]` when it was
-  killed by a signal or crashed, and the status bar says so. Exit code 127
-  (9009 on Windows) is a command the shell did not find: the status bar says
-  *command not found*.
+* When the command ends, the tab stays with everything it received and is no
+  longer followed: the file does not grow any more. Its name gets ` [exit N]`
+  with the command's exit code, or ` [stopped]` when it was killed by a signal
+  or crashed, and the status bar says so. Exit code 127 (9009 on Windows) is a
+  command the shell did not find: the status bar says *command not found*.
 * A working folder that does not exist, or a shell that cannot be started, is
   reported and no tab opens.
 * Closing the tab, its window or *logsquirl* stops the command and every
