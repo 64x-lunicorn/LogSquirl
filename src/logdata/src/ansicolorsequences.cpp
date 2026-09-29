@@ -105,7 +105,7 @@ std::optional<qsizetype> sequenceEnd( QStringView text, qsizetype start )
     case u'M':
     case u'k':
     case u'K':
-    case u'K':
+    case u'\u212A': // KELVIN SIGN, which looks like K
         return position + 1;
     default:
         return std::nullopt;
@@ -276,8 +276,9 @@ AnsiColoredText parseAnsiColorSequences( QString text )
         parsed.text.append( source.sliced( copiedTo, escape - copiedTo ) );
         copiedTo = *end;
 
-        const auto finalByte = source[ *end - 1 ].unicode();
-        if ( finalByte == u'm' || finalByte == u'M' ) {
+        // Only a lowercase m ends an SGR sequence. The pattern ignores case,
+        // so M, K and k are removed too, but they ask for no color.
+        if ( source[ *end - 1 ].unicode() == u'm' ) {
             // Between "ESC [" and the final byte.
             const auto next
                 = applySgr( colors, source.sliced( escape + 2, *end - 1 - ( escape + 2 ) ) );

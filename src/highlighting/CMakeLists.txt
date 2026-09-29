@@ -22,6 +22,7 @@ target_link_libraries(
          logsquirl_utils
          logsquirl_logdata
          logsquirl_policies
+         logsquirl_settings
          logsquirl_regex
          Qt6::Core
          Qt6::Gui

@@ -382,6 +382,19 @@ SCENARIO( "Parsing ANSI color sequences keeps the colors they ask for", "[ansi]"
         }
     }
 
+    GIVEN( "a sequence ending in a capital M, which is not SGR" )
+    {
+        const auto parsed = parseAnsiColorSequences( "\x1B[31MA\x1B[32mB\x1B[0MC" );
+
+        THEN( "it is removed without a color, and does not reset one either" )
+        {
+            REQUIRE( parsed.text == "ABC" );
+            REQUIRE( parsed.spans
+                     == logsquirl::vector<AnsiColorSpan>{
+                         { 1, 2, AnsiColor::indexed( 2 ), lineColor } } );
+        }
+    }
+
     GIVEN( "malformed colors: an index missing, one out of range, a truecolor cut short" )
     {
         const auto parsed = parseAnsiColorSequences(

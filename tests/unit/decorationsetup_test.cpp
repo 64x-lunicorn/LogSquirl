@@ -22,8 +22,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 
 #include "decorationsetup.h"
+#include "theme.h"
 
 // The Decoration Setup is the one module that builds the Line Decorator's
 // Context for either Presentation. Everything below drives it from a
@@ -437,6 +439,61 @@ SCENARIO( "A foreground ANSI color too faint to read is moved toward the Theme's
             const auto colors
                 = setup.ansiColorsFor( { foregroundSpan( AnsiColor::rgb( 0, 0, 180 ) ) }, palette );
             REQUIRE( colors[ 0 ].foreColor() == QColor( 0, 0, 180 ) );
+        }
+    }
+}
+
+SCENARIO( "A span with only an ANSI background keeps its text readable on it",
+          "[decorationsetup][ansi]" )
+{
+    DecorationSetup setup;
+    auto policy = colorfulPolicy();
+    policy.showAnsiColors = true;
+    setup.setPolicy( policy );
+
+    const auto backgroundOnly = []( std::uint8_t index ) {
+        return AnsiColorSpan{ 0, 3, AnsiColor{}, AnsiColor::indexed( index ) };
+    };
+
+    GIVEN( "the Dark Theme and ESC[47m, its white background" )
+    {
+        const auto theme = Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light );
+        const auto palette = LinePalette::fromPalette( theme.palette() );
+        setup.setAnsiColors( theme.ansiColors() );
+
+        THEN( "the text on it reaches 3:1" )
+        {
+            const auto colors = setup.ansiColorsFor( { backgroundOnly( 7 ) }, palette );
+            REQUIRE( colors[ 0 ].backColor() == theme.ansiColors()[ 7 ] );
+            REQUIRE( colors[ 0 ].foreColor().isValid() );
+            REQUIRE( contrastRatio( colors[ 0 ].foreColor(), colors[ 0 ].backColor() ) >= 3.0 );
+        }
+    }
+
+    GIVEN( "the Light Theme and ESC[40m, its black background" )
+    {
+        const auto theme = Theme::fromName( Theme::LightKey, Qt::ColorScheme::Light );
+        const auto palette = LinePalette::fromPalette( theme.palette() );
+        setup.setAnsiColors( theme.ansiColors() );
+
+        THEN( "the text on it reaches 3:1" )
+        {
+            const auto colors = setup.ansiColorsFor( { backgroundOnly( 0 ) }, palette );
+            REQUIRE( colors[ 0 ].foreColor().isValid() );
+            REQUIRE( contrastRatio( colors[ 0 ].foreColor(), colors[ 0 ].backColor() ) >= 3.0 );
+        }
+    }
+
+    GIVEN( "a background the Theme's text already reads on" )
+    {
+        const auto theme = Theme::fromName( Theme::LightKey, Qt::ColorScheme::Light );
+        const auto palette = LinePalette::fromPalette( theme.palette() );
+        setup.setAnsiColors( theme.ansiColors() );
+
+        THEN( "the text keeps the line's own color" )
+        {
+            const auto colors = setup.ansiColorsFor( { backgroundOnly( 7 ) }, palette );
+            REQUIRE_FALSE( colors[ 0 ].foreColor().isValid() );
         }
     }
 }

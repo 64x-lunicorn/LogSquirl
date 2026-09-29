@@ -49,8 +49,9 @@ constexpr double MinimumAnsiContrast = 3.0;
 // How many steps a foreground is blended toward the text color in, at most.
 constexpr int ContrastBlendSteps = 10;
 
-// foreground, blended toward text step by step until it reads on background.
-QColor readableOn( const QColor& foreground, const QColor& background, const QColor& text )
+// foreground, blended toward target step by step until it reads on
+// background; target at worst.
+QColor readableOn( const QColor& foreground, const QColor& background, const QColor& target )
 {
     if ( !background.isValid() || contrastRatio( foreground, background ) >= MinimumAnsiContrast ) {
         return foreground;
@@ -59,14 +60,23 @@ QColor readableOn( const QColor& foreground, const QColor& background, const QCo
         const auto weight = static_cast<float>( step ) / ContrastBlendSteps;
         const auto blend
             = [ weight ]( float from, float to ) { return from + ( to - from ) * weight; };
-        const auto blended = QColor::fromRgbF( blend( foreground.redF(), text.redF() ),
-                                               blend( foreground.greenF(), text.greenF() ),
-                                               blend( foreground.blueF(), text.blueF() ) );
+        const auto blended = QColor::fromRgbF( blend( foreground.redF(), target.redF() ),
+                                               blend( foreground.greenF(), target.greenF() ),
+                                               blend( foreground.blueF(), target.blueF() ) );
         if ( contrastRatio( blended, background ) >= MinimumAnsiContrast ) {
             return blended;
         }
     }
-    return text;
+    return target;
+}
+
+// Black or white, whichever contrasts more with background. One of them
+// always reaches 3:1 (at least about 4.6:1) on any opaque color.
+QColor extremeOn( const QColor& background )
+{
+    const QColor black( Qt::black );
+    const QColor white( Qt::white );
+    return contrastRatio( black, background ) >= contrastRatio( white, background ) ? black : white;
 }
 
 // One step of xterm's 6x6x6 color cube.
@@ -76,7 +86,8 @@ int xtermCubeLevel( int step )
 }
 
 // The color an ANSI color stands for; invalid for the line's own.
-QColor resolvedAnsiColor( const AnsiColor& color, const std::array<QColor, 16>& basicColors )
+QColor resolvedAnsiColor( const AnsiColor& color,
+                          const std::array<QColor, AnsiBasicColorCount>& basicColors )
 {
     switch ( color.kind() ) {
     case AnsiColor::Kind::LineColor:
@@ -88,7 +99,7 @@ QColor resolvedAnsiColor( const AnsiColor& color, const std::array<QColor, 16>& 
     }
 
     const int index = color.index();
-    if ( index < 16 ) {
+    if ( static_cast<std::size_t>( index ) < AnsiBasicColorCount ) {
         return basicColors[ static_cast<std::size_t>( index ) ];
     }
     if ( index < 232 ) {
@@ -122,7 +133,7 @@ void DecorationSetup::setColorLabels( const std::vector<QStringList>& words,
     rebuildColorLabels();
 }
 
-void DecorationSetup::setAnsiColors( const std::array<QColor, 16>& basicColors )
+void DecorationSetup::setAnsiColors( const std::array<QColor, AnsiBasicColorCount>& basicColors )
 {
     ansiBasicColors_ = basicColors;
 }
@@ -143,6 +154,17 @@ DecorationSetup::ansiColorsFor( const logsquirl::vector<AnsiColorSpan>& spans,
         if ( foreground.isValid() ) {
             foreground = readableOn( foreground, background.isValid() ? background : palette.base,
                                      palette.text );
+        }
+        else if ( background.isValid()
+                  && contrastRatio( palette.text, background ) < MinimumAnsiContrast ) {
+            // A span with only a background leaves its text in the line's
+            // own color, the Theme's text color -- so blending toward that
+            // cannot help (ESC[47m under Dark: light text on near-white).
+            // Instead the text color is blended toward black or white,
+            // whichever reads better on the background, until it reaches
+            // 3:1; at worst it becomes that black or white. A text color
+            // that already reads on the background is left to the line.
+            foreground = readableOn( palette.text, background, extremeOn( background ) );
         }
         colors.emplace_back( LineColumn{ span.start }, LineLength{ span.length }, foreground,
                              background );
