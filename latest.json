@@ -81,6 +81,10 @@
     {
       "version": "26.10.0-beta3",
       "description": "Team Folder, Go to timestamp and time search limits, JSON and logfmt Table View, Count values, stdin, apt and dnf repositories, 27 bug fixes"
+    },
+    {
+      "version": "26.10.0",
+      "description": "Portable data beside the executable, plugins install into the user folder, Sessions restore Log Files from archives, spdlog recognized, 13 bug fixes"
     }
   ],
   "stable_version": "26.07.0",
