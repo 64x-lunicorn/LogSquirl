@@ -15,7 +15,9 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/regexpengine.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchregexptype.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/runnable_lambda.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/csv.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu_info.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/csv.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/memory_info.cpp
 )
 
