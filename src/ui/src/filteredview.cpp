@@ -41,8 +41,11 @@
 // Only behaviour specific to the filtered (bottom) view is implemented here.
 
 #include <cassert>
+#include <utility>
 
 #include "filteredview.h"
+
+#include "logformatdefinition.h"
 
 FilteredView::FilteredView( LogFilteredData* newLogData,
                             const QuickFindPattern* const quickFindPattern, bool initialTextWrap,
@@ -74,4 +77,108 @@ void FilteredView::setPresentationPolicy( const PresentationPolicy& policy )
 {
     AbstractLogView::setPresentationPolicy( policy );
     setLineNumbersVisible( policy.filteredLineNumbersVisible );
+}
+
+void FilteredView::setRecognizedFormat( std::function<RecognizedFormat()> recognizedFormat )
+{
+    recognizedFormat_ = std::move( recognizedFormat );
+}
+
+std::function<void()> FilteredView::exportAsCsvAction()
+{
+    if ( !recognizedFormat_ || !recognizedFormat_().format ) {
+        return {};
+    }
+    return [ this ]() { exportAsCsv(); };
+}
+
+std::vector<CsvColumn>
+FilteredView::csvColumns( const LogFormatDefinition* format,
+                          logsquirl::vector<AbstractLogData::LineType> types ) const
+{
+    std::vector<CsvColumn> columns{ CsvColumn::lineNumber( tr( "Line" ) ),
+                                    CsvColumn::lineTypes( tr( "Type" ), std::move( types ) ) };
+    if ( format != nullptr ) {
+        const auto tableColumns = CsvColumn::ofTable( *format );
+        columns.insert( columns.end(), tableColumns.begin(), tableColumns.end() );
+    }
+    return columns;
+}
+
+CsvExportDialog::Setup FilteredView::csvExportSetup() const
+{
+    const auto recognized = recognizedFormat_ ? recognizedFormat_() : RecognizedFormat{};
+
+    CsvExportDialog::Setup setup;
+    setup.allRowsText = tr( "All shown lines" );
+    setup.selectedRowsText = tr( "Selected lines" );
+    setup.hasSelection = !selectedLogLines().empty();
+    setup.rowOptions.push_back(
+        { tr( "Include Context Lines" ),
+          visibility().testFlag( LogFilteredData::VisibilityFlags::Context ), false } );
+    setup.columns = csvDialogColumns( csvColumns( recognized.format.get(), {} ), 2 );
+    if ( !recognized.logFilePath.isEmpty() ) {
+        setup.proposedFileName = recognized.logFilePath + QStringLiteral( ".csv" );
+    }
+    return setup;
+}
+
+void FilteredView::exportAsCsv()
+{
+    if ( const auto choices = CsvExportDialog::ask( this, csvExportSetup() ) ) {
+        exportCsvTo( *choices );
+    }
+}
+
+void FilteredView::exportCsvTo( const CsvExportDialog::Choices& choices )
+{
+    const auto recognized = recognizedFormat_ ? recognizedFormat_() : RecognizedFormat{};
+    if ( !recognized.format || choices.fileName.isEmpty() || choices.columns.empty() ) {
+        return;
+    }
+
+    using Flags = AbstractLogData::LineTypeFlags;
+    const bool withContextLines = visibility().testFlag( LogFilteredData::VisibilityFlags::Context )
+                                  && !choices.rowOptions.empty() && choices.rowOptions.front();
+
+    // The Log Lines and their types are copied here, on the UI thread: the
+    // export reads the text of the Log File off it, and never the
+    // LogFilteredData, which the UI thread goes on changing.
+    CsvExport csvExport;
+    logsquirl::vector<AbstractLogData::LineType> types;
+    const auto take = [ & ]( LineNumber logLine ) {
+        const auto type = logFilteredData_->lineTypeByLine( logLine );
+        const bool matchOrMark = type.testFlag( Flags::Match ) || type.testFlag( Flags::Mark );
+        if ( matchOrMark || ( withContextLines && type.testFlag( Flags::Context ) ) ) {
+            csvExport.logLines.push_back( logLine );
+            types.push_back( type );
+        }
+    };
+    if ( choices.selectedRowsOnly ) {
+        const auto& shown = lineMapping();
+        for ( const auto logLine : selectedLogLines() ) {
+            if ( shown.shows( logLine ) ) {
+                take( logLine );
+            }
+        }
+    }
+    else {
+        const auto displayed = logFilteredData_->copyDisplayedLines();
+        csvExport.logLines.reserve( displayed.cardinality() );
+        types.reserve( displayed.cardinality() );
+        for ( const auto logLine : displayed ) {
+            take( LineNumber( logLine ) );
+        }
+    }
+    if ( csvExport.logLines.empty() ) {
+        return;
+    }
+
+    applyCsvChoices( csvExport, choices,
+                     csvColumns( recognized.format.get(), std::move( types ) ) );
+    csvExport.format = recognized.format;
+    csvExport.modificationDate = recognized.modificationDate;
+    csvExport.logData = &lineMapping().logFile();
+
+    exportCsvWithProgress( this, choices.fileName, std::move( csvExport ) );
 }

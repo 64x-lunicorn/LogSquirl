@@ -28,11 +28,12 @@
 #include <QDate>
 #include <QString>
 
+#include "abstractlogdata.h"
 #include "containers.h"
+#include "csvexportdialog.h"
 #include "linessaver.h"
 #include "linetypes.h"
 
-class AbstractLogData;
 class LogFormatDefinition;
 class QWidget;
 
@@ -53,6 +54,18 @@ struct CsvColumn {
     static CsvColumn ofTable( int tableColumn, const QString& name );
     // The 1-based number of each Log Line, as Copy with line numbers writes it.
     static CsvColumn lineNumber( const QString& name );
+    // Whether the Log Line at each position is a Match, a Mark, both or a
+    // Context Line, as typeName() writes it; types holds one per position,
+    // copied on the UI thread.
+    static CsvColumn lineTypes( const QString& name,
+                                logsquirl::vector<AbstractLogData::LineType> types );
+    // Every column of the Table View for format, in its order, headed as the
+    // Table View heads them.
+    static std::vector<CsvColumn> ofTable( const LogFormatDefinition& format );
+
+    // "Match", "Mark", "Match+Mark" or "Context", never translated, so a
+    // spreadsheet can filter on it; empty for a plain Log Line.
+    static QString typeName( AbstractLogData::LineType type );
 };
 
 // What a CSV export writes: one CSV line for each of logLines, in their order,
@@ -74,6 +87,17 @@ struct CsvExport {
     QChar separator = QLatin1Char( ',' );
     bool header = true;
 };
+
+// The columns of the dialog Export as CSV for the columns a view offers, in
+// their order: the first unchecked ones unchecked, every other one checked.
+std::vector<CsvExportDialog::Column> csvDialogColumns( const std::vector<CsvColumn>& offered,
+                                                       size_t unchecked );
+
+// Takes what the user chose in the dialog Export as CSV: the separator, the
+// header row, and the columns checked out of offered, which the dialog listed
+// in the same order.
+void applyCsvChoices( CsvExport& csvExport, const CsvExportDialog::Choices& choices,
+                      const std::vector<CsvColumn>& offered );
 
 // How many lines the export writes: the header row and one per Log Line.
 LineNumber csvLineCount( const CsvExport& csvExport );

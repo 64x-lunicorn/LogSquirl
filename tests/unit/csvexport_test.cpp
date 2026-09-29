@@ -213,6 +213,103 @@ SCENARIO( "a CSV file is UTF-8 with a Byte Order Mark and CR LF line ends", "[cs
     }
 }
 
+SCENARIO( "a CSV export offers the Table View's columns and takes the dialog's choices",
+          "[csvexport]" )
+{
+    const auto format = makeFormat();
+    FakeLogData logData( SampleLines );
+    LogFormatTableModel model( format, &logData );
+
+    GIVEN( "the columns of the Table View for a Log Format" )
+    {
+        const auto columns = CsvColumn::ofTable( format );
+
+        THEN( "they are the table's columns, in its order and headed as it heads them" )
+        {
+            REQUIRE( columns.size() == static_cast<size_t>( model.columnCount() ) );
+            for ( size_t column = 0; column < columns.size(); ++column ) {
+                const auto tableColumn = static_cast<int>( column );
+                REQUIRE( columns[ column ].tableColumn == tableColumn );
+                REQUIRE( columns[ column ].name
+                         == model.headerData( tableColumn, Qt::Horizontal ).toString() );
+            }
+        }
+    }
+
+    GIVEN( "a Line column of its own before them" )
+    {
+        std::vector<CsvColumn> offered{ CsvColumn::lineNumber( "Line" ) };
+        const auto tableColumns = CsvColumn::ofTable( format );
+        offered.insert( offered.end(), tableColumns.begin(), tableColumns.end() );
+
+        THEN( "the dialog lists them all, the Line column unchecked" )
+        {
+            const auto listed = csvDialogColumns( offered, 1 );
+            QStringList names;
+            std::vector<bool> checked;
+            for ( const auto& column : listed ) {
+                names << column.name;
+                checked.push_back( column.checked );
+            }
+            REQUIRE( names == QStringList{ "Line", "timestamp", "Δt", "level", "body" } );
+            REQUIRE( checked == std::vector<bool>{ false, true, true, true, true } );
+        }
+
+        WHEN( "the dialog's choices are taken" )
+        {
+            CsvExportDialog::Choices choices;
+            choices.columns = { 0, 2, 4, 99 };
+            choices.separator = QLatin1Char( ';' );
+            choices.header = false;
+
+            auto csvExport = exportOf( format, logData, {} );
+            csvExport.logLines = { 1_lnum };
+            applyCsvChoices( csvExport, choices, offered );
+
+            THEN( "the export writes the checked columns with the chosen separator, and an index "
+                  "past the columns offered is ignored" )
+            {
+                REQUIRE( exportedLines( csvExport )
+                         == QStringList{ R"(2;+0.004s;"disk ""sda"" at 91%, still writing")" } );
+            }
+        }
+    }
+}
+
+SCENARIO( "a CSV export's Type column names what each Log Line is", "[csvexport]" )
+{
+    using LineType = AbstractLogData::LineType;
+    using Flags = AbstractLogData::LineTypeFlags;
+
+    THEN( "each kind has its English name, never translated" )
+    {
+        REQUIRE( CsvColumn::typeName( Flags::Match ) == "Match" );
+        REQUIRE( CsvColumn::typeName( Flags::Mark ) == "Mark" );
+        REQUIRE( CsvColumn::typeName( LineType{ Flags::Match } | Flags::Mark ) == "Match+Mark" );
+        REQUIRE( CsvColumn::typeName( Flags::Context ) == "Context" );
+        REQUIRE( CsvColumn::typeName( Flags::Plain ).isEmpty() );
+    }
+
+    GIVEN( "an export with a Type column" )
+    {
+        const auto format = makeFormat();
+        FakeLogData logData( SampleLines );
+        auto csvExport = exportOf( format, logData, {} );
+        csvExport.logLines = { 0_lnum, 1_lnum, 3_lnum };
+        csvExport.columns
+            = { CsvColumn::lineTypes( "Type", { Flags::Context, Flags::Match,
+                                                LineType{ Flags::Match } | Flags::Mark } ),
+                CsvColumn::ofTable( 2, "level" ) };
+
+        THEN( "each line holds the type copied for its position" )
+        {
+            REQUIRE(
+                exportedLines( csvExport )
+                == QStringList{ "Type,level", "Context,INFO", "Match,WARN", "Match+Mark,ERROR" } );
+        }
+    }
+}
+
 namespace {
 
 // A Log File of many Log Lines, made up as they are read.
