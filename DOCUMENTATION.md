@@ -1199,9 +1199,11 @@ logger. *ANSI color sequences* says what *logsquirl* does with them:
   bold, underline and the other attributes are not. Each line starts in its
   own colors. The 16 basic colors are the Theme's: Smyck and Smyck Light use
   the SMYCK scheme's, the other Themes xterm's, and a foreground too faint to
-  read on its background is moved toward the Theme's text color. Highlighters,
-  the search highlight, Color Labels, QuickFind and the selection paint over
-  the ANSI colors. Search, QuickFind, selection and copy work exactly as under
+  read on its background is moved toward the Theme's text color. Text with
+  only a background color, where the Theme's text color is too faint to read
+  on it, is moved toward black or white instead. Highlighters, the search
+  highlight, Color Labels, QuickFind and the selection paint over the ANSI
+  colors. Search, QuickFind, selection and copy work exactly as under
   *Hide*, and switching between the two reloads nothing and runs no search
   again. The table view shows the text as under *Hide*, without ANSI colors.
 

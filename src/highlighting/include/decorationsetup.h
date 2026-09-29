@@ -82,7 +82,10 @@ public:
     // truecolor is as given. A foreground below 3:1 contrast (WCAG) against
     // what it is drawn on -- its ANSI background, else the palette's base --
     // is blended toward the palette's text color until it reaches 3:1, and
-    // is that text color at worst. A color left to the line is invalid.
+    // is that text color at worst. Where a span has only a background and
+    // the palette's text color falls below 3:1 on it, the text color is
+    // blended toward black or white instead, whichever reads better there.
+    // A color left to the line is invalid.
     logsquirl::vector<HighlightedMatch>
     ansiColorsFor( const logsquirl::vector<AnsiColorSpan>& spans,
                    const LinePalette& palette ) const;
