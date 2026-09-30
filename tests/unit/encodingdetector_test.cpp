@@ -201,16 +201,9 @@ SCENARIO( "EncodingDetector detects encoding from byte content", "[encoding]" )
             REQUIRE( codec != nullptr );
         }
 
-        THEN( "The codec can represent ASCII faithfully" )
+        THEN( "It is UTF-8, which reads ASCII the same and whatever follows it too (#657)" )
         {
-            // On some platforms uchardet may detect ASCII as a single-byte encoding
-            // like Windows-1252 instead of UTF-8/US-ASCII. All of these represent
-            // the ASCII range identically, so we check the codec name instead.
-            QString name = QString::fromLatin1( codec->name() ).toLower();
-            bool isAsciiCompatible = name.contains( "utf-8" ) || name.contains( "ascii" )
-                                     || name.contains( "iso-8859" )
-                                     || name.contains( "windows-1252" ) || name.contains( "latin" );
-            REQUIRE( isAsciiCompatible );
+            REQUIRE( codec == TextEncoding::forName( "UTF-8" ) );
         }
     }
 
@@ -227,6 +220,30 @@ SCENARIO( "EncodingDetector detects encoding from byte content", "[encoding]" )
             REQUIRE( codec != nullptr );
             EncodingParameters params( codec );
             REQUIRE( params.isUtf8Compatible );
+        }
+    }
+}
+
+SCENARIO( "EncodingDetector tells whether bytes go beyond ASCII", "[encoding]" )
+{
+    // Longer than one chunk of the scan, with the byte at every place in it.
+    std::string text( 200, 'a' );
+
+    THEN( "ASCII bytes do not" )
+    {
+        REQUIRE_FALSE( EncodingDetector::hasByteBeyondAscii( text.data(), text.size() ) );
+        REQUIRE_FALSE( EncodingDetector::hasByteBeyondAscii( text.data(), 0 ) );
+    }
+
+    THEN( "a byte of 0x80 or more anywhere does" )
+    {
+        for ( std::size_t offset = 0; offset < text.size(); ++offset ) {
+            auto withHighByte = text;
+            withHighByte[ offset ] = static_cast<char>( offset % 2 == 0 ? 0x80 : 0xFF );
+            INFO( "offset " << offset );
+            REQUIRE(
+                EncodingDetector::hasByteBeyondAscii( withHighByte.data(), withHighByte.size() ) );
+            REQUIRE_FALSE( EncodingDetector::hasByteBeyondAscii( withHighByte.data(), offset ) );
         }
     }
 }

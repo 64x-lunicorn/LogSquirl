@@ -60,6 +60,14 @@
   otherwise in the OEM code page, as soon as the output holds more than ASCII.
   The Encoding menu still changes it, and offers IBM437, the OEM code page of
   a US Windows. (#655)
+- **A growing Log File that starts with ASCII shows its umlauts**: the
+  Encoding was detected from the first bytes only, so a followed Log File,
+  a standard input tab or a spool file whose first Log Lines were plain ASCII
+  showed later UTF-8 lines as `GrÃ¶Ãe`, while the same file opened afresh
+  read `Größe`. Plain ASCII is now taken for UTF-8, and the first bytes beyond
+  ASCII appended to such a Log File decide its Encoding, a Latin one included;
+  the status line and the *Auto* Encoding follow. An Encoding chosen in the
+  menu or forced by the settings stays as it is. (#657)
 - **Open Command Output runs commands in csh and tcsh**: with csh or tcsh as
   the login shell, every command ended at once with exit code 1 and the
   shell's `Unknown option: '-l'` in its tab. The command line now runs in

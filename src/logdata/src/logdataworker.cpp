@@ -200,6 +200,7 @@ void IndexingData::clear( const IndexingPolicy& policy )
         linePosition_ = LinePositionArrayType( FastLinePositionArray{} );
     }
     encodingGuess_ = nullptr;
+    encodingGuessProvisional_ = false;
     encodingForced_ = nullptr;
 
     progress_ = {};
@@ -221,6 +222,7 @@ void IndexingData::loadFromCache( LinePositionArray&& linePosition, LineLength m
     headerAndTailDigests_.reset();
     indexedModificationTime_ = {};
     encodingGuess_ = encoding;
+    encodingGuessProvisional_ = false;
     encodingForced_ = nullptr;
     progress_ = 100;
 }
@@ -245,6 +247,7 @@ void IndexingData::resumeFromCache( ResumedIndex&& resumed )
     }
 
     encodingGuess_ = resumed.encoding;
+    encodingGuessProvisional_ = false;
     encodingForced_ = nullptr;
 }
 
@@ -397,7 +400,13 @@ void IndexOperation::guessEncoding( const char* bytes, std::size_t size,
 {
     if ( !state.encodingGuess ) {
         state.encodingGuess = EncodingDetector::getInstance().detectEncoding( bytes, size );
-        LOG_INFO << "Encoding guess " << state.encodingGuess->name().toStdString();
+        // Detected from ASCII alone, it is UTF-8 until bytes beyond ASCII
+        // tell otherwise (#657).
+        state.encodingGuessProvisional = state.encodingGuess->mibEnum() == TextEncoding::Utf8Mib
+                                         && !EncodingDetector::hasByteBeyondAscii(
+                                             bytes, EncodingDetector::sampleSize( bytes, size ) );
+        LOG_INFO << "Encoding guess " << state.encodingGuess->name().toStdString()
+                 << ( state.encodingGuessProvisional ? ", provisional" : "" );
     }
 
     if ( !state.fileTextCodec ) {
@@ -500,6 +509,10 @@ void IndexOperation::indexNextBlock( IndexingState& state,
     state.pos = line.start;
     state.additional_spaces = line.widening;
 
+    if ( state.detectBeyondAscii ) {
+        detectEncodingAgain( state, block );
+    }
+
     std::optional<quint64> fullDigest;
     if ( state.digests ) {
         state.digests->headerAndTail.add( block.beginning, block.bytes(), block.size );
@@ -536,6 +549,36 @@ void IndexOperation::indexNextBlock( IndexingState& state,
     }
 
     LOG_DEBUG << "Indexing block " << block.beginning << " done";
+}
+
+// While the guess is provisional, the first appended block with a byte
+// beyond ASCII decides it: the Log Lines before it are ASCII, and read the
+// same in any encoding it may be. Only one that splits the Log File into Log
+// Lines as the guess did is taken, since the Log Lines are already indexed
+// that way; either way the guess is final from then on.
+void IndexOperation::detectEncodingAgain( IndexingState& state,
+                                          const indexing_blocks::IndexingBlock& block ) const
+{
+    const auto* bytes = block.bytes();
+    const auto size = static_cast<std::size_t>( block.size );
+    if ( !EncodingDetector::hasByteBeyondAscii( bytes, size ) ) {
+        return;
+    }
+
+    const auto* detected = EncodingDetector::getInstance().detectEncoding( bytes, size );
+    if ( EncodingParameters( detected ) == EncodingParameters( state.encodingGuess ) ) {
+        LOG_INFO << "Encoding guess " << detected->name().toStdString()
+                 << " from the first bytes beyond ASCII, was "
+                 << state.encodingGuess->name().toStdString();
+        state.encodingGuess = detected;
+    }
+    else {
+        LOG_INFO << "Encoding " << detected->name().toStdString()
+                 << " detected from the first bytes beyond ASCII does not fit the Index, keeping "
+                 << state.encodingGuess->name().toStdString();
+    }
+    state.encodingGuessProvisional = false;
+    state.detectBeyondAscii = false;
 }
 
 namespace {
@@ -635,6 +678,9 @@ bool IndexOperation::doIndex( OffsetInFile initialPosition )
         }
 
         state.encodingGuess = scopedAccessor.getEncodingGuess();
+        state.encodingGuessProvisional
+            = state.encodingGuess != nullptr && scopedAccessor.isEncodingGuessProvisional();
+        state.detectBeyondAscii = state.encodingGuessProvisional;
         LOG_INFO << "Initial encoding "
                  << ( state.fileTextCodec != nullptr ? state.fileTextCodec->name().toStdString()
                                                      : std::string{ "auto" } );
@@ -810,8 +856,15 @@ bool IndexOperation::doIndex( OffsetInFile initialPosition )
         scopedAccessor.clear( indexingPolicy_ );
     }
 
+    if ( completed ) {
+        scopedAccessor.setEncodingGuessProvisional( state.encodingGuessProvisional );
+    }
+
     if ( !scopedAccessor.getEncodingGuess() ) {
         scopedAccessor.setEncodingGuess( TextEncoding::forLocale() );
+        // Nothing was read to guess it from: the first bytes beyond ASCII
+        // appended decide it.
+        scopedAccessor.setEncodingGuessProvisional( completed );
     }
 
     return completed;

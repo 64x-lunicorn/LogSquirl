@@ -84,8 +84,14 @@ public:
     // feed in there so no character is cut in half.
     static std::size_t sampleSize( const char* bytes, std::size_t size );
 
+    // The encoding the sample of the block is in. A sample of ASCII alone is
+    // taken for UTF-8: it reads the same, and so does most text that
+    // follows ASCII (#657).
     const TextEncoding* detectEncoding( const logsquirl::vector<char>& block ) const;
     const TextEncoding* detectEncoding( const char* bytes, std::size_t size ) const;
+
+    // Whether any of the bytes is 0x80 or more, that is, not ASCII.
+    static bool hasByteBeyondAscii( const char* bytes, std::size_t size );
 
 private:
     EncodingDetector() = default;

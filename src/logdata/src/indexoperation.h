@@ -171,6 +171,19 @@ public:
         data_->setEncodingGuess( codec );
     }
 
+    // Whether the guessed encoding is provisional: every byte it was
+    // guessed from was ASCII, so the first bytes beyond ASCII appended to
+    // the Log File decide it (#657).
+    bool isEncodingGuessProvisional() const
+    {
+        return data_->encodingGuessProvisional_;
+    }
+
+    void setEncodingGuessProvisional( bool provisional )
+    {
+        data_->encodingGuessProvisional_ = provisional;
+    }
+
     const TextEncoding* getForcedEncoding() const
     {
         return data_->getForcedEncoding();
@@ -347,6 +360,9 @@ private:
     QDateTime indexedModificationTime_;
 
     const TextEncoding* encodingGuess_{};
+    // Every byte the guess was taken from was ASCII; never for a cached
+    // Index, which does not store it.
+    bool encodingGuessProvisional_ = false;
     const TextEncoding* encodingForced_{};
 
     bool useFastModificationDetection_ = true;
@@ -367,6 +383,13 @@ struct IndexingState {
 
     const TextEncoding* encodingGuess{};
     const TextEncoding* fileTextCodec{};
+    // Whether the guess is provisional, as the Index will hold it.
+    bool encodingGuessProvisional = false;
+    // Set while a partial index goes on from a provisional guess: each
+    // block appended is looked at for a byte beyond ASCII, and the first
+    // one found in decides the guess. Only the stitcher reads and writes
+    // it, and the guess, then.
+    bool detectBeyondAscii = false;
 
     // Taken from the indexing data when the run starts, and built on as
     // blocks are parsed.
@@ -496,6 +519,8 @@ protected:
 
 private:
     void guessEncoding( const char* bytes, std::size_t size, IndexingState& state ) const;
+    void detectEncodingAgain( IndexingState& state,
+                              const indexing_blocks::IndexingBlock& block ) const;
 
     struct HeaderAndTail {
         // Nothing when the header recorded already is a whole block, which

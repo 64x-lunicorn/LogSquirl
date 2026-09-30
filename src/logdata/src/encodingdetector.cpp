@@ -118,6 +118,31 @@ std::size_t EncodingDetector::sampleSize( const char* bytes, std::size_t size )
     return end;
 }
 
+bool EncodingDetector::hasByteBeyondAscii( const char* bytes, std::size_t size )
+{
+    // OR-ed together a chunk at a time, which the compiler vectorizes, and
+    // looked at after each chunk, so a byte early on ends the scan early.
+    constexpr std::size_t ChunkSize = 64;
+    constexpr unsigned BeyondAscii = 0x80;
+
+    std::size_t offset = 0;
+    for ( ; offset + ChunkSize <= size; offset += ChunkSize ) {
+        unsigned chunk = 0;
+        for ( std::size_t i = 0; i < ChunkSize; ++i ) {
+            chunk |= static_cast<unsigned char>( bytes[ offset + i ] );
+        }
+        if ( ( chunk & BeyondAscii ) != 0 ) {
+            return true;
+        }
+    }
+
+    unsigned rest = 0;
+    for ( ; offset < size; ++offset ) {
+        rest |= static_cast<unsigned char>( bytes[ offset ] );
+    }
+    return ( rest & BeyondAscii ) != 0;
+}
+
 const TextEncoding* EncodingDetector::detectEncoding( const char* bytes, std::size_t size ) const
 {
     size = sampleSize( bytes, size );
@@ -147,6 +172,16 @@ const TextEncoding* EncodingDetector::detectEncoding( const char* bytes, std::si
         else {
             LOG_DEBUG << "Uchardet codec not found for guess " << uchardetGuess;
         }
+    }
+
+    // Plain ASCII, which uchardet calls "ASCII" and some other platforms'
+    // fallback reads in their ANSI code page, is taken for UTF-8: it reads
+    // the same, and so do UTF-8 bytes that follow it (#657). Every byte
+    // order mark has a byte beyond ASCII.
+    if ( ( !uchardetCodec || uchardetCodec->mibEnum() == TextEncoding::UsAsciiMib )
+         && !hasByteBeyondAscii( bytes, size ) ) {
+        LOG_DEBUG << "Final encoding guess UTF-8, for ASCII";
+        return TextEncoding::forMib( TextEncoding::Utf8Mib );
     }
 
     QByteArray blockArray = QByteArray::fromRawData( bytes, static_cast<qsizetype>( size ) );
