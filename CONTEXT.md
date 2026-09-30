@@ -67,8 +67,8 @@ _Avoid_: file watcher singleton, watch service
 The character encoding a Log File is interpreted with, either detected or chosen by the user.
 The Open Log File settles it after every load and whenever one is chosen: the one chosen, else
 the one detected, else the locale's. An Encoding the settings force is chosen from the start.
-The one detected is UTF-8 for plain ASCII, and provisional while every byte it was detected from
-is ASCII: the first bytes beyond ASCII appended to the Log File detect it again, once (#657).
+The one detected is UTF-8 for plain ASCII or an empty Log File, and provisional while every byte
+indexed is ASCII: the first bytes beyond ASCII detect it again from their Log Line, once (#657).
 The engine names one by a `TextEncoding`, an interned, immutable value found by name or IANA MIB enum;
 null means none chosen or unknown. It wraps Qt 6's `QStringConverter`; the engine has no
 `QTextCodec` and links no Qt5Compat.

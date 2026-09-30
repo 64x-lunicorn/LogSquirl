@@ -21,6 +21,8 @@
 
 #include "textencoding.h"
 
+#include <cstdint>
+#include <cstring>
 #include <string>
 #include <string_view>
 
@@ -120,27 +122,38 @@ std::size_t EncodingDetector::sampleSize( const char* bytes, std::size_t size )
 
 bool EncodingDetector::hasByteBeyondAscii( const char* bytes, std::size_t size )
 {
-    // OR-ed together a chunk at a time, which the compiler vectorizes, and
-    // looked at after each chunk, so a byte early on ends the scan early.
-    constexpr std::size_t ChunkSize = 64;
-    constexpr unsigned BeyondAscii = 0x80;
+    return firstByteBeyondAscii( bytes, size ) < size;
+}
+
+std::size_t EncodingDetector::firstByteBeyondAscii( const char* bytes, std::size_t size )
+{
+    // Eight bytes at a time, OR-ed together a chunk of eight words at a time
+    // and looked at after each chunk, so a byte early on ends the scan early.
+    // Only the chunk it is in is then looked at byte by byte.
+    using Word = std::uint64_t;
+    constexpr Word HighBits = 0x8080808080808080ULL;
+    constexpr std::size_t WordsPerChunk = 8;
+    constexpr std::size_t ChunkSize = WordsPerChunk * sizeof( Word );
 
     std::size_t offset = 0;
     for ( ; offset + ChunkSize <= size; offset += ChunkSize ) {
-        unsigned chunk = 0;
-        for ( std::size_t i = 0; i < ChunkSize; ++i ) {
-            chunk |= static_cast<unsigned char>( bytes[ offset + i ] );
+        Word chunk = 0;
+        for ( std::size_t word = 0; word < WordsPerChunk; ++word ) {
+            Word bits = 0;
+            std::memcpy( &bits, bytes + offset + word * sizeof( Word ), sizeof( Word ) );
+            chunk |= bits;
         }
-        if ( ( chunk & BeyondAscii ) != 0 ) {
-            return true;
+        if ( ( chunk & HighBits ) != 0 ) {
+            break;
         }
     }
 
-    unsigned rest = 0;
     for ( ; offset < size; ++offset ) {
-        rest |= static_cast<unsigned char>( bytes[ offset ] );
+        if ( static_cast<unsigned char>( bytes[ offset ] ) >= 0x80 ) {
+            return offset;
+        }
     }
-    return ( rest & BeyondAscii ) != 0;
+    return size;
 }
 
 const TextEncoding* EncodingDetector::detectEncoding( const char* bytes, std::size_t size ) const

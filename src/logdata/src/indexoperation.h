@@ -385,11 +385,14 @@ struct IndexingState {
     const TextEncoding* fileTextCodec{};
     // Whether the guess is provisional, as the Index will hold it.
     bool encodingGuessProvisional = false;
-    // Set while a partial index goes on from a provisional guess: each
-    // block appended is looked at for a byte beyond ASCII, and the first
-    // one found in decides the guess. Only the stitcher reads and writes
-    // it, and the guess, then.
+    // While the guess is provisional, every block is looked at for a byte
+    // beyond ASCII, and the first one found decides the guess. Set when the
+    // run starts, or by the reader when it detects the guess from the first
+    // block; only the stitcher reads and writes it, and the guess, after.
     bool detectBeyondAscii = false;
+    // Whether the reader asks the parser to look at the blocks it reads for
+    // a byte beyond ASCII; only the reader reads and writes it.
+    bool scanBeyondAscii = false;
 
     // Taken from the indexing data when the run starts, and built on as
     // blocks are parsed.
@@ -519,8 +522,8 @@ protected:
 
 private:
     void guessEncoding( const char* bytes, std::size_t size, IndexingState& state ) const;
-    void detectEncodingAgain( IndexingState& state,
-                              const indexing_blocks::IndexingBlock& block ) const;
+    void detectEncodingAgain( IndexingState& state, const indexing_blocks::IndexingBlock& block,
+                              std::int64_t firstBeyondAscii ) const;
 
     struct HeaderAndTail {
         // Nothing when the header recorded already is a whole block, which

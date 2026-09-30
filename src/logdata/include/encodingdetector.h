@@ -92,6 +92,9 @@ public:
 
     // Whether any of the bytes is 0x80 or more, that is, not ASCII.
     static bool hasByteBeyondAscii( const char* bytes, std::size_t size );
+    // The offset of the first byte of 0x80 or more, or size when there is
+    // none.
+    static std::size_t firstByteBeyondAscii( const char* bytes, std::size_t size );
 
 private:
     EncodingDetector() = default;

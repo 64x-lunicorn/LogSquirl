@@ -246,16 +246,26 @@ QByteArray linesOf( int first, int count, int paddingBytes = 0 )
 
 const auto Groesse = QStringLiteral( "Gr\u00f6\u00dfe" );
 
-// German Log Lines ending in one that says "Größe", in ISO-8859-1: enough of
-// them for the detector to tell a Latin encoding.
-QByteArray latin1Lines()
+// German Log Lines ending in one that says "Größe": enough of them for the
+// detector to tell the encoding they are written in.
+QString germanLines()
 {
     return QStringLiteral( "Die Gr\u00f6\u00dfe der \u00dcbertragung betr\u00e4gt 1024 Bytes\n"
                            "Gr\u00fc\u00dfe aus M\u00fcnchen, sch\u00f6ne Gr\u00fc\u00dfe\n"
                            "Der B\u00e4cker \u00f6ffnet um f\u00fcnf, die Stra\u00dfe ist "
                            "gro\u00df\n"
-                           "Gr\u00f6\u00dfe\n" )
-        .toLatin1();
+                           "Gr\u00f6\u00dfe\n" );
+}
+
+QByteArray latin1Lines()
+{
+    return germanLines().toLatin1();
+}
+
+// More ASCII than the detector looks at in one sample.
+QByteArray asciiBeyondOneSample()
+{
+    return linesOf( 0, 5000, 60 );
 }
 
 bool isLatinEncoding( const TextEncoding* encoding )
@@ -618,20 +628,28 @@ public:
         return IndexingData::ConstAccessor{ data_.get() }.getForcedEncoding();
     }
 
-    // The last Log Line as the Encoding guessed reads it.
-    QString lastLine() const
+    // A Log Line as the Index reads it: in the Encoding forced, else in the
+    // one guessed.
+    QString line( LineNumber number ) const
     {
         IndexingData::ConstAccessor accessor{ data_.get() };
-        const auto count = accessor.getNbLines().get();
-        REQUIRE( count > 0 );
-        const auto start
-            = count > 1 ? accessor.getEndOfLineOffset( LineNumber( count - 2 ) ).get() : 0;
-        const auto end = accessor.getEndOfLineOffset( LineNumber( count - 1 ) ).get() - 1;
+        REQUIRE( number.get() < accessor.getNbLines().get() );
+        const auto start = number.get() > 0
+                               ? accessor.getEndOfLineOffset( LineNumber( number.get() - 1 ) ).get()
+                               : 0;
+        const auto end = accessor.getEndOfLineOffset( number ).get() - 1;
 
         QFile file( fileName_ );
         REQUIRE( file.open( QIODevice::ReadOnly ) );
         REQUIRE( file.seek( start ) );
-        return accessor.getEncodingGuess()->toUnicode( file.read( end - start ) );
+        const auto* encoding = accessor.getForcedEncoding() ? accessor.getForcedEncoding()
+                                                            : accessor.getEncodingGuess();
+        return encoding->toUnicode( file.read( end - start ) );
+    }
+
+    QString lastLine() const
+    {
+        return line( LineNumber( lines().get() - 1 ) );
     }
 
 private:
@@ -1094,10 +1112,70 @@ SCENARIO( "A growing Log File that starts with ASCII detects its Encoding once i
         }
     }
 
+    GIVEN( "an Index of a Log File of ASCII Log Lines, more than one sample of them" )
+    {
+        writeContent( logFile, asciiBeyondOneSample() );
+        FollowedIndex index( logFile, policy );
+
+        WHEN( "more of them and Log Lines in ISO-8859-1 are appended at once, and indexed" )
+        {
+            appendContent( logFile, asciiBeyondOneSample() + latin1Lines() );
+            index.indexAppendedLines();
+
+            THEN( "the Encoding is detected from the Log Lines in ISO-8859-1" )
+            {
+                INFO( "guess " << index.encodingGuess()->name().toStdString() );
+                REQUIRE( isLatinEncoding( index.encodingGuess() ) );
+                REQUIRE( index.lastLine() == Groesse );
+            }
+        }
+    }
+
+    GIVEN( "an Index of a Log File of more ASCII than one sample, then Log Lines in UTF-8" )
+    {
+        writeContent( logFile, asciiBeyondOneSample() + germanLines().toUtf8() );
+        FollowedIndex index( logFile, policy );
+        const auto lastUtf8Line = LineNumber( index.lines().get() - 1 );
+
+        THEN( "the Encoding is UTF-8 and the Log Lines read right" )
+        {
+            REQUIRE( index.encodingGuess() == utf8 );
+            REQUIRE( index.line( lastUtf8Line ) == Groesse );
+        }
+
+        WHEN( "Log Lines in ISO-8859-1 are appended and indexed" )
+        {
+            appendContent( logFile, latin1Lines() );
+            index.indexAppendedLines();
+
+            THEN( "the Encoding is not detected again, and the Log Lines in UTF-8 read right" )
+            {
+                REQUIRE( index.encodingGuess() == utf8 );
+                REQUIRE( index.line( lastUtf8Line ) == Groesse );
+            }
+        }
+    }
+
     GIVEN( "an Index of an empty Log File" )
     {
         writeContent( logFile, "" );
         FollowedIndex index( logFile, policy );
+
+        THEN( "its Encoding is taken for UTF-8, as for ASCII" )
+        {
+            REQUIRE( index.encodingGuess() == utf8 );
+        }
+
+        WHEN( "ASCII Log Lines are appended and indexed" )
+        {
+            appendContent( logFile, "Ping 1\n" );
+            index.indexAppendedLines();
+
+            THEN( "the Encoding is still UTF-8" )
+            {
+                REQUIRE( index.encodingGuess() == utf8 );
+            }
+        }
 
         WHEN( "Log Lines in ISO-8859-1 are appended and indexed" )
         {
@@ -1132,19 +1210,20 @@ SCENARIO( "A growing Log File that starts with ASCII detects its Encoding once i
 
     GIVEN( "an Index of a Log File of ASCII Log Lines with an Encoding forced" )
     {
-        const auto* forced = TextEncoding::forName( "ISO-8859-1" );
         writeContent( logFile, "Ping 1\nPing 2\n" );
-        FollowedIndex index( logFile, policy, forced );
+        FollowedIndex index( logFile, policy, utf8 );
 
-        WHEN( "a Log Line in UTF-8 is appended and indexed" )
+        WHEN( "Log Lines in ISO-8859-1 are appended and indexed" )
         {
-            appendContent( logFile, Groesse.toUtf8() + "\n" );
+            appendContent( logFile, latin1Lines() );
             index.indexAppendedLines();
 
-            THEN( "the Encoding forced stays" )
+            THEN( "the guess may change, but they are read in the Encoding forced" )
             {
-                REQUIRE( index.forcedEncoding() == forced );
-                REQUIRE( index.lines() == LinesCount( 3 ) );
+                REQUIRE( isLatinEncoding( index.encodingGuess() ) );
+                REQUIRE( index.forcedEncoding() == utf8 );
+                REQUIRE( index.lastLine() == utf8->toUnicode( Groesse.toLatin1() ) );
+                REQUIRE( index.lastLine() != Groesse );
             }
         }
     }
