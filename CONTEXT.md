@@ -289,6 +289,29 @@ colors*. The lowest source of a Decoration. The sequences themselves are hidden 
 both; each Log Line starts in its own colors. The 16 basic colors are the Theme's.
 _Avoid_: terminal colors, escape codes (those are the sequences, not their colors)
 
+### Value Names
+
+**Value Names**:
+The feature that shows values captured in a Log Line as a name from a Name Table, in the Text
+View and the Filtered View. Display only: the Log File is never changed, and every Search,
+filter, QuickFind and Highlighter works on the raw text.
+_Avoid_: replace, rewrite, lookup (taken by the timestamp lookup, `LookupRunner`)
+
+**Naming Rule**:
+A regex plus, per capture group, the Name Table it uses, plus a display template with the
+placeholders `{name}` and `{value}`. Only its capture groups are looked up, a rule without
+any looks up its whole match. Every Naming Rule sees the raw text; on overlap the earlier
+one wins, in the order shown in the sidebar.
+
+**Name Table**:
+Rows of key regex → name. A key matches the whole captured value, never part of it; the first
+row that matches wins, ignoring case unless the table is case-sensitive. The name may use the
+key's capture groups as `{1}`, `{2}`, … A value no row matches stays as it is.
+
+**Naming Group**:
+A named group of Naming Rules and the Name Tables they use; the unit that is enabled, exported
+and shared. A rule only uses the Name Tables of its own group.
+
 ### Appearance
 
 **Theme**:
