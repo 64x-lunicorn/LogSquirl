@@ -56,6 +56,9 @@ public:
     static const TextEncoding* forMib( int mib );
     // The Encoding the system uses for text without a declared one.
     static const TextEncoding* forLocale();
+    // The Encoding a Windows code page number stands for, ANSI or OEM (1252,
+    // 850, 437, 65001 ...); nullptr if none this build can decode does.
+    static const TextEncoding* forWindowsCodePage( int codePage );
     // Looks for a byte order mark; `fallback` (or the locale Encoding) if
     // there is none.
     static const TextEncoding* forUtfText( QByteArrayView data,
