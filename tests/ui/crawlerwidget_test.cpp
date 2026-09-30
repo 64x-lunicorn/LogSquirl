@@ -174,6 +174,17 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         return crawler->lastLoadStatus_.has_value();
     }
 
+    // Whether a time lookup of the Time Navigation is under way.
+    bool isLookingUpTime() const
+    {
+        return crawler->timeNavigation_.isLookingUp();
+    }
+
+    void resetLogFormat()
+    {
+        crawler->resetLogFormat();
+    }
+
     // How the last load of the Log File ended, if one has.
     std::optional<LoadingStatus> lastLoadStatus() const
     {
@@ -4221,6 +4232,66 @@ SCENARIO( "A count typed after 0 moves the selection while a bare digit stays a 
             {
                 REQUIRE( viewPosition() == OptionalLineNumber{ 23_lnum } );
                 REQUIRE( crawlerVisitor.filteredView()->visibility() == VisibilityFlags::Marks );
+            }
+        }
+    }
+}
+
+// The Crawler Widget tells its Time Navigation what makes a time lookup stale
+// (#636); the Time Navigation's own tests cover what it does then.
+SCENARIO( "A reload or a forgotten Log Format cancels a time lookup under way",
+          "[ui][timenavigation]" )
+{
+    QTemporaryFile file{ "crawler_time_test_XXXXXX" };
+    REQUIRE( file.open() );
+    for ( int i = 0; i < 300; ++i ) {
+        const auto seconds = i * 10;
+        file.write( QStringLiteral( "[2026-01-01 12:%1:%2.000] [crawler] [info] line %3\n" )
+                        .arg( seconds / 60, 2, 10, QChar( '0' ) )
+                        .arg( seconds % 60, 2, 10, QChar( '0' ) )
+                        .arg( i )
+                        .toUtf8() );
+    }
+    file.close();
+
+    auto catalog = std::make_shared<LogFormatCatalog>();
+    catalog->rebuild();
+    auto policies = testSettingsPolicies();
+    policies.recognition.enabled = true;
+    Session session{ policies, catalog };
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    auto& crawler = *crawlerVisitor.crawler;
+    REQUIRE( waitUiState(
+        [ & ] {
+            return crawlerVisitor.isLoadingFinished()
+                   && crawler.goToTimestampUnavailableReason().isEmpty();
+        },
+        10000 ) );
+
+    GIVEN( "a lookup of the Timestamp near the current Log Line under way" )
+    {
+        // Its answer is reported through the event loop only, which does not
+        // run before the event: nothing can end it but a cancel.
+        crawler.goToTimestamp();
+        REQUIRE( crawlerVisitor.isLookingUpTime() );
+
+        WHEN( "the Log File is reloaded" )
+        {
+            crawler.reload();
+            THEN( "the lookup is cancelled" )
+            {
+                REQUIRE_FALSE( crawlerVisitor.isLookingUpTime() );
+            }
+        }
+
+        WHEN( "the Log Format is forgotten" )
+        {
+            crawlerVisitor.resetLogFormat();
+            THEN( "the lookup is cancelled" )
+            {
+                REQUIRE_FALSE( crawlerVisitor.isLookingUpTime() );
             }
         }
     }

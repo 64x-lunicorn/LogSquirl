@@ -197,45 +197,46 @@ void TimeNavigation::goToTimestamp( LineNumber current )
     }
 
     // The date of the Log Line the user is at, for a time typed without one.
-    lookUpNearbyTimestamp( current, [ this ]( std::optional<QDateTime> nearby ) {
-        const auto title = tr( "Go to timestamp" );
-        if ( !nearby ) {
-            prompt_.tell( title, tr( "No Log Line near the current one has a timestamp." ) );
-            return;
-        }
+    lookUpNearbyTimestamp(
+        current, [ this, life = std::weak_ptr( life_ ) ]( std::optional<QDateTime> nearby ) {
+            const auto title = tr( "Go to timestamp" );
+            if ( !nearby ) {
+                prompt_.tell( title, tr( "No Log Line near the current one has a timestamp." ) );
+                return;
+            }
 
-        const auto text = prompt_.askText(
-            title, tr( "Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.\n"
-                       "Without a date, %1 is used." )
-                       .arg( QLocale().toString( nearby->date(), QLocale::ShortFormat ) ) );
-        if ( !text || text->trimmed().isEmpty() ) {
-            return;
-        }
+            const auto text = prompt_.askText(
+                title, tr( "Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.\n"
+                           "Without a date, %1 is used." )
+                           .arg( QLocale().toString( nearby->date(), QLocale::ShortFormat ) ) );
+            if ( life.expired() || !text || text->trimmed().isEmpty() ) {
+                return;
+            }
 
-        const auto time = timelookup::parseTimeInput( *text, nearby->date() );
-        if ( !time ) {
-            prompt_.tell( title, tr( "\"%1\" is not a time. Use HH:MM, HH:MM:SS or "
-                                     "YYYY-MM-DD HH:MM:SS." )
-                                     .arg( text->trimmed() ) );
-            return;
-        }
+            const auto time = timelookup::parseTimeInput( *text, nearby->date() );
+            if ( !time ) {
+                prompt_.tell( title, tr( "\"%1\" is not a time. Use HH:MM, HH:MM:SS or "
+                                         "YYYY-MM-DD HH:MM:SS." )
+                                         .arg( text->trimmed() ) );
+                return;
+            }
 
-        // The Log Format may have changed while the dialog was open.
-        const auto source = lookupSource();
-        if ( !source ) {
-            return;
-        }
-        runLookup<std::optional<timelookup::Result>>(
-            [ source = *source, time = *time ]( const std::atomic<bool>& cancelled ) {
-                return timelookup::firstLineAtOrAfter( time, *source.logData, readerOf( source ),
-                                                       { {}, &cancelled } );
-            },
-            [ this ]( const std::optional<timelookup::Result>& result ) {
-                if ( result ) {
-                    showLookupResult( *result );
-                }
-            } );
-    } );
+            // The Log Format may have changed while the dialog was open.
+            const auto source = lookupSource();
+            if ( !source ) {
+                return;
+            }
+            runLookup<std::optional<timelookup::Result>>(
+                [ source = *source, time = *time ]( const std::atomic<bool>& cancelled ) {
+                    return timelookup::firstLineAtOrAfter( time, *source.logData,
+                                                           readerOf( source ), { {}, &cancelled } );
+                },
+                [ this ]( const std::optional<timelookup::Result>& result ) {
+                    if ( result ) {
+                        showLookupResult( *result );
+                    }
+                } );
+        } );
 }
 
 void TimeNavigation::showLookupResult( const timelookup::Result& result )
@@ -271,64 +272,71 @@ void TimeNavigation::setSearchLimitsToTimeRange( LineNumber current )
         return;
     }
     // The date of the Log Line the user is at, for a time typed without one.
-    lookUpNearbyTimestamp( current, [ this ]( std::optional<QDateTime> nearby ) {
-        const auto title = tr( "Set search limits to time range" );
-        if ( !nearby ) {
-            prompt_.tell( title, tr( "No Log Line near the current one has a timestamp." ) );
-            return;
-        }
+    lookUpNearbyTimestamp(
+        current, [ this, life = std::weak_ptr( life_ ) ]( std::optional<QDateTime> nearby ) {
+            const auto title = tr( "Set search limits to time range" );
+            if ( !nearby ) {
+                prompt_.tell( title, tr( "No Log Line near the current one has a timestamp." ) );
+                return;
+            }
 
-        const auto format
-            = tr( "Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.\n"
-                  "Without a date, %1 is used." )
-                  .arg( QLocale().toString( nearby->date(), QLocale::ShortFormat ) );
-        const auto startText
-            = prompt_.askText( title, tr( "Start (included).\n%1" ).arg( format ) );
-        if ( !startText || startText->trimmed().isEmpty() ) {
-            return;
-        }
-        const auto endText
-            = prompt_.askText( title, tr( "End (not included).\n%1" ).arg( format ) );
-        if ( !endText || endText->trimmed().isEmpty() ) {
-            return;
-        }
+            const auto format
+                = tr( "Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.\n"
+                      "Without a date, %1 is used." )
+                      .arg( QLocale().toString( nearby->date(), QLocale::ShortFormat ) );
+            const auto startText
+                = prompt_.askText( title, tr( "Start (included).\n%1" ).arg( format ) );
+            if ( life.expired() || !startText || startText->trimmed().isEmpty() ) {
+                return;
+            }
+            const auto endText
+                = prompt_.askText( title, tr( "End (not included).\n%1" ).arg( format ) );
+            if ( life.expired() || !endText || endText->trimmed().isEmpty() ) {
+                return;
+            }
 
-        const auto start = timelookup::parseTimeInput( *startText, nearby->date() );
-        const auto end = timelookup::parseTimeInput( *endText, nearby->date() );
-        if ( !start || !end ) {
-            prompt_.tell( title, tr( "\"%1\" is not a time. Use HH:MM, HH:MM:SS or "
-                                     "YYYY-MM-DD HH:MM:SS." )
-                                     .arg( ( !start ? *startText : *endText ).trimmed() ) );
-            return;
-        }
-        setSearchLimitsFromTimes( *start, *end );
-    } );
+            const auto start = timelookup::parseTimeInput( *startText, nearby->date() );
+            const auto end = timelookup::parseTimeInput( *endText, nearby->date() );
+            if ( !start || !end ) {
+                prompt_.tell( title, tr( "\"%1\" is not a time. Use HH:MM, HH:MM:SS or "
+                                         "YYYY-MM-DD HH:MM:SS." )
+                                         .arg( ( !start ? *startText : *endText ).trimmed() ) );
+                return;
+            }
+            setSearchLimitsFromTimes( *start, *end );
+        } );
 }
 
-void TimeNavigation::setSearchLimitsAroundLine( LineNumber current, int windowMinutes )
+void TimeNavigation::setSearchLimitsAroundLine( LineNumber current,
+                                                std::function<int()> windowMinutes )
 {
     if ( !searchLimitsByTimeUnavailableReason().isEmpty() ) {
         return;
     }
-    lookUpNearbyTimestamp( current, [ this, windowMinutes ]( std::optional<QDateTime> center ) {
-        const auto title = tr( "Set search limits around current line" );
-        if ( !center ) {
-            prompt_.tell( title, tr( "No Log Line near the current one has a timestamp." ) );
-            return;
-        }
+    lookUpNearbyTimestamp(
+        current, [ this, life = std::weak_ptr( life_ ),
+                   windowMinutes = std::move( windowMinutes ) ]( std::optional<QDateTime> center ) {
+            const auto title = tr( "Set search limits around current line" );
+            if ( !center ) {
+                prompt_.tell( title, tr( "No Log Line near the current one has a timestamp." ) );
+                return;
+            }
 
-        const auto minutes = prompt_.askNumber( title, tr( "Minutes before and after:" ),
-                                                windowMinutes, 1, 24 * 60 );
-        if ( !minutes ) {
-            return;
-        }
-        if ( *minutes != windowMinutes ) {
-            sink_.searchWindowChosen( *minutes );
-        }
+            // The minutes remembered when the prompt opens, as another tab may
+            // have changed them meanwhile.
+            const auto offered = windowMinutes();
+            const auto minutes = prompt_.askNumber( title, tr( "Minutes before and after:" ),
+                                                    offered, 1, 24 * 60 );
+            if ( life.expired() || !minutes ) {
+                return;
+            }
+            if ( *minutes != offered ) {
+                sink_.searchWindowChosen( *minutes );
+            }
 
-        setSearchLimitsFromTimes( center->addSecs( -*minutes * 60 ),
-                                  center->addSecs( *minutes * 60 ) );
-    } );
+            setSearchLimitsFromTimes( center->addSecs( -*minutes * 60 ),
+                                      center->addSecs( *minutes * 60 ) );
+        } );
 }
 
 void TimeNavigation::setSearchLimitsFromTimes( const QDateTime& start, const QDateTime& end )

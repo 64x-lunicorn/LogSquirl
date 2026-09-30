@@ -202,7 +202,7 @@ public:
         // The Encoding chosen for the Log File, none when it is detected.
         std::optional<int> encodingMib;
         // Why Go to timestamp and the Search Limits given as a time are not
-        // available, empty when they are: the time navigation.
+        // available, empty when they are: the Time Navigation.
         QString goToTimestampUnavailable;
         QString searchLimitsByTimeUnavailable;
         // The view QuickFind searches now; for the QuickFind mux, which the
@@ -391,7 +391,7 @@ private Q_SLOTS:
     void clearSearchLimits();
 
 private:
-    // What the time navigation reads, and where what it finds goes: the
+    // What the Time Navigation reads, and where what it finds goes: the
     // Search Limits through this widget to the Open Log File.
     TimeNavigation::Source timeNavigationSource() const;
     TimeNavigation::Sink timeNavigationSink();

@@ -4515,105 +4515,105 @@ Reinicie o LogSquirl para tentar novamente.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="201"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="250"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="255"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="260"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="202"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="251"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="256"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="261"/>
         <source>Go to timestamp</source>
         <translation>Ir para o timestamp</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="203"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="277"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="314"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="204"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="279"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="321"/>
         <source>No Log Line near the current one has a timestamp.</source>
         <translation>Nenhuma linha de log próxima à atual tem timestamp.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="208"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="282"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="209"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="284"/>
         <source>Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.
 Without a date, %1 is used.</source>
         <translation>Horário, como HH:MM[:SS[.mmm]], opcionalmente após uma data como AAAA-MM-DD.
 Sem data, usa-se %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="217"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="297"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="218"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="301"/>
         <source>&quot;%1&quot; is not a time. Use HH:MM, HH:MM:SS or YYYY-MM-DD HH:MM:SS.</source>
         <translation>&quot;%1&quot; não é um horário. Use HH:MM, HH:MM:SS ou AAAA-MM-DD HH:MM:SS.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="251"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="252"/>
         <source>The time is before the first timestamp in the Log File. Went to the first line.</source>
         <translation>O horário é anterior ao primeiro timestamp do arquivo de log. Foi para a primeira linha.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="256"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="257"/>
         <source>The time is after the last timestamp in the Log File. Went to the last line.</source>
         <translation>O horário é posterior ao último timestamp do arquivo de log. Foi para a última linha.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="261"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="262"/>
         <source>No Log Line has a timestamp this Log Format can read.</source>
         <translation>Nenhuma linha de log tem um timestamp que este formato de log consiga ler.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="275"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="277"/>
         <source>Set search limits to time range</source>
         <translation>Definir limites da pesquisa para um intervalo de tempo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="285"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="288"/>
         <source>Start (included).
 %1</source>
         <translation>Início (incluído).
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="289"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="293"/>
         <source>End (not included).
 %1</source>
         <translation>Fim (não incluído).
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="312"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="319"/>
         <source>Set search limits around current line</source>
         <translation>Definir limites da pesquisa ao redor da linha atual</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="318"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="328"/>
         <source>Minutes before and after:</source>
         <translation>Minutos antes e depois:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="347"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="357"/>
         <source>Set search limits by time</source>
         <translation>Definir limites da pesquisa por horário</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="359"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="369"/>
         <source>The time range is before the first timestamp in the Log File. The search limits are unchanged.</source>
         <translation>O intervalo de tempo é anterior ao primeiro timestamp do arquivo de log. Os limites da pesquisa não foram alterados.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="363"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="373"/>
         <source>The time range is after the last timestamp in the Log File. The search limits are unchanged.</source>
         <translation>O intervalo de tempo é posterior ao último timestamp do arquivo de log. Os limites da pesquisa não foram alterados.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="367"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="377"/>
         <source>No Log Line has a timestamp this Log Format can read. The search limits are unchanged.</source>
         <translation>Nenhuma linha de log tem um timestamp que este formato de log consiga ler. Os limites da pesquisa não foram alterados.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="371"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="381"/>
         <source>The end is not after the start. The search limits are unchanged.</source>
         <translation>O fim não é posterior ao início. Os limites da pesquisa não foram alterados.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="375"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="385"/>
         <source>No Log Line has a timestamp in the time range. The search limits are unchanged.</source>
         <translation>Nenhuma linha de log tem timestamp no intervalo de tempo. Os limites da pesquisa não foram alterados.</translation>
     </message>

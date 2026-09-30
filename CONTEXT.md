@@ -354,12 +354,12 @@ _Avoid_: date, time (both name only a part of it)
 
 **Time Navigation**:
 Go to timestamp and the Search Limits given as a time range or as minutes around the current
-Log Line, for one Log File. It finds the Log Line of a time through the Timestamps, on a
-worker thread, and asks and tells the user through a prompt; before each lookup it takes the
-Log File's data and Log Format anew, as either may have changed while a prompt was open. A
-reload, a load that did not only append, a truncation and a new or forgotten Log Format cancel
-a running lookup, which then reports nothing. The Crawler Widget holds it and hands on what it
-finds: the Log Line to show, and the Search Limits to its Open Log File (#636).
+Log Line, for one Log File. It finds the Log Line of a time through the Timestamps, and asks
+and tells the user through a prompt; after every prompt it reads the Log File and its Log
+Format anew, as either may have changed while the prompt was open. A reload, a load that did
+not only append, a truncation and a new or forgotten Log Format cancel a lookup under way,
+which then says nothing. What it finds is the Log Line shown, or the Search Limits of the
+Open Log File.
 _Avoid_: time search, time jump
 
 **Table View**:

@@ -488,8 +488,8 @@ void CrawlerWidget::setSearchLimitsToTimeRange()
 
 void CrawlerWidget::setSearchLimitsAroundCurrentLine()
 {
-    timeNavigation_.setSearchLimitsAroundLine( currentLineNumber_,
-                                               Configuration::get().searchWindowMinutes() );
+    timeNavigation_.setSearchLimitsAroundLine(
+        currentLineNumber_, [] { return Configuration::get().searchWindowMinutes(); } );
 }
 
 //

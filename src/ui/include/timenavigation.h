@@ -36,7 +36,7 @@ class AbstractLogData;
 class LogFormatDefinition;
 class QWidget;
 
-// The time navigation of a Log File: Go to timestamp and the Search Limits
+// The Time Navigation of a Log File: Go to timestamp and the Search Limits
 // given as a time range or as minutes around the current Log Line (#636).
 //
 // It is the glue between the time lookup, the lookup runner and the user:
@@ -118,9 +118,9 @@ public:
     // Asks for a start and an end time, and limits the Search to the Log
     // Lines between them.
     void setSearchLimitsToTimeRange( LineNumber current );
-    // Asks for the minutes before and after current, starting at
-    // windowMinutes, and limits the Search to them.
-    void setSearchLimitsAroundLine( LineNumber current, int windowMinutes );
+    // Asks for the minutes before and after current, starting at what
+    // windowMinutes gives when the prompt opens, and limits the Search to them.
+    void setSearchLimitsAroundLine( LineNumber current, std::function<int()> windowMinutes );
 
     // What makes the answer of a running lookup stale: it is cancelled, and
     // reports nothing.
@@ -151,6 +151,10 @@ private:
     void setSearchLimitsFromTimes( const QDateTime& start, const QDateTime& end );
     void showLookupResult( const timelookup::Result& result );
 
+    // Held by nobody else: a callback that ran a prompt checks it before
+    // touching this object again, which the prompt may have destroyed (the
+    // tab closed while a modal dialog was open).
+    std::shared_ptr<int> life_ = std::make_shared<int>();
     std::function<Source()> source_;
     Sink sink_;
     Prompt prompt_;

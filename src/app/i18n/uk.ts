@@ -4516,105 +4516,105 @@ Restart LogSquirl to try again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="201"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="250"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="255"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="260"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="202"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="251"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="256"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="261"/>
         <source>Go to timestamp</source>
         <translation>Перейти до мітки часу</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="203"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="277"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="314"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="204"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="279"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="321"/>
         <source>No Log Line near the current one has a timestamp.</source>
         <translation>Жоден рядок логу поблизу поточного не має мітки часу.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="208"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="282"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="209"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="284"/>
         <source>Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.
 Without a date, %1 is used.</source>
         <translation>Час у форматі HH:MM[:SS[.mmm]], за бажанням після дати у форматі YYYY-MM-DD.
 Якщо дату не вказано, використовується %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="217"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="297"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="218"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="301"/>
         <source>&quot;%1&quot; is not a time. Use HH:MM, HH:MM:SS or YYYY-MM-DD HH:MM:SS.</source>
         <translation>&quot;%1&quot; не є часом. Використовуйте HH:MM, HH:MM:SS або YYYY-MM-DD HH:MM:SS.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="251"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="252"/>
         <source>The time is before the first timestamp in the Log File. Went to the first line.</source>
         <translation>Час лежить до першої мітки часу в лог-файлі. Виконано перехід до першого рядка.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="256"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="257"/>
         <source>The time is after the last timestamp in the Log File. Went to the last line.</source>
         <translation>Час лежить після останньої мітки часу в лог-файлі. Виконано перехід до останнього рядка.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="261"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="262"/>
         <source>No Log Line has a timestamp this Log Format can read.</source>
         <translation>Жоден рядок логу не має мітки часу, яку цей формат логу здатен прочитати.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="275"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="277"/>
         <source>Set search limits to time range</source>
         <translation>Обмежити пошук діапазоном часу</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="285"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="288"/>
         <source>Start (included).
 %1</source>
         <translation>Початок (включно).
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="289"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="293"/>
         <source>End (not included).
 %1</source>
         <translation>Кінець (не включно).
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="312"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="319"/>
         <source>Set search limits around current line</source>
         <translation>Обмежити пошук навколо поточного рядка</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="318"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="328"/>
         <source>Minutes before and after:</source>
         <translation>Хвилин до і після:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="347"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="357"/>
         <source>Set search limits by time</source>
         <translation>Обмежити пошук за часом</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="359"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="369"/>
         <source>The time range is before the first timestamp in the Log File. The search limits are unchanged.</source>
         <translation>Діапазон часу лежить до першої мітки часу в лог-файлі. Обмеження пошуку не змінено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="363"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="373"/>
         <source>The time range is after the last timestamp in the Log File. The search limits are unchanged.</source>
         <translation>Діапазон часу лежить після останньої мітки часу в лог-файлі. Обмеження пошуку не змінено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="367"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="377"/>
         <source>No Log Line has a timestamp this Log Format can read. The search limits are unchanged.</source>
         <translation>Жоден рядок логу не має мітки часу, яку цей формат логу здатен прочитати. Обмеження пошуку не змінено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="371"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="381"/>
         <source>The end is not after the start. The search limits are unchanged.</source>
         <translation>Кінець не йде після початку. Обмеження пошуку не змінено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="375"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="385"/>
         <source>No Log Line has a timestamp in the time range. The search limits are unchanged.</source>
         <translation>Жоден рядок логу не має мітки часу в цьому діапазоні. Обмеження пошуку не змінено.</translation>
     </message>

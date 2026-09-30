@@ -68,11 +68,14 @@ public:
                  [ this, job, watcher, done = std::move( done ) ]() mutable {
                      const auto isCurrent = job == running_;
                      jobs_.erase( std::remove( jobs_.begin(), jobs_.end(), job ), jobs_.end() );
+                     watcher->deleteLater();
                      if ( isCurrent ) {
                          running_.reset();
+                         // Last: what done does may destroy this runner (a
+                         // modal prompt during which the tab is closed), so
+                         // nothing of it is touched afterwards (#636).
                          done( watcher->result() );
                      }
-                     watcher->deleteLater();
                  } );
 
         // The worker shares the job instead of pointing into it. The work

@@ -34,6 +34,7 @@
 #include <atomic>
 #include <chrono>
 #include <deque>
+#include <memory>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -115,7 +116,7 @@ protected:
     }
 };
 
-// Keeps what comes out of the time navigation.
+// Keeps what comes out of the Time Navigation.
 struct RecordingSink {
     std::vector<LineNumber> shown;
     std::vector<std::pair<LineNumber, LineNumber>> limits;
@@ -207,33 +208,67 @@ struct ScriptedPrompt {
 };
 
 struct Navigation {
-    std::shared_ptr<GatedLogData> logData = std::make_shared<GatedLogData>( timedLines() );
+    Navigation()
+    {
+        navigation = std::make_unique<TimeNavigation>(
+            [ this ] {
+                ++sourcesTaken;
+                return TimeNavigation::Source{ logData, format, QDate( 2026, 1, 1 ) };
+            },
+            sink.sink(), prompt.prompt() );
+    }
+
+    // A worker still reading when a check failed waits for its gate: the
+    // Time Navigation waits for it when destroyed, so every gate opens first.
+    ~Navigation()
+    {
+        for ( const auto& data : gatedData ) {
+            data->open = true;
+        }
+        navigation.reset();
+    }
+
+    Navigation( const Navigation& ) = delete;
+    Navigation& operator=( const Navigation& ) = delete;
+    Navigation( Navigation&& ) = delete;
+    Navigation& operator=( Navigation&& ) = delete;
+
+    std::shared_ptr<GatedLogData> gated( QStringList lines )
+    {
+        gatedData.push_back( std::make_shared<GatedLogData>( std::move( lines ) ) );
+        return gatedData.back();
+    }
+
+    std::vector<std::shared_ptr<GatedLogData>> gatedData;
+    std::shared_ptr<GatedLogData> logData = gated( timedLines() );
     std::shared_ptr<const LogFormatDefinition> format = timedFormat();
     int sourcesTaken = 0;
     RecordingSink sink;
     ScriptedPrompt prompt;
-    TimeNavigation navigation{ [ this ] {
-                                  ++sourcesTaken;
-                                  return TimeNavigation::Source{ logData, format,
-                                                                 QDate( 2026, 1, 1 ) };
-                              },
-                               sink.sink(), prompt.prompt() };
+    std::unique_ptr<TimeNavigation> navigation;
+
+    bool isLookingUp() const
+    {
+        return navigation && navigation->isLookingUp();
+    }
 
     // Until no lookup runs, the ones a prompt started included.
     void settle()
     {
         QElapsedTimer timer;
         timer.start();
-        while ( navigation.isLookingUp() && timer.elapsed() < 10'000 ) {
+        while ( isLookingUp() && timer.elapsed() < 10'000 ) {
             QCoreApplication::processEvents( QEventLoop::AllEvents, 20 );
         }
-        REQUIRE_FALSE( navigation.isLookingUp() );
+        REQUIRE_FALSE( isLookingUp() );
     }
 
     // Until every worker has returned and what it reported was delivered.
     void drain()
     {
-        logData->open = true;
+        for ( const auto& data : gatedData ) {
+            data->open = true;
+        }
         QThreadPool::globalInstance()->waitForDone( 10'000 );
         for ( int i = 0; i < 5; ++i ) {
             QCoreApplication::processEvents( QEventLoop::AllEvents, 20 );
@@ -250,7 +285,7 @@ TEST_CASE( "Go to timestamp goes to the first Log Line at or after the time",
 {
     Navigation nav;
     nav.prompt.text( "12:10:00" );
-    nav.navigation.goToTimestamp( 0_lnum );
+    nav.navigation->goToTimestamp( 0_lnum );
     nav.settle();
 
     CHECK( nav.sink.shown == std::vector{ 60_lnum } );
@@ -265,7 +300,7 @@ TEST_CASE( "Go to timestamp tells the positions that carry a message", "[ui][tim
     SECTION( "Before the first Timestamp it goes to the first Log Line" )
     {
         nav.prompt.text( "11:00:00" );
-        nav.navigation.goToTimestamp( 100_lnum );
+        nav.navigation->goToTimestamp( 100_lnum );
         nav.settle();
         CHECK( nav.sink.shown == std::vector{ 0_lnum } );
         REQUIRE( nav.prompt.told.size() == 1 );
@@ -276,7 +311,7 @@ TEST_CASE( "Go to timestamp tells the positions that carry a message", "[ui][tim
     SECTION( "After the last Timestamp it goes to the last Log Line" )
     {
         nav.prompt.text( "13:00:00" );
-        nav.navigation.goToTimestamp( 0_lnum );
+        nav.navigation->goToTimestamp( 0_lnum );
         nav.settle();
         CHECK( nav.sink.shown == std::vector{ LineNumber( LineCount - 1 ) } );
         REQUIRE( nav.prompt.told.size() == 1 );
@@ -287,9 +322,8 @@ TEST_CASE( "Go to timestamp tells the positions that carry a message", "[ui][tim
     {
         // The Log File loses its Timestamps while the time is asked for: the
         // lookup reads what the source holds after the prompt.
-        nav.prompt.text(
-            "12:10:00", [ & ] { nav.logData = std::make_shared<GatedLogData>( untimedLines() ); } );
-        nav.navigation.goToTimestamp( 0_lnum );
+        nav.prompt.text( "12:10:00", [ & ] { nav.logData = nav.gated( untimedLines() ); } );
+        nav.navigation->goToTimestamp( 0_lnum );
         nav.settle();
         CHECK( nav.sink.shown == std::vector{ 0_lnum } );
         REQUIRE( nav.prompt.told.size() == 1 );
@@ -305,7 +339,7 @@ TEST_CASE( "Go to timestamp stops at an answer that is no time", "[ui][timenavig
     SECTION( "Text that is no time is said" )
     {
         nav.prompt.text( "  not a time " );
-        nav.navigation.goToTimestamp( 0_lnum );
+        nav.navigation->goToTimestamp( 0_lnum );
         nav.settle();
         REQUIRE( nav.prompt.told.size() == 1 );
         CHECK( nav.prompt.told[ 0 ].second.startsWith( "\"not a time\" is not a time." ) );
@@ -320,7 +354,7 @@ TEST_CASE( "Go to timestamp stops at an answer that is no time", "[ui][timenavig
         else {
             nav.prompt.text( "   " );
         }
-        nav.navigation.goToTimestamp( 0_lnum );
+        nav.navigation->goToTimestamp( 0_lnum );
         nav.settle();
         CHECK( nav.prompt.told.empty() );
     }
@@ -331,20 +365,20 @@ TEST_CASE( "No Timestamp near the current Log Line is said before anything is as
            "[ui][timenavigation]" )
 {
     Navigation nav;
-    nav.logData = std::make_shared<GatedLogData>( untimedLines() );
+    nav.logData = nav.gated( untimedLines() );
 
     const auto entry = GENERATE( size_t{ 0 }, size_t{ 1 }, size_t{ 2 } );
     const auto title = std::array{ "Go to timestamp", "Set search limits to time range",
                                    "Set search limits around current line" }[ entry ];
     switch ( entry ) {
     case 0:
-        nav.navigation.goToTimestamp( 10_lnum );
+        nav.navigation->goToTimestamp( 10_lnum );
         break;
     case 1:
-        nav.navigation.setSearchLimitsToTimeRange( 10_lnum );
+        nav.navigation->setSearchLimitsToTimeRange( 10_lnum );
         break;
     default:
-        nav.navigation.setSearchLimitsAroundLine( 10_lnum, 5 );
+        nav.navigation->setSearchLimitsAroundLine( 10_lnum, [] { return 5; } );
         break;
     }
     nav.settle();
@@ -361,7 +395,7 @@ TEST_CASE( "Search Limits to a time range come out as each of the seven outcomes
     Navigation nav;
     const auto rangeGives = [ & ]( const QString& start, const QString& end ) {
         nav.prompt.text( start ).text( end );
-        nav.navigation.setSearchLimitsToTimeRange( 0_lnum );
+        nav.navigation->setSearchLimitsToTimeRange( 0_lnum );
         nav.settle();
         CHECK( nav.prompt.asked.size() == 2 );
     };
@@ -395,9 +429,9 @@ TEST_CASE( "Search Limits to a time range come out as each of the seven outcomes
     {
         // Taken from the source after the prompts, not before them.
         nav.prompt.text( "12:10:00" ).text( "12:20:00", [ & ] {
-            nav.logData = std::make_shared<GatedLogData>( untimedLines() );
+            nav.logData = nav.gated( untimedLines() );
         } );
-        nav.navigation.setSearchLimitsToTimeRange( 0_lnum );
+        nav.navigation->setSearchLimitsToTimeRange( 0_lnum );
         nav.settle();
         toldOnly( "No Log Line has a timestamp this Log Format can read." );
     }
@@ -419,14 +453,14 @@ TEST_CASE( "Search Limits to a time range come out as each of the seven outcomes
         // The lookup of the range reads slowly, and the Log File is reloaded
         // meanwhile: nothing comes of it.
         nav.prompt.text( "12:10:00" ).text( "12:20:00", [ & ] { nav.logData->open = false; } );
-        nav.navigation.setSearchLimitsToTimeRange( 0_lnum );
+        nav.navigation->setSearchLimitsToTimeRange( 0_lnum );
         QElapsedTimer timer;
         timer.start();
         while ( nav.prompt.asked.size() < 2 && timer.elapsed() < 10'000 ) {
             QCoreApplication::processEvents( QEventLoop::AllEvents, 20 );
         }
-        REQUIRE( nav.navigation.isLookingUp() );
-        nav.navigation.reloaded();
+        REQUIRE( nav.navigation->isLookingUp() );
+        nav.navigation->reloaded();
         nav.drain();
         CHECK( nav.sink.limits.empty() );
         CHECK( nav.prompt.told.empty() );
@@ -438,7 +472,7 @@ TEST_CASE( "A time range that is no time is said", "[ui][timenavigation]" )
 {
     Navigation nav;
     nav.prompt.text( "12:10:00" ).text( "later" );
-    nav.navigation.setSearchLimitsToTimeRange( 0_lnum );
+    nav.navigation->setSearchLimitsToTimeRange( 0_lnum );
     nav.settle();
     CHECK( nav.sink.limits.empty() );
     REQUIRE( nav.prompt.told.size() == 1 );
@@ -454,7 +488,7 @@ TEST_CASE( "Search Limits around a Log Line take the minutes before and after it
     {
         nav.prompt.number( 2 );
         // Line 150 is at 12:25:00.
-        nav.navigation.setSearchLimitsAroundLine( 150_lnum, 5 );
+        nav.navigation->setSearchLimitsAroundLine( 150_lnum, [] { return 5; } );
         nav.settle();
         CHECK( nav.prompt.offeredNumbers == std::vector{ 5 } );
         // Two minutes are twelve lines, each way.
@@ -465,7 +499,7 @@ TEST_CASE( "Search Limits around a Log Line take the minutes before and after it
     SECTION( "The same minutes are not handed out" )
     {
         nav.prompt.number( 5 );
-        nav.navigation.setSearchLimitsAroundLine( 150_lnum, 5 );
+        nav.navigation->setSearchLimitsAroundLine( 150_lnum, [] { return 5; } );
         nav.settle();
         CHECK( nav.sink.limits == std::vector{ Limits{ 120_lnum, 180_lnum } } );
         CHECK( nav.sink.windowsChosen.empty() );
@@ -474,7 +508,7 @@ TEST_CASE( "Search Limits around a Log Line take the minutes before and after it
     SECTION( "A cancelled prompt does nothing" )
     {
         nav.prompt.cancel();
-        nav.navigation.setSearchLimitsAroundLine( 150_lnum, 5 );
+        nav.navigation->setSearchLimitsAroundLine( 150_lnum, [] { return 5; } );
         nav.settle();
         CHECK( nav.sink.limits.empty() );
         CHECK( nav.sink.windowsChosen.empty() );
@@ -489,26 +523,26 @@ TEST_CASE( "The source is taken again after a prompt", "[ui][timenavigation]" )
     SECTION( "Go to timestamp" )
     {
         nav.prompt.text( "12:10:00", dropFormat );
-        nav.navigation.goToTimestamp( 0_lnum );
+        nav.navigation->goToTimestamp( 0_lnum );
     }
     SECTION( "Search Limits to a time range" )
     {
         nav.prompt.text( "12:10:00", dropFormat ).text( "12:20:00" );
-        nav.navigation.setSearchLimitsToTimeRange( 0_lnum );
+        nav.navigation->setSearchLimitsToTimeRange( 0_lnum );
     }
     SECTION( "Search Limits around a Log Line" )
     {
         // Forgotten after the lookup of the Timestamp near the line was
         // started, before the minutes are asked for.
         nav.prompt.steps.push_back( { std::nullopt, 2, dropFormat } );
-        nav.navigation.setSearchLimitsAroundLine( 150_lnum, 5 );
+        nav.navigation->setSearchLimitsAroundLine( 150_lnum, [] { return 5; } );
     }
     const auto takenBefore = nav.sourcesTaken;
     nav.settle();
 
     // Whatever the Log Format was before the prompt, none is read after it.
     CHECK( nav.sourcesTaken > takenBefore );
-    CHECK_FALSE( nav.navigation.isLookingUp() );
+    CHECK_FALSE( nav.navigation->isLookingUp() );
     CHECK( nav.sink.shown.empty() );
     CHECK( nav.sink.limits.empty() );
     CHECK( nav.prompt.told.empty() );
@@ -519,29 +553,29 @@ TEST_CASE( "Each event that makes a lookup stale cancels it", "[ui][timenavigati
     Navigation nav;
     // The lookup of the Timestamp near the line waits until the event came.
     nav.logData->open = false;
-    nav.navigation.goToTimestamp( 0_lnum );
-    REQUIRE( nav.navigation.isLookingUp() );
+    nav.navigation->goToTimestamp( 0_lnum );
+    REQUIRE( nav.navigation->isLookingUp() );
     CHECK( nav.sink.statuses == QStringList{ "Looking up the time..." } );
 
     const auto event = GENERATE( 0, 1, 2, 3, 4 );
     switch ( event ) {
     case 0:
-        nav.navigation.reloaded();
+        nav.navigation->reloaded();
         break;
     case 1:
-        nav.navigation.loaded( false );
+        nav.navigation->loaded( false );
         break;
     case 2:
-        nav.navigation.truncated();
+        nav.navigation->truncated();
         break;
     case 3:
-        nav.navigation.formatChanged();
+        nav.navigation->formatChanged();
         break;
     default:
-        nav.navigation.formatReset();
+        nav.navigation->formatReset();
         break;
     }
-    CHECK_FALSE( nav.navigation.isLookingUp() );
+    CHECK_FALSE( nav.navigation->isLookingUp() );
     CHECK( nav.sink.statuses == QStringList{ "Looking up the time...", "" } );
 
     nav.drain();
@@ -555,9 +589,9 @@ TEST_CASE( "A load that only appended leaves a lookup running", "[ui][timenaviga
     Navigation nav;
     nav.logData->open = false;
     nav.prompt.text( "12:10:00" );
-    nav.navigation.goToTimestamp( 0_lnum );
-    nav.navigation.loaded( true );
-    CHECK( nav.navigation.isLookingUp() );
+    nav.navigation->goToTimestamp( 0_lnum );
+    nav.navigation->loaded( true );
+    CHECK( nav.navigation->isLookingUp() );
 
     nav.logData->open = true;
     nav.settle();
@@ -568,29 +602,109 @@ TEST_CASE( "A load that only appended leaves a lookup running", "[ui][timenaviga
 TEST_CASE( "Time navigation says why it is not available", "[ui][timenavigation]" )
 {
     Navigation nav;
-    CHECK( nav.navigation.goToTimestampUnavailableReason().isEmpty() );
-    CHECK( nav.navigation.searchLimitsByTimeUnavailableReason().isEmpty() );
+    CHECK( nav.navigation->goToTimestampUnavailableReason().isEmpty() );
+    CHECK( nav.navigation->searchLimitsByTimeUnavailableReason().isEmpty() );
 
     SECTION( "Without a Log Format" )
     {
         nav.format.reset();
-        CHECK( nav.navigation.goToTimestampUnavailableReason()
+        CHECK( nav.navigation->goToTimestampUnavailableReason()
                == "Go to timestamp needs a Log Format: none was recognized for this Log File." );
-        CHECK( nav.navigation.searchLimitsByTimeUnavailableReason().startsWith(
+        CHECK( nav.navigation->searchLimitsByTimeUnavailableReason().startsWith(
             "Search limits by time need a Log Format" ) );
     }
 
     SECTION( "With a Log Format without a timestamp field" )
     {
         nav.format = untimedFormat();
-        CHECK( nav.navigation.goToTimestampUnavailableReason().contains( "\"Untimed\"" ) );
-        CHECK( nav.navigation.searchLimitsByTimeUnavailableReason().contains( "\"Untimed\"" ) );
+        CHECK( nav.navigation->goToTimestampUnavailableReason().contains( "\"Untimed\"" ) );
+        CHECK( nav.navigation->searchLimitsByTimeUnavailableReason().contains( "\"Untimed\"" ) );
     }
 
     // Nothing is asked or looked up then.
-    nav.navigation.goToTimestamp( 0_lnum );
-    nav.navigation.setSearchLimitsToTimeRange( 0_lnum );
-    nav.navigation.setSearchLimitsAroundLine( 0_lnum, 5 );
-    CHECK_FALSE( nav.navigation.isLookingUp() );
+    nav.navigation->goToTimestamp( 0_lnum );
+    nav.navigation->setSearchLimitsToTimeRange( 0_lnum );
+    nav.navigation->setSearchLimitsAroundLine( 0_lnum, [] { return 5; } );
+    CHECK_FALSE( nav.navigation->isLookingUp() );
     CHECK( nav.sink.statuses.isEmpty() );
+}
+
+TEST_CASE( "The minutes around a Log Line are those remembered when the prompt opens",
+           "[ui][timenavigation]" )
+{
+    Navigation nav;
+    int remembered = 5;
+    nav.prompt.number( 7 );
+    nav.navigation->setSearchLimitsAroundLine( 150_lnum, [ & ] { return remembered; } );
+    // Another tab remembers other minutes while the Timestamp is looked up.
+    remembered = 7;
+    nav.settle();
+    CHECK( nav.prompt.offeredNumbers == std::vector{ 7 } );
+    CHECK( nav.sink.windowsChosen.empty() );
+}
+
+TEST_CASE( "A lookup that lands among Timestamps out of time order says so",
+           "[ui][timenavigation]" )
+{
+    // Around line 60 (12:10:00) two Log Lines are swapped.
+    auto lines = timedLines();
+    lines.swapItemsAt( 56, 64 );
+    Navigation nav;
+    nav.logData = nav.gated( lines );
+
+    SECTION( "Go to timestamp" )
+    {
+        nav.prompt.text( "12:10:00" );
+        nav.navigation->goToTimestamp( 0_lnum );
+        nav.settle();
+        CHECK( nav.sink.shown.size() == 1 );
+    }
+    SECTION( "Search Limits" )
+    {
+        nav.prompt.text( "12:10:00" ).text( "12:20:00" );
+        nav.navigation->setSearchLimitsToTimeRange( 0_lnum );
+        nav.settle();
+        CHECK( nav.sink.limits.size() == 1 );
+    }
+    CHECK( nav.sink.statuses.last() == TimeNavigation::notInTimeOrderNotice() );
+    CHECK( nav.prompt.told.empty() );
+}
+
+TEST_CASE( "A Time Navigation destroyed while a prompt is open goes no further",
+           "[ui][timenavigation]" )
+{
+    Navigation nav;
+    // The tab is closed while the dialog is open.
+    const auto close = [ & ] { nav.navigation.reset(); };
+
+    SECTION( "Go to timestamp" )
+    {
+        nav.prompt.text( "12:10:00", close );
+        nav.navigation->goToTimestamp( 0_lnum );
+    }
+    SECTION( "Search Limits to a time range" )
+    {
+        nav.prompt.text( "12:10:00", close ).text( "12:20:00" );
+        nav.navigation->setSearchLimitsToTimeRange( 0_lnum );
+    }
+    SECTION( "Search Limits around a Log Line" )
+    {
+        nav.prompt.steps.push_back( { std::nullopt, 2, close } );
+        nav.navigation->setSearchLimitsAroundLine( 150_lnum, [] { return 5; } );
+    }
+    QElapsedTimer timer;
+    timer.start();
+    while ( nav.navigation && timer.elapsed() < 10'000 ) {
+        QCoreApplication::processEvents( QEventLoop::AllEvents, 20 );
+    }
+    REQUIRE_FALSE( nav.navigation );
+    nav.drain();
+
+    CHECK( nav.prompt.asked.size() == 1 );
+    CHECK( nav.prompt.told.empty() );
+    CHECK( nav.sink.shown.empty() );
+    CHECK( nav.sink.limits.empty() );
+    CHECK( nav.sink.windowsChosen.empty() );
+    // Only the lookup of the Timestamp near the line said anything.
+    CHECK( nav.sink.statuses == QStringList{ "Looking up the time...", "" } );
 }

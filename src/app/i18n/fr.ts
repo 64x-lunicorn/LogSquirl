@@ -4515,105 +4515,105 @@ Redémarrez LogSquirl pour réessayer.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="201"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="250"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="255"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="260"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="202"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="251"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="256"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="261"/>
         <source>Go to timestamp</source>
         <translation>Aller à l&apos;horodatage</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="203"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="277"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="314"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="204"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="279"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="321"/>
         <source>No Log Line near the current one has a timestamp.</source>
         <translation>Aucune ligne de journal proche de la ligne actuelle n&apos;a d&apos;horodatage.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="208"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="282"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="209"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="284"/>
         <source>Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.
 Without a date, %1 is used.</source>
         <translation>Heure, au format HH:MM[:SS[.mmm]], éventuellement après une date au format AAAA-MM-JJ.
 Sans date, %1 est utilisé.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="217"/>
-        <location filename="../../ui/src/timenavigation.cpp" line="297"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="218"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="301"/>
         <source>&quot;%1&quot; is not a time. Use HH:MM, HH:MM:SS or YYYY-MM-DD HH:MM:SS.</source>
         <translation>&quot;%1&quot; n&apos;est pas une heure. Utilisez HH:MM, HH:MM:SS ou AAAA-MM-JJ HH:MM:SS.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="251"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="252"/>
         <source>The time is before the first timestamp in the Log File. Went to the first line.</source>
         <translation>L&apos;heure précède le premier horodatage du fichier journal. Retour à la première ligne.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="256"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="257"/>
         <source>The time is after the last timestamp in the Log File. Went to the last line.</source>
         <translation>L&apos;heure suit le dernier horodatage du fichier journal. Passage à la dernière ligne.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="261"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="262"/>
         <source>No Log Line has a timestamp this Log Format can read.</source>
         <translation>Aucune ligne de journal n&apos;a d&apos;horodatage lisible par ce format de journal.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="275"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="277"/>
         <source>Set search limits to time range</source>
         <translation>Limiter la recherche à une plage horaire</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="285"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="288"/>
         <source>Start (included).
 %1</source>
         <translation>Début (inclus).
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="289"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="293"/>
         <source>End (not included).
 %1</source>
         <translation>Fin (non incluse).
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="312"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="319"/>
         <source>Set search limits around current line</source>
         <translation>Limiter la recherche autour de la ligne actuelle</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="318"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="328"/>
         <source>Minutes before and after:</source>
         <translation>Minutes avant et après :</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="347"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="357"/>
         <source>Set search limits by time</source>
         <translation>Limiter la recherche par heure</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="359"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="369"/>
         <source>The time range is before the first timestamp in the Log File. The search limits are unchanged.</source>
         <translation>La plage horaire précède le premier horodatage du fichier journal. Les limites de recherche sont inchangées.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="363"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="373"/>
         <source>The time range is after the last timestamp in the Log File. The search limits are unchanged.</source>
         <translation>La plage horaire suit le dernier horodatage du fichier journal. Les limites de recherche sont inchangées.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="367"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="377"/>
         <source>No Log Line has a timestamp this Log Format can read. The search limits are unchanged.</source>
         <translation>Aucune ligne de journal n&apos;a d&apos;horodatage lisible par ce format de journal. Les limites de recherche sont inchangées.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="371"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="381"/>
         <source>The end is not after the start. The search limits are unchanged.</source>
         <translation>La fin ne suit pas le début. Les limites de recherche sont inchangées.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/timenavigation.cpp" line="375"/>
+        <location filename="../../ui/src/timenavigation.cpp" line="385"/>
         <source>No Log Line has a timestamp in the time range. The search limits are unchanged.</source>
         <translation>Aucune ligne de journal n&apos;a d&apos;horodatage dans la plage horaire. Les limites de recherche sont inchangées.</translation>
     </message>
