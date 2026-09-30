@@ -113,6 +113,14 @@ public:
     // True for partial selection
     bool isPartialSelection() const;
 
+    // The Regex Lab's samples from this Log File (#659): the text of the Log
+    // Lines selected in the view the user was last in -- the Filtered View or
+    // the Presentation shown -- and of those that view shows around its
+    // current line, at most count of each, in order. The text is what a
+    // Search matches.
+    logsquirl::vector<QString> selectedLogLineTexts( LinesCount count ) const;
+    logsquirl::vector<QString> logLineTextsAroundCurrentLine( LinesCount count ) const;
+
     // Instructs the widget to select all the text in the window the user
     // is interacting with
     void selectAll();
@@ -405,6 +413,11 @@ private:
     // Whether the Filtered View has the focus, or had it when QuickFind was
     // entered and the Presentation shown has not taken it since.
     bool filteredViewIsActive() const;
+    // Whether the Filtered View was the view last in focus in this window,
+    // even while another window -- the Regex Lab -- is active.
+    bool filteredViewWasLastFocused() const;
+    // The text of these Log Lines, as a Search matches it.
+    logsquirl::vector<QString> logLineTexts( const logsquirl::vector<LineNumber>& lines ) const;
     // The Presentation the upper pane shows, as a widget.
     QWidget* shownPresentation() const;
     // The Search Line says what is known of the Search, which does not run:

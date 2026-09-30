@@ -4,11 +4,13 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/hyperscanruntime.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/regularexpression.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/booleanevaluator.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/regexlab.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/include/regularexpressionpattern.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/regularexpression.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/hsregularexpression.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/hyperscanruntime.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/booleanevaluator.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/regexlab.h
 )
 target_include_directories(logsquirl_regex PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(

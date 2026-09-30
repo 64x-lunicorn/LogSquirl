@@ -34,6 +34,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/keptsearches.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindow.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/commandoutputdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/regexlabwindow.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/commandsource.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/instancehandover.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindowtext.h
@@ -131,6 +132,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/presentationmenu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindow.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/commandoutputdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/regexlabwindow.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/commandsource.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/instancehandover.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindowtext.cpp

@@ -176,6 +176,13 @@ public:
     QString getSelectedText() const;
     // True for partial selection
     bool isPartialSelection() const;
+    // The selected Log Lines, in order (see Selection::getLines()).
+    logsquirl::vector<LineNumber> selectedLogLines() const;
+    // The Log Lines the view shows around its current position
+    // (getViewPosition()), in order: at most count of them, centered on it
+    // where the view shows enough before and after it. What the Regex Lab
+    // takes as its sample (#659).
+    logsquirl::vector<LineNumber> logLinesAroundViewPosition( LinesCount count ) const;
     // Instructs the widget to select the whole text.
     void selectAll();
     // Saves the lines from the first to the last selected one to filename,
@@ -279,9 +286,6 @@ protected:
     // offers no such entry, unless the view can split its Log Lines into the
     // fields of a Log Format.
     virtual std::function<void()> exportAsCsvAction();
-
-    // The selected Log Lines, in order (see Selection::getLines()).
-    logsquirl::vector<LineNumber> selectedLogLines() const;
 
     void registerShortcut( const std::string& action, std::function<void()> func );
 

@@ -2219,6 +2219,30 @@ logsquirl::vector<LineNumber> AbstractLogView::selectedLogLines() const
     return selection_.getLines( *lines_ );
 }
 
+logsquirl::vector<LineNumber> AbstractLogView::logLinesAroundViewPosition( LinesCount count ) const
+{
+    logsquirl::vector<LineNumber> logLines;
+    const auto center = getViewPosition();
+    // The view shows a position for each line of its data.
+    const auto positions = logData_->getNbLine().get();
+    if ( !center.has_value() || positions == 0 || count.get() == 0 ) {
+        return logLines;
+    }
+
+    const auto wanted = std::min( count.get(), positions );
+    const auto centerPosition = lines_->nearestPositionOf( *center ).get();
+    const auto first = std::min( centerPosition > wanted / 2 ? centerPosition - wanted / 2 : 0,
+                                 positions - wanted );
+
+    logLines.reserve( wanted );
+    for ( auto position = first; position < first + wanted; ++position ) {
+        if ( const auto logLine = lines_->logLineAt( LineNumber( position ) ) ) {
+            logLines.push_back( *logLine );
+        }
+    }
+    return logLines;
+}
+
 void AbstractLogView::considerMouseHovering( int xPos, int yPos )
 {
     const auto line = logLineAtY( yPos );

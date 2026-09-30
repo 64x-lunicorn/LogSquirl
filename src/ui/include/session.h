@@ -341,6 +341,12 @@ public:
         return policies_.quickFind;
     }
 
+    // The Regex Lab matches with the engine a Search runs on (#659).
+    const SearchPolicy& searchPolicy() const
+    {
+        return policies_.search;
+    }
+
     // The one entry for every change of settings or coloring (#245). A writer
     // says what it changed, and nothing else, in whatever order it likes; the
     // Session works out what follows and who has to hear of it -- every open
@@ -619,6 +625,11 @@ public:
     const QuickFindPolicy& quickFindPolicy() const
     {
         return appSession_->quickFindPolicy();
+    }
+
+    const SearchPolicy& searchPolicy() const
+    {
+        return appSession_->searchPolicy();
     }
 
     // A change reaches every open Log File of the application, and every

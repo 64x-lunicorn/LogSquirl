@@ -161,6 +161,10 @@ _Avoid_: results pane, filter window
 The line above the Filtered View where a Search is typed: its pattern, the buttons that say how the pattern is read (case, regular expression, inverse, logical combination, auto-refresh), and what it says about the Search that runs — progress, the Matches found, an error in the pattern, a truncated Log File. Adding a word to the Search, excluding one or combining Predefined Filters edits its pattern. The search history offered while typing is not part of it.
 _Avoid_: search bar, search box
 
+**Regex Lab**:
+The window that shows what a pattern matches in sample Log Lines, with the Search's engine and options: which lines match, where, and the capture groups of a line. Its samples are the selected Log Lines of a tab, the Displayed Lines around the current line, or pasted text. It never changes a Search, a Highlighter or a filter by itself.
+_Avoid_: regex tester, pattern playground
+
 **QuickFind**:
 Interactive incremental search within the currently displayed lines. Distinct from Search:
 it navigates, it does not filter. The window's QuickFind bar searches the Filtered View when

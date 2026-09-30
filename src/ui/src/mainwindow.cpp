@@ -121,6 +121,7 @@
 #include "progress.h"
 #include "readablesize.h"
 #include "recentfiles.h"
+#include "regexlabwindow.h"
 #include "shortcuts.h"
 #include "tabbedcrawlerwidget.h"
 #include "teamfolder.h"
@@ -883,6 +884,9 @@ void MainWindow::reTranslateUI()
     predefinedFiltersDialogAction->setStatusTip(
         transAction( action::predefinedFiltersDialogStatusTip ) );
 
+    regexLabAction->setText( transAction( action::regexLabText ) );
+    regexLabAction->setStatusTip( transAction( action::regexLabStatusTip ) );
+
     // trayIcon
     trayIcon_->setToolTip( QApplication::translate(
         "logsquirl::mainwindow::trayicon", logsquirl::mainwindow::trayicon::trayiconTip ) );
@@ -1190,6 +1194,11 @@ void MainWindow::createActions()
     connect( predefinedFiltersDialogAction, &QAction::triggered, this,
              [ this ]( auto ) { this->editPredefinedFilters(); } );
 
+    regexLabAction = new QAction( tr( action::regexLabText ), this );
+    regexLabAction->setStatusTip( tr( action::regexLabStatusTip ) );
+    connect( regexLabAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->openRegexLab(); } );
+
     manageTabGroupsAction = new QAction( tr( "Manage Tab Groups..." ), this );
     manageTabGroupsAction->setStatusTip( tr( "Rename, recolor, or delete tab groups" ) );
     connect( manageTabGroupsAction, &QAction::triggered, this,
@@ -1391,6 +1400,7 @@ void MainWindow::createMenus()
 
     toolsMenu->addAction( predefinedFiltersDialogAction );
     toolsMenu->addAction( importChipmunkFiltersAction );
+    toolsMenu->addAction( regexLabAction );
     toolsMenu->addSeparator();
     toolsMenu->addAction( manageTabGroupsAction );
 
@@ -1847,6 +1857,37 @@ void MainWindow::editHighlighters()
     } );
 
     dialog.exec();
+}
+
+void MainWindow::openRegexLab()
+{
+    if ( regexLab_.isNull() ) {
+        regexLab_ = new RegexLabWindow( session_.searchPolicy().regexpEngine, this );
+        regexLab_->setAttribute( Qt::WA_DeleteOnClose );
+    }
+    else {
+        regexLab_->setEngine( session_.searchPolicy().regexpEngine );
+    }
+
+    // The Lab asks the tab for a sample only when the user asks for one; a
+    // tab closed meanwhile has none to give.
+    RegexLabSampleSource source;
+    if ( auto* crawler = currentCrawlerWidget() ) {
+        const QPointer<CrawlerWidget> tab( crawler );
+        source.name = mainTabWidget_.tabText( mainTabWidget_.currentIndex() );
+        source.selectedLines = [ tab ]( LinesCount count ) {
+            return tab.isNull() ? logsquirl::vector<QString>{} : tab->selectedLogLineTexts( count );
+        };
+        source.linesAroundCurrentLine = [ tab ]( LinesCount count ) {
+            return tab.isNull() ? logsquirl::vector<QString>{}
+                                : tab->logLineTextsAroundCurrentLine( count );
+        };
+    }
+    regexLab_->setSampleSource( std::move( source ) );
+
+    regexLab_->show();
+    regexLab_->raise();
+    regexLab_->activateWindow();
 }
 
 // Opens dialog to configure predefined filters

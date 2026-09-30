@@ -189,6 +189,49 @@ bool CrawlerWidget::isPartialSelection() const
         return logMainView_->isPartialSelection();
 }
 
+logsquirl::vector<QString> CrawlerWidget::selectedLogLineTexts( LinesCount count ) const
+{
+    auto lines = [ this ]() {
+        if ( filteredViewWasLastFocused() ) {
+            return currentFilteredView()->selectedLogLines();
+        }
+        if ( shownPresentation() == logTableView_ ) {
+            return logTableView_->selectedLogLines();
+        }
+        return logMainView_->selectedLogLines();
+    }();
+    if ( lines.size() > count.get() ) {
+        lines.resize( count.get() );
+    }
+    return logLineTexts( lines );
+}
+
+logsquirl::vector<QString> CrawlerWidget::logLineTextsAroundCurrentLine( LinesCount count ) const
+{
+    // The Presentation not shown follows the one shown, so the text view
+    // stands where the Table View does.
+    const AbstractLogView* view = filteredViewWasLastFocused()
+                                      ? static_cast<const AbstractLogView*>( currentFilteredView() )
+                                      : logMainView_;
+    return logLineTexts( view->logLinesAroundViewPosition( count ) );
+}
+
+bool CrawlerWidget::filteredViewWasLastFocused() const
+{
+    const auto* focused = window()->focusWidget();
+    const auto* filtered = currentFilteredView();
+    if ( focused == nullptr ) {
+        return qfSavedFocus_ == filtered;
+    }
+    return focused == filtered || filtered->isAncestorOf( focused );
+}
+
+logsquirl::vector<QString>
+CrawlerWidget::logLineTexts( const logsquirl::vector<LineNumber>& lines ) const
+{
+    return openLogFile_->logData()->getLinesSparse( lines );
+}
+
 void CrawlerWidget::selectAll()
 {
     if ( auto* view = qobject_cast<AbstractLogView*>( activeView() ) )

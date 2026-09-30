@@ -84,6 +84,7 @@ class QAction;
 class QActionGroup;
 class Session;
 class RecentFiles;
+class RegexLabWindow;
 namespace logsquirl::teamfolder {
 struct PublishOutcome;
 }
@@ -233,6 +234,9 @@ private Q_SLOTS:
     void openCommandOutputDialog();
     void editHighlighters();
     void editPredefinedFilters( const QString& newFilter = {} );
+    // Opens the Regex Lab, or brings it to the front, tied to the tab in
+    // front (#659).
+    void openRegexLab();
     void options();
     void about();
     void aboutQt();
@@ -496,6 +500,7 @@ private:
     QAction* aboutAction;
     QAction* aboutQtAction;
     QAction* predefinedFiltersDialogAction;
+    QAction* regexLabAction;
     QAction* manageTabGroupsAction;
     QAction* reportIssueAction;
     QAction* generateDumpAction;
@@ -569,6 +574,9 @@ private:
     // for the decompression under way, before tempDir_ is removed (#610).
     ArchiveMemberDecompression archiveRestores_;
     QPointer<QProgressDialog> archiveRestoreProgress_;
+
+    // The window's Regex Lab while it is open; it closes with the window.
+    QPointer<RegexLabWindow> regexLab_;
 
     bool isMaximized_ = false;
     bool isCloseFromTray_ = false;

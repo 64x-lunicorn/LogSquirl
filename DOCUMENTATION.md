@@ -480,6 +480,52 @@ arrives as a group of its own.
 This is available from the `Tools` menu. The imported filters are converted to
 *logsquirl* predefined filters and highlighter sets.
 
+### Regex Lab
+
+The *Regex Lab* (`Tools` → `Regex Lab...`) shows what a pattern does on real
+Log Lines before you use it in a search, a highlighter or a predefined filter.
+It is a window of its own that stays open beside the main window, tied to the
+tab that was in front when it was opened; choosing the menu entry again brings
+it to the front and ties it to the tab in front then.
+
+The pattern is read with the same options as the search line: *Match case*,
+*Use regex* (a regular expression, or else plain text), *Inverse match* and
+*Boolean combining* (a logical combination such as `"error" and not("retry")`).
+It is matched by the same engine as a search, so the lines the Lab counts as
+matching are exactly the lines a search with the same pattern and options
+selects. *Copy pattern* puts the pattern on the clipboard.
+
+The *Sample* is one of:
+
+- *Selected Log Lines*: the lines selected in the tab, in the main view or the
+  filtered view, whichever you were in last;
+- *Lines around the current line*: up to 1000 lines that view shows around its
+  current line;
+- *Pasted text*: text you paste or type into the sample, one line per line. It
+  is the only sample while no file is open.
+
+A sample from the file is taken when you choose it and when you click *Refresh
+sample*, not continuously, so a followed file does not move under you.
+
+While you type, the Lab shows after a short pause:
+
+- every line of the sample, the matching ones shaded and the matched text
+  marked; for a logical combination each sub-pattern's matches in a color of
+  their own;
+- for the line with the cursor, the capture groups of its first match,
+  numbered and with their names (`(?<name>...)`); for a logical combination
+  they are numbered *sub-pattern.group*, as in `2.1`;
+- how many lines of the sample match;
+- an error in the pattern, with the character of the pattern where it is;
+- a warning when evaluating the sample took unusually long, which hints at a
+  pattern that backtracks excessively.
+
+The evaluation runs in the background and never freezes the window. It looks
+at up to 1000 lines and at the first 10000 characters of each, and it stops
+after two seconds, saying at which line it stopped. Typing starts a new
+evaluation that replaces the one running, and closing the window stops it.
+The Lab never changes a search, a highlighter or a filter by itself.
+
 ### Using highlighters
 
 *Highlighters* can colorize some lines of the log being displayed
@@ -982,7 +1028,7 @@ whole list, with what the entries not explained elsewhere do.
   search matched, one series for every alternative of the search pattern (it
   does nothing while the search line is empty).
 - **Tools**: `Predefined filters...`, `Import Chipmunk filters...`,
-  `Manage Tab Groups...`, `Scratchpad`, `Filters panel` and
+  `Regex Lab...` (see [Regex Lab](#regex-lab)), `Manage Tab Groups...`, `Scratchpad`, `Filters panel` and
   `Command Palette...` (`Ctrl+Shift+P`, `Cmd+Shift+P` on macOS), which lists
   every enabled menu command: type to filter, `Enter` runs the selected one.
   The key can be changed in the shortcut settings.

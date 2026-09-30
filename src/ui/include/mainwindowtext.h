@@ -102,6 +102,8 @@ extern const char* predefinedFiltersDialogText;
 extern const char* predefinedFiltersDialogStatusTip;
 extern const char* importChipmunkFiltersText;
 extern const char* importChipmunkFiltersStatusTip;
+extern const char* regexLabText;
+extern const char* regexLabStatusTip;
 extern const char* showFiltersPanelText;
 extern const char* showFiltersPanelStatusTip;
 extern const char* toggleSidebarText;

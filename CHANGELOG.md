@@ -2,6 +2,16 @@
 
 ## Changes
 
+- **The Regex Lab tests a pattern on Log Lines**: *Tools → Regex Lab…* opens a
+  window beside the main window where a pattern, with the search line's
+  options, is matched live against the selected Log Lines of the tab in front,
+  up to 1000 lines around its current line, or pasted text. It marks the
+  matching lines and the matched text, lists the numbered and named capture
+  groups of the line with the cursor, counts the matching lines -- exactly
+  those a search with the same pattern and options selects -- and shows a
+  pattern error with its position. The evaluation runs in the background
+  within bounds of time, lines and line length, warns of a pattern that takes
+  unusually long, and *Copy pattern* puts the pattern on the clipboard. (#659)
 - **A session saves to and opens from a file**: *File → Save Session As…*
   writes the window's open files, their order, the tab in front, each tab's
   view state, tab names and groups to a `.logsquirl-session` file, and
