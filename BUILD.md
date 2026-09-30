@@ -417,6 +417,57 @@ events and results in, new windows and the Session of the run's own directory, a
 with `finish()` or `fail()`. `PaintProbe` times the paints of a widget, `Distribution` summarizes
 many durations. Nothing in the report or its writer changes for a new scenario.
 
+### Instruction counts
+
+Every pull request that CI Build builds also gets the **Instruction Counts** workflow
+(`.github/workflows/instruction-counts.yml`, #671): it builds the Catch2 benchmarks of
+`tests/benchmarks` in the noble build container as CI ships them (RelWithDebInfo with LTO), once
+for the master commit the pull request is merged onto and once for the merge, and counts the
+instructions of each benchmark under Valgrind's Callgrind. The job summary and one pull request
+comment, updated on every push, show each benchmark's count before and after and the change in
+percent; the `instruction-counts` artifact holds the same as JSON, and `instruction-counts-dumps`
+the Callgrind dumps, to see in `callgrind_annotate` or KCachegrind where the instructions went.
+The report does not fail anything yet (#672).
+
+A count is reproducible where a time is not: two runs of the same commit differ by less than
+0.5 % per benchmark, on a shared runner whose times vary by 5–20 %. For that, each benchmark runs
+its measured code exactly once, in the benchmarks' **fixed-work mode**
+(`tests/benchmarks/instruction_count.h`), instead of as often as Catch2's clock asks for:
+with `LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1`, `BENCHMARK` and `BENCHMARK_ADVANCED` start
+Callgrind's counting where Catch2 would start its clock and write one dump, named
+`<test case> / <benchmark>`, where it would stop it. The count covers every thread. Test cases tagged
+`[wall-clock]` time themselves without a `BENCHMARK` and are left out. The generated Log Files are
+smaller than in a timed run (16 MiB, and 4 MiB per Session Log File), so the counts are not
+comparable with Catch2's times.
+
+The comment comes from a second workflow, **Instruction Counts Comment**
+(`instruction-counts-comment.yml`), which starts when a count has completed: a pull request from a
+fork has a read-only token and cannot comment, and the workflow that can runs only master's code
+and reads the artifact as untrusted data.
+
+To reproduce a count locally, on Linux x86-64 with Valgrind installed (`sudo apt-get install
+valgrind`; it has no port for macOS on Apple Silicon, where the noble build container under
+Docker does it):
+
+```bash
+# From the repository root; builds every benchmark (RelWithDebInfo) in build_root and
+# counts them into counts/<binary>/
+.github/scripts/instruction-counts.sh counts
+.github/scripts/instruction-counts.py collect counts --json counts.json
+
+# Or one benchmark binary by hand, after building it with Valgrind's headers installed
+LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1 QT_HASH_SEED=0 QT_QPA_PLATFORM=offscreen \
+LOGSQUIRL_BENCHMARK_LOG_FILE_MB=16 LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB=4 \
+  valgrind --tool=callgrind --instr-atstart=no --trace-children=yes \
+    --callgrind-out-file=counts/callgrind.out.%p \
+    build_root/output/logsquirl_decoration_benchmark --order decl --rng-seed 1 '~[wall-clock]'
+callgrind_annotate counts/callgrind.out.<pid>.<n>   # "totals:" is the count, the rest where it went
+```
+
+A count depends on the compiler, the optimization options and the libraries, so only counts from
+the same build container and the same options compare; the workflow's are from the noble build
+container with the CI Build noble job's options.
+
 ### Fuzzing
 
 `tests/fuzz` holds libFuzzer targets for the code that reads bytes from anywhere before a user sees
@@ -538,7 +589,7 @@ Linux builds use pre-built Docker images hosted on GHCR:
 | Image | Based On | Packages |
 |-------|----------|----------|
 | `ghcr.io/64x-lunicorn/logsquirl-oracle10` | Oracle Linux 10 | Qt 6, GCC, RPM |
-| `ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble` | Ubuntu 24.04 | Qt 6, GCC, DEB |
+| `ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble` | Ubuntu 24.04 | Qt 6, GCC, DEB, Valgrind (*Instruction counts*) |
 | `ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy` | Ubuntu 22.04 | Qt 6, GCC 12, AppImage |
 | `ghcr.io/64x-lunicorn/logsquirl-fedora44` | Fedora 44 | Qt 6, GCC, RPM |
 | `ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble-tsan` | Ubuntu 24.04 | Qt 6 built from source with ThreadSanitizer, GCC; the `Sanitizers / tsan` job only |
@@ -838,6 +889,8 @@ before anything is downloaded, because its signing job could not enter the
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
+| `instruction-counts.yml` | PR to master (the files CI Build builds for) | Count the instructions of every Catch2 benchmark before and after the pull request under Callgrind, report them in the job summary and the artifact (see *Instruction counts*) |
+| `instruction-counts-comment.yml` | `workflow_run` of Instruction Counts | Post the report as one pull request comment, updated on every run, with master's code only |
 | `performance.yml` | weekly schedule (Mondays 03:41 UTC), dispatch | Measure master's e2e performance suite in an optimized build, compare it with the last runs and record it on the `perf-data` branch (see *Weekly performance*) |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 
