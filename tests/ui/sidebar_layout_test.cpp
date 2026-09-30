@@ -137,7 +137,7 @@ SCENARIO( "The Search line keeps a usable width while the sidebar is open",
     // A Search, so the row shows its match count.
     auto* line = searchLine( tabArea );
     line->setEditText( "line" );
-    QTest::keyClick( line->lineEdit(), Qt::Key_Return );
+    QTest::keyClick( line, Qt::Key_Return );
     REQUIRE( waitUiState( [ & ] {
         const auto* matchCount = currentCrawler( tabArea )->findChild<InfoLine*>();
         return matchCount != nullptr && matchCount->text().contains( "matches found" );

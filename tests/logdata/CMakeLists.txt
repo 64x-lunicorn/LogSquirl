@@ -21,3 +21,8 @@ set_target_properties(logsquirl_logdata_tests PROPERTIES AUTOMOC ON)
 add_dependencies(logsquirl_logdata_tests file_write_helper)
 
 logsquirl_add_catch_tests(logsquirl_logdata_tests TIMEOUT 120)
+
+# The indexing, indexing-blocks and worker-destruction tests build index
+# operations and the indexing data directly: those are the engine's own, in
+# a private header beside the implementation (#646).
+target_include_directories(logsquirl_logdata_tests PRIVATE "${CMAKE_SOURCE_DIR}/src/logdata/src")

@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include "ansicolorsequences.h"
 #include "containers.h"
 #include "encodingdetector.h"
 #include "linetypes.h"
@@ -47,8 +48,13 @@ struct RawLines {
 
 public:
     // Every Log Line of the block as its text (loglinetext.h): as it is
-    // displayed, before untabifying.
+    // displayed, before untabifying. Each is decoded on its own.
     logsquirl::vector<QString> decodeLines() const;
+
+    // Every Log Line of the block as its text under a Decoding Policy that
+    // hides ANSI color sequences, with the colors they ask for, whatever the
+    // Decoding Policy is.
+    logsquirl::vector<AnsiColoredText> decodeAnsiColoredLines() const;
 
     // Every Log Line of the block as its text, the same as decodeLines(), in
     // UTF-8 as a Search matches it. A view stays valid while the block does

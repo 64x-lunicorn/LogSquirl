@@ -69,10 +69,6 @@ protected:
     {
         return doGetLines( first, count );
     }
-    LineNumber doGetLineNumber( LineNumber index ) const override
-    {
-        return index;
-    }
     LinesCount doGetNbLine() const override
     {
         return LinesCount( static_cast<LinesCount::UnderlyingType>( lines_.size() ) );

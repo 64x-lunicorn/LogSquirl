@@ -19,7 +19,10 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/loglinetext.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/matchesdelta.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchblocksource.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/runid.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/searchresults.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchsession.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/searchsessionstate.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/sparselineread.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linetypes.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fileholder.h
@@ -40,6 +43,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdataworker.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddataworker.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/loglinetext.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/searchsession.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sparselineread.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/fileholder.cpp
@@ -48,6 +52,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/headerandtaildigests.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexedhash.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexingblocks.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/indexoperation.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexingblocks.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/readablesize.cpp
   src/filedigest.cpp

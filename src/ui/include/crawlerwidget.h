@@ -75,6 +75,7 @@
 #include "overview.h"
 #include "predefinedfilters.h"
 #include "searchline.h"
+#include "searchlinewidget.h"
 #include "signalmux.h"
 #include "viewinterface.h"
 #include "viewset.h"
@@ -87,11 +88,9 @@
 
 class LogFormatCatalog;
 class LogTableView;
-class InfoLine;
 class QuickFindPattern;
 class SavedSearches;
 class QStandardItemModel;
-class QCompleter;
 class OverviewWidget;
 
 // Implements the central widget of the application.
@@ -257,13 +256,13 @@ public Q_SLOTS:
     // Apply a list of predefined filters as the current search pattern.
     void setSearchPatternFromPredefinedFilters( const QList<PredefinedFilter>& filters );
 
-    // Start a new search using the current search line content.
-    void startNewSearch();
-
 private Q_SLOTS:
     // Offers a Value Count of each capture group of the current Search.
     void fillCountValuesMenu();
 
+    // Start a new Search with what the Search Line says; with keepResults the
+    // current one is kept, and the new one gets a tab of its own.
+    void startNewSearch( bool keepResults );
     // Stop the currently ongoing search (if one exists)
     void stopSearch();
     void loadIcons();
@@ -289,20 +288,11 @@ private Q_SLOTS:
     // file is offered to be reported.
     void truncatedHandler( const QString& failure );
 
-    // Called when the checkbox for search auto-refresh is changed
-    void searchRefreshChangedHandler( bool isRefreshing );
-
-    // Called when the checkbox for case sensitivity is changed
-    void matchCaseChangedHandler( bool shouldMatchCase );
-
-    // Called when the checkbox for boolean combining is changed
-    void booleanCombiningChangedHandler( bool shouldCombine );
-
-    // Called when the checkbox for using regex is changed
-    void useRegexpChangeHandler( bool shouldUseRegex );
-
-    // Called when the text on the search line is modified
-    void searchTextChangeHandler( QString );
+    // The Search Line's buttons say flags now, previous before: a changed
+    // reading of the pattern stops the auto-refresh of the Search that ran
+    // with the old one, and auto-refresh goes to the Open Log File.
+    void searchFlagsChangedHandler( const SearchLine::Flags& flags,
+                                    const SearchLine::Flags& previous );
 
     // Called when the user change the visibility combobox
     void changeFilteredViewVisibility( int index );
@@ -420,10 +410,6 @@ private:
     // The Search Line says what is known of the Search, which does not run:
     // the Matches the Filtered View holds (#406).
     void printSearchInfoMessage();
-    // Mirrors what the Search Line shows: its text, gauge and buttons.
-    void showSearchLine();
-    // Mirrors the Search Line's flags in its buttons.
-    void showSearchFlags();
     void changeDataStatus( DataStatus status );
     // Describes the Encoding the Open Log File settled on.
     void updateEncodingText();
@@ -435,9 +421,9 @@ private:
     void restartChartExtraction();
     void changeTopViewSize( int32_t delta );
 
-    // Shows the pattern the Search Line was edited to, and runs the Search
-    // at once if runNow.
-    void showEditedPattern( bool runNow );
+    // Asks the Search Line for the Search once the edit it answered runNow
+    // for is shown (#538).
+    void runEditedPattern( bool runNow );
 
     void resetStateOnSearchPatternChanges();
 
@@ -491,10 +477,6 @@ private:
     void updateLineNumberHandler( const LogPresentation& reporter, LineNumber line,
                                   LinesCount nLines, LineColumn startCol, LineLength nSymbols );
 
-    // The Search info line's palette for an error: the default palette in the
-    // Theme's error colors.
-    QPalette searchInfoErrorPalette() const;
-
     IconLoader iconLoader_;
 
     SavedSearches* savedSearches_ = nullptr;
@@ -517,34 +499,18 @@ private:
     QComboBox* visibilityBox_;
     QStandardItemModel* visibilityModel_;
 
-    QComboBox* searchLineEdit_;
-    QMenu* searchLineContextMenu_;
+    // The Search's pattern, the buttons that say how it is read and what the
+    // line says about it (#399), shown in a widget of its own that this one
+    // exchanges values and signals with (#638).
+    SearchLineWidget* searchLine_ = nullptr;
+    // The Search Line's context menu: the pattern edit's own entries and
+    // this widget's.
+    QMenu* searchLineContextMenu_ = nullptr;
     // Its entries, one per capture group of the current Search, are made when
     // the menu is shown.
     QMenu* countValuesMenu_ = nullptr;
-    QCompleter* searchLineCompleter_;
-
-    InfoLine* searchInfoLine_;
-
-    QToolButton* clearButton_;
-    QToolButton* searchButton_;
-    QToolButton* keepSearchResultsButton_;
-    QToolButton* stopButton_;
-
-    QToolButton* matchCaseButton_;
-    QToolButton* useRegexpButton_;
-    QToolButton* inverseButton_;
-    QToolButton* booleanButton_;
-    QToolButton* searchRefreshButton_;
 
     std::map<QString, QShortcut*> shortcuts_;
-
-    // Default palette to be remembered
-    QPalette searchInfoLineDefaultPalette_;
-
-    // The Search's pattern, the buttons that say how it is read and what the
-    // line says about it: the widgets above only mirror it (#399).
-    SearchLine searchLine_;
 
     // Reference to the QuickFind Pattern (not owned)
 

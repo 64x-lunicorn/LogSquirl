@@ -33,10 +33,10 @@
 
 #include "displayedlines.h"
 #include "fake_run_control.h"
+#include "indexoperation.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
 #include "logdata.h"
-#include "logdataworker.h"
 
 #include <QCoreApplication>
 #include <QDir>

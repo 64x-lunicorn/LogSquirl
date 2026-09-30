@@ -25,6 +25,19 @@
 
 #include <utility>
 
+#ifdef Q_OS_WIN
+#include <QDir>
+#include <QFileInfo>
+
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
+
 namespace logsquirl::plugins {
 
 // ── PluginHandle ────────────────────────────────────────────────────────────
@@ -173,6 +186,59 @@ FnPtr resolveSymbol( QLibrary& lib, const char* name )
     return reinterpret_cast<FnPtr>( lib.resolve( name ) );
 }
 
+#ifdef Q_OS_WIN
+// QLibrary loads a plugin with LoadLibrary and its full path, and Windows then
+// looks for the libraries the plugin imports in the application's directory,
+// the system directories and PATH, but not in the plugin's own directory. A
+// plugin that ships a library the application does not (Qt6SerialPort.dll next
+// to the Serial Monitor) would fail to load with error 126.
+//
+// This loads the plugin first with LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR, which
+// resolves its imports from its own directory as well, and holds it while
+// QLibrary loads it: QLibrary then gets the module that is already loaded. The
+// search path of the process stays as it is, unlike with SetDllDirectory, so a
+// library another thread loads meanwhile (the delay-loaded Hyperscan DLL) is
+// looked for as before. What the plugin delay-loads or loads itself later is
+// looked for with the ordinary search order again.
+//
+// When this first load fails (the plugin needs a library found only through
+// PATH, or the path is not a library), QLibrary loads the plugin as before and
+// reports the error. Like QLibrary, it suppresses the system error dialogs, so
+// a broken library next to a plugin is logged instead of stopping the start
+// with a modal "Bad Image" box.
+class LoadedFromOwnDirectory {
+public:
+    explicit LoadedFromOwnDirectory( const QString& libraryPath )
+    {
+        DWORD previousMode = 0;
+        const auto modeSet
+            = SetThreadErrorMode( SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX, &previousMode );
+        module_ = LoadLibraryExW(
+            reinterpret_cast<const wchar_t*>(
+                QDir::toNativeSeparators( QFileInfo( libraryPath ).absoluteFilePath() ).utf16() ),
+            nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS );
+        if ( modeSet ) {
+            SetThreadErrorMode( previousMode, nullptr );
+        }
+    }
+
+    ~LoadedFromOwnDirectory()
+    {
+        if ( module_ != nullptr ) {
+            FreeLibrary( module_ );
+        }
+    }
+
+    LoadedFromOwnDirectory( const LoadedFromOwnDirectory& ) = delete;
+    LoadedFromOwnDirectory& operator=( const LoadedFromOwnDirectory& ) = delete;
+    LoadedFromOwnDirectory( LoadedFromOwnDirectory&& ) = delete;
+    LoadedFromOwnDirectory& operator=( LoadedFromOwnDirectory&& ) = delete;
+
+private:
+    HMODULE module_ = nullptr;
+};
+#endif
+
 } // namespace
 
 std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& metadata )
@@ -185,6 +251,10 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
     LOG_INFO << "Loading plugin library: " << libPath;
 
     auto library = std::make_unique<QLibrary>( libPath );
+#ifdef Q_OS_WIN
+    // The libraries a plugin ships next to it are found (see above).
+    const LoadedFromOwnDirectory loadedFromOwnDirectory( libPath );
+#endif
     if ( !library->load() ) {
         return std::unexpected(
             QString( "Failed to load library '%1': %2" ).arg( libPath, library->errorString() ) );

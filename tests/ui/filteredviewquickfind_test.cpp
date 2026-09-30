@@ -179,7 +179,7 @@ SCENARIO( "a Filtered View QuickFind whose matched line is no longer displayed w
             QSignalSpy selected( &view, &AbstractLogView::newSelection );
             view.searchForward();
             waitForQuickFindWorker();
-            logFile.filteredData->deleteMark( 5_lnum );
+            logFile.filteredData->toggleMark( 5_lnum );
             view.updateData();
 
             THEN( "it selects the next match, Log Line 15" )
@@ -198,7 +198,7 @@ SCENARIO( "a Filtered View QuickFind whose matched line is no longer displayed w
             QSignalSpy selected( &view, &AbstractLogView::newSelection );
             view.searchBackward();
             waitForQuickFindWorker();
-            logFile.filteredData->deleteMark( 15_lnum );
+            logFile.filteredData->toggleMark( 15_lnum );
             view.updateData();
 
             THEN( "it selects the previous match, Log Line 5" )
@@ -222,7 +222,7 @@ SCENARIO( "a Filtered View QuickFind whose matched line is no longer displayed w
             QSignalSpy notifications( &view, &AbstractLogView::notifyQuickFind );
             view.searchForward();
             waitForQuickFindWorker();
-            logFile.filteredData->deleteMark( 5_lnum );
+            logFile.filteredData->toggleMark( 5_lnum );
             view.updateData();
 
             THEN( "it reports the end of the file and selects nothing" )

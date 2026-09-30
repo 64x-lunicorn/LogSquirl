@@ -44,7 +44,6 @@
 #include "logmainview.h"
 
 #include "abstractlogdata.h"
-#include "logfiltereddata.h"
 #include "overview.h"
 
 LogMainView::LogMainView( const LogData* newLogData, const QuickFindPattern* const quickFindPattern,

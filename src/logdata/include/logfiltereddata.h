@@ -40,7 +40,6 @@
 #define LOGFILTEREDDATA_H
 
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <span>
 
@@ -51,9 +50,7 @@
 
 #include "abstractlogdata.h"
 #include "displayedlines.h"
-#include "hsregularexpression.h"
 #include "linetypes.h"
-#include "logfiltereddataworker.h"
 #include "searchsession.h"
 #include "synchronization.h"
 
@@ -106,10 +103,7 @@ public:
     LinesCount getNbTotalLines() const;
     // Returns the number of matches (independently of the visibility)
     LinesCount getNbMatches() const;
-    // Returns the number of marks (independently of the visibility)
-    LinesCount getNbMarks() const;
 
-    LineType lineTypeByIndex( LineNumber index ) const;
     LineType lineTypeByLine( LineNumber lineNumber ) const;
 
     // Marks interface (delegated to the Displayed Lines)
@@ -120,8 +114,6 @@ public:
     OptionalLineNumber getMarkAfter( LineNumber line ) const;
     // Get the first mark before the line passed
     OptionalLineNumber getMarkBefore( LineNumber line ) const;
-    // Delete the mark present on the passed line
-    void deleteMark( LineNumber line );
     // Toggle presence of the mark on the passed line.
     void toggleMark( LineNumber line );
     // Completely clear the marks list.
@@ -149,8 +141,6 @@ public:
     Q_DECLARE_FLAGS( Visibility, VisibilityFlags )
     void setVisibility( Visibility visibility );
     Visibility visibility() const;
-
-    void iterateOverLines( const std::function<void( LineNumber )>& callback ) const;
 
     // How many of the Log Lines displayed in [first, end) are Matches and how
     // many are not, whatever the visibility (see DisplayedLines::countIn()).
@@ -198,7 +188,6 @@ private:
             const ) const;
     logsquirl::vector<AnsiColoredText> doGetAnsiColoredLines( LineNumber first,
                                                               LinesCount number ) const override;
-    LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
     LineLength doGetLineLength( LineNumber line ) const override;

@@ -52,6 +52,11 @@ int shutdownCalls = 0;
 
 extern "C" {
 
+#if defined( LOADER_FIXTURE_NEEDS_DEPENDENCY )
+// Imported from the library that lies next to the plugin (Windows only).
+__declspec( dllimport ) int logsquirl_fixture_dependency_init_result( void );
+#endif
+
 #if !defined( LOADER_FIXTURE_NO_GET_INFO )
 LOGSQUIRL_PLUGIN_EXPORT const LogSquirlPluginInfo* logsquirl_plugin_get_info( void )
 {
@@ -68,6 +73,8 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init( const LogSquirlHostApi*, void
 {
 #if defined( LOADER_FIXTURE_INIT_FAILS )
     return 7;
+#elif defined( LOADER_FIXTURE_NEEDS_DEPENDENCY )
+    return logsquirl_fixture_dependency_init_result();
 #else
     return 0;
 #endif

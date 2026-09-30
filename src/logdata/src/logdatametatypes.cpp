@@ -21,8 +21,8 @@
 
 #include "linetypes.h"
 #include "loadingstatus.h"
-#include "logfiltereddataworker.h"
-#include "searchsession.h"
+#include "searchresults.h"
+#include "searchsessionstate.h"
 
 #include <QMetaType>
 
@@ -40,6 +40,6 @@ void registerLogDataMetaTypes()
         qRegisterMetaType<LineNumber>( "LineNumber" );
         qRegisterMetaType<LineLength>( "LineLength" );
         qRegisterMetaType<SearchId>( "SearchId" );
-        qRegisterMetaType<SearchSession::State>( "SearchSession::State" );
+        qRegisterMetaType<SearchSessionState>( "SearchSession::State" );
     } );
 }

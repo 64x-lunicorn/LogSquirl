@@ -21,22 +21,29 @@
 #define LOGSQUIRL_SEARCH_SESSION_H
 
 #include <functional>
+#include <memory>
 #include <tuple>
 #include <unordered_map>
 
 #include <QObject>
 #include <QString>
 
-#include <KDSignalThrottler.h>
-
 #include "linetypes.h"
-#include "logfiltereddataworker.h"
 #include "matchesdelta.h"
 #include "regularexpressionpattern.h"
+#include "searchresults.h"
+#include "searchsessionstate.h"
 #include "settingspolicies.h"
 #include "synchronization.h"
 
+class LogFilteredDataWorker;
+class RegularExpression;
 class SearchBlockSource;
+struct SearchResults;
+
+namespace KDToolBox {
+class KDSignalThrottler;
+}
 
 // The Search Session: the owner of everything whose correctness depends on
 // the ordering of a Search -- the current pattern, the run in flight, its
@@ -49,34 +56,17 @@ class SearchBlockSource;
 // and the Context Lines belong to the Displayed Lines, which read the
 // Matches in place (matches()) and are handed what changed in them (a
 // matches delta) with every state change.
+//
+// Its worker and its throttler are held through pointers, so that this header,
+// which the Filtered View's log data includes, does not bring theirs with it.
+// Neither is touched when the Displayed Lines are read.
 class SearchSession : public QObject {
     Q_OBJECT
 
 public:
-    enum class Phase {
-        Idle,           // no pattern requested (or request() with no pattern)
-        Running,        // a run is in flight
-        Interrupted,    // stop() cut a run short; results kept are partial
-        Complete,       // the requested range has been fully searched
-        InvalidPattern, // the pattern failed to compile; nothing was run
-        Failed          // the run failed; errorString describes why, no results are kept
-    };
-    Q_ENUM( Phase )
-
-    struct State {
-        RegularExpressionPattern pattern;
-        LineNumber startLine{ 0 };
-        LineNumber endLine{ 0 };
-        LinesCount matchCount{ 0 };
-        int progress = 0;
-        Phase phase = Phase::Idle;
-        bool fromCache = false;
-        // True when this run continues a previous one (same pattern and
-        // startLine, a grown endLine) rather than starting fresh -- e.g.
-        // autorefresh extending the range as the file grows.
-        bool isContinuation = false;
-        QString errorString;
-    };
+    // Declared in searchsessionstate.h, for whoever needs only these.
+    using Phase = SearchSessionPhase;
+    using State = SearchSessionState;
 
     // The Search Policy is everything this object knows about the
     // settings: which regex engine to compile on, whether and how far to
@@ -196,7 +186,7 @@ private:
 
     const SearchBlockSource& blockSource_;
     SearchPolicy searchPolicy_;
-    LogFilteredDataWorker workerThread_;
+    std::unique_ptr<LogFilteredDataWorker> workerThread_;
 
     // The compiled form of the run currently held (Running/Complete/
     // Interrupted, never a cache hit). A continuation reuses this instead
@@ -296,9 +286,7 @@ private:
     mutable Mutex stateMutex_;
     State state_;
 
-    KDToolBox::KDSignalThrottler progressThrottler_;
+    std::unique_ptr<KDToolBox::KDSignalThrottler> progressThrottler_;
 };
-
-Q_DECLARE_METATYPE( SearchSession::State )
 
 #endif

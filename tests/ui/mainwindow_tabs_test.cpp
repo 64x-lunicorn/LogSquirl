@@ -65,6 +65,7 @@
 #include "filewatcher.h"
 #include "instancehandover.h"
 #include "loadingstatus.h"
+#include "logfileprovenance.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
@@ -815,6 +816,61 @@ SCENARIO( "A merged Log File's rebuild ends with its tab", "[ui][tabs][merge]" )
 
 // Text opened from the clipboard is a Transient Log File: its temporary path
 // is gone after a restart, so it is never a recent file (#597).
+// A merge opens its file through the window's one open call, with the title
+// its tab is to open with (#643). An open that fails forgets that title with
+// it: a tab opened later for the same path shows the file's own name.
+//
+// What a merge writes is never an archive, so its open does not fail on its
+// own; this merged file is named as one, and the user declines extracting it.
+SCENARIO( "A merged open that fails leaves no opening title behind", "[ui][tabs][merge]" )
+{
+    TabsWindow window( false );
+    REQUIRE( waitUiState( [ & ] { return window.plugins->isLoaded(); }, UiTimeoutMs ) );
+    QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+    const auto mergedPath = folder.filePath( "merged.log.gz" );
+    REQUIRE( writeLines( mergedPath, "a Log Line\n", QIODevice::Truncate ) );
+
+    // Answers No when the window asks whether to extract the archive.
+    int questionsDeclined = 0;
+    QTimer questionDriver;
+    QObject::connect( &questionDriver, &QTimer::timeout, [ &questionsDeclined ] {
+        if ( auto* box = qobject_cast<QMessageBox*>( QApplication::activeModalWidget() ) ) {
+            if ( box->isVisible() && !box->property( "answered" ).toBool() ) {
+                box->setProperty( "answered", true );
+                ++questionsDeclined;
+                box->button( QMessageBox::No )->click();
+            }
+        }
+    } );
+    questionDriver.start( 10 );
+
+    std::optional<CrawlerWidget*> openedTab;
+    auto provenance = LogFileProvenance::transient( QStringLiteral( "Merged" ) );
+    provenance.whenOpened = [ &openedTab ]( CrawlerWidget* crawler ) { openedTab = crawler; };
+    const auto isOpen = window.mainWindow->openLogFile( mergedPath, std::move( provenance ) );
+
+    THEN( "no tab opens, and the merged file's title is forgotten" )
+    {
+        REQUIRE_FALSE( isOpen );
+        REQUIRE( questionsDeclined == 1 );
+        REQUIRE( openedTab.has_value() );
+        REQUIRE( *openedTab == nullptr );
+        REQUIRE( window.tabArea->logFileTabs().isEmpty() );
+
+        // Opened again with archives read as they are, the same path gets a
+        // tab of its own, named after its file.
+        auto policies = testSettingsPolicies();
+        policies.fileAccess.extractArchives = false;
+        window.session->applyPolicies( policies );
+        window.mainWindow->loadFileNonInteractive( mergedPath );
+        REQUIRE( waitUiState( [ & ] { return window.tabArea->logFileTabs().size() == 1; },
+                              UiTimeoutMs ) );
+        const auto tab = window.tabArea->logFileTabs().front();
+        REQUIRE( window.tabArea->tabText( tab ) == QStringLiteral( "merged.log.gz" ) );
+    }
+}
+
 SCENARIO( "Text opened from the clipboard is not added to the recent files", "[ui][tabs]" )
 {
     TabsWindow window( true );
