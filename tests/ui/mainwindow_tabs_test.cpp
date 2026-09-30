@@ -1530,6 +1530,51 @@ SCENARIO( "A handed-over file that is no spool of standard input is not taken ov
     REQUIRE_FALSE( QFileInfo::exists( spoolAdoptionMarker( path ) ) );
 }
 
+// On Windows a console program writes to a pipe in the OEM code page; the
+// Command Source is started with one here as it is there (#655).
+SCENARIO( "A command's tab is read in the Encoding its output decided", "[ui][tabs][command]" )
+{
+    const ShellForTests shell;
+    TabsWindow window( false, FileWatcher::sharedFileWatcher() );
+
+    GIVEN( "a command that writes a line of ASCII, then a German word in CP850" )
+    {
+        const auto commandLine
+            = QStringLiteral( "printf 'Ping\\n'; sleep 1; printf 'Gr\\224\\341e\\n'" );
+        QString error;
+        auto source
+            = CommandSource::startCommand( RecentCommand{ commandLine, {}, true }, &error, 850 );
+        REQUIRE( source != nullptr );
+        const auto spool = source->spoolPath();
+        REQUIRE( window.mainWindow->openLogFile(
+            spool, LogFileProvenance::commandOutput( std::move( source ), commandLine, {} ),
+            true ) );
+
+        const auto tab = waitForTab( window, commandLine );
+        auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( tab ) );
+        REQUIRE( crawler != nullptr );
+
+        THEN( "its tab reads it in IBM850 once the output held more than ASCII" )
+        {
+            REQUIRE( waitUiState( [ & ] { return crawler->encodingMib() == 2009; }, UiTimeoutMs ) );
+            REQUIRE( crawler->encodingText() == "Displayed as IBM850" );
+
+            AND_THEN( "the user can still read it in another Encoding" )
+            {
+                crawler->setEncoding( std::nullopt );
+                REQUIRE( waitUiState(
+                    [ & ] {
+                        return tabTitled( *window.tabArea,
+                                          commandTabTitle( commandLine ) + " [exit 0]" )
+                               >= 0;
+                    },
+                    UiTimeoutMs ) );
+                REQUIRE_FALSE( crawler->encodingMib().has_value() );
+            }
+        }
+    }
+}
+
 #endif
 
 // The File menu runs a command from its dialog, and the command is remembered

@@ -24,7 +24,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QStringDecoder>
 
+#include <algorithm>
 #include <mutex>
 #include <utility>
 
@@ -32,6 +34,7 @@
 #include "log.h"
 #include "stdinpump.h"
 #include "streamwriter.h"
+#include "textencoding.h"
 
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
@@ -260,16 +263,38 @@ QString commandTabTitle( const QString& commandLine )
     return simplified.left( head ) + QChar( 0x2026 ) + simplified.right( tail );
 }
 
+int systemOemCodePage()
+{
+#ifdef Q_OS_WIN
+    return static_cast<int>( ::GetOEMCP() );
+#else
+    return 0;
+#endif
+}
+
+const TextEncoding* commandOutputEncoding( QByteArrayView output, int oemCodePage )
+{
+    // Stateful: a character cut off at the end is kept for the next call,
+    // not taken for an error.
+    QStringDecoder utf8( QStringDecoder::Utf8 );
+    [[maybe_unused]] const QString decoded = utf8.decode( output );
+    if ( !utf8.hasError() ) {
+        return TextEncoding::forName( "UTF-8" );
+    }
+    return TextEncoding::forWindowsCodePage( oemCodePage );
+}
+
 CommandSource::CommandSource( Kind kind )
     : kind_( kind )
 {
 }
 
 std::unique_ptr<CommandSource> CommandSource::startCommand( const RecentCommand& command,
-                                                            QString* error )
+                                                            QString* error, int oemCodePage )
 {
     std::unique_ptr<CommandSource> source( new CommandSource( Kind::Command ) );
     source->command_ = command;
+    source->oemCodePage_ = oemCodePage;
     if ( source->command_.workingFolder.isEmpty() ) {
         source->command_.workingFolder = QDir::homePath();
     }
@@ -459,7 +484,26 @@ void CommandSource::readOutput()
     }
     const auto output = process_->readAllStandardOutput();
     if ( !output.isEmpty() ) {
+        decideOutputEncoding( output );
         writer_->pushBytes( output.constData(), static_cast<size_t>( output.size() ) );
+    }
+}
+
+void CommandSource::decideOutputEncoding( QByteArrayView output )
+{
+    // ASCII reads the same in UTF-8 and in every OEM code page: the output
+    // that tells them apart decides, once (#655).
+    if ( oemCodePage_ == 0 || outputEncoding_ != nullptr
+         || std::ranges::none_of(
+             output, []( char byte ) { return static_cast<unsigned char>( byte ) >= 0x80; } ) ) {
+        return;
+    }
+    outputEncoding_ = commandOutputEncoding( output, oemCodePage_ );
+    // No Encoding for the code page leaves it to the detection for good.
+    oemCodePage_ = 0;
+    if ( outputEncoding_ != nullptr ) {
+        LOG_INFO << "The output of the command is read as " << outputEncoding_->name().constData();
+        Q_EMIT outputEncodingDecided();
     }
 }
 

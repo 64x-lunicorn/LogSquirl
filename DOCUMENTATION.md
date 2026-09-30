@@ -361,6 +361,11 @@ without anything else to install: `ssh host tail -f /var/log/syslog`,
 * The tab is named after the command line, shortened in the middle to 40
   characters; its tooltip shows the whole command line, the working folder and
   the temporary file the output is kept in.
+* On Windows, console programs such as `dir` write in the OEM code page of the
+  console (CP850 on a German Windows, CP437 on a US one). The tab reads the
+  output as UTF-8 when it is valid UTF-8, otherwise in that code page; the
+  first output with more than plain ASCII decides. `Encoding` in the menu
+  changes it as for any file.
 * When the command ends, the tab stays with everything it received and is no
   longer followed: the file does not grow any more. Its name gets ` [exit N]`
   with the command's exit code, or ` [stopped]` when it was killed by a signal
