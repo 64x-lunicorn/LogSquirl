@@ -268,20 +268,94 @@ SCENARIO( "The Regex Lab says what is wrong with a pattern and where", "[regexla
 
 SCENARIO( "A Regex Lab evaluation keeps to its bounds and says where it stopped", "[regexlab]" )
 {
-    GIVEN( "a line longer than the length evaluated" )
+    GIVEN( "lines longer than the length marked, with the match beyond it" )
+    {
+        const auto engine = GENERATE( RegexpEngine::Vectorscan, RegexpEngine::QRegularExpression );
+        const auto searched = GENERATE( regexp( "error" ), regexp( "error$" ),
+                                        regexp( "^x+(?=.*error)" ), regexp( "^x+$" ) );
+        const logsquirl::vector<QString> sample{
+            QString( 10'005, QChar( 'x' ) ) + QStringLiteral( " error" ),
+            QString( 10'005, QChar( 'x' ) ),
+            QStringLiteral( "short error" ),
+        };
+        const auto result = evaluate( searched, sample, engine );
+
+        THEN( "the verdict is the Search's on the whole line, and only the marks are cut" )
+        {
+            const RegularExpression expression( searched, engine );
+            const auto matcher = expression.createMatcher();
+            REQUIRE( result.lines.size() == sample.size() );
+            for ( std::size_t i = 0; i < sample.size(); ++i ) {
+                const auto utf8 = sample[ i ].toUtf8();
+                INFO( "line " << i << ", pattern " << searched.pattern.toStdString() );
+                CHECK( result.lines[ i ].isMatch
+                       == matcher->hasMatch( std::string_view(
+                           utf8.constData(), static_cast<std::size_t>( utf8.size() ) ) ) );
+                for ( const auto& match : result.lines[ i ].matches ) {
+                    CHECK( match.start + match.length <= regexlab::Bounds{}.maxLineLength );
+                }
+            }
+            CHECK( result.lines[ 0 ].isCut );
+            CHECK( result.lines[ 1 ].isCut );
+            CHECK_FALSE( result.lines[ 2 ].isCut );
+        }
+    }
+
+    GIVEN( "a line cut right after the first half of a surrogate pair" )
+    {
+        const auto line = QStringLiteral( "abc" ) + QString::fromUtf8( "\xF0\x9F\x98\x80" ) + "def";
+
+        THEN( "the cut leaves out the whole pair" )
+        {
+            CHECK( regexlab::cutLine( line, 4 ) == "abc" );
+            CHECK( regexlab::cutLine( line, 5 ).size() == 5 );
+            CHECK( regexlab::cutLine( line, 100 ) == line );
+        }
+    }
+
+    GIVEN( "more matches than are marked" )
     {
         regexlab::Bounds bounds;
-        bounds.maxLineLength = 10;
-        const auto result = evaluate( regexp( "error" ), { "0123456789 error", "error" },
-                                      RegexpEngine::Vectorscan, bounds );
+        bounds.maxMarks = 3;
+        const auto result
+            = evaluate( regexp( "a" ), { "aa", "aa", "aa" }, RegexpEngine::Vectorscan, bounds );
 
-        THEN( "only its start is evaluated, and the line is reported cut" )
+        THEN( "the first ones are marked, every line is still counted, and the cut is reported" )
         {
-            REQUIRE( result.lines.size() == 2 );
-            CHECK( result.lines[ 0 ].isCut );
-            CHECK_FALSE( result.lines[ 0 ].isMatch );
-            CHECK_FALSE( result.lines[ 1 ].isCut );
-            CHECK( result.lines[ 1 ].isMatch );
+            CHECK( result.lines[ 0 ].matches.size() == 2 );
+            CHECK( result.lines[ 1 ].matches.size() == 1 );
+            CHECK( result.lines[ 2 ].matches.empty() );
+            CHECK( result.lines[ 2 ].groups.size() == 1 );
+            CHECK( result.matchingLines == 3 );
+            CHECK( result.isMarkingCut );
+        }
+    }
+
+    GIVEN( "more matches in a line than are marked in one" )
+    {
+        regexlab::Bounds bounds;
+        bounds.maxMarksPerLine = 2;
+        const auto result
+            = evaluate( regexp( "a" ), { "aaaa", "a" }, RegexpEngine::Vectorscan, bounds );
+
+        THEN( "the line's first ones are marked, and the next line's too" )
+        {
+            CHECK( result.lines[ 0 ].matches.size() == 2 );
+            CHECK( result.lines[ 1 ].matches.size() == 1 );
+            CHECK( result.isMarkingCut );
+        }
+    }
+
+    GIVEN( "exactly as many matches as are marked" )
+    {
+        regexlab::Bounds bounds;
+        bounds.maxMarks = 3;
+        const auto result = evaluate( regexp( "a" ), { "aaa" }, RegexpEngine::Vectorscan, bounds );
+
+        THEN( "nothing is reported cut" )
+        {
+            CHECK( result.lines[ 0 ].matches.size() == 3 );
+            CHECK_FALSE( result.isMarkingCut );
         }
     }
 
@@ -345,6 +419,9 @@ SCENARIO( "A Regex Lab evaluation keeps to its bounds and says where it stopped"
             CHECK( result.stop == regexlab::Stop::TimeLimit );
             CHECK( result.lines.size() < sample.size() );
             CHECK( result.isSlow );
+            // Each line took the engine long before it gave up on it.
+            CHECK( result.slowLines == result.lines.size() );
+            CHECK( result.lines.front().isSlow );
             CHECK( took < std::chrono::seconds{ 5 } );
         }
     }

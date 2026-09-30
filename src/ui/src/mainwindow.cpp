@@ -121,6 +121,7 @@
 #include "progress.h"
 #include "readablesize.h"
 #include "recentfiles.h"
+#include "regexlabsource.h"
 #include "regexlabwindow.h"
 #include "shortcuts.h"
 #include "tabbedcrawlerwidget.h"
@@ -1869,21 +1870,11 @@ void MainWindow::openRegexLab()
         regexLab_->setEngine( session_.searchPolicy().regexpEngine );
     }
 
-    // The Lab asks the tab for a sample only when the user asks for one; a
-    // tab closed meanwhile has none to give.
-    RegexLabSampleSource source;
-    if ( auto* crawler = currentCrawlerWidget() ) {
-        const QPointer<CrawlerWidget> tab( crawler );
-        source.name = mainTabWidget_.tabText( mainTabWidget_.currentIndex() );
-        source.selectedLines = [ tab ]( LinesCount count ) {
-            return tab.isNull() ? logsquirl::vector<QString>{} : tab->selectedLogLineTexts( count );
-        };
-        source.linesAroundCurrentLine = [ tab ]( LinesCount count ) {
-            return tab.isNull() ? logsquirl::vector<QString>{}
-                                : tab->logLineTextsAroundCurrentLine( count );
-        };
-    }
-    regexLab_->setSampleSource( std::move( source ) );
+    auto* crawler = currentCrawlerWidget();
+    regexLab_->setSampleSource(
+        crawler != nullptr ? regexLabSampleSource(
+                                 *crawler, mainTabWidget_.tabText( mainTabWidget_.currentIndex() ) )
+                           : RegexLabSampleSource{} );
 
     regexLab_->show();
     regexLab_->raise();
@@ -2101,6 +2092,10 @@ void MainWindow::applySettingsChange()
     newWindowAction->setVisible( config.allowMultipleWindows() );
     followAction->setEnabled( session_.watchPolicy().anyWatchEnabled() );
     applyQuickFindPolicy();
+    // The Regex Lab matches with the engine a Search runs on.
+    if ( !regexLab_.isNull() ) {
+        regexLab_->setEngine( session_.searchPolicy().regexpEngine );
+    }
 
     updateShortcuts();
     updateRecentFileActions();

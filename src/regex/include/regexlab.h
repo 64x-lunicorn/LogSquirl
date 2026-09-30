@@ -37,10 +37,11 @@
 // -- sees the same.
 //
 // Whether a line matches is decided by the Search's own matcher, compiled
-// from the same pattern and options on the same engine: what the Lab counts
-// is what a Search selects. Where a line matches, and its capture groups,
-// come from the pattern read as a QRegularExpression, with its groups
-// capturing.
+// from the same pattern and options on the same engine, on the whole line:
+// what the Lab counts is what a Search selects. Where a line matches, and its
+// capture groups, come from the pattern read as a QRegularExpression, with
+// its groups capturing. Under Inverse match a line matches where the pattern
+// does not, so the lines counted are those without marks.
 namespace regexlab {
 
 // How far an evaluation goes. It runs off the UI thread, but a pattern that
@@ -48,14 +49,27 @@ namespace regexlab {
 struct Bounds {
     // Sample lines evaluated at most; the rest of the sample is left out.
     std::size_t maxLines = 1000;
-    // Characters of each line evaluated at most; a longer line is cut there.
+    // Characters of each line marked and shown at most. Whether a line
+    // matches is decided on the whole line, as a Search decides it.
     qsizetype maxLineLength = 10'000;
+    // Matches marked at most, in a line and over the whole sample: each one
+    // costs the window that shows it, and many in one line cost the most.
+    std::size_t maxMarksPerLine = 100;
+    std::size_t maxMarks = 10'000;
     // Evaluation stops at the first line that starts after this much time.
     std::chrono::milliseconds timeLimit{ 2000 };
     // An evaluation that took longer, or ran out of time, is reported as
     // slow: a hint at a pattern that backtracks catastrophically.
     std::chrono::milliseconds slowThreshold{ 250 };
+    // A single line that took longer is reported as slow. The engines give
+    // up on a line once they have backtracked too much, and then say only
+    // that it does not match: its time is what shows it.
+    std::chrono::milliseconds slowLine{ 20 };
 };
+
+// The line cut to at most length characters, never between the two halves
+// of a surrogate pair.
+QString cutLine( const QString& line, qsizetype length );
 
 // A pattern the Search would not run: what it says, and where in the pattern
 // as written, when that is known.
@@ -89,8 +103,10 @@ struct CaptureGroup {
 struct LineResult {
     // The Search's verdict on the line.
     bool isMatch = false;
-    // Only the first Bounds::maxLineLength characters were evaluated.
+    // Only the first Bounds::maxLineLength characters are marked.
     bool isCut = false;
+    // The line took longer than Bounds::slowLine.
+    bool isSlow = false;
     logsquirl::vector<MatchSpan> matches;
     logsquirl::vector<CaptureGroup> groups;
 };
@@ -116,12 +132,12 @@ struct Result {
     Stop stop = Stop::None;
     std::chrono::milliseconds elapsed{ 0 };
     bool isSlow = false;
+    // Lines that took longer than Bounds::slowLine.
+    std::size_t slowLines = 0;
+    // Bounds::maxMarksPerLine or Bounds::maxMarks was reached: not every
+    // match is marked.
+    bool isMarkingCut = false;
 };
-
-// Why the Search would not run this pattern, if it would not: the message the
-// Search shows, and where in the pattern the error is.
-std::optional<PatternError> patternError( const RegularExpressionPattern& pattern,
-                                          RegexpEngine engine );
 
 // Evaluates the pattern on each sample line, as a Search with the same
 // pattern and options on the same engine would, within the bounds. Stops as

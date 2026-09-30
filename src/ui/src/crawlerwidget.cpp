@@ -189,7 +189,7 @@ bool CrawlerWidget::isPartialSelection() const
         return logMainView_->isPartialSelection();
 }
 
-logsquirl::vector<QString> CrawlerWidget::selectedLogLineTexts( LinesCount count ) const
+logsquirl::vector<LineNumber> CrawlerWidget::selectedLogLines( LinesCount count ) const
 {
     auto lines = [ this ]() {
         if ( filteredViewWasLastFocused() ) {
@@ -203,17 +203,43 @@ logsquirl::vector<QString> CrawlerWidget::selectedLogLineTexts( LinesCount count
     if ( lines.size() > count.get() ) {
         lines.resize( count.get() );
     }
-    return logLineTexts( lines );
+    return lines;
 }
 
-logsquirl::vector<QString> CrawlerWidget::logLineTextsAroundCurrentLine( LinesCount count ) const
+logsquirl::vector<LineNumber> CrawlerWidget::logLinesAroundCurrentLine( LinesCount count ) const
 {
     // The Presentation not shown follows the one shown, so the text view
     // stands where the Table View does.
     const AbstractLogView* view = filteredViewWasLastFocused()
                                       ? static_cast<const AbstractLogView*>( currentFilteredView() )
                                       : logMainView_;
-    return logLineTexts( view->logLinesAroundViewPosition( count ) );
+    return view->logLinesAroundViewPosition( count );
+}
+
+std::function<logsquirl::vector<QString>( const logsquirl::vector<LineNumber>& )>
+CrawlerWidget::logLineTextReader() const
+{
+    return [ logData = std::shared_ptr<const LogData>( openLogFile_->logData() ) ](
+               const logsquirl::vector<LineNumber>& lines ) {
+        // The Log File stays open while its lines are read.
+        struct AttachedReader {
+            explicit AttachedReader( const LogData& data )
+                : data_( data )
+            {
+                data_.attachReader();
+            }
+            ~AttachedReader()
+            {
+                data_.detachReader();
+            }
+            AttachedReader( const AttachedReader& ) = delete;
+            AttachedReader& operator=( const AttachedReader& ) = delete;
+
+            const LogData& data_;
+        };
+        const AttachedReader attached( *logData );
+        return logData->getLinesSparse( lines );
+    };
 }
 
 bool CrawlerWidget::filteredViewWasLastFocused() const
@@ -224,12 +250,6 @@ bool CrawlerWidget::filteredViewWasLastFocused() const
         return qfSavedFocus_ == filtered;
     }
     return focused == filtered || filtered->isAncestorOf( focused );
-}
-
-logsquirl::vector<QString>
-CrawlerWidget::logLineTexts( const logsquirl::vector<LineNumber>& lines ) const
-{
-    return openLogFile_->logData()->getLinesSparse( lines );
 }
 
 void CrawlerWidget::selectAll()

@@ -31,6 +31,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
+#include <QDialog>
 #include <QDialogButtonBox>
 #include <QLabel>
 #include <QLineEdit>
@@ -44,6 +45,7 @@
 #include <QTest>
 #include <QTextBlock>
 
+#include <algorithm>
 #include <memory>
 
 #include "abstractlogview.h"
@@ -55,6 +57,7 @@
 #include "mainwindow.h"
 #include "mainwindowtext.h"
 #include "openlogfile.h"
+#include "regexlabsource.h"
 #include "regexlabwindow.h"
 #include "session.h"
 #include "tabbedcrawlerwidget.h"
@@ -125,14 +128,7 @@ struct OpenCrawler {
 
     RegexLabSampleSource source()
     {
-        RegexLabSampleSource tab;
-        tab.name = QStringLiteral( "test.log" );
-        tab.selectedLines
-            = [ this ]( LinesCount count ) { return crawler->selectedLogLineTexts( count ); };
-        tab.linesAroundCurrentLine = [ this ]( LinesCount count ) {
-            return crawler->logLineTextsAroundCurrentLine( count );
-        };
-        return tab;
+        return regexLabSampleSource( *crawler, QStringLiteral( "test.log" ) );
     }
 
     QTemporaryFile file;
@@ -167,6 +163,15 @@ void setPattern( RegexLabWindow& lab, const RegularExpressionPattern& pattern )
     REQUIRE( waitUiState( [ & ] { return !evaluated.isEmpty(); }, 10'000 ) );
 }
 
+// Does what takes a sample from the tab, and waits until it is shown.
+template <typename Action>
+void takeSample( RegexLabWindow& lab, Action&& action )
+{
+    QSignalSpy taken( &lab, &RegexLabWindow::sampleTaken );
+    action();
+    REQUIRE( waitUiState( [ & ] { return !taken.isEmpty(); }, 10'000 ) );
+}
+
 void pasteSample( RegexLabWindow& lab, const QString& text )
 {
     QSignalSpy evaluated( &lab, &RegexLabWindow::evaluated );
@@ -181,9 +186,11 @@ QStringList markedTexts( const RegexLabWindow& lab )
 {
     const auto* sample = lab.findChild<QPlainTextEdit*>( QStringLiteral( "sampleText" ) );
     QStringList marked;
-    for ( const auto& selection : sample->extraSelections() ) {
-        if ( selection.cursor.hasSelection() ) {
-            marked.append( selection.cursor.selectedText() );
+    for ( auto block = sample->document()->firstBlock(); block.isValid(); block = block.next() ) {
+        for ( const auto& range : block.layout()->formats() ) {
+            if ( range.format.boolProperty( QTextFormat::UserProperty + 1 ) ) {
+                marked.append( block.text().mid( range.start, range.length ) );
+            }
         }
     }
     return marked;
@@ -194,9 +201,12 @@ QList<int> markedLines( const RegexLabWindow& lab )
 {
     const auto* sample = lab.findChild<QPlainTextEdit*>( QStringLiteral( "sampleText" ) );
     QList<int> lines;
-    for ( const auto& selection : sample->extraSelections() ) {
-        if ( selection.format.boolProperty( QTextFormat::FullWidthSelection ) ) {
-            lines.append( selection.cursor.blockNumber() );
+    for ( auto block = sample->document()->firstBlock(); block.isValid(); block = block.next() ) {
+        const auto formats = block.layout()->formats();
+        if ( std::ranges::any_of( formats, []( const QTextLayout::FormatRange& range ) {
+                 return range.format.boolProperty( QTextFormat::UserProperty );
+             } ) ) {
+            lines.append( block.blockNumber() );
         }
     }
     return lines;
@@ -291,6 +301,11 @@ SCENARIO( "The Regex Lab opens from the Tools menu for the tab in front", "[ui][
         action->trigger();
         auto* lab = window->findChild<RegexLabWindow*>();
         REQUIRE( lab != nullptr );
+        REQUIRE( waitUiState(
+            [ & ] {
+                return part<QPlainTextEdit>( *lab, "sampleText" )->document()->blockCount() == 50;
+            },
+            10'000 ) );
 
         THEN( "it is tied to the tab and takes its sample from the Log File" )
         {
@@ -300,6 +315,24 @@ SCENARIO( "The Regex Lab opens from the Tools menu for the tab in front", "[ui][
             CHECK( lab->sample() == RegexLabWindow::Sample::LinesAroundCurrentLine );
             CHECK( part<QPlainTextEdit>( *lab, "sampleText" )->document()->blockCount() == 50 );
             CHECK( part<QPlainTextEdit>( *lab, "sampleText" )->isReadOnly() );
+        }
+    }
+
+    GIVEN( "the Lab is open when the Search's engine is changed in the settings" )
+    {
+        action->trigger();
+        auto* lab = window->findChild<RegexLabWindow*>();
+        REQUIRE( lab != nullptr );
+        REQUIRE( lab->engine() == testSettingsPolicies().search.regexpEngine );
+
+        auto policies = testSettingsPolicies();
+        policies.search.regexpEngine = RegexpEngine::QRegularExpression;
+        session->applyPolicies( policies );
+        window->applySettingsChange();
+
+        THEN( "the Lab matches with the new engine" )
+        {
+            CHECK( lab->engine() == RegexpEngine::QRegularExpression );
         }
     }
 
@@ -313,7 +346,7 @@ SCENARIO( "The Regex Lab takes its sample from the tab or from pasted text", "[u
     CrawlerAccess::selectInMainView( *open.crawler, LineNumber( 2000 ) );
 
     RegexLabWindow lab( RegexpEngine::Vectorscan );
-    lab.setSampleSource( open.source() );
+    takeSample( lab, [ & ] { lab.setSampleSource( open.source() ); } );
     lab.show();
     auto* sample = part<QPlainTextEdit>( lab, "sampleText" );
 
@@ -325,7 +358,8 @@ SCENARIO( "The Regex Lab takes its sample from the tab or from pasted text", "[u
 
     WHEN( "the lines around the current line are chosen" )
     {
-        lab.setSample( RegexLabWindow::Sample::LinesAroundCurrentLine );
+        takeSample( lab,
+                    [ & ] { lab.setSample( RegexLabWindow::Sample::LinesAroundCurrentLine ); } );
 
         THEN( "the sample is a bounded window of Log Lines around it" )
         {
@@ -343,7 +377,7 @@ SCENARIO( "The Regex Lab takes its sample from the tab or from pasted text", "[u
         THEN( "the sample stays as it was until it is refreshed" )
         {
             CHECK( sample->toPlainText() == logLine( 2000 ) );
-            part<QPushButton>( lab, "refreshSample" )->click();
+            takeSample( lab, [ & ] { part<QPushButton>( lab, "refreshSample" )->click(); } );
             CHECK( sample->toPlainText() == logLine( 10 ) );
         }
     }
@@ -355,7 +389,7 @@ SCENARIO( "The Regex Lab takes its sample from the tab or from pasted text", "[u
         THEN( "it is the sample, and it stays when the Log File's sample is shown in between" )
         {
             CHECK( !sample->isReadOnly() );
-            lab.setSample( RegexLabWindow::Sample::SelectedLines );
+            takeSample( lab, [ & ] { lab.setSample( RegexLabWindow::Sample::SelectedLines ); } );
             CHECK( sample->toPlainText() == logLine( 2000 ) );
             lab.setSample( RegexLabWindow::Sample::PastedText );
             CHECK( sample->toPlainText() == "first pasted line\nsecond pasted line" );
@@ -454,6 +488,15 @@ SCENARIO( "The Regex Lab says what is wrong with an invalid pattern and where", 
         REQUIRE( lab.result().error.has_value() );
         CHECK( lab.result().error->position >= 4 );
         CHECK( markedTexts( lab ).isEmpty() );
+
+        // The cursor stays where the user typed; a caret marks the place.
+        CHECK( part<QLineEdit>( lab, "pattern" )->cursorPosition() == 11 );
+        auto* marker = part<QLabel>( lab, "errorMarker" );
+        CHECK( marker->isVisible() );
+        const auto markerLines = marker->text().split( QChar::LineFeed );
+        REQUIRE( markerLines.size() == 2 );
+        CHECK( markerLines[ 0 ] == "GET (/index" );
+        CHECK( markerLines[ 1 ].indexOf( '^' ) == lab.result().error->position );
         CHECK( markedLines( lab ).isEmpty() );
     }
 
@@ -493,8 +536,9 @@ SCENARIO( "The Regex Lab counts the Log Lines a Search with the same pattern and
         // The Lab's sample: the first 1000 Log Lines, around the first one.
         CrawlerAccess::selectInMainView( *open.crawler, LineNumber( 0 ) );
         RegexLabWindow lab( testSettingsPolicies().search.regexpEngine );
-        lab.setSampleSource( open.source() );
-        lab.setSample( RegexLabWindow::Sample::LinesAroundCurrentLine );
+        takeSample( lab, [ & ] { lab.setSampleSource( open.source() ); } );
+        takeSample( lab,
+                    [ & ] { lab.setSample( RegexLabWindow::Sample::LinesAroundCurrentLine ); } );
         setPattern( lab, searched );
 
         THEN( "the Lab's matching lines are exactly the Search's Matches" )
@@ -611,6 +655,107 @@ SCENARIO( "A Regex Lab opened to edit a pattern answers Apply or Cancel once", "
 
         THEN( "it is cancelled, once" )
         {
+            CHECK( applied.isEmpty() );
+            CHECK( cancelled.size() == 1 );
+        }
+    }
+}
+
+SCENARIO( "The Regex Lab keeps what it marks bounded and reads pasted text as lines",
+          "[ui][regexlab]" )
+{
+    RegexLabWindow lab( RegexpEngine::Vectorscan );
+    lab.show();
+
+    GIVEN( "a sample with more matches than are marked" )
+    {
+        QStringList lines;
+        for ( int i = 0; i < 1000; ++i ) {
+            lines.append( QStringLiteral( "a " ).repeated( 20 ) );
+        }
+        pasteSample( lab, lines.join( QChar::LineFeed ) );
+        typePattern( lab, "a" );
+
+        THEN( "the first matches are marked, every line is counted, and the status says so" )
+        {
+            CHECK( markedTexts( lab ).size()
+                   == static_cast<qsizetype>( RegexLabWindow::bounds().maxMarks ) );
+            CHECK( lab.result().matchingLines == 1000 );
+            CHECK( part<QLabel>( lab, "status" )
+                       ->text()
+                       .contains( QString::number( RegexLabWindow::bounds().maxMarks ) ) );
+        }
+    }
+
+    GIVEN( "pasted text that ends with a line feed" )
+    {
+        pasteSample( lab, "first\nsecond\n" );
+        typePattern( lab, "^$" );
+
+        THEN( "there is no empty line after the last one" )
+        {
+            CHECK( lab.result().lines.size() == 2 );
+            CHECK( lab.result().matchingLines == 0 );
+        }
+    }
+}
+
+SCENARIO( "A Regex Lab whose tab is closed has no Log File", "[ui][regexlab]" )
+{
+    OpenCrawler open;
+    RegexLabWindow lab( RegexpEngine::Vectorscan );
+    takeSample( lab, [ & ] { lab.setSampleSource( open.source() ); } );
+    lab.show();
+    REQUIRE( lab.windowTitle().contains( "test.log" ) );
+
+    open.crawler.reset();
+
+    THEN( "only pasted text is a sample, and the title names no tab" )
+    {
+        CHECK( lab.sample() == RegexLabWindow::Sample::PastedText );
+        CHECK_FALSE( isChoiceEnabled( lab, RegexLabWindow::Sample::SelectedLines ) );
+        CHECK_FALSE( isChoiceEnabled( lab, RegexLabWindow::Sample::LinesAroundCurrentLine ) );
+        CHECK_FALSE( lab.windowTitle().contains( "test.log" ) );
+    }
+}
+
+SCENARIO( "A Regex Lab opened from a modal dialog answers once, also when destroyed with it",
+          "[ui][regexlab]" )
+{
+    auto dialog = std::make_unique<QDialog>();
+    dialog->setModal( true );
+    dialog->show();
+
+    QPointer<RegexLabWindow> lab = new RegexLabWindow( RegexpEngine::Vectorscan, dialog.get() );
+    lab->offerApply( true );
+    lab->show();
+    QSignalSpy applied( lab.data(), &RegexLabWindow::applied );
+    QSignalSpy cancelled( lab.data(), &RegexLabWindow::cancelled );
+
+    WHEN( "a pattern is applied while the dialog is open" )
+    {
+        typePattern( *lab, "level=(\\w+)" );
+        part<QDialogButtonBox>( *lab, "buttons" )->button( QDialogButtonBox::Apply )->click();
+
+        THEN( "the dialog hears it, stays open, and hears nothing more" )
+        {
+            REQUIRE( applied.size() == 1 );
+            CHECK( applied.front().front().value<RegularExpressionPattern>().pattern
+                   == "level=(\\w+)" );
+            CHECK( dialog->isVisible() );
+            dialog.reset();
+            CHECK( lab.isNull() );
+            CHECK( cancelled.isEmpty() );
+        }
+    }
+
+    WHEN( "the dialog is destroyed with the Lab open" )
+    {
+        dialog.reset();
+
+        THEN( "the Lab goes with it and answers cancelled, once" )
+        {
+            CHECK( lab.isNull() );
             CHECK( applied.isEmpty() );
             CHECK( cancelled.size() == 1 );
         }

@@ -36,10 +36,6 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
-// A line marks this many matches at most: a pattern that matches every
-// character of a long line would otherwise mark thousands.
-constexpr std::size_t MaxMatchesPerLine = 1000;
-
 // The pattern as the Search compiles it for QRegularExpression, with its
 // groups capturing: the Search leaves them out where it can (#336), the Lab
 // shows them.
@@ -233,55 +229,70 @@ void addGroups( const QRegularExpression& regexp, const QRegularExpressionMatch&
     }
 }
 
-LineResult evaluateLine( const PatternMatcher& matcher,
-                         const logsquirl::vector<QRegularExpression>& marking, QString line,
-                         qsizetype maxLineLength )
-{
-    LineResult result;
-    if ( line.size() > maxLineLength ) {
-        line.truncate( maxLineLength );
-        result.isCut = true;
-    }
+// The matches that may still be marked in the sample.
+struct MarkBudget {
+    std::size_t left = 0;
+    bool isCut = false;
+};
 
-    // The Search matches the line's text as UTF-8 (see filterLines()).
-    const auto utf8 = line.toUtf8();
+LineResult evaluateLine( const PatternMatcher& matcher,
+                         const logsquirl::vector<QRegularExpression>& marking,
+                         const QString& wholeLine, const Bounds& bounds, MarkBudget& marks )
+{
+    const auto started = Clock::now();
+    LineResult result;
+
+    // The Search matches the whole line's text as UTF-8 (see filterLines()).
+    const auto utf8 = wholeLine.toUtf8();
     result.isMatch = matcher.hasMatch(
         std::string_view( utf8.constData(), static_cast<std::size_t>( utf8.size() ) ) );
+
+    // Only what is shown is marked.
+    const auto line = cutLine( wholeLine, bounds.maxLineLength );
+    result.isCut = line.size() < wholeLine.size();
 
     for ( std::size_t index = 0; index < marking.size(); ++index ) {
         const auto& regexp = marking[ index ];
         const auto subPatternIndex = static_cast<int>( index );
         auto matches = regexp.globalMatch( line );
         bool isFirst = true;
-        while ( matches.hasNext() && result.matches.size() < MaxMatchesPerLine ) {
+        while ( matches.hasNext() ) {
             const auto match = matches.next();
             if ( isFirst ) {
                 addGroups( regexp, match, subPatternIndex, result.groups );
                 isFirst = false;
             }
-            if ( match.capturedLength() > 0 ) {
-                result.matches.push_back(
-                    { match.capturedStart(), match.capturedLength(), subPatternIndex } );
+            if ( match.capturedLength() == 0 ) {
+                continue;
             }
+            if ( marks.left == 0 || result.matches.size() == bounds.maxMarksPerLine ) {
+                marks.isCut = true;
+                break;
+            }
+            result.matches.push_back(
+                { match.capturedStart(), match.capturedLength(), subPatternIndex } );
+            --marks.left;
         }
     }
 
     std::ranges::sort( result.matches, []( const MatchSpan& left, const MatchSpan& right ) {
         return std::tie( left.start, left.subPattern ) < std::tie( right.start, right.subPattern );
     } );
+    result.isSlow = Clock::now() - started > bounds.slowLine;
     return result;
 }
 
 } // namespace
 
-std::optional<PatternError> patternError( const RegularExpressionPattern& pattern,
-                                          RegexpEngine engine )
+QString cutLine( const QString& line, qsizetype length )
 {
-    const RegularExpression expression( pattern, engine );
-    if ( expression.isValid() ) {
-        return std::nullopt;
+    if ( line.size() <= length ) {
+        return line;
     }
-    return errorOf( pattern, expression.errorString() );
+    if ( length > 0 && line[ length - 1 ].isHighSurrogate() ) {
+        --length;
+    }
+    return line.left( std::max<qsizetype>( length, 0 ) );
 }
 
 Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
@@ -306,6 +317,7 @@ Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
     }
     const auto matcher = expression.createMatcher();
     const auto marking = markingRegexps( pattern );
+    MarkBudget marks{ bounds.maxMarks };
 
     result.lines.reserve( result.sampleLines );
     for ( std::size_t index = 0; index < result.sampleLines; ++index ) {
@@ -317,15 +329,16 @@ Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
             result.stop = Stop::TimeLimit;
             break;
         }
-        result.lines.push_back(
-            evaluateLine( *matcher, marking, sample[ index ], bounds.maxLineLength ) );
-        if ( result.lines.back().isMatch ) {
-            ++result.matchingLines;
-        }
+        result.lines.push_back( evaluateLine( *matcher, marking, sample[ index ], bounds, marks ) );
+        const auto& line = result.lines.back();
+        result.matchingLines += line.isMatch ? 1 : 0;
+        result.slowLines += line.isSlow ? 1 : 0;
     }
 
     result.elapsed = elapsed();
-    result.isSlow = result.elapsed >= bounds.slowThreshold || result.stop == Stop::TimeLimit;
+    result.isMarkingCut = marks.isCut;
+    result.isSlow = result.elapsed >= bounds.slowThreshold || result.stop == Stop::TimeLimit
+                    || result.slowLines > 0;
     return result;
 }
 

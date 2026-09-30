@@ -162,7 +162,7 @@ The line above the Filtered View where a Search is typed: its pattern, the butto
 _Avoid_: search bar, search box
 
 **Regex Lab**:
-The window that shows what a pattern matches in sample Log Lines, with the Search's engine and options: which lines match, where, and the capture groups of a line. Its samples are the selected Log Lines of a tab, the Displayed Lines around the current line, or pasted text. It never changes a Search, a Highlighter or a filter by itself.
+The window that shows what a pattern matches in sample Log Lines, with the Search's engine and options: which lines match, where, and the capture groups of a line. Its samples are the selected Log Lines of a tab, the Log Lines around the current line of the view last in focus, or pasted text. It never changes a Search, a Highlighter or a filter by itself.
 _Avoid_: regex tester, pattern playground
 
 **QuickFind**:

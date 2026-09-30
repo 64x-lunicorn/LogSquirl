@@ -9,9 +9,10 @@
   matching lines and the matched text, lists the numbered and named capture
   groups of the line with the cursor, counts the matching lines -- exactly
   those a search with the same pattern and options selects -- and shows a
-  pattern error with its position. The evaluation runs in the background
-  within bounds of time, lines and line length, warns of a pattern that takes
-  unusually long, and *Copy pattern* puts the pattern on the clipboard. (#659)
+  pattern error with its position. The sample is read and evaluated in the
+  background within bounds of time, lines, line length and marks, the Lab
+  warns of a pattern that takes unusually long on the sample or on a line,
+  and *Copy pattern* puts the pattern on the clipboard. (#659)
 - **A session saves to and opens from a file**: *File → Save Session As…*
   writes the window's open files, their order, the tab in front, each tab's
   view state, tab names and groups to a `.logsquirl-session` file, and

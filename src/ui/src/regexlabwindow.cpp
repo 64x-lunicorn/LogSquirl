@@ -41,6 +41,7 @@
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QStandardItemModel>
+#include <QSyntaxHighlighter>
 #include <QTableWidget>
 #include <QTextBlock>
 #include <QTimer>
@@ -69,6 +70,75 @@ QString searchLineText( const char* text )
 
 } // namespace
 
+// Shades the matching lines of the result shown and marks its matches, at
+// most bounds().maxMarks of them. A line is formatted as it is laid out: no
+// extra selection is made per line or per match, which costs a long line
+// dearly. Matches of a sub-pattern that follow on each other are marked as
+// one.
+class RegexLabMarks : public QSyntaxHighlighter {
+public:
+    // Set on each format of a matching line, and on each match's.
+    static constexpr int MatchingLine = QTextFormat::UserProperty;
+    static constexpr int Match = QTextFormat::UserProperty + 1;
+
+    RegexLabMarks( const regexlab::Result& result, QTextDocument* document )
+        : QSyntaxHighlighter( document )
+        , result_( result )
+    {
+    }
+
+protected:
+    void highlightBlock( const QString& text ) override
+    {
+        const auto line = static_cast<std::size_t>( currentBlock().blockNumber() );
+        if ( line >= result_.lines.size() ) {
+            return;
+        }
+        const auto isMatch = result_.lines[ line ].isMatch;
+        if ( isMatch ) {
+            QTextCharFormat format;
+            format.setBackground( lineShade_ );
+            format.setProperty( MatchingLine, true );
+            setFormat( 0, static_cast<int>( text.size() ), format );
+        }
+
+        std::optional<regexlab::MatchSpan> marked;
+        const auto mark = [ & ]() {
+            if ( !marked.has_value() || marked->start + marked->length > text.size() ) {
+                return;
+            }
+            QTextCharFormat format;
+            format.setBackground( matchColor( marked->subPattern ) );
+            format.setForeground( QColor( Qt::black ) );
+            format.setProperty( Match, true );
+            format.setProperty( MatchingLine, isMatch );
+            setFormat( static_cast<int>( marked->start ), static_cast<int>( marked->length ),
+                       format );
+        };
+        for ( const auto& match : result_.lines[ line ].matches ) {
+            if ( marked.has_value() && marked->subPattern == match.subPattern
+                 && marked->start + marked->length == match.start ) {
+                marked->length += match.length;
+                continue;
+            }
+            mark();
+            marked = match;
+        }
+        mark();
+    }
+
+public:
+    // The shade of a matching line, from the window's palette.
+    void setLineShade( QColor shade )
+    {
+        lineShade_ = shade;
+    }
+
+private:
+    const regexlab::Result& result_;
+    QColor lineShade_;
+};
+
 RegexLabWindow::RegexLabWindow( RegexpEngine engine, QWidget* parent )
     : QWidget( parent, Qt::Window )
     , engine_( engine )
@@ -83,7 +153,12 @@ RegexLabWindow::RegexLabWindow( RegexpEngine engine, QWidget* parent )
     resize( 800, 600 );
 }
 
-RegexLabWindow::~RegexLabWindow() = default;
+RegexLabWindow::~RegexLabWindow()
+{
+    // Destroyed while open -- along with its parent, say -- the Lab still
+    // answers once.
+    cancel();
+}
 
 regexlab::Bounds RegexLabWindow::bounds()
 {
@@ -136,6 +211,16 @@ void RegexLabWindow::buildWidgets()
     error_->setPalette( errorPalette );
     error_->hide();
 
+    // Where in the pattern the error is: the pattern, or the part of it
+    // around the error, with a caret under the character. The cursor in the
+    // pattern stays where the user has it.
+    errorMarker_ = new QLabel( this );
+    errorMarker_->setObjectName( QStringLiteral( "errorMarker" ) );
+    errorMarker_->setFont( fixedFont );
+    errorMarker_->setTextFormat( Qt::PlainText );
+    errorMarker_->setPalette( errorPalette );
+    errorMarker_->hide();
+
     sampleChoice_ = new QComboBox( this );
     sampleChoice_->setObjectName( QStringLiteral( "sampleChoice" ) );
     sampleChoice_->addItem( tr( "Selected Log Lines" ), static_cast<int>( Sample::SelectedLines ) );
@@ -158,6 +243,7 @@ void RegexLabWindow::buildWidgets()
     sampleText_->setLineWrapMode( QPlainTextEdit::NoWrap );
     sampleText_->setPlaceholderText( tr( "Paste or type sample lines here." ) );
     sampleText_->setAccessibleName( tr( "Sample lines" ) );
+    marks_ = new RegexLabMarks( result_, sampleText_->document() );
 
     groups_ = new QTableWidget( 0, 3, this );
     groups_->setObjectName( QStringLiteral( "captureGroups" ) );
@@ -189,6 +275,7 @@ void RegexLabWindow::buildWidgets()
     layout->addLayout( patternRow );
     layout->addLayout( optionsRow );
     layout->addWidget( error_ );
+    layout->addWidget( errorMarker_ );
     layout->addLayout( sampleRow );
     layout->addWidget( splitter, 1 );
     layout->addWidget( status_ );
@@ -205,7 +292,7 @@ void RegexLabWindow::buildWidgets()
         connect( option, &QCheckBox::toggled, this, &RegexLabWindow::patternEdited );
     }
     connect( copyPattern_, &QPushButton::clicked, this, &RegexLabWindow::copyPattern );
-    connect( sampleChoice_, &QComboBox::currentIndexChanged, this, &RegexLabWindow::sampleChosen );
+    connect( sampleChoice_, &QComboBox::currentIndexChanged, this, [ this ]() { sampleChosen(); } );
     connect( refreshSample_, &QPushButton::clicked, this, &RegexLabWindow::refreshSample );
     connect( sampleText_, &QPlainTextEdit::textChanged, this, &RegexLabWindow::pastedTextEdited );
     connect( sampleText_, &QPlainTextEdit::cursorPositionChanged, this,
@@ -252,9 +339,20 @@ void RegexLabWindow::setEngine( RegexpEngine engine )
     }
 }
 
+RegexpEngine RegexLabWindow::engine() const
+{
+    return engine_;
+}
+
 void RegexLabWindow::setSampleSource( RegexLabSampleSource source )
 {
+    disconnect( tabDestroyed_ );
     source_ = std::move( source );
+    if ( !source_.tab.isNull() ) {
+        // A tab closed while the Lab is open leaves it without a Log File.
+        tabDestroyed_ = connect( source_.tab, &QObject::destroyed, this,
+                                 [ this ]() { setSampleSource( {} ); } );
+    }
     updateTitle();
     updateSampleChoices();
 
@@ -262,8 +360,17 @@ void RegexLabWindow::setSampleSource( RegexLabSampleSource source )
         setSample( Sample::PastedText );
         return;
     }
-    const auto hasSelection = !source_.selectedLines( LinesCount( bounds().maxLines ) ).empty();
-    setSample( hasSelection ? Sample::SelectedLines : Sample::LinesAroundCurrentLine );
+
+    // The selection read once: it is the sample, unless there is none.
+    const auto count = LinesCount( bounds().maxLines );
+    auto selected = source_.selectedLines( count );
+    const auto chosen = selected.count > 0 ? Sample::SelectedLines : Sample::LinesAroundCurrentLine;
+    {
+        const QSignalBlocker blocker( sampleChoice_ );
+        sampleChoice_->setCurrentIndex( sampleChoice_->findData( static_cast<int>( chosen ) ) );
+    }
+    sampleChosen( selected.count > 0 ? std::move( selected )
+                                     : source_.linesAroundCurrentLine( count ) );
 }
 
 RegexLabWindow::Sample RegexLabWindow::sample() const
@@ -298,18 +405,25 @@ const regexlab::Result& RegexLabWindow::result() const
 void RegexLabWindow::closeEvent( QCloseEvent* event )
 {
     debounce_->stop();
+    sampleReader_.cancel();
     runner_.cancel();
+    cancel();
+    QWidget::closeEvent( event );
+}
+
+void RegexLabWindow::cancel()
+{
     if ( isApplyOffered_ && !isAnswered_ ) {
         isAnswered_ = true;
         Q_EMIT cancelled();
     }
-    QWidget::closeEvent( event );
 }
 
 void RegexLabWindow::updateTitle()
 {
-    setWindowTitle( source_.name.isEmpty() ? tr( "Regex Lab" )
-                                           : tr( "Regex Lab - %1" ).arg( source_.name ) );
+    setWindowTitle( source_.name.isEmpty() || !source_.hasLogFile()
+                        ? tr( "Regex Lab" )
+                        : tr( "Regex Lab - %1" ).arg( source_.name ) );
 }
 
 void RegexLabWindow::updateSampleChoices()
@@ -329,50 +443,86 @@ void RegexLabWindow::patternEdited()
     debounce_->start();
 }
 
-void RegexLabWindow::sampleChosen()
+void RegexLabWindow::sampleChosen( std::optional<RegexLabSample> taken )
 {
-    const auto isPasted = sample() == Sample::PastedText;
+    const auto chosen = sample();
+    if ( shownSample_ == Sample::PastedText && chosen != Sample::PastedText ) {
+        pastedText_ = sampleText_->toPlainText();
+    }
+    const auto wasPasted = shownSample_ == Sample::PastedText;
+    shownSample_ = chosen;
+
+    const auto isPasted = chosen == Sample::PastedText;
     refreshSample_->setEnabled( !isPasted );
     sampleText_->setReadOnly( !isPasted );
-
     if ( !isPasted ) {
-        refreshSample();
+        takeSample( std::move( taken ) );
         return;
     }
 
-    isShowingLogFileSample_ = true;
-    sampleText_->setPlainText( pastedText_ );
-    isShowingLogFileSample_ = false;
+    // A sample still read from the tab is not shown over the pasted text.
+    sampleReader_.cancel();
+    if ( !wasPasted || sampleText_->document()->isEmpty() ) {
+        isShowingLogFileSample_ = true;
+        sampleText_->setPlainText( pastedText_ );
+        isShowingLogFileSample_ = false;
+    }
     evaluate();
 }
 
 void RegexLabWindow::refreshSample()
 {
+    if ( sample() != Sample::PastedText ) {
+        takeSample( std::nullopt );
+    }
+}
+
+void RegexLabWindow::takeSample( std::optional<RegexLabSample> taken )
+{
     const auto choice = sample();
     if ( choice == Sample::PastedText ) {
         return;
     }
-
-    const auto count = LinesCount( bounds().maxLines );
-    if ( !source_.hasLogFile() ) {
-        logFileSample_.clear();
-    }
-    else if ( choice == Sample::SelectedLines ) {
-        logFileSample_ = source_.selectedLines( count );
-    }
-    else {
-        logFileSample_ = source_.linesAroundCurrentLine( count );
+    if ( !taken.has_value() && source_.hasLogFile() ) {
+        const auto count = LinesCount( bounds().maxLines );
+        taken = choice == Sample::SelectedLines ? source_.selectedLines( count )
+                                                : source_.linesAroundCurrentLine( count );
     }
 
-    QStringList lines;
-    lines.reserve( static_cast<qsizetype>( logFileSample_.size() ) );
-    for ( const auto& line : logFileSample_ ) {
-        lines.append( line );
-    }
-    isShowingLogFileSample_ = true;
-    sampleText_->setPlainText( lines.join( QChar::LineFeed ) );
-    isShowingLogFileSample_ = false;
-    evaluate();
+    struct Read {
+        std::shared_ptr<const logsquirl::vector<QString>> lines;
+        QString shown;
+    };
+    auto read = taken.has_value() ? std::move( taken->read )
+                                  : std::function<logsquirl::vector<QString>()>{};
+    sampleReader_.start<Read>(
+        [ read = std::move( read ) ]( const std::atomic<bool>& cancelled ) {
+            Read result;
+            auto lines = read ? read() : logsquirl::vector<QString>{};
+            // Only the start of a long line is shown.
+            QStringList shown;
+            shown.reserve( static_cast<qsizetype>( lines.size() ) );
+            for ( const auto& line : lines ) {
+                if ( cancelled.load() ) {
+                    break;
+                }
+                shown.append( regexlab::cutLine( line, bounds().maxLineLength ) );
+            }
+            result.shown = shown.join( QChar::LineFeed );
+            result.lines = std::make_shared<const logsquirl::vector<QString>>( std::move( lines ) );
+            return result;
+        },
+        [ this ]( Read sampleRead ) {
+            if ( sample() == Sample::PastedText ) {
+                return;
+            }
+            logFileSample_ = std::move( sampleRead.lines );
+            isShowingLogFileSample_ = true;
+            sampleText_->setPlainText( sampleRead.shown );
+            isShowingLogFileSample_ = false;
+            Q_EMIT sampleTaken();
+            evaluate();
+        } );
 }
 
 void RegexLabWindow::pastedTextEdited()
@@ -380,88 +530,72 @@ void RegexLabWindow::pastedTextEdited()
     if ( isShowingLogFileSample_ || sample() != Sample::PastedText ) {
         return;
     }
-    pastedText_ = sampleText_->toPlainText();
     runner_.cancel();
     debounce_->start();
 }
 
-logsquirl::vector<QString> RegexLabWindow::sampleLines() const
+std::shared_ptr<const logsquirl::vector<QString>> RegexLabWindow::pastedLines()
 {
-    if ( sample() != Sample::PastedText ) {
-        return logFileSample_;
-    }
+    const auto text = sampleText_->toPlainText();
+    const auto maxLines = bounds().maxLines;
     logsquirl::vector<QString> lines;
-    if ( pastedText_.isEmpty() ) {
-        return lines;
-    }
-    const auto pasted = pastedText_.split( QChar::LineFeed );
-    lines.reserve( std::min( static_cast<std::size_t>( pasted.size() ), bounds().maxLines ) );
-    for ( const auto& line : pasted ) {
-        if ( lines.size() == bounds().maxLines ) {
+    hasMorePastedLines_ = false;
+
+    qsizetype start = 0;
+    while ( start < text.size() ) {
+        if ( lines.size() == maxLines ) {
+            hasMorePastedLines_ = true;
             break;
         }
-        lines.push_back( line );
+        auto end = text.indexOf( QChar::LineFeed, start );
+        if ( end < 0 ) {
+            end = text.size();
+        }
+        lines.push_back( text.mid( start, end - start ) );
+        start = end + 1;
     }
-    return lines;
+    return std::make_shared<const logsquirl::vector<QString>>( std::move( lines ) );
 }
 
 void RegexLabWindow::evaluate()
 {
     debounce_->stop();
-    hasPattern_ = !patternEdit_->text().isEmpty();
+    const auto searched = pattern();
+    hasPattern_ = !searched.pattern.isEmpty();
     if ( !hasPattern_ ) {
         runner_.cancel();
+        evaluatedPattern_ = searched;
         showResult( {} );
         return;
     }
 
+    auto lines = sample() == Sample::PastedText ? pastedLines() : logFileSample_;
     runner_.start<regexlab::Result>(
-        [ searched = pattern(), engine = engine_,
-          lines = sampleLines() ]( const std::atomic<bool>& cancelled ) {
-            return regexlab::evaluate( searched, engine, lines, bounds(), cancelled );
+        [ searched, engine = engine_,
+          lines = std::move( lines ) ]( const std::atomic<bool>& cancelled ) {
+            return regexlab::evaluate( searched, engine,
+                                       lines ? *lines : logsquirl::vector<QString>{}, bounds(),
+                                       cancelled );
         },
-        [ this ]( regexlab::Result evaluated ) { showResult( std::move( evaluated ) ); } );
+        [ this, searched ]( regexlab::Result evaluated ) {
+            evaluatedPattern_ = searched;
+            showResult( std::move( evaluated ) );
+        } );
 }
 
 void RegexLabWindow::showResult( regexlab::Result result )
 {
     result_ = std::move( result );
 
-    QList<QTextEdit::ExtraSelection> selections;
-    auto matchingLineColor = palette().color( QPalette::Highlight );
-    matchingLineColor.setAlpha( 50 );
+    auto shade = palette().color( QPalette::Highlight );
+    shade.setAlpha( 50 );
+    marks_->setLineShade( shade );
+    // Formatting the sample is no edit of it.
+    isShowingLogFileSample_ = true;
+    marks_->rehighlight();
+    isShowingLogFileSample_ = false;
 
-    const auto* document = sampleText_->document();
-    for ( std::size_t index = 0; index < result_.lines.size(); ++index ) {
-        const auto block = document->findBlockByNumber( static_cast<int>( index ) );
-        if ( !block.isValid() ) {
-            break;
-        }
-        const auto& line = result_.lines[ index ];
-        if ( line.isMatch ) {
-            QTextEdit::ExtraSelection selection;
-            selection.cursor = QTextCursor( block );
-            selection.format.setBackground( matchingLineColor );
-            selection.format.setProperty( QTextFormat::FullWidthSelection, true );
-            selections.append( selection );
-        }
-        for ( const auto& match : line.matches ) {
-            if ( match.start + match.length >= block.length() ) {
-                continue;
-            }
-            QTextEdit::ExtraSelection selection;
-            selection.cursor = QTextCursor( block );
-            selection.cursor.setPosition( block.position() + static_cast<int>( match.start ) );
-            selection.cursor.setPosition( block.position()
-                                              + static_cast<int>( match.start + match.length ),
-                                          QTextCursor::KeepAnchor );
-            selection.format.setBackground( matchColor( match.subPattern ) );
-            selection.format.setForeground( QColor( Qt::black ) );
-            selections.append( selection );
-        }
-    }
-    sampleText_->setExtraSelections( selections );
-
+    showError();
     showStatus();
     showGroups();
     Q_EMIT evaluated();
@@ -475,7 +609,7 @@ void RegexLabWindow::showGroups()
         return;
     }
 
-    const auto isCombination = logicalCombination_->isChecked();
+    const auto isCombination = evaluatedPattern_.isBoolean;
     const auto& groups = result_.lines[ line ].groups;
     groups_->setRowCount( static_cast<int>( groups.size() ) );
     for ( std::size_t index = 0; index < groups.size(); ++index ) {
@@ -498,28 +632,46 @@ void RegexLabWindow::showGroups()
     }
 }
 
-void RegexLabWindow::showStatus()
+void RegexLabWindow::showError()
 {
-    if ( result_.error.has_value() ) {
-        const auto& error = *result_.error;
-        error_->setText( error.position >= 0
-                             ? tr( "Error at character %1 of the pattern: %2" )
-                                   .arg( error.position + 1 )
-                                   .arg( error.message )
-                             : tr( "Error in the pattern: %1" ).arg( error.message ) );
-        error_->show();
-        if ( error.position >= 0 ) {
-            patternEdit_->setCursorPosition( static_cast<int>( error.position ) );
-        }
-    }
-    else {
+    if ( !result_.error.has_value() ) {
         error_->clear();
         error_->hide();
+        errorMarker_->clear();
+        errorMarker_->hide();
+        return;
     }
 
+    const auto& error = *result_.error;
+    if ( error.position < 0 ) {
+        error_->setText( tr( "Error in the pattern: %1" ).arg( error.message ) );
+        error_->show();
+        errorMarker_->hide();
+        return;
+    }
+
+    error_->setText( tr( "Error at character %1 of the pattern: %2" )
+                         .arg( error.position + 1 )
+                         .arg( error.message ) );
+    error_->show();
+
+    // The pattern around the error, with a caret under its character.
+    constexpr qsizetype Around = 40;
+    const auto& text = evaluatedPattern_.pattern;
+    const auto position = std::min( error.position, text.size() );
+    const auto first = std::max<qsizetype>( position - Around, 0 );
+    const auto elided = first > 0 ? QStringLiteral( "..." ) : QString();
+    auto shown = elided + text.mid( first, 2 * Around );
+    shown.replace( QChar::Tabulation, QChar::Space );
+    const auto caret = QString( elided.size() + position - first, QChar::Space ) + QChar( '^' );
+    errorMarker_->setText( shown + QChar::LineFeed + caret );
+    errorMarker_->show();
+}
+
+void RegexLabWindow::showStatus()
+{
     QStringList status;
-    const auto sampleSize = sampleLines().size();
-    if ( sample() != Sample::PastedText && logFileSample_.empty() ) {
+    if ( sample() != Sample::PastedText && logFileSample_ && logFileSample_->empty() ) {
         status.append( sample() == Sample::SelectedLines
                            ? tr( "No Log Lines are selected in the tab." )
                            : tr( "The tab shows no Log Lines." ) );
@@ -539,28 +691,36 @@ void RegexLabWindow::showStatus()
         }
         if ( std::ranges::any_of(
                  result_.lines, []( const regexlab::LineResult& line ) { return line.isCut; } ) ) {
-            status.append( tr( "Lines longer than %1 characters are evaluated only up to there." )
+            status.append( tr( "Lines longer than %1 characters are shown and marked only up to "
+                               "there; whether they match is decided on the whole line." )
                                .arg( bounds().maxLineLength ) );
         }
+        if ( result_.isMarkingCut ) {
+            status.append( tr( "Not every match is marked: at most %1 in a line and %2 in all." )
+                               .arg( bounds().maxMarksPerLine )
+                               .arg( bounds().maxMarks ) );
+        }
     }
-    if ( sample() == Sample::PastedText
-         && pastedText_.count( QChar::LineFeed ) >= static_cast<qsizetype>( sampleSize )
-         && sampleSize == bounds().maxLines ) {
+    if ( sample() == Sample::PastedText && hasMorePastedLines_ ) {
         status.append(
             tr( "Only the first %1 lines of the sample are evaluated." ).arg( bounds().maxLines ) );
     }
     status_->setText( status.join( QChar::Space ) );
 
+    QStringList warnings;
     if ( hasPattern_ && result_.isSlow ) {
-        warning_->setText( tr( "Evaluating the sample took %1 ms: the pattern may backtrack "
-                               "excessively on some lines." )
-                               .arg( result_.elapsed.count() ) );
-        warning_->show();
+        warnings.append( tr( "Evaluating the sample took %1 ms: the pattern may backtrack "
+                             "excessively on some lines." )
+                             .arg( result_.elapsed.count() ) );
     }
-    else {
-        warning_->clear();
-        warning_->hide();
+    if ( hasPattern_ && result_.slowLines > 0 ) {
+        warnings.append( tr( "%1 lines took more than %2 ms each. On such a line the engine may "
+                             "have given up and reported no match, as a Search would." )
+                             .arg( result_.slowLines )
+                             .arg( bounds().slowLine.count() ) );
     }
+    warning_->setText( warnings.join( QChar::Space ) );
+    warning_->setVisible( !warnings.isEmpty() );
 }
 
 void RegexLabWindow::copyPattern()

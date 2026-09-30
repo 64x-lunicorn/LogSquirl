@@ -486,23 +486,28 @@ The *Regex Lab* (`Tools` → `Regex Lab...`) shows what a pattern does on real
 Log Lines before you use it in a search, a highlighter or a predefined filter.
 It is a window of its own that stays open beside the main window, tied to the
 tab that was in front when it was opened; choosing the menu entry again brings
-it to the front and ties it to the tab in front then.
+it to the front and ties it to the tab in front then. Once that tab is closed,
+only pasted text is a sample. When the search engine is changed in the
+settings, the Lab matches with the new one.
 
 The pattern is read with the same options as the search line: *Match case*,
 *Use regex* (a regular expression, or else plain text), *Inverse match* and
 *Boolean combining* (a logical combination such as `"error" and not("retry")`).
 It is matched by the same engine as a search, so the lines the Lab counts as
 matching are exactly the lines a search with the same pattern and options
-selects. *Copy pattern* puts the pattern on the clipboard.
+selects, decided on the whole line. With *Inverse match* the lines counted and
+shaded are those the pattern does not match, while the marks still show where
+the pattern matches. *Copy pattern* puts the pattern on the clipboard.
 
 The *Sample* is one of:
 
 - *Selected Log Lines*: the lines selected in the tab, in the main view or the
   filtered view, whichever you were in last;
-- *Lines around the current line*: up to 1000 lines that view shows around its
-  current line;
-- *Pasted text*: text you paste or type into the sample, one line per line. It
-  is the only sample while no file is open.
+- *Lines around the current line*: up to 1000 of the lines that view shows,
+  around its current line;
+- *Pasted text*: text you paste or type into the sample, one line per line (a
+  final line feed adds no empty line). It is the only sample while no file is
+  open.
 
 A sample from the file is taken when you choose it and when you click *Refresh
 sample*, not continuously, so a followed file does not move under you.
@@ -511,20 +516,26 @@ While you type, the Lab shows after a short pause:
 
 - every line of the sample, the matching ones shaded and the matched text
   marked; for a logical combination each sub-pattern's matches in a color of
-  their own;
+  their own. At most 100 matches of a line and 10000 in all are marked, and the
+  Lab says so when there are more;
 - for the line with the cursor, the capture groups of its first match,
   numbered and with their names (`(?<name>...)`); for a logical combination
   they are numbered *sub-pattern.group*, as in `2.1`;
 - how many lines of the sample match;
-- an error in the pattern, with the character of the pattern where it is;
-- a warning when evaluating the sample took unusually long, which hints at a
-  pattern that backtracks excessively.
+- an error in the pattern, with the character of the pattern where it is,
+  marked with a caret under the pattern;
+- a warning when evaluating the sample took unusually long, or a single line
+  took more than 20 ms, which hints at a pattern that backtracks excessively.
+  On such a line the engine may give up and report no match -- a search does
+  the same.
 
-The evaluation runs in the background and never freezes the window. It looks
-at up to 1000 lines and at the first 10000 characters of each, and it stops
-after two seconds, saying at which line it stopped. Typing starts a new
-evaluation that replaces the one running, and closing the window stops it.
-The Lab never changes a search, a highlighter or a filter by itself.
+The sample is read and the pattern evaluated in the background, and what the
+window shows is bounded, so it stays responsive. The Lab evaluates up to 1000
+lines and stops after two seconds, saying at which line it stopped. A line
+longer than 10000 characters is shown and marked only that far; whether it
+matches is still decided on the whole line. Typing starts a new evaluation that
+replaces the one running, and closing the window stops it. The Lab never
+changes a search, a highlighter or a filter by itself.
 
 ### Using highlighters
 
