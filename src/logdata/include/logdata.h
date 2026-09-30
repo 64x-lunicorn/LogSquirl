@@ -92,6 +92,9 @@ class CantReattachErr : public std::exception {};
 class LogData : public AbstractLogData {
     Q_OBJECT
 
+    // Reads raw Log Lines for a Search, through getLinesRaw().
+    friend class LogDataBlockSource;
+
 public:
     // The four Policies are everything this object knows about the
     // settings: what indexing a Log File needs, what running a Search on
@@ -159,18 +162,13 @@ public:
     // File only by reopening it, so a setter would promise more than it
     // could deliver.
 
-    // A block of raw Log Lines, as a Search reads them.
-    using RawLines = ::RawLines;
-
-    RawLines getLinesRaw( LineNumber first, LinesCount number ) const;
-
     // The text of a sparse set of Log Lines, one entry per Log Line asked
     // for and in the order asked: for each, what getLineString() returns.
     // Nearby Log Lines are merged into runs and each run is read at once,
     // under one lock, with one Decoding Policy for the whole call; each Log
     // Line is decoded on its own. lines may come in any order and repeat; a Log Line past the
     // last one reads as it does on its own. Safe off the UI thread, like
-    // getLinesRaw().
+    // reading through searchBlockSource().
     logsquirl::vector<QString> getLinesSparse( std::span<const LineNumber> lines ) const;
     // getExpandedLinesSparse(), from AbstractLogData, reads Log Lines the
     // same way, with tabs expanded.
@@ -238,7 +236,6 @@ private:
     doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const override;
     logsquirl::vector<AnsiColoredText> doGetAnsiColoredLines( LineNumber first,
                                                               LinesCount number ) const override;
-    LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
     LineLength doGetLineLength( LineNumber line ) const override;
@@ -247,30 +244,19 @@ private:
     void doDetachReader() const override;
 
     void reOpenFile() const;
+
+    // The raw Log Lines [first, first + number), as a Search reads them
+    // through searchBlockSource() and as the block reads here decode them.
+    // Only the offsets are taken under the Index's lock.
+    RawLines getLinesRaw( LineNumber first, LinesCount number ) const;
     // Tells every LogFilteredData handed out that the Log Lines from
     // firstChanged on may read differently now.
     void logLinesChanged( LineNumber firstChanged = 0_lnum ) const;
 
     logsquirl::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
                                                  QString ( *processLine )( QString&& ) ) const;
-    // The Log Lines asked for, read as getLinesSparse() does, each made a
-    // Line by toLine( QString&& decodedLine, bool hideAnsiColorSequences ).
-    template <typename Line, typename ToLine>
-    logsquirl::vector<Line> getSparseLinesFromFile( std::span<const LineNumber> lines,
-                                                    ToLine toLine ) const;
-
-    // A Log Line of a sparse read, as the Log File gave it.
-    struct SparseReadLine {
-        // Where it was asked for in the lines read.
-        std::size_t request = 0;
-        // Its bytes, without its line feed; empty when it could not be read.
-        std::string_view bytes;
-        // What it reads as when it could not be read; empty otherwise.
-        std::string_view warning;
-        bool hideAnsiColorSequences = false;
-    };
     // Reads the Log Lines asked for that are indexed, nearby ones merged into
-    // runs, and calls onLine( const SparseReadLine& ) for each, in the order
+    // runs, and calls onLine( const ReadLogLine& ) for each, in the order
     // read. Log Lines past the last one are not called for. The Index is
     // looked at under its lock, the Log File is read without it.
     template <typename OnLine>

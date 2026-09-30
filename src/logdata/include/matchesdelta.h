@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "logfiltereddataworker.h"
+#include "searchresults.h"
 
 // What changed in a Search's Matches with one state change of its Search
 // Session: how the run stands, and which Matches joined and left them.

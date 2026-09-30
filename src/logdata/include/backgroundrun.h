@@ -34,24 +34,8 @@
 #include <QString>
 #include <QThreadPool>
 
-#include <type_safe/strong_typedef.hpp>
-
+#include "runid.h"
 #include "runnable_lambda.h"
-
-// Identifies one run of a Background Run. Every run started gets a fresh id,
-// counting from 1; 0 is never one.
-struct RunId : type_safe::strong_typedef<RunId, uint64_t>,
-               type_safe::strong_typedef_op::equality_comparison<RunId> {
-    using strong_typedef::strong_typedef;
-
-    using UnderlyingType = uint64_t;
-
-    UnderlyingType get() const
-    {
-        return type_safe::get( *this );
-    }
-};
-Q_DECLARE_METATYPE( RunId )
 
 // What a job sees of the run it is part of. Safe to use from any thread for
 // as long as the job runs, the threads a job fans out to included.

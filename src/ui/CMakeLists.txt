@@ -23,6 +23,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfiltersdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfiltersetedit.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/infoline.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/searchlinewidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pathline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linemapping.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logmainview.h
@@ -48,6 +49,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savedsearches.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/selection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/session.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/logfileprovenance.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/sessionfile.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/archivemember.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/changed.h
@@ -116,6 +118,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/predefinedfiltersdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/predefinedfiltersetedit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/infoline.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/searchlinewidget.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pathline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logmainview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logtableview.cpp
@@ -143,6 +146,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/linemapping.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/selection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/session.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/logfileprovenance.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sessionfile.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/archivemember.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sessioninfo.cpp

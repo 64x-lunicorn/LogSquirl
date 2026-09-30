@@ -40,8 +40,8 @@
 #include "test_utils.h"
 
 #include "filedigest.h"
+#include "indexoperation.h"
 #include "logdata.h"
-#include "logdataworker.h"
 #include "progress.h"
 
 // Indexing is built entirely from an Indexing Policy (#94): no

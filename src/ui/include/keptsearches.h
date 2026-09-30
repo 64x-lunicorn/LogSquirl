@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "searchsession.h"
+#include "searchsessionstate.h"
 
 #include <QObject>
 #include <QPointer>
@@ -94,7 +94,7 @@ Q_SIGNALS:
     // as the Open Log File reports it. Told queued, once the change was made,
     // and only while that Search is still current: what a Search told before
     // another was made current is dropped.
-    void currentSearchUpdated( SearchSession::State state );
+    void currentSearchUpdated( SearchSessionState state );
 
 private:
     struct Kept {

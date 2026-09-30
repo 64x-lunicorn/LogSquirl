@@ -88,9 +88,44 @@ ViewInterface* Session::getViewIfOpen( const QString& file_name ) const
         return nullptr;
 }
 
+ViewInterface* Session::viewShowing( const QString& fileName ) const
+{
+    if ( auto* view = getViewIfOpen( fileName ) ) {
+        return view;
+    }
+    if ( fileName.isEmpty() ) {
+        return nullptr;
+    }
+    const auto converted = std::ranges::find_if( openFiles_, [ &fileName ]( const auto& open ) {
+        return open.second.origin.convertedFrom == fileName;
+    } );
+    return converted != openFiles_.end() ? converted->second.view : nullptr;
+}
+
+bool Session::showOpen( const QString& fileName ) const
+{
+    const auto* view = viewShowing( fileName );
+    if ( !view ) {
+        return false;
+    }
+    // Each window knows its own tabs: the one that has the tab says so.
+    for ( auto* window : windows_ ) {
+        if ( window->showView( view ) ) {
+            break;
+        }
+    }
+    return true;
+}
+
+LogFileOrigin Session::originOf( const ViewInterface* view ) const
+{
+    const auto* file = findOpenFileFromView( view );
+    return file ? file->origin : LogFileOrigin{};
+}
+
 ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFactory,
-                              const QString& viewContext, Loading loading, LogFileLifetime lifetime,
-                              const ArchiveMember& archiveMember )
+                              const QString& viewContext, Loading loading,
+                              const LogFileOrigin& origin )
 {
     // The Open Log File: the log data, its Searches, and what they do as the
     // Log File changes on disk
@@ -112,9 +147,7 @@ ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFa
     } );
 
     // Insert in the hash
-    OpenFile entry{
-        fileName, openLogFile, view, lifetime, archiveMember, FirstLoad::Queued, {}, {}
-    };
+    OpenFile entry{ fileName, openLogFile, view, origin, FirstLoad::Queued, {}, {} };
     auto& openFile = openFiles_.insert( { view, std::move( entry ) } ).first->second;
 
     // A Log File reloaded before it was ever loaded asks to be loaded, and
@@ -505,7 +538,7 @@ WindowSnapshot WindowSession::snapshot( const std::vector<SaveFileInfo>& view_li
 
         // Gone by the next start: a restore would open a file that is not
         // there (#570).
-        if ( file->lifetime == LogFileLifetime::Transient ) {
+        if ( !file->origin.savedWithSession() ) {
             LOG_DEBUG << "Not saving the Transient Log File " << file->fileName << " in session.";
             continue;
         }
@@ -516,7 +549,8 @@ WindowSnapshot WindowSession::snapshot( const std::vector<SaveFileInfo>& view_li
         }
         // A decompressed Log File is saved with its archive, which a restore
         // decompresses again: the temporary file is gone by then (#596).
-        session_files.emplace_back( file->fileName, view_context->toString(), file->archiveMember );
+        session_files.emplace_back( file->fileName, view_context->toString(),
+                                    file->origin.archiveMember );
     }
     saveWaitingUpTo( view_list.size() );
 
@@ -541,17 +575,17 @@ bool WindowSession::isOpen( const SessionInfo::OpenFile& file ) const
         return appSession_->getViewIfOpen( file.fileName ) != nullptr;
     }
     return std::ranges::any_of( appSession_->openFiles_, [ &file ]( const auto& open ) {
-        return open.second.archiveMember == file.archiveMember;
+        return open.second.origin.archiveMember == file.archiveMember;
     } );
 }
 
 ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& viewFactory,
-                                    LogFileLifetime lifetime, const ArchiveMember& archiveMember )
+                                    const LogFileOrigin& origin )
 {
     // The view context saved for this Log File in any window, if it was
     // open when the Session was last saved. A Transient Log File never was.
-    const auto savedViewContext = [ &fileName, lifetime ]() {
-        if ( lifetime == LogFileLifetime::Transient ) {
+    const auto savedViewContext = [ &fileName, &origin ]() {
+        if ( !origin.savedWithSession() ) {
             return QString{};
         }
         const auto& session = SessionInfo::get();
@@ -568,7 +602,7 @@ ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& 
     }();
 
     auto* view = appSession_->open( fileName, viewFactory, savedViewContext, Session::Loading::Now,
-                                    lifetime, archiveMember );
+                                    origin );
     openedFiles_.push_back( fileName );
     return view;
 }
@@ -669,7 +703,7 @@ OpenedFilesList WindowSession::restore( const WindowSnapshot& snapshot,
             ViewInterface* view = appSession_->open(
                 file.fileName, viewFactory, file.viewContext,
                 i == currentFile ? Session::Loading::Now : Session::Loading::Queued,
-                LogFileLifetime::Ordinary, file.archiveMember );
+                LogFileOrigin::fromArchive( file.archiveMember ) );
             result.emplace_back( file.fileName, view );
             openedFiles_.emplace_back( file.fileName );
             if ( deferred ) {
@@ -722,7 +756,7 @@ WindowSession::openDeferred( int id, const QString& fileName, const ViewFactory&
     opened.view
         = appSession_->open( fileName, viewFactory, saved.viewContext,
                              opened.inFront ? Session::Loading::Now : Session::Loading::Queued,
-                             LogFileLifetime::Ordinary, saved.archiveMember );
+                             LogFileOrigin::fromArchive( saved.archiveMember ) );
     openedFiles_.push_back( fileName );
 
     slot->view = opened.view;

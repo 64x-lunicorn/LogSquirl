@@ -40,6 +40,7 @@
 #include "clipboard.h"
 #include "iconloader.h"
 #include "log.h"
+#include "logfileprovenance.h"
 #include "mergedialog.h"
 #include "openfilehelper.h"
 #include "tabbarstyle.h"
@@ -150,8 +151,7 @@ QString TabbedCrawlerWidget::baseTabName( int index ) const
     if ( !customName.isEmpty() ) {
         return customName;
     }
-    const auto openingTitle = openingTitles_.value( path ).title;
-    return openingTitle.isEmpty() ? QFileInfo( path ).fileName() : openingTitle;
+    return openingTabTitle( path, openingTitles_.value( path ).title );
 }
 
 void TabbedCrawlerWidget::setTitleFormat( const QString& path, const QString& format )

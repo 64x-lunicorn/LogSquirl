@@ -60,12 +60,12 @@
 #include "logtableview.h"
 #include "quickfindmux.h"
 #include "quickfindpattern.h"
+#include "searchlinewidget_access.h"
 #include "shortcuts.h"
 #include "textviewscrolling.h"
 #include "viewstatecodec.h"
 
 #include "theme.h"
-#include "theme_lists.h"
 
 #include <functional>
 #include <memory>
@@ -217,48 +217,54 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     void setSearchPattern( const QString& pattern )
     {
-        QTest::keyClicks( crawler->searchLineEdit_, pattern );
+        QTest::keyClicks( SearchLineAccess::patternEdit( *crawler->searchLine_ ), pattern );
     }
 
     void enableCaseSensitiveSearch()
     {
-        if ( !crawler->matchCaseButton_->isChecked() ) {
-            QTest::mouseClick( crawler->matchCaseButton_, Qt::LeftButton );
+        if ( !SearchLineAccess::matchCaseButton( *crawler->searchLine_ )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::matchCaseButton( *crawler->searchLine_ ),
+                               Qt::LeftButton );
             QTest::qWait( 100 );
         }
     }
 
     void disableCaseSensitiveSearch()
     {
-        if ( crawler->matchCaseButton_->isChecked() ) {
-            QTest::mouseClick( crawler->matchCaseButton_, Qt::LeftButton );
+        if ( SearchLineAccess::matchCaseButton( *crawler->searchLine_ )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::matchCaseButton( *crawler->searchLine_ ),
+                               Qt::LeftButton );
             QTest::qWait( 100 );
         }
     }
 
     void enableInverseMatch()
     {
-        if ( !crawler->inverseButton_->isChecked() ) {
-            QTest::mouseClick( crawler->inverseButton_, Qt::LeftButton );
+        if ( !SearchLineAccess::inverseButton( *crawler->searchLine_ )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::inverseButton( *crawler->searchLine_ ),
+                               Qt::LeftButton );
             QTest::qWait( 100 );
         }
     }
 
     void enableBooleanCombinationMode()
     {
-        if ( !crawler->booleanButton_->isChecked() ) {
-            QTest::mouseClick( crawler->booleanButton_, Qt::LeftButton );
+        if ( !SearchLineAccess::booleanButton( *crawler->searchLine_ )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::booleanButton( *crawler->searchLine_ ),
+                               Qt::LeftButton );
             QTest::qWait( 100 );
         }
     }
 
     void runSearch()
     {
-        QTest::mouseClick( crawler->searchButton_, Qt::LeftButton );
+        QTest::mouseClick( SearchLineAccess::searchButton( *crawler->searchLine_ ),
+                           Qt::LeftButton );
 
         QTest::qWait( 100 );
 
-        waitUiState( [ & ]() { return crawler->stopButton_->isHidden(); } );
+        waitUiState(
+            [ & ]() { return SearchLineAccess::stopButton( *crawler->searchLine_ )->isHidden(); } );
     }
 
     void render()
@@ -335,7 +341,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     QString searchText()
     {
-        return crawler->searchLineEdit_->currentText();
+        return SearchLineAccess::patternEdit( *crawler->searchLine_ )->currentText();
     }
 
     FilteredView* filteredView()
@@ -350,14 +356,14 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     void clearSearchPattern()
     {
-        crawler->searchLineEdit_->clearEditText();
+        SearchLineAccess::patternEdit( *crawler->searchLine_ )->clearEditText();
     }
 
     // What the Keep Results button does: the next Search opens a tab of its
     // own, and the current one keeps its results.
     void keepSearchResults()
     {
-        crawler->keepSearchResultsButton_->setChecked( true );
+        SearchLineAccess::keepResultsButton( *crawler->searchLine_ )->setChecked( true );
     }
 
     // The Filtered View in tab index, current or not.
@@ -472,25 +478,25 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // Whether the Search line reads its pattern as a regexp.
     bool useRegexpChecked() const
     {
-        return crawler->useRegexpButton_->isChecked();
+        return SearchLineAccess::useRegexpButton( *crawler->searchLine_ )->isChecked();
     }
 
     // Whether the Search matches case.
     bool matchCaseChecked() const
     {
-        return crawler->matchCaseButton_->isChecked();
+        return SearchLineAccess::matchCaseButton( *crawler->searchLine_ )->isChecked();
     }
 
     // Whether the Search refreshes as the Log File grows.
     bool autoRefreshChecked() const
     {
-        return crawler->searchRefreshButton_->isChecked();
+        return SearchLineAccess::autoRefreshButton( *crawler->searchLine_ )->isChecked();
     }
 
     // Whether the Search pattern is read as a logical combination.
     bool booleanCombiningChecked() const
     {
-        return crawler->booleanButton_->isChecked();
+        return SearchLineAccess::booleanButton( *crawler->searchLine_ )->isChecked();
     }
 
     // What the user does by hand: clicks the match case, auto-refresh and
@@ -505,20 +511,21 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // What the user does by hand: asks for the Search to follow the Log File.
     void enableAutoRefresh()
     {
-        if ( !crawler->searchRefreshButton_->isChecked() ) {
-            QTest::mouseClick( crawler->searchRefreshButton_, Qt::LeftButton );
+        if ( !SearchLineAccess::autoRefreshButton( *crawler->searchLine_ )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::autoRefreshButton( *crawler->searchLine_ ),
+                               Qt::LeftButton );
             QCoreApplication::processEvents();
         }
     }
 
     QString searchInfoText() const
     {
-        return crawler->searchInfoLine_->text();
+        return SearchLineAccess::infoLine( *crawler->searchLine_ )->text();
     }
 
     bool isSearchRunning() const
     {
-        return !crawler->stopButton_->isHidden();
+        return !SearchLineAccess::stopButton( *crawler->searchLine_ )->isHidden();
     }
 
     bool mainViewKeepsBottomLines() const
@@ -560,20 +567,13 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         return series.isEmpty() ? 0 : series.front().points.size();
     }
 
-    void clickSearchDefaultButtons()
-    {
-        QTest::mouseClick( crawler->matchCaseButton_, Qt::LeftButton );
-        QTest::mouseClick( crawler->searchRefreshButton_, Qt::LeftButton );
-        QTest::mouseClick( crawler->booleanButton_, Qt::LeftButton );
-        QCoreApplication::processEvents();
-    }
-
     // What the user does by hand: asks for the Search pattern to be read as a
     // regexp.
     void enableRegexpSearch()
     {
-        if ( !crawler->useRegexpButton_->isChecked() ) {
-            QTest::mouseClick( crawler->useRegexpButton_, Qt::LeftButton );
+        if ( !SearchLineAccess::useRegexpButton( *crawler->searchLine_ )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::useRegexpButton( *crawler->searchLine_ ),
+                               Qt::LeftButton );
             QCoreApplication::processEvents();
         }
     }
@@ -582,16 +582,11 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // fixed string.
     void disableRegexpSearch()
     {
-        if ( crawler->useRegexpButton_->isChecked() ) {
-            QTest::mouseClick( crawler->useRegexpButton_, Qt::LeftButton );
+        if ( SearchLineAccess::useRegexpButton( *crawler->searchLine_ )->isChecked() ) {
+            QTest::mouseClick( SearchLineAccess::useRegexpButton( *crawler->searchLine_ ),
+                               Qt::LeftButton );
             QCoreApplication::processEvents();
         }
-    }
-
-    // The Search info line, as painted.
-    QImage searchInfoImage() const
-    {
-        return crawler->searchInfoLine_->grab().toImage().convertToFormat( QImage::Format_RGB32 );
     }
 
     // The QuickFind pattern the views of the Log File search and paint: the
@@ -606,7 +601,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     void enterQuickFind()
     {
         crawler->enteringQuickFind();
-        crawler->searchLineEdit_->setFocus();
+        SearchLineAccess::patternEdit( *crawler->searchLine_ )->setFocus();
         QCoreApplication::processEvents();
     }
 
@@ -2230,30 +2225,17 @@ SCENARIO( "The search button row starts in the state the QuickFind Policy says",
             REQUIRE( first.booleanCombiningChecked() );
         }
 
-        WHEN( "the user sets the buttons by hand and a changed QuickFind Policy arrives" )
+        WHEN( "a changed QuickFind Policy arrives" )
         {
-            first.clickSearchDefaultButtons();
-            REQUIRE( first.matchCaseChecked() );
-            REQUIRE_FALSE( first.autoRefreshChecked() );
-            REQUIRE_FALSE( first.booleanCombiningChecked() );
-
-            // Changed on the same axis, yet still saying the defaults the user
-            // clicked away from: were the buttons seeded again from it, they
-            // would go back to the state they started in.
             auto changed = policies;
             changed.quickFind.incremental = !policies.quickFind.incremental;
             session.applyPolicies( changed );
 
+            // Whether the buttons keep what the user set is the Search Line
+            // widget's to say (searchlinewidget_test.cpp).
             THEN( "the Log File holds the new Policy" )
             {
                 REQUIRE( first.crawler->quickFindPolicy() == changed.quickFind );
-            }
-
-            THEN( "the buttons keep what the user set" )
-            {
-                REQUIRE( first.matchCaseChecked() );
-                REQUIRE_FALSE( first.autoRefreshChecked() );
-                REQUIRE_FALSE( first.booleanCombiningChecked() );
             }
         }
 
@@ -3131,56 +3113,6 @@ SCENARIO( "A restored tab whose Log File loads after the current one shows what 
             }
         }
     }
-}
-
-SCENARIO( "An invalid Search pattern is shown in the Theme's error colors", "[ui][theme]" )
-{
-    QTemporaryFile file{ "crawler_test_XXXXXX" };
-    REQUIRE( generateDataFiles( file ) );
-
-    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
-    CrawlerWidgetVisitor crawlerVisitor;
-    Theme::apply( Theme::LightKey );
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
-        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
-    REQUIRE( waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } ) );
-    crawlerVisitor.showSized();
-
-    GIVEN( "a Search for a pattern that is no regexp" )
-    {
-        crawlerVisitor.enableRegexpSearch();
-        crawlerVisitor.setSearchPattern( "(unclosed" );
-        crawlerVisitor.runSearch();
-        QCoreApplication::processEvents();
-        REQUIRE( crawlerVisitor.searchInfoText().startsWith( "Error in expression" ) );
-
-        // The error background fills the line behind its text.
-        const auto background = []( const QImage& image ) {
-            return image.pixelColor( image.width() - 4, image.height() / 2 ).rgb();
-        };
-
-        THEN( "the Search info line shows the error in the Light Theme's error background" )
-        {
-            REQUIRE( background( crawlerVisitor.searchInfoImage() )
-                     == Theme::active().color( ColorToken::ErrorBackground ).rgb() );
-        }
-
-        for ( const auto& name : themeSwitchesFrom( Theme::LightKey ) ) {
-            WHEN( "the " << name.toStdString() << " Theme is applied" )
-            {
-                Theme::apply( name );
-                QCoreApplication::processEvents();
-
-                THEN( "the error is shown in that Theme's error background" )
-                {
-                    REQUIRE( background( crawlerVisitor.searchInfoImage() )
-                             == Theme::active().color( ColorToken::ErrorBackground ).rgb() );
-                }
-            }
-        }
-    }
-
-    Theme::apply( Theme::defaultTheme() );
 }
 
 namespace {
