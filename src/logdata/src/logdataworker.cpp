@@ -966,12 +966,17 @@ IndexOutcome IndexOperation::reportFailure( const QString& failure )
     return failedOutcome( failure );
 }
 
-QString index_operation_detail::unbuiltFailure( const char* name, const char* what )
+QString index_operation_detail::unbuiltFailure( const char* name, const char* what ) noexcept
 {
-    const auto failure = what != nullptr ? QString( "%1 could not be built: %2" ).arg( name, what )
-                                         : QString( "%1 could not be built" ).arg( name );
-    LOG_ERROR << failure;
-    return failure;
+    try {
+        const auto failure = what != nullptr
+                                 ? QString( "%1 could not be built: %2" ).arg( name, what )
+                                 : QString( "%1 could not be built" ).arg( name );
+        LOG_ERROR << failure;
+        return failure;
+    } catch ( ... ) {
+        return QStringLiteral( "An index operation could not be built" );
+    }
 }
 
 DigestCoverage FullIndexOperation::cachedIndexCoverage() const

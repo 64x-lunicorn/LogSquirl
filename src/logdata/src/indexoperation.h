@@ -616,7 +616,10 @@ private:
 namespace index_operation_detail {
 // Describes, and logs, an operation named name that could not be built; what
 // is the exception's description, null when it was none.
-QString unbuiltFailure( const char* name, const char* what );
+// Says why an operation could not be built. Throws nothing: when even the
+// text cannot be made, a fixed one stands in, so the run still ends as its
+// kind.
+QString unbuiltFailure( const char* name, const char* what ) noexcept;
 } // namespace index_operation_detail
 
 // The job of one index run: builds an Operation from arguments, runs it and
