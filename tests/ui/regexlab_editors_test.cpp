@@ -29,6 +29,7 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QLineEdit>
@@ -128,6 +129,19 @@ QStringList markedTexts( const RegexLabWindow& lab )
     return texts;
 }
 
+// Closes the editor's dialog and the Lab over it, and lets them go, so that
+// no modal window is left for the tests after this one (a window that is to
+// be activated there would wait on it).
+void leaveNoWindowBehind( QDialog& dialog )
+{
+    for ( auto* lab : dialog.findChildren<RegexLabWindow*>() ) {
+        lab->close();
+    }
+    dialog.hide();
+    QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+    QCoreApplication::processEvents();
+}
+
 // A Highlighter Set editor with one Highlighter, in a modal dialog as the
 // Highlighters dialog holds it, the Highlighter selected.
 struct HighlighterEditor {
@@ -148,6 +162,13 @@ struct HighlighterEditor {
         REQUIRE( edit != nullptr );
         REQUIRE( waitUiState( [ this ] { return edit->patternEdit->isEnabled(); } ) );
     }
+
+    ~HighlighterEditor()
+    {
+        leaveNoWindowBehind( dialog );
+    }
+    HighlighterEditor( const HighlighterEditor& ) = delete;
+    HighlighterEditor& operator=( const HighlighterEditor& ) = delete;
 
     QDialog dialog;
     HighlighterSetEdit* setEdit = nullptr;
@@ -178,6 +199,13 @@ struct FilterEditor {
         edit->setFilterSet( group );
         dialog.show();
     }
+
+    ~FilterEditor()
+    {
+        leaveNoWindowBehind( dialog );
+    }
+    FilterEditor( const FilterEditor& ) = delete;
+    FilterEditor& operator=( const FilterEditor& ) = delete;
 
     QDialog dialog;
     PredefinedFilterSetEdit* edit = nullptr;

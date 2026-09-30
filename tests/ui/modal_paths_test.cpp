@@ -1252,6 +1252,10 @@ TEST_CASE( "Test... in the editors opens the Regex Lab on the tab in front",
             ->trigger();
         CHECK( modals.unanswered() == 0 );
     }
+
+    // The Labs closed go now, so that no window is left for the next test.
+    QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+    CHECK( window.mainWindow->findChildren<RegexLabWindow*>().isEmpty() );
 }
 
 // --- Value Count ---
