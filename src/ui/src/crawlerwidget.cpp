@@ -528,6 +528,9 @@ void CrawlerWidget::doApplyChange( const ViewChange& change )
     if ( change.highlighterSets ) {
         applyHighlighterSetChange();
     }
+    if ( change.valueNames ) {
+        viewSet_.applyValueNamesChange();
+    }
 }
 
 void CrawlerWidget::applyWatchPolicy( const WatchPolicy& policy )
@@ -952,6 +955,9 @@ void CrawlerWidget::reportChange( Changed change )
         break;
     case Changed::HighlighterSets:
         applyHighlighterSetChange();
+        break;
+    case Changed::ValueNames:
+        viewSet_.applyValueNamesChange();
         break;
     }
 }

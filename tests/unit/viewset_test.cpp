@@ -118,6 +118,10 @@ public:
     {
         ++rereads;
     }
+    void applyValueNamesChange() override
+    {
+        ++valueNamesChanges;
+    }
     void updateFont( const QFont& newFont ) override
     {
         font = newFont;
@@ -160,6 +164,7 @@ public:
         ++shortcutRegistrations;
     }
 
+    int valueNamesChanges = 0;
     std::optional<DecorationPolicy> decorationPolicy;
     std::optional<PresentationPolicy> presentationPolicy;
     std::optional<bool> followAllowed;
@@ -432,6 +437,17 @@ SCENARIO( "What the View Set is handed reaches every view in it", "[viewset]" )
                 REQUIRE( textView.decorationUpdates == 1 );
                 REQUIRE( tableView.decorationUpdates == 1 );
                 REQUIRE( textView.colorLabels == handedColorLabels() );
+            }
+        }
+
+        WHEN( "the Value Names changed" )
+        {
+            viewSet.applyValueNamesChange();
+
+            THEN( "both Presentations are told" )
+            {
+                REQUIRE( textView.valueNamesChanges == 1 );
+                REQUIRE( tableView.valueNamesChanges == 1 );
             }
         }
 

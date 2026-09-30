@@ -364,6 +364,10 @@ public:
     // Changed::HighlighterSets tells every open Log File that the Highlighter
     // Set Collection changed. Each re-reads the colors of its Color Labels and
     // repaints; nothing is re-derived and no window is told.
+    //
+    // Changed::ValueNames tells every open Log File that the Value Names
+    // Collection changed. Each view showing Value Names reads its Log Lines
+    // again; nothing is re-derived and no window is told.
     void applyChange( Changed change );
 
     // The windows told of a settings change. A window adds itself when it is
@@ -431,6 +435,7 @@ private:
     void applySettingsChange();
     void applyFontChange();
     void applyHighlighterSetChange();
+    void applyValueNamesChange();
 
     // Applies the Policies as applyPolicies() does, and hands every open Log
     // File what changed together with `change`, in one call each -- nothing

@@ -316,6 +316,9 @@ void Session::applyChange( Changed change )
     case Changed::HighlighterSets:
         applyHighlighterSetChange();
         break;
+    case Changed::ValueNames:
+        applyValueNamesChange();
+        break;
     }
 }
 
@@ -454,6 +457,16 @@ void Session::applyHighlighterSetChange()
 {
     ViewChange change;
     change.highlighterSets = true;
+    for ( auto& [ view, openFile ] : openFiles_ ) {
+        Q_UNUSED( view );
+        openFile.view->applyChange( change );
+    }
+}
+
+void Session::applyValueNamesChange()
+{
+    ViewChange change;
+    change.valueNames = true;
     for ( auto& [ view, openFile ] : openFiles_ ) {
         Q_UNUSED( view );
         openFile.view->applyChange( change );

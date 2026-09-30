@@ -127,6 +127,8 @@ public:
     void updateDecorations() override;
     // Drops the Rows read so far; they are read again as they are shown.
     void rereadLogLines() override;
+    // The Table View shows no Value Names (#647): nothing to do.
+    void applyValueNamesChange() override {}
     void updateFont( const QFont& font ) override;
     void registerShortcuts() override;
     // Hand over the settings that color Log Lines, after a settings change:

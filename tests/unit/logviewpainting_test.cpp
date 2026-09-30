@@ -79,6 +79,7 @@
 #include "regularexpressionpattern.h"
 #include "test_policies.h"
 #include "theme.h"
+#include "valuenames_fixture.h"
 
 namespace {
 
@@ -412,12 +413,8 @@ std::optional<QString> firstDifference( const QImage& golden, const QImage& actu
         .arg( actual.pixel( *first ), 8, 16, QLatin1Char( '0' ) );
 }
 
-void requirePaintingMatchesGolden( PaintingConfiguration configuration, const QString& name )
+void requireMatchesGolden( const QImage& painted, const QString& name )
 {
-    const PinnedPaintingSettings settings;
-    const auto font = paintingtestfont::requirePaintingTestFont();
-
-    const auto painted = paintLogView( font, configuration );
     const auto goldenPath
         = PaintingTestDataDir + QStringLiteral( "/" ) + name + QStringLiteral( ".png" );
 
@@ -440,6 +437,14 @@ void requirePaintingMatchesGolden( PaintingConfiguration configuration, const QS
                                                          << ". The painted image is at "
                                                          << paintedPath.toStdString() );
     }
+}
+
+void requirePaintingMatchesGolden( PaintingConfiguration configuration, const QString& name )
+{
+    const PinnedPaintingSettings settings;
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    requireMatchesGolden( paintLogView( font, configuration ), name );
 }
 
 } // namespace
@@ -1406,6 +1411,122 @@ SCENARIO( "A log view paints in a new font as a view that started with it does",
                     highlightWithoutSelecting( fresh, freshQuickFindPattern );
                     requireSameImage( grabViewport( fresh ), painted, "a new font" );
                 }
+            }
+        }
+    }
+}
+
+namespace {
+
+// Log Lines with Named Values (valuenames_fixture.h): two on one Log Line,
+// the same value outside the Naming Rule's context, one between tabs, and a
+// Log Line that wraps inside a Named Value.
+QStringList valueNamesTexts()
+{
+    return { QStringLiteral( "BAP << ECU 0x15 0x14 sonstiges" ),
+             QStringLiteral( "regenbogen 0x15" ), QStringLiteral( "a\tid=7\tb" ),
+             // Beispiel(0x15) is shown from column 52 on, the Viewport is 58
+             // columns wide.
+             QStringLiteral(
+                 "a Log Line wrapped inside a Named Value: BAP << ECU 0x15 0x14 end" ) };
+}
+
+// The view, showing Value Names or not, with a search for x15.
+QImage paintValueNames( const QFont& font, bool textWrap, bool showValueNames,
+                        const QPalette& palette = fixedPalette() )
+{
+    const FakeLogData logData{ valueNamesTexts() };
+    const QuickFindPattern quickFindPattern;
+    PaintingLogView view( &logData, &quickFindPattern, textWrap );
+    showForPainting( view, logData, font, { .textWrap = textWrap } );
+    view.setPalette( palette );
+    view.setSearchPattern( RegularExpressionPattern{ QStringLiteral( "x15" ) } );
+    view.valueNamesShownSet( showValueNames );
+    return grabViewport( view );
+}
+
+// The row of pixels a Log Line's Named Values are underlined on: two below
+// the baseline of the test font, whose glyphs leave it empty.
+constexpr int UnderlineRow = 12 + 2;
+
+// The x of column 0 of the text, with line numbers hidden.
+constexpr int TextLeftPx = ViewportLayout::BulletAreaWidth + 2 * ViewportLayout::SeparatorWidth;
+
+// How many pixels of the columns [first, end) of a Viewport row's
+// underline row are in color.
+int underlinePixels( const QImage& image, int row, int first, int end, const QColor& color )
+{
+    int pixels = 0;
+    const int y = row * paintingtestfont::CharHeight + UnderlineRow;
+    for ( int x = TextLeftPx + first * paintingtestfont::CharWidth;
+          x < TextLeftPx + end * paintingtestfont::CharWidth; ++x ) {
+        if ( image.pixelColor( x, y ) == color ) {
+            ++pixels;
+        }
+    }
+    return pixels;
+}
+
+} // namespace
+
+SCENARIO( "The log view shows Value Names underlined", "[logviewpainting][valuenames]" )
+{
+    const PinnedPaintingSettings settings;
+    const valuenamesfixture::ScopedValueNames valueNames;
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    GIVEN( "Log Lines with Named Values and a search for part of one" )
+    {
+        WHEN( "the view shows Value Names without text wrapping" )
+        {
+            THEN( "it matches its golden image" )
+            {
+                requireMatchesGolden( paintValueNames( font, false, true ),
+                                      QStringLiteral( "value-names" ) );
+            }
+        }
+
+        WHEN( "the view shows Value Names with text wrapping" )
+        {
+            THEN( "it matches its golden image" )
+            {
+                requireMatchesGolden( paintValueNames( font, true, true ),
+                                      QStringLiteral( "value-names-wrapped" ) );
+            }
+        }
+
+        WHEN( "the view shows no Value Names" )
+        {
+            const auto painted = paintValueNames( font, false, false );
+
+            THEN( "nothing is underlined" )
+            {
+                REQUIRE( underlinePixels( painted, 0, 0, 30, Qt::black ) == 0 );
+            }
+        }
+
+        WHEN( "it shows them in a dark palette" )
+        {
+            auto dark = fixedPalette();
+            dark.setColor( QPalette::Base, QColor{ 30, 30, 30 } );
+            dark.setColor( QPalette::Text, QColor{ 220, 220, 220 } );
+            const auto painted = paintValueNames( font, false, true, dark );
+
+            THEN( "the Named Values are dotted in the palette's text color, every other pixel" )
+            {
+                // "BAP << ECU " | "Beispiel(0x15)" | " " | "Sample(0x14)" | " sonstiges"
+                const QColor text{ 220, 220, 220 };
+                REQUIRE( underlinePixels( painted, 0, 11, 25, text ) == 14 * 8 / 2 );
+                REQUIRE( underlinePixels( painted, 0, 26, 38, text ) == 12 * 8 / 2 );
+                REQUIRE( underlinePixels( painted, 0, 0, 11, text ) == 0 );
+                REQUIRE( underlinePixels( painted, 0, 25, 26, text ) == 0 );
+                REQUIRE( underlinePixels( painted, 0, 38, 48, text ) == 0 );
+            }
+
+            THEN( "the dots show on the search's background too" )
+            {
+                const QColor searchBack{ 255, 200, 0 };
+                REQUIRE( underlinePixels( painted, 0, 11, 25, searchBack ) == 14 * 8 / 2 );
             }
         }
     }

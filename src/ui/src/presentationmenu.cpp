@@ -149,6 +149,11 @@ std::unique_ptr<QMenu> PresentationMenu::create( QWidget* parent, const Report& 
                               : tr( "Copy with line numbers" ),
               entries.copyWithLineNumbers )
         ->setEnabled( hasSelection );
+    if ( entries.copyAsShown ) {
+        auto* copyAsShown = addEntry( *menu, tr( "Copy as shown" ), entries.copyAsShown );
+        copyAsShown->setStatusTip( tr( "Copy the selection as shown, with its Value Names" ) );
+        copyAsShown->setEnabled( hasSelection && report.showsValueNames );
+    }
     addEntry( *menu, tr( "Send to scratchpad" ), entries.sendToScratchpad )
         ->setEnabled( hasSelection );
     addEntry( *menu, tr( "Replace scratchpad" ), entries.replaceScratchpad )

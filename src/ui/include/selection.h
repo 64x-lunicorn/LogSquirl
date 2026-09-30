@@ -171,9 +171,13 @@ public:
     OptionalLineNumber selectedLine() const;
 
     // Returns the text selected. A range reads the lines shown by position
-    // from shownLines, the Log Lines lines shows at each position.
+    // from shownLines, the Log Lines lines shows at each position. shownAs,
+    // when given, turns the text of each whole Log Line into what the view
+    // shows of it, as Copy as Shown does with the Value Names (#647); the
+    // text of a portion is taken as it is.
     QString getSelectedText( const LineMapping& lines, const AbstractLogData& shownLines,
-                             bool lineNumbers = false ) const;
+                             bool lineNumbers = false,
+                             const std::function<QString( const QString& )>& shownAs = {} ) const;
 
     // Return the position immediately after the current selection
     // (used for searches).
@@ -185,8 +189,8 @@ public:
 
 private:
     std::map<LineNumber, QString>
-    getSelectionWithLineNumbers( const LineMapping& lines,
-                                 const AbstractLogData& shownLines ) const;
+    getSelectionWithLineNumbers( const LineMapping& lines, const AbstractLogData& shownLines,
+                                 const std::function<QString( const QString& )>& shownAs ) const;
 
 private:
     // Line number currently selected, or -1 if none selected

@@ -30,6 +30,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecount.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecountmodel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecounttab.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamescollection.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/savelinesdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/keptsearches.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindow.h
@@ -127,6 +129,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecount.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecountmodel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecounttab.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamescollection.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/savelinesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/keptsearches.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewstatecodec.cpp
@@ -212,6 +216,7 @@ target_link_libraries(
          logsquirl_searchline
          logsquirl_compression
          logsquirl_crash_handler
+         logsquirl_valuenames
          Qt6::Widgets
          Qt6::Xml
          Qt6::Concurrent

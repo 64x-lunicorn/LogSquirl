@@ -56,6 +56,7 @@ add_executable(logsquirl_tests
     logtableview_test.cpp
     logviewinteractions_test.cpp
     logviewpainting_test.cpp
+    logviewvaluenames_test.cpp
     menu_test.cpp
     mergecontroller_test.cpp
     optionsdialog_test.cpp
