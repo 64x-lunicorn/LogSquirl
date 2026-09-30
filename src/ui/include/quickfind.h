@@ -54,9 +54,9 @@
 #include "atomicflag.h"
 #include "displayedlines.h"
 #include "linetypes.h"
-#include "logfiltereddataworker.h"
 #include "qfnotifications.h"
 #include "quickfindpattern.h"
+#include "searchresults.h"
 #include "selection.h"
 
 class QuickFindPattern;

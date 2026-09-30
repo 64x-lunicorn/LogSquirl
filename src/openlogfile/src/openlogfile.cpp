@@ -242,16 +242,16 @@ void OpenLogFile::makeSearchCurrent( std::shared_ptr<LogFilteredData> search )
     }
 }
 
-SearchSession::State OpenLogFile::requestSearch( const RegularExpressionPattern& pattern )
+SearchSessionState OpenLogFile::requestSearch( const RegularExpressionPattern& pattern )
 {
     searchPattern_ = pattern;
 
     if ( loadRule_.searchRequested() ) {
         // Nothing to search yet: it runs over the Log Lines once they have
         // loaded, rather than over none now.
-        SearchSession::State waiting;
+        SearchSessionState waiting;
         waiting.pattern = pattern;
-        waiting.phase = SearchSession::Phase::Running;
+        waiting.phase = SearchSessionPhase::Running;
         return waiting;
     }
 
@@ -260,7 +260,7 @@ SearchSession::State OpenLogFile::requestSearch( const RegularExpressionPattern&
     filteredData_->request( pattern, searchLimits_.start, searchLimits_.end );
     auto state = filteredData_->searchState();
 
-    if ( state.phase != SearchSession::Phase::InvalidPattern ) {
+    if ( state.phase != SearchSessionPhase::InvalidPattern ) {
         autoRefresh_.startSearch();
     }
     else {
@@ -270,7 +270,7 @@ SearchSession::State OpenLogFile::requestSearch( const RegularExpressionPattern&
     return state;
 }
 
-SearchSession::State OpenLogFile::searchState() const
+SearchSessionState OpenLogFile::searchState() const
 {
     return filteredData_->searchState();
 }

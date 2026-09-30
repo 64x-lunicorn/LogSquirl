@@ -170,20 +170,12 @@ SCENARIO( "marks in filtered log data", "[logdata]" )
                 }
             }
 
-            AND_WHEN( "Get marks count" )
+            AND_WHEN( "Get marks" )
             {
-                THEN( "Return all marks count" )
+                auto marks = filtered_data->getMarks();
+                THEN( "Provide all marks" )
                 {
-                    REQUIRE( filtered_data->getNbMarks() == 2_lcount );
-                }
-
-                AND_WHEN( "Get marks" )
-                {
-                    auto marks = filtered_data->getMarks();
-                    THEN( "Provide all marks" )
-                    {
-                        REQUIRE( marks.size() == 2 );
-                    }
+                    REQUIRE( marks == QList<LineNumber>{ 10_lnum, 25_lnum } );
                 }
             }
 
@@ -249,14 +241,14 @@ SCENARIO( "marks in filtered log data", "[logdata]" )
                 }
             }
 
-            AND_WHEN( "Delete mark" )
+            AND_WHEN( "Toggle a mark off" )
             {
-                filtered_data->deleteMark( 10_lnum );
+                filtered_data->toggleMark( 10_lnum );
                 THEN( "Mark is removed" )
                 {
                     REQUIRE_FALSE(
                         filtered_data->lineTypeByLine( 10_lnum ).testFlag( LineTypeFlags::Mark ) );
-                    REQUIRE( filtered_data->getNbMarks() == 1_lcount );
+                    REQUIRE( filtered_data->getMarks() == QList<LineNumber>{ 25_lnum } );
                 }
             }
 
@@ -265,7 +257,7 @@ SCENARIO( "marks in filtered log data", "[logdata]" )
                 filtered_data->clearMarks();
                 THEN( "All marks are removed" )
                 {
-                    REQUIRE( filtered_data->getNbMarks() == 0_lcount );
+                    REQUIRE( filtered_data->getMarks().isEmpty() );
                 }
             }
         }
@@ -396,16 +388,18 @@ SCENARIO( "marks and matches in filtered log data", "[logdata]" )
                         }
                     }
 
-                    WHEN( "Ask for line type by index" )
+                    WHEN( "Ask for the line type of the Log Line at a position" )
                     {
                         THEN( "Return mark" )
                         {
-                            auto type = filtered_data->lineTypeByIndex( 0_lnum );
+                            auto type = filtered_data->lineTypeByLine(
+                                filtered_data->getMatchingLineNumber( 0_lnum ) );
                             REQUIRE( toFlags( type ) == LineTypeFlags::Mark );
                         }
                         THEN( "Return mark & match" )
                         {
-                            auto type = filtered_data->lineTypeByIndex( 1_lnum );
+                            auto type = filtered_data->lineTypeByLine(
+                                filtered_data->getMatchingLineNumber( 1_lnum ) );
                             REQUIRE( toFlags( type )
                                      == toFlags( LineTypeFlags::Mark | LineTypeFlags::Match ) );
                         }
@@ -441,16 +435,18 @@ SCENARIO( "marks and matches in filtered log data", "[logdata]" )
                         }
                     }
 
-                    AND_WHEN( "Ask for line type by index" )
+                    AND_WHEN( "Ask for the line type of the Log Line at a position" )
                     {
                         THEN( "Return match" )
                         {
-                            auto type = filtered_data->lineTypeByIndex( 1_lnum );
+                            auto type = filtered_data->lineTypeByLine(
+                                filtered_data->getMatchingLineNumber( 1_lnum ) );
                             REQUIRE( toFlags( type ) == LineTypeFlags::Match );
                         }
                         THEN( "Return mark & match" )
                         {
-                            auto type = filtered_data->lineTypeByIndex( 0_lnum );
+                            auto type = filtered_data->lineTypeByLine(
+                                filtered_data->getMatchingLineNumber( 0_lnum ) );
                             REQUIRE( toFlags( type )
                                      == toFlags( LineTypeFlags::Mark | LineTypeFlags::Match ) );
                         }
@@ -479,21 +475,24 @@ SCENARIO( "marks and matches in filtered log data", "[logdata]" )
                     }
                 }
 
-                AND_WHEN( "Ask for line type by index" )
+                AND_WHEN( "Ask for the line type of the Log Line at a position" )
                 {
                     THEN( "Return mark" )
                     {
-                        auto type = filtered_data->lineTypeByIndex( 0_lnum );
+                        auto type = filtered_data->lineTypeByLine(
+                            filtered_data->getMatchingLineNumber( 0_lnum ) );
                         REQUIRE( toFlags( type ) == LineTypeFlags::Mark );
                     }
                     THEN( "Return match" )
                     {
-                        auto type = filtered_data->lineTypeByIndex( 2_lnum );
+                        auto type = filtered_data->lineTypeByLine(
+                            filtered_data->getMatchingLineNumber( 2_lnum ) );
                         REQUIRE( toFlags( type ) == LineTypeFlags::Match );
                     }
                     THEN( "Return mark & match" )
                     {
-                        auto type = filtered_data->lineTypeByIndex( 1_lnum );
+                        auto type = filtered_data->lineTypeByLine(
+                            filtered_data->getMatchingLineNumber( 1_lnum ) );
                         REQUIRE( toFlags( type )
                                  == toFlags( LineTypeFlags::Mark | LineTypeFlags::Match ) );
                     }
@@ -985,8 +984,6 @@ LineNumbers displayedLines( const LogFilteredData& filtered )
     for ( LineNumber::UnderlyingType index = 0; index < nbLines; ++index ) {
         const auto line = filtered.getMatchingLineNumber( LineNumber( index ) );
         REQUIRE( filtered.getLineIndexNumber( line ) == LineNumber( index ) );
-        REQUIRE( toFlags( filtered.lineTypeByIndex( LineNumber( index ) ) )
-                 == toFlags( filtered.lineTypeByLine( line ) ) );
         lines.push_back( line.get() );
     }
     return lines;
@@ -1083,8 +1080,8 @@ SCENARIO( "the Filtered View shows the right lines with Context Lines after each
     filtered_data->toggleMark( 15_lnum );
     checkDisplayedLines( "a Mark was toggled off" );
 
-    filtered_data->deleteMark( 5_lnum );
-    checkDisplayedLines( "a Mark was deleted" );
+    filtered_data->toggleMark( 5_lnum );
+    checkDisplayedLines( "a Mark added was toggled off" );
 
     filtered_data->addMark( 5_lnum );
     filtered_data->addMark( 25_lnum );
@@ -1284,7 +1281,7 @@ SCENARIO( "A continued Search drops a last Log Line that stopped matching",
     }
 }
 
-SCENARIO( "iterating over the Filtered View's lines while making lookups from the callback",
+SCENARIO( "walking a copy of the Filtered View's lines while making lookups on the way",
           "[logdata][search][context]" )
 {
     LogDataLoader logDataLoader{ contextLinesPolicies(), ContextLinesFileLines };
@@ -1300,13 +1297,14 @@ SCENARIO( "iterating over the Filtered View's lines while making lookups from th
 
     LineNumbers iterated;
     LineNumbers lookedUp;
-    filtered_data->iterateOverLines( [ & ]( LineNumber line ) {
+    for ( const auto rawLine : filtered_data->copyDisplayedLines() ) {
+        const auto line = LineNumber( rawLine );
         iterated.push_back( line.get() );
         const auto index = filtered_data->getLineIndexNumber( line );
         lookedUp.push_back( filtered_data->getMatchingLineNumber( index ).get() );
         static_cast<void>( filtered_data->getNbLine() );
-        static_cast<void>( filtered_data->lineTypeByIndex( index ) );
-    } );
+        static_cast<void>( filtered_data->lineTypeByLine( line ) );
+    }
 
     REQUIRE( iterated == expected );
     REQUIRE( lookedUp == expected );
@@ -1455,15 +1453,14 @@ SCENARIO( "The Filtered View is as wide as its longest Mark as Marks come and go
 
         WHEN( "the longest Marks are removed one after another" )
         {
-            filtered_data->deleteMark( 49_lnum );
+            filtered_data->toggleMark( 49_lnum );
             REQUIRE( filtered_data->getMaxLength() == LineLength( 30 ) );
             filtered_data->toggleMark( 29_lnum );
             REQUIRE( filtered_data->getMaxLength() == LineLength( 20 ) );
 
-            THEN( "a shorter Mark removed, or a Log Line not marked, leaves the width" )
+            THEN( "a shorter Mark removed leaves the width" )
             {
-                filtered_data->deleteMark( 9_lnum );
-                filtered_data->deleteMark( 70_lnum );
+                filtered_data->toggleMark( 9_lnum );
                 REQUIRE( filtered_data->getMaxLength() == LineLength( 20 ) );
             }
         }

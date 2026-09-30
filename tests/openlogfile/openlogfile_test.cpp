@@ -757,14 +757,14 @@ SCENARIO( "The Marks saved with the Session are applied once, after the first lo
         {
             REQUIRE( logFile.openLogFile.marks() == QList<LineNumber>{ 3_lnum, 7_lnum } );
             REQUIRE( logFile.observer.waitLoads( 1 ) );
-            logFile.openLogFile.filteredData()->deleteMark( 3_lnum );
+            logFile.openLogFile.toggleMark( 3_lnum );
             REQUIRE( logFile.openLogFile.marks() == QList<LineNumber>{ 7_lnum } );
         }
 
         WHEN( "a Mark is removed and Log Lines are added" )
         {
             REQUIRE( logFile.observer.waitLoads( 1 ) );
-            logFile.openLogFile.filteredData()->deleteMark( 3_lnum );
+            logFile.openLogFile.toggleMark( 3_lnum );
             REQUIRE( logFile.fileWatch->grow( path, logLines( 5, FirstLineCount ) ) );
             REQUIRE( logFile.observer.waitLoads( 2 ) );
 

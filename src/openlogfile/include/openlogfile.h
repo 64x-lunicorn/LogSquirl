@@ -26,7 +26,7 @@
 #include "logformatdefinition.h"
 #include "regularexpressionpattern.h"
 #include "searchautorefresh.h"
-#include "searchsession.h"
+#include "searchsessionstate.h"
 #include "settingspolicies.h"
 
 #include <QDateTime>
@@ -200,10 +200,10 @@ public:
     // wait for loading to request it; the pattern is validated then, and an
     // invalid one is told through searchUpdated(). A load that does not
     // succeed drops it. Until then the returned state is Running.
-    SearchSession::State requestSearch( const RegularExpressionPattern& pattern );
+    SearchSessionState requestSearch( const RegularExpressionPattern& pattern );
     // The current Search's state, and what it found: its Matches, and the Log
     // Lines it displays -- the Matches, the Marks and the Context Lines.
-    SearchSession::State searchState() const;
+    SearchSessionState searchState() const;
     LinesCount matchCount() const;
     LinesCount displayedLineCount() const;
     // No Search is active any longer: the current Search goes idle.
@@ -275,7 +275,7 @@ Q_SIGNALS:
     // and the Log Format forgotten. It is being loaded again.
     void truncated( const QString& failure );
     // The current Search's state changed: progress, completion, a failure.
-    void searchUpdated( SearchSession::State state );
+    void searchUpdated( SearchSessionState state );
     // The Search Limits are others than last told: set, or settled by a load
     // -- the first one tells them.
     void searchLimitsChanged( LineNumber startLine, LineNumber endLine );
