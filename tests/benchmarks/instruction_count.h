@@ -46,8 +46,10 @@
 
 #include <QtGlobal>
 
+#include <chrono>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 
 #if defined( __has_include )
@@ -78,6 +80,11 @@ public:
 
     void start() override
     {
+        // Worker threads that the setup or the previous benchmark kept busy
+        // spin for a while before they sleep; spinning into the count, they
+        // added up to 30 % to a small benchmark in some runs (#671). Uncounted,
+        // they get the time to fall asleep first.
+        std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
 #ifdef LOGSQUIRL_BENCHMARK_HAS_CALLGRIND
         CALLGRIND_START_INSTRUMENTATION;
         CALLGRIND_ZERO_STATS;
