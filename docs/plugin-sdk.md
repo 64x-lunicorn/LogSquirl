@@ -290,7 +290,8 @@ A host that knows `logsquirl_plugin_init_ex` calls it instead of
 `logsquirl_plugin_init`, with the size of its host API table as the third
 argument; an older host calls `logsquirl_plugin_init`. The host calls one of
 them, never both. A plugin that exports `logsquirl_plugin_init_ex` still
-exports `logsquirl_plugin_init`.
+exports `logsquirl_plugin_init`; the host refuses a plugin without it, which an
+older host could not load.
 
 Converter plugins additionally export both of these:
 
@@ -438,14 +439,28 @@ LogSquirl adds host functions without changing `LOGSQUIRL_PLUGIN_API_VERSION`
   `logsquirl_plugin_init_ex`. A host older than that entry point calls
   `logsquirl_plugin_init` instead; its table is
   `LOGSQUIRL_HOST_API_BASE_SIZE` bytes long.
-- `LOGSQUIRL_HOST_API_HAS` says whether a table of that size has a function.
-  Never call a function it does not have: an older host's table ends before
-  it.
+- `LOGSQUIRL_HOST_API_HAS` says whether a table of that size holds a whole
+  function pointer. Never call or read a function it does not report: an
+  older host's table ends before it.
 
 ```c
 #define LOGSQUIRL_HOST_API_BASE_SIZE offsetof( LogSquirlHostApi, open_regex_lab )
-#define LOGSQUIRL_HOST_API_HAS( size, member ) ( ( size ) > offsetof( LogSquirlHostApi, member ) )
+
+#ifdef __cplusplus
+#define LOGSQUIRL_HOST_API_MEMBER_SIZE( member ) sizeof( LogSquirlHostApi::member )
+#else
+#define LOGSQUIRL_HOST_API_MEMBER_SIZE( member ) sizeof( ( (LogSquirlHostApi*)0 )->member )
+#endif
+
+#define LOGSQUIRL_HOST_API_HAS( size, member )                                                     \
+    ( offsetof( LogSquirlHostApi, member ) + LOGSQUIRL_HOST_API_MEMBER_SIZE( member ) <= ( size ) )
 ```
+
+Keep the pointer the host passes and read the table through it. Never copy
+`*api` into a `LogSquirlHostApi` of your own: the copy reads the whole struct
+your header declares, past the end of an older host's table. For the same
+reason, never read a member `LOGSQUIRL_HOST_API_HAS` does not report, not even
+to compare it with `NULL`.
 
 The example plugin shows the pattern: `logsquirl_plugin_init` forwards to
 `logsquirl_plugin_init_ex` with `LOGSQUIRL_HOST_API_BASE_SIZE`, and

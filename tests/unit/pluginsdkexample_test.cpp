@@ -33,6 +33,8 @@
 #include <QLibrary>
 #include <QTemporaryDir>
 
+#include <cstring>
+#include <memory>
 #include <vector>
 
 using logsquirl::plugins::PluginCallbackFn;
@@ -185,18 +187,21 @@ SCENARIO( "The example plugin of the plugin developer guide runs on an older hos
         REQUIRE( init != nullptr );
         REQUIRE( shutdown != nullptr );
 
-        // An older host calls init, not init_ex; what its table has not must
-        // not be called.
-        LogSquirlHostApi olderHost{};
-        olderHost.api_version = LOGSQUIRL_PLUGIN_API_VERSION;
-        olderHost.log_message = &olderHostLogMessage;
-        olderHost.register_menu_action = &olderHostRegisterMenuAction;
-        olderHost.open_regex_lab = nullptr;
+        // An older host calls init, not init_ex, and its table ends where
+        // later functions start: exactly that much memory, so that reading
+        // past it is caught by the address sanitizer.
+        LogSquirlHostApi fullTable{};
+        fullTable.api_version = LOGSQUIRL_PLUGIN_API_VERSION;
+        fullTable.log_message = &olderHostLogMessage;
+        fullTable.register_menu_action = &olderHostRegisterMenuAction;
+        const auto olderTable = std::make_unique<unsigned char[]>( LOGSQUIRL_HOST_API_BASE_SIZE );
+        std::memcpy( olderTable.get(), &fullTable, LOGSQUIRL_HOST_API_BASE_SIZE );
+        const auto* olderHost = reinterpret_cast<const LogSquirlHostApi*>( olderTable.get() );
         olderHostMenuActions.clear();
 
         WHEN( "The older host initialises it" )
         {
-            const auto result = init( &olderHost, nullptr );
+            const auto result = init( olderHost, nullptr );
 
             THEN( "It adds only the menu action that host can serve" )
             {

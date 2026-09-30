@@ -587,13 +587,17 @@ int PluginHost::hostOpenRegexLab( void* handle, const char* pattern, int flags,
                                   LogSquirlRegexLabCallbackFn callback, void* userData )
 {
     auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->host || !ctx->answerContext || !callback ) {
+    if ( !ctx || !ctx->host ) {
         return -1;
     }
     // A window opens on the UI thread only, and it is there the answer comes.
+    // Checked first: the answer context is only touched on that thread.
     if ( QThread::currentThread() != ctx->host->thread() ) {
         LOG_WARNING << "Plugin " << ctx->handle.metadata().id()
                     << " opened the Regex Lab off the UI thread; not opened";
+        return -1;
+    }
+    if ( !ctx->answerContext || !callback ) {
         return -1;
     }
     const auto [ port, pluginId ] = uiPortFor( handle );

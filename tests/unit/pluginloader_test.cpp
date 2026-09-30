@@ -137,6 +137,15 @@ SCENARIO( "The Plugin Loader reports why a plugin does not load", "[pluginloader
         }
     }
 
+    GIVEN( "A library that exports the extended init but not init" )
+    {
+        THEN( "It is refused for the missing init, which an older host would need" )
+        {
+            REQUIRE( loadError( QStringLiteral( LOGSQUIRL_LOADER_FIXTURE_INIT_EX_ONLY_PATH ) )
+                         .endsWith( "missing symbol: logsquirl_plugin_init" ) );
+        }
+    }
+
     GIVEN( "A library whose get_info returns nothing" )
     {
         THEN( "The loader reports it" )

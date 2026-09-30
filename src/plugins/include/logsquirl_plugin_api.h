@@ -135,7 +135,10 @@ typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, cons
  * **Growth**: functions added later are appended at the end, below "Added
  * later"; nothing is reordered, removed or changed in size, and only function
  * pointers are appended.  A host older than a function passes a shorter
- * table: check LOGSQUIRL_HOST_API_HAS before calling one of them.
+ * table: check LOGSQUIRL_HOST_API_HAS before calling one of them.  Keep the
+ * pointer the host passes; never copy *api (a copy reads the whole struct of
+ * your header, past the end of an older host's table), and never read a
+ * member LOGSQUIRL_HOST_API_HAS does not report.
  */
 typedef struct {
     /** API struct version (== LOGSQUIRL_PLUGIN_API_VERSION). */
@@ -276,12 +279,20 @@ typedef struct {
  */
 #define LOGSQUIRL_HOST_API_BASE_SIZE offsetof( LogSquirlHostApi, open_regex_lab )
 
+/** The size of a member of LogSquirlHostApi, in C and in C++. */
+#ifdef __cplusplus
+#define LOGSQUIRL_HOST_API_MEMBER_SIZE( member ) sizeof( LogSquirlHostApi::member )
+#else
+#define LOGSQUIRL_HOST_API_MEMBER_SIZE( member ) sizeof( ( (LogSquirlHostApi*)0 )->member )
+#endif
+
 /**
- * Non-zero when a host API table of size bytes has the function member,
+ * Non-zero when a host API table of size bytes holds the whole member,
  * i.e. the running host offers it.  size is what the host passed to
  * logsquirl_plugin_init_ex(), or LOGSQUIRL_HOST_API_BASE_SIZE.
  */
-#define LOGSQUIRL_HOST_API_HAS( size, member ) ( ( size ) > offsetof( LogSquirlHostApi, member ) )
+#define LOGSQUIRL_HOST_API_HAS( size, member )                                                     \
+    ( offsetof( LogSquirlHostApi, member ) + LOGSQUIRL_HOST_API_MEMBER_SIZE( member ) <= ( size ) )
 
 /* ── Plugin-exported entry points ────────────────────────────────────────── */
 
@@ -313,7 +324,8 @@ typedef int ( *LogSquirlPluginInitFn )( const LogSquirlHostApi* api, void* handl
 /**
  * Initialise the plugin, knowing which host functions there are (optional).
  * A host that knows this entry point calls it instead of init; an older host
- * calls init.  A plugin that exports it still exports init.
+ * calls init.  A plugin that exports it still exports init: the host refuses
+ * a plugin without init, which an older host could not load.
  * @param api       Pointer to the host API function table (valid until shutdown).
  * @param handle    Opaque handle — pass back to every host API call.
  * @param api_size  The size of the table in bytes: see LOGSQUIRL_HOST_API_HAS.

@@ -162,7 +162,8 @@ target_compile_definitions(logsquirl_tests PRIVATE
 # and one that loads (#444). They are built from one source, each with one
 # definition that breaks one thing.
 foreach(variant IN ITEMS
-    NO_GET_INFO NO_INIT NO_SHUTDOWN NULL_INFO BAD_API_VERSION INIT_FAILS CONVERTER)
+    NO_GET_INFO NO_INIT INIT_EX_ONLY NO_SHUTDOWN NULL_INFO BAD_API_VERSION INIT_FAILS
+    CONVERTER)
   string(TOLOWER "${variant}" variant_lower)
   set(fixture_target "logsquirl_loader_fixture_${variant_lower}")
   add_library(${fixture_target} MODULE plugins/loaderfixture.cpp)

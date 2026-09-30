@@ -183,6 +183,21 @@ struct Probe {
         return reinterpret_cast<Fn>( library.resolve( "logsquirl_probe_configure_parent" ) )();
     }
 
+    size_t hostApiSize()
+    {
+        using Fn = size_t ( * )();
+        return reinterpret_cast<Fn>( library.resolve( "logsquirl_probe_host_api_size" ) )();
+    }
+
+    std::vector<size_t> firstMemberOffsets()
+    {
+        using Fn = const size_t* ( * )( size_t* );
+        size_t count = 0;
+        const auto* offsets = reinterpret_cast<Fn>(
+            library.resolve( "logsquirl_probe_first_member_offsets" ) )( &count );
+        return std::vector<size_t>( offsets, offsets + count );
+    }
+
     void* shutdownFooterWidget()
     {
         using Fn = void* ( * )();
@@ -855,6 +870,35 @@ SCENARIO( "A plugin opens the Regex Lab through the Plugin Host",
 
         host.unloadAll();
         probe.library.unload();
+    }
+}
+
+SCENARIO( "The host API table starts as the first plugin header declared it",
+          "[pluginhost][plugins]" )
+{
+    GIVEN( "The probe plugin built against the header of LogSquirl 26.10, and built against the "
+           "current one" )
+    {
+        Probe first( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API1_PATH ) );
+        Probe current( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( first.library.load() );
+        REQUIRE( current.library.load() );
+
+        THEN( "The table then ended where later functions start now" )
+        {
+            REQUIRE( first.hostApiSize() == LOGSQUIRL_HOST_API_BASE_SIZE );
+            REQUIRE( current.hostApiSize() == sizeof( LogSquirlHostApi ) );
+        }
+
+        THEN( "Each member of then lies where it lies now" )
+        {
+            const auto offsets = first.firstMemberOffsets();
+            REQUIRE( offsets.size() == 18 );
+            REQUIRE( offsets == current.firstMemberOffsets() );
+        }
+
+        current.library.unload();
+        first.library.unload();
     }
 }
 
