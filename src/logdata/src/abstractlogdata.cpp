@@ -105,14 +105,6 @@ logsquirl::vector<AnsiColoredText> AbstractLogData::doGetAnsiColoredLines( LineN
     return colored;
 }
 
-LineNumber AbstractLogData::getLineNumber( LineNumber index ) const
-{
-    LineNumber ln = doGetLineNumber( index );
-    // line number in file in editor starts from 1, convert it from 0 based index
-    ++ln;
-    return ln;
-}
-
 // Simple wrapper in order to use a clean Template Method
 LinesCount AbstractLogData::getNbLine() const
 {

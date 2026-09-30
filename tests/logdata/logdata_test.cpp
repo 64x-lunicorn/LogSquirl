@@ -146,7 +146,7 @@ TEST_CASE( "Logdata decoding lines", "[logdata]" )
     REQUIRE( finishedSpy->count() == 1 );
     REQUIRE( logData.getNbLine() == 400_lcount );
 
-    const auto rawLines = logData.getLinesRaw( 200_lnum, 200_lcount );
+    const auto rawLines = logData.searchBlockSource().getLinesRaw( 200_lnum, 200_lcount );
     REQUIRE( rawLines.startLine == 200_lnum );
     REQUIRE( rawLines.endOfLines.size() == 200 );
 
@@ -1024,7 +1024,7 @@ SCENARIO( "Log Lines read after their Log File shrank on disk, before it is inde
 
         THEN( "a Search reads no more Log Lines past its end than there are bytes for" )
         {
-            const auto rawLines = logData.getLinesRaw( 150_lnum, 300_lcount );
+            const auto rawLines = logData.searchBlockSource().getLinesRaw( 150_lnum, 300_lcount );
             REQUIRE( rawLines.endOfLines.size() == 300 );
             const auto lines = rawLines.buildUtf8View();
             REQUIRE( lines.size() == LinesLeft - 150 );

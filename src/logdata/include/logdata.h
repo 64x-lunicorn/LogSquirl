@@ -92,6 +92,9 @@ class CantReattachErr : public std::exception {};
 class LogData : public AbstractLogData {
     Q_OBJECT
 
+    // Reads raw Log Lines for a Search, through getLinesRaw().
+    friend class LogDataBlockSource;
+
 public:
     // The four Policies are everything this object knows about the
     // settings: what indexing a Log File needs, what running a Search on
@@ -159,18 +162,13 @@ public:
     // File only by reopening it, so a setter would promise more than it
     // could deliver.
 
-    // A block of raw Log Lines, as a Search reads them.
-    using RawLines = ::RawLines;
-
-    RawLines getLinesRaw( LineNumber first, LinesCount number ) const;
-
     // The text of a sparse set of Log Lines, one entry per Log Line asked
     // for and in the order asked: for each, what getLineString() returns.
     // Nearby Log Lines are merged into runs and each run is read at once,
     // under one lock, with one Decoding Policy for the whole call; each Log
     // Line is decoded on its own. lines may come in any order and repeat; a Log Line past the
     // last one reads as it does on its own. Safe off the UI thread, like
-    // getLinesRaw().
+    // reading through searchBlockSource().
     logsquirl::vector<QString> getLinesSparse( std::span<const LineNumber> lines ) const;
     // getExpandedLinesSparse(), from AbstractLogData, reads Log Lines the
     // same way, with tabs expanded.
@@ -247,6 +245,11 @@ private:
     void doDetachReader() const override;
 
     void reOpenFile() const;
+
+    // The raw Log Lines [first, first + number), as a Search reads them
+    // through searchBlockSource() and as the block reads here decode them.
+    // Only the offsets are taken under the Index's lock.
+    RawLines getLinesRaw( LineNumber first, LinesCount number ) const;
     // Tells every LogFilteredData handed out that the Log Lines from
     // firstChanged on may read differently now.
     void logLinesChanged( LineNumber firstChanged = 0_lnum ) const;

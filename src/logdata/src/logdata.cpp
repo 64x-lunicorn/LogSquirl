@@ -568,7 +568,7 @@ void LogDataBlockSource::detachReader() const
     logData_.detachReader();
 }
 
-LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number ) const
+RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number ) const
 {
     RawLines rawLines;
     rawLines.startLine = firstLine;
