@@ -356,6 +356,18 @@ TEST_CASE( "A command's output decides its Encoding once it holds more than ASCI
         CHECK( utf8.source->outputEncoding()->name() == "UTF-8" );
     }
 
+    SECTION( "a character cut off at the end of a read waits for the next one" )
+    {
+        // "Straße" in CP850: E1 alone looks like the start of a UTF-8 character.
+        const auto split = runToEnd( "printf 'Stra\\341'; sleep 0.5; printf 'e\\n'", true, 850 );
+        REQUIRE( split.source->outputEncoding() != nullptr );
+        CHECK( split.source->outputEncoding()->name() == "IBM850" );
+
+        const auto atEnd = runToEnd( "printf 'Stra\\341'", true, 850 );
+        REQUIRE( atEnd.source->outputEncoding() != nullptr );
+        CHECK( atEnd.source->outputEncoding()->name() == "IBM850" );
+    }
+
     SECTION( "without one, as on macOS and Linux, it is left to the detection" )
     {
         REQUIRE( systemOemCodePage() == 0 );

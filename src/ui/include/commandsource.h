@@ -205,6 +205,7 @@ private:
     QString startProcess();
     void readOutput();
     void decideOutputEncoding( QByteArrayView output );
+    void useOutputEncoding( const TextEncoding* encoding );
     void finish( const CommandEnd& end );
     void stopProcess();
 
@@ -215,6 +216,8 @@ private:
     // 0 for none: the Encoding of the output is left to the detection.
     int oemCodePage_ = 0;
     const TextEncoding* outputEncoding_ = nullptr;
+    // Output that ends inside a UTF-8 character, kept until the rest arrives.
+    QByteArray undecidedOutput_;
 
     std::unique_ptr<logsquirl::plugins::StreamWriter> writer_;
     std::unique_ptr<logsquirl::plugins::StdinPump> pump_;

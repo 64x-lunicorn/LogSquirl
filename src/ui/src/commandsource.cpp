@@ -280,6 +280,26 @@ int systemOemCodePage()
 #endif
 }
 
+namespace {
+
+bool endsInsideUtf8Character( QByteArrayView bytes )
+{
+    const auto lookBack = std::min<qsizetype>( 3, bytes.size() );
+    for ( qsizetype back = 1; back <= lookBack; ++back ) {
+        const auto byte = static_cast<unsigned char>( bytes[ bytes.size() - back ] );
+        if ( byte < 0x80 ) {
+            return false;
+        }
+        if ( byte >= 0xC0 ) {
+            const qsizetype length = byte >= 0xF0 ? 4 : byte >= 0xE0 ? 3 : 2;
+            return back < length;
+        }
+    }
+    return false;
+}
+
+} // namespace
+
 const TextEncoding* commandOutputEncoding( QByteArrayView output, int oemCodePage )
 {
     // Stateful: a character cut off at the end is kept for the next call,
@@ -501,12 +521,27 @@ void CommandSource::decideOutputEncoding( QByteArrayView output )
 {
     // ASCII reads the same in UTF-8 and in every OEM code page: the output
     // that tells them apart decides, once (#655).
-    if ( oemCodePage_ == 0 || outputEncoding_ != nullptr
-         || std::ranges::none_of(
-             output, []( char byte ) { return static_cast<unsigned char>( byte ) >= 0x80; } ) ) {
+    if ( oemCodePage_ == 0 || outputEncoding_ != nullptr ) {
         return;
     }
-    outputEncoding_ = commandOutputEncoding( output, oemCodePage_ );
+    if ( undecidedOutput_.isEmpty() && std::ranges::none_of( output, []( char byte ) {
+             return static_cast<unsigned char>( byte ) >= 0x80;
+         } ) ) {
+        return;
+    }
+    undecidedOutput_.append( output );
+    // A read may end inside a character: its first byte alone looks like
+    // UTF-8 also when it is a character of the OEM code page.
+    if ( endsInsideUtf8Character( undecidedOutput_ ) ) {
+        return;
+    }
+    useOutputEncoding( commandOutputEncoding( undecidedOutput_, oemCodePage_ ) );
+}
+
+void CommandSource::useOutputEncoding( const TextEncoding* encoding )
+{
+    outputEncoding_ = encoding;
+    undecidedOutput_.clear();
     // No Encoding for the code page leaves it to the detection for good.
     oemCodePage_ = 0;
     if ( outputEncoding_ != nullptr ) {
@@ -521,6 +556,10 @@ void CommandSource::finish( const CommandEnd& end )
         return;
     }
     ended_ = true;
+    if ( !undecidedOutput_.isEmpty() ) {
+        // The output ended inside a UTF-8 character: it is not UTF-8.
+        useOutputEncoding( TextEncoding::forWindowsCodePage( oemCodePage_ ) );
+    }
     if ( writer_ ) {
         writer_->signalEos();
     }
