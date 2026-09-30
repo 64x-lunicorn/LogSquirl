@@ -1,0 +1,644 @@
+/*
+ * Copyright (C) 2009, 2010, 2014, 2015 Nicolas Bonnefon and other contributors
+ *
+ * This file is part of glogg.
+ *
+ * glogg is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * glogg is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with glogg.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/*
+ * Copyright (C) 2016 -- 2019 Anton Filimonov and other contributors
+ *
+ * This file is part of logsquirl.
+ *
+ * logsquirl is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * logsquirl is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef LOGSQUIRL_INDEX_OPERATION_H
+#define LOGSQUIRL_INDEX_OPERATION_H
+
+// The indexing data and the operations that build it: a private header of the
+// log data library, beside the index worker's implementation. Only the log
+// data and the worker use it, and the tests and the benchmark that run
+// operations directly; the worker's public header declares the indexing data
+// and nothing of this (#646).
+
+#include "containers.h"
+#include "linetypes.h"
+#include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <exception>
+#include <functional>
+#include <optional>
+#include <utility>
+#include <variant>
+
+#include "textencoding.h"
+#include <QDateTime>
+#include <QFile>
+#include <QString>
+
+namespace indexing_blocks {
+struct IndexingBlock;
+struct BlockReading;
+class IndexingBlockPool;
+} // namespace indexing_blocks
+
+// No TBB here: the indexing graph is an implementation detail of
+// logdataworker.cpp, and TBB is a private dependency of the log data
+// library (#168).
+
+#include "backgroundrun.h"
+#include "filedigest.h"
+#include "settingspolicies.h"
+#include "synchronization.h"
+
+#include "encodingdetector.h"
+#include "headerandtaildigests.h"
+#include "indexedhash.h"
+#include "indexjob.h"
+#include "linepositionarray.h"
+#include "loadingstatus.h"
+
+// A cached Index that indexing goes on from, rather than starting over.
+struct ResumedIndex {
+    // The cached line positions, their last Log Line already dropped: it may
+    // have had no newline yet, and continued since.
+    LinePositionArray linePosition;
+    // The longest Log Line so far, a lower bound for the whole Log File.
+    LineLength maxLength;
+    // Where indexing goes on: where the dropped Log Line began.
+    OffsetInFile offset;
+    // The digest of the bytes before offset, needed only without fast
+    // modification detection.
+    FileDigest digestBeforeOffset;
+    const TextEncoding* encoding = nullptr;
+    bool fastModificationDetection = true;
+};
+
+// The digests an indexing run takes of the bytes it indexes, going on from
+// those of the bytes indexed before it. The run builds them outside the index
+// lock, as it parses its blocks, and publishes what they come to.
+struct IndexedBytesDigests {
+    // Of every byte indexed; nothing without a full digest.
+    std::optional<FileDigest> full;
+    HeaderAndTailDigests headerAndTail;
+};
+
+template <typename Data, typename LockGuard>
+class IndexingDataAccessor {
+public:
+    IndexingDataAccessor( Data data )
+        : data_( data )
+        , guard_( data->dataMutex_ )
+    {
+    }
+
+    ~IndexingDataAccessor() = default;
+
+    qint64 getIndexedSize() const
+    {
+        return data_->getIndexedSize();
+    }
+
+    IndexedHash getHash() const
+    {
+        return data_->getHash();
+    }
+
+    // Get the length of the longest line
+    LineLength getMaxLength() const
+    {
+        return data_->getMaxLength();
+    }
+
+    // Get the total number of lines
+    LinesCount getNbLines() const
+    {
+        return data_->getNbLines();
+    }
+
+    // Get the position (in byte from the beginning of the file)
+    // of the end of the passed line.
+    OffsetInFile getEndOfLineOffset( LineNumber line ) const
+    {
+        return data_->getEndOfLineOffset( line );
+    }
+
+    logsquirl::vector<OffsetInFile> getEndOfLineOffsets( LineNumber line, LinesCount count ) const
+    {
+        return data_->getEndOfLineOffsets( line, count );
+    }
+
+    // Get the guessed encoding for the content.
+    const TextEncoding* getEncodingGuess() const
+    {
+        return data_->getEncodingGuess();
+    }
+
+    /// Returns the compressed line position array, or nullptr if using fast storage.
+    const LinePositionArray* getCompressedLinePosition() const
+    {
+        return data_->getCompressedLinePosition();
+    }
+
+    void setEncodingGuess( const TextEncoding* codec )
+    {
+        data_->setEncodingGuess( codec );
+    }
+
+    const TextEncoding* getForcedEncoding() const
+    {
+        return data_->getForcedEncoding();
+    }
+    void forceEncoding( const TextEncoding* codec )
+    {
+        return data_->forceEncoding( codec );
+    }
+
+    // Atomically add a block parsed beforehand to all the existing
+    // indexing data: blockSize bytes more are indexed, and fullDigest, when
+    // there is one, is the digest of every byte indexed so far.
+    void addAll( qint64 blockSize, LineLength length, const FastLinePositionArray& linePosition,
+                 const TextEncoding* encoding, std::optional<quint64> fullDigest )
+    {
+        data_->addAll( blockSize, length, linePosition, encoding, fullDigest );
+    }
+
+    // Hands the digests of the bytes indexed so far to an indexing run, which
+    // goes on building them outside the lock, and hands them back with
+    // returnDigests() once it is done. Clearing the indexing data meanwhile
+    // leaves digests of nothing to go on from.
+    IndexedBytesDigests takeDigests()
+    {
+        return data_->takeDigests();
+    }
+
+    void returnDigests( IndexedBytesDigests&& digests )
+    {
+        data_->returnDigests( std::move( digests ) );
+    }
+
+    void setHeaderHash( quint64 digest, qint64 size )
+    {
+        data_->hash_.headerSize = size;
+        data_->hash_.headerDigest = digest;
+    }
+
+    void setTailHash( quint64 digest, qint64 offset, qint64 size )
+    {
+        data_->hash_.tailSize = size;
+        data_->hash_.tailOffset = offset;
+        data_->hash_.tailDigest = digest;
+    }
+
+    // The modification time the Log File had when its bytes were last
+    // indexed, or checked in full; invalid when that is not known.
+    QDateTime getIndexedModificationTime() const
+    {
+        return data_->indexedModificationTime_;
+    }
+
+    void setIndexedModificationTime( const QDateTime& modificationTime )
+    {
+        data_->indexedModificationTime_ = modificationTime;
+    }
+
+    int getProgress() const
+    {
+        return data_->getProgress();
+    }
+
+    void setProgress( int progress )
+    {
+        data_->setProgress( progress );
+    }
+
+    // Completely clear the indexing data. The Indexing Policy decides how
+    // the line positions are stored and how modification is detected, and
+    // is passed in by the operation doing the clearing rather than held
+    // here: the operation's copy is fixed for the whole run, so a setting
+    // changed mid-run cannot be picked up half way through it.
+    void clear( const IndexingPolicy& policy )
+    {
+        data_->clear( policy );
+    }
+
+    /// Load index data from a CachedIndex (disk cache).
+    void loadFromCache( LinePositionArray&& linePosition, LineLength maxLength,
+                        const IndexedHash& hash, const TextEncoding* encoding,
+                        bool fastModificationDetection )
+    {
+        data_->loadFromCache( std::move( linePosition ), maxLength, hash, encoding,
+                              fastModificationDetection );
+    }
+
+    /// Start from a cached Index, so that indexing goes on from its offset.
+    void resumeFromCache( ResumedIndex&& resumed )
+    {
+        data_->resumeFromCache( std::move( resumed ) );
+    }
+
+    size_t allocatedSize() const
+    {
+        return data_->allocatedSize();
+    }
+
+private:
+    Data data_;
+    LockGuard guard_;
+};
+
+// This class is a thread-safe set of indexing data.
+class IndexingData {
+public:
+    using ConstAccessor = IndexingDataAccessor<const IndexingData*, SharedLock>;
+    using MutateAccessor = IndexingDataAccessor<IndexingData*, UniqueLock>;
+
+    IndexingData();
+
+private:
+    qint64 getIndexedSize() const;
+
+    IndexedHash getHash() const;
+
+    // Get the length of the longest line
+    LineLength getMaxLength() const;
+
+    // Get the total number of lines
+    LinesCount getNbLines() const;
+
+    // Get the position (in byte from the beginning of the file)
+    // of the end of the passed line.
+    OffsetInFile getEndOfLineOffset( LineNumber line ) const;
+    logsquirl::vector<OffsetInFile> getEndOfLineOffsets( LineNumber line, LinesCount count ) const;
+
+    // Get the guessed encoding for the content.
+    const TextEncoding* getEncodingGuess() const;
+    void setEncodingGuess( const TextEncoding* codec );
+
+    const TextEncoding* getForcedEncoding() const;
+    void forceEncoding( const TextEncoding* codec );
+
+    // Atomically add to all the existing
+    // indexing data.
+    void addAll( qint64 blockSize, LineLength length, const FastLinePositionArray& linePosition,
+                 const TextEncoding* encoding, std::optional<quint64> fullDigest );
+
+    IndexedBytesDigests takeDigests();
+    void returnDigests( IndexedBytesDigests&& digests );
+
+    // Completely clear the indexing data.
+    void clear( const IndexingPolicy& policy );
+
+    // Load index data from a CachedIndex (disk cache).
+    void loadFromCache( LinePositionArray&& linePosition, LineLength maxLength,
+                        const IndexedHash& hash, const TextEncoding* encoding,
+                        bool fastModificationDetection );
+
+    // Start from a cached Index, going on from its offset.
+    void resumeFromCache( ResumedIndex&& resumed );
+
+    /// Returns the compressed line position array, or nullptr if using fast (uncompressed) storage.
+    const LinePositionArray* getCompressedLinePosition() const;
+
+    size_t allocatedSize() const;
+
+    int getProgress() const;
+    void setProgress( int progress );
+
+private:
+    mutable SharedMutex dataMutex_;
+
+    using LinePositionArrayType = std::variant<LinePositionArray, FastLinePositionArray>;
+    LinePositionArrayType linePosition_;
+
+    LineLength maxLength_;
+
+    int progress_{};
+
+    FileDigest hashBuilder_;
+    IndexedHash hash_;
+    HeaderAndTailDigests headerAndTailDigests_;
+    QDateTime indexedModificationTime_;
+
+    const TextEncoding* encodingGuess_{};
+    const TextEncoding* encodingForced_{};
+
+    bool useFastModificationDetection_ = true;
+
+    friend ConstAccessor;
+    friend MutateAccessor;
+};
+
+struct IndexingState {
+
+    EncodingParameters encodingParams;
+    // Where the Log Line running out of the blocks stitched so far starts,
+    // and how many spaces its tabs widen it by so far.
+    OffsetInFile::UnderlyingType pos{};
+    std::int64_t additional_spaces{};
+    std::int64_t max_length{};
+    OffsetInFile::UnderlyingType file_size{};
+
+    const TextEncoding* encodingGuess{};
+    const TextEncoding* fileTextCodec{};
+
+    // Taken from the indexing data when the run starts, and built on as
+    // blocks are parsed.
+    std::optional<IndexedBytesDigests> digests;
+};
+
+// How an index run ended, as its operation tells it: an Attach, a Full or a
+// Partial with a LoadingStatus, a Check with a MonitoredFileStatus. Which of
+// the two the status holds is the run's kind, and decides which finish signal
+// the index worker sends for it.
+struct IndexOutcome {
+    std::variant<LoadingStatus, MonitoredFileStatus> status = LoadingStatus::Successful;
+    // What went wrong: indexing is then Failed, and a Check Truncated, so the
+    // Log File is indexed again from the start. Empty otherwise.
+    QString failure;
+};
+
+struct CachedIndex;
+
+// How an indexing run cuts its Log File into blocks, and who watches it do
+// so. Handed to the operation when it is built, and not a Settings Policy:
+// none of it comes from the settings store, and the shipped values are the
+// defaults below. Every run the application starts takes the plan as it is.
+struct IndexingBlockPlan {
+    // The size of the blocks a Log File is read and parsed in. Smaller
+    // blocks put more of them in flight at once for the same read buffer,
+    // so more cores parse in parallel (#339); it is unrelated to the
+    // encoding-detection sample, the header and tail digests and the Index
+    // Cache resume check, which stay at logdataworker.cpp's DigestBlockSize
+    // regardless of this value.
+    static constexpr qint64 DefaultBlockSize = 1 * 1024 * 1024;
+
+    // Only tests plan another block size than the default, tiny ones, so
+    // that many Log Lines cross from one block into the next (#290).
+    qint64 blockSize = DefaultBlockSize;
+
+    // Called once, when the pass over the Log File is done, with how many
+    // block buffers it allocated: they are reused from one block to the
+    // next, and no more are allocated than the read buffer holds. The seam
+    // belongs to whoever watches a run -- the tests of the read buffer do
+    // -- and is empty in the plans the application makes, which watch
+    // nothing.
+    std::function<void( qint64 )> blockBuffersAllocated;
+};
+
+// One index run: a plain job the worker's Background Run executes. Whether it
+// has been superseded, and how far it is, go through the run it is part of;
+// how it ended is what run() returns, which that run's finish report carries.
+class IndexOperation {
+public:
+    // The Indexing Policy is the copy the Background Run took when the run
+    // started: everything this run reads about indexing is fixed for its
+    // duration, so the options dialog writing a setting from the UI thread
+    // while the pass over the Log File is in flight cannot be observed by it.
+    // A changed setting takes effect on the next run. The block plan is fixed
+    // the same way, and defaulted: the application never plans another one.
+    IndexOperation( const QString& fileName, const std::shared_ptr<IndexingData>& indexingData,
+                    const RunControl& run, IndexingPolicy indexingPolicy,
+                    IndexingBlockPlan blockPlan = {} )
+        : fileName_( fileName )
+        , indexing_data_( indexingData )
+        , run_( run )
+        , indexingPolicy_( indexingPolicy )
+        , blockPlan_( std::move( blockPlan ) )
+    {
+    }
+    virtual ~IndexOperation() = default;
+
+    IndexOperation( const IndexOperation& ) = delete;
+    IndexOperation& operator=( const IndexOperation& ) = delete;
+    IndexOperation( IndexOperation&& ) = delete;
+    IndexOperation& operator=( IndexOperation&& ) = delete;
+
+    // Runs the operation and tells how it ended: Interrupted when the run was
+    // superseded before it was done (what it indexed is then dropped). An
+    // exception escaping the run is a failure of the engine: it is told as a
+    // failed outcome with a description, never by opening a dialog, and
+    // never thrown further.
+    IndexOutcome run();
+
+    // How an index run that failed as described ends, whether its operation
+    // ran or could not even be built: indexing is Failed.
+    static IndexOutcome failedOutcome( const QString& failure )
+    {
+        return { LoadingStatus::Failed, failure };
+    }
+
+    // How many bytes of the Log File this operation has read to index them.
+    qint64 bytesIndexed() const
+    {
+        return bytesIndexed_.load();
+    }
+
+protected:
+    // The run itself, whose failure run() reports.
+    virtual IndexOutcome doRun() = 0;
+
+    // Reports that the run failed as described, and returns what run()
+    // returns then. By default the Index is dropped and indexing reported
+    // Failed.
+    virtual IndexOutcome reportFailure( const QString& failure );
+
+    // What the run is called in its failure.
+    virtual const char* name() const = 0;
+
+    // True once another run has become the active one, or the run was
+    // interrupted: whatever it still does is no longer wanted.
+    bool isSuperseded() const
+    {
+        return run_.isSuperseded();
+    }
+
+    void reportProgress( int percent ) const
+    {
+        run_.reportProgress( percent );
+    }
+
+    // Indexes the Log File from initialPosition on into the indexing data.
+    // Returns false when the run was superseded before it was done: what it
+    // indexed is then dropped.
+    bool doIndex( OffsetInFile initialPosition );
+
+    QString fileName_;
+    std::shared_ptr<IndexingData> indexing_data_;
+    const RunControl& run_;
+    const IndexingPolicy indexingPolicy_;
+
+private:
+    void guessEncoding( const char* bytes, std::size_t size, IndexingState& state ) const;
+
+    struct HeaderAndTail {
+        // Nothing when the header recorded already is a whole block, which
+        // appending cannot change.
+        std::optional<RangeDigest> header;
+        RangeDigest tail;
+    };
+
+    HeaderAndTail recordHeaderAndTail( QFile& file, qint64 end, HeaderAndTailDigests& digests,
+                                       bool hasWholeBlockHeader ) const;
+
+    // The next block of the file for the indexing graph, from the pool, with
+    // the time spent reading it added to ioDuration; nothing once the file is
+    // read, reading fails or the indexing is interrupted. The encoding is
+    // detected from the first block.
+    indexing_blocks::IndexingBlock* readNextBlock( QFile& file,
+                                                   indexing_blocks::BlockReading& reading,
+                                                   indexing_blocks::IndexingBlockPool& pool,
+                                                   IndexingState& state,
+                                                   std::chrono::microseconds& ioDuration );
+    // Stitches a block parsed on its own to the blocks before it and
+    // publishes it to the indexing data, in file order. Only publishing takes
+    // the exclusive index lock: reading Log Lines waits for no more than the
+    // block's offsets being appended.
+    void indexNextBlock( IndexingState& state, const indexing_blocks::IndexingBlock& block );
+
+    std::atomic<qint64> bytesIndexed_{ 0 };
+    const IndexingBlockPlan blockPlan_;
+};
+
+class FullIndexOperation : public IndexOperation {
+public:
+    static constexpr const char* Name = "FullIndexOperation";
+
+    FullIndexOperation( const QString& fileName, const std::shared_ptr<IndexingData>& indexingData,
+                        const RunControl& run, IndexingPolicy indexingPolicy,
+                        FullIndexRequest request = FullIndexRequest::Automatic,
+                        const TextEncoding* forcedEncoding = nullptr,
+                        IndexingBlockPlan blockPlan = {} )
+        : IndexOperation( fileName, indexingData, run, indexingPolicy, std::move( blockPlan ) )
+        , request_( request )
+        , forcedEncoding_( forcedEncoding )
+    {
+    }
+
+protected:
+    IndexOutcome doRun() override;
+    const char* name() const override
+    {
+        return Name;
+    }
+
+private:
+    // Sets up the indexing data to go on from a cached Index built when the
+    // Log File was shorter, and reports the progress already made. Returns
+    // false, leaving the indexing data alone, when that would not give the
+    // Index a full re-index builds.
+    bool resumeFrom( CachedIndex& cached, qint64 fileSize );
+
+    // How closely a cached Index is checked against the Log File.
+    DigestCoverage cachedIndexCoverage() const;
+
+    FullIndexRequest request_;
+    const TextEncoding* forcedEncoding_;
+};
+
+class PartialIndexOperation : public IndexOperation {
+public:
+    static constexpr const char* Name = "PartialIndexOperation";
+
+    PartialIndexOperation( const QString& fileName,
+                           const std::shared_ptr<IndexingData>& indexingData, const RunControl& run,
+                           IndexingPolicy indexingPolicy )
+        : IndexOperation( fileName, indexingData, run, indexingPolicy )
+    {
+    }
+
+protected:
+    IndexOutcome doRun() override;
+    const char* name() const override
+    {
+        return Name;
+    }
+};
+
+// Checking the Log File for changes is not interrupted: what it finds is
+// told even when its run was superseded meanwhile.
+class CheckFileChangesOperation : public IndexOperation {
+public:
+    static constexpr const char* Name = "CheckFileChangesOperation";
+
+    CheckFileChangesOperation( const QString& fileName,
+                               const std::shared_ptr<IndexingData>& indexingData,
+                               const RunControl& run, IndexingPolicy indexingPolicy )
+        : IndexOperation( fileName, indexingData, run, indexingPolicy )
+    {
+    }
+
+    // What changed cannot be told when checking failed, so the Log File is
+    // taken as truncated: it is indexed again from the start.
+    static IndexOutcome failedOutcome( const QString& failure )
+    {
+        return { MonitoredFileStatus::Truncated, failure };
+    }
+
+protected:
+    IndexOutcome doRun() override;
+    IndexOutcome reportFailure( const QString& failure ) override;
+    const char* name() const override
+    {
+        return Name;
+    }
+
+private:
+    MonitoredFileStatus doCheckFileChanges();
+};
+
+namespace index_operation_detail {
+// Describes, and logs, an operation named name that could not be built; what
+// is the exception's description, null when it was none.
+QString unbuiltFailure( const char* name, const char* what );
+} // namespace index_operation_detail
+
+// The job of one index run: builds an Operation from arguments, runs it and
+// tells how the run ended. The operation's run catches whatever goes wrong
+// while it runs; an operation that cannot even be built -- there is nothing
+// yet to report the failure through -- ends the run as a failed one of its
+// kind, so the run still gets its kind's finish signal. Nothing is thrown
+// further.
+template <typename Operation, typename... Arguments>
+IndexOutcome runIndexOperation( Arguments&&... arguments )
+{
+    std::optional<Operation> operation;
+    try {
+        operation.emplace( std::forward<Arguments>( arguments )... );
+    } catch ( const std::exception& err ) {
+        return Operation::failedOutcome(
+            index_operation_detail::unbuiltFailure( Operation::Name, err.what() ) );
+    } catch ( ... ) {
+        return Operation::failedOutcome(
+            index_operation_detail::unbuiltFailure( Operation::Name, nullptr ) );
+    }
+    return operation->run();
+}
+
+#endif

@@ -32,6 +32,9 @@ add_executable(logsquirl_logdata_benchmark
 )
 
 target_link_libraries(logsquirl_logdata_benchmark logsquirl_logdata Catch2::Catch2 test_utils)
+# Indexing is measured by running the index operations directly, which live
+# in a private header of the log data library (#646).
+target_include_directories(logsquirl_logdata_benchmark PRIVATE "${CMAKE_SOURCE_DIR}/src/logdata/src")
 
 # Reading Log Lines from a Log File, hiding ANSI color sequences and showing
 # them (#278). Links logsquirl_logdata only; uses only what LogData offered
