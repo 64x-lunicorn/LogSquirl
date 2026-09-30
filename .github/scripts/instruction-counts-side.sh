@@ -49,10 +49,12 @@ docker run --rm \
     -v "$LOGSQUIRL_WORKSPACE":/usr/local "$image" /bin/bash -c '
         status=0
         "$1" "$2" || status=$?
-        sccache --show-stats || true
+        # Callgrind writes its dumps readable for their owner only, and the
+        # container runs as root: hand them to the runner user.
+        chown -R "$3" "$2" || status=1
         exit $status
     ' counts "/usr/local/$RUN_DIR/tools/.github/scripts/instruction-counts.sh" "$RUN_DIR/dumps/$side" \
-    || status=$?
+    "$(id -u):$(id -g)" || status=$?
 echo "The $side side took $(( $(date +%s) - start )) s to build and count"
 
 python3 "$RUN_DIR/tools/.github/scripts/instruction-counts.py" collect "$RUN_DIR/dumps/$side" \

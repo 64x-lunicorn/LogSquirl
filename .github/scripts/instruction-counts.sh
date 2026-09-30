@@ -69,10 +69,14 @@ if ! cmake --build "$build_root" --target $targets logsquirl_grep -- -k 0; then
 fi
 echo "::endgroup::"
 echo "Build: $(( $(date +%s) - build_start )) s"
+if [ -n "${SCCACHE_DIR:-}" ] && command -v sccache > /dev/null; then
+    sccache --show-stats || true
+fi
 
 export LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1
 export QT_HASH_SEED=0
 export QT_QPA_PLATFORM=offscreen
+export LC_ALL=C.UTF-8
 export LOGSQUIRL_BENCHMARK_LOG_FILE_MB=${LOGSQUIRL_BENCHMARK_LOG_FILE_MB:-16}
 export LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB=${LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB:-4}
 
@@ -94,7 +98,10 @@ for target in $targets; do
     # line tool) runs with instrumentation off, so its own instructions are not
     # counted.
     code=0
+    # A larger main stack than the 8 MiB Valgrind gives by default: the
+    # generated Log Lines of some benchmarks are built on it.
     timeout "$binary_timeout" valgrind --tool=callgrind --instr-atstart=no --trace-children=yes \
+        --main-stacksize=67108864 \
         --callgrind-out-file="$out/callgrind.out.%p" \
         "$build_root/output/$target" --order decl --rng-seed 1 '~[wall-clock]' --allow-running-no-tests \
         > "$out/log.txt" 2>&1 || code=$?
