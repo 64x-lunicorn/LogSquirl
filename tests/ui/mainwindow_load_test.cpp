@@ -20,8 +20,9 @@
 // The main window and the loads of its Log Files: what a tab brought to the
 // front says about its load (#540), a Filters-panel click that runs one
 // Search (#538), the tab a restored Session opens on (#542) and where its Log
-// Files stand (#559), a Log File restored from its archive (#596), and the
-// loading progress of the tab in front (#541).
+// Files stand (#559), a Log File restored from its archive (#596), the
+// loading progress of the tab in front (#541), its follow and the actions
+// reaching it alone (#635), and its selected Log Line (#692).
 // Unlike mainwindow_test.cpp these run on every platform.
 
 #include <catch2/catch_test_macros.hpp>
@@ -32,6 +33,7 @@
 #include <QComboBox>
 #include <QDir>
 #include <QFileInfo>
+#include <QLabel>
 #include <QMessageBox>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -1392,6 +1394,78 @@ SCENARIO( "The window's actions reach only the tab in front and only once", "[ui
                 REQUIRE( secondFinished.first().at( 0 ).value<LoadingStatus>()
                          == LoadingStatus::Successful );
                 REQUIRE( firstFinished.isEmpty() );
+            }
+        }
+    }
+
+    mainWindow.reset();
+}
+
+// A loaded Log File brought to the front shows beside the info line the Log
+// Line selected in it, not the first (#692).
+SCENARIO( "The window shows the selected Log Line of the tab brought to the front",
+          "[ui][loading]" )
+{
+    QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_selected_first_XXXXXX" ) };
+    QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_selected_second_XXXXXX" ) };
+    for ( auto* file : { &firstFile, &secondFile } ) {
+        REQUIRE( file->open() );
+        for ( int line = 0; line < 10; ++line ) {
+            file->write( QByteArray( "Log Line " ) + QByteArray::number( line ) + '\n' );
+        }
+        file->flush();
+    }
+
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    WindowSession windowSession{ appSession, "Main", 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    // The field beside the info line that says the selected Log Line.
+    const auto lineField = [ & ]() -> QString {
+        for ( const auto* label : mainWindow->findChildren<QLabel*>() ) {
+            if ( label->text().startsWith( "Ln:" ) ) {
+                return label->text();
+            }
+        }
+        return {};
+    };
+
+    mainWindow->loadFileNonInteractive( firstFile.fileName() );
+    mainWindow->loadFileNonInteractive( secondFile.fileName() );
+    REQUIRE( waitUiState( [ & ] { return tabArea->logFileTabs().size() == 2; }, 10000 ) );
+    auto* first = qobject_cast<CrawlerWidget*>( tabArea->widget( tabArea->logFileTabs().front() ) );
+    auto* second = qobject_cast<CrawlerWidget*>( tabArea->widget( tabArea->logFileTabs().back() ) );
+    REQUIRE( first != nullptr );
+    REQUIRE( second != nullptr );
+    REQUIRE( waitUiState( [ & ] { return first->hasLoaded() && second->hasLoaded(); }, 10000 ) );
+    QTest::qWait( 100 );
+
+    GIVEN( "a Log Line selected in the first Log File" )
+    {
+        tabArea->setCurrentWidget( first );
+        auto* textView = first->findChild<LogMainView*>();
+        REQUIRE( textView != nullptr );
+        textView->selectAndDisplayLine( 5_lnum );
+        REQUIRE( waitUiState( [ & ] { return lineField().startsWith( "Ln:6/10" ); }, 10000 ) );
+
+        WHEN( "the other tab is shown, and the first again" )
+        {
+            tabArea->setCurrentWidget( second );
+            tabArea->setCurrentWidget( first );
+
+            THEN( "the window shows the Log Line selected in it" )
+            {
+                REQUIRE( lineField().startsWith( "Ln:6/10" ) );
             }
         }
     }

@@ -2756,16 +2756,15 @@ void MainWindow::currentTabChanged( int index )
 
         // The window heard nothing of this Log File while its tab was not in
         // front: it shows what the Log File's state says (#540, #635).
-        const auto state = crawler_widget->state();
-        lineNumberHandler( state.selectedLine, 0_lcount, 0_lcol, 0_length );
-        if ( state.loadStatus ) {
+        const auto loadState = crawler_widget->state();
+        if ( loadState.loadStatus ) {
             // As the last load ended, failed included.
-            handleLoadingFinished( *state.loadStatus, state.loadFailure );
+            handleLoadingFinished( *loadState.loadStatus, loadState.loadFailure );
         }
         else {
             // A load under way is shown loading whatever its progress: the
             // info line still describes the tab shown before.
-            showLoadingProgress( state.loadingProgress );
+            showLoadingProgress( loadState.loadingProgress );
         }
 
         // No configuration is applied here: a settings change has already
@@ -2773,8 +2772,12 @@ void MainWindow::currentTabChanged( int index )
         crawler_widget->broughtToFront();
 
         // Read again: a failed load's message box runs an event loop, in which
-        // the Log File may have changed, a queued follow among others.
-        updateMenuBarFromDocument( crawler_widget->state() );
+        // the Log File may have changed, a queued follow among others. The
+        // Log Line selected in it is shown after its load, which shows the
+        // first (#692).
+        const auto state = crawler_widget->state();
+        lineNumberHandler( state.selectedLine, 0_lcount, 0_lcol, 0_length );
+        updateMenuBarFromDocument( state );
         updateTitleBar( session_.getFilename( crawler_widget ) );
         updateFavoritesMenu();
 

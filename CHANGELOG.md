@@ -111,6 +111,9 @@
 
 ## Bug fixes
 
+- **A tab brought to the front shows its selected Log Line**: switching to a
+  tab whose Log File had loaded showed `Ln:1` beside the info line instead of
+  the Log Line selected in it. (#692)
 - **A Predefined Filter's Regex box is kept**: checking or unchecking only the
   *Regex* box of a filter in *Predefined Filters…* was lost on *OK* or *Apply*
   unless another cell of the table was edited as well. (#660)
