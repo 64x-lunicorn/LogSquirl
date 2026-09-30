@@ -19,7 +19,10 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/loglinetext.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/matchesdelta.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchblocksource.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/runid.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/searchresults.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchsession.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/searchsessionstate.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/sparselineread.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linetypes.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fileholder.h

@@ -74,10 +74,10 @@ SearchLine lineWith( Reading reading, const QString& pattern )
 }
 
 // A Search the Search Session tells about.
-SearchSession::State session( SearchSession::Phase phase, int progress = 0,
-                              LinesCount matches = 0_lcount )
+SearchSessionState session( SearchSessionPhase phase, int progress = 0,
+                            LinesCount matches = 0_lcount )
 {
-    SearchSession::State state;
+    SearchSessionState state;
     state.phase = phase;
     state.progress = progress;
     state.matchCount = matches;
@@ -89,7 +89,7 @@ SearchLine runningLine()
 {
     SearchLine line{ startingState( Reading::Plain ) };
     line.setPattern( "alpha" );
-    line.requested( session( SearchSession::Phase::Running ) );
+    line.requested( session( SearchSessionPhase::Running ) );
     return line;
 }
 
@@ -103,7 +103,7 @@ bool matches( const SearchLine& line, const std::string& text )
     return expression.isValid() && expression.createMatcher()->hasMatch( text );
 }
 
-using Phase = SearchSession::Phase;
+using Phase = SearchSessionPhase;
 using AutoRefresh = SearchAutoRefresh::State;
 
 } // namespace
