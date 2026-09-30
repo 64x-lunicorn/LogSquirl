@@ -119,10 +119,6 @@ protected:
     {
         return doGetLines( first, count );
     }
-    LineNumber doGetLineNumber( LineNumber index ) const override
-    {
-        return index;
-    }
     LinesCount doGetNbLine() const override
     {
         const std::scoped_lock lock{ mutex_ };

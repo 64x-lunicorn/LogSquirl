@@ -236,7 +236,6 @@ private:
     doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const override;
     logsquirl::vector<AnsiColoredText> doGetAnsiColoredLines( LineNumber first,
                                                               LinesCount number ) const override;
-    LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
     LineLength doGetLineLength( LineNumber line ) const override;

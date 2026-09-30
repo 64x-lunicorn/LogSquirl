@@ -421,11 +421,6 @@ logsquirl::vector<QString> LogData::doGetExpandedLines( LineNumber first_line,
     return getLinesFromFile( first_line, number, untabified );
 }
 
-LineNumber LogData::doGetLineNumber( LineNumber index ) const
-{
-    return index;
-}
-
 const SearchBlockSource& LogData::searchBlockSource() const
 {
     return searchBlockSource_;

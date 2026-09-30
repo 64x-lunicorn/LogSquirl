@@ -120,8 +120,6 @@ protected:
     virtual logsquirl::vector<AnsiColoredText> doGetAnsiColoredLines( LineNumber first_line,
                                                                       LinesCount number ) const;
 
-    // Internal function called to get the index of given line
-    virtual LineNumber doGetLineNumber( LineNumber index ) const = 0;
     // Internal function called to get the number of lines
     virtual LinesCount doGetNbLine() const = 0;
     // Internal function called to get the maximum length

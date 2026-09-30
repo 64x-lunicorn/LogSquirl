@@ -323,11 +323,6 @@ logsquirl::vector<AnsiColoredText> LogFilteredData::doGetAnsiColoredLines( LineN
     return lines;
 }
 
-LineNumber LogFilteredData::doGetLineNumber( LineNumber index ) const
-{
-    return getMatchingLineNumber( index );
-}
-
 // Implementation of the virtual function.
 LinesCount LogFilteredData::doGetNbLine() const
 {
