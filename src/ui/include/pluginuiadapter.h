@@ -34,6 +34,7 @@
 #include <mutex>
 #include <vector>
 
+class CrawlerWidget;
 class QMainWindow;
 class QTabWidget;
 class QToolBar;
@@ -49,7 +50,8 @@ struct RegexLabSampleSource;
  * path names. It is the only place that turns a
  * PluginWidgetHandle back into a QWidget. Calls from another thread are
  * carried out on the window's thread. A plugin's Regex Lab opens over the
- * window, on the Log Lines of the tab in front (#662).
+ * window, on the Log Lines of the tab in front (#662); a plugin goes to a Log
+ * Line of that tab and reads the ones selected in it (#663).
  */
 class PluginUiAdapter : public logsquirl::plugins::PluginUiPort {
 public:
@@ -89,6 +91,15 @@ public:
      * opens: the tab in front. Without one, only pasted text is a sample.
      */
     void setRegexLabSampleSource( std::function<RegexLabSampleSource()> sampleSource );
+
+    logsquirl::plugins::PluginLogLineJump goToLogLine( std::uint64_t logLine ) override;
+    std::optional<QStringList> selectedLogLines( std::size_t maxLines ) override;
+
+    /**
+     * The tab in front a plugin goes to a Log Line of and reads the selected
+     * Log Lines of, asked for at each call: nullptr when it shows no Log File.
+     */
+    void setTabInFront( std::function<CrawlerWidget*()> tabInFront );
 
 private:
     /**
@@ -164,6 +175,7 @@ private:
     // The Regex Labs each plugin opened, closed when its contributions are removed.
     std::map<QString, std::vector<QPointer<RegexLabWindow>>> regexLabs_;
     std::function<RegexLabSampleSource()> regexLabSampleSource_;
+    std::function<CrawlerWidget*()> tabInFront_;
 
     // Tracks menu actions added by each plugin so they can be removed on unload.
     std::map<QString, std::vector<PluginMenuAction>> menuActions_;

@@ -388,6 +388,8 @@ LogSquirlHostApi PluginHost::buildHostApi()
     api.get_active_file_path = &PluginHost::hostGetActiveFilePath;
     api.register_active_file_callback = &PluginHost::hostRegisterActiveFileCallback;
     api.open_regex_lab = &PluginHost::hostOpenRegexLab;
+    api.go_to_log_line = &PluginHost::hostGoToLogLine;
+    api.get_selected_log_lines = &PluginHost::hostGetSelectedLogLines;
 
     return api;
 }
@@ -621,6 +623,137 @@ int PluginHost::hostOpenRegexLab( void* handle, const char* pattern, int flags,
     return port->openRegexLab( pluginId, opened, ctx->answerContext.get(), std::move( answer ) )
                ? 0
                : -1;
+}
+
+namespace {
+
+/// The selected Log Lines as get_selected_log_lines hands them over: whole
+/// lines joined by '\n' up to the byte bound, a first line longer than that
+/// cut at a character.
+struct SelectedLogLinesText {
+    QByteArray text;
+    size_t lineCount = 0;
+    bool truncated = false;
+};
+
+SelectedLogLinesText selectedLogLinesText( const QStringList& lines, bool more )
+{
+    constexpr auto MaxBytes = static_cast<qsizetype>( LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+    SelectedLogLinesText result;
+    result.truncated = more;
+    for ( const auto& line : lines ) {
+        auto utf8 = line.toUtf8();
+        const qsizetype separator = result.lineCount > 0 ? 1 : 0;
+        if ( result.text.size() + separator + utf8.size() > MaxBytes ) {
+            result.truncated = true;
+            if ( result.lineCount == 0 ) {
+                // Not in the middle of a character: back to its first byte.
+                auto cut = MaxBytes;
+                while ( cut > 0 && ( static_cast<unsigned char>( utf8[ cut ] ) & 0xC0 ) == 0x80 ) {
+                    --cut;
+                }
+                utf8.truncate( cut );
+                result.text = std::move( utf8 );
+                result.lineCount = 1;
+            }
+            break;
+        }
+        if ( separator != 0 ) {
+            result.text.append( '\n' );
+        }
+        result.text.append( utf8 );
+        ++result.lineCount;
+    }
+    return result;
+}
+
+} // namespace
+
+int PluginHost::hostGoToLogLine( void* handle, uint64_t lineNumber )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    // Checked first: the views are only touched on the UI thread.
+    if ( QThread::currentThread() != ctx->host->thread() ) {
+        LOG_WARNING << "Plugin " << ctx->handle.metadata().id()
+                    << " went to a Log Line off the UI thread; not done";
+        return LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD;
+    }
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    // The plugin counts as the view's line numbers do, from 1; the Log File
+    // from 0.
+    if ( lineNumber == 0 ) {
+        return LOGSQUIRL_LOG_LINES_OUT_OF_RANGE;
+    }
+    switch ( port->goToLogLine( lineNumber - 1 ) ) {
+    case PluginLogLineJump::Shown:
+        return LOGSQUIRL_LOG_LINES_OK;
+    case PluginLogLineJump::OutOfRange:
+        return LOGSQUIRL_LOG_LINES_OUT_OF_RANGE;
+    case PluginLogLineJump::NoLogFile:
+        break;
+    }
+    return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+}
+
+int PluginHost::hostGetSelectedLogLines( void* handle, const char** text, size_t* length,
+                                         size_t* lineCount )
+{
+    // Nothing is returned unless the text is.
+    if ( text != nullptr ) {
+        *text = nullptr;
+    }
+    if ( length != nullptr ) {
+        *length = 0;
+    }
+    if ( lineCount != nullptr ) {
+        *lineCount = 0;
+    }
+
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || text == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    // Checked first: the views and the cached text are only touched on the
+    // UI thread.
+    if ( QThread::currentThread() != ctx->host->thread() ) {
+        LOG_WARNING << "Plugin " << ctx->handle.metadata().id()
+                    << " read the selected Log Lines off the UI thread; not read";
+        return LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD;
+    }
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+
+    // One line more than returned says whether there are more.
+    auto selected = port->selectedLogLines( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 1 );
+    if ( !selected ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    if ( selected->isEmpty() ) {
+        return LOGSQUIRL_LOG_LINES_NO_SELECTION;
+    }
+    const bool more = selected->size() > LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES;
+    if ( more ) {
+        selected->resize( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+    }
+
+    auto result = selectedLogLinesText( *selected, more );
+    ctx->selectedLogLinesUtf8 = std::move( result.text );
+    *text = ctx->selectedLogLinesUtf8.constData();
+    if ( length != nullptr ) {
+        *length = static_cast<size_t>( ctx->selectedLogLinesUtf8.size() );
+    }
+    if ( lineCount != nullptr ) {
+        *lineCount = result.lineCount;
+    }
+    return result.truncated ? LOGSQUIRL_LOG_LINES_TRUNCATED : LOGSQUIRL_LOG_LINES_OK;
 }
 
 } // namespace logsquirl::plugins

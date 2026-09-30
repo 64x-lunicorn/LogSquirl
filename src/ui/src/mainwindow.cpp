@@ -390,6 +390,9 @@ MainWindow::MainWindow( WindowSession session,
                                                    *sidebarTabs_ );
     // A plugin's Regex Lab samples the tab in front, as the menu's does (#662).
     pluginUi_->setRegexLabSampleSource( [ this ]() { return tabInFrontAsRegexLabSample(); } );
+    // A plugin goes to a Log Line of the tab in front and reads its selected
+    // Log Lines (#663).
+    pluginUi_->setTabInFront( [ this ]() { return currentCrawlerWidget(); } );
     plugins_->uiPort().addWindow( pluginUi_.get() );
     servePluginCallbacks();
 

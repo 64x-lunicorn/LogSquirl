@@ -130,6 +130,22 @@ void testPattern( void* /* user_data */ )
                           &patternTested, nullptr );
 }
 
+// Shows the Log Lines selected in the tab in front: a whole line, even when
+// only some of its characters are selected.
+void showSelection( void* /* user_data */ )
+{
+    const char* text = nullptr;
+    if ( host->get_selected_log_lines( hostHandle, &text, nullptr, nullptr ) >= 0 ) {
+        host->show_notification( hostHandle, text );
+    }
+}
+
+// Line numbers count from 1, as LogSquirl shows them.
+void goToFirstLine( void* /* user_data */ )
+{
+    host->go_to_log_line( hostHandle, 1 );
+}
+
 } // namespace
 
 extern "C" {
@@ -150,6 +166,11 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
     // Only a host that offers the Regex Lab gets the item that opens it.
     if ( LOGSQUIRL_HOST_API_HAS( api_size, open_regex_lab ) ) {
         api->register_menu_action( handle, "Plugins", "Test Pattern", &testPattern, nullptr );
+    }
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, get_selected_log_lines )
+         && LOGSQUIRL_HOST_API_HAS( api_size, go_to_log_line ) ) {
+        api->register_menu_action( handle, "Plugins", "Show Selection", &showSelection, nullptr );
+        api->register_menu_action( handle, "Plugins", "Go to First Line", &goToFirstLine, nullptr );
     }
     return 0;
 }
@@ -172,7 +193,8 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 The exported functions need C linkage: in C++, define them inside
 `extern "C"`, or the host does not find them by name. The example exports
 `logsquirl_plugin_init_ex` as well as `logsquirl_plugin_init`, so it runs on a
-LogSquirl that knows the Regex Lab function and on one that does not.
+LogSquirl that knows the Regex Lab and Log Line functions and on one that does
+not.
 
 ### 4. Build with CMake
 
@@ -362,7 +384,8 @@ come from `plugin.json`.
 
 The function-pointer table the host passes to `init`. It is valid from `init`
 until `shutdown`, and its functions are safe to call from any thread, but for
-`open_regex_lab`, which is called on the UI thread only.
+`open_regex_lab`, `go_to_log_line` and `get_selected_log_lines`, which are
+called on the UI thread only.
 
 ```c
 typedef struct {
@@ -400,6 +423,9 @@ typedef struct {
     /* Added later: check LOGSQUIRL_HOST_API_HAS before calling */
     int ( *open_regex_lab )( void* handle, const char* pattern, int flags,
                              LogSquirlRegexLabCallbackFn callback, void* user_data );
+    int ( *go_to_log_line )( void* handle, uint64_t line_number );
+    int ( *get_selected_log_lines )( void* handle, const char** text, size_t* length,
+                                     size_t* line_count );
 } LogSquirlHostApi;
 ```
 
@@ -468,9 +494,11 @@ The example plugin shows the pattern: `logsquirl_plugin_init` forwards to
 `LOGSQUIRL_HOST_API_HAS( api_size, open_regex_lab )`. Keep the size, or what it
 tells, for later calls.
 
-| Function         | Added in        |
-|------------------|-----------------|
-| `open_regex_lab` | LogSquirl 26.11 |
+| Function                 | Added in        |
+|--------------------------|-----------------|
+| `open_regex_lab`         | LogSquirl 26.11 |
+| `go_to_log_line`         | LogSquirl 26.11 |
+| `get_selected_log_lines` | LogSquirl 26.11 |
 
 ### Regex Lab Types
 
@@ -486,6 +514,26 @@ typedef enum {
 
 typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, const char* pattern,
                                                int flags );
+```
+
+### Log Lines Types
+
+The result of `go_to_log_line` and `get_selected_log_lines`, and the bounds
+of the text `get_selected_log_lines` returns:
+
+```c
+typedef enum {
+    LOGSQUIRL_LOG_LINES_OK = 0,
+    LOGSQUIRL_LOG_LINES_TRUNCATED = 1,
+    LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD = -1,
+    LOGSQUIRL_LOG_LINES_NO_LOG_FILE = -2,
+    LOGSQUIRL_LOG_LINES_OUT_OF_RANGE = -3,
+    LOGSQUIRL_LOG_LINES_NO_SELECTION = -4,
+    LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5
+} LogSquirlLogLinesResult;
+
+#define LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES 1000
+#define LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES 1048576
 ```
 
 ---
@@ -620,6 +668,55 @@ Once your plugin is shut down, the callback is never called: a Lab it opened
 and that is still open is closed without an answer. Call `open_regex_lab` on
 the UI thread only: the thread `init`, menu actions and the callbacks run on.
 
+### Log Lines
+
+A plugin shows the user a Log Line of the tab in front, and reads the Log
+Lines the user selected there:
+
+```c
+if ( LOGSQUIRL_HOST_API_HAS( api_size, go_to_log_line ) ) {
+    /* Line numbers count from 1, as LogSquirl shows them */
+    int result = api->go_to_log_line( handle, 42 );
+}
+
+if ( LOGSQUIRL_HOST_API_HAS( api_size, get_selected_log_lines ) ) {
+    const char* text = NULL;
+    size_t length = 0;
+    size_t lineCount = 0;
+    int result = api->get_selected_log_lines( handle, &text, &length, &lineCount );
+    if ( result >= 0 ) {
+        /* text: lineCount Log Lines, joined by '\n' */
+    }
+}
+```
+
+`go_to_log_line` does what *Go to line* does: it selects the Log Line and
+scrolls it into view in the Presentation shown -- the Text View or the Table
+View -- and the Filtered View selects the nearest line it shows. The
+`line_number` is the one LogSquirl shows: the first Log Line is 1. It returns
+`LOGSQUIRL_LOG_LINES_OK`, or `LOGSQUIRL_LOG_LINES_OUT_OF_RANGE` for 0 or a
+number past the last line indexed so far, and changes nothing then.
+
+`get_selected_log_lines` returns the Log Lines selected in the view the user
+was last in -- the Filtered View or the Presentation shown -- in the order of
+the Log File. A selection within a Log Line returns that whole Log Line. The
+text is UTF-8, the lines joined by `'\n'` with none after the last, and
+NUL-terminated; `length` is its size in bytes without the NUL, `line_count` how
+many Log Lines it holds, and either may be `NULL`. It holds whole Log Lines, at
+most `LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES` of them and at most
+`LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES` bytes, the first ones selected; a
+first Log Line longer than that is cut at a character. When it holds fewer
+than are selected, the result is `LOGSQUIRL_LOG_LINES_TRUNCATED` instead of
+`LOGSQUIRL_LOG_LINES_OK`. The host owns the text: it is valid until your plugin
+calls `get_selected_log_lines` again or is shut down, so copy what you keep.
+Without a selection the result is `LOGSQUIRL_LOG_LINES_NO_SELECTION`, and
+`text` is `NULL`.
+
+Both work on the tab in front of the most recently active LogSquirl window,
+and return `LOGSQUIRL_LOG_LINES_NO_LOG_FILE` when it shows no Log File.
+Call them on the UI thread only: called on another thread, they do nothing and
+return `LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD`.
+
 ### Configuration Dialog
 
 A plugin may export `logsquirl_plugin_configure`; the host passes it a
@@ -645,7 +742,8 @@ window the plugin keeps open outlives the dialog.
 ## Guidelines
 
 - **Thread safety**: Host API calls are safe from any thread, but for
-  `open_regex_lab`, which is called on the UI thread only. The host
+  `open_regex_lab`, `go_to_log_line` and `get_selected_log_lines`, which are
+  called on the UI thread only. The host
   dispatches UI-modifying calls to the main thread internally.
 - **String lifetime**: All `const char*` strings you pass to host API functions
   are copied immediately — you may free them after the call returns.

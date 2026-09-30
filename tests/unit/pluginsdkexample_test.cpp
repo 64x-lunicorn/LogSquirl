@@ -33,8 +33,10 @@
 #include <QLibrary>
 #include <QTemporaryDir>
 
+#include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <vector>
 
 using logsquirl::plugins::PluginCallbackFn;
@@ -82,6 +84,21 @@ public:
     PluginWidgetHandle configurationParent() override
     {
         return {};
+    }
+
+    /// The Log Lines selected in the tab in front; none without a Log File.
+    std::optional<QStringList> selected;
+    std::vector<std::uint64_t> wentTo;
+
+    std::optional<QStringList> selectedLogLines( std::size_t /* maxLines */ ) override
+    {
+        return selected;
+    }
+
+    logsquirl::plugins::PluginLogLineJump goToLogLine( std::uint64_t logLine ) override
+    {
+        wentTo.push_back( logLine );
+        return logsquirl::plugins::PluginLogLineJump::Shown;
     }
 };
 
@@ -142,21 +159,43 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
 
             const auto error = host.loadPlugin( ExampleId );
 
-            THEN( "It is initialised and adds its menu actions, testing a pattern as well, since "
-                  "this host offers the Regex Lab" )
+            THEN( "It is initialised and adds its menu actions, testing a pattern and going to "
+                  "and reading Log Lines as well, since this host offers them" )
             {
                 REQUIRE( error.isEmpty() );
                 REQUIRE( host.isLoaded( ExampleId ) );
-                REQUIRE( port.actions.size() == 2 );
+                REQUIRE( port.actions.size() == 4 );
                 REQUIRE( port.actions[ 0 ].pluginId == ExampleId );
                 REQUIRE( port.actions[ 0 ].label == "Say Hello" );
                 REQUIRE( port.actions[ 1 ].pluginId == ExampleId );
                 REQUIRE( port.actions[ 1 ].label == "Test Pattern" );
+                REQUIRE( port.actions[ 2 ].label == "Show Selection" );
+                REQUIRE( port.actions[ 3 ].label == "Go to First Line" );
+            }
+
+            THEN( "Its Show Selection shows the selected Log Lines, and nothing without" )
+            {
+                REQUIRE( port.actions.size() == 4 );
+                const auto& showSelection = port.actions[ 2 ];
+                showSelection.callback( showSelection.userData );
+                REQUIRE( notifications.isEmpty() );
+
+                port.selected = QStringList{ QStringLiteral( "ERROR 42" ) };
+                showSelection.callback( showSelection.userData );
+                REQUIRE( notifications == QStringList{ "ERROR 42" } );
+            }
+
+            THEN( "Its Go to First Line goes to the first Log Line" )
+            {
+                REQUIRE( port.actions.size() == 4 );
+                const auto& goToFirstLine = port.actions[ 3 ];
+                goToFirstLine.callback( goToFirstLine.userData );
+                REQUIRE( port.wentTo == std::vector<std::uint64_t>{ 0 } );
             }
 
             THEN( "Its menu action shows a notification" )
             {
-                REQUIRE( port.actions.size() == 2 );
+                REQUIRE( port.actions.size() == 4 );
                 const auto& action = port.actions.front();
                 action.callback( action.userData );
                 REQUIRE( notifications == QStringList{ "Hello from My Plugin" } );

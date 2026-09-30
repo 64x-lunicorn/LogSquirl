@@ -19,6 +19,7 @@
 
 #include "pluginuiadapter.h"
 
+#include "crawlerwidget.h"
 #include "log.h"
 #include "regexlabwindow.h"
 
@@ -34,6 +35,7 @@
 #include <algorithm>
 
 using logsquirl::plugins::PluginCallbackFn;
+using logsquirl::plugins::PluginLogLineJump;
 using logsquirl::plugins::PluginPattern;
 using logsquirl::plugins::PluginRegexLabAnswer;
 using logsquirl::plugins::PluginWidgetHandle;
@@ -424,4 +426,43 @@ bool PluginUiAdapter::openRegexLab( const QString& pluginId, const PluginPattern
     lab->raise();
     lab->activateWindow();
     return true;
+}
+
+void PluginUiAdapter::setTabInFront( std::function<CrawlerWidget*()> tabInFront )
+{
+    tabInFront_ = std::move( tabInFront );
+}
+
+PluginLogLineJump PluginUiAdapter::goToLogLine( std::uint64_t logLine )
+{
+    if ( QThread::currentThread() != window_.thread() || !tabInFront_ ) {
+        return PluginLogLineJump::NoLogFile;
+    }
+    auto* tab = tabInFront_();
+    if ( tab == nullptr ) {
+        return PluginLogLineJump::NoLogFile;
+    }
+    return tab->goToLogLine( LineNumber( logLine ) ) ? PluginLogLineJump::Shown
+                                                     : PluginLogLineJump::OutOfRange;
+}
+
+std::optional<QStringList> PluginUiAdapter::selectedLogLines( std::size_t maxLines )
+{
+    if ( QThread::currentThread() != window_.thread() || !tabInFront_ ) {
+        return std::nullopt;
+    }
+    auto* tab = tabInFront_();
+    if ( tab == nullptr ) {
+        return std::nullopt;
+    }
+    // A selection within a Log Line is that Log Line's, as for the Regex Lab.
+    const auto logLines = tab->selectedLogLines( LinesCount( maxLines ) );
+    const auto texts = tab->logLineTextReader()( logLines );
+
+    QStringList selected;
+    selected.reserve( static_cast<qsizetype>( texts.size() ) );
+    for ( const auto& text : texts ) {
+        selected.append( text );
+    }
+    return selected;
 }

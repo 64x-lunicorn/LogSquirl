@@ -121,6 +121,28 @@ typedef enum {
 typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, const char* pattern,
                                                int flags );
 
+/* ── Log Lines ───────────────────────────────────────────────────────────── */
+
+/**
+ * What go_to_log_line and get_selected_log_lines return.  Not negative is
+ * success; negative says why nothing was done.
+ */
+typedef enum {
+    LOGSQUIRL_LOG_LINES_OK = 0,                /**< Done                                     */
+    LOGSQUIRL_LOG_LINES_TRUNCATED = 1,         /**< Done, with the first selected lines only */
+    LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD = -1, /**< Called off the UI thread                 */
+    LOGSQUIRL_LOG_LINES_NO_LOG_FILE = -2,      /**< The tab in front shows no Log File       */
+    LOGSQUIRL_LOG_LINES_OUT_OF_RANGE = -3,     /**< The Log File has no line of that number  */
+    LOGSQUIRL_LOG_LINES_NO_SELECTION = -4,     /**< No Log Line is selected                  */
+    LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5  /**< A NULL handle or text                    */
+} LogSquirlLogLinesResult;
+
+/** At most this many selected Log Lines are returned by get_selected_log_lines. */
+#define LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES 1000
+
+/** At most this many bytes (1 MiB, without the NUL) are returned by get_selected_log_lines. */
+#define LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES 1048576
+
 /* ── Host API (provided by host, called by plugin) ───────────────────────── */
 
 /**
@@ -270,6 +292,51 @@ typedef struct {
      */
     int ( *open_regex_lab )( void* handle, const char* pattern, int flags,
                              LogSquirlRegexLabCallbackFn callback, void* user_data );
+
+    /**
+     * Go to a Log Line of the tab in front, as Go to line does (LogSquirl
+     * 26.11): the line is selected and scrolled into view in the Presentation
+     * shown -- the Text View or the Table View -- and the Filtered View
+     * selects the nearest line it shows.
+     *
+     * Call on the UI thread only.
+     * @param line_number  The line number the view shows: the first Log Line
+     *                     is 1, as in Go to line.  0 is out of range.
+     * @return LOGSQUIRL_LOG_LINES_OK when the line is shown;
+     *         LOGSQUIRL_LOG_LINES_OUT_OF_RANGE when the Log File has no such
+     *         line (yet); LOGSQUIRL_LOG_LINES_NO_LOG_FILE without an open Log
+     *         File; LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD off the UI thread.
+     */
+    int ( *go_to_log_line )( void* handle, uint64_t line_number );
+
+    /**
+     * Read the text of the Log Lines selected in the tab in front (LogSquirl
+     * 26.11): those of the view the user was last in -- the Filtered View or
+     * the Presentation shown -- in the order of the Log File.  A selection
+     * within a Log Line counts as that whole Log Line.
+     *
+     * The text is UTF-8, the Log Lines separated by '\n', with no '\n' after
+     * the last one, and NUL-terminated.  It holds whole Log Lines, at most
+     * LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES of them and at most
+     * LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES bytes; a first Log Line longer
+     * than that is cut at a character.  When it holds less than is selected,
+     * the result is LOGSQUIRL_LOG_LINES_TRUNCATED.  The text is owned by the
+     * host and valid until the plugin calls get_selected_log_lines again or
+     * is shut down.
+     *
+     * Call on the UI thread only.
+     * @param text        Receives the text; NULL when the result is negative.
+     *                    Must not be NULL.
+     * @param length      Receives the length of the text in bytes, without the
+     *                    NUL, or 0; may be NULL.
+     * @param line_count  Receives how many Log Lines the text holds, or 0;
+     *                    may be NULL.
+     * @return LOGSQUIRL_LOG_LINES_OK or LOGSQUIRL_LOG_LINES_TRUNCATED with the
+     *         text; LOGSQUIRL_LOG_LINES_NO_SELECTION, _NO_LOG_FILE,
+     *         _NOT_ON_UI_THREAD or _INVALID_ARGUMENT without.
+     */
+    int ( *get_selected_log_lines )( void* handle, const char** text, size_t* length,
+                                     size_t* line_count );
 
 } LogSquirlHostApi;
 

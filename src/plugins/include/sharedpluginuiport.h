@@ -89,6 +89,10 @@ public:
     bool openRegexLab( const QString& pluginId, const PluginPattern& pattern, QObject* context,
                        PluginRegexLabAnswer answer ) override;
 
+    /** In the most recently active window's tab in front; no Log File without a window. */
+    PluginLogLineJump goToLogLine( std::uint64_t logLine ) override;
+    std::optional<QStringList> selectedLogLines( std::size_t maxLines ) override;
+
 private:
     enum class WidgetPlace { Status, Sidebar, Footer };
 

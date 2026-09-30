@@ -30,7 +30,10 @@
 #include <QPointer>
 #include <QTemporaryDir>
 
+#include <cstdint>
+#include <cstring>
 #include <optional>
+#include <string>
 #include <thread>
 #include <type_traits>
 #include <vector>
@@ -38,6 +41,7 @@
 using logsquirl::plugins::PluginCallbackFn;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
+using logsquirl::plugins::PluginLogLineJump;
 using logsquirl::plugins::PluginPattern;
 using logsquirl::plugins::PluginRegexLabAnswer;
 using logsquirl::plugins::PluginUiPort;
@@ -155,6 +159,30 @@ public:
         }
         labs.push_back( { pluginId, pattern, context, std::move( answer ) } );
         return true;
+    }
+
+    /// The Log Lines (from 0) a plugin went to, and how it ends.
+    std::vector<std::uint64_t> wentTo;
+    PluginLogLineJump jump = PluginLogLineJump::Shown;
+
+    PluginLogLineJump goToLogLine( std::uint64_t logLine ) override
+    {
+        wentTo.push_back( logLine );
+        return jump;
+    }
+
+    /// The selected Log Lines of the tab in front; none without a Log File.
+    std::optional<QStringList> selected;
+    /// How many a plugin asked for at most, at each call.
+    std::vector<std::size_t> askedForAtMost;
+
+    std::optional<QStringList> selectedLogLines( std::size_t maxLines ) override
+    {
+        askedForAtMost.push_back( maxLines );
+        if ( !selected ) {
+            return std::nullopt;
+        }
+        return selected->mid( 0, static_cast<qsizetype>( maxLines ) );
     }
 };
 
@@ -959,5 +987,283 @@ SCENARIO( "A plugin built against the first plugin header loads and runs unchang
             host.unloadAll();
             probe.library.unload();
         }
+    }
+}
+
+namespace {
+
+/// What get_selected_log_lines handed back.
+struct SelectedText {
+    int result = 0;
+    const char* text = nullptr;
+    size_t length = 0;
+    size_t lineCount = 0;
+};
+
+SelectedText readSelected( const LogSquirlHostApi& api, void* handle )
+{
+    SelectedText read;
+    read.result = api.get_selected_log_lines( handle, &read.text, &read.length, &read.lineCount );
+    return read;
+}
+
+} // namespace
+
+SCENARIO( "A plugin goes to a Log Line and reads the selected Log Lines through the Plugin Host",
+          "[pluginhost][pluginloglines][plugins]" )
+{
+    GIVEN( "A Plugin Host with a fake Plugin UI Port and the probe plugin loaded" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        REQUIRE( api != nullptr );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), go_to_log_line ) );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), get_selected_log_lines ) );
+
+        WHEN( "The plugin goes to line number 1" )
+        {
+            const auto result = api->go_to_log_line( handle, 1 );
+
+            THEN( "The port goes to the first Log Line, counted from 0" )
+            {
+                REQUIRE( result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( port.wentTo == std::vector<std::uint64_t>{ 0 } );
+            }
+        }
+
+        WHEN( "The plugin goes to line number 0" )
+        {
+            const auto result = api->go_to_log_line( handle, 0 );
+
+            THEN( "It is out of range, and the port is not asked" )
+            {
+                REQUIRE( result == LOGSQUIRL_LOG_LINES_OUT_OF_RANGE );
+                REQUIRE( port.wentTo.empty() );
+            }
+        }
+
+        WHEN( "The Log File has no such line" )
+        {
+            port.jump = PluginLogLineJump::OutOfRange;
+
+            THEN( "The plugin is told it is out of range" )
+            {
+                REQUIRE( api->go_to_log_line( handle, 5000 ) == LOGSQUIRL_LOG_LINES_OUT_OF_RANGE );
+            }
+        }
+
+        WHEN( "No Log File is open" )
+        {
+            port.jump = PluginLogLineJump::NoLogFile;
+            port.selected.reset();
+
+            THEN( "The plugin is told so by both functions, and gets no text" )
+            {
+                REQUIRE( api->go_to_log_line( handle, 1 ) == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                const auto read = readSelected( *api, handle );
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( read.text == nullptr );
+                REQUIRE( read.length == 0 );
+                REQUIRE( read.lineCount == 0 );
+            }
+        }
+
+        WHEN( "No Log Line is selected" )
+        {
+            port.selected = QStringList{};
+
+            THEN( "The plugin is told so, and gets no text" )
+            {
+                const auto read = readSelected( *api, handle );
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_NO_SELECTION );
+                REQUIRE( read.text == nullptr );
+            }
+        }
+
+        WHEN( "Log Lines are selected and the plugin reads them" )
+        {
+            port.selected = QStringList{ QStringLiteral( "first \u00e4" ), QString(),
+                                         QStringLiteral( "third" ) };
+            const auto read = readSelected( *api, handle );
+
+            THEN( "It gets them in UTF-8, joined by line feeds, with no line feed at the end" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( read.text != nullptr );
+                REQUIRE( std::string( read.text ) == "first \xc3\xa4\n\nthird" );
+                REQUIRE( read.length == std::strlen( read.text ) );
+                REQUIRE( read.lineCount == 3 );
+            }
+
+            THEN( "The port is asked for one Log Line more than a plugin gets" )
+            {
+                REQUIRE(
+                    port.askedForAtMost
+                    == std::vector<std::size_t>{ LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 1 } );
+            }
+
+            AND_WHEN( "It reads them once more after the selection changed" )
+            {
+                const std::string before( read.text );
+                port.selected = QStringList{ QStringLiteral( "other" ) };
+                const auto again = readSelected( *api, handle );
+
+                THEN( "The text of the first call was valid until then, the new one is the "
+                      "new selection's" )
+                {
+                    REQUIRE( before == "first \xc3\xa4\n\nthird" );
+                    REQUIRE( std::string( again.text ) == "other" );
+                }
+            }
+        }
+
+        WHEN( "The plugin wants only the text" )
+        {
+            port.selected = QStringList{ QStringLiteral( "only" ) };
+            const char* text = nullptr;
+            const auto result = api->get_selected_log_lines( handle, &text, nullptr, nullptr );
+
+            THEN( "It gets it without the length and the count" )
+            {
+                REQUIRE( result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( std::string( text ) == "only" );
+            }
+        }
+
+        WHEN( "The plugin passes no place for the text" )
+        {
+            port.selected = QStringList{ QStringLiteral( "only" ) };
+            size_t length = 7;
+
+            THEN( "It is an invalid argument, and the port is not asked" )
+            {
+                REQUIRE( api->get_selected_log_lines( handle, nullptr, &length, nullptr )
+                         == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( length == 0 );
+                REQUIRE( port.askedForAtMost.empty() );
+            }
+        }
+
+        WHEN( "More Log Lines are selected than a plugin gets" )
+        {
+            QStringList lines;
+            for ( int i = 0; i < LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 5; ++i ) {
+                lines.append( QString::number( i ) );
+            }
+            port.selected = lines;
+            const auto read = readSelected( *api, handle );
+
+            THEN( "It gets the first ones and is told there are more" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( read.lineCount == LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+                const auto text = QString::fromUtf8( read.text );
+                REQUIRE( text.startsWith( QStringLiteral( "0\n1\n" ) ) );
+                REQUIRE( text.endsWith(
+                    QStringLiteral( "\n%1" ).arg( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES - 1 ) ) );
+            }
+        }
+
+        WHEN( "Exactly as many Log Lines are selected as a plugin gets" )
+        {
+            QStringList lines;
+            for ( int i = 0; i < LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES; ++i ) {
+                lines.append( QStringLiteral( "x" ) );
+            }
+            port.selected = lines;
+
+            THEN( "It gets all of them, not truncated" )
+            {
+                const auto read = readSelected( *api, handle );
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( read.lineCount == LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+            }
+        }
+
+        WHEN( "The selected Log Lines hold more bytes than a plugin gets" )
+        {
+            constexpr auto MaxBytes = qsizetype{ LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES };
+            // Two lines fit with their line feed, the third does not.
+            const auto half = QString( MaxBytes / 2 - 1, QChar( 'a' ) );
+            port.selected = QStringList{ half, half, QStringLiteral( "b" ) };
+            const auto read = readSelected( *api, handle );
+
+            THEN( "It gets the whole lines that fit, and is told there are more" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( read.lineCount == 2 );
+                REQUIRE( read.length == static_cast<size_t>( 2 * half.size() + 1 ) );
+                REQUIRE( read.length <= LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+            }
+        }
+
+        WHEN( "The first selected Log Line alone holds more bytes than a plugin gets" )
+        {
+            constexpr auto MaxBytes = qsizetype{ LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES };
+            // "a" and then two-byte characters: the bound falls inside one.
+            const auto line = QStringLiteral( "a" ) + QString( MaxBytes / 2, QChar( 0x00e4 ) );
+            port.selected = QStringList{ line, QStringLiteral( "next" ) };
+            const auto read = readSelected( *api, handle );
+
+            THEN( "It gets that Log Line cut at a character, within the bound" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( read.lineCount == 1 );
+                REQUIRE( read.length == static_cast<size_t>( MaxBytes - 1 ) );
+                const auto text
+                    = QString::fromUtf8( read.text, static_cast<qsizetype>( read.length ) );
+                REQUIRE( text == line.left( ( MaxBytes - 1 ) / 2 + 1 ) );
+                REQUIRE( text.toUtf8().size() == MaxBytes - 1 );
+            }
+        }
+
+        WHEN( "The plugin calls both off the UI thread" )
+        {
+            port.selected = QStringList{ QStringLiteral( "only" ) };
+            int wentTo = 0;
+            SelectedText read;
+            std::thread( [ & ] {
+                wentTo = api->go_to_log_line( handle, 1 );
+                read = readSelected( *api, handle );
+            } ).join();
+
+            THEN( "Neither reaches the port, and both say why" )
+            {
+                REQUIRE( wentTo == LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD );
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD );
+                REQUIRE( read.text == nullptr );
+                REQUIRE( port.wentTo.empty() );
+                REQUIRE( port.askedForAtMost.empty() );
+            }
+        }
+
+        WHEN( "The host has no Plugin UI Port, as without a window" )
+        {
+            host.setUiPort( nullptr );
+
+            THEN( "There is no Log File" )
+            {
+                REQUIRE( api->go_to_log_line( handle, 1 ) == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( readSelected( *api, handle ).result == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+            }
+            host.setUiPort( &port );
+        }
+
+        host.unloadAll();
+        probe.library.unload();
     }
 }

@@ -40,6 +40,22 @@ void testPattern( void* /* user_data */ )
                           &patternTested, nullptr );
 }
 
+// Shows the Log Lines selected in the tab in front: a whole line, even when
+// only some of its characters are selected.
+void showSelection( void* /* user_data */ )
+{
+    const char* text = nullptr;
+    if ( host->get_selected_log_lines( hostHandle, &text, nullptr, nullptr ) >= 0 ) {
+        host->show_notification( hostHandle, text );
+    }
+}
+
+// Line numbers count from 1, as LogSquirl shows them.
+void goToFirstLine( void* /* user_data */ )
+{
+    host->go_to_log_line( hostHandle, 1 );
+}
+
 } // namespace
 
 extern "C" {
@@ -60,6 +76,11 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
     // Only a host that offers the Regex Lab gets the item that opens it.
     if ( LOGSQUIRL_HOST_API_HAS( api_size, open_regex_lab ) ) {
         api->register_menu_action( handle, "Plugins", "Test Pattern", &testPattern, nullptr );
+    }
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, get_selected_log_lines )
+         && LOGSQUIRL_HOST_API_HAS( api_size, go_to_log_line ) ) {
+        api->register_menu_action( handle, "Plugins", "Show Selection", &showSelection, nullptr );
+        api->register_menu_action( handle, "Plugins", "Go to First Line", &goToFirstLine, nullptr );
     }
     return 0;
 }

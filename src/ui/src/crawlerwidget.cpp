@@ -406,6 +406,16 @@ void CrawlerWidget::goToLine()
     }
 }
 
+bool CrawlerWidget::goToLogLine( LineNumber line )
+{
+    if ( line.get() >= openLogFile_->lineCount().get() ) {
+        return false;
+    }
+    currentFilteredView()->trySelectLine( line );
+    presentation_->showLogLine( line );
+    return true;
+}
+
 QString CrawlerWidget::goToTimestampUnavailableReason() const
 {
     if ( !recognizedFormat_ ) {

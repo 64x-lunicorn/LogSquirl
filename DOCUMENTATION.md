@@ -1143,7 +1143,10 @@ plugins on startup* the enabled plugins are loaded when *logsquirl* starts, and
 *Plugin Folder* opens the user plugin directory. The catalog
 is fetched when the dialog opens; if that fails, the error is shown in the
 status line at the bottom. Menu items that a UI extension plugin adds appear
-in the `Plugins` menu, above `Plugin Management...`.
+in the `Plugins` menu, above `Plugin Management...`. A UI extension plugin can
+also go to a line of the tab in front -- it is selected and scrolled into view
+as with *Go to line* -- and read the lines you selected there; a selection
+within a line counts as the whole line.
 
 The official plugins are [Android Logcat](https://github.com/64x-lunicorn/LogSquirl-Logcat),
 which streams logcat output from devices connected through ADB, and

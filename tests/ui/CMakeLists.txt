@@ -45,6 +45,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/predefinedfiltersetedit_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_editors_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_searchline_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin_loglines_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_follow_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_line_status_theme_test.cpp
 )
@@ -84,6 +85,16 @@ set_target_properties(logsquirl_test_slow_converter PROPERTIES CXX_VISIBILITY_PR
 add_dependencies(logsquirl_itests logsquirl_test_slow_converter)
 target_compile_definitions(logsquirl_itests PRIVATE
     LOGSQUIRL_TEST_SLOW_CONVERTER_PATH="$<TARGET_FILE:logsquirl_test_slow_converter>")
+
+# A plugin that goes to a Log Line and reads the selected Log Lines of the tab
+# in front (#663).
+add_library(logsquirl_test_log_lines_plugin MODULE plugins/loglinesplugin.cpp)
+target_link_libraries(logsquirl_test_log_lines_plugin PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_test_log_lines_plugin PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_test_log_lines_plugin PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_itests logsquirl_test_log_lines_plugin)
+target_compile_definitions(logsquirl_itests PRIVATE
+    LOGSQUIRL_TEST_LOG_LINES_PLUGIN_PATH="$<TARGET_FILE:logsquirl_test_log_lines_plugin>")
 
 # theme_screenshots_test copies the demo log from test_data/ (#253).
 target_compile_definitions(logsquirl_itests PRIVATE LOGSQUIRL_SOURCE_DIR="${CMAKE_SOURCE_DIR}")

@@ -20,7 +20,10 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 
@@ -58,6 +61,13 @@ struct PluginPattern {
  * user applied, or none when the user cancelled.
  */
 using PluginRegexLabAnswer = std::function<void( std::optional<PluginPattern> applied )>;
+
+/** How going to a Log Line a plugin asked for ended (#663). */
+enum class PluginLogLineJump {
+    Shown,     ///< Selected and scrolled into view.
+    NoLogFile, ///< The tab in front shows no Log File, or there is no window.
+    OutOfRange ///< The Log File has no such line.
+};
 
 /**
  * The Plugin UI Port: everything the plugin layer needs from the user
@@ -130,6 +140,29 @@ public:
                                QObject* /* context */, PluginRegexLabAnswer /* answer */ )
     {
         return false;
+    }
+
+    /**
+     * Select a Log Line of the tab in front and scroll it into view, as Go to
+     * line does (#663), on the UI thread only.
+     * @param logLine  Counted from 0, as the Log File's lines are.
+     * A port that shows no Log File shows none.
+     */
+    virtual PluginLogLineJump goToLogLine( std::uint64_t /* logLine */ )
+    {
+        return PluginLogLineJump::NoLogFile;
+    }
+
+    /**
+     * The text of the Log Lines selected in the tab in front, in the order
+     * of the Log File, at most maxLines of them (#663), on the UI thread
+     * only: those of the view the user was last in, a selection within a Log
+     * Line counting as the whole Log Line. None without an open Log File; no
+     * lines without a selection.
+     */
+    virtual std::optional<QStringList> selectedLogLines( std::size_t /* maxLines */ )
+    {
+        return std::nullopt;
     }
 };
 

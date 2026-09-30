@@ -243,4 +243,18 @@ bool SharedPluginUiPort::openRegexLab( const QString& pluginId, const PluginPatt
            && window->openRegexLab( pluginId, pattern, context, std::move( answer ) );
 }
 
+PluginLogLineJump SharedPluginUiPort::goToLogLine( std::uint64_t logLine )
+{
+    const std::scoped_lock lock( mutex_ );
+    auto* window = mostRecentlyActive();
+    return window != nullptr ? window->goToLogLine( logLine ) : PluginLogLineJump::NoLogFile;
+}
+
+std::optional<QStringList> SharedPluginUiPort::selectedLogLines( std::size_t maxLines )
+{
+    const std::scoped_lock lock( mutex_ );
+    auto* window = mostRecentlyActive();
+    return window != nullptr ? window->selectedLogLines( maxLines ) : std::nullopt;
+}
+
 } // namespace logsquirl::plugins

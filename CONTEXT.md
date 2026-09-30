@@ -383,7 +383,8 @@ _Avoid_: plugin manager, plugin registry, plugin list
 **Plugin Host**:
 Loads and initialises the plugins the Plugin Catalog lists, shuts them down again, and
 answers what a loaded plugin calls back: its data-source stream, its converter, the active
-file, opening files, notifications and the Regex Lab. The host functions a plugin can call
+file, opening files, notifications, the Regex Lab, and the Log Lines of the tab in front:
+going to one and reading the selected ones. The host functions a plugin can call
 only grow, appended to one table whose size tells a plugin which the running LogSquirl
 offers (ADR 0017). What a plugin shows goes through the Plugin UI Port.
 A plugin is loaded when the host has initialised it, and enabled when the configuration
@@ -400,11 +401,12 @@ _Avoid_: plugin registry, per-window plugins
 **Plugin UI Port**:
 Everything the plugin layer needs from the user interface to show what a plugin
 contributes — status widgets, sidebar tabs, footer widgets, menu actions, the parent
-of its configuration dialog and a Regex Lab it opens. The plugin layer calls it and knows no widgets; every main
+of its configuration dialog, a Regex Lab it opens, and the tab in front, where it goes to a
+Log Line and reads the selected Log Lines for a plugin. The plugin layer calls it and knows no widgets; every main
 window implements it. The Application Plugins hand each contribution on to every window: a
 menu action shows in all of them, a widget, which exists once, in the most recently active
 window, and it moves to another window when that one closes; a Regex Lab opens in the most
-recently active window too. Every contribution belongs to
+recently active window too, whose tab in front is the one a plugin goes to a Log Line of. Every contribution belongs to
 one plugin, and all of them are taken away again when that plugin is unloaded.
 _Avoid_: plugin UI bridge, widget signals, UI host
 

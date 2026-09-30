@@ -125,6 +125,12 @@ public:
     logsquirl::vector<LineNumber> selectedLogLines( LinesCount count ) const;
     logsquirl::vector<LineNumber> logLinesAroundCurrentLine( LinesCount count ) const;
 
+    // Selects the Log Line and shows it, as Go to line does, for a plugin
+    // (#663): in the Presentation shown, and the nearest line the Filtered
+    // View shows in that. False, and nothing changes, when the Log File has
+    // no such line.
+    bool goToLogLine( LineNumber line );
+
     // Opens the Search Line's pattern, with the options it reads it with, in
     // the Regex Lab (#661): tied to this tab, matching with the engine its
     // Searches run on, and offering Apply and Cancel. Apply fills the Search

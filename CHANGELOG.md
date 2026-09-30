@@ -45,6 +45,21 @@
   degrades on an older LogSquirl. `LOGSQUIRL_PLUGIN_API_VERSION` stays 1;
   plugins built against the earlier header load and run unchanged. The plugin
   developer guide and its example show both. (#662)
+- **Plugins go to a Log Line and read the selected Log Lines (plugin API)**:
+  two new host functions work on the tab in front of the most recently active
+  window, on the UI thread only. `go_to_log_line` selects the line of a
+  number -- counted from 1, as LogSquirl shows them -- and scrolls it into
+  view, as *Go to line* does; it returns `LOGSQUIRL_LOG_LINES_OUT_OF_RANGE`
+  for 0 or a number past the end. `get_selected_log_lines` returns the text
+  of the selected Log Lines in UTF-8, joined by line feeds, a selection within
+  a line counting as the whole line: at most 1000 lines and 1 MiB, whole lines
+  but a longer first one, with `LOGSQUIRL_LOG_LINES_TRUNCATED` when that is
+  fewer than are selected. The host keeps the text until the plugin's next
+  call. Both return `LOGSQUIRL_LOG_LINES_NO_LOG_FILE` without an open Log
+  File, `LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD` off the UI thread and
+  `LOGSQUIRL_LOG_LINES_NO_SELECTION` without a selection; a plugin checks for
+  them with `LOGSQUIRL_HOST_API_HAS`. The plugin developer guide and its
+  example show both. (#663)
 - **A session saves to and opens from a file**: *File → Save Session As…*
   writes the window's open files, their order, the tab in front, each tab's
   view state, tab names and groups to a `.logsquirl-session` file, and
