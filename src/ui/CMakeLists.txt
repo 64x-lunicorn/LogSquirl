@@ -86,6 +86,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/charttemplategenerator.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/iconloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbarstyle.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/timenavigation.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayfilepath.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/downloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linessaver.h
@@ -154,6 +155,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/archivemember.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sessioninfo.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbedcrawlerwidget.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/timenavigation.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tableviewselection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/wordrule.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/scratchpad.cpp

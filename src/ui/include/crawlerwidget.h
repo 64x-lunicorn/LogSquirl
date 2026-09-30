@@ -80,10 +80,8 @@
 #include "viewset.h"
 
 #include "logformatdefinition.h"
-#include "lookuprunner.h"
 #include "settingspolicies.h"
-#include "timelookup.h"
-#include "timestampreader.h"
+#include "timenavigation.h"
 
 class RegexLabWindow;
 class LogFormatCatalog;
@@ -391,25 +389,12 @@ private Q_SLOTS:
 
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
     void clearSearchLimits();
-    // Turns a time range into line limits, once, here where the Limits are
-    // decided, and sets them; on failure tells the user and leaves them.
-    void setSearchLimitsFromTimes( const QDateTime& start, const QDateTime& end );
 
-    // Time lookups run on a worker thread (LookupRunner); whatever makes their
-    // answer stale -- a reload, a truncation, another Log Format -- cancels
-    // them, and a cancelled lookup reports nothing.
 private:
-    struct LookupSource;
-    std::optional<LookupSource> lookupSource() const;
-    template <typename Result, typename Work, typename Done>
-    void runTimeLookup( Work work, Done done );
-    void cancelTimeLookup();
-    // Looks up the Timestamp near the current line, then calls then with it.
-    void lookUpNearbyTimestamp( std::function<void( std::optional<QDateTime> )> then );
-    void showTimeLookupResult( const timelookup::Result& result );
-    // Said in the status bar when a time lookup landed among Timestamps that
-    // are not in time order.
-    static QString notInTimeOrderNotice();
+    // What the time navigation reads, and where what it finds goes: the
+    // Search Limits through this widget to the Open Log File.
+    TimeNavigation::Source timeNavigationSource() const;
+    TimeNavigation::Sink timeNavigationSink();
 private Q_SLOTS:
 
     void addColorLabelToSelection( size_t label );
@@ -649,8 +634,10 @@ private:
     // The Log Format the Table View shows, if any: the one the Open Log File
     // recognized, kept alive for the Table View until it is handed another.
     std::shared_ptr<const LogFormatDefinition> recognizedFormat_;
-    // Runs the time lookups (Go to timestamp, Search Limits by time).
-    LookupRunner timeLookup_{ this };
+    // Go to timestamp and the Search Limits by time: this widget only
+    // forwards to it and tells it what makes a running lookup stale (#636).
+    TimeNavigation timeNavigation_{ [ this ] { return timeNavigationSource(); },
+                                    timeNavigationSink(), TimeNavigation::dialogPrompt( this ) };
 
     // The upper pane shows either the text view or the Table View
     QStackedWidget* mainViewStack_ = nullptr;

@@ -352,6 +352,16 @@ File's modification date (ADR-0010). Only what a Log Format declares or a common
 read; a Log File without a Log Format that has a timestamp field has no Timestamps.
 _Avoid_: date, time (both name only a part of it)
 
+**Time Navigation**:
+Go to timestamp and the Search Limits given as a time range or as minutes around the current
+Log Line, for one Log File. It finds the Log Line of a time through the Timestamps, on a
+worker thread, and asks and tells the user through a prompt; before each lookup it takes the
+Log File's data and Log Format anew, as either may have changed while a prompt was open. A
+reload, a load that did not only append, a truncation and a new or forgotten Log Format cancel
+a running lookup, which then reports nothing. The Crawler Widget holds it and hands on what it
+finds: the Log Line to show, and the Search Limits to its Open Log File (#636).
+_Avoid_: time search, time jump
+
 **Table View**:
 The Presentation of a Log File as one column per Log Format field, as an alternative to
 the Text View.

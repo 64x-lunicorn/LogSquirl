@@ -93,6 +93,7 @@ add_executable(logsquirl_tests
     keptsearches_test.cpp
     lookuprunner_test.cpp
     timelookup_test.cpp
+    timenavigation_test.cpp
     timestampreader_test.cpp
     viewportlayout_test.cpp
     viewset_test.cpp
