@@ -265,4 +265,3 @@ HighlightedMatch inRawColumns( QStringView rawText, const HighlightedMatch& disp
                                  std::max<std::ptrdiff_t>( 0, rawEnd - rawStart ) ) },
                              displaySpan.foreColor(), displaySpan.backColor() };
 }
-// test commit for #674, removed again
