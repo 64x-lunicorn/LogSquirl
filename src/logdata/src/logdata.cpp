@@ -60,6 +60,7 @@
 #include "loglinetext.h"
 #include "sparselineread.h"
 
+#include "indexoperation.h"
 #include "logdata.h"
 #include "logdatametatypes.h"
 #include "logdataworker.h"

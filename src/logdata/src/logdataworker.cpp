@@ -59,6 +59,7 @@
 #include "indexcache.h"
 #include "indexedhash.h"
 #include "indexingblocks.h"
+#include "indexoperation.h"
 #include "linepositionarray.h"
 #include "linetypes.h"
 #include "log.h"
@@ -261,13 +262,48 @@ size_t IndexingData::allocatedSize() const
                        linePosition_ );
 }
 
+class LogDataWorker::IndexRun : public BackgroundRun<IndexingPolicy, IndexOutcome> {
+public:
+    using BackgroundRun::BackgroundRun;
+};
+
+namespace {
+
+// Reports how a run ended, as the signal its kind has: the kind its outcome
+// tells, even for a run whose operation could not be built. A run whose job
+// failed outside its operation has no outcome of its own, and ends as an
+// index that failed.
+void reportFinished( LogDataWorker& worker, const RunEnd<IndexOutcome>& end )
+{
+    // The job's own outcome is how the run ended, superseded or not: an index
+    // run superseded before it was done tells Interrupted itself, and one
+    // superseded only once it was done has its Index complete.
+    if ( !end.failure.isEmpty() ) {
+        Q_EMIT worker.indexingFinished( LoadingStatus::Failed, end.failure );
+        return;
+    }
+
+    // A signal's slot may destroy the worker: nothing here is touched after.
+    std::visit( makeOverloadVisitor(
+                    [ &worker, &end ]( LoadingStatus status ) {
+                        Q_EMIT worker.indexingFinished( status, end.outcome.failure );
+                    },
+                    [ &worker, &end ]( MonitoredFileStatus status ) {
+                        Q_EMIT worker.checkFileChangesFinished( status, end.outcome.failure );
+                    } ),
+                end.outcome.status );
+}
+
+} // namespace
+
 LogDataWorker::LogDataWorker( const std::shared_ptr<IndexingData>& indexing_data,
                               const IndexingPolicy& indexingPolicy, Reader reader )
     : indexing_data_( indexing_data )
-    , run_(
-          "Index", indexingPolicy, std::move( reader ),
+    , run_( std::make_unique<IndexRun>(
+          "Index", indexingPolicy,
+          IndexRun::Reader{ std::move( reader.attach ), std::move( reader.detach ) },
           [ this ]( RunId, int percent ) { Q_EMIT indexingProgressed( percent ); },
-          [ this ]( const RunEnd<IndexOutcome>& end ) { reportFinished( end ); } )
+          [ this ]( const RunEnd<IndexOutcome>& end ) { reportFinished( *this, end ); } ) )
 {
 }
 
@@ -275,7 +311,7 @@ LogDataWorker::~LogDataWorker() = default;
 
 void LogDataWorker::setIndexingPolicy( const IndexingPolicy& indexingPolicy )
 {
-    run_.setPolicy( indexingPolicy );
+    run_->setPolicy( indexingPolicy );
 }
 
 void LogDataWorker::run( const IndexJob& job )
@@ -320,71 +356,37 @@ void LogDataWorker::indexAll( const TextEncoding* forcedEncoding, FullIndexReque
     LOG_INFO << "FullIndex requested, forced encoding: "
              << ( forcedEncoding != nullptr ? forcedEncoding->name().toStdString()
                                             : std::string{ "none" } );
-    start( RunKind::Index,
-           [ indexingData = indexing_data_, fileName = fileName_, forcedEncoding,
-             request ]( const RunControl& run, const IndexingPolicy& indexingPolicy ) {
-               return FullIndexOperation( fileName, indexingData, run, indexingPolicy, request,
-                                          forcedEncoding )
-                   .run();
-           } );
+    run_->start( [ indexingData = indexing_data_, fileName = fileName_, forcedEncoding,
+                   request ]( const RunControl& run, const IndexingPolicy& indexingPolicy ) {
+        return runIndexOperation<FullIndexOperation>( fileName, indexingData, run, indexingPolicy,
+                                                      request, forcedEncoding );
+    } );
 }
 
 void LogDataWorker::indexAdditionalLines()
 {
     LOG_INFO << "PartialIndex requested";
-    start( RunKind::Index, [ indexingData = indexing_data_, fileName = fileName_ ](
-                               const RunControl& run, const IndexingPolicy& indexingPolicy ) {
-        return PartialIndexOperation( fileName, indexingData, run, indexingPolicy ).run();
+    run_->start( [ indexingData = indexing_data_, fileName = fileName_ ](
+                     const RunControl& run, const IndexingPolicy& indexingPolicy ) {
+        return runIndexOperation<PartialIndexOperation>( fileName, indexingData, run,
+                                                         indexingPolicy );
     } );
 }
 
 void LogDataWorker::checkFileChanges()
 {
     LOG_INFO << "Check file changes requested";
-    start( RunKind::Check, [ indexingData = indexing_data_, fileName = fileName_ ](
-                               const RunControl& run, const IndexingPolicy& indexingPolicy ) {
-        return CheckFileChangesOperation( fileName, indexingData, run, indexingPolicy ).run();
+    run_->start( [ indexingData = indexing_data_, fileName = fileName_ ](
+                     const RunControl& run, const IndexingPolicy& indexingPolicy ) {
+        return runIndexOperation<CheckFileChangesOperation>( fileName, indexingData, run,
+                                                             indexingPolicy );
     } );
-}
-
-void LogDataWorker::start( RunKind kind, IndexRun::Job job )
-{
-    const auto id = run_.start( std::move( job ) );
-    startedRuns_.emplace( id.get(), kind );
-}
-
-void LogDataWorker::reportFinished( const RunEnd<IndexOutcome>& end )
-{
-    const auto startedRun = startedRuns_.find( end.id.get() );
-    const auto kind = startedRun != startedRuns_.end() ? startedRun->second : RunKind::Index;
-    if ( startedRun != startedRuns_.end() ) {
-        startedRuns_.erase( startedRun );
-    }
-
-    // The job's own outcome is how the run ended, superseded or not: an index
-    // run superseded before it was done tells Interrupted itself, and one
-    // superseded only once it was done has its Index complete. A run that
-    // failed outside its operation has no outcome of its own (the operation
-    // reports a failure inside it); it ends as a failure inside would.
-    const auto failed = !end.failure.isEmpty();
-    const auto& failure = failed ? end.failure : end.outcome.failure;
-
-    // A signal's slot may destroy this worker: nothing here is touched after.
-    if ( kind == RunKind::Check ) {
-        const auto* status = std::get_if<MonitoredFileStatus>( &end.outcome.status );
-        Q_EMIT checkFileChangesFinished(
-            !failed && status ? *status : MonitoredFileStatus::Truncated, failure );
-    }
-    else {
-        const auto* status = std::get_if<LoadingStatus>( &end.outcome.status );
-        Q_EMIT indexingFinished( !failed && status ? *status : LoadingStatus::Failed, failure );
-    }
 }
 
 void LogDataWorker::interrupt()
 {
     LOG_INFO << "Load interrupt requested";
-    run_.interrupt();
+    run_->interrupt();
 }
 
 //
@@ -961,7 +963,15 @@ IndexOutcome IndexOperation::reportFailure( const QString& failure )
         scopedAccessor.clear( indexingPolicy_ );
     }
 
-    return { LoadingStatus::Failed, failure };
+    return failedOutcome( failure );
+}
+
+QString index_operation_detail::unbuiltFailure( const char* name, const char* what )
+{
+    const auto failure = what != nullptr ? QString( "%1 could not be built: %2" ).arg( name, what )
+                                         : QString( "%1 could not be built" ).arg( name );
+    LOG_ERROR << failure;
+    return failure;
 }
 
 DigestCoverage FullIndexOperation::cachedIndexCoverage() const
@@ -1096,11 +1106,11 @@ IndexOutcome CheckFileChangesOperation::doRun()
     return { doCheckFileChanges(), {} };
 }
 
-// What changed cannot be told when checking failed, so the Log File is
-// taken as truncated: it is indexed again from the start.
+// Nothing is dropped when checking failed: the Log File is indexed again from
+// the start anyway.
 IndexOutcome CheckFileChangesOperation::reportFailure( const QString& failure )
 {
-    return { MonitoredFileStatus::Truncated, failure };
+    return failedOutcome( failure );
 }
 
 MonitoredFileStatus CheckFileChangesOperation::doCheckFileChanges()
