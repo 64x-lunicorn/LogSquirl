@@ -165,7 +165,9 @@ RegexLabWindow::RegexLabWindow( RegexpEngine engine, QWidget* parent )
 RegexLabWindow::~RegexLabWindow()
 {
     // Destroyed while open -- along with its parent, say -- the Lab still
-    // answers once.
+    // answers once. Along with its parent, this runs inside the parent's
+    // destruction, before Qt disconnects the parent as a receiver: see the
+    // class comment on how to listen safely.
     cancel();
 }
 
@@ -352,16 +354,16 @@ void RegexLabWindow::setOptionsKept( Options kept, Options shownFixed )
     show( logicalCombination_, Option::LogicalCombination );
 }
 
-void RegexLabWindow::setMarking( regexlab::Marking marking, std::optional<MarkColors> colors )
+void RegexLabWindow::setLineDecision( DecisionFor decisionFor, std::optional<MarkColors> colors )
 {
-    marking_ = marking;
+    decisionFor_ = std::move( decisionFor );
     marks_->setMarkColors( colors );
     evaluate();
 }
 
-regexlab::Marking RegexLabWindow::marking() const
+bool RegexLabWindow::hasLineDecision() const
 {
-    return marking_;
+    return static_cast<bool>( decisionFor_ );
 }
 
 void RegexLabWindow::setEngine( RegexpEngine engine )
@@ -603,12 +605,13 @@ void RegexLabWindow::evaluate()
     }
 
     auto lines = sample() == Sample::PastedText ? pastedLines() : logFileSample_;
+    auto decision = decisionFor_ ? decisionFor_( searched ) : regexlab::LineDecision{};
     runner_.start<regexlab::Result>(
-        [ searched, engine = engine_, marking = marking_,
+        [ searched, engine = engine_, decision = std::move( decision ),
           lines = std::move( lines ) ]( const std::atomic<bool>& cancelled ) {
             return regexlab::evaluate( searched, engine,
                                        lines ? *lines : logsquirl::vector<QString>{}, bounds(),
-                                       cancelled, marking );
+                                       cancelled, decision );
         },
         [ this, searched ]( regexlab::Result evaluated ) {
             evaluatedPattern_ = searched;

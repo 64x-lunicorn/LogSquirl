@@ -23,6 +23,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <functional>
 #include <optional>
 
 #include <QString>
@@ -67,21 +68,6 @@ struct Bounds {
     std::chrono::milliseconds slowLine{ 20 };
 };
 
-// What of a line the Lab marks, as whoever opened it shows the pattern
-// (#660). Whether the line matches is decided the same way for each.
-enum class Marking {
-    // Every match of the pattern, or of each sub-pattern of a logical
-    // combination, as a Search finds them.
-    Matches,
-    // What a Highlighter that colors only the match colors: the text its
-    // capture groups took, or the whole match of a pattern without groups
-    // (Highlighter::matchLine()).
-    HighlightedText,
-    // The whole of each matching line, as a Highlighter that colors the whole
-    // Log Line colors it.
-    WholeLine,
-};
-
 // The line cut to at most length characters, never between the two halves
 // of a surrogate pair.
 QString cutLine( const QString& line, qsizetype length );
@@ -114,6 +100,13 @@ struct CaptureGroup {
     // -1 when the group took no part in the match.
     qsizetype start = -1;
 };
+
+// Whether a line matches, and what of it is marked, as decided by whoever
+// opened the Lab instead of by the Search: a Highlighter decides and colors
+// by its own rules (#660). The spans to mark, none for a line that does not
+// match. Called off the UI thread, on each line's whole text.
+using LineDecision
+    = std::function<std::optional<logsquirl::vector<MatchSpan>>( const QString& line )>;
 
 struct LineResult {
     // The Search's verdict on the line.
@@ -155,12 +148,12 @@ struct Result {
 };
 
 // Evaluates the pattern on each sample line, as a Search with the same
-// pattern and options on the same engine would, within the bounds, and marks
-// in each matching line what marking says. Stops as soon as cancelled is set.
-// Safe to call off the UI thread.
+// pattern and options on the same engine would, within the bounds -- or, with
+// a decision, as that decides. Stops as soon as cancelled is set. Safe to
+// call off the UI thread.
 Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
                  const logsquirl::vector<QString>& sample, const Bounds& bounds,
-                 const std::atomic<bool>& cancelled, Marking marking = Marking::Matches );
+                 const std::atomic<bool>& cancelled, const LineDecision& decision = {} );
 
 } // namespace regexlab
 

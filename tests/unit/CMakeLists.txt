@@ -77,6 +77,7 @@ add_executable(logsquirl_tests
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
     regexlab_test.cpp
+    highlighter_colorline_test.cpp
     runnable_lambda_test.cpp
     searchdata_test.cpp
     searchfailure_test.cpp

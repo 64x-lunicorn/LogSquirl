@@ -104,6 +104,14 @@ struct RegexLabAccess {
 // nothing is answered after that. Opened from the menu, the Lab offers
 // neither and only copies the pattern. A receiver that goes away while the
 // Lab is open is disconnected by Qt, so the Lab never calls into it.
+//
+// Destroyed along with its parent, the Lab answers cancelled() from within
+// the parent's destruction: its children go before Qt disconnects the parent
+// as a receiver, so a slot of the parent -- or of any widget the Lab is
+// destroyed with -- would run on an object half destroyed. Connect
+// cancelled() with a context object the Lab is not destroyed along with, or
+// to a slot that touches nothing the destruction takes away; the editors
+// (#660) only listen for applied(), which is never sent then.
 class RegexLabWindow : public QWidget {
     Q_OBJECT
 
@@ -144,11 +152,16 @@ public:
     // it. All options are kept until this is called.
     void setOptionsKept( Options kept, Options shownFixed = {} );
 
-    // What of a matching line is marked, and in which colors (#660): each
-    // match in the Lab's color for its sub-pattern until this is called. A
-    // change evaluates the pattern again.
-    void setMarking( regexlab::Marking marking, std::optional<MarkColors> colors = std::nullopt );
-    regexlab::Marking marking() const;
+    // Makes the decision on each line, for the pattern and options in the
+    // Lab, that says whether the line matches and what of it is marked,
+    // instead of the Search (#660): a Highlighter's, which colors by rules of
+    // its own. Marks are shown in colors, if given, instead of the Lab's for
+    // each sub-pattern. A change evaluates the pattern again.
+    using DecisionFor
+        = std::function<regexlab::LineDecision( const RegularExpressionPattern& pattern )>;
+    void setLineDecision( DecisionFor decisionFor,
+                          std::optional<MarkColors> colors = std::nullopt );
+    bool hasLineDecision() const;
 
     // The engine a Search runs on, which the Lab matches with. A change
     // evaluates the pattern again.
@@ -231,7 +244,7 @@ private:
     regexlab::Result result_;
     // The pattern and options the result shown was evaluated with.
     RegularExpressionPattern evaluatedPattern_;
-    regexlab::Marking marking_ = regexlab::Marking::Matches;
+    DecisionFor decisionFor_;
     bool hasPattern_ = false;
     bool isApplyOffered_ = false;
     bool isAnswered_ = false;

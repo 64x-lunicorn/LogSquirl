@@ -131,7 +131,8 @@ QStringList markedTexts( const RegexLabWindow& lab )
 // A Highlighter Set editor with one Highlighter, in a modal dialog as the
 // Highlighters dialog holds it, the Highlighter selected.
 struct HighlighterEditor {
-    explicit HighlighterEditor( bool onlyMatch )
+    explicit HighlighterEditor( bool onlyMatch,
+                                const QString& pattern = QStringLiteral( "user=(\\w+)" ) )
     {
         dialog.setModal( true );
         setEdit = new HighlighterSetEdit( &dialog );
@@ -139,8 +140,7 @@ struct HighlighterEditor {
         layout->addWidget( setEdit );
 
         auto set = HighlighterSet::createNewSet( QStringLiteral( "Set" ) );
-        set.addHighlighter(
-            Highlighter( QStringLiteral( "user=(\\w+)" ), true, onlyMatch, Text, Background ) );
+        set.addHighlighter( Highlighter( pattern, true, onlyMatch, Text, Background ) );
         setEdit->setHighlighters( set );
         dialog.show();
 
@@ -243,7 +243,7 @@ SCENARIO( "The Regex Lab marks what a Highlighter colors, in its colors",
 
         THEN( "the text its group takes in each match is marked, in the Highlighter's colors" )
         {
-            CHECK( lab->marking() == regexlab::Marking::HighlightedText );
+            CHECK( lab->hasLineDecision() );
             const auto found = marks( *lab );
             CHECK( markedTexts( *lab ) == QStringList{ "alice", "bob" } );
             REQUIRE_FALSE( found.empty() );
@@ -261,11 +261,28 @@ SCENARIO( "The Regex Lab marks what a Highlighter colors, in its colors",
 
         THEN( "each matching line is marked whole, in the Highlighter's colors" )
         {
-            CHECK( lab->marking() == regexlab::Marking::WholeLine );
+            CHECK( lab->hasLineDecision() );
             CHECK( markedTexts( *lab ) == QStringList{ "at 10:00 user=alice id=7 user=bob" } );
             CHECK( marks( *lab ).front().background == Background );
         }
     }
+}
+
+SCENARIO( "The Regex Lab leaves a line alone that the Highlighter leaves alone",
+          "[ui][regexlab][highlighters]" )
+{
+    // The only group takes no part in the match on "bar": the Highlighter
+    // then colors nothing, although the pattern matches.
+    const auto onlyMatch = GENERATE( false, true );
+    HighlighterEditor editor( onlyMatch, QStringLiteral( "(foo)?bar" ) );
+    part<QPushButton>( *editor.edit, "testPatternButton" )->click();
+    const auto lab = openedLab( *editor.edit );
+    pasteSample( *lab, QStringLiteral( "bar\nfoobar" ) );
+
+    CHECK_FALSE( lab->result().lines[ 0 ].isMatch );
+    CHECK( lab->result().lines[ 1 ].isMatch );
+    CHECK( lab->result().matchingLines == 1 );
+    CHECK( markedTexts( *lab ) == QStringList{ onlyMatch ? "foo" : "foobar" } );
 }
 
 SCENARIO( "Apply in the Regex Lab writes a Highlighter's pattern and options back",
@@ -357,7 +374,7 @@ SCENARIO( "Test... opens the Regex Lab with a Predefined Filter's pattern and op
             CHECK( pattern.isCaseSensitive );
             CHECK_FALSE( pattern.isBoolean );
             CHECK( lab->engine() == RegexpEngine::Vectorscan );
-            CHECK( lab->marking() == regexlab::Marking::Matches );
+            CHECK_FALSE( lab->hasLineDecision() );
         }
 
         THEN( "Regex can be changed; Match case, which comes from the Search Line, is shown fixed" )

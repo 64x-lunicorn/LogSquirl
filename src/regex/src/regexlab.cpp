@@ -247,39 +247,26 @@ bool addMark( LineResult& result, MatchSpan span, const Bounds& bounds, MarkBudg
     return true;
 }
 
-// Marks what a Highlighter colors of a match: the text each of its capture
-// groups took, or the whole match when the pattern has no groups.
-bool addHighlightedText( LineResult& result, const QRegularExpression& regexp,
-                         const QRegularExpressionMatch& match, const Bounds& bounds,
-                         MarkBudget& marks )
-{
-    if ( regexp.captureCount() == 0 ) {
-        return match.capturedLength() == 0
-               || addMark( result, { match.capturedStart(), match.capturedLength(), 0 }, bounds,
-                           marks );
-    }
-    for ( int group = 1; group <= match.lastCapturedIndex(); ++group ) {
-        if ( match.capturedLength( group ) > 0
-             && !addMark( result,
-                          { match.capturedStart( group ), match.capturedLength( group ), 0 },
-                          bounds, marks ) ) {
-            return false;
-        }
-    }
-    return true;
-}
-
 LineResult evaluateLine( const PatternMatcher& matcher,
-                         const logsquirl::vector<QRegularExpression>& marking, Marking whatIsMarked,
-                         const QString& wholeLine, const Bounds& bounds, MarkBudget& marks )
+                         const logsquirl::vector<QRegularExpression>& marking,
+                         const LineDecision& decision, const QString& wholeLine,
+                         const Bounds& bounds, MarkBudget& marks )
 {
     const auto started = Clock::now();
     LineResult result;
 
-    // The Search matches the whole line's text as UTF-8 (see filterLines()).
-    const auto utf8 = wholeLine.toUtf8();
-    result.isMatch = matcher.hasMatch(
-        std::string_view( utf8.constData(), static_cast<std::size_t>( utf8.size() ) ) );
+    std::optional<logsquirl::vector<MatchSpan>> decided;
+    if ( decision ) {
+        decided = decision( wholeLine );
+        result.isMatch = decided.has_value();
+    }
+    else {
+        // The Search matches the whole line's text as UTF-8 (see
+        // filterLines()).
+        const auto utf8 = wholeLine.toUtf8();
+        result.isMatch = matcher.hasMatch(
+            std::string_view( utf8.constData(), static_cast<std::size_t>( utf8.size() ) ) );
+    }
 
     // Only what is shown is marked.
     const auto line = cutLine( wholeLine, bounds.maxLineLength );
@@ -296,15 +283,10 @@ LineResult evaluateLine( const PatternMatcher& matcher,
                 addGroups( regexp, match, subPatternIndex, result.groups );
                 isFirst = false;
             }
-            if ( whatIsMarked == Marking::WholeLine ) {
-                // Only the groups of the first match are wanted.
+            if ( decision ) {
+                // The decision marks; only the groups of the first match are
+                // wanted.
                 break;
-            }
-            if ( whatIsMarked == Marking::HighlightedText ) {
-                if ( !addHighlightedText( result, regexp, match, bounds, marks ) ) {
-                    break;
-                }
-                continue;
             }
             if ( match.capturedLength() > 0
                  && !addMark( result,
@@ -315,8 +297,17 @@ LineResult evaluateLine( const PatternMatcher& matcher,
         }
     }
 
-    if ( whatIsMarked == Marking::WholeLine && result.isMatch && !line.isEmpty() ) {
-        addMark( result, { 0, line.size(), 0 }, bounds, marks );
+    // What the decision marks, as far as the line is shown.
+    if ( decided.has_value() ) {
+        for ( const auto& span : *decided ) {
+            const auto length = std::min( span.start + span.length, line.size() ) - span.start;
+            if ( span.start < 0 || length <= 0 ) {
+                continue;
+            }
+            if ( !addMark( result, { span.start, length, span.subPattern }, bounds, marks ) ) {
+                break;
+            }
+        }
     }
 
     std::ranges::sort( result.matches, []( const MatchSpan& left, const MatchSpan& right ) {
@@ -341,7 +332,7 @@ QString cutLine( const QString& line, qsizetype length )
 
 Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
                  const logsquirl::vector<QString>& sample, const Bounds& bounds,
-                 const std::atomic<bool>& cancelled, Marking marking )
+                 const std::atomic<bool>& cancelled, const LineDecision& decision )
 {
     const auto started = Clock::now();
     const auto elapsed = [ started ]() {
@@ -360,7 +351,7 @@ Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
         return result;
     }
     const auto matcher = expression.createMatcher();
-    const auto markingRegexp = markingRegexps( pattern );
+    const auto marking = markingRegexps( pattern );
     MarkBudget marks{ bounds.maxMarks };
 
     result.lines.reserve( result.sampleLines );
@@ -374,7 +365,7 @@ Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
             break;
         }
         result.lines.push_back(
-            evaluateLine( *matcher, markingRegexp, marking, sample[ index ], bounds, marks ) );
+            evaluateLine( *matcher, marking, decision, sample[ index ], bounds, marks ) );
         const auto& line = result.lines.back();
         result.matchingLines += line.isMatch ? 1 : 0;
         result.slowLines += line.isSlow ? 1 : 0;

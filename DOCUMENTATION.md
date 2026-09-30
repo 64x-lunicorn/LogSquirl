@@ -584,7 +584,10 @@ that pattern, on the Log Lines of the tab in front (or on pasted text while no
 file is open). The Lab marks what the highlighter would color, in its text and
 background colors: each whole matching line for a highlighter that colors the
 whole line, only the matched text -- or what its capture groups took --
-otherwise (the color variance is not shown). It matches the way a highlighter
+otherwise (the color variance is not shown). It decides as the highlighter
+does, too: a line where no capture group takes part in the match -- `(foo)?bar`
+on `bar` -- is not colored, and a line longer than 1,000,000 characters never
+is. It matches the way a highlighter
 does, with Qt's regular expressions whatever the search engine, and offers
 only the options a highlighter has: *Match case* (the opposite of *Ignore
 case*) and *Use regex* (*Extended Regexp* or *Fixed Strings*). *Apply* writes
