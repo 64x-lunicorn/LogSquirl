@@ -1,8 +1,8 @@
 # The Search Line: the pattern of a Search, the buttons that say how it is
 # read, and what the line says about the Search that runs (#399).
 #
-# It knows no widget: the Crawler Widget hands it every event and mirrors
-# what it shows. tests/searchline_no_qt_widgets.cmake guards that no file of
+# It knows no widget: the Search Line widget of the UI library hands it every
+# event and mirrors what it shows (#638). tests/searchline_no_qt_widgets.cmake guards that no file of
 # it includes a Qt Widgets header and that it links neither Qt Widgets, the
 # settings store nor the UI library.
 add_library(
