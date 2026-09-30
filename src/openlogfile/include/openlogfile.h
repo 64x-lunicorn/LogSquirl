@@ -294,8 +294,8 @@ private:
     void handleLoadingFinished( LoadingStatus status, const QString& failure );
     void handleChangeOnDisk( const QString& fileName );
     void handleFileChanged( MonitoredFileStatus status, const QString& failure );
-    // Checks the Log File once more on the way to watchingStopped().
-    void checkBeforeWatchingStops();
+    // Carries out what the Load Rule decided on the way to watchingStopped().
+    void continueStoppingToWatch( LoadRule::WatchingStep step );
     // Starts the Search again with the pattern last requested, over the
     // Search Limits.
     void restartSearch();
@@ -314,13 +314,6 @@ private:
     QString fileName_;
     // Whether the Log File was handed to the port to watch.
     bool watched_ = false;
-    // Watching the Log File, stopping it -- the Log File is checked until a
-    // check finds it unchanged -- or stopped.
-    enum class Watching { On, Stopping, Stopped };
-    Watching watching_ = Watching::On;
-    // The checks made while stopping: a Log File that keeps changing is not
-    // waited for for ever.
-    int checksBeforeStopping_ = 0;
 
     // Declared before the Searches built from it, so it outlives them.
     std::shared_ptr<LogData> logData_;
@@ -328,17 +321,15 @@ private:
     QMetaObject::Connection searchConnection_;
 
     SearchAutoRefresh autoRefresh_;
-    // What a load, a change on disk and a reload mean: every flag they set.
+    // What a load, a change on disk and a reload mean: every flag they set,
+    // and whether watching the Log File has stopped.
     LoadRule loadRule_;
     // The pattern last requested, which a restarted Search runs with.
     RegularExpressionPattern searchPattern_;
-    LineNumber searchStartLine_;
-    LineNumber searchEndLine_;
+    // As set, and as the Load Rule settles them after every load.
+    LoadRule::SearchLimits searchLimits_;
     // The Search Limits last told, once they were.
-    std::optional<std::pair<LineNumber, LineNumber>> toldSearchLimits_;
-    // The Log Lines the last finished load brought: Search Limits that end
-    // there are the whole Log File.
-    LinesCount loadedLineCount_;
+    std::optional<LoadRule::SearchLimits> toldSearchLimits_;
 
     RecognitionPolicy recognitionPolicy_;
     std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;
