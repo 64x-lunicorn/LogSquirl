@@ -569,3 +569,12 @@ package, the command line tool, the test binaries) or when it finds `logsquirl.c
 its executable; every other run is installed and keeps them in the user profile. One place
 decides it for the whole run (ADR 0015). Only the Index Cache stays in the user profile.
 _Avoid_: portable mode, portable build (the build is one way a run becomes portable)
+
+**Benchmark Run**:
+A run of the application started with `--benchmark <scenario>`: it runs one scenario, such
+as opening and indexing a Log File, writes what happened as a report and exits. It is a
+Portable Run whose directory is a temporary one of its own instead of the executable's, so
+its settings, Session and data start empty and go when it ends; it takes nothing over, loads
+no plugins, checks for no new version, uses no Index Cache and has a single-instance lock of
+its own. It reads and writes nothing of the user's (#666).
+_Avoid_: benchmark build, test run

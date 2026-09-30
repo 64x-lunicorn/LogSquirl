@@ -59,6 +59,16 @@ public:
     // from an executable in executableDirectory.
     DataLocation( bool forcePortable, const QString& executableDirectory );
 
+    // The location of a Benchmark Run (#666): portable, with `directory` in
+    // place of the executable's directory, so its settings, Session and data
+    // are all there; it takes nothing over from the user's locations.
+    static DataLocation isolatedIn( const QString& directory );
+
+    // Makes current() the location isolated in `directory`. Only before
+    // current() is first asked: returns false, and changes nothing, once it
+    // has been.
+    static bool isolateCurrentIn( const QString& directory );
+
     bool isPortable() const;
 
     // The directory of the executable, without a trailing separator.
@@ -89,7 +99,8 @@ public:
     // (#613). On the first start of a portable run with none of that data
     // beside its executable yet, this copies what the old locations hold there,
     // once, and writes the marker. The old locations are left as they are.
-    // Nothing is copied for an installed run, when the marker exists, or when
+    // Nothing is copied for an installed run or a Benchmark Run, when the
+    // marker exists, or when
     // `formats`, `plugin_config`, `teamfolder` or `themes` beside the
     // executable holds anything. A plugin whose folder is already beside the
     // executable, such as one the package ships, is kept and not replaced.
@@ -110,5 +121,8 @@ private:
     static const bool ForcePortable;
 
     bool portable_;
+    // Whether this is the location of a Benchmark Run, whose "executable
+    // directory" is the directory it was isolated in.
+    bool isolated_ = false;
     QString executableDirectory_;
 };

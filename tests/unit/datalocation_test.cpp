@@ -356,3 +356,53 @@ SCENARIO( "A portable run takes over the data the portable package kept in the u
         }
     }
 }
+
+SCENARIO( "A Benchmark Run keeps everything it stores in a directory of its own", "[datalocation]" )
+{
+    QTemporaryDir isolatedDir;
+    QTemporaryDir oldDataDir;
+    QTemporaryDir oldConfigDir;
+    REQUIRE( isolatedDir.isValid() );
+    REQUIRE( oldDataDir.isValid() );
+    REQUIRE( oldConfigDir.isValid() );
+    const auto isolatedPath = QDir::cleanPath( isolatedDir.path() );
+
+    GIVEN( "A location isolated in a directory" )
+    {
+        const auto location = DataLocation::isolatedIn( isolatedDir.path() );
+
+        THEN( "Its settings, Session and data are in that directory" )
+        {
+            CHECK( location.isPortable() );
+            CHECK( location.portableSettingsPath()
+                   == QDir( isolatedPath ).filePath( "logsquirl.conf" ) );
+            CHECK( location.dataDirectory() == isolatedPath );
+            CHECK( location.configDirectory() == isolatedPath );
+        }
+
+        THEN( "It takes over nothing from the user's locations" )
+        {
+            writeFile( QDir( oldDataDir.path() ).filePath( "formats/mine.conf" ), "format" );
+            writeFile( QDir( oldConfigDir.path() ).filePath( "themes/dark.qss" ), "stylesheet" );
+
+            const auto takeOver
+                = location.takeOverOldPortableData( oldDataDir.path(), oldConfigDir.path() );
+
+            CHECK( takeOver.copied.isEmpty() );
+            CHECK( takeOver.skipped.isEmpty() );
+            CHECK( takeOver.failed.isEmpty() );
+            CHECK( filesUnder( isolatedPath ).isEmpty() );
+        }
+    }
+
+    GIVEN( "A run whose location is decided already" )
+    {
+        const auto decided = DataLocation::current().dataDirectory();
+
+        THEN( "It can no longer be isolated" )
+        {
+            CHECK_FALSE( DataLocation::isolateCurrentIn( isolatedDir.path() ) );
+            CHECK( DataLocation::current().dataDirectory() == decided );
+        }
+    }
+}

@@ -46,10 +46,25 @@ set(MAIN_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cli.h
                  ${LOGSQUIRL_I18N_RES}
                  ${LOGSQUIRL_QT_TRANSLATION_RES})
 
+# The benchmark mode (#666). Every scenario is a source file of its own under
+# benchmark/scenarios, picked up here without a list to add it to, so that
+# scenarios added side by side do not touch one line.
+file(GLOB BENCHMARK_SCENARIO_SOURCES CONFIGURE_DEPENDS
+     ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/scenarios/*.cpp)
+set(BENCHMARK_MODE_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/benchmarkmode.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/benchmarkmode.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/paintprobe.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/paintprobe.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/scenariorun.h
+    ${BENCHMARK_SCENARIO_SOURCES}
+)
+
 set(LOGSQUIRL_UI_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/messagereceiver.h
     ${CMAKE_CURRENT_SOURCE_DIR}/logsquirlapp.h
     ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+    ${BENCHMARK_MODE_SOURCES}
     ${DOCUMENTATION_RESOURCE}
     ${ICON_FILE}
 )
@@ -94,6 +109,13 @@ set_target_properties(logsquirl_grep PROPERTIES AUTOMOC ON)
 # engine is handed its port and does not link it (#249).
 target_link_libraries(logsquirl PUBLIC ${MAIN_LIBS} logsquirl_ui logsquirl_filewatch)
 target_link_libraries(logsquirl_portable PUBLIC ${MAIN_LIBS} logsquirl_ui logsquirl_filewatch)
+# The benchmark mode's report and scenario registry; its sources include the
+# application's own headers (logsquirlapp.h, cli.h) and each other's.
+foreach(_target IN ITEMS logsquirl logsquirl_portable)
+  target_link_libraries(${_target} PRIVATE logsquirl_benchmark)
+  target_include_directories(${_target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+                                                ${CMAKE_CURRENT_SOURCE_DIR}/benchmark)
+endforeach()
 # main.cpp caps TBB's concurrency itself (#168), so the dependency stays here.
 # The TBB library itself already arrives through logsquirl_ui, which links it
 # privately and hands it on as $<LINK_ONLY:tbb>; naming tbb here too put the

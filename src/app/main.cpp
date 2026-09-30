@@ -38,6 +38,7 @@
 
 #include "log.h"
 #include <QtGlobal>
+#include <memory>
 #include <optional>
 #include <qapplication.h>
 #include <qthreadpool.h>
@@ -68,6 +69,7 @@
 #include "mainwindow.h"
 #include "theme.h"
 
+#include "benchmarkmode.h"
 #include "cli.h"
 #include "logsquirl_version.h"
 #include "logsquirlapp.h"
@@ -122,6 +124,10 @@ void takeOverOldPortableData()
 
 int main( int argc, char* argv[] )
 {
+    // The first thing done: the benchmark mode times its events from here and
+    // from the process start (#666).
+    const auto mainEntered = logsquirl::benchmark::Clock::now();
+
 #ifdef LOGSQUIRL_USE_MIMALLOC
     mi_process_init();
 #endif
@@ -144,8 +150,25 @@ int main( int argc, char* argv[] )
     }
 #endif
 
+    // A Benchmark Run takes a single-instance lock of its own, which is taken
+    // when the application object is made (#666).
+    const auto benchmarkRequested = logsquirl::benchmark::BenchmarkMode::requested( argc, argv );
+    if ( benchmarkRequested ) {
+        logsquirl::benchmark::BenchmarkMode::prepareProcess();
+    }
+
     LogSquirlApp app( argc, argv );
     CliParameters parameters( app );
+
+    // Before anything reads a setting: a Benchmark Run reads and writes
+    // nothing of the user's.
+    std::unique_ptr<logsquirl::benchmark::BenchmarkMode> benchmark;
+    if ( benchmarkRequested ) {
+        benchmark = logsquirl::benchmark::BenchmarkMode::prepare( parameters, mainEntered );
+        if ( !benchmark ) {
+            return 2;
+        }
+    }
 
     // "-" with nothing piped in would wait on the keyboard behind a window
     // that never fills: refuse before anything is set up.
@@ -159,7 +182,7 @@ int main( int argc, char* argv[] )
     // and exits. It needs none of what follows -- no settings, translations,
     // crash handler, Log Format Catalog or file watcher -- so it checks first
     // (#302).
-    if ( !parameters.multi_instance && app.isSecondary() ) {
+    if ( !benchmark && !parameters.multi_instance && app.isSecondary() ) {
         const auto logLevel = static_cast<logging::LogLevel>( parameters.log_level );
         logging::enableLogging( parameters.enable_logging, logLevel );
         logging::enableFileLogging( parameters.log_to_file, logLevel );
@@ -180,10 +203,12 @@ int main( int argc, char* argv[] )
     resetUnknownDefaultEncoding( config );
 
     // Before anything reads the data or configuration directory, and with
-    // logging on so the log says what was copied (#613).
-    takeOverOldPortableData();
-
-    app.initCrashHandler();
+    // logging on so the log says what was copied (#613). A Benchmark Run
+    // takes nothing over, and leaves a crash to the operating system.
+    if ( !benchmark ) {
+        takeOverOldPortableData();
+        app.initCrashHandler();
+    }
     app.prepareForMainWindows();
 
     auto maxConcurrency
@@ -281,6 +306,13 @@ int main( int argc, char* argv[] )
             QCoreApplication::processEvents();
         }
     };
+
+    // A Benchmark Run opens what its scenario measures, restores no Session
+    // and starts no background task.
+    if ( benchmark ) {
+        benchmark->start( app );
+        return benchmark->end( app.exec() );
+    }
 
     updateSplash( QObject::tr( "Loading settings..." ) );
 

@@ -343,6 +343,80 @@ a few more runs from master shortens that.
 
 See [`tests/e2e/README.md`](tests/e2e/README.md) for full documentation.
 
+#### Benchmark mode
+
+The application measures what a user waits for itself (#666): started with a scenario, it opens
+what the scenario names, waits for the events it reports -- not for a fixed time -- writes one
+JSON report and exits. It runs offscreen, so CI can run it:
+
+```bash
+QT_QPA_PLATFORM=offscreen build/output/logsquirl \
+    --benchmark open-and-index --benchmark-output report.json path/to/file.log
+```
+
+| Option | Meaning |
+|---|---|
+| `--benchmark <scenario>` | The scenario to run. An unknown name lists the scenarios and exits with 2. |
+| `--benchmark-output <file>` | Where the report goes; standard output without it. |
+| `--benchmark-option <name>=<value>` | An option for the scenario, repeatable; reported under `options`. |
+| `--benchmark-timeout <s>` | The run fails after this many seconds (default 600). |
+| `--window-width`, `--window-height` | The window's size; 1280 x 800 without them, so runs paint alike. |
+
+The exit code is 0 when the scenario finished, 1 when it failed (the report says why) or its
+report could not be written, and 2 for a command line it cannot run.
+
+A **Benchmark Run** reads and writes nothing of yours: its settings, Session, Log Formats,
+plugins, themes and crash dumps live in a temporary directory that goes when it ends (a
+Portable Run in that directory, see `DataLocation::isolateCurrentIn`); it loads no plugins, does
+not check for a new version, uses no Index Cache and takes a single-instance lock of its own,
+so it neither hands its Log File to a LogSquirl you are running nor is handed theirs. Apart
+from that it starts as a start from the command line does: Theme, Highlighters, TBB and
+allocator setup are the application's own. The e2e suite still starts it only through its
+isolated instances (`tests/e2e/benchmark_mode.py`).
+
+Measure with an optimized build (RelWithDebInfo or Release), and compare two builds as A/B on
+one machine; numbers of a Debug build say nothing.
+
+**Scenarios**
+
+| Scenario | Events | Results |
+|---|---|---|
+| `open-and-index` | `log_file_opened`: the tab opened and loading started (after the window is shown and the plugins are loaded, as for a Log File given on the command line); `first_log_line_displayed`: the first paint of the Text View's Viewport that shows a Log Line ended; `index_finished`: the Index is complete. Both of the last two carry `log_line_count`. | `log_line_count`, `log_file_bytes`, `index_mb_per_s` (10^6 bytes per second from the open to `index_finished`) |
+
+**The report**, format version 1. Times are milliseconds as floating point numbers, sizes bytes.
+
+| Field | Meaning |
+|---|---|
+| `format` | Always `"logsquirl-benchmark"`. |
+| `format_version` | `1`. Raised when a field is renamed or removed or changes meaning or unit, not for a new field. Readers check it. |
+| `scenario` | The scenario's name. |
+| `outcome` | `"passed"` or `"failed"`; `failure` then says why. |
+| `application` | `version` and `commit` of the build. |
+| `platform` | `os`, `kernel`, `cpu_architecture`, `qt_version`, `qpa_platform`. |
+| `options` | The `--benchmark-option` values, by name. |
+| `log_files` | `path` and `size_bytes` of each Log File given. |
+| `process.start_source` | `"os"` when times count from the process start the operating system reports, `"main"` when it did not report one and they count from `main()`. |
+| `process.main_entered_ms` | When `main()` was entered, since the process started: loading the libraries. On macOS it includes the system's check of an app bundle copied to a new place, as the e2e suite's isolated instances do for every instance. |
+| `process.peak_rss_bytes` | The peak resident set size (macOS, Linux) or peak working set (Windows) when the scenario ended; left out where the platform does not tell. |
+| `scenario_started_ms` | When the scenario's measured part began, since the process started (`open-and-index`: the request to open the Log File, after the window was made). |
+| `events[]` | In the order they happened: `name`, `since_process_start_ms`, `since_scenario_start_ms`, and `data`, an object of the scenario's own, when it has any. |
+| `results` | What the scenario concluded, by name; the table above lists them. A summary of many durations is an object with `count`, `min_ms`, `p50_ms`, `p99_ms` (nearest rank), `max_ms`, `mean_ms`. |
+
+Every time is read from the steady clock at the event itself: the end of a paint is taken by
+an event filter around the Viewport's paint event, the end of the load from the signal that
+reports it. No sleep and no polling interval is part of a reported number. The time from the
+process start to `main()` comes from the operating system: in clock ticks (usually 10 ms) on
+Linux, in microseconds on macOS and in 100 ns on Windows; every later time is measured from
+`main()` with the steady clock.
+
+**Adding a scenario** is one new source file under `src/app/benchmark/scenarios/`, which the
+build picks up without a list to add it to: a class derived from `logsquirl::benchmark::Scenario`
+and a `ScenarioRegistration` with its name. It is handed a `ScenarioRun`
+(`src/app/benchmark/scenariorun.h`) with the Log Files, the options, the report to put its
+events and results in, new windows and the Session of the run's own directory, and ends the run
+with `finish()` or `fail()`. `PaintProbe` times the paints of a widget, `Distribution` summarizes
+many durations. Nothing in the report or its writer changes for a new scenario.
+
 ### Fuzzing
 
 `tests/fuzz` holds libFuzzer targets for the code that reads bytes from anywhere before a user sees

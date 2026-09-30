@@ -28,6 +28,7 @@
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QString>
+#include <QStringList>
 
 #include "log.h"
 #include "logsquirl_version.h"
@@ -51,6 +52,14 @@ struct CliParameters {
     int window_height = 0;
 
     QString pattern;
+
+    // --benchmark <scenario>: a Benchmark Run of that scenario (#666), with
+    // its report written to benchmark_output (standard output when empty).
+    // Each --benchmark-option is a "name=value" handed to the scenario as is.
+    QString benchmark_scenario;
+    QString benchmark_output;
+    QStringList benchmark_options;
+    int benchmark_timeout_s = 600;
 
     CliParameters( QCoreApplication& app, bool console = false )
     {
@@ -102,6 +111,22 @@ struct CliParameters {
 
         parser.addOption( debugOption );
 
+        // The benchmark mode (#666, BUILD.md "Benchmark mode").
+        const QCommandLineOption benchmarkOption(
+            "benchmark",
+            "run a benchmark scenario on the given Log Files, isolated from your settings, "
+            "and write what happened as JSON; an unknown name lists the scenarios",
+            "scenario" );
+        const QCommandLineOption benchmarkOutputOption(
+            "benchmark-output",
+            "write the benchmark report to this file instead of standard output", "file" );
+        const QCommandLineOption benchmarkOptionOption(
+            "benchmark-option", "hand the benchmark scenario an option (repeatable)",
+            "name=value" );
+        const QCommandLineOption benchmarkTimeoutOption(
+            "benchmark-timeout", "fail the benchmark run after this many seconds", "seconds",
+            "600" );
+
         if ( !console ) {
             parser.addPositionalArgument( "files", "Log Files to open; \"-\" reads standard input",
                                           "[files|-]..." );
@@ -116,6 +141,10 @@ struct CliParameters {
             parser.addOption( followOption );
             parser.addOption( windowWidthOption );
             parser.addOption( windowHeightOption );
+            parser.addOption( benchmarkOption );
+            parser.addOption( benchmarkOutputOption );
+            parser.addOption( benchmarkOptionOption );
+            parser.addOption( benchmarkTimeoutOption );
         }
         else {
             parser.addOption( patternOption );
@@ -158,6 +187,11 @@ struct CliParameters {
             if ( parser.isSet( followOption ) ) {
                 follow_file = true;
             }
+
+            benchmark_scenario = parser.value( benchmarkOption );
+            benchmark_output = parser.value( benchmarkOutputOption );
+            benchmark_options = parser.values( benchmarkOptionOption );
+            benchmark_timeout_s = parser.value( benchmarkTimeoutOption ).toInt();
         }
         else {
 
