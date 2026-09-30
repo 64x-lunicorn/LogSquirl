@@ -1062,27 +1062,27 @@ Sem data, usa-se %1.</translation>
         <translation>Nenhuma linha de log tem um timestamp que este formato de log consiga ler.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1475"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1482"/>
         <source>Marks and matches</source>
         <translation>Marcações e correspondências</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1481"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1488"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>Marcações, correspondências + contexto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1486"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1493"/>
         <source>Matches + breadcrumbs</source>
         <translation>Correspondências + contexto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1491"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1498"/>
         <source>Marks</source>
         <translation>Marcações</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1495"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1502"/>
         <source>Matches</source>
         <translation>Correspondências</translation>
     </message>
@@ -1126,32 +1126,32 @@ Sem data, usa-se %1.</translation>
         <translation>Padrão de pesquisa</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1537"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1544"/>
         <source>Clear search history</source>
         <translation>Limpar histórico de pesquisa</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1538"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1545"/>
         <source>Edit search history</source>
         <translation>Editar histórico de pesquisa</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1539"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1546"/>
         <source>Save as Filter</source>
         <translation>Salvar como filtro</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1540"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1547"/>
         <source>Open in Regex Lab...</source>
         <translation>Abrir no Laboratório de regex...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1542"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1549"/>
         <source>Try out the pattern and its options on Log Lines in the Regex Lab</source>
         <translation>Experimentar o padrão e suas opções em linhas do log no Laboratório de regex</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1548"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1555"/>
         <source>Count values of capture group</source>
         <translation>Contar valores do grupo de captura</translation>
     </message>
@@ -1176,32 +1176,32 @@ Sem data, usa-se %1.</translation>
         <translation>Manter estes resultados e exibir os resultados seguintes em uma nova janela</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1561"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1568"/>
         <source>Toggle table/text view</source>
         <translation>Alternar visualização em tabela/texto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1562"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1569"/>
         <source>Toggle table view</source>
         <translation>Alternar visualização em tabela</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1960"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1967"/>
         <source>Group %1</source>
         <translation>Grupo %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1961"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1968"/>
         <source>Group %1 (%2)</source>
         <translation>Grupo %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1989"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1996"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>grupo %1 de &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2368"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2375"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Alternar visualização em tabela/texto (%1)</translation>
     </message>
@@ -1231,12 +1231,12 @@ Sem data, usa-se %1.</translation>
         <translation>Arquivo truncado no disco</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2247"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2254"/>
         <source>Displayed as %1</source>
         <translation>Exibido como %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2247"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2254"/>
         <source>Detected as %1</source>
         <translation>Detectado como %1</translation>
     </message>
@@ -4157,157 +4157,167 @@ Reinicie o LogSquirl para tentar novamente.</translation>
 <context>
     <name>RegexLabWindow</name>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="271"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="289"/>
         <source>Pattern</source>
         <translation>Padrão</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="273"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="291"/>
         <source>Copy pattern</source>
         <translation>Copiar padrão</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="276"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="294"/>
         <source>&amp;Pattern:</source>
         <translation>&amp;Padrão:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="321"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="339"/>
         <source>Selected Log Lines</source>
         <translation>Linhas de log selecionadas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="322"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="340"/>
         <source>Lines around the current line</source>
         <translation>Linhas ao redor da linha atual</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="324"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="342"/>
         <source>Pasted text</source>
         <translation>Texto colado</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="325"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="343"/>
         <source>Refresh sample</source>
         <translation>Atualizar amostra</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="327"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="345"/>
         <source>&amp;Sample:</source>
         <translation>&amp;Amostra:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="339"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="357"/>
         <source>Paste or type sample lines here.</source>
         <translation>Cole ou digite linhas de exemplo aqui.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="340"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="358"/>
         <source>Sample lines</source>
         <translation>Linhas de exemplo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="345"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="365"/>
         <source>The sub-patterns that match the line</source>
         <translation>Os subpadrões que correspondem à linha</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="365"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="385"/>
         <source>Group</source>
         <translation>Grupo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="365"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="385"/>
         <source>Name</source>
         <translation>Nome</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="365"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="385"/>
         <source>Text</source>
         <translation>Texto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="370"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="390"/>
         <source>Capture groups of the line with the cursor</source>
         <translation>Grupos de captura da linha com o cursor</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="565"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="585"/>
         <source>Regex Lab</source>
         <translation>Laboratório de regex</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="566"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="586"/>
         <source>Regex Lab - %1</source>
         <translation>Laboratório de regex - %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="767"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="791"/>
         <source>(no part in the match)</source>
         <translation>(não participa da correspondência)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="797"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="821"/>
         <source>Sub-patterns: %1</source>
         <translation>Subpadrões: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="824"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="840"/>
+        <source>Line %1: no sub-pattern matches</source>
+        <translation>Linha %1: nenhum subpadrão corresponde</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="841"/>
+        <source>Line %1: sub-patterns %2 match</source>
+        <translation>Linha %1: os subpadrões %2 correspondem</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="864"/>
         <source>Error at character %1 of the pattern: %2</source>
         <translation>Erro no caractere %1 do padrão: %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="865"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="905"/>
         <source>Lines longer than %1 characters are shown and marked only up to there; whether they match is decided on the whole line.</source>
         <translation>Linhas com mais de %1 caracteres são mostradas e marcadas apenas até esse ponto; se correspondem é decidido pela linha inteira.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="870"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="910"/>
         <source>Not every match is marked: at most %1 in a line and %2 in all.</source>
         <translation>Nem toda correspondência é marcada: no máximo %1 por linha e %2 no total.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="888"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="928"/>
         <source>%1 lines took more than %2 ms each. On such a line the engine may have given up and reported no match, as a Search would.</source>
         <translation>%1 linhas levaram mais de %2 ms cada. Numa linha assim o mecanismo pode ter desistido e informado que não há correspondência, como uma pesquisa faria.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="818"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="858"/>
         <source>Error in the pattern: %1</source>
         <translation>Erro no padrão: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="847"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="887"/>
         <source>No Log Lines are selected in the tab.</source>
         <translation>Nenhuma linha de log está selecionada na aba.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="848"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="888"/>
         <source>The tab shows no Log Lines.</source>
         <translation>A aba não mostra linhas de log.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="851"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="891"/>
         <source>Type a pattern to see what it matches in the sample.</source>
         <translation>Digite um padrão para ver o que ele encontra na amostra.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="854"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="894"/>
         <source>%1 of %2 sample lines match.</source>
         <translation>%1 de %2 linhas de exemplo correspondem.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="858"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="898"/>
         <source>The evaluation stopped after %1 ms, at line %2 of %3.</source>
         <translation>A avaliação parou após %1 ms, na linha %2 de %3.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="877"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="917"/>
         <source>Only the first %1 lines of the sample are evaluated.</source>
         <translation>Apenas as primeiras %1 linhas da amostra são avaliadas.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="883"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="923"/>
         <source>Evaluating the sample took %1 ms: the pattern may backtrack excessively on some lines.</source>
         <translation>A avaliação da amostra levou %1 ms: o padrão pode estar fazendo retrocesso excessivo em algumas linhas.</translation>
     </message>

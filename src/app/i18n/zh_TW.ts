@@ -1062,27 +1062,27 @@ Without a date, %1 is used.</source>
         <translation>沒有任何日誌行帶有此日誌格式可讀取的時間戳記。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1475"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1482"/>
         <source>Marks and matches</source>
         <translation>標記和符合項目</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1481"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1488"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>標記、符合項目 + 前後文行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1486"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1493"/>
         <source>Matches + breadcrumbs</source>
         <translation>符合項目 + 前後文行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1491"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1498"/>
         <source>Marks</source>
         <translation>僅標記</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1495"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1502"/>
         <source>Matches</source>
         <translation>僅符合項目</translation>
     </message>
@@ -1126,32 +1126,32 @@ Without a date, %1 is used.</source>
         <translation>搜尋模式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1537"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1544"/>
         <source>Clear search history</source>
         <translation>清除搜尋歷史</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1538"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1545"/>
         <source>Edit search history</source>
         <translation>編輯搜尋歷史</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1539"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1546"/>
         <source>Save as Filter</source>
         <translation>儲存為篩選器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1540"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1547"/>
         <source>Open in Regex Lab...</source>
         <translation>在正規表示式實驗室中開啟...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1542"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1549"/>
         <source>Try out the pattern and its options on Log Lines in the Regex Lab</source>
         <translation>在正規表示式實驗室中以日誌行試用此模式及其選項</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1548"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1555"/>
         <source>Count values of capture group</source>
         <translation>計算擷取群組的值</translation>
     </message>
@@ -1176,32 +1176,32 @@ Without a date, %1 is used.</source>
         <translation>保留這些結果，並在新視窗中顯示後續結果</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1561"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1568"/>
         <source>Toggle table/text view</source>
         <translation>切換表格/文字檢視</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1562"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1569"/>
         <source>Toggle table view</source>
         <translation>切換表格檢視</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1960"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1967"/>
         <source>Group %1</source>
         <translation>群組 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1961"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1968"/>
         <source>Group %1 (%2)</source>
         <translation>群組 %1（%2）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1989"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1996"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>「%2」的群組 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2368"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2375"/>
         <source>Toggle table/text view (%1)</source>
         <translation>切換表格/文字檢視（%1）</translation>
     </message>
@@ -1231,12 +1231,12 @@ Without a date, %1 is used.</source>
         <translation>磁碟上的檔案已被截斷</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2247"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2254"/>
         <source>Displayed as %1</source>
         <translation>顯示為 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2247"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2254"/>
         <source>Detected as %1</source>
         <translation>偵測為 %1</translation>
     </message>
@@ -4156,157 +4156,167 @@ Restart LogSquirl to try again.</source>
 <context>
     <name>RegexLabWindow</name>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="271"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="289"/>
         <source>Pattern</source>
         <translation>模式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="273"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="291"/>
         <source>Copy pattern</source>
         <translation>複製模式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="276"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="294"/>
         <source>&amp;Pattern:</source>
         <translation>模式(&amp;P):</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="321"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="339"/>
         <source>Selected Log Lines</source>
         <translation>選取的日誌行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="322"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="340"/>
         <source>Lines around the current line</source>
         <translation>目前行周圍的行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="324"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="342"/>
         <source>Pasted text</source>
         <translation>貼上的文字</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="325"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="343"/>
         <source>Refresh sample</source>
         <translation>重新整理樣本</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="327"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="345"/>
         <source>&amp;Sample:</source>
         <translation>樣本(&amp;S):</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="339"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="357"/>
         <source>Paste or type sample lines here.</source>
         <translation>在此貼上或輸入樣本行。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="340"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="358"/>
         <source>Sample lines</source>
         <translation>樣本行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="345"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="365"/>
         <source>The sub-patterns that match the line</source>
         <translation>與該行相符的子模式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="365"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="385"/>
         <source>Group</source>
         <translation>群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="365"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="385"/>
         <source>Name</source>
         <translation>名稱</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="365"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="385"/>
         <source>Text</source>
         <translation>文字</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="370"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="390"/>
         <source>Capture groups of the line with the cursor</source>
         <translation>游標所在行的擷取群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="565"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="585"/>
         <source>Regex Lab</source>
         <translation>正規表示式實驗室</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="566"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="586"/>
         <source>Regex Lab - %1</source>
         <translation>正規表示式實驗室 - %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="767"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="791"/>
         <source>(no part in the match)</source>
         <translation>（未參與比對）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="797"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="821"/>
         <source>Sub-patterns: %1</source>
         <translation>子模式：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="824"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="840"/>
+        <source>Line %1: no sub-pattern matches</source>
+        <translation>第 %1 行：沒有相符的子模式</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="841"/>
+        <source>Line %1: sub-patterns %2 match</source>
+        <translation>第 %1 行：子模式 %2 相符</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="864"/>
         <source>Error at character %1 of the pattern: %2</source>
         <translation>模式第 %1 個字元處有錯誤：%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="865"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="905"/>
         <source>Lines longer than %1 characters are shown and marked only up to there; whether they match is decided on the whole line.</source>
         <translation>超過 %1 個字元的行只顯示並標記到該處；是否符合依整行判斷。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="870"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="910"/>
         <source>Not every match is marked: at most %1 in a line and %2 in all.</source>
         <translation>並非每個符合都有標記：每行最多 %1 個，總共最多 %2 個。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="888"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="928"/>
         <source>%1 lines took more than %2 ms each. On such a line the engine may have given up and reported no match, as a Search would.</source>
         <translation>有 %1 行各自花了超過 %2 毫秒。在這樣的行上，引擎可能已放棄並回報不符合，搜尋也會如此。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="818"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="858"/>
         <source>Error in the pattern: %1</source>
         <translation>模式中有錯誤：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="847"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="887"/>
         <source>No Log Lines are selected in the tab.</source>
         <translation>分頁中沒有選取的日誌行。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="848"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="888"/>
         <source>The tab shows no Log Lines.</source>
         <translation>分頁沒有顯示日誌行。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="851"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="891"/>
         <source>Type a pattern to see what it matches in the sample.</source>
         <translation>輸入模式以查看它在樣本中比對到的內容。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="854"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="894"/>
         <source>%1 of %2 sample lines match.</source>
         <translation>%2 行樣本中有 %1 行符合。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="858"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="898"/>
         <source>The evaluation stopped after %1 ms, at line %2 of %3.</source>
         <translation>評估在 %1 毫秒後停止，停在第 %2 行（共 %3 行）。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="877"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="917"/>
         <source>Only the first %1 lines of the sample are evaluated.</source>
         <translation>只評估樣本的前 %1 行。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="883"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="923"/>
         <source>Evaluating the sample took %1 ms: the pattern may backtrack excessively on some lines.</source>
         <translation>評估樣本花了 %1 毫秒：此模式可能在某些行上過度回溯。</translation>
     </message>

@@ -287,13 +287,32 @@ SCENARIO( "The Search Line opens its pattern and options in the Regex Lab", "[ui
                 CHECK( lab.engine() == RegexpEngine::QRegularExpression );
             }
 
-            AND_WHEN( "it is asked for again" )
+            AND_WHEN( "the Search Line changes and the Lab, its pattern unedited, is asked for "
+                      "again" )
             {
-                open.openLab();
+                open.setSearch( "INFO", PlainRegexp );
+                auto& again = open.openLab();
 
-                THEN( "the one Lab is still open" )
+                THEN( "the one Lab takes the Search Line's pattern of now" )
                 {
                     CHECK( open.crawler->findChildren<RegexLabWindow*>().size() == 1 );
+                    CHECK( &again == &lab );
+                    CHECK( lab.pattern() == open.searchLine().request() );
+                }
+            }
+
+            AND_WHEN( "the pattern is edited in the Lab, the Search Line changes and the Lab is "
+                      "asked for again" )
+            {
+                editInLab( lab, "db-1", false, true, false, false );
+                const auto edited = lab.pattern();
+                open.setSearch( "INFO", PlainRegexp );
+                open.openLab();
+
+                THEN( "the one Lab keeps the pattern edited in it" )
+                {
+                    CHECK( open.crawler->findChildren<RegexLabWindow*>().size() == 1 );
+                    CHECK( lab.pattern() == edited );
                 }
             }
         }
@@ -446,6 +465,13 @@ SCENARIO( "A logical combination in the Regex Lab shows which sub-patterns match
                 }
                 CHECK( result.matchingLines == searched.size() );
             }
+
+            THEN( "the numbers beside a line are said in words too" )
+            {
+                // Line 20: ERROR, db-2.
+                CHECK( lab.subPatternsDescription( 20 ).contains( QStringLiteral( "1, 2" ) ) );
+                CHECK( lab.subPatternsDescription( 1 ).contains( QStringLiteral( "no" ) ) );
+            }
         }
     }
 
@@ -464,6 +490,37 @@ SCENARIO( "A logical combination in the Regex Lab shows which sub-patterns match
                 CHECK_FALSE( part<QLabel>( lab, "subPatterns" )->isVisible() );
                 CHECK_FALSE( part<QWidget>( lab, "subPatternColumn" )->isVisible() );
                 CHECK( lab.subPatternsShown( 0 ).isEmpty() );
+            }
+        }
+    }
+}
+
+SCENARIO( "A tab closed with the Regex Lab open takes the Lab along", "[ui][regexlab]" )
+{
+    GIVEN( "the Search Line's pattern open in the Regex Lab, edited there" )
+    {
+        OpenCrawler open;
+        open.setSearch( "ERROR", PlainRegexp );
+        auto& lab = open.openLab();
+        editInLab( lab, "WARN", true, true, false, false );
+
+        QPointer<RegexLabWindow> labPointer( &lab );
+        QSignalSpy applied( &lab, &RegexLabWindow::applied );
+        QSignalSpy edited( &open.searchLine(), &SearchLineWidget::patternEdited );
+        QSignalSpy flagsChanged( &open.searchLine(), &SearchLineWidget::flagsChanged );
+
+        WHEN( "the tab is closed" )
+        {
+            open.crawler.reset();
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+            QTest::qWait( 300 );
+
+            THEN( "the Lab is gone, and nothing was written into the Search Line" )
+            {
+                CHECK( labPointer.isNull() );
+                CHECK( applied.isEmpty() );
+                CHECK( edited.isEmpty() );
+                CHECK( flagsChanged.isEmpty() );
             }
         }
     }

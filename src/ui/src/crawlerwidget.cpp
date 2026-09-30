@@ -932,6 +932,12 @@ void CrawlerWidget::saveAsPredefinedFilter()
 void CrawlerWidget::openSearchInRegexLab()
 {
     if ( !searchRegexLab_.isNull() ) {
+        // A pattern not yet edited in the Lab follows the Search Line; one
+        // the user edited there stays.
+        if ( searchRegexLab_->pattern() == searchRegexLabOpenedWith_ ) {
+            searchRegexLabOpenedWith_ = searchLine_->request();
+            searchRegexLab_->setPattern( searchRegexLabOpenedWith_ );
+        }
         searchRegexLab_->raise();
         searchRegexLab_->activateWindow();
         return;
@@ -945,7 +951,8 @@ void CrawlerWidget::openSearchInRegexLab()
 
     // The pattern exactly as the Search Line requests a Search: a Wildcard
     // or Fixed String reading comes to the Lab as plain text.
-    lab->setPattern( searchLine_->request() );
+    searchRegexLabOpenedWith_ = searchLine_->request();
+    lab->setPattern( searchRegexLabOpenedWith_ );
     lab->offerApply( true );
     lab->setSampleSource(
         regexLabSampleSource( *this, QFileInfo( openLogFile_->fileName() ).fileName() ) );

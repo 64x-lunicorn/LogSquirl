@@ -28,9 +28,9 @@
   every option the search line reads it with -- *Match case*, *Use regex* (a
   *Wildcard* or *Fixed String* search comes as plain text), *Inverse match*,
   *Boolean combining* -- on the Log Lines of the tab and with the engine its
-  searches run on. *Apply* writes the pattern and the options back into the
-  search line as though typed, and runs the search only when *Auto-refresh* is
-  on; *Cancel* leaves it as it was. For a logical combination the Lab lists
+  searches run on. *Apply* fills the search line with the pattern and sets its
+  options; it runs the search only when *Auto-refresh* is on. *Cancel* leaves
+  the search line as it was. For a logical combination the Lab lists
   its sub-patterns and shows beside each line which of them match it, the
   line's verdict being exactly the search's. (#661)
 - **A session saves to and opens from a file**: *File → Save Session As…*

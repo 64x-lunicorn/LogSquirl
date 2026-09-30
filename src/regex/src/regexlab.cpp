@@ -259,6 +259,7 @@ LineResult evaluateLine( const PatternMatcher& matcher,
     if ( decision ) {
         decided = decision( wholeLine );
         result.isMatch = decided.has_value();
+        result.isSlow = Clock::now() - started > bounds.slowLine;
     }
     else {
         // The Search matches the whole line's text as UTF-8 (see
@@ -266,6 +267,9 @@ LineResult evaluateLine( const PatternMatcher& matcher,
         const auto utf8 = wholeLine.toUtf8();
         const std::string_view text( utf8.constData(), static_cast<std::size_t>( utf8.size() ) );
         result.isMatch = matcher.hasMatch( text );
+        // What the Search spends on the line is what tells a slow one: the
+        // scans below are the Lab's own.
+        result.isSlow = Clock::now() - started > bounds.slowLine;
         // Which sub-patterns of a combination match, from the same engine the
         // verdict comes from.
         if ( subPatternCount > 0 ) {
@@ -319,7 +323,6 @@ LineResult evaluateLine( const PatternMatcher& matcher,
     std::ranges::sort( result.matches, []( const MatchSpan& left, const MatchSpan& right ) {
         return std::tie( left.start, left.subPattern ) < std::tie( right.start, right.subPattern );
     } );
-    result.isSlow = Clock::now() - started > bounds.slowLine;
     return result;
 }
 

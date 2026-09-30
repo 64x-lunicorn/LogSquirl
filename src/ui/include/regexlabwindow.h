@@ -189,6 +189,10 @@ public:
     // For a logical combination: the sub-patterns shown beside a line of the
     // sample as matching it, numbered from 1 as written (#661).
     QList<int> subPatternsShown( int line ) const;
+    // The same in words, as the column beside the sample tells it when
+    // hovered and to a screen reader for the line with the cursor; empty for
+    // any other pattern.
+    QString subPatternsDescription( int line ) const;
 
     // How far an evaluation goes.
     static regexlab::Bounds bounds();

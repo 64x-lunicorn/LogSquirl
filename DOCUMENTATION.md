@@ -541,7 +541,7 @@ While you type, the Lab shows after a short pause:
   and in their colors, and beside each line the numbers of those that match
   it -- a negated one included, since it is its match that `not(...)` turns
   round. Whether the line matches is the combination's verdict, as a search
-  decides it;
+  decides it. Hovering the numbers says them in words;
 - for the line with the cursor, the capture groups of its first match,
   numbered and with their names (`(?<name>...)`); for a logical combination
   they are numbered *sub-pattern.group*, as in `2.1`;
@@ -568,11 +568,12 @@ Lab with the search line's pattern and every option it reads it with: *Match
 case*, *Use regex* -- a search line set to *Wildcard* or *Fixed String* reads
 the pattern as plain text, and so does the Lab --, *Inverse match* and
 *Boolean combining*. The Lab is tied to that tab and matches with the engine
-its searches run on; choosing the entry again brings it to the front as it is,
-and it closes with the tab. *Apply* writes the pattern and the options back
-into the search line, as if you had typed the pattern and set the buttons:
-the search does not run by itself, unless *Auto-refresh* is on -- then it runs
-with the pattern applied. *Cancel* or closing the Lab changes nothing.
+its searches run on, and it closes with the tab. Choosing the entry again
+brings it to the front; while you have not edited the pattern in the Lab, it
+takes the search line's pattern and options of then. *Apply* fills the search
+line with the pattern and sets its buttons. It runs the search only when
+*Auto-refresh* is on; otherwise the search runs when you start it. *Cancel*
+or closing the Lab changes nothing.
 
 ### Using highlighters
 

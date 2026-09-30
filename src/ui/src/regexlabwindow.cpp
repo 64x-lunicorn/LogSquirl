@@ -34,6 +34,7 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QHelpEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPainter>
@@ -46,6 +47,7 @@
 #include <QTableWidget>
 #include <QTextBlock>
 #include <QTimer>
+#include <QToolTip>
 #include <QVBoxLayout>
 
 namespace {
@@ -157,10 +159,11 @@ private:
 class RegexLabSubPatternColumn : public QWidget {
 public:
     RegexLabSubPatternColumn( const regexlab::Result& result, QPlainTextEdit& text,
-                              QWidget* parent )
+                              std::function<QString( int line )> describe, QWidget* parent )
         : QWidget( parent )
         , result_( result )
         , text_( text )
+        , describe_( std::move( describe ) )
     {
         setObjectName( QStringLiteral( "subPatternColumn" ) );
         setFont( text.font() );
@@ -197,6 +200,20 @@ public:
     }
 
 protected:
+    // Hovering a line says in words which sub-patterns match it.
+    bool event( QEvent* event ) override
+    {
+        if ( event->type() == QEvent::ToolTip ) {
+            const auto* help = static_cast<QHelpEvent*>( event );
+            const auto top = mapFromGlobal( text_.viewport()->mapToGlobal( QPoint( 0, 0 ) ) ).y();
+            const auto block
+                = text_.cursorForPosition( QPoint( 0, help->pos().y() - top ) ).block();
+            QToolTip::showText( help->globalPos(), describe_( block.blockNumber() ), this );
+            return true;
+        }
+        return QWidget::event( event );
+    }
+
     void paintEvent( QPaintEvent* ) override
     {
         if ( result_.subPatterns.isEmpty() ) {
@@ -229,6 +246,7 @@ protected:
 private:
     const regexlab::Result& result_;
     QPlainTextEdit& text_;
+    std::function<QString( int line )> describe_;
     int slotWidth_ = 0;
 };
 
@@ -341,8 +359,10 @@ void RegexLabWindow::buildWidgets()
     marks_ = new RegexLabMarks( result_, sampleText_->document() );
 
     auto* sampleArea = new QWidget( this );
-    subPatternColumn_ = new RegexLabSubPatternColumn( result_, *sampleText_, sampleArea );
-    subPatternColumn_->setToolTip( tr( "The sub-patterns that match the line" ) );
+    subPatternColumn_ = new RegexLabSubPatternColumn(
+        result_, *sampleText_, [ this ]( int line ) { return subPatternsDescription( line ); },
+        sampleArea );
+    subPatternColumn_->setAccessibleName( tr( "The sub-patterns that match the line" ) );
     auto* sampleAreaLayout = new QHBoxLayout( sampleArea );
     sampleAreaLayout->setContentsMargins( 0, 0, 0, 0 );
     sampleAreaLayout->setSpacing( 0 );
@@ -745,6 +765,10 @@ void RegexLabWindow::showResult( regexlab::Result result )
 
 void RegexLabWindow::showGroups()
 {
+    // The sub-patterns of the line with the cursor, for a screen reader.
+    subPatternColumn_->setAccessibleDescription(
+        subPatternsDescription( sampleText_->textCursor().blockNumber() ) );
+
     groups_->setRowCount( 0 );
     const auto line = static_cast<std::size_t>( sampleText_->textCursor().blockNumber() );
     if ( result_.error.has_value() || line >= result_.lines.size() ) {
@@ -801,6 +825,22 @@ void RegexLabWindow::showSubPatterns()
 QList<int> RegexLabWindow::subPatternsShown( int line ) const
 {
     return subPatternColumn_->subPatternsShown( line );
+}
+
+QString RegexLabWindow::subPatternsDescription( int line ) const
+{
+    if ( result_.subPatterns.isEmpty() || line < 0
+         || static_cast<std::size_t>( line ) >= result_.lines.size() ) {
+        return {};
+    }
+    QStringList numbers;
+    for ( const auto number : subPatternsShown( line ) ) {
+        numbers.append( QString::number( number ) );
+    }
+    return numbers.isEmpty() ? tr( "Line %1: no sub-pattern matches" ).arg( line + 1 )
+                             : tr( "Line %1: sub-patterns %2 match" )
+                                   .arg( line + 1 )
+                                   .arg( numbers.join( QStringLiteral( ", " ) ) );
 }
 
 void RegexLabWindow::showError()

@@ -63,7 +63,7 @@ struct Bounds {
     // An evaluation that took longer, or ran out of time, is reported as
     // slow: a hint at a pattern that backtracks catastrophically.
     std::chrono::milliseconds slowThreshold{ 250 };
-    // A single line that took longer is reported as slow. The engines give
+    // A single line whose verdict took longer is reported as slow. The engines give
     // up on a line once they have backtracked too much, and then say only
     // that it does not match: its time is what shows it.
     std::chrono::milliseconds slowLine{ 20 };
@@ -114,7 +114,8 @@ struct LineResult {
     bool isMatch = false;
     // Only the first Bounds::maxLineLength characters are marked.
     bool isCut = false;
-    // The line took longer than Bounds::slowLine.
+    // Deciding the line took longer than Bounds::slowLine: what the Search,
+    // or whoever decides, spent on it -- not what the Lab spends marking it.
     bool isSlow = false;
     logsquirl::vector<MatchSpan> matches;
     logsquirl::vector<CaptureGroup> groups;

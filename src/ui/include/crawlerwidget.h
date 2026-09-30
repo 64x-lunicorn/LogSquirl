@@ -127,11 +127,12 @@ public:
 
     // Opens the Search Line's pattern, with the options it reads it with, in
     // the Regex Lab (#661): tied to this tab, matching with the engine its
-    // Searches run on, and offering Apply and Cancel. Apply writes the
-    // pattern and the options back into the Search Line as typing them and
-    // setting the buttons does, and runs the Search when auto-refresh is on;
-    // Cancel or closing the Lab changes nothing. Asked again while it is
-    // open, the Lab comes to the front as it is. It goes with the tab.
+    // Searches run on, and offering Apply and Cancel. Apply fills the Search
+    // Line with the pattern and sets its buttons; it runs the Search only
+    // when auto-refresh is on. Cancel or closing the Lab changes nothing.
+    // Asked again while it is open, the Lab comes to the front, with the
+    // Search Line's pattern of then unless the user edited the pattern in the
+    // Lab. It goes with the tab.
     void openSearchInRegexLab();
     // Reads the text of Log Lines, what a Search matches, also off the UI
     // thread: it holds on to the Log File's data for as long as it lives.
@@ -539,6 +540,10 @@ private:
     QMenu* countValuesMenu_ = nullptr;
     // The Regex Lab the Search Line's pattern is open in, if any.
     QPointer<RegexLabWindow> searchRegexLab_;
+    // The pattern the Lab was last given from the Search Line: while the Lab
+    // still has it, asking for the Lab again gives it the Search Line's
+    // pattern of then.
+    RegularExpressionPattern searchRegexLabOpenedWith_;
 
     std::map<QString, QShortcut*> shortcuts_;
 
