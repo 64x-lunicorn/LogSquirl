@@ -241,7 +241,15 @@ ShellInvocation shellInvocation( const QString& commandLine, const QString& shel
     invocation.nativeArguments = QStringLiteral( "/d /s /c \"%1\"" ).arg( commandLine );
 #else
     invocation.program = shell.isEmpty() ? QStringLiteral( "/bin/sh" ) : shell;
-    invocation.arguments = { QStringLiteral( "-l" ), QStringLiteral( "-c" ), commandLine };
+    // csh and tcsh take -l only as their sole flag (#632); they read
+    // ~/.tcshrc or ~/.cshrc with -c, too, where their users set PATH.
+    const auto shellName = QFileInfo( invocation.program ).fileName();
+    if ( shellName == QLatin1String( "csh" ) || shellName == QLatin1String( "tcsh" ) ) {
+        invocation.arguments = { QStringLiteral( "-c" ), commandLine };
+    }
+    else {
+        invocation.arguments = { QStringLiteral( "-l" ), QStringLiteral( "-c" ), commandLine };
+    }
 #endif
     return invocation;
 }

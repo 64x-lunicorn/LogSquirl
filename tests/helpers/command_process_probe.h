@@ -35,15 +35,16 @@
 #include <sys/sysctl.h>
 #endif
 
-// Commands run through /bin/sh while this lives, rather than through the
-// login shell of whoever runs the tests, whose profile may be slow or talk.
+// Commands run through /bin/sh -- or the shell given -- while this lives,
+// rather than through the login shell of whoever runs the tests, whose profile
+// may be slow or talk.
 class ShellForTests {
 public:
-    ShellForTests()
+    explicit ShellForTests( const QByteArray& shell = "/bin/sh" )
         : previous_( qgetenv( "SHELL" ) )
         , hadShell_( qEnvironmentVariableIsSet( "SHELL" ) )
     {
-        qputenv( "SHELL", "/bin/sh" );
+        qputenv( "SHELL", shell );
     }
 
     ~ShellForTests()

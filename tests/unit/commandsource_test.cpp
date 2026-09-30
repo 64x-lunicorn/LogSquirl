@@ -86,9 +86,10 @@ struct Run {
     std::optional<CommandEnd> end;
 };
 
-Run runToEnd( const QString& commandLine, bool includeStandardError = true )
+Run runToEnd( const QString& commandLine, bool includeStandardError = true,
+              const QByteArray& shellPath = "/bin/sh" )
 {
-    const ShellForTests shell;
+    const ShellForTests shell( shellPath );
     Run run;
     QString error;
     run.source = CommandSource::startCommand(
@@ -120,6 +121,24 @@ TEST_CASE( "A command line runs through the user's shell", "[commandsource]" )
     CHECK( invocation.program == "/bin/zsh" );
     CHECK( invocation.arguments == QStringList{ "-l", "-c", "kubectl logs -f api | grep ERROR" } );
     CHECK( shellInvocation( "true", {} ).program == "/bin/sh" );
+    CHECK( shellInvocation( "true", "/bin/bash" ).arguments == QStringList{ "-l", "-c", "true" } );
+#endif
+}
+
+// csh and tcsh take -l only as their sole flag (#632).
+TEST_CASE( "A command line runs through csh and tcsh without -l", "[commandsource]" )
+{
+    const auto shell = GENERATE( QStringLiteral( "/bin/tcsh" ), QStringLiteral( "/bin/csh" ),
+                                 QStringLiteral( "/usr/local/bin/tcsh" ) );
+    INFO( shell.toStdString() );
+    const auto invocation = shellInvocation( "echo hello", shell );
+#ifdef Q_OS_WIN
+    CHECK( invocation.program == shell );
+    CHECK( invocation.arguments.isEmpty() );
+    CHECK( invocation.nativeArguments == "/d /s /c \"echo hello\"" );
+#else
+    CHECK( invocation.program == shell );
+    CHECK( invocation.arguments == QStringList{ "-c", "echo hello" } );
 #endif
 }
 
@@ -290,6 +309,18 @@ TEST_CASE( "A command killed by a signal ends as stopped", "[commandsource]" )
 {
     const auto run = runToEnd( "kill -9 $$" );
     CHECK( run.end->kind == CommandEnd::Kind::Stopped );
+}
+
+TEST_CASE( "A command line runs in tcsh", "[commandsource]" )
+{
+    if ( !QFileInfo( "/bin/tcsh" ).isExecutable() ) {
+        SKIP( "/bin/tcsh is not installed" );
+    }
+
+    const auto run = runToEnd( "echo hello", true, "/bin/tcsh" );
+    REQUIRE( run.end->kind == CommandEnd::Kind::Exited );
+    CHECK( run.end->exitCode == 0 );
+    CHECK( contentOf( run.source->spoolPath() ) == "hello\n" );
 }
 
 TEST_CASE( "A pipe works in a command line", "[commandsource]" )

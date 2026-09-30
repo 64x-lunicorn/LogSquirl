@@ -358,6 +358,10 @@ without anything else to install: `ssh host tail -f /var/log/syslog`,
   login shell (`$SHELL -l -c "…"`, `/bin/sh` when `SHELL` is not set), so that
   the programs of your `PATH` are found even when *logsquirl* was started from
   the Finder or the Dock; on Windows through `cmd.exe /d /s /c "…"`.
+* csh and tcsh do not take `-l` together with `-c`: with either of them as
+  your shell the command line runs as `$SHELL -c "…"`, not as a login shell.
+  `~/.tcshrc` or `~/.cshrc` is read, `~/.login` and `/etc/csh.login` are not,
+  so set your `PATH` in `~/.tcshrc` or `~/.cshrc`.
 * The tab is named after the command line, shortened in the middle to 40
   characters; its tooltip shows the whole command line, the working folder and
   the temporary file the output is kept in.

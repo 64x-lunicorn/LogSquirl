@@ -53,6 +53,11 @@
 
 ## Bug fixes
 
+- **Open Command Output runs commands in csh and tcsh**: with csh or tcsh as
+  the login shell, every command ended at once with exit code 1 and the
+  shell's `Unknown option: '-l'` in its tab. The command line now runs in
+  them as `$SHELL -c "…"`: `~/.tcshrc` or `~/.cshrc` is read, `~/.login` and
+  `/etc/csh.login` are not. (#632)
 - **A Windows plugin loads with the libraries it ships**: a plugin that brings
   a library LogSquirl does not have, such as a Qt module, in its own plugin
   directory loads; before, Windows did not look there and the plugin failed to

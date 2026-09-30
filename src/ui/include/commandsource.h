@@ -56,7 +56,8 @@ struct CommandEnd {
 // How a command line is run through the user's shell (#575): on macOS and
 // Linux as `$SHELL -l -c "<command line>"` -- a login shell, so that an
 // application started from the Finder or the Dock finds what the user's PATH
-// finds -- with /bin/sh when `shell` is empty; on Windows as
+// finds -- with /bin/sh when `shell` is empty, and as `$SHELL -c "<command
+// line>"` for csh and tcsh, which take no -l with -c (#632); on Windows as
 // `cmd.exe /d /s /c "<command line>"`, given as native arguments so that
 // nothing is quoted again.
 struct ShellInvocation {
