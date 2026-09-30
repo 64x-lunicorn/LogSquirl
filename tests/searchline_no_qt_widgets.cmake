@@ -1,7 +1,8 @@
 # Fails when the Search Line depends on Qt Widgets: when a file under
 # src/searchline includes a Qt Widgets header, or when logsquirl_searchline
-# links Qt6::Widgets. The Crawler Widget hands it every event and mirrors what
-# it shows, so it knows no widget and is tested without one (#399).
+# links Qt6::Widgets. The Search Line widget of the UI library hands it every
+# event and mirrors what it shows (#638), so it knows no widget and is tested
+# without one (#399).
 #
 # Fails too when logsquirl_searchline links logsquirl_settings or the UI
 # library: it is handed the QuickFind Policy.

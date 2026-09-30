@@ -28,7 +28,7 @@
 #include "predefinedfilter.h"
 #include "regularexpressionpattern.h"
 #include "searchautorefresh.h"
-#include "searchsession.h"
+#include "searchsessionstate.h"
 #include "settingspolicies.h"
 
 // The Search Line: the pattern of a Search, the buttons that say how it is
@@ -36,8 +36,9 @@
 //
 // It knows no widget. Each event goes in -- the user edits the pattern or a
 // button, a word is added to the Search, the Search is requested, progresses,
-// stops -- and the Crawler Widget then mirrors flags(), pattern() and
-// display(). The search history offered while typing is not part of it.
+// stops -- and the Search Line widget of the UI library then mirrors
+// flags(), pattern() and display() (#638). The search history offered while
+// typing is not part of it.
 class SearchLine {
 public:
     // How the pattern is read: the buttons of the line.
@@ -106,10 +107,10 @@ public:
     RegularExpressionPattern request() const;
 
     // A Search was requested: it runs, or its pattern is in error.
-    void requested( const SearchSession::State& state );
+    void requested( const SearchSessionState& state );
     // The Search tells how far it came, or that it is done one way or
     // another.
-    void progressed( const SearchSession::State& state, SearchAutoRefresh::State autoRefresh );
+    void progressed( const SearchSessionState& state, SearchAutoRefresh::State autoRefresh );
     // The user stopped the Search; the Filtered View holds the Matches it
     // found until then.
     void stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount );

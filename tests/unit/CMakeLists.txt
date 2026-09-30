@@ -72,7 +72,7 @@ add_executable(logsquirl_tests
     stdinpump_test.cpp
     quickfind_test.cpp
     quickfindmux_test.cpp
-    searchblockutf8view_test.cpp
+    loglinetext_test.cpp
     quickfindwidget_test.cpp
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp

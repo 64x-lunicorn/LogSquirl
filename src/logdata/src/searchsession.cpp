@@ -23,8 +23,11 @@
 #include <numeric>
 #include <utility>
 
+#include <KDSignalThrottler.h>
+
 #include "log.h"
 #include "logdatametatypes.h"
+#include "logfiltereddataworker.h"
 #include "regularexpression.h"
 #include "searchblocksource.h"
 
@@ -55,20 +58,21 @@ SearchSession::SearchSession( const SearchBlockSource& blockSource,
                               const SearchPolicy& searchPolicy )
     : blockSource_( blockSource )
     , searchPolicy_( searchPolicy )
-    , workerThread_( blockSource, searchPolicy )
+    , workerThread_( std::make_unique<LogFilteredDataWorker>( blockSource, searchPolicy ) )
+    , progressThrottler_( std::make_unique<KDToolBox::KDSignalThrottler>() )
 {
     // A Search can be run without any log data, on a block source of its own.
     registerLogDataMetaTypes();
 
-    connect( &workerThread_, &LogFilteredDataWorker::searchProgressed, this,
+    connect( workerThread_.get(), &LogFilteredDataWorker::searchProgressed, this,
              &SearchSession::handleSearchProgressed );
-    connect( &workerThread_, &LogFilteredDataWorker::searchFinished, this,
+    connect( workerThread_.get(), &LogFilteredDataWorker::searchFinished, this,
              &SearchSession::handleSearchFinished );
 
-    progressThrottler_.setTimeout( 100 );
-    connect( this, &SearchSession::resultsReady, &progressThrottler_,
+    progressThrottler_->setTimeout( 100 );
+    connect( this, &SearchSession::resultsReady, progressThrottler_.get(),
              &KDToolBox::KDGenericSignalThrottler::throttle );
-    connect( &progressThrottler_, &KDToolBox::KDGenericSignalThrottler::triggered, this,
+    connect( progressThrottler_.get(), &KDToolBox::KDGenericSignalThrottler::triggered, this,
              &SearchSession::emitThrottledStateChanged );
 }
 
@@ -81,8 +85,8 @@ SearchSession::~SearchSession()
 {
     currentSearchId_ = SearchId( 0 );
     disconnect();
-    progressThrottler_.disconnect();
-    workerThread_.disconnect();
+    progressThrottler_->disconnect();
+    workerThread_->disconnect();
 }
 
 void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber startLine,
@@ -150,7 +154,7 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
 void SearchSession::setSearchPolicy( const SearchPolicy& searchPolicy )
 {
     searchPolicy_ = searchPolicy;
-    workerThread_.setSearchPolicy( searchPolicy );
+    workerThread_->setSearchPolicy( searchPolicy );
 }
 
 void SearchSession::request( const RegularExpressionPattern& pattern )
@@ -260,9 +264,9 @@ void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumbe
     applyState( std::move( newState ) );
 
     currentSearchId_ = isContinuation
-                           ? workerThread_.updateSearch( compiledExpression, startLine, endLine,
-                                                         LineNumber( nbLinesProcessed_.get() ) )
-                           : workerThread_.search( compiledExpression, startLine, endLine );
+                           ? workerThread_->updateSearch( compiledExpression, startLine, endLine,
+                                                          LineNumber( nbLinesProcessed_.get() ) )
+                           : workerThread_->search( compiledExpression, startLine, endLine );
 
     notifyStateChanged();
 }
@@ -377,7 +381,7 @@ void SearchSession::applyState( State newState )
 
 void SearchSession::invalidateCurrentRun()
 {
-    workerThread_.interrupt();
+    workerThread_->interrupt();
     currentSearchId_ = SearchId( 0 );
 }
 
@@ -446,7 +450,7 @@ void SearchSession::handleSearchProgressed( int progress, SearchId searchId )
         return;
     }
 
-    applyIncomingResults( workerThread_.getSearchResults() );
+    applyIncomingResults( workerThread_->getSearchResults() );
 
     {
         ScopedLock lock( stateMutex_ );
@@ -486,7 +490,7 @@ void SearchSession::handleSearchFinished( SearchId searchId, bool interrupted,
         return;
     }
 
-    applyIncomingResults( workerThread_.getSearchResults() );
+    applyIncomingResults( workerThread_->getSearchResults() );
 
     if ( interrupted ) {
         // Report neither completion nor 100%: an interrupted run is not a

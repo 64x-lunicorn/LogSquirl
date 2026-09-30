@@ -57,6 +57,13 @@
   a library LogSquirl does not have, such as a Qt module, in its own plugin
   directory loads; before, Windows did not look there and the plugin failed to
   load with error 126.
+- **One Return runs one Search**: pressing Return in the Search line ran the
+  Search twice; with *Keep Results* checked, the second run went into the tab
+  the first one had just opened. It now runs once. (#648)
+- **A Log Line reads the same after a cut-short character**: when a Log Line
+  ended in the middle of a multibyte character, the first character of the
+  next Log Line was shown as a replacement character in the views, though
+  the same Log Line read on its own was right. It now shows as written. (#649)
 - **A Log File that grows while it first loads shows all of it**: lines written
   while a tab was still loading, such as the whole output of a short command,
   no longer stay missing until the file grows again (#629).

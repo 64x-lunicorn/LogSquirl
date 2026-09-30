@@ -158,11 +158,11 @@ RegularExpressionPattern SearchLine::request() const
                                      flags_.booleanCombination, !flags_.useRegexp );
 }
 
-void SearchLine::requested( const SearchSession::State& state )
+void SearchLine::requested( const SearchSessionState& state )
 {
     display_.offerIssueReport.clear();
 
-    if ( state.phase != SearchSession::Phase::InvalidPattern ) {
+    if ( state.phase != SearchSessionPhase::InvalidPattern ) {
         display_.buttons = Buttons::Stop;
         display_.visible = false;
         display_.isError = false;
@@ -174,10 +174,9 @@ void SearchLine::requested( const SearchSession::State& state )
     }
 }
 
-void SearchLine::progressed( const SearchSession::State& state,
-                             SearchAutoRefresh::State autoRefresh )
+void SearchLine::progressed( const SearchSessionState& state, SearchAutoRefresh::State autoRefresh )
 {
-    using Phase = SearchSession::Phase;
+    using Phase = SearchSessionPhase;
 
     // No Search: nothing to tell, and nothing to take back of what whoever
     // drove the Search Session idle has shown.

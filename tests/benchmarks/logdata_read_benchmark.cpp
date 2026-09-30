@@ -125,7 +125,8 @@ void benchmarkReads( const LoadedLogFile& logFile, const std::string& decoding )
 
     BENCHMARK( "a block's UTF-8 view for a Search, " + decoding )
     {
-        const auto rawLines = logData.getLinesRaw( 0_lnum, LinesCount( LogLineCount ) );
+        const auto rawLines
+            = logData.searchBlockSource().getLinesRaw( 0_lnum, LinesCount( LogLineCount ) );
         return rawLines.buildUtf8View().size();
     };
 }

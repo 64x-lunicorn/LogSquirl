@@ -27,6 +27,7 @@
 #include "logtableview.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
+#include "searchlinewidget_access.h"
 #include "session.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
@@ -85,9 +86,9 @@ struct CrawlerWidget::access_by<TableViewFollowTest> {
     // first when keep says so.
     static void search( CrawlerWidget& crawler, const QString& pattern, bool keep )
     {
-        crawler.keepSearchResultsButton_->setChecked( keep );
-        crawler.searchLineEdit_->setEditText( pattern );
-        crawler.startNewSearch();
+        SearchLineAccess::keepResultsButton( *crawler.searchLine_ )->setChecked( keep );
+        SearchLineAccess::patternEdit( *crawler.searchLine_ )->setEditText( pattern );
+        crawler.searchLine_->requestSearch();
     }
 
     static std::vector<FilteredView*> filteredViews( CrawlerWidget& crawler )

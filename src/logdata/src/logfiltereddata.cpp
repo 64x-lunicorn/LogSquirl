@@ -141,11 +141,6 @@ LinesCount LogFilteredData::getNbMatches() const
     return LinesCount( session_.matches().cardinality() );
 }
 
-LinesCount LogFilteredData::getNbMarks() const
-{
-    return LinesCount( displayedLines_.marks().cardinality() );
-}
-
 SearchResultArray LogFilteredData::copyDisplayedLines() const
 {
     return displayedLines_.lines();
@@ -156,26 +151,9 @@ const LogData& LogFilteredData::sourceLogData() const
     return *sourceLogData_;
 }
 
-LogFilteredData::LineType LogFilteredData::lineTypeByIndex( LineNumber index ) const
-{
-    return lineTypeByLine( findLogDataLine( index ) );
-}
-
 LogFilteredData::LineType LogFilteredData::lineTypeByLine( LineNumber lineNumber ) const
 {
     return displayedLines_.lineType( lineNumber );
-}
-
-void LogFilteredData::iterateOverLines( const std::function<void( LineNumber )>& callback ) const
-{
-    using CallbackFn = std::function<void( LineNumber )>;
-    displayedLines_.lines().iterate(
-        []( uint64_t line, void* context ) -> bool {
-            auto* callbackFn = static_cast<CallbackFn*>( context );
-            callbackFn->operator()( LineNumber( line ) );
-            return true;
-        },
-        static_cast<void*>( const_cast<CallbackFn*>( &callback ) ) );
 }
 
 DisplayedLines::Count LogFilteredData::countDisplayedLines( LineNumber first, LineNumber end ) const
@@ -228,11 +206,6 @@ OptionalLineNumber LogFilteredData::getMarkAfter( LineNumber line ) const
 OptionalLineNumber LogFilteredData::getMarkBefore( LineNumber line ) const
 {
     return displayedLines_.markBefore( line );
-}
-
-void LogFilteredData::deleteMark( LineNumber line )
-{
-    displayedLines_.removeMark( line );
 }
 
 void LogFilteredData::clearMarks()
@@ -348,11 +321,6 @@ logsquirl::vector<AnsiColoredText> LogFilteredData::doGetAnsiColoredLines( LineN
     auto lines = sourceLogData_->getAnsiColoredLinesSparse( logLines );
     lines.resize( number.get() );
     return lines;
-}
-
-LineNumber LogFilteredData::doGetLineNumber( LineNumber index ) const
-{
-    return getMatchingLineNumber( index );
 }
 
 // Implementation of the virtual function.
