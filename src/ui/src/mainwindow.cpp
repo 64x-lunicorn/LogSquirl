@@ -3002,8 +3002,11 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
                 return false;
             }
 
-            const auto selectedFiles = QFileDialog::getOpenFileNames(
-                this, tr( "Open file from archive" ), archiveDir.path(), tr( "All files (*)" ) );
+            const auto selectedFiles
+                = chooseArchiveMembers_
+                      ? chooseArchiveMembers_( this, archiveDir.path() )
+                      : QFileDialog::getOpenFileNames( this, tr( "Open file from archive" ),
+                                                       archiveDir.path(), tr( "All files (*)" ) );
 
             const QDir extracted{ archiveDir.path() };
             for ( const auto& extractedFile : selectedFiles ) {
@@ -3026,6 +3029,11 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
     }
 
     return false;
+}
+
+void MainWindow::setArchiveMemberChooser( ArchiveMemberChooser chooser )
+{
+    chooseArchiveMembers_ = std::move( chooser );
 }
 
 bool MainWindow::loadFile( const QString& fileName, bool followFile )

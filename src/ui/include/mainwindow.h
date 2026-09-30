@@ -54,6 +54,7 @@
 #include <QToolButton>
 #include <QTranslator>
 #include <array>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -164,6 +165,14 @@ public:
     // tab, and returns false.
     bool openLogFile( const QString& fileName, LogFileProvenance provenance,
                       bool followFile = false );
+
+    // Asks which of the files an archive was extracted into `directory` to
+    // open; empty when the user cancels. A QFileDialog unless a test hands its
+    // own: Qt's file dialog starts a thread that ThreadSanitizer sees race
+    // with the dialog itself (#634).
+    using ArchiveMemberChooser
+        = std::function<QStringList( QWidget* parent, const QString& directory )>;
+    void setArchiveMemberChooser( ArchiveMemberChooser chooser );
 
     void reTranslateUI();
 
@@ -547,6 +556,7 @@ private:
     // it is read from: the Session saves that instead (#596), and the recent
     // files, tab names and tab groups know it by that (#609).
     QHash<QString, ArchiveMember> archiveMembers_;
+    ArchiveMemberChooser chooseArchiveMembers_;
     // The tab names and groups of a Session File for its Log Files from an
     // archive, applied to each as it opens (#576).
     WindowSnapshot pendingTabLabels_;

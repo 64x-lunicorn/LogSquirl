@@ -32,9 +32,7 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
-#include <QFileDialog>
 #include <QHeaderView>
-#include <QLineEdit>
 #include <QListWidget>
 #include <QProcess>
 #include <QPushButton>
@@ -633,27 +631,21 @@ TEST_CASE( "A window closed right after opening a followed Log File leaves its t
 namespace {
 
 // Answers what opening an archive or a URL shows once it is under way: the
-// progress, which closes itself when it is done, and, for an archive of
-// several files, the file dialog, where `member` is picked.
-std::function<void( QDialog& )> answerProgressAndMember( ModalAnswers& modals,
-                                                         const QString& member )
+// progress, which closes itself when it is done.
+std::function<void( QDialog& )> answerProgress()
 {
-    return [ &modals, member ]( QDialog& modal ) {
-        if ( auto* files = qobject_cast<QFileDialog*>( &modal ) ) {
-            // Typed, as the directory may not be listed yet.
-            auto* name = files->findChild<QLineEdit*>( "fileNameEdit" );
-            REQUIRE( name != nullptr );
-            name->setText( member );
-            // Through QDialog, where accept() is public: the file dialog's own
-            // reads the name typed.
-            modal.accept();
-            return;
-        }
-        waitUiState( [ &modal ] { return !modal.isVisible(); }, 30'000 );
-        if ( !member.isEmpty() ) {
-            modals.answerWith( answerProgressAndMember( modals, member ) );
-        }
-    };
+    return
+        []( QDialog& modal ) { waitUiState( [ &modal ] { return !modal.isVisible(); }, 30'000 ); };
+}
+
+// Has the window pick `member` of an archive of several files where the user
+// would pick it in the file dialog, which the tests do not open: Qt's file
+// dialog races with itself under ThreadSanitizer (#634).
+void pickArchiveMember( MainWindow& window, const QString& member )
+{
+    window.setArchiveMemberChooser( [ member ]( QWidget*, const QString& directory ) {
+        return QStringList{ QDir( directory ).filePath( member ) };
+    } );
 }
 
 // The Log Files of the tabs of a window, by their paths.
@@ -704,8 +696,8 @@ TEST_CASE( "A Log File from an archive comes back after a restart, one from a UR
                                                   std::pair{ gzPath, QString{} } } ) {
             const auto tabsBefore = logFileTabs( window ).size();
             ModalAnswers modals;
-            modals.click( QMessageBox::Yes )
-                .answerWith( answerProgressAndMember( modals, member ) );
+            modals.click( QMessageBox::Yes ).answerWith( answerProgress() );
+            pickArchiveMember( *window.mainWindow, member );
             window.mainWindow->loadInitialFile( archive, false );
             REQUIRE( waitUiState( [ & ] { return logFileTabs( window ).size() > tabsBefore; } ) );
             CHECK( modals.unexpectedMessageBoxes() == 0 );
@@ -716,7 +708,7 @@ TEST_CASE( "A Log File from an archive comes back after a restart, one from a UR
             const auto tabsBefore = logFileTabs( window ).size();
             ModalAnswers modals;
             modals.inputText( QUrl::fromLocalFile( remotePath ).toString() )
-                .answerWith( answerProgressAndMember( modals, {} ) );
+                .answerWith( answerProgress() );
             auto* openUrl
                 = actionNamed( *window.mainWindow, logsquirl::mainwindow::action::openUrlText );
             REQUIRE( openUrl != nullptr );
@@ -830,8 +822,8 @@ TEST_CASE( "A Log File from an archive is known by its archive to the recent fil
                                                   std::pair{ gzPath, QString{} } } ) {
             const auto tabsBefore = logFileTabs( window ).size();
             ModalAnswers modals;
-            modals.click( QMessageBox::Yes )
-                .answerWith( answerProgressAndMember( modals, member ) );
+            modals.click( QMessageBox::Yes ).answerWith( answerProgress() );
+            pickArchiveMember( *window.mainWindow, member );
             window.mainWindow->loadInitialFile( archive, false );
             REQUIRE( waitUiState( [ & ] { return logFileTabs( window ).size() > tabsBefore; } ) );
             CHECK( modals.unexpectedMessageBoxes() == 0 );
