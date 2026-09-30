@@ -476,13 +476,15 @@ arrives as a group of its own.
 
 *Test…* next to the filter buttons opens the [Regex Lab](#regex-lab) with the
 pattern of the selected filter, on the Log Lines of the tab in front (or on
-pasted text while no file is open). The Lab reads the pattern as a search reads
-it when the filter is used: with the search engine, as a regular expression or
-as plain text as the filter says, and as one pattern, not a logical
-combination. Only *Use regex* can be changed there, since that is all a filter
-keeps besides its pattern; *Match case* comes from the search line the filter
-is used in, so the Lab shows the one a search starts with, fixed. *Apply*
-writes the pattern and the *Regex* setting back into the filter, as if you had
+pasted text while no file is open). The Lab reads the pattern exactly as the search
+line of the tab in front reads it once the filter is used there: with the
+search engine and that search line's *Match case*, as one pattern, not a
+logical combination. A search line with *Use regex* on reads the filter as a
+regular expression or as plain text, as the filter says; one with *Use regex*
+off reads every filter as plain text. So *Use regex* can be changed in the Lab
+only while the search line uses regular expressions; *Match case*, which a
+filter does not keep, is shown fixed. *Apply* writes the pattern, and the
+*Regex* setting where the Lab offered it, back into the filter, as if you had
 typed them in the table; *Cancel* or closing the Lab changes nothing. The
 dialog waits while the Lab is open. For a filter of a Team group that cannot be
 changed, the Lab only shows what the pattern matches, with *Close*.

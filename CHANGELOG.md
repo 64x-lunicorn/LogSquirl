@@ -18,8 +18,9 @@
   opens the Regex Lab over the editor with the pattern, on the Log Lines of the
   tab in front. For a highlighter the Lab marks what it would color -- the
   whole line, or only the matched text and its capture groups -- in its colors,
-  and offers *Match case* and *Use regex*; for a filter it matches as a search
-  with the filter would, and offers *Use regex*. *Apply* writes the pattern and
+  and offers *Match case* and *Use regex*; for a filter it matches exactly
+  as the search line of the tab in front would with the filter, and offers
+  *Use regex* where that search line reads it. *Apply* writes the pattern and
   the options changed back into the editor, *Cancel* leaves it as it was.
   (#660)
 - **A session saves to and opens from a file**: *File → Save Session As…*

@@ -25,6 +25,7 @@
 // text, in its colors.
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -45,6 +46,9 @@
 #include "predefinedfilters.h"
 #include "predefinedfiltersetedit.h"
 #include "regexlabwindow.h"
+#include "regularexpression.h"
+#include "searchline.h"
+#include "settingspolicies.h"
 #include "test_utils.h"
 
 namespace {
@@ -153,7 +157,8 @@ struct HighlighterEditor {
 // A Predefined Filter group editor with two filters, in a modal dialog as
 // the Predefined Filters dialog holds it, the second filter current.
 struct FilterEditor {
-    explicit FilterEditor( bool readOnly = false )
+    explicit FilterEditor( bool readOnly = false, bool searchUsesRegexp = true,
+                           bool isRegexp = false )
     {
         dialog.setModal( true );
         edit = new PredefinedFilterSetEdit( &dialog );
@@ -163,11 +168,12 @@ struct FilterEditor {
         RegexLabAccess access;
         access.searchEngine = RegexpEngine::Vectorscan;
         access.searchMatchesCase = true;
+        access.searchUsesRegexp = searchUsesRegexp;
         edit->setRegexLabAccess( access );
 
         auto group = PredefinedFilterSet::createNewSet( QStringLiteral( "Group" ) );
         group.addFilter( { QStringLiteral( "Users" ), QStringLiteral( "user=" ), false } );
-        group.addFilter( { QStringLiteral( "Errors" ), QStringLiteral( "err.r" ), false } );
+        group.addFilter( { QStringLiteral( "Errors" ), QStringLiteral( "err.r" ), isRegexp } );
         edit->setReadOnly( readOnly );
         edit->setFilterSet( group );
         dialog.show();
@@ -425,4 +431,70 @@ SCENARIO( "A Team group that cannot be changed is tested without Apply",
     CHECK( lab->pattern().pattern == "user=" );
     CHECK( labButton( *lab, QDialogButtonBox::Apply ) == nullptr );
     CHECK( labButton( *lab, QDialogButtonBox::Close ) != nullptr );
+}
+
+SCENARIO( "The Regex Lab decides on a Predefined Filter as the Search Line it goes to does",
+          "[ui][regexlab][predefinedfilters]" )
+{
+    const auto searchUsesRegexp = GENERATE( true, false );
+    const auto isRegexp = GENERATE( true, false );
+    const QStringList sample{ "an error", "err.r", "ERR.R", "WARN" };
+
+    GIVEN( std::string( "a Search Line " ) + ( searchUsesRegexp ? "in" : "not in" )
+           + " regular expression mode and a filter that is "
+           + ( isRegexp ? "a regular expression" : "plain text" ) )
+    {
+        FilterEditor editor( false, searchUsesRegexp, isRegexp );
+        editor.edit->filtersTableWidget->setCurrentCell( 1, 1 );
+        part<QPushButton>( *editor.edit, "testFilterButton" )->click();
+        const auto lab = openedLab( *editor.edit );
+        pasteSample( *lab, sample.join( QChar::LineFeed ) );
+
+        THEN( "the Lab matches the lines a Search with the filter used on that Search Line "
+              "matches" )
+        {
+            SearchLine searchLine( QuickFindPolicy{} );
+            searchLine.setFlags( SearchLine::Flags{ .matchCase = true,
+                                                    .useRegexp = searchUsesRegexp,
+                                                    .inverse = false,
+                                                    .booleanCombination = false,
+                                                    .autoRefresh = false } );
+            searchLine.useFilters( { PredefinedFilter{ QStringLiteral( "Errors" ),
+                                                       QStringLiteral( "err.r" ), isRegexp } } );
+            const RegularExpression expression( searchLine.request(), RegexpEngine::Vectorscan );
+            REQUIRE( expression.isValid() );
+            const auto matcher = expression.createMatcher();
+
+            REQUIRE( lab->result().lines.size() == static_cast<std::size_t>( sample.size() ) );
+            for ( qsizetype i = 0; i < sample.size(); ++i ) {
+                const auto utf8 = sample[ i ].toUtf8();
+                INFO( "line " << sample[ i ].toStdString() );
+                CHECK( lab->result().lines[ static_cast<std::size_t>( i ) ].isMatch
+                       == matcher->hasMatch( std::string_view(
+                           utf8.constData(), static_cast<std::size_t>( utf8.size() ) ) ) );
+            }
+        }
+
+        THEN( "whether the filter is a regular expression can be changed only where it counts" )
+        {
+            CHECK( part<QCheckBox>( *lab, "useRegexp" )->isEnabled() == searchUsesRegexp );
+            CHECK_FALSE( part<QCheckBox>( *lab, "useRegexp" )->isHidden() );
+        }
+    }
+}
+
+SCENARIO( "Apply in the Regex Lab keeps a filter's Regex setting where the Search Line does not "
+          "read it",
+          "[ui][regexlab][predefinedfilters]" )
+{
+    FilterEditor editor( false, false, true );
+    editor.edit->filtersTableWidget->setCurrentCell( 1, 1 );
+    part<QPushButton>( *editor.edit, "testFilterButton" )->click();
+    const auto lab = openedLab( *editor.edit );
+    typePattern( *lab, "error" );
+    labButton( *lab, QDialogButtonBox::Apply )->click();
+
+    const auto filters = editor.edit->filterSet().filters();
+    CHECK( filters[ 1 ].pattern == "error" );
+    CHECK( filters[ 1 ].useRegex );
 }

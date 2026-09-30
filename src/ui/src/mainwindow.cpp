@@ -1888,12 +1888,23 @@ RegexLabSampleSource MainWindow::tabInFrontAsRegexLabSample()
 }
 
 // The editors are modal, so the tab in front is the one they were opened
-// over; it is asked for as a Lab opens all the same.
+// over, and its Search Line is the one a Predefined Filter would go to; the
+// sample is asked for as a Lab opens all the same. Without a tab, a Search
+// Line reads a pattern as one starts out.
 RegexLabAccess MainWindow::regexLabAccess()
 {
     RegexLabAccess access;
     access.searchEngine = session_.searchPolicy().regexpEngine;
-    access.searchMatchesCase = !session_.quickFindPolicy().searchIgnoreCaseDefault;
+    if ( const auto* crawler = currentCrawlerWidget(); crawler != nullptr ) {
+        const auto flags = crawler->searchFlags();
+        access.searchMatchesCase = flags.matchCase;
+        access.searchUsesRegexp = flags.useRegexp;
+    }
+    else {
+        const auto& policy = session_.quickFindPolicy();
+        access.searchMatchesCase = !policy.searchIgnoreCaseDefault;
+        access.searchUsesRegexp = policy.mainRegexpType == SearchRegexpType::ExtendedRegexp;
+    }
     access.sampleSource = [ this ]() { return tabInFrontAsRegexLabSample(); };
     return access;
 }

@@ -189,6 +189,11 @@ bool CrawlerWidget::isPartialSelection() const
         return logMainView_->isPartialSelection();
 }
 
+SearchLine::Flags CrawlerWidget::searchFlags() const
+{
+    return searchLine_->flags();
+}
+
 logsquirl::vector<LineNumber> CrawlerWidget::selectedLogLines( LinesCount count ) const
 {
     auto lines = [ this ]() {

@@ -113,6 +113,10 @@ public:
     // True for partial selection
     bool isPartialSelection() const;
 
+    // How the Search Line reads its pattern now: what a Predefined Filter
+    // used here is searched with (#660).
+    SearchLine::Flags searchFlags() const;
+
     // The Regex Lab's samples from this Log File (#659): the Log Lines
     // selected in the view the user was last in -- the Filtered View or the
     // Presentation shown -- and those that view shows around its current

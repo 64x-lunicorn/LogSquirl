@@ -49,8 +49,8 @@ public:
     // the set shown next.
     void setReadOnly( bool readOnly );
 
-    // What Test... opens the Regex Lab with: the Search's engine, the Match
-    // case a Search starts with, and the tab's sample (#660).
+    // What Test... opens the Regex Lab with: the Search's engine, how the
+    // Search Line reads a pattern, and the tab's sample (#660).
     void setRegexLabAccess( RegexLabAccess access );
 
 Q_SIGNALS:
@@ -77,7 +77,9 @@ private:
     void updateButtons( int currentRow );
     void keepRegexChoice( QCheckBox* regex );
     void testFilter();
-    void applyTestedFilter( int row, const RegularExpressionPattern& pattern );
+    // Writes the Lab's pattern into the filter, and whether it is a regular
+    // expression when the Lab offered that.
+    void applyTestedFilter( int row, const RegularExpressionPattern& pattern, bool isRegexpKept );
 
     PredefinedFilterSet filterSet_;
     bool updatingTable_{ false };

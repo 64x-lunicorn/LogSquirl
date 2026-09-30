@@ -80,13 +80,15 @@ struct RegexLabSampleSource {
 };
 
 // What an editor opens the Regex Lab with (#660): the engine a Search runs
-// on, whether a Search starts out matching case, and where the tab in front
-// takes its sample from, asked for as the Lab opens. The editors are dialogs
-// that know no tab, so whoever opens them hands this over. Without a sample
+// on, how the Search Line of the tab in front reads a pattern -- matching
+// case, as a regular expression or as plain text -- and where that tab takes
+// its sample from, asked for as the Lab opens. The editors are dialogs that
+// know no tab, so whoever opens them hands this over. Without a sample
 // source, only pasted text is a sample.
 struct RegexLabAccess {
     RegexpEngine searchEngine = RegexpEngine::Vectorscan;
     bool searchMatchesCase = false;
+    bool searchUsesRegexp = true;
     std::function<RegexLabSampleSource()> sampleSource;
 };
 

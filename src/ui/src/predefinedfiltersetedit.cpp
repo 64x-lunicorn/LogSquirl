@@ -307,11 +307,13 @@ void PredefinedFilterSetEdit::onCellChanged( int /*row*/, int /*column*/ )
 }
 
 // Opens the Regex Lab over the editor, which waits for its answer, with the
-// current filter's pattern read as a Search reads it when the filter is
-// used: with the Search's engine, and as one pattern, no logical
-// combination. A filter keeps only whether it is a regular expression; Match
-// case comes from the Search Line it is used in, so the Lab shows the one a
-// Search starts with, fixed.
+// current filter's pattern read exactly as the Search Line of the tab in
+// front reads it once the filter is used there (SearchLine::useFilters()):
+// with the Search's engine and its Match case, as one pattern, no logical
+// combination. A Search Line in regular expression mode reads a filter as
+// the filter says; one that is not reads every filter as plain text. A filter
+// keeps only whether it is a regular expression, and that only matters to a
+// Search Line in regular expression mode; the rest is shown fixed.
 void PredefinedFilterSetEdit::testFilter()
 {
     using Option = RegexLabWindow::Option;
@@ -323,33 +325,44 @@ void PredefinedFilterSetEdit::testFilter()
     }
     const auto* regex = static_cast<CenteredCheckbox*>( filtersTableWidget->cellWidget( row, 2 ) );
     const auto isRegexp = regex != nullptr && regex->isChecked();
+    const auto searchUsesRegexp = regexLabAccess_.searchUsesRegexp;
 
     auto* lab = new RegexLabWindow( regexLabAccess_.searchEngine, this );
     lab->setAttribute( Qt::WA_DeleteOnClose );
     lab->setWindowModality( Qt::WindowModal );
     lab->offerApply( !readOnly_ );
-    lab->setOptionsKept( Option::UseRegexp, Option::MatchCase );
-    lab->setPattern( RegularExpressionPattern(
-        patternItem->text(), regexLabAccess_.searchMatchesCase, false, false, !isRegexp ) );
+    if ( searchUsesRegexp ) {
+        lab->setOptionsKept( Option::UseRegexp, Option::MatchCase );
+    }
+    else {
+        lab->setOptionsKept( {}, Option::MatchCase | Option::UseRegexp );
+    }
+    lab->setPattern( RegularExpressionPattern( patternItem->text(),
+                                               regexLabAccess_.searchMatchesCase, false, false,
+                                               !( searchUsesRegexp && isRegexp ) ) );
     if ( regexLabAccess_.sampleSource ) {
         lab->setSampleSource( regexLabAccess_.sampleSource() );
     }
     connect( lab, &RegexLabWindow::applied, this,
-             [ this, row ]( const RegularExpressionPattern& pattern ) {
-                 applyTestedFilter( row, pattern );
+             [ this, row, searchUsesRegexp ]( const RegularExpressionPattern& pattern ) {
+                 applyTestedFilter( row, pattern, searchUsesRegexp );
              } );
     lab->show();
 }
 
 // Writes what the Lab applied into the filter's cells as if it was entered
 // there, so that whatever takes in an edit takes it in.
-void PredefinedFilterSetEdit::applyTestedFilter( int row, const RegularExpressionPattern& pattern )
+void PredefinedFilterSetEdit::applyTestedFilter( int row, const RegularExpressionPattern& pattern,
+                                                 bool isRegexpKept )
 {
     auto* patternItem = filtersTableWidget->item( row, 1 );
     if ( patternItem == nullptr ) {
         return;
     }
     patternItem->setText( pattern.pattern );
+    if ( !isRegexpKept ) {
+        return;
+    }
     if ( auto* regex = static_cast<CenteredCheckbox*>( filtersTableWidget->cellWidget( row, 2 ) );
          regex != nullptr ) {
         regex->setChecked( !pattern.isPlainText );
