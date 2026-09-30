@@ -389,6 +389,42 @@ SCENARIO( "A Log Line's text in every shape, from bytes not valid in its Encodin
     }
 }
 
+// The grep CLI prints Log Lines read one at a time in UTF-8, and a Search
+// matches a UTF-8 block's view, made line by line: both make the text of a
+// Log Line in UTF-8 by one rule. Only an undecodable byte reads differently:
+// the Search matches the Log Line where it was read (#291).
+SCENARIO( "A Log Line's text in UTF-8 by the per-line UTF-8 rule", "[loglinetext][utf8]" )
+{
+    struct Utf8Case {
+        std::string what;
+        QByteArray bytes;
+        bool hideAnsiColorSequences;
+        std::string printed;
+        std::string searched;
+    };
+    const std::vector<Utf8Case> cases{
+        { "plain", "plain text", false, "plain text", "plain text" },
+        { "ANSI shown", "\x1B[31mred\x1B[0m", false, "\x1B[31mred\x1B[0m", "\x1B[31mred\x1B[0m" },
+        { "ANSI hidden", "\x1B[31mred\x1B[0m", true, "red", "red" },
+        { "a byte order mark",
+          "\xEF\xBB\xBF"
+          "after it",
+          false, "after it", "after it" },
+        { "a carriage return", "before it\r", true, "before it", "before it" },
+        { "an undecodable byte", "a \x80 b", false, "a \xEF\xBF\xBD b", "a \x80 b" },
+        { "an undecodable byte and ANSI hidden", "\x1B[31mred\x1B[0m \x80", true,
+          "red \xEF\xBF\xBD", "red \xEF\xBF\xBD" },
+    };
+
+    for ( const auto& utf8Case : cases ) {
+        CAPTURE( utf8Case.what );
+        const auto shapes
+            = shapesOf( { utf8Case.bytes + '\n' }, "UTF-8", utf8Case.hideAnsiColorSequences );
+        CHECK( shapes.oneAtATimeUtf8 == utf8Case.printed + '\n' );
+        CHECK( shapes.utf8View == std::vector<std::string>{ utf8Case.searched } );
+    }
+}
+
 SCENARIO( "Log Lines read one at a time are each decoded on their own", "[loglinetext]" )
 {
     GIVEN( "a UTF-8 Log Line cut short in the middle of a character, and two after it" )

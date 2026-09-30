@@ -109,33 +109,6 @@ ReadLogLine readLogLine( std::size_t request, std::string_view bytesRead, qint64
     return line;
 }
 
-void appendUtf8LogLineText( std::string& utf8, const ReadLogLine& line,
-                            const TextDecoder& textDecoder, bool isUtf8 )
-{
-    if ( !line.warning.empty() ) {
-        utf8.append( line.warning );
-        return;
-    }
-
-    // A decoder replaces what is not UTF-8: that is not copied as it is.
-    const auto& text = line.bytes;
-    const bool isCopiedAsRead
-        = textDecoder.encodingParams.isUtf8Compatible
-          && ( !line.hideAnsiColorSequences || text.find( '\x1B' ) == std::string_view::npos )
-          && ( simdutf::validate_ascii( text.data(), text.size() )
-               || ( isUtf8 && simdutf::validate_utf8( text.data(), text.size() ) ) );
-    if ( isCopiedAsRead ) {
-        utf8.append( trimToLogLineText( text ) );
-        return;
-    }
-
-    // Decoded on its own, as when it is read alone.
-    textDecoder.decoder->resetState();
-    utf8 += logLineText( textDecoder.decode( text.data(), static_cast<qsizetype>( text.size() ) ),
-                         line.hideAnsiColorSequences )
-                .toStdString();
-}
-
 std::string utf8LogLineTextsInRequestOrder( std::string&& decoded,
                                             const logsquirl::vector<Utf8LogLinePlace>& placed )
 {
@@ -299,6 +272,11 @@ std::string_view withoutLineFeed( std::string_view line, DirectEncoding encoding
 
 bool containsEscape( std::string_view line, DirectEncoding encoding )
 {
+    // In an Encoding not read straight to UTF-8, the escape character need
+    // not be an escape byte.
+    if ( encoding == DirectEncoding::None ) {
+        return true;
+    }
     if ( !isUtf16( encoding ) ) {
         return line.find( '\x1B' ) != std::string_view::npos;
     }
@@ -390,6 +368,30 @@ QByteArray toUtf8( const QString& text )
     return utf8;
 }
 
+// The per-line UTF-8 rule: the text of one Log Line in UTF-8, from its bytes
+// without its line feed. Bytes isValidAsRead( bytes ) takes, without ANSI
+// color sequences to hide, are its text as they are: they are not decoded,
+// and the caller takes them as they were read, or converts them straight
+// from Latin-1 or UTF-16. Any other Log Line is decoded by decodeLine( bytes
+// ), its ANSI color sequences hidden, and converted to UTF-8, which is
+// returned. Either way, the caller trims the UTF-8 to the Log Line's text.
+template <typename IsValidAsRead, typename DecodeLine>
+std::optional<QByteArray>
+decodedUtf8LogLine( std::string_view bytes, DirectEncoding encoding, bool hideAnsiColorSequences,
+                    const IsValidAsRead& isValidAsRead, const DecodeLine& decodeLine )
+{
+    const auto hasAnsiColorSequences = hideAnsiColorSequences && containsEscape( bytes, encoding );
+    if ( !hasAnsiColorSequences && isValidAsRead( bytes ) ) {
+        return std::nullopt;
+    }
+
+    auto text = decodeLine( bytes );
+    if ( hasAnsiColorSequences ) {
+        removeAnsiColorSequences( text );
+    }
+    return toUtf8( text );
+}
+
 // Converts a block of Log Lines in a Latin-1 or UTF-16 encoding to UTF-8 at
 // once into utf8, and splits it at each line feed into the text of its Log
 // Lines. Does nothing and returns false unless the block is valid in its
@@ -459,6 +461,37 @@ struct LineToConvert {
 
 } // namespace
 
+void appendUtf8LogLineText( std::string& utf8, const ReadLogLine& line,
+                            const TextDecoder& textDecoder, bool isUtf8 )
+{
+    if ( !line.warning.empty() ) {
+        utf8.append( line.warning );
+        return;
+    }
+
+    // What a decoder replaces is not taken as it was read: only ASCII, or
+    // UTF-8 in a UTF-8 Log File.
+    const auto encoding
+        = textDecoder.encodingParams.isUtf8Compatible ? DirectEncoding::Utf8 : DirectEncoding::None;
+    const auto decoded = decodedUtf8LogLine(
+        line.bytes, encoding, line.hideAnsiColorSequences,
+        [ encoding, isUtf8 ]( std::string_view bytes ) {
+            return encoding == DirectEncoding::Utf8
+                   && ( simdutf::validate_ascii( bytes.data(), bytes.size() )
+                        || ( isUtf8 && simdutf::validate_utf8( bytes.data(), bytes.size() ) ) );
+        },
+        // Decoded on its own, as when it is read alone.
+        [ &textDecoder ]( std::string_view bytes ) {
+            textDecoder.decoder->resetState();
+            return textDecoder.decode( bytes.data(), static_cast<qsizetype>( bytes.size() ) );
+        } );
+
+    utf8.append( trimToLogLineText(
+        decoded
+            ? std::string_view( decoded->constData(), static_cast<std::size_t>( decoded->size() ) )
+            : line.bytes ) );
+}
+
 logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
 {
     logsquirl::vector<std::string_view> lines;
@@ -518,14 +551,11 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
                     std::string_view( buffer.data() + lineStart, lineEnd - lineStart ), encoding );
                 lineStart = lineEnd;
 
-                const auto hasAnsiColorSequences
-                    = hidesAnsiColorSequences && containsEscape( line.bytes, encoding );
-                if ( hasAnsiColorSequences || !isValid( line.bytes, encoding ) ) {
-                    auto text = decode( line.bytes, encoding );
-                    if ( hasAnsiColorSequences ) {
-                        removeAnsiColorSequences( text );
-                    }
-                    line.decoded = toUtf8( text );
+                line.decoded = decodedUtf8LogLine(
+                    line.bytes, encoding, hidesAnsiColorSequences,
+                    [ encoding ]( std::string_view bytes ) { return isValid( bytes, encoding ); },
+                    [ encoding ]( std::string_view bytes ) { return decode( bytes, encoding ); } );
+                if ( line.decoded ) {
                     line.utf8Size = static_cast<std::size_t>( line.decoded->size() );
                 }
                 else {
