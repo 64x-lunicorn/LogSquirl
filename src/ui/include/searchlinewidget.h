@@ -139,6 +139,11 @@ public:
     template <class T>
     struct access_by;
 
+protected:
+    // Keeps Return, which the pattern edit's line edit has taken, from the
+    // combo box around it (#648).
+    bool eventFilter( QObject* watched, QEvent* event ) override;
+
 private:
     // A button the user set: the Search Line takes all of them.
     void takeFlagsFromButtons();

@@ -365,9 +365,11 @@ SCENARIO( "Return in the Search Line widget asks for the Search and says Keep Re
         {
             QTest::keyClick( edit->lineEdit(), Qt::Key_Return );
 
-            THEN( "the Search is asked for, keeping the results, and Keep Results is off" )
+            // Once: the combo box around the line edit hands Return back to it
+            // no more (#648).
+            THEN( "the Search is asked for once, keeping the results, and Keep Results is off" )
             {
-                REQUIRE_FALSE( searchRequested.isEmpty() );
+                REQUIRE( searchRequested.count() == 1 );
                 REQUIRE( searchRequested.at( 0 ).at( 0 ).toBool() );
                 REQUIRE_FALSE( SearchLineAccess::keepResultsButton( line )->isChecked() );
                 REQUIRE( line.request().pattern == "needle" );
@@ -375,13 +377,12 @@ SCENARIO( "Return in the Search Line widget asks for the Search and says Keep Re
 
             AND_WHEN( "Return is pressed again" )
             {
-                const auto before = searchRequested.count();
                 QTest::keyClick( edit->lineEdit(), Qt::Key_Return );
 
-                THEN( "that Search keeps nothing" )
+                THEN( "that Search is asked for once and keeps nothing" )
                 {
-                    REQUIRE( searchRequested.count() > before );
-                    REQUIRE_FALSE( searchRequested.at( before ).at( 0 ).toBool() );
+                    REQUIRE( searchRequested.count() == 2 );
+                    REQUIRE_FALSE( searchRequested.at( 1 ).at( 0 ).toBool() );
                 }
             }
         }
