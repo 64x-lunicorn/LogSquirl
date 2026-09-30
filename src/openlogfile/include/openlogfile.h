@@ -182,6 +182,9 @@ public:
     // once, and decodingPolicyChanged() tells it.
     void setIndexingPolicy( const IndexingPolicy& policy );
     void setSearchPolicy( const SearchPolicy& policy );
+    // The Search Policy the Searches run under now; searchPolicyChanged()
+    // tells when it is replaced.
+    const SearchPolicy& searchPolicy() const;
     void setDecodingPolicy( const DecodingPolicy& policy );
 
     // Keeps the current Search with its results, and makes a new one, with no
@@ -282,6 +285,9 @@ Q_SIGNALS:
     // The Decoding Policy was replaced: every Log Line, in the Searches kept
     // too, may read differently.
     void decodingPolicyChanged();
+    // The Search Policy was replaced: a Search requested from now on runs
+    // under it -- on its regexp engine, say.
+    void searchPolicyChanged();
     // The Log File is read in another Encoding now: every Log Line, in the
     // Searches kept too, may read differently. Told after loadingFinished()
     // when a load settled it.

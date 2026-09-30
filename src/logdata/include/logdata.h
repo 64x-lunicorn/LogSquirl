@@ -155,6 +155,7 @@ public:
     // from this Log File -- including the ones a tab kept from an earlier
     // Search, which nothing else holds a list of.
     void setSearchPolicy( const SearchPolicy& searchPolicy );
+    const SearchPolicy& searchPolicy() const;
 
     // There is deliberately no setFileAccessPolicy(): both of its fields
     // are read when an object is built (the FileHolder, and the codec at

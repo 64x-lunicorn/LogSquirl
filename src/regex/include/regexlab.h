@@ -27,6 +27,7 @@
 #include <optional>
 
 #include <QString>
+#include <QStringList>
 
 #include "containers.h"
 #include "regexpengine.h"
@@ -117,6 +118,11 @@ struct LineResult {
     bool isSlow = false;
     logsquirl::vector<MatchSpan> matches;
     logsquirl::vector<CaptureGroup> groups;
+    // For a logical combination: whether each of Result::subPatterns matches
+    // the line, as the Search's engine finds it on the whole line -- what the
+    // verdict is decided from (#661). Empty for any other pattern, and when
+    // whoever opened the Lab decides.
+    logsquirl::vector<bool> subPatternMatches;
 };
 
 enum class Stop {
@@ -131,6 +137,9 @@ enum class Stop {
 struct Result {
     // Set when the pattern is invalid; nothing was evaluated then.
     std::optional<PatternError> error;
+    // The sub-patterns of a logical combination, in the order written, as
+    // the Search reads them; empty for any other pattern.
+    QStringList subPatterns;
     // One per sample line evaluated, in order: fewer than the sample when
     // the evaluation stopped.
     logsquirl::vector<LineResult> lines;

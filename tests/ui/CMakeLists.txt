@@ -44,6 +44,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_window_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/predefinedfiltersetedit_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_editors_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_searchline_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_follow_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_line_status_theme_test.cpp
 )

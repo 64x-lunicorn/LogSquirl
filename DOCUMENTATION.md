@@ -173,6 +173,10 @@ results in a new tab of the filtered view, beside the kept ones, so several
 searches of one file can be compared. The keys are the defaults and can be
 changed in the shortcut settings.
 
+*Open in Regex Lab...* in the context menu of the search text box opens the
+pattern in the [Regex Lab](#regex-lab), to try it out on the Log Lines of the
+tab.
+
 *logsquirl* keeps track of used search patterns and provides autocomplete
 for them. This history can be edited or cleared from the search text box context menu.
 Autocomplete is case-sensitive if this option is selected for matching 
@@ -533,6 +537,11 @@ While you type, the Lab shows after a short pause:
   marked; for a logical combination each sub-pattern's matches in a color of
   their own. At most 100 matches of a line and 10000 in all are marked, and the
   Lab says so when there are more;
+- for a logical combination, its sub-patterns, numbered in the order written
+  and in their colors, and beside each line the numbers of those that match
+  it -- a negated one included, since it is its match that `not(...)` turns
+  round. Whether the line matches is the combination's verdict, as a search
+  decides it;
 - for the line with the cursor, the capture groups of its first match,
   numbered and with their names (`(?<name>...)`); for a logical combination
   they are numbered *sub-pattern.group*, as in `2.1`;
@@ -553,6 +562,17 @@ replaces the one running, and closing the window stops it. The Lab never
 changes a search, a highlighter or a filter by itself: opened with *Test…* from
 the editor of a [highlighter](#using-highlighters) or a [predefined
 filter](#predefined-filters), it writes the pattern back only on *Apply*.
+
+*Open in Regex Lab...* in the context menu of a tab's search line opens the
+Lab with the search line's pattern and every option it reads it with: *Match
+case*, *Use regex* -- a search line set to *Wildcard* or *Fixed String* reads
+the pattern as plain text, and so does the Lab --, *Inverse match* and
+*Boolean combining*. The Lab is tied to that tab and matches with the engine
+its searches run on; choosing the entry again brings it to the front as it is,
+and it closes with the tab. *Apply* writes the pattern and the options back
+into the search line, as if you had typed the pattern and set the buttons:
+the search does not run by itself, unless *Auto-refresh* is on -- then it runs
+with the pattern applied. *Cancel* or closing the Lab changes nothing.
 
 ### Using highlighters
 

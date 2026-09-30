@@ -129,6 +129,11 @@ void LogData::setIndexingPolicy( const IndexingPolicy& indexingPolicy )
     operationQueue_.setIndexingPolicy( indexingPolicy );
 }
 
+const SearchPolicy& LogData::searchPolicy() const
+{
+    return searchPolicy_;
+}
+
 void LogData::setSearchPolicy( const SearchPolicy& searchPolicy )
 {
     searchPolicy_ = searchPolicy;

@@ -381,6 +381,19 @@ bool PatternMatcher::hasMatch( std::string_view line ) const
     return hasMatchImpl_( line, matcher_, evaluator_.get() );
 }
 
+logsquirl::vector<bool> PatternMatcher::subPatternMatches( std::string_view line ) const
+{
+    const auto matched
+        = std::visit( [ &line ]( const auto& m ) { return m.match( line ); }, matcher_ );
+
+    logsquirl::vector<bool> matches;
+    matches.reserve( matched.size() );
+    for ( const auto isMatch : matched ) {
+        matches.push_back( isMatch != 0 );
+    }
+    return matches;
+}
+
 MultiRegularExpression::MultiRegularExpression(
     const logsquirl::vector<RegularExpressionPattern>& patterns )
     : patterns_( patterns )

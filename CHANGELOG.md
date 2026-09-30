@@ -23,6 +23,16 @@
   *Use regex* where that search line reads it. *Apply* writes the pattern and
   the options changed back into the editor, *Cancel* leaves it as it was.
   (#660)
+- **The search line opens its pattern in the Regex Lab**: *Open in Regex
+  Lab...* in the search line's context menu opens the Lab with the pattern and
+  every option the search line reads it with -- *Match case*, *Use regex* (a
+  *Wildcard* or *Fixed String* search comes as plain text), *Inverse match*,
+  *Boolean combining* -- on the Log Lines of the tab and with the engine its
+  searches run on. *Apply* writes the pattern and the options back into the
+  search line as though typed, and runs the search only when *Auto-refresh* is
+  on; *Cancel* leaves it as it was. For a logical combination the Lab lists
+  its sub-patterns and shows beside each line which of them match it, the
+  line's verdict being exactly the search's. (#661)
 - **A session saves to and opens from a file**: *File → Save Session As…*
   writes the window's open files, their order, the tab in front, each tab's
   view state, tab names and groups to a `.logsquirl-session` file, and

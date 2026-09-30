@@ -106,6 +106,13 @@ public:
     // The Search the pattern and the buttons ask for.
     RegularExpressionPattern request() const;
 
+    // A pattern tried out in the Regex Lab, which took it from request()
+    // (#661): its text becomes the pattern, and its options set the buttons
+    // that read it -- Match case, regexp, Inverse match, logical combination.
+    // Auto-refresh stays as it is, and says whether the Search is to run now:
+    // an auto-refreshed Search follows the pattern applied.
+    bool apply( const RegularExpressionPattern& pattern );
+
     // A Search was requested: it runs, or its pattern is in error.
     void requested( const SearchSessionState& state );
     // The Search tells how far it came, or that it is done one way or

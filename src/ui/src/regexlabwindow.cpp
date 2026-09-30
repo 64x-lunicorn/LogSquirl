@@ -36,6 +36,7 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSignalBlocker>
@@ -148,6 +149,89 @@ private:
     std::optional<RegexLabWindow::MarkColors> markColors_;
 };
 
+// Beside each line of the sample, the sub-patterns of a logical combination
+// that match it (#661): each in a column of its own, numbered as written and
+// in the color its matches are marked in, so that a combined pattern is
+// understood by which of its parts match a line -- the line shaded or not
+// by the combination's verdict. Hidden for any other pattern.
+class RegexLabSubPatternColumn : public QWidget {
+public:
+    RegexLabSubPatternColumn( const regexlab::Result& result, QPlainTextEdit& text,
+                              QWidget* parent )
+        : QWidget( parent )
+        , result_( result )
+        , text_( text )
+    {
+        setObjectName( QStringLiteral( "subPatternColumn" ) );
+        setFont( text.font() );
+        hide();
+    }
+
+    // Sized for the sub-patterns of the result shown.
+    void showResult()
+    {
+        const auto count = result_.subPatterns.size();
+        const auto numberWidth
+            = fontMetrics().horizontalAdvance( QString::number( std::max<qsizetype>( count, 1 ) ) )
+              + 6;
+        slotWidth_ = numberWidth;
+        setFixedWidth( static_cast<int>( count ) * slotWidth_ + 2 );
+        setVisible( count > 0 );
+        update();
+    }
+
+    // The sub-patterns shown beside a line, numbered from 1.
+    QList<int> subPatternsShown( int line ) const
+    {
+        QList<int> shown;
+        if ( line < 0 || static_cast<std::size_t>( line ) >= result_.lines.size() ) {
+            return shown;
+        }
+        const auto& matches = result_.lines[ static_cast<std::size_t>( line ) ].subPatternMatches;
+        for ( std::size_t index = 0; index < matches.size(); ++index ) {
+            if ( matches[ index ] ) {
+                shown.append( static_cast<int>( index ) + 1 );
+            }
+        }
+        return shown;
+    }
+
+protected:
+    void paintEvent( QPaintEvent* ) override
+    {
+        if ( result_.subPatterns.isEmpty() ) {
+            return;
+        }
+        QPainter painter( this );
+        // The lines are laid out in the sample's viewport, which starts
+        // below this column's top by the sample's frame.
+        const auto top = mapFromGlobal( text_.viewport()->mapToGlobal( QPoint( 0, 0 ) ) ).y();
+        const auto bottom = top + text_.viewport()->height();
+        painter.setClipRect( 0, top, width(), text_.viewport()->height() );
+
+        for ( auto block = text_.cursorForPosition( QPoint( 0, 0 ) ).block(); block.isValid();
+              block = block.next() ) {
+            const auto line = text_.cursorRect( QTextCursor( block ) );
+            const auto lineTop = top + line.top();
+            if ( lineTop > bottom ) {
+                break;
+            }
+            for ( const auto number : subPatternsShown( block.blockNumber() ) ) {
+                const QRect slot( ( number - 1 ) * slotWidth_ + 1, lineTop, slotWidth_ - 1,
+                                  line.height() );
+                painter.fillRect( slot, matchColor( number - 1 ) );
+                painter.setPen( Qt::black );
+                painter.drawText( slot, Qt::AlignCenter, QString::number( number ) );
+            }
+        }
+    }
+
+private:
+    const regexlab::Result& result_;
+    QPlainTextEdit& text_;
+    int slotWidth_ = 0;
+};
+
 RegexLabWindow::RegexLabWindow( RegexpEngine engine, QWidget* parent )
     : QWidget( parent, Qt::Window )
     , engine_( engine )
@@ -256,6 +340,26 @@ void RegexLabWindow::buildWidgets()
     sampleText_->setAccessibleName( tr( "Sample lines" ) );
     marks_ = new RegexLabMarks( result_, sampleText_->document() );
 
+    auto* sampleArea = new QWidget( this );
+    subPatternColumn_ = new RegexLabSubPatternColumn( result_, *sampleText_, sampleArea );
+    subPatternColumn_->setToolTip( tr( "The sub-patterns that match the line" ) );
+    auto* sampleAreaLayout = new QHBoxLayout( sampleArea );
+    sampleAreaLayout->setContentsMargins( 0, 0, 0, 0 );
+    sampleAreaLayout->setSpacing( 0 );
+    sampleAreaLayout->addWidget( subPatternColumn_ );
+    sampleAreaLayout->addWidget( sampleText_, 1 );
+    connect( sampleText_, &QPlainTextEdit::updateRequest, subPatternColumn_,
+             [ column = subPatternColumn_ ]() { column->update(); } );
+
+    // The sub-patterns of a logical combination, numbered and in the colors
+    // their matches are marked in.
+    subPatterns_ = new QLabel( this );
+    subPatterns_->setObjectName( QStringLiteral( "subPatterns" ) );
+    subPatterns_->setWordWrap( true );
+    subPatterns_->setTextFormat( Qt::RichText );
+    subPatterns_->setTextInteractionFlags( Qt::TextSelectableByMouse );
+    subPatterns_->hide();
+
     groups_ = new QTableWidget( 0, 3, this );
     groups_->setObjectName( QStringLiteral( "captureGroups" ) );
     groups_->setHorizontalHeaderLabels( { tr( "Group" ), tr( "Name" ), tr( "Text" ) } );
@@ -266,7 +370,7 @@ void RegexLabWindow::buildWidgets()
     groups_->setAccessibleName( tr( "Capture groups of the line with the cursor" ) );
 
     auto* splitter = new QSplitter( Qt::Vertical, this );
-    splitter->addWidget( sampleText_ );
+    splitter->addWidget( sampleArea );
     splitter->addWidget( groups_ );
     splitter->setStretchFactor( 0, 3 );
     splitter->setStretchFactor( 1, 1 );
@@ -288,6 +392,7 @@ void RegexLabWindow::buildWidgets()
     layout->addWidget( error_ );
     layout->addWidget( errorMarker_ );
     layout->addLayout( sampleRow );
+    layout->addWidget( subPatterns_ );
     layout->addWidget( splitter, 1 );
     layout->addWidget( status_ );
     layout->addWidget( warning_ );
@@ -634,6 +739,7 @@ void RegexLabWindow::showResult( regexlab::Result result )
     showError();
     showStatus();
     showGroups();
+    showSubPatterns();
     Q_EMIT evaluated();
 }
 
@@ -666,6 +772,35 @@ void RegexLabWindow::showGroups()
         }
         groups_->setItem( row, 2, text );
     }
+}
+
+void RegexLabWindow::showSubPatterns()
+{
+    subPatternColumn_->showResult();
+    if ( result_.subPatterns.isEmpty() ) {
+        subPatterns_->clear();
+        subPatterns_->hide();
+        return;
+    }
+
+    QStringList shown;
+    for ( qsizetype index = 0; index < result_.subPatterns.size(); ++index ) {
+        const auto color = matchColor( static_cast<int>( index ) ).name();
+        shown.append( QStringLiteral(
+                          "<span style=\"background-color:%1; color:black\">&nbsp;%2&nbsp;</span> "
+                          "<code>%3</code>" )
+                          .arg( color )
+                          .arg( index + 1 )
+                          .arg( result_.subPatterns[ index ].toHtmlEscaped() ) );
+    }
+    subPatterns_->setText(
+        tr( "Sub-patterns: %1" ).arg( shown.join( QStringLiteral( "&nbsp; " ) ) ) );
+    subPatterns_->show();
+}
+
+QList<int> RegexLabWindow::subPatternsShown( int line ) const
+{
+    return subPatternColumn_->subPatternsShown( line );
 }
 
 void RegexLabWindow::showError()

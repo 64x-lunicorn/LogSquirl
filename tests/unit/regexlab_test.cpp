@@ -24,6 +24,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <string>
@@ -105,6 +106,70 @@ SCENARIO( "The Regex Lab counts exactly the lines the Search's matcher matches",
             }
             REQUIRE( result.matchingLines == matching );
             REQUIRE( result.stop == regexlab::Stop::None );
+        }
+    }
+}
+
+// A logical combination is understood by which of its sub-patterns match a
+// line (#661): the Search's engine says so, and the verdict is the Search's.
+SCENARIO( "The Regex Lab says which sub-patterns of a logical combination match a line",
+          "[regexlab]" )
+{
+    const auto engine = GENERATE( RegexpEngine::Vectorscan, RegexpEngine::QRegularExpression );
+    const auto inverse = GENERATE( false, true );
+    const auto searched
+        = pattern( R"("connection" and not("db-2") or "WARN")", true, inverse, true, false );
+
+    GIVEN( "a combination of three sub-patterns, one negated, "
+           << ( inverse ? "inverted" : "not inverted" ) )
+    {
+        const auto result = evaluate( searched, Sample, engine );
+        REQUIRE_FALSE( result.error.has_value() );
+
+        THEN( "the sub-patterns are listed in the order written" )
+        {
+            REQUIRE( result.subPatterns
+                     == QStringList{ QStringLiteral( "connection" ), QStringLiteral( "db-2" ),
+                                     QStringLiteral( "WARN" ) } );
+        }
+
+        THEN( "each line says which of them match it, whatever its verdict" )
+        {
+            using Matches = logsquirl::vector<bool>;
+            REQUIRE( result.lines.size() == Sample.size() );
+            REQUIRE( result.lines[ 0 ].subPatternMatches == Matches{ false, false, false } );
+            REQUIRE( result.lines[ 1 ].subPatternMatches == Matches{ true, false, false } );
+            REQUIRE( result.lines[ 2 ].subPatternMatches == Matches{ false, false, true } );
+            REQUIRE( result.lines[ 3 ].subPatternMatches == Matches{ true, true, false } );
+            REQUIRE( result.lines[ 4 ].subPatternMatches == Matches{ false, false, false } );
+        }
+
+        THEN( "each line's verdict is the Search matcher's" )
+        {
+            const RegularExpression expression( searched, engine );
+            const auto matcher = expression.createMatcher();
+            for ( std::size_t i = 0; i < Sample.size(); ++i ) {
+                const auto utf8 = Sample[ i ].toUtf8();
+                INFO( "line " << i );
+                REQUIRE( result.lines[ i ].isMatch
+                         == matcher->hasMatch( std::string_view(
+                             utf8.constData(), static_cast<std::size_t>( utf8.size() ) ) ) );
+            }
+            REQUIRE( result.lines[ 1 ].isMatch != inverse );
+            REQUIRE( result.lines[ 3 ].isMatch == inverse );
+        }
+    }
+
+    GIVEN( "a pattern that is no logical combination" )
+    {
+        const auto result = evaluate( regexp( "ERROR" ), Sample, engine );
+
+        THEN( "no line lists sub-patterns" )
+        {
+            REQUIRE( result.subPatterns.isEmpty() );
+            REQUIRE( std::ranges::all_of( result.lines, []( const regexlab::LineResult& line ) {
+                return line.subPatternMatches.empty();
+            } ) );
         }
     }
 }

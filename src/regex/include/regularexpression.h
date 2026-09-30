@@ -94,6 +94,12 @@ public:
 
     bool hasMatch( std::string_view line ) const;
 
+    // Whether each sub-pattern matches the line, in the order written -- a
+    // single one for a pattern that is no logical combination: what
+    // hasMatch() decides from, before a combination is evaluated and an
+    // inverse match turns the verdict round (#661).
+    logsquirl::vector<bool> subPatternMatches( std::string_view line ) const;
+
 private:
     using MatchFunc = bool ( * )( std::string_view line, const MatcherVariant& matcher,
                                   BooleanExpressionEvaluator* evaluator );

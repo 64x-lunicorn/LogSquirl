@@ -27,6 +27,7 @@
 
 #include <QColor>
 #include <QFlags>
+#include <QList>
 #include <QMetaObject>
 #include <QObject>
 #include <QPointer>
@@ -47,6 +48,7 @@ class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
 class RegexLabMarks;
+class RegexLabSubPatternColumn;
 class QPushButton;
 class QTableWidget;
 class QTimer;
@@ -184,6 +186,10 @@ public:
     // What the last evaluation shown found.
     const regexlab::Result& result() const;
 
+    // For a logical combination: the sub-patterns shown beside a line of the
+    // sample as matching it, numbered from 1 as written (#661).
+    QList<int> subPatternsShown( int line ) const;
+
     // How far an evaluation goes.
     static regexlab::Bounds bounds();
 
@@ -219,6 +225,9 @@ private:
     void evaluate();
     void showResult( regexlab::Result result );
     void showGroups();
+    // The sub-patterns of a logical combination, and beside each line those
+    // that match it.
+    void showSubPatterns();
     void showError();
     void showStatus();
 
@@ -261,6 +270,8 @@ private:
     QPushButton* refreshSample_ = nullptr;
     QPlainTextEdit* sampleText_ = nullptr;
     RegexLabMarks* marks_ = nullptr;
+    RegexLabSubPatternColumn* subPatternColumn_ = nullptr;
+    QLabel* subPatterns_ = nullptr;
     QLabel* status_ = nullptr;
     QLabel* warning_ = nullptr;
     QTableWidget* groups_ = nullptr;

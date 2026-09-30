@@ -86,6 +86,7 @@
 #include "timelookup.h"
 #include "timestampreader.h"
 
+class RegexLabWindow;
 class LogFormatCatalog;
 class LogTableView;
 class QuickFindPattern;
@@ -123,6 +124,15 @@ public:
     // line, at most count of each, in order.
     logsquirl::vector<LineNumber> selectedLogLines( LinesCount count ) const;
     logsquirl::vector<LineNumber> logLinesAroundCurrentLine( LinesCount count ) const;
+
+    // Opens the Search Line's pattern, with the options it reads it with, in
+    // the Regex Lab (#661): tied to this tab, matching with the engine its
+    // Searches run on, and offering Apply and Cancel. Apply writes the
+    // pattern and the options back into the Search Line as typing them and
+    // setting the buttons does, and runs the Search when auto-refresh is on;
+    // Cancel or closing the Lab changes nothing. Asked again while it is
+    // open, the Lab comes to the front as it is. It goes with the tab.
+    void openSearchInRegexLab();
     // Reads the text of Log Lines, what a Search matches, also off the UI
     // thread: it holds on to the Log File's data for as long as it lives.
     std::function<logsquirl::vector<QString>( const logsquirl::vector<LineNumber>& )>
@@ -527,6 +537,8 @@ private:
     // Its entries, one per capture group of the current Search, are made when
     // the menu is shown.
     QMenu* countValuesMenu_ = nullptr;
+    // The Regex Lab the Search Line's pattern is open in, if any.
+    QPointer<RegexLabWindow> searchRegexLab_;
 
     std::map<QString, QShortcut*> shortcuts_;
 

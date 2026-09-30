@@ -213,6 +213,12 @@ void OpenLogFile::setSearchPolicy( const SearchPolicy& policy )
     // The log data hands it on to every Search built from it, the kept ones
     // included, which this object holds no list of.
     logData_->setSearchPolicy( policy );
+    Q_EMIT searchPolicyChanged();
+}
+
+const SearchPolicy& OpenLogFile::searchPolicy() const
+{
+    return logData_->searchPolicy();
 }
 
 void OpenLogFile::setDecodingPolicy( const DecodingPolicy& policy )

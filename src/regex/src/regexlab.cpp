@@ -249,8 +249,8 @@ bool addMark( LineResult& result, MatchSpan span, const Bounds& bounds, MarkBudg
 
 LineResult evaluateLine( const PatternMatcher& matcher,
                          const logsquirl::vector<QRegularExpression>& marking,
-                         const LineDecision& decision, const QString& wholeLine,
-                         const Bounds& bounds, MarkBudget& marks )
+                         const LineDecision& decision, qsizetype subPatternCount,
+                         const QString& wholeLine, const Bounds& bounds, MarkBudget& marks )
 {
     const auto started = Clock::now();
     LineResult result;
@@ -264,8 +264,14 @@ LineResult evaluateLine( const PatternMatcher& matcher,
         // The Search matches the whole line's text as UTF-8 (see
         // filterLines()).
         const auto utf8 = wholeLine.toUtf8();
-        result.isMatch = matcher.hasMatch(
-            std::string_view( utf8.constData(), static_cast<std::size_t>( utf8.size() ) ) );
+        const std::string_view text( utf8.constData(), static_cast<std::size_t>( utf8.size() ) );
+        result.isMatch = matcher.hasMatch( text );
+        // Which sub-patterns of a combination match, from the same engine the
+        // verdict comes from.
+        if ( subPatternCount > 0 ) {
+            result.subPatternMatches = matcher.subPatternMatches( text );
+            result.subPatternMatches.resize( static_cast<std::size_t>( subPatternCount ), false );
+        }
     }
 
     // Only what is shown is marked.
@@ -352,6 +358,9 @@ Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
     }
     const auto matcher = expression.createMatcher();
     const auto marking = markingRegexps( pattern );
+    if ( pattern.isBoolean ) {
+        result.subPatterns = logicalSubPatterns( pattern.pattern );
+    }
     MarkBudget marks{ bounds.maxMarks };
 
     result.lines.reserve( result.sampleLines );
@@ -364,8 +373,9 @@ Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
             result.stop = Stop::TimeLimit;
             break;
         }
-        result.lines.push_back(
-            evaluateLine( *matcher, marking, decision, sample[ index ], bounds, marks ) );
+        result.lines.push_back( evaluateLine( *matcher, marking, decision,
+                                              result.subPatterns.size(), sample[ index ], bounds,
+                                              marks ) );
         const auto& line = result.lines.back();
         result.matchingLines += line.isMatch ? 1 : 0;
         result.slowLines += line.isSlow ? 1 : 0;

@@ -56,6 +56,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QCompleter>
+#include <QFileInfo>
 #include <QInputDialog>
 #include <QJsonArray>
 #include <QKeyEvent>
@@ -95,6 +96,8 @@
 #include "logtableview.h"
 #include "overviewwidget.h"
 #include "quickfindpattern.h"
+#include "regexlabsource.h"
+#include "regexlabwindow.h"
 #include "savedsearches.h"
 #include "shortcuts.h"
 #include "theme.h"
@@ -926,6 +929,42 @@ void CrawlerWidget::saveAsPredefinedFilter()
     Q_EMIT saveCurrentSearchAsPredefinedFilter( searchLine_->pattern() );
 }
 
+void CrawlerWidget::openSearchInRegexLab()
+{
+    if ( !searchRegexLab_.isNull() ) {
+        searchRegexLab_->raise();
+        searchRegexLab_->activateWindow();
+        return;
+    }
+
+    // A window of its own, destroyed with this tab: the Search Line it would
+    // write back into goes with it.
+    auto* lab = new RegexLabWindow( openLogFile_->searchPolicy().regexpEngine, this );
+    lab->setAttribute( Qt::WA_DeleteOnClose );
+    searchRegexLab_ = lab;
+
+    // The pattern exactly as the Search Line requests a Search: a Wildcard
+    // or Fixed String reading comes to the Lab as plain text.
+    lab->setPattern( searchLine_->request() );
+    lab->offerApply( true );
+    lab->setSampleSource(
+        regexLabSampleSource( *this, QFileInfo( openLogFile_->fileName() ).fileName() ) );
+
+    // The Lab matches with the engine the Searches of this Log File run on.
+    connect( openLogFile_.get(), &OpenLogFile::searchPolicyChanged, lab,
+             [ this, lab ]() { lab->setEngine( openLogFile_->searchPolicy().regexpEngine ); } );
+    // Cancel changes nothing: only applied() is listened for, which the Lab
+    // never sends while it is destroyed along with this widget.
+    connect( lab, &RegexLabWindow::applied, this,
+             [ this ]( const RegularExpressionPattern& pattern ) {
+                 runEditedPattern( searchLine_->apply( pattern ) );
+             } );
+
+    lab->show();
+    lab->raise();
+    lab->activateWindow();
+}
+
 void CrawlerWidget::showSearchContextMenu()
 {
     if ( countValuesMenu_ ) {
@@ -1498,10 +1537,14 @@ void CrawlerWidget::setup()
     QAction* clearSearchHistoryAction = new QAction( tr( "Clear search history" ), this );
     QAction* editSearchHistoryAction = new QAction( tr( "Edit search history" ), this );
     QAction* saveAsPredefinedFilterAction = new QAction( tr( "Save as Filter" ), this );
+    QAction* openInRegexLabAction = new QAction( tr( "Open in Regex Lab..." ), this );
+    openInRegexLabAction->setStatusTip(
+        tr( "Try out the pattern and its options on Log Lines in the Regex Lab" ) );
 
     searchLineContextMenu_ = searchLine_->createStandardContextMenu();
     searchLineContextMenu_->addSeparator();
     searchLineContextMenu_->addAction( saveAsPredefinedFilterAction );
+    searchLineContextMenu_->addAction( openInRegexLabAction );
     countValuesMenu_ = searchLineContextMenu_->addMenu( tr( "Count values of capture group" ) );
     searchLineContextMenu_->addSeparator();
     searchLineContextMenu_->addAction( editSearchHistoryAction );
@@ -1582,6 +1625,8 @@ void CrawlerWidget::setup()
              &CrawlerWidget::showSearchContextMenu );
     connect( saveAsPredefinedFilterAction, &QAction::triggered, this,
              &CrawlerWidget::saveAsPredefinedFilter );
+    connect( openInRegexLabAction, &QAction::triggered, this,
+             &CrawlerWidget::openSearchInRegexLab );
     connect( clearSearchHistoryAction, &QAction::triggered, this,
              &CrawlerWidget::clearSearchHistory );
     connect( editSearchHistoryAction, &QAction::triggered, this,
