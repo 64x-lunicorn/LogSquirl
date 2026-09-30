@@ -2772,7 +2772,9 @@ void MainWindow::currentTabChanged( int index )
         // reached this Log File, in front or not (#245).
         crawler_widget->broughtToFront();
 
-        updateMenuBarFromDocument( state );
+        // Read again: a failed load's message box runs an event loop, in which
+        // the Log File may have changed, a queued follow among others.
+        updateMenuBarFromDocument( crawler_widget->state() );
         updateTitleBar( session_.getFilename( crawler_widget ) );
         updateFavoritesMenu();
 

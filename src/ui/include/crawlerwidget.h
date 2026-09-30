@@ -207,7 +207,8 @@ public:
         // available, empty when they are: the time navigation.
         QString goToTimestampUnavailable;
         QString searchLimitsByTimeUnavailable;
-        // The view QuickFind searches now.
+        // The view QuickFind searches now; for the QuickFind mux, which the
+        // window still re-points by a direct call (a follow-up of #635).
         const SearchableWidgetInterface* quickFindSearchable = nullptr;
     };
     State state() const;
