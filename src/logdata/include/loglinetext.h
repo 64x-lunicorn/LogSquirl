@@ -52,8 +52,8 @@
 // shapes the readers want: a QString, the same with the colors of its ANSI
 // color sequences, or UTF-8. Whoever reads the bytes -- the log data, which
 // looks at its Index under the Index's lock -- hands them here, a block of
-// them (searchblocksource.h) or one Log Line at a time; nothing here takes a
-// lock.
+// them (searchblocksource.h) or one Log Line at a time. Nothing here takes the
+// Index's lock; only the codec's own lock is taken, to make a decoder.
 
 inline void trimToLogLineText( QString& decodedLine )
 {

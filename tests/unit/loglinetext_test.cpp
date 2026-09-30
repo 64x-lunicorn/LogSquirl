@@ -461,6 +461,33 @@ SCENARIO( "Log Lines are each decoded on their own", "[loglinetext]" )
             }
         }
     }
+
+    GIVEN( "Log Lines in UTF-16 cut short after a high surrogate, after an ASCII byte and after "
+           "a whole character, each followed by one" )
+    {
+        const auto encoding = GENERATE( "UTF-16LE", "UTF-16BE" );
+        const auto* const codec = TextEncoding::forName( encoding );
+        const auto utf16 = [ codec ]( const QString& text ) { return codec->fromUnicode( text ); };
+        // An encoder writes no lone surrogate: its bytes are set by hand.
+        const auto highSurrogate = std::string_view( encoding ) == "UTF-16LE"
+                                       ? QByteArray( "\x3D\xD8", 2 )
+                                       : QByteArray( "\xD8\x3D", 2 );
+        const std::vector<QByteArray> bytes{
+            utf16( QStringLiteral( "cut short " ) ) + highSurrogate
+                + utf16( QStringLiteral( "\n" ) ),
+            utf16( QStringLiteral( "next\n" ) ), utf16( QStringLiteral( "whole \u00e9\n" ) ),
+            utf16( QString( QChar( 0xFEFF ) ) + QStringLiteral( "after a byte order mark\n" ) )
+        };
+
+        THEN( "a block reads each as it reads on its own (#649)" )
+        {
+            const auto shapes = shapesOf( bytes, encoding, false );
+            CHECK( shapes.block == shapes.oneAtATime );
+            REQUIRE( shapes.block.size() == 4 );
+            CHECK( shapes.block[ 1 ] == QStringLiteral( "next" ) );
+            CHECK( shapes.block[ 3 ] == QStringLiteral( "after a byte order mark" ) );
+        }
+    }
 }
 
 SCENARIO( "A Log Line that cannot be read reads as a warning in every shape", "[loglinetext]" )

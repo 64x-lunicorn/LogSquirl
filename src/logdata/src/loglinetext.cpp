@@ -151,6 +151,39 @@ std::string utf8NotEnoughMemory( std::size_t count )
 
 namespace {
 
+// Whether decoding bytes, a Log Line without its line feed, may leave a
+// character cut short in the decoder. In an Encoding that writes ASCII as one
+// byte, a Log Line ending in an ASCII byte leaves none; in UTF-16 one ending
+// in a whole code unit that is not a high surrogate.
+bool mayLeaveCharacterCutShort( std::string_view bytes, const EncodingParameters& encoding )
+{
+    if ( bytes.empty() ) {
+        return false;
+    }
+    if ( encoding.lineFeedWidth == 1 ) {
+        return static_cast<unsigned char>( bytes.back() ) >= 0x80;
+    }
+    if ( ( encoding.isUtf16LE || encoding.isUtf16BE ) && bytes.size() % 2 == 0 ) {
+        const auto highByte
+            = static_cast<unsigned char>( bytes[ bytes.size() - ( encoding.isUtf16LE ? 1 : 2 ) ] );
+        return ( highByte & 0xFC ) == 0xD8;
+    }
+    return true;
+}
+
+// Whether bytes, a Log Line, start with a byte order mark, which a decoder
+// drops only at the start of what it decodes.
+bool startsWithByteOrderMark( std::string_view bytes, const EncodingParameters& encoding )
+{
+    if ( encoding.isUtf16LE ) {
+        return bytes.starts_with( "\xFF\xFE" );
+    }
+    if ( encoding.isUtf16BE ) {
+        return bytes.starts_with( "\xFE\xFF" );
+    }
+    return encoding.lineFeedWidth != 1 || bytes.starts_with( "\xEF\xBB\xBF" );
+}
+
 // Every Log Line of a block, decoded and made a Line by toLine( QString&&
 // decodedLine, bool hideAnsiColorSequences ). A Log Line that cannot be
 // decoded reads as a warning, and so does every one after it.
@@ -170,6 +203,10 @@ logsquirl::vector<Line> decodeRawLines( const RawLines& rawLines, ToLine toLine 
         qint64 lineStart = 0;
         const auto& textDecoder = rawLines.textDecoder;
         const auto lineFeedWidth = textDecoder.encodingParams.lineFeedWidth;
+        // Whether the Log Line decoded last may have left a character cut
+        // short in the decoder: resetting it for every Log Line would cost a
+        // block read up to a sixth of its time.
+        bool mayCarryOver = true;
         for ( const auto& lineEnd : endOfLines ) {
             const auto line = readLogLine( decodedLines.size(), buffer, lineStart,
                                            lineEnd - lineStart - lineFeedWidth,
@@ -184,7 +221,11 @@ logsquirl::vector<Line> decodeRawLines( const RawLines& rawLines, ToLine toLine 
             // Each Log Line is decoded on its own, as when it is read alone: a
             // character cut short at the end of one must not reach the next
             // (#649).
-            textDecoder.decoder->resetState();
+            if ( mayCarryOver
+                 || startsWithByteOrderMark( line.bytes, textDecoder.encodingParams ) ) {
+                textDecoder.decoder->resetState();
+            }
+            mayCarryOver = mayLeaveCharacterCutShort( line.bytes, textDecoder.encodingParams );
             decodedLines.push_back(
                 toLine( textDecoder.decode( line.bytes.data(),
                                             static_cast<qsizetype>( line.bytes.size() ) ),
@@ -373,25 +414,29 @@ QByteArray toUtf8( const QString& text )
 // The per-line UTF-8 rule: the text of one Log Line in UTF-8, from its bytes
 // without its line feed. Bytes isValidAsRead( bytes ) takes, without ANSI
 // color sequences to hide, are its text as they are: they are not decoded,
-// and the caller takes them as they were read, or converts them straight
-// from Latin-1 or UTF-16. Any other Log Line is decoded by decodeLine( bytes
-// ), its ANSI color sequences hidden, and converted to UTF-8, which is
-// returned. Either way, the caller trims the UTF-8 to the Log Line's text.
+// decoded is left alone, and the caller takes them as they were read, or
+// converts them straight from Latin-1 or UTF-16. Any other Log Line is
+// decoded by decodeLine( bytes ), its ANSI color sequences hidden, and
+// converted to UTF-8 into decoded. Either way, the caller trims the UTF-8 to
+// the Log Line's text.
+// The view runs it for every Log Line of a block, most of which it takes as
+// they were read: those cost it no more than the test (#291).
 template <typename IsValidAsRead, typename DecodeLine>
-std::optional<QByteArray>
-decodedUtf8LogLine( std::string_view bytes, DirectEncoding encoding, bool hideAnsiColorSequences,
-                    const IsValidAsRead& isValidAsRead, const DecodeLine& decodeLine )
+Q_ALWAYS_INLINE void
+decodeUtf8LogLine( std::string_view bytes, DirectEncoding encoding, bool hideAnsiColorSequences,
+                   const IsValidAsRead& isValidAsRead, const DecodeLine& decodeLine,
+                   std::optional<QByteArray>& decoded )
 {
     const auto hasAnsiColorSequences = hideAnsiColorSequences && containsEscape( bytes, encoding );
     if ( !hasAnsiColorSequences && isValidAsRead( bytes ) ) {
-        return std::nullopt;
+        return;
     }
 
     auto text = decodeLine( bytes );
     if ( hasAnsiColorSequences ) {
         removeAnsiColorSequences( text );
     }
-    return toUtf8( text );
+    decoded = toUtf8( text );
 }
 
 // Converts a block of Log Lines in a Latin-1 or UTF-16 encoding to UTF-8 at
@@ -475,7 +520,8 @@ void appendUtf8LogLineText( std::string& utf8, const ReadLogLine& line,
     // UTF-8 in a UTF-8 Log File.
     const auto encoding
         = textDecoder.encodingParams.isUtf8Compatible ? DirectEncoding::Utf8 : DirectEncoding::None;
-    const auto decoded = decodedUtf8LogLine(
+    std::optional<QByteArray> decoded;
+    decodeUtf8LogLine(
         line.bytes, encoding, line.hideAnsiColorSequences,
         [ encoding, isUtf8 ]( std::string_view bytes ) {
             return encoding == DirectEncoding::Utf8
@@ -486,7 +532,8 @@ void appendUtf8LogLineText( std::string& utf8, const ReadLogLine& line,
         [ &textDecoder ]( std::string_view bytes ) {
             textDecoder.decoder->resetState();
             return textDecoder.decode( bytes.data(), static_cast<qsizetype>( bytes.size() ) );
-        } );
+        },
+        decoded );
 
     utf8.append( trimToLogLineText(
         decoded
@@ -553,10 +600,11 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
                     std::string_view( buffer.data() + lineStart, lineEnd - lineStart ), encoding );
                 lineStart = lineEnd;
 
-                line.decoded = decodedUtf8LogLine(
+                decodeUtf8LogLine(
                     line.bytes, encoding, hidesAnsiColorSequences,
                     [ encoding ]( std::string_view bytes ) { return isValid( bytes, encoding ); },
-                    [ encoding ]( std::string_view bytes ) { return decode( bytes, encoding ); } );
+                    [ encoding ]( std::string_view bytes ) { return decode( bytes, encoding ); },
+                    line.decoded );
                 if ( line.decoded ) {
                     line.utf8Size = static_cast<std::size_t>( line.decoded->size() );
                 }
