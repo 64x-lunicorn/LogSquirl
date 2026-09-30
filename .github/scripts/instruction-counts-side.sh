@@ -48,14 +48,13 @@ docker run --rm \
     --env CMAKE_OPTS="$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache" \
     --env SCCACHE_DIR=/usr/local/sccache_cache \
     --env SCCACHE_CACHE_SIZE=2G \
-    --env INSTRUCTION_COUNTS_EXPERIMENT="${INSTRUCTION_COUNTS_EXPERIMENT:-}" \
     --workdir /usr/local \
     -v "$LOGSQUIRL_WORKSPACE":/usr/local "$image" /bin/bash -c '
         status=0
         "$1" "$2" || status=$?
         # Callgrind writes its dumps readable for their owner only, and the
         # container runs as root: hand them to the runner user.
-        chown -R "$3" "$(dirname "$2")" || status=1
+        chown -R "$3" "$2" || status=1
         exit $status
     ' counts "/usr/local/$RUN_DIR/tools/.github/scripts/instruction-counts.sh" "$RUN_DIR/dumps/$side" \
     "$(id -u):$(id -g)" || status=$?

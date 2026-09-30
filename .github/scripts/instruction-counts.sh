@@ -8,15 +8,16 @@
 # Valgrind and its headers (valgrind/callgrind.h; BUILD.md, "Instruction
 # counts"). Valgrind has no arm64 macOS port.
 #
-# Every benchmark target in tests/benchmarks/CMakeLists.txt, and logsquirl_grep
-# that one of them runs, is built in BUILD_ROOT, configured with CMAKE_OPTS.
+# Every benchmark target in tests/benchmarks/CMakeLists.txt is built in
+# BUILD_ROOT, configured with CMAKE_OPTS.
 # Then each binary runs once under Callgrind in the benchmarks' fixed-work mode
 # (tests/benchmarks/instruction_count.h): with instrumentation off until a
 # benchmark's measured code starts, which keeps the rest of the binary (writing
 # its Log Files, starting Qt) at about a quarter of native speed instead of a
 # fiftieth. The test cases run in declaration order with a fixed seed and a
 # fixed QHash seed, so every run does the same work; test cases tagged
-# [wall-clock] time themselves without a BENCHMARK and are left out.
+# [wall-clock] say something only as a time (they time themselves, or their
+# work is another process's) and are left out.
 #
 # For each binary, <results>/<binary>/ gets the Callgrind dumps, the binary's
 # output (log.txt) and, once it has ended, its exit code (exit_code; "not
@@ -67,7 +68,7 @@ done
 echo "::group::Build"
 build_start=$(date +%s)
 # shellcheck disable=SC2086 # one word per target
-if ! cmake --build "$build_root" --target $targets logsquirl_grep -- -k 0; then
+if ! cmake --build "$build_root" --target $targets -- -k 0; then
     echo "::warning::Not every benchmark built; the ones that did not are reported as failed"
 fi
 echo "::endgroup::"
@@ -83,10 +84,9 @@ export LC_ALL=C.UTF-8
 export LOGSQUIRL_BENCHMARK_LOG_FILE_MB=${LOGSQUIRL_BENCHMARK_LOG_FILE_MB:-4}
 export LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB=${LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB:-4}
 
-# count <target> <output directory> [valgrind option...]
+# count <target> <output directory>
 count() {
     local target=$1 out=$2
-    shift 2
     rm -rf "$out"
     mkdir -p "$out"
     if [ ! -x "$build_root/output/$target" ]; then
@@ -103,8 +103,11 @@ count() {
     # line tool) runs with instrumentation off, so its own instructions are not
     # counted. A larger main stack than the 8 MiB Valgrind gives by default:
     # the generated Log Lines of some benchmarks are built on it.
+    # --fair-sched: the threads take their turns in a fixed order, which made
+    # the counts of the benchmarks that wait for other threads repeat about
+    # three times as closely in #671.
     timeout "$binary_timeout" valgrind --tool=callgrind --instr-atstart=no --trace-children=yes \
-        --main-stacksize=67108864 "$@" \
+        --main-stacksize=67108864 --fair-sched=yes \
         --callgrind-out-file="$out/callgrind.out.%p" \
         "$build_root/output/$target" --order decl --rng-seed 1 '~[wall-clock]' --allow-running-no-tests \
         > "$out/log.txt" 2>&1 || code=$?
@@ -122,22 +125,3 @@ for target in $targets; do
     count "$target" "$results/$target"
 done
 
-# TEMPORARY (#671): which settings make the counts repeat.
-if [ -n "${INSTRUCTION_COUNTS_EXPERIMENT:-}" ]; then
-    noisy="logsquirl_textview_scroll_benchmark logsquirl_logdata_benchmark logsquirl_overview_selection_benchmark logsquirl_session_restore_benchmark logsquirl_filteredview_read_benchmark"
-    for variant in default arena1 fixed both fair; do
-        for rep in 1 2 3; do
-            for target in $noisy; do
-                opts=()
-                tunables=
-                case "$variant" in
-                    arena1) tunables=glibc.malloc.arena_max=1 ;;
-                    fixed) tunables=glibc.malloc.mmap_threshold=4194304:glibc.malloc.trim_threshold=67108864 ;;
-                    both) tunables=glibc.malloc.arena_max=1:glibc.malloc.mmap_threshold=4194304:glibc.malloc.trim_threshold=67108864 ;;
-                    fair) opts=(--fair-sched=yes) ;;
-                esac
-                GLIBC_TUNABLES=$tunables count "$target" "$results/../experiment/$variant/$rep/$target" "${opts[@]}"
-            done
-        done
-    done
-fi

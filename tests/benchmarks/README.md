@@ -687,8 +687,9 @@ measured code exactly once and have Callgrind count only that run (the
 *fixed-work mode*). A new benchmark file includes it too, or its benchmarks are
 timed there instead of counted. A test case that times itself without a
 `BENCHMARK` (the latency of reads while indexing, the Table View scroll, Go to
-timestamp, the ANSI Log File) carries the tag `[wall-clock]`, so the count
-leaves it out.
+timestamp, the ANSI Log File), or whose work happens in another process (the
+command line tool printing its matches), carries the tag `[wall-clock]`, so the
+count leaves it out.
 
 # Filtered View read benchmark
 

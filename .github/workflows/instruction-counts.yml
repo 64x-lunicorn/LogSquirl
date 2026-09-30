@@ -215,8 +215,6 @@ jobs:
 
       - name: Count the after side
         id: after
-        env:
-          INSTRUCTION_COUNTS_EXPERIMENT: ${{ github.event_name == 'pull_request' && '1' || '' }}
         run: '"$RUN_DIR/tools/.github/scripts/instruction-counts-side.sh" after'
 
       # ---------------------------------------------------------------------

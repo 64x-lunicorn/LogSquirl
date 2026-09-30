@@ -239,7 +239,10 @@ TEST_CASE( "Removing the longest of many Marks", "[filteredview-benchmark][marks
     };
 }
 
-TEST_CASE( "The command line tool printing its matches", "[filteredview-benchmark][grep]" )
+// [wall-clock]: the work is logsquirl_grep's, another process, which an
+// instruction count of this one does not see (#671).
+TEST_CASE( "The command line tool printing its matches",
+           "[filteredview-benchmark][grep][wall-clock]" )
 {
     // logsquirl_grep sits next to this benchmark, in a build and in the
     // Benchmarks workflow alike.

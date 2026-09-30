@@ -438,13 +438,17 @@ both sides, which takes about twice that. Most of a side is the link time optimi
 twenty-odd benchmark executables and Vectorscan's runtime, which sccache does not cache.
 
 A count is reproducible where a time is not: two runs of the same commit differ by less than
-0.5 % per benchmark, on a shared runner whose times vary by 5–20 %. For that, each benchmark runs
+0.5 % for most benchmarks, on a shared runner whose times vary by 5–20 %. The exceptions wait for
+other threads: which heap blocks glibc's allocator has free, and how long an idle worker thread
+spins, then depend on how the threads took turns, and their counts vary by up to about 2 %
+(Valgrind's `--fair-sched=yes` makes that about a third of what it is without). For that, each benchmark runs
 its measured code exactly once, in the benchmarks' **fixed-work mode**
 (`tests/benchmarks/instruction_count.h`), instead of as often as Catch2's clock asks for:
 with `LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1`, `BENCHMARK` and `BENCHMARK_ADVANCED` start
 Callgrind's counting where Catch2 would start its clock and write one dump, named
 `<test case> / <benchmark>`, where it would stop it. The count covers every thread. Test cases tagged
-`[wall-clock]` time themselves without a `BENCHMARK` and are left out. The generated Log Files are
+`[wall-clock]` time themselves without a `BENCHMARK`, or do their work in another process, and are
+left out. The generated Log Files are
 smaller than in a timed run (4 MiB, also per Session Log File), so the counts are not
 comparable with Catch2's times.
 
