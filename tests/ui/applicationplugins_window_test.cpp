@@ -540,6 +540,117 @@ SCENARIO( "Opening a converted Log File again shows its open tab",
     }
 }
 
+// A Log File open in another window is shown there rather than opened again:
+// its tab in that window comes to the front, whether it is open by its own
+// path or by the path a converter plugin wrote it to (#642).
+SCENARIO( "Opening a Log File open in another window shows its tab there",
+          "[ui][plugins][applicationplugins]" )
+{
+    GIVEN( "Two windows whose converter plugin has loaded; window B shows a converted Log File "
+           "and an Ordinary one, with a third Ordinary one in front" )
+    {
+        const StandardPathsInTestMode testPaths;
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installSlowConverter( pluginRoot.path() );
+        qunsetenv( "LOGSQUIRL_TEST_PLUGIN_INIT_DELAY_MS" );
+
+        QTemporaryDir fileDir;
+        REQUIRE( fileDir.isValid() );
+        const auto convertedPath = fileDir.filePath( "converted.slowconv" );
+        const auto plainPath = fileDir.filePath( "plain.log" );
+        const auto frontPath = fileDir.filePath( "front.log" );
+        for ( const auto& path : { convertedPath, plainPath, frontPath } ) {
+            QFile logFile( path );
+            REQUIRE( logFile.open( QIODevice::WriteOnly ) );
+            logFile.write( "first line\nsecond line\n" );
+        }
+
+        QStringList loadErrors;
+        auto plugins = std::make_shared<ApplicationPlugins>(
+            [ & ]( PluginCatalog& catalog, PluginHost& host ) {
+                catalog.discoverPlugins( { pluginRoot.path() } );
+                loadErrors
+                    = host.autoLoadPlugins( { .autoLoad = true, .enabled = { SlowConverterId } } )
+                          .errors;
+            } );
+        const auto appSession = newSession();
+        auto windowA = std::make_unique<MainWindow>(
+            WindowSession{ appSession, QStringLiteral( "applicationplugins_window_test_642_a" ),
+                           0 },
+            plugins );
+        auto windowB = std::make_unique<MainWindow>(
+            WindowSession{ appSession, QStringLiteral( "applicationplugins_window_test_642_b" ),
+                           1 },
+            plugins );
+        windowA->show();
+        windowB->show();
+        REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); }, 5000 ) );
+        REQUIRE( loadErrors.isEmpty() );
+        auto* tabsA = windowA->findChild<TabbedCrawlerWidget*>();
+        auto* tabsB = windowB->findChild<TabbedCrawlerWidget*>();
+        REQUIRE( tabsA != nullptr );
+        REQUIRE( tabsB != nullptr );
+
+        windowB->loadInitialFile( convertedPath, false );
+        windowB->loadInitialFile( plainPath, false );
+        windowB->loadInitialFile( frontPath, false );
+        REQUIRE( waitUiState( [ & ] { return tabsB->logFileTabs().size() == 3; }, 10000 ) );
+
+        const auto currentTabTextB = [ & ] { return tabsB->tabText( tabsB->currentIndex() ); };
+        // Every conversion writes a temporary file of the window that converts.
+        const auto conversions = []( const MainWindow& window ) {
+            const auto files = window.findChildren<QTemporaryFile*>();
+            return std::ranges::count_if( files, []( const QTemporaryFile* file ) {
+                return QFileInfo( file->fileName() )
+                    .fileName()
+                    .startsWith( QStringLiteral( "converted.slowconv.txt" ) );
+            } );
+        };
+        REQUIRE( currentTabTextB() == QStringLiteral( "front.log" ) );
+        REQUIRE( conversions( *windowB ) == 1 );
+        REQUIRE( tabsA->logFileTabs().isEmpty() );
+
+        WHEN( "the user opens in window A the Log File the converted one was converted from" )
+        {
+            windowA->loadInitialFile( convertedPath, false );
+
+            THEN( "window B's tab of it comes to the front, and no tab is opened in window A" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] {
+                        return currentTabTextB().contains(
+                            QStringLiteral( "converted.slowconv.txt" ) );
+                    },
+                    5000 ) );
+                QTest::qWait( 100 );
+                REQUIRE( tabsA->logFileTabs().isEmpty() );
+                REQUIRE( tabsB->logFileTabs().size() == 3 );
+                REQUIRE( conversions( *windowA ) == 0 );
+                REQUIRE( conversions( *windowB ) == 1 );
+            }
+        }
+
+        WHEN( "the user opens in window A the Ordinary Log File open in window B" )
+        {
+            windowA->loadInitialFile( plainPath, false );
+
+            THEN( "window B's tab of it comes to the front, and no tab is opened in window A" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] { return currentTabTextB() == QStringLiteral( "plain.log" ); }, 5000 ) );
+                QTest::qWait( 100 );
+                REQUIRE( tabsA->logFileTabs().isEmpty() );
+                REQUIRE( tabsB->logFileTabs().size() == 3 );
+            }
+        }
+
+        windowA.reset();
+        windowB.reset();
+        plugins.reset();
+    }
+}
+
 SCENARIO( "What plugins contribute shows in every window", "[ui][plugins][applicationplugins]" )
 {
     GIVEN( "Two shown windows and a plugin that contributes a menu action and a sidebar tab" )
