@@ -62,6 +62,18 @@ struct PluginPattern {
  */
 using PluginRegexLabAnswer = std::function<void( std::optional<PluginPattern> applied )>;
 
+/** The text of the Log Lines selected in the tab in front, as far as read (#663). */
+struct PluginSelectedLogLines {
+    /// In the order of the Log File.
+    QStringList lines;
+    /// The last of lines was cut short for the byte budget.
+    bool lastCut = false;
+    /// Selected Log Lines after lines were left unread for the byte budget.
+    bool more = false;
+
+    bool operator==( const PluginSelectedLogLines& ) const = default;
+};
+
 /** How going to a Log Line a plugin asked for ended (#663). */
 enum class PluginLogLineJump {
     Shown,     ///< Selected and scrolled into view.
@@ -155,12 +167,15 @@ public:
 
     /**
      * The text of the Log Lines selected in the tab in front, in the order
-     * of the Log File, at most maxLines of them (#663), on the UI thread
-     * only: those of the view the user was last in, a selection within a Log
-     * Line counting as the whole Log Line. None without an open Log File; no
-     * lines without a selection.
+     * of the Log File (#663), on the UI thread only: those of the view the
+     * user was last in, a selection within a Log Line counting as the whole
+     * Log Line. At most maxLines of them, each read from at most maxBytes of
+     * its bytes, and none read after one that was cut or after their UTF-8
+     * text passed maxBytes: a huge selection costs no more than that. None without an open Log
+     * File; no lines without a selection.
      */
-    virtual std::optional<QStringList> selectedLogLines( std::size_t /* maxLines */ )
+    virtual std::optional<PluginSelectedLogLines> selectedLogLines( std::size_t /* maxLines */,
+                                                                    std::size_t /* maxBytes */ )
     {
         return std::nullopt;
     }

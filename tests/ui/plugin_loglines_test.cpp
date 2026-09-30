@@ -41,14 +41,18 @@
 #include "abstractlogview.h"
 #include "applicationplugins.h"
 #include "crawlerwidget.h"
+#include "logfiltereddata.h"
 #include "logformatcatalog.h"
+#include "logformatdefinition.h"
 #include "logmainview.h"
 #include "logsquirl_plugin_api.h"
+#include "logtableview.h"
 #include "mainwindow.h"
 #include "openlogfile.h"
 #include "plugincatalog.h"
 #include "pluginhost.h"
 #include "pluginuiadapter.h"
+#include "searchlinewidget_access.h"
 #include "session.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
@@ -91,6 +95,50 @@ struct CrawlerWidget::access_by<PluginLogLinesTest> {
         crawler.logMainView_->setFocus();
         crawler.logMainView_->selectAll();
     }
+
+    // Searches for pattern; the Filtered View shows the Log Lines it finds.
+    static void search( CrawlerWidget& crawler, const QString& pattern )
+    {
+        SearchLineAccess::patternEdit( *crawler.searchLine_ )->setEditText( pattern );
+        crawler.searchLine_->requestSearch();
+    }
+
+    static LinesCount matchCount( CrawlerWidget& crawler )
+    {
+        return crawler.openLogFile_->filteredData()->getNbLine();
+    }
+
+    // What the user selecting every line of the Filtered View does.
+    static void selectAllInFilteredView( CrawlerWidget& crawler )
+    {
+        crawler.currentFilteredView()->setFocus();
+        crawler.currentFilteredView()->selectAll();
+    }
+
+    // Recognizes the Log File with a Log Format of its own, and shows the
+    // Table View, as the user choosing it does.
+    static LogTableView& showTableView( CrawlerWidget& crawler )
+    {
+        LogFormatDefinition format;
+        format.setName( "plugin_loglines_test" );
+        format.setTitle( "Plugin Log Lines test" );
+        QHash<QString, QString> regex;
+        regex[ "basic" ] = R"(^(?<source>\w+)\s+(?<body>.*)$)";
+        format.setRegexPatterns( regex );
+        format.setBodyField( "body" );
+
+        crawler.recognizedFormat_ = std::make_shared<const LogFormatDefinition>( format );
+        crawler.logTableView_->setLogFormat( crawler.recognizedFormat_.get(),
+                                             crawler.openLogFile_->logData().get() );
+        crawler.tableViewToggle_->setVisible( true );
+        crawler.tableViewToggle_->setChecked( true );
+        return *crawler.logTableView_;
+    }
+
+    static bool showsTableView( const CrawlerWidget& crawler )
+    {
+        return crawler.shownPresentation() == crawler.logTableView_;
+    }
 };
 
 void CrawlerWidget::access_by<PluginLogLinesTest>::selectWord( CrawlerWidget& crawler,
@@ -118,32 +166,47 @@ QString logLine( int index )
     return QStringLiteral( "line number %1 ä" ).arg( index + 1 );
 }
 
-bool writeLogFile( QTemporaryFile& file, int lines )
+bool writeLogFile( QTemporaryFile& file, const QStringList& lines )
 {
     if ( !file.open() ) {
         return false;
     }
-    for ( int i = 0; i < lines; ++i ) {
-        file.write( logLine( i ).toUtf8() + '\n' );
+    for ( const auto& line : lines ) {
+        file.write( line.toUtf8() + '\n' );
     }
     file.flush();
     return true;
 }
 
-// A Log File of LogLineCount lines, open in a Crawler Widget of its own Session.
+QStringList logLines( int count )
+{
+    QStringList lines;
+    for ( int i = 0; i < count; ++i ) {
+        lines.append( logLine( i ) );
+    }
+    return lines;
+}
+
+bool writeLogFile( QTemporaryFile& file, int lines )
+{
+    return writeLogFile( file, logLines( lines ) );
+}
+
+// A Log File, of LogLineCount lines unless given, open in a Crawler Widget of
+// its own Session.
 struct OpenCrawler {
-    OpenCrawler()
+    explicit OpenCrawler( const QStringList& lines = logLines( LogLineCount ) )
         : session( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() )
     {
-        REQUIRE( writeLogFile( file, LogLineCount ) );
+        REQUIRE( writeLogFile( file, lines ) );
         crawler.reset( static_cast<CrawlerWidget*>(
             session.open( file.fileName(),
                           []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
         crawler->resize( 800, 600 );
         crawler->show();
-        REQUIRE( waitUiState( [ this ] {
+        REQUIRE( waitUiState( [ this, &lines ] {
             return CrawlerAccess::openLogFile( *crawler ).logData()->getNbLine().get()
-                   == static_cast<uint64_t>( LogLineCount );
+                   == static_cast<uint64_t>( lines.size() );
         } ) );
         QTest::qWait( 100 );
     }
@@ -391,6 +454,49 @@ SCENARIO( "A plugin goes to a Log Line and reads the selected Log Lines of the t
             }
         }
 
+        WHEN( "Log Lines are selected in the Filtered View and the plugin reads them" )
+        {
+            // Line numbers 5, 50 to 59 and 500 to 599: 111 Log Lines.
+            CrawlerAccess::search( crawler, QStringLiteral( "number 5" ) );
+            REQUIRE( waitUiState(
+                [ & ] { return CrawlerAccess::matchCount( crawler ).get() == 111; }, 10'000 ) );
+            QTest::qWait( 100 );
+            CrawlerAccess::selectAllInFilteredView( crawler );
+            const auto selection = plugin.readSelected();
+
+            THEN( "It gets the Log Lines the Filtered View shows, in order" )
+            {
+                REQUIRE( selection.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( selection.lineCount == 111 );
+                const auto lines = selection.textAsString().split( QChar::LineFeed );
+                REQUIRE( lines.size() == 111 );
+                REQUIRE( lines[ 0 ] == logLine( 4 ) );
+                REQUIRE( lines[ 1 ] == logLine( 49 ) );
+                REQUIRE( lines[ 10 ] == logLine( 58 ) );
+                REQUIRE( lines[ 11 ] == logLine( 499 ) );
+                REQUIRE( lines.back() == logLine( 598 ) );
+            }
+        }
+
+        WHEN( "The Table View is shown and the plugin goes to line number 1500" )
+        {
+            auto& tableView = CrawlerAccess::showTableView( crawler );
+            REQUIRE( waitUiState( [ & ] {
+                return tableView.model() != nullptr
+                       && tableView.model()->rowCount() == LogLineCount;
+            } ) );
+            REQUIRE( CrawlerAccess::showsTableView( crawler ) );
+            const auto result = plugin.goTo( 1500 );
+
+            THEN( "Its row is selected, and the Table View stays, as with Go to line" )
+            {
+                REQUIRE( result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( tableView.selectedLogLines()
+                         == logsquirl::vector<LineNumber>{ 1499_lnum } );
+                REQUIRE( CrawlerAccess::showsTableView( crawler ) );
+            }
+        }
+
         WHEN( "The plugin's menu action shows the selection" )
         {
             CrawlerAccess::selectLine( crawler, 2_lnum );
@@ -452,7 +558,7 @@ SCENARIO( "A plugin reaches the tab in front of the most recently active window"
         THEN( "there is no Log Line to go to and none to read" )
         {
             REQUIRE( plugins->uiPort().goToLogLine( 0 ) == PluginLogLineJump::NoLogFile );
-            REQUIRE_FALSE( plugins->uiPort().selectedLogLines( 10 ).has_value() );
+            REQUIRE_FALSE( plugins->uiPort().selectedLogLines( 10, 1024 ).has_value() );
         }
     }
 
@@ -475,13 +581,14 @@ SCENARIO( "A plugin reaches the tab in front of the most recently active window"
         WHEN( "a plugin goes to a Log Line of it and reads the selection" )
         {
             const auto jump = plugins->uiPort().goToLogLine( 20 );
-            const auto selected = plugins->uiPort().selectedLogLines( 10 );
+            const auto selected = plugins->uiPort().selectedLogLines( 10, 1024 );
 
             THEN( "that tab's Log Line is selected, and is what is read" )
             {
                 REQUIRE( jump == PluginLogLineJump::Shown );
                 REQUIRE( CrawlerAccess::textView( *crawler ).getSelectedText() == logLine( 20 ) );
-                REQUIRE( selected == QStringList{ logLine( 20 ) } );
+                REQUIRE( selected.has_value() );
+                REQUIRE( selected->lines == QStringList{ logLine( 20 ) } );
             }
         }
 
@@ -496,4 +603,68 @@ SCENARIO( "A plugin reaches the tab in front of the most recently active window"
 
     window.reset();
     QTest::qWait( 50 );
+}
+
+SCENARIO( "A plugin reads no more of the selected Log Lines than it gets",
+          "[ui][plugins][pluginloglines]" )
+{
+    GIVEN( "a Log File whose first Log Line holds 4 MiB, all of it selected, and a plugin "
+           "loaded" )
+    {
+        // "a" and then two-byte characters: a bound of 1 MiB falls inside one.
+        const auto longLine = QStringLiteral( "a" ) + QString( 2 * 1024 * 1024, QChar( 0x00e9 ) );
+        OpenCrawler open( QStringList{ longLine, QStringLiteral( "short \u00e4" ) } );
+        auto& crawler = *open.crawler;
+
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installPlugin( pluginRoot.path() );
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+        PluginLibrary plugin;
+
+        QMainWindow window;
+        QMenu pluginsMenu;
+        auto* separator = pluginsMenu.addSeparator();
+        QTabWidget sidebarTabs;
+        PluginUiAdapter adapter( window, pluginsMenu, separator, sidebarTabs );
+        adapter.setTabInFront( [ &crawler ]() { return &crawler; } );
+        PluginHost host( catalog );
+        host.setUiPort( &adapter );
+        REQUIRE( host.loadPlugin( PluginId ).isEmpty() );
+
+        CrawlerAccess::selectAll( crawler );
+
+        WHEN( "the port is asked for them with a budget of 1 MiB" )
+        {
+            const auto selected
+                = adapter.selectedLogLines( 10, LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+
+            THEN( "it reads 1 MiB of the first Log Line, not the next, and says so" )
+            {
+                REQUIRE( selected.has_value() );
+                REQUIRE( selected->lastCut );
+                REQUIRE( selected->more );
+                REQUIRE( selected->lines.size() == 1 );
+                // The character cut in two is left out.
+                REQUIRE( selected->lines.front() == longLine.left( 524'288 ) );
+            }
+        }
+
+        WHEN( "the plugin reads them" )
+        {
+            const auto selection = plugin.readSelected();
+
+            THEN( "it gets the first Log Line cut at a character within 1 MiB, and is told there "
+                  "is more" )
+            {
+                REQUIRE( selection.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( selection.lineCount == 1 );
+                REQUIRE( selection.length == LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES - 1 );
+                REQUIRE( selection.textAsString() == longLine.left( 524'288 ) );
+            }
+        }
+
+        host.unloadAll();
+    }
 }

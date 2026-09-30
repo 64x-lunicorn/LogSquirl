@@ -199,19 +199,14 @@ SearchLine::Flags CrawlerWidget::searchFlags() const
 
 logsquirl::vector<LineNumber> CrawlerWidget::selectedLogLines( LinesCount count ) const
 {
-    auto lines = [ this ]() {
-        if ( filteredViewWasLastFocused() ) {
-            return currentFilteredView()->selectedLogLines();
-        }
-        if ( shownPresentation() == logTableView_ ) {
-            return logTableView_->selectedLogLines();
-        }
-        return logMainView_->selectedLogLines();
-    }();
-    if ( lines.size() > count.get() ) {
-        lines.resize( count.get() );
+    // Only the first count are looked at, however many are selected (#663).
+    if ( filteredViewWasLastFocused() ) {
+        return currentFilteredView()->selectedLogLines( count );
     }
-    return lines;
+    if ( shownPresentation() == logTableView_ ) {
+        return logTableView_->selectedLogLines( count );
+    }
+    return logMainView_->selectedLogLines( count );
 }
 
 logsquirl::vector<LineNumber> CrawlerWidget::logLinesAroundCurrentLine( LinesCount count ) const
@@ -404,6 +399,34 @@ void CrawlerWidget::goToLine()
                 std::min( selectedLine, LineNumber( nbLines.get() ) - 1_lcount ) );
         }
     }
+}
+
+CrawlerWidget::SelectedLogLineTexts CrawlerWidget::selectedLogLineTexts( LinesCount count,
+                                                                         qint64 maxBytes ) const
+{
+    SelectedLogLineTexts texts;
+    const auto logLines = selectedLogLines( count );
+    if ( logLines.empty() ) {
+        return texts;
+    }
+
+    const auto& logData = openLogFile_->logData();
+    logData->attachReader();
+    qint64 utf8Bytes = 0;
+    std::size_t read = 0;
+    logData->readLinePrefixes( logLines, maxBytes, [ & ]( QString&& text, bool cut ) {
+        utf8Bytes += ( texts.lines.isEmpty() ? 0 : 1 ) + text.toUtf8().size();
+        texts.lines.append( std::move( text ) );
+        ++read;
+        texts.lastCut = cut;
+        if ( cut || utf8Bytes > maxBytes ) {
+            texts.more = read < logLines.size();
+            return false;
+        }
+        return true;
+    } );
+    logData->detachReader();
+    return texts;
 }
 
 bool CrawlerWidget::goToLogLine( LineNumber line )

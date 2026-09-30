@@ -250,11 +250,12 @@ PluginLogLineJump SharedPluginUiPort::goToLogLine( std::uint64_t logLine )
     return window != nullptr ? window->goToLogLine( logLine ) : PluginLogLineJump::NoLogFile;
 }
 
-std::optional<QStringList> SharedPluginUiPort::selectedLogLines( std::size_t maxLines )
+std::optional<PluginSelectedLogLines> SharedPluginUiPort::selectedLogLines( std::size_t maxLines,
+                                                                            std::size_t maxBytes )
 {
     const std::scoped_lock lock( mutex_ );
     auto* window = mostRecentlyActive();
-    return window != nullptr ? window->selectedLogLines( maxLines ) : std::nullopt;
+    return window != nullptr ? window->selectedLogLines( maxLines, maxBytes ) : std::nullopt;
 }
 
 } // namespace logsquirl::plugins

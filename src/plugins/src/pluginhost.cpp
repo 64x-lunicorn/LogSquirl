@@ -731,20 +731,28 @@ int PluginHost::hostGetSelectedLogLines( void* handle, const char** text, size_t
         return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
     }
 
-    // One line more than returned says whether there are more.
-    auto selected = port->selectedLogLines( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 1 );
+    // One line more than returned says whether there are more; the port
+    // reads no more than the byte bound lets through.
+    auto selected = port->selectedLogLines( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 1,
+                                            LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
     if ( !selected ) {
         return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
     }
-    if ( selected->isEmpty() ) {
+    auto& lines = selected->lines;
+    if ( lines.isEmpty() ) {
         return LOGSQUIRL_LOG_LINES_NO_SELECTION;
     }
-    const bool more = selected->size() > LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES;
-    if ( more ) {
-        selected->resize( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+    bool more = selected->more || selected->lastCut;
+    if ( lines.size() > LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES ) {
+        lines.resize( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+        more = true;
+    }
+    // Only a first Log Line comes cut: one cut after whole ones is left out.
+    else if ( selected->lastCut && lines.size() > 1 ) {
+        lines.removeLast();
     }
 
-    auto result = selectedLogLinesText( *selected, more );
+    auto result = selectedLogLinesText( lines, more );
     ctx->selectedLogLinesUtf8 = std::move( result.text );
     *text = ctx->selectedLogLinesUtf8.constData();
     if ( length != nullptr ) {

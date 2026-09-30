@@ -2219,6 +2219,11 @@ logsquirl::vector<LineNumber> AbstractLogView::selectedLogLines() const
     return selection_.getLines( *lines_ );
 }
 
+logsquirl::vector<LineNumber> AbstractLogView::selectedLogLines( LinesCount limit ) const
+{
+    return selection_.getLines( *lines_, limit );
+}
+
 logsquirl::vector<LineNumber> AbstractLogView::logLinesAroundViewPosition( LinesCount count ) const
 {
     logsquirl::vector<LineNumber> logLines;

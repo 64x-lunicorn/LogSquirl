@@ -125,6 +125,17 @@ public:
     logsquirl::vector<LineNumber> selectedLogLines( LinesCount count ) const;
     logsquirl::vector<LineNumber> logLinesAroundCurrentLine( LinesCount count ) const;
 
+    // The text of the first at most count Log Lines selectedLogLines() gives,
+    // for a plugin (#663): each read from at most maxBytes of its bytes, and
+    // none read after one that was cut -- the last, then -- or after their
+    // UTF-8 text passed maxBytes. more says Log Lines were left unread.
+    struct SelectedLogLineTexts {
+        QStringList lines;
+        bool lastCut = false;
+        bool more = false;
+    };
+    SelectedLogLineTexts selectedLogLineTexts( LinesCount count, qint64 maxBytes ) const;
+
     // Selects the Log Line and shows it, as Go to line does, for a plugin
     // (#663): in the Presentation shown, and the nearest line the Filtered
     // View shows in that. False, and nothing changes, when the Log File has

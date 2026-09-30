@@ -148,6 +148,8 @@ public:
     // The selected Log Line(s) lines shows, in order: a single line or a
     // portion whether shown or not.
     logsquirl::vector<LineNumber> getLines( const LineMapping& lines ) const;
+    // The first at most limit of them, without looking at the others (#663).
+    logsquirl::vector<LineNumber> getLines( const LineMapping& lines, LinesCount limit ) const;
 
     // How many Log Lines a range selects, as lines shows them; 0 for a single
     // line or a portion.

@@ -91,7 +91,8 @@ public:
 
     /** In the most recently active window's tab in front; no Log File without a window. */
     PluginLogLineJump goToLogLine( std::uint64_t logLine ) override;
-    std::optional<QStringList> selectedLogLines( std::size_t maxLines ) override;
+    std::optional<PluginSelectedLogLines> selectedLogLines( std::size_t maxLines,
+                                                            std::size_t maxBytes ) override;
 
 private:
     enum class WidgetPlace { Status, Sidebar, Footer };

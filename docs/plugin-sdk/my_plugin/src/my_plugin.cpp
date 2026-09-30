@@ -45,9 +45,18 @@ void testPattern( void* /* user_data */ )
 void showSelection( void* /* user_data */ )
 {
     const char* text = nullptr;
-    if ( host->get_selected_log_lines( hostHandle, &text, nullptr, nullptr ) >= 0 ) {
-        host->show_notification( hostHandle, text );
+    size_t length = 0;
+    if ( host->get_selected_log_lines( hostHandle, &text, &length, nullptr ) < 0 ) {
+        return;
     }
+    // A notification is a line or two: show only the first 200 bytes of what
+    // may be up to 1 MiB, not in the middle of a UTF-8 character.
+    size_t shown = length < 200 ? length : 200;
+    while ( shown < length && shown > 0
+            && ( static_cast<unsigned char>( text[ shown ] ) & 0xC0 ) == 0x80 ) {
+        --shown;
+    }
+    host->show_notification( hostHandle, std::string( text, shown ).c_str() );
 }
 
 // Line numbers count from 1, as LogSquirl shows them.

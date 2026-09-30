@@ -22,6 +22,7 @@
 #include "logdata.h"
 #include "logfiltereddata.h"
 
+#include <limits>
 #include <memory>
 
 bool LineMapping::shows( LineNumber logLine ) const
@@ -64,14 +65,25 @@ LineMapping::positionsFromTo( LineNumber first, LineNumber last ) const
 logsquirl::vector<LineNumber> LineMapping::shownLogLinesFromTo( LineNumber first,
                                                                 LineNumber last ) const
 {
+    return shownLogLinesFromTo(
+        first, last, LinesCount( std::numeric_limits<LinesCount::UnderlyingType>::max() ) );
+}
+
+logsquirl::vector<LineNumber> LineMapping::shownLogLinesFromTo( LineNumber first, LineNumber last,
+                                                                LinesCount limit ) const
+{
     logsquirl::vector<LineNumber> logLines;
 
     const auto positions = positionsFromTo( first, last );
-    if ( !positions.has_value() ) {
+    if ( !positions.has_value() || limit.get() == 0 ) {
         return logLines;
     }
 
-    const auto [ firstPosition, lastPosition ] = *positions;
+    const auto [ firstPosition, fullLastPosition ] = *positions;
+    // At most limit positions, each showing at most one Log Line.
+    const auto lastPosition = ( fullLastPosition - firstPosition ).get() < limit.get()
+                                  ? fullLastPosition
+                                  : firstPosition + LinesCount( limit.get() - 1 );
     logLines.reserve( ( lastPosition - firstPosition ).get() + 1 );
     for ( auto position = firstPosition; position <= lastPosition; ++position ) {
         const auto logLine = logLineAt( position );

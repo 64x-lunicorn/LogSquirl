@@ -150,7 +150,95 @@ private:
     std::vector<uint64_t> marks_;
 };
 
+// Every one of a huge number of Log Lines shown at its own position, counting
+// how many positions are looked at: no Log File of that size is needed.
+class HugeLines : public VectorLines {
+public:
+    static constexpr uint64_t Count = 50'000'000;
+
+    explicit HugeLines( const AbstractLogData* logFile )
+        : VectorLines( logFile, {} )
+    {
+    }
+
+    OptionalLineNumber logLineAt( LineNumber position ) const override
+    {
+        ++lookedAt;
+        return position.get() < Count ? OptionalLineNumber( position ) : std::nullopt;
+    }
+
+    LineNumber nearestPositionOf( LineNumber logLine ) const override
+    {
+        return LineNumber( std::min( logLine.get(), Count - 1 ) );
+    }
+
+    LinesCount logLineCount() const override
+    {
+        return LinesCount( Count );
+    }
+
+    mutable uint64_t lookedAt = 0;
+};
+
 } // namespace
+
+SCENARIO( "A selection of many Log Lines is read only as far as asked", "[linemapping]" )
+{
+    const FakeLogData logFile{ logLineTexts( everyLogLine() ) };
+    const HugeLines lines{ &logFile };
+
+    GIVEN( "every one of 50 million Log Lines selected" )
+    {
+        Selection selection;
+        selection.selectRange( 0_lnum, LineNumber( HugeLines::Count - 1 ) );
+
+        WHEN( "the first five are asked for" )
+        {
+            const auto first = selection.getLines( lines, 5_lcount );
+
+            THEN( "they are the first five, and hardly more positions are looked at" )
+            {
+                REQUIRE(
+                    first
+                    == logsquirl::vector<LineNumber>{ 0_lnum, 1_lnum, 2_lnum, 3_lnum, 4_lnum } );
+                REQUIRE( lines.lookedAt < 10 );
+            }
+        }
+
+        WHEN( "none are asked for" )
+        {
+            THEN( "none come" )
+            {
+                REQUIRE( selection.getLines( lines, 0_lcount ).empty() );
+            }
+        }
+    }
+
+    GIVEN( "a range of three Log Lines selected" )
+    {
+        Selection selection;
+        selection.selectRange( 7_lnum, 9_lnum );
+
+        THEN( "asking for more gives the three" )
+        {
+            REQUIRE( lines.shownLogLinesFromTo( 7_lnum, 9_lnum, 1000_lcount )
+                     == logsquirl::vector<LineNumber>{ 7_lnum, 8_lnum, 9_lnum } );
+            REQUIRE( selection.getLines( lines, 1000_lcount ) == selection.getLines( lines ) );
+        }
+    }
+
+    GIVEN( "a single Log Line selected" )
+    {
+        Selection selection;
+        selection.selectLine( 12_lnum );
+
+        THEN( "asking for one gives it" )
+        {
+            REQUIRE( selection.getLines( lines, 1_lcount )
+                     == logsquirl::vector<LineNumber>{ 12_lnum } );
+        }
+    }
+}
 
 SCENARIO( "A line mapping answers in Log Lines over the positions it shows", "[linemapping]" )
 {

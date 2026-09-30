@@ -178,6 +178,8 @@ public:
     bool isPartialSelection() const;
     // The selected Log Lines, in order (see Selection::getLines()).
     logsquirl::vector<LineNumber> selectedLogLines() const;
+    // The first at most limit of them, without looking at the others (#663).
+    logsquirl::vector<LineNumber> selectedLogLines( LinesCount limit ) const;
     // The Log Lines the view shows around its current position
     // (getViewPosition()), in order: at most count of them, centered on it
     // where the view shows enough before and after it. What the Regex Lab

@@ -33,11 +33,13 @@
 #include <QToolBar>
 
 #include <algorithm>
+#include <limits>
 
 using logsquirl::plugins::PluginCallbackFn;
 using logsquirl::plugins::PluginLogLineJump;
 using logsquirl::plugins::PluginPattern;
 using logsquirl::plugins::PluginRegexLabAnswer;
+using logsquirl::plugins::PluginSelectedLogLines;
 using logsquirl::plugins::PluginWidgetHandle;
 
 namespace {
@@ -446,7 +448,8 @@ PluginLogLineJump PluginUiAdapter::goToLogLine( std::uint64_t logLine )
                                                      : PluginLogLineJump::OutOfRange;
 }
 
-std::optional<QStringList> PluginUiAdapter::selectedLogLines( std::size_t maxLines )
+std::optional<PluginSelectedLogLines> PluginUiAdapter::selectedLogLines( std::size_t maxLines,
+                                                                         std::size_t maxBytes )
 {
     if ( QThread::currentThread() != window_.thread() || !tabInFront_ ) {
         return std::nullopt;
@@ -455,14 +458,13 @@ std::optional<QStringList> PluginUiAdapter::selectedLogLines( std::size_t maxLin
     if ( tab == nullptr ) {
         return std::nullopt;
     }
-    // A selection within a Log Line is that Log Line's, as for the Regex Lab.
-    const auto logLines = tab->selectedLogLines( LinesCount( maxLines ) );
-    const auto texts = tab->logLineTextReader()( logLines );
-
-    QStringList selected;
-    selected.reserve( static_cast<qsizetype>( texts.size() ) );
-    for ( const auto& text : texts ) {
-        selected.append( text );
-    }
-    return selected;
+    // A selection within a Log Line is that Log Line's, as for the Regex Lab;
+    // no more is looked at or read than the bounds let through.
+    auto texts = tab->selectedLogLineTexts(
+        LinesCount( maxLines ),
+        static_cast<qint64>( std::min<std::size_t>(
+            maxBytes, static_cast<std::size_t>( std::numeric_limits<qint64>::max() ) ) ) );
+    return PluginSelectedLogLines{ .lines = std::move( texts.lines ),
+                                   .lastCut = texts.lastCut,
+                                   .more = texts.more };
 }

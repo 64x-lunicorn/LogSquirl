@@ -24,6 +24,7 @@
 // at any time.
 
 #include <algorithm>
+#include <limits>
 #include <numeric>
 
 #include "abstractlogdata.h"
@@ -137,7 +138,16 @@ OptionalLineNumber Selection::selectedLine() const
 
 logsquirl::vector<LineNumber> Selection::getLines( const LineMapping& lines ) const
 {
+    return getLines( lines, LinesCount( std::numeric_limits<LinesCount::UnderlyingType>::max() ) );
+}
+
+logsquirl::vector<LineNumber> Selection::getLines( const LineMapping& lines,
+                                                   LinesCount limit ) const
+{
     logsquirl::vector<LineNumber> selection;
+    if ( limit.get() == 0 ) {
+        return selection;
+    }
 
     if ( selectedLine_.has_value() ) {
         selection.push_back( *selectedLine_ );
@@ -146,7 +156,8 @@ logsquirl::vector<LineNumber> Selection::getLines( const LineMapping& lines ) co
         selection.push_back( *selectedPartial_.line );
     }
     else if ( selectedRange_.startLine.has_value() ) {
-        selection = lines.shownLogLinesFromTo( *selectedRange_.startLine, selectedRange_.endLine );
+        selection
+            = lines.shownLogLinesFromTo( *selectedRange_.startLine, selectedRange_.endLine, limit );
     }
 
     return selection;

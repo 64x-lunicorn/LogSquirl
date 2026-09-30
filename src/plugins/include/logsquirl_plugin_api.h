@@ -305,7 +305,8 @@ typedef struct {
      * @return LOGSQUIRL_LOG_LINES_OK when the line is shown;
      *         LOGSQUIRL_LOG_LINES_OUT_OF_RANGE when the Log File has no such
      *         line (yet); LOGSQUIRL_LOG_LINES_NO_LOG_FILE without an open Log
-     *         File; LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD off the UI thread.
+     *         File; LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD off the UI thread;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle.
      */
     int ( *go_to_log_line )( void* handle, uint64_t line_number );
 

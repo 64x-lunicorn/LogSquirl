@@ -44,6 +44,7 @@ using logsquirl::plugins::PluginHost;
 using logsquirl::plugins::PluginLogLineJump;
 using logsquirl::plugins::PluginPattern;
 using logsquirl::plugins::PluginRegexLabAnswer;
+using logsquirl::plugins::PluginSelectedLogLines;
 using logsquirl::plugins::PluginUiPort;
 using logsquirl::plugins::PluginWidgetHandle;
 
@@ -173,16 +174,23 @@ public:
 
     /// The selected Log Lines of the tab in front; none without a Log File.
     std::optional<QStringList> selected;
-    /// How many a plugin asked for at most, at each call.
-    std::vector<std::size_t> askedForAtMost;
+    /// Whether the port cut the last Log Line, or left some unread, for the bytes.
+    bool lastCut = false;
+    bool more = false;
+    /// How many Log Lines, and bytes, a plugin asked for at most, at each call.
+    std::vector<std::pair<std::size_t, std::size_t>> askedForAtMost;
 
-    std::optional<QStringList> selectedLogLines( std::size_t maxLines ) override
+    std::optional<PluginSelectedLogLines> selectedLogLines( std::size_t maxLines,
+                                                            std::size_t maxBytes ) override
     {
-        askedForAtMost.push_back( maxLines );
+        askedForAtMost.emplace_back( maxLines, maxBytes );
         if ( !selected ) {
             return std::nullopt;
         }
-        return selected->mid( 0, static_cast<qsizetype>( maxLines ) );
+        return PluginSelectedLogLines{ .lines
+                                       = selected->mid( 0, static_cast<qsizetype>( maxLines ) ),
+                                       .lastCut = lastCut,
+                                       .more = more };
     }
 };
 
@@ -1109,11 +1117,13 @@ SCENARIO( "A plugin goes to a Log Line and reads the selected Log Lines through 
                 REQUIRE( read.lineCount == 3 );
             }
 
-            THEN( "The port is asked for one Log Line more than a plugin gets" )
+            THEN( "The port is asked for one Log Line more than a plugin gets, and no more "
+                  "bytes" )
             {
-                REQUIRE(
-                    port.askedForAtMost
-                    == std::vector<std::size_t>{ LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 1 } );
+                REQUIRE( port.askedForAtMost
+                         == std::vector<std::pair<std::size_t, std::size_t>>{
+                             { LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 1,
+                               LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES } } );
             }
 
             AND_WHEN( "It reads them once more after the selection changed" )
@@ -1228,6 +1238,54 @@ SCENARIO( "A plugin goes to a Log Line and reads the selected Log Lines through 
                     = QString::fromUtf8( read.text, static_cast<qsizetype>( read.length ) );
                 REQUIRE( text == line.left( ( MaxBytes - 1 ) / 2 + 1 ) );
                 REQUIRE( text.toUtf8().size() == MaxBytes - 1 );
+            }
+        }
+
+        WHEN( "The port cut the first Log Line short, for the bytes" )
+        {
+            port.selected = QStringList{ QStringLiteral( "cut short" ) };
+            port.lastCut = true;
+            const auto read = readSelected( *api, handle );
+
+            THEN( "The plugin gets what was read and is told it is truncated" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( std::string( read.text ) == "cut short" );
+            }
+        }
+
+        WHEN( "The port cut a Log Line short after whole ones, for the bytes" )
+        {
+            port.selected = QStringList{ QStringLiteral( "whole" ), QStringLiteral( "cut" ) };
+            port.lastCut = true;
+            const auto read = readSelected( *api, handle );
+
+            THEN( "The plugin gets the whole ones only, and is told it is truncated" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( std::string( read.text ) == "whole" );
+                REQUIRE( read.lineCount == 1 );
+            }
+        }
+
+        WHEN( "The port left Log Lines unread, for the bytes" )
+        {
+            port.selected = QStringList{ QStringLiteral( "read" ) };
+            port.more = true;
+
+            THEN( "The plugin is told it is truncated" )
+            {
+                REQUIRE( readSelected( *api, handle ).result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+            }
+        }
+
+        WHEN( "The plugin goes to a Log Line with no handle" )
+        {
+            THEN( "It is an invalid argument, and the port is not asked" )
+            {
+                REQUIRE( api->go_to_log_line( nullptr, 1 )
+                         == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( port.wentTo.empty() );
             }
         }
 

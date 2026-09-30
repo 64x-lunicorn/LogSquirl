@@ -135,9 +135,18 @@ void testPattern( void* /* user_data */ )
 void showSelection( void* /* user_data */ )
 {
     const char* text = nullptr;
-    if ( host->get_selected_log_lines( hostHandle, &text, nullptr, nullptr ) >= 0 ) {
-        host->show_notification( hostHandle, text );
+    size_t length = 0;
+    if ( host->get_selected_log_lines( hostHandle, &text, &length, nullptr ) < 0 ) {
+        return;
     }
+    // A notification is a line or two: show only the first 200 bytes of what
+    // may be up to 1 MiB, not in the middle of a UTF-8 character.
+    size_t shown = length < 200 ? length : 200;
+    while ( shown < length && shown > 0
+            && ( static_cast<unsigned char>( text[ shown ] ) & 0xC0 ) == 0x80 ) {
+        --shown;
+    }
+    host->show_notification( hostHandle, std::string( text, shown ).c_str() );
 }
 
 // Line numbers count from 1, as LogSquirl shows them.
@@ -695,7 +704,8 @@ scrolls it into view in the Presentation shown -- the Text View or the Table
 View -- and the Filtered View selects the nearest line it shows. The
 `line_number` is the one LogSquirl shows: the first Log Line is 1. It returns
 `LOGSQUIRL_LOG_LINES_OK`, or `LOGSQUIRL_LOG_LINES_OUT_OF_RANGE` for 0 or a
-number past the last line indexed so far, and changes nothing then.
+number past the last line indexed so far, and changes nothing then. A `NULL`
+handle is `LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT`.
 
 `get_selected_log_lines` returns the Log Lines selected in the view the user
 was last in -- the Filtered View or the Presentation shown -- in the order of

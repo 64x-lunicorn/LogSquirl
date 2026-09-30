@@ -93,7 +93,8 @@ public:
     void setRegexLabSampleSource( std::function<RegexLabSampleSource()> sampleSource );
 
     logsquirl::plugins::PluginLogLineJump goToLogLine( std::uint64_t logLine ) override;
-    std::optional<QStringList> selectedLogLines( std::size_t maxLines ) override;
+    std::optional<logsquirl::plugins::PluginSelectedLogLines>
+    selectedLogLines( std::size_t maxLines, std::size_t maxBytes ) override;
 
     /**
      * The tab in front a plugin goes to a Log Line of and reads the selected

@@ -90,9 +90,15 @@ public:
     std::optional<QStringList> selected;
     std::vector<std::uint64_t> wentTo;
 
-    std::optional<QStringList> selectedLogLines( std::size_t /* maxLines */ ) override
+    std::optional<logsquirl::plugins::PluginSelectedLogLines>
+    selectedLogLines( std::size_t /* maxLines */, std::size_t /* maxBytes */ ) override
     {
-        return selected;
+        if ( !selected ) {
+            return std::nullopt;
+        }
+        return logsquirl::plugins::PluginSelectedLogLines{ .lines = *selected,
+                                                           .lastCut = false,
+                                                           .more = false };
     }
 
     logsquirl::plugins::PluginLogLineJump goToLogLine( std::uint64_t logLine ) override
@@ -183,6 +189,20 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
                 port.selected = QStringList{ QStringLiteral( "ERROR 42" ) };
                 showSelection.callback( showSelection.userData );
                 REQUIRE( notifications == QStringList{ "ERROR 42" } );
+            }
+
+            THEN( "Its Show Selection shows only the beginning of a long selection, whole "
+                  "characters" )
+            {
+                REQUIRE( port.actions.size() == 4 );
+                const auto& showSelection = port.actions[ 2 ];
+                // "a", then two-byte characters: 200 bytes end inside one.
+                port.selected
+                    = QStringList{ QStringLiteral( "a" ) + QString( 300, QChar( 0x00e9 ) ) };
+                showSelection.callback( showSelection.userData );
+                REQUIRE( notifications.size() == 1 );
+                REQUIRE( notifications.front().toUtf8().size() == 199 );
+                REQUIRE( notifications.front() == port.selected->front().left( 100 ) );
             }
 
             THEN( "Its Go to First Line goes to the first Log Line" )
