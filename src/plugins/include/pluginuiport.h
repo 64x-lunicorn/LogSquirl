@@ -21,6 +21,11 @@
 
 #include <QString>
 
+#include <functional>
+#include <optional>
+
+class QObject;
+
 namespace logsquirl::plugins {
 
 /// C-style callback function pointer used in the plugin host API.
@@ -39,6 +44,20 @@ struct PluginWidgetHandle {
 
     bool operator==( const PluginWidgetHandle& ) const = default;
 };
+
+/** A pattern a plugin has the user test in the Regex Lab, and how it reads it. */
+struct PluginPattern {
+    QString pattern;
+    bool matchesCase = true;
+
+    bool operator==( const PluginPattern& ) const = default;
+};
+
+/**
+ * Called once with the answer of a Regex Lab a plugin opened: the pattern the
+ * user applied, or none when the user cancelled.
+ */
+using PluginRegexLabAnswer = std::function<void( std::optional<PluginPattern> applied )>;
 
 /**
  * The Plugin UI Port: everything the plugin layer needs from the user
@@ -93,6 +112,25 @@ public:
 
     /** The widget a plugin's configuration dialog is opened on. */
     virtual PluginWidgetHandle configurationParent() = 0;
+
+    /**
+     * Open the Regex Lab for a plugin's pattern (#662), on the UI thread
+     * only. The Lab reads the pattern as a regular expression and lets the
+     * user change it and whether it matches case.
+     *
+     * answer is called once, on the UI thread, when the user applies or
+     * cancels, or the Lab goes along with its window -- unless context is
+     * destroyed first: then never. removeContributions() closes the plugin's
+     * Labs.
+     *
+     * @return Whether a Lab opened; answer is never called when not. A port
+     *         that shows no Regex Lab opens none.
+     */
+    virtual bool openRegexLab( const QString& /* pluginId */, const PluginPattern& /* pattern */,
+                               QObject* /* context */, PluginRegexLabAnswer /* answer */ )
+    {
+        return false;
+    }
 };
 
 } // namespace logsquirl::plugins

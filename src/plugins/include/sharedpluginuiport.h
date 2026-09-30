@@ -85,6 +85,10 @@ public:
     /** The most recently active window's, or a null handle without a window. */
     PluginWidgetHandle configurationParent() override;
 
+    /** Opens the Lab in the most recently active window; none without a window. */
+    bool openRegexLab( const QString& pluginId, const PluginPattern& pattern, QObject* context,
+                       PluginRegexLabAnswer answer ) override;
+
 private:
     enum class WidgetPlace { Status, Sidebar, Footer };
 

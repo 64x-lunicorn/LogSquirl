@@ -27,14 +27,19 @@
 #include <QDir>
 #include <QFile>
 #include <QLibrary>
+#include <QPointer>
 #include <QTemporaryDir>
 
+#include <optional>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
 using logsquirl::plugins::PluginCallbackFn;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
+using logsquirl::plugins::PluginPattern;
+using logsquirl::plugins::PluginRegexLabAnswer;
 using logsquirl::plugins::PluginUiPort;
 using logsquirl::plugins::PluginWidgetHandle;
 
@@ -131,6 +136,26 @@ public:
     {
         return parent;
     }
+
+    /// A Regex Lab a plugin opened, and what answers it.
+    struct OpenedLab {
+        QString pluginId;
+        PluginPattern pattern;
+        QPointer<QObject> context;
+        PluginRegexLabAnswer answer;
+    };
+    std::vector<OpenedLab> labs;
+    bool opensLabs = true;
+
+    bool openRegexLab( const QString& pluginId, const PluginPattern& pattern, QObject* context,
+                       PluginRegexLabAnswer answer ) override
+    {
+        if ( !opensLabs ) {
+            return false;
+        }
+        labs.push_back( { pluginId, pattern, context, std::move( answer ) } );
+        return true;
+    }
 };
 
 /// The exported functions of the probe plugin the tests reach behind the host's back.
@@ -169,7 +194,8 @@ struct Probe {
 };
 
 /// Writes a plugin.json for the probe plugin into its own subdirectory of root.
-void installProbe( const QString& root )
+void installProbe( const QString& root,
+                   const QString& library = QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) )
 {
     const auto pluginDir = QDir( root ).filePath( "ui-port-probe" );
     QDir().mkpath( pluginDir );
@@ -184,7 +210,7 @@ void installProbe( const QString& root )
         "library": "%2",
         "api_version": 1
     })" )
-                        .arg( ProbeId, QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) )
+                        .arg( ProbeId, library )
                         .toUtf8() );
 }
 
@@ -218,6 +244,25 @@ struct ActiveFileCalls {
 void recordActiveFile( void* userData, const char* filePath )
 {
     static_cast<ActiveFileCalls*>( userData )->paths.append( QString::fromUtf8( filePath ) );
+}
+
+/// What the Regex Lab callback a test passes through the probe received.
+struct RegexLabAnswers {
+    struct Answer {
+        int result = -1;
+        std::optional<QString> pattern;
+        int flags = -1;
+    };
+    std::vector<Answer> answers;
+};
+
+void recordRegexLabAnswer( void* userData, int result, const char* pattern, int flags )
+{
+    static_cast<RegexLabAnswers*>( userData )
+        ->answers.push_back(
+            { result,
+              pattern ? std::optional<QString>( QString::fromUtf8( pattern ) ) : std::nullopt,
+              flags } );
 }
 
 } // namespace
@@ -667,6 +712,208 @@ SCENARIO( "The Plugin Host loads only plugins from its catalog", "[pluginhost][p
                 REQUIRE( error.contains( "not found" ) );
                 REQUIRE( host.loadedPluginIds().isEmpty() );
             }
+        }
+    }
+}
+
+SCENARIO( "A plugin opens the Regex Lab through the Plugin Host",
+          "[pluginhost][pluginregexlab][plugins]" )
+{
+    GIVEN( "A Plugin Host with a fake Plugin UI Port and the probe plugin loaded" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        REQUIRE( api != nullptr );
+        REQUIRE( api->open_regex_lab != nullptr );
+
+        RegexLabAnswers received;
+
+        WHEN( "The plugin opens the Regex Lab with a pattern that matches case" )
+        {
+            const auto opened = api->open_regex_lab( handle, "ERROR \xc3\xa4 (\\d+)",
+                                                     LOGSQUIRL_REGEX_LAB_MATCH_CASE,
+                                                     &recordRegexLabAnswer, &received );
+
+            THEN( "The port opens a Lab for the plugin with that pattern" )
+            {
+                REQUIRE( opened == 0 );
+                REQUIRE( port.labs.size() == 1 );
+                REQUIRE( port.labs[ 0 ].pluginId == ProbeId );
+                REQUIRE( port.labs[ 0 ].pattern
+                         == PluginPattern{ .pattern = QStringLiteral( "ERROR \u00e4 (\\d+)" ),
+                                           .matchesCase = true } );
+                REQUIRE( received.answers.empty() );
+            }
+
+            AND_WHEN( "The user applies a pattern that ignores case" )
+            {
+                REQUIRE( port.labs.size() == 1 );
+                port.labs[ 0 ].answer( PluginPattern{ .pattern = QStringLiteral( "WARN \u00f6" ),
+                                                      .matchesCase = false } );
+
+                THEN( "The plugin gets the pattern in UTF-8, without the match case flag" )
+                {
+                    REQUIRE( received.answers.size() == 1 );
+                    REQUIRE( received.answers[ 0 ].result == LOGSQUIRL_REGEX_LAB_APPLIED );
+                    REQUIRE( received.answers[ 0 ].pattern == QStringLiteral( "WARN \u00f6" ) );
+                    REQUIRE( received.answers[ 0 ].flags == 0 );
+                }
+            }
+
+            AND_WHEN( "The user cancels" )
+            {
+                REQUIRE( port.labs.size() == 1 );
+                port.labs[ 0 ].answer( std::nullopt );
+
+                THEN( "The plugin hears it was cancelled, with no pattern" )
+                {
+                    REQUIRE( received.answers.size() == 1 );
+                    REQUIRE( received.answers[ 0 ].result == LOGSQUIRL_REGEX_LAB_CANCELLED );
+                    REQUIRE_FALSE( received.answers[ 0 ].pattern.has_value() );
+                    REQUIRE( received.answers[ 0 ].flags == 0 );
+                }
+            }
+
+            AND_WHEN( "The plugin is unloaded" )
+            {
+                host.unloadPlugin( ProbeId );
+
+                THEN( "The context the answer is connected with is gone" )
+                {
+                    REQUIRE( port.labs.size() == 1 );
+                    REQUIRE( port.labs[ 0 ].context.isNull() );
+                }
+            }
+        }
+
+        WHEN( "The plugin opens the Regex Lab with no pattern and ignoring case" )
+        {
+            const auto opened
+                = api->open_regex_lab( handle, nullptr, 0, &recordRegexLabAnswer, &received );
+
+            THEN( "The Lab opens with an empty pattern that ignores case" )
+            {
+                REQUIRE( opened == 0 );
+                REQUIRE( port.labs.size() == 1 );
+                REQUIRE( port.labs[ 0 ].pattern
+                         == PluginPattern{ .pattern = QString(), .matchesCase = false } );
+            }
+        }
+
+        WHEN( "The plugin opens the Regex Lab without a callback" )
+        {
+            const auto opened = api->open_regex_lab( handle, "ERROR", 0, nullptr, nullptr );
+
+            THEN( "No Lab opens" )
+            {
+                REQUIRE( opened != 0 );
+                REQUIRE( port.labs.empty() );
+            }
+        }
+
+        WHEN( "The plugin opens the Regex Lab off the UI thread" )
+        {
+            int opened = 0;
+            std::thread( [ & ] {
+                opened
+                    = api->open_regex_lab( handle, "ERROR", 0, &recordRegexLabAnswer, &received );
+            } ).join();
+
+            THEN( "No Lab opens" )
+            {
+                REQUIRE( opened != 0 );
+                REQUIRE( port.labs.empty() );
+            }
+        }
+
+        WHEN( "The port shows no Regex Lab, as without a window" )
+        {
+            port.opensLabs = false;
+            const auto opened
+                = api->open_regex_lab( handle, "ERROR", 0, &recordRegexLabAnswer, &received );
+
+            THEN( "The plugin is told no Lab opened" )
+            {
+                REQUIRE( opened != 0 );
+                REQUIRE( received.answers.empty() );
+            }
+        }
+
+        host.unloadAll();
+        probe.library.unload();
+    }
+}
+
+SCENARIO( "A plugin built against the first plugin header loads and runs unchanged",
+          "[pluginhost][plugins]" )
+{
+    GIVEN( "The probe plugin built against the header of LogSquirl 26.10, which knows no later "
+           "host function" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path(), QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API1_PATH ) );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+
+        WHEN( "The Plugin Host loads it" )
+        {
+            const auto error = host.loadPlugin( ProbeId );
+
+            Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API1_PATH ) );
+            REQUIRE( probe.library.load() );
+            const auto* api = probe.hostApi();
+            auto* handle = probe.hostHandle();
+
+            THEN( "It is initialised with the table it knows, and its calls reach the host" )
+            {
+                REQUIRE( error.isEmpty() );
+                REQUIRE( host.isLoaded( ProbeId ) );
+                REQUIRE( api != nullptr );
+                REQUIRE( api->api_version == LOGSQUIRL_PLUGIN_API_VERSION );
+
+                int menuUserData = 0;
+                api->register_menu_action( handle, "Plugins", "Probe", &menuCallback,
+                                           &menuUserData );
+                REQUIRE( port.calls.size() == 1 );
+                REQUIRE( port.calls[ 0 ].kind == PortCall::Kind::AddMenuAction );
+                REQUIRE( port.calls[ 0 ].label == "Probe" );
+            }
+
+            AND_WHEN( "It is unloaded" )
+            {
+                host.unloadPlugin( ProbeId );
+
+                THEN( "Its shutdown ran and its contributions are removed" )
+                {
+                    REQUIRE_FALSE( host.isLoaded( ProbeId ) );
+                    REQUIRE( port.calls.size() == 2 );
+                    REQUIRE( port.calls[ 0 ].kind == PortCall::Kind::RemoveFooterWidget );
+                    REQUIRE( port.calls[ 1 ].kind == PortCall::Kind::RemoveContributions );
+                }
+            }
+
+            host.unloadAll();
+            probe.library.unload();
         }
     }
 }

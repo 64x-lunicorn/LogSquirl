@@ -66,7 +66,7 @@ struct PluginAutoLoadResult {
  * Loads and initialises plugin libraries, shuts them down again, and provides
  * the LogSquirlHostApi callbacks that bridge plugin calls into the host
  * application: data-source streams, converters, the active file, opening
- * files and notifications.
+ * files, notifications and the Regex Lab.
  *
  * What plugins contribute to the user interface goes to the PluginUiPort set
  * with setUiPort(); the host itself knows no widgets.
@@ -233,6 +233,11 @@ private:
         // Active-file-change callback registered by plugin (optional)
         void ( *activeFileCallback )( void* user_data, const char* file_path ) = nullptr;
         void* activeFileUserData = nullptr;
+        // What the user interface answers the plugin through is connected
+        // with this context, on the host's thread: once it is gone, nothing
+        // calls into the plugin any more. It goes before the plugin is shut
+        // down (#662).
+        std::unique_ptr<QObject> answerContext{};
     };
 
     /** Extract a PluginContext from the opaque handle passed through host API. */
@@ -278,6 +283,8 @@ private:
                                                 void ( *callback )( void* user_data,
                                                                     const char* file_path ),
                                                 void* user_data );
+    static int hostOpenRegexLab( void* handle, const char* pattern, int flags,
+                                 LogSquirlRegexLabCallbackFn callback, void* userData );
 };
 
 } // namespace logsquirl::plugins

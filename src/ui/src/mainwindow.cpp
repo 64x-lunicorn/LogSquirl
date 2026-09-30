@@ -388,6 +388,8 @@ MainWindow::MainWindow( WindowSession session,
     // plugins load, so what they register while loading is shown.
     pluginUi_ = std::make_unique<PluginUiAdapter>( *this, *pluginsMenu, pluginMenuSeparator_,
                                                    *sidebarTabs_ );
+    // A plugin's Regex Lab samples the tab in front, as the menu's does (#662).
+    pluginUi_->setRegexLabSampleSource( [ this ]() { return tabInFrontAsRegexLabSample(); } );
     plugins_->uiPort().addWindow( pluginUi_.get() );
     servePluginCallbacks();
 

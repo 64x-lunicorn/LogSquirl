@@ -575,6 +575,13 @@ line with the pattern and sets its buttons. It runs the search only when
 *Auto-refresh* is on; otherwise the search runs when you start it. *Cancel*
 or closing the Lab changes nothing.
 
+A plugin can open the Lab as well, to have you test one of its patterns: the
+Lab then reads the pattern as a regular expression, lets you change it and
+*Match case*, and matches as Qt's regular expressions do, whatever engine your
+searches run on. *Apply* hands the pattern back to the plugin, *Cancel* or
+closing the Lab leaves the plugin's pattern as it was. When the plugin is
+disabled, its Lab closes.
+
 ### Using highlighters
 
 *Highlighters* can colorize some lines of the log being displayed

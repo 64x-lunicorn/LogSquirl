@@ -63,6 +63,7 @@ add_executable(logsquirl_tests
     patternmatcher_test.cpp
     plugindialog_test.cpp
     pluginhost_test.cpp
+    pluginregexlab_test.cpp
     pluginloader_test.cpp
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
@@ -136,6 +137,26 @@ set_target_properties(logsquirl_ui_port_probe PROPERTIES CXX_VISIBILITY_PRESET h
 add_dependencies(logsquirl_tests logsquirl_ui_port_probe)
 target_compile_definitions(logsquirl_tests PRIVATE
     LOGSQUIRL_UI_PORT_PROBE_PATH="$<TARGET_FILE:logsquirl_ui_port_probe>")
+
+# The same probe built against the plugin header as LogSquirl 26.10 published
+# it, before the API grew: such a plugin loads and runs unchanged (#662).
+add_library(logsquirl_ui_port_probe_api1 MODULE plugins/uiportprobe.cpp)
+target_link_libraries(logsquirl_ui_port_probe_api1 PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_ui_port_probe_api1
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/plugins/api1")
+set_target_properties(logsquirl_ui_port_probe_api1 PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_ui_port_probe_api1)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_UI_PORT_PROBE_API1_PATH="$<TARGET_FILE:logsquirl_ui_port_probe_api1>")
+
+# A plugin that opens the Regex Lab and hears what the user applied (#662).
+add_library(logsquirl_regex_lab_plugin MODULE plugins/regexlabplugin.cpp)
+target_link_libraries(logsquirl_regex_lab_plugin PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_regex_lab_plugin PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_regex_lab_plugin PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_regex_lab_plugin)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_REGEX_LAB_PLUGIN_PATH="$<TARGET_FILE:logsquirl_regex_lab_plugin>")
 
 # The Plugin Loader test loads one library per way a plugin can fail to load,
 # and one that loads (#444). They are built from one source, each with one

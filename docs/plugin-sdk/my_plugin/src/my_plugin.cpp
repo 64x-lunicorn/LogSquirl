@@ -1,6 +1,8 @@
 /* my_plugin.cpp: a LogSquirl UI extension plugin. MIT licence example. */
 #include "logsquirl_plugin_api.h"
 
+#include <string>
+
 namespace {
 
 // Designated initializers name every field, in the order the header declares them.
@@ -24,6 +26,20 @@ void sayHello( void* /* user_data */ )
     host->show_notification( hostHandle, "Hello from My Plugin" );
 }
 
+// Called once, on the UI thread, with what the user did in the Regex Lab.
+void patternTested( void* /* user_data */, int result, const char* pattern, int /* flags */ )
+{
+    if ( result == LOGSQUIRL_REGEX_LAB_APPLIED ) {
+        host->show_notification( hostHandle, ( std::string( "Applied: " ) + pattern ).c_str() );
+    }
+}
+
+void testPattern( void* /* user_data */ )
+{
+    host->open_regex_lab( hostHandle, "ERROR (\\d+)", LOGSQUIRL_REGEX_LAB_MATCH_CASE,
+                          &patternTested, nullptr );
+}
+
 } // namespace
 
 extern "C" {
@@ -33,13 +49,25 @@ LOGSQUIRL_PLUGIN_EXPORT const LogSquirlPluginInfo* logsquirl_plugin_get_info( vo
     return &pluginInfo;
 }
 
-LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init( const LogSquirlHostApi* api, void* handle )
+// A host that passes the size of its table calls this one.
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* api, void* handle,
+                                                      size_t api_size )
 {
     host = api;
     hostHandle = handle;
     api->log_message( handle, LOGSQUIRL_LOG_INFO, "My Plugin initialised" );
     api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+    // Only a host that offers the Regex Lab gets the item that opens it.
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, open_regex_lab ) ) {
+        api->register_menu_action( handle, "Plugins", "Test Pattern", &testPattern, nullptr );
+    }
     return 0;
+}
+
+// An older host calls this one: its table has no function added later.
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init( const LogSquirlHostApi* api, void* handle )
+{
+    return logsquirl_plugin_init_ex( api, handle, LOGSQUIRL_HOST_API_BASE_SIZE );
 }
 
 LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )

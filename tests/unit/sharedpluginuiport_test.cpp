@@ -23,6 +23,7 @@
 
 #include "sharedpluginuiport.h"
 
+#include <QObject>
 #include <QStringList>
 
 #include <algorithm>
@@ -30,6 +31,8 @@
 #include <vector>
 
 using logsquirl::plugins::PluginCallbackFn;
+using logsquirl::plugins::PluginPattern;
+using logsquirl::plugins::PluginRegexLabAnswer;
 using logsquirl::plugins::PluginUiPort;
 using logsquirl::plugins::PluginWidgetHandle;
 using logsquirl::plugins::SharedPluginUiPort;
@@ -87,6 +90,14 @@ public:
     {
         return parent;
     }
+    bool openRegexLab( const QString&, const PluginPattern& pattern, QObject*,
+                       PluginRegexLabAnswer ) override
+    {
+        regexLabs.append( pattern.pattern );
+        return true;
+    }
+
+    QStringList regexLabs;
 
     bool showsAnything() const
     {
@@ -222,6 +233,51 @@ SCENARIO( "What plugins contribute shows in every window", "[sharedpluginuiport]
                     port.removeWindow( &later );
                 }
             }
+        }
+    }
+}
+
+SCENARIO( "A plugin's Regex Lab opens in the most recently active window",
+          "[sharedpluginuiport][pluginregexlab][plugins]" )
+{
+    GIVEN( "No window" )
+    {
+        SharedPluginUiPort port;
+        QObject context;
+
+        THEN( "No Lab opens" )
+        {
+            REQUIRE_FALSE( port.openRegexLab(
+                PluginId, PluginPattern{ .pattern = QStringLiteral( "a" ), .matchesCase = true },
+                &context, []( auto ) {} ) );
+        }
+
+        AND_GIVEN( "Two windows, the second the most recently active" )
+        {
+            FakeWindowPort first;
+            FakeWindowPort second;
+            port.addWindow( &first );
+            port.addWindow( &second );
+            port.activateWindow( &first );
+            port.activateWindow( &second );
+
+            WHEN( "a plugin opens the Regex Lab" )
+            {
+                const auto opened = port.openRegexLab(
+                    PluginId,
+                    PluginPattern{ .pattern = QStringLiteral( "ERROR" ), .matchesCase = true },
+                    &context, []( auto ) {} );
+
+                THEN( "it opens in that window only" )
+                {
+                    REQUIRE( opened );
+                    REQUIRE( first.regexLabs.isEmpty() );
+                    REQUIRE( second.regexLabs == QStringList{ QStringLiteral( "ERROR" ) } );
+                }
+            }
+
+            port.removeWindow( &first );
+            port.removeWindow( &second );
         }
     }
 }

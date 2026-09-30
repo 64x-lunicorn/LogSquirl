@@ -30,6 +30,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QLibrary>
 #include <QTemporaryDir>
 
 #include <vector>
@@ -97,6 +98,17 @@ void installExample( const QString& root )
     REQUIRE( QFile::copy( library.filePath(), QDir( pluginDir ).filePath( library.fileName() ) ) );
 }
 
+/// The menu actions the example adds through the table an older host passes.
+QStringList olderHostMenuActions;
+
+void olderHostLogMessage( void*, int, const char* ) {}
+
+void olderHostRegisterMenuAction( void*, const char*, const char* label, void ( * )( void* ),
+                                  void* )
+{
+    olderHostMenuActions.append( QString::fromUtf8( label ) );
+}
+
 } // namespace
 
 SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk][plugins]" )
@@ -128,18 +140,21 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
 
             const auto error = host.loadPlugin( ExampleId );
 
-            THEN( "It is initialised and adds its menu action" )
+            THEN( "It is initialised and adds its menu actions, testing a pattern as well, since "
+                  "this host offers the Regex Lab" )
             {
                 REQUIRE( error.isEmpty() );
                 REQUIRE( host.isLoaded( ExampleId ) );
-                REQUIRE( port.actions.size() == 1 );
-                REQUIRE( port.actions.front().pluginId == ExampleId );
-                REQUIRE( port.actions.front().label == "Say Hello" );
+                REQUIRE( port.actions.size() == 2 );
+                REQUIRE( port.actions[ 0 ].pluginId == ExampleId );
+                REQUIRE( port.actions[ 0 ].label == "Say Hello" );
+                REQUIRE( port.actions[ 1 ].pluginId == ExampleId );
+                REQUIRE( port.actions[ 1 ].label == "Test Pattern" );
             }
 
             THEN( "Its menu action shows a notification" )
             {
-                REQUIRE( port.actions.size() == 1 );
+                REQUIRE( port.actions.size() == 2 );
                 const auto& action = port.actions.front();
                 action.callback( action.userData );
                 REQUIRE( notifications == QStringList{ "Hello from My Plugin" } );
@@ -152,5 +167,45 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
                 REQUIRE( port.removedContributions == QStringList{ ExampleId } );
             }
         }
+    }
+}
+
+SCENARIO( "The example plugin of the plugin developer guide runs on an older host",
+          "[pluginsdk][plugins]" )
+{
+    GIVEN( "The example plugin's library, and the table of a host that knows no function added "
+           "later" )
+    {
+        QLibrary library( QStringLiteral( LOGSQUIRL_SDK_EXAMPLE_PATH ) );
+        REQUIRE( library.load() );
+        const auto init = reinterpret_cast<LogSquirlPluginInitFn>(
+            library.resolve( LOGSQUIRL_PLUGIN_ENTRY_INIT ) );
+        const auto shutdown = reinterpret_cast<LogSquirlPluginShutdownFn>(
+            library.resolve( LOGSQUIRL_PLUGIN_ENTRY_SHUTDOWN ) );
+        REQUIRE( init != nullptr );
+        REQUIRE( shutdown != nullptr );
+
+        // An older host calls init, not init_ex; what its table has not must
+        // not be called.
+        LogSquirlHostApi olderHost{};
+        olderHost.api_version = LOGSQUIRL_PLUGIN_API_VERSION;
+        olderHost.log_message = &olderHostLogMessage;
+        olderHost.register_menu_action = &olderHostRegisterMenuAction;
+        olderHost.open_regex_lab = nullptr;
+        olderHostMenuActions.clear();
+
+        WHEN( "The older host initialises it" )
+        {
+            const auto result = init( &olderHost, nullptr );
+
+            THEN( "It adds only the menu action that host can serve" )
+            {
+                REQUIRE( result == 0 );
+                REQUIRE( olderHostMenuActions == QStringList{ "Say Hello" } );
+            }
+        }
+
+        shutdown();
+        library.unload();
     }
 }

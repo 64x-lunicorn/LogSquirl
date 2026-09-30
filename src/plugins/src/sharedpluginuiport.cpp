@@ -234,4 +234,13 @@ PluginWidgetHandle SharedPluginUiPort::configurationParent()
     return window ? window->configurationParent() : PluginWidgetHandle{};
 }
 
+bool SharedPluginUiPort::openRegexLab( const QString& pluginId, const PluginPattern& pattern,
+                                       QObject* context, PluginRegexLabAnswer answer )
+{
+    const std::scoped_lock lock( mutex_ );
+    auto* window = mostRecentlyActive();
+    return window != nullptr
+           && window->openRegexLab( pluginId, pattern, context, std::move( answer ) );
+}
+
 } // namespace logsquirl::plugins

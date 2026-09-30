@@ -33,6 +33,18 @@
   the search line as it was. For a logical combination the Lab lists
   its sub-patterns and shows beside each line which of them match it, the
   line's verdict being exactly the search's. (#661)
+- **Plugins open the Regex Lab (plugin API)**: a plugin calls the new host
+  function `open_regex_lab` with a pattern; the Regex Lab opens over the
+  window, on the Log Lines of the tab in front, and the plugin's callback gets
+  the pattern the user applied -- and whether it matches case -- or hears that
+  the user cancelled, once, on the UI thread. A plugin that is unloaded while
+  its Lab is open is never called back. The plugin API grows compatibly
+  (ADR 0017): new host functions are appended to `LogSquirlHostApi`, a plugin
+  exports `logsquirl_plugin_init_ex` to be told the size of the host's table
+  and checks a function with `LOGSQUIRL_HOST_API_HAS` before calling it, and
+  degrades on an older LogSquirl. `LOGSQUIRL_PLUGIN_API_VERSION` stays 1;
+  plugins built against the earlier header load and run unchanged. The plugin
+  developer guide and its example show both. (#662)
 - **A session saves to and opens from a file**: *File → Save Session As…*
   writes the window's open files, their order, the tab in front, each tab's
   view state, tab names and groups to a `.logsquirl-session` file, and

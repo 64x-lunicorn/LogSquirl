@@ -20,6 +20,7 @@
 #include "pluginuiadapter.h"
 
 #include "log.h"
+#include "regexlabwindow.h"
 
 #include <QCoreApplication>
 #include <QHBoxLayout>
@@ -33,6 +34,8 @@
 #include <algorithm>
 
 using logsquirl::plugins::PluginCallbackFn;
+using logsquirl::plugins::PluginPattern;
+using logsquirl::plugins::PluginRegexLabAnswer;
 using logsquirl::plugins::PluginWidgetHandle;
 
 namespace {
@@ -356,10 +359,69 @@ void PluginUiAdapter::removeContributions( const QString& pluginId )
         removeFromToolBar( statusToolBar_, pluginId, nullptr );
         removeFromToolBar( footerToolBar_, pluginId, nullptr );
         removeFromSidebar( pluginId, nullptr );
+
+        // A Lab the plugin opened answers as it closes; once the plugin is
+        // unloaded, its answer context is gone and nothing reaches it.
+        if ( const auto it = regexLabs_.find( pluginId ); it != regexLabs_.end() ) {
+            const auto labs = std::move( it->second );
+            regexLabs_.erase( it );
+            for ( const auto& lab : labs ) {
+                if ( lab ) {
+                    lab->close();
+                }
+            }
+        }
     } );
 }
 
 PluginWidgetHandle PluginUiAdapter::configurationParent()
 {
     return PluginWidgetHandle{ static_cast<void*>( static_cast<QWidget*>( &window_ ) ) };
+}
+
+void PluginUiAdapter::setRegexLabSampleSource( std::function<RegexLabSampleSource()> sampleSource )
+{
+    regexLabSampleSource_ = std::move( sampleSource );
+}
+
+bool PluginUiAdapter::openRegexLab( const QString& pluginId, const PluginPattern& pattern,
+                                    QObject* context, PluginRegexLabAnswer answer )
+{
+    if ( QThread::currentThread() != window_.thread() || context == nullptr || !answer ) {
+        return false;
+    }
+
+    // Plugins match their patterns themselves, with Qt's QRegularExpression
+    // as a rule: the Lab matches as it does, whatever engine the Searches
+    // run on. A window of its own over the main window, which it goes with.
+    auto* lab = new RegexLabWindow( RegexpEngine::QRegularExpression, &window_ );
+    lab->setAttribute( Qt::WA_DeleteOnClose );
+    lab->setPattern(
+        RegularExpressionPattern( pattern.pattern, pattern.matchesCase, false, false, false ) );
+    // Always a regular expression; the plugin keeps only whether it matches case.
+    lab->setOptionsKept( RegexLabWindow::Option::MatchCase, RegexLabWindow::Option::UseRegexp );
+    lab->offerApply( true );
+    if ( regexLabSampleSource_ ) {
+        lab->setSampleSource( regexLabSampleSource_() );
+    }
+
+    // Connected with the plugin's answer context, never with this adapter:
+    // along with the window, the Lab answers after the adapter is gone.
+    QObject::connect( lab, &RegexLabWindow::applied, context,
+                      [ answer ]( const RegularExpressionPattern& applied ) {
+                          answer( PluginPattern{ .pattern = applied.pattern,
+                                                 .matchesCase = applied.isCaseSensitive } );
+                      } );
+    QObject::connect( lab, &RegexLabWindow::cancelled, context,
+                      [ answer ]() { answer( std::nullopt ); } );
+
+    auto& labs = regexLabs_[ pluginId ];
+    std::erase_if( labs, []( const QPointer<RegexLabWindow>& open ) { return open.isNull(); } );
+    labs.emplace_back( lab );
+
+    LOG_INFO << "Plugin " << pluginId << " opened the Regex Lab";
+    lab->show();
+    lab->raise();
+    lab->activateWindow();
+    return true;
 }

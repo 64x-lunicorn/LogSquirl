@@ -162,7 +162,7 @@ The line above the Filtered View where a Search is typed: its pattern, the butto
 _Avoid_: search bar, search box
 
 **Regex Lab**:
-The window that shows what a pattern matches in sample Log Lines, with the Search's engine and options: which lines match, where, and the capture groups of a line. Its samples are the selected Log Lines of a tab, the Log Lines around the current line of the view last in focus, or pasted text. It never changes a Search, a Highlighter or a filter by itself; opened with Test… from the Highlighter or Predefined Filter editor, it reads the pattern as that one does, marks what a Highlighter colors — the whole Log Line or the matched text — and writes the pattern back only on Apply. Opened from the Search Line, it takes the pattern with all its options as the Search Line requests the Search, shows for a logical combination which sub-patterns match each Log Line, and on Apply writes both back; an auto-refreshed Search then runs.
+The window that shows what a pattern matches in sample Log Lines, with the Search's engine and options: which lines match, where, and the capture groups of a line. Its samples are the selected Log Lines of a tab, the Log Lines around the current line of the view last in focus, or pasted text. It never changes a Search, a Highlighter or a filter by itself; opened with Test… from the Highlighter or Predefined Filter editor, it reads the pattern as that one does, marks what a Highlighter colors — the whole Log Line or the matched text — and writes the pattern back only on Apply. Opened from the Search Line, it takes the pattern with all its options as the Search Line requests the Search, shows for a logical combination which sub-patterns match each Log Line, and on Apply writes both back; an auto-refreshed Search then runs. Opened by a plugin, it reads the pattern as a regular expression that may match case, and on Apply hands the pattern back to the plugin.
 _Avoid_: regex tester, pattern playground
 
 **QuickFind**:
@@ -383,7 +383,9 @@ _Avoid_: plugin manager, plugin registry, plugin list
 **Plugin Host**:
 Loads and initialises the plugins the Plugin Catalog lists, shuts them down again, and
 answers what a loaded plugin calls back: its data-source stream, its converter, the active
-file, opening files and notifications. What a plugin shows goes through the Plugin UI Port.
+file, opening files, notifications and the Regex Lab. The host functions a plugin can call
+only grow, appended to one table whose size tells a plugin which the running LogSquirl
+offers (ADR 0017). What a plugin shows goes through the Plugin UI Port.
 A plugin is loaded when the host has initialised it, and enabled when the configuration
 says to load it.
 _Avoid_: plugin manager, plugin loader (the loader only opens one library)
@@ -397,11 +399,12 @@ _Avoid_: plugin registry, per-window plugins
 
 **Plugin UI Port**:
 Everything the plugin layer needs from the user interface to show what a plugin
-contributes — status widgets, sidebar tabs, footer widgets, menu actions and the parent
-of its configuration dialog. The plugin layer calls it and knows no widgets; every main
+contributes — status widgets, sidebar tabs, footer widgets, menu actions, the parent
+of its configuration dialog and a Regex Lab it opens. The plugin layer calls it and knows no widgets; every main
 window implements it. The Application Plugins hand each contribution on to every window: a
 menu action shows in all of them, a widget, which exists once, in the most recently active
-window, and it moves to another window when that one closes. Every contribution belongs to
+window, and it moves to another window when that one closes; a Regex Lab opens in the most
+recently active window too. Every contribution belongs to
 one plugin, and all of them are taken away again when that plugin is unloaded.
 _Avoid_: plugin UI bridge, widget signals, UI host
 
