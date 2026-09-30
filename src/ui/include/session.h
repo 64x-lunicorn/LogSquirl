@@ -70,13 +70,18 @@ enum class LogFileLifetime { Ordinary, Transient };
 // Where a Log File open in the Session came from, as far as the Session keeps
 // it beside its path: whether it is Transient, the archive and member it was
 // decompressed from (#596), and the Ordinary Log File a converter plugin
-// converted it from (#615). Whoever opens the Log File knows it and says so.
+// converted it from (#615). Whoever opens the Log File knows it and says so,
+// and what follows from it -- saved or not, which recent file, what its tab's
+// name and group are stored by -- is answered here (#643).
 struct LogFileOrigin {
     LogFileLifetime lifetime = LogFileLifetime::Ordinary;
     // Empty for a Log File not decompressed from an archive.
     ArchiveMember archiveMember;
     // Empty for a Log File not converted, or converted from a Transient one.
     QString convertedFrom;
+    // The archive and member the Log File it was converted from was
+    // decompressed from, if it was.
+    ArchiveMember convertedFromArchive;
 
     static LogFileOrigin transient()
     {
@@ -92,14 +97,55 @@ struct LogFileOrigin {
         return origin;
     }
 
-    // What a converter plugin wrote for the Ordinary Log File at `path`: a
-    // Transient Log File, as the temporary file it is read from is gone after
-    // a restart (#605).
-    static LogFileOrigin conversionOf( const QString& path )
+    // What a converter plugin wrote for the Log File at `path`, which came
+    // from `source`: a Transient Log File, as the temporary file it is read
+    // from is gone after a restart (#605). Only one converted from an
+    // Ordinary Log File is found by that one, and kept by it in the recent
+    // files.
+    static LogFileOrigin conversionOf( const QString& path, const LogFileOrigin& source )
     {
         auto origin = transient();
-        origin.convertedFrom = path;
+        if ( source.lifetime == LogFileLifetime::Ordinary ) {
+            origin.convertedFrom = path;
+            origin.convertedFromArchive = source.archiveMember;
+        }
         return origin;
+    }
+
+    // Whether the Session saves it and restores it on the next start (#570).
+    bool savedWithSession() const
+    {
+        return lifetime == LogFileLifetime::Ordinary;
+    }
+
+    // The file the recent files keep for the Log File at `fileName`: the Log
+    // File itself, the archive a decompressed Log File came from (#609), the
+    // one a converted Log File was converted from (#605), or none for any
+    // other Transient Log File (#597).
+    QString recentFile( const QString& fileName ) const
+    {
+        if ( lifetime == LogFileLifetime::Ordinary ) {
+            // Opened from the recent files, the archive asks for its member
+            // again.
+            return archiveMember.isEmpty() ? fileName : archiveMember.archive;
+        }
+        if ( convertedFrom.isEmpty() ) {
+            return {};
+        }
+        return convertedFromArchive.isEmpty() ? convertedFrom : convertedFromArchive.archive;
+    }
+
+    // What the name and group of the tab of the Log File at `fileName` are
+    // stored by: its path, or its archive and member for one decompressed
+    // from an archive (#609). None for a Transient Log File: its path is gone
+    // after a restart, so its tab's name and group last until the tab closes
+    // (#597).
+    QString storedKey( const QString& fileName ) const
+    {
+        if ( lifetime == LogFileLifetime::Transient ) {
+            return {};
+        }
+        return archiveMember.isEmpty() ? fileName : archiveMember.key();
     }
 
     bool operator==( const LogFileOrigin& ) const = default;

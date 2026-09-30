@@ -1240,9 +1240,9 @@ SCENARIO( "The Session finds the views showing a Log File and has its window sho
     session.addWindow( &windowB );
 
     const auto* ordinary = session.open( ordinaryPath, RecordingViews::factory( views.built ) );
-    const auto* converted
-        = session.open( convertedPath, RecordingViews::factory( views.built ), {},
-                        Session::Loading::Now, LogFileOrigin::conversionOf( sourcePath ) );
+    const auto* converted = session.open(
+        convertedPath, RecordingViews::factory( views.built ), {}, Session::Loading::Now,
+        LogFileOrigin::conversionOf( sourcePath, LogFileOrigin{} ) );
     // Converted from a Transient Log File: found by its own path alone.
     const auto* streamed = session.open( streamedPath, RecordingViews::factory( views.built ), {},
                                          Session::Loading::Now, LogFileOrigin::transient() );
@@ -1265,7 +1265,8 @@ SCENARIO( "The Session finds the views showing a Log File and has its window sho
     THEN( "each Log File keeps where it came from" )
     {
         REQUIRE( session.originOf( ordinary ) == LogFileOrigin{} );
-        REQUIRE( session.originOf( converted ) == LogFileOrigin::conversionOf( sourcePath ) );
+        REQUIRE( session.originOf( converted )
+                 == LogFileOrigin::conversionOf( sourcePath, LogFileOrigin{} ) );
         REQUIRE( session.originOf( streamed ) == LogFileOrigin::transient() );
     }
 

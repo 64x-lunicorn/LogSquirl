@@ -14,6 +14,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/crawlerwidget_formatrecognition_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/policy_change_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/session_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/logfileprovenance_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sessionfile_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/archivemember_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tabbedcrawlerwidget_test.cpp

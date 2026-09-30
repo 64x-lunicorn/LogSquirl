@@ -65,6 +65,7 @@
 #include "downloader.h"
 #include "filterspanel.h"
 #include "iconloader.h"
+#include "logfileprovenance.h"
 #include "pathline.h"
 #include "pluginuiadapter.h"
 #include "quickfindmux.h"
@@ -148,6 +149,21 @@ public:
     // be created or a shell that does not start is reported, and no tab
     // opens; returns whether one does. Closing the tab stops the command.
     bool openCommandOutput( const RecentCommand& command );
+
+    // Opens a Log File in a new tab, as its provenance says (#643): every
+    // open comes here. The window keeps what the tab is -- its opening title
+    // and tooltip, its archive member, its Command Source -- by the path
+    // until the tab closes, and the Session where it came from. A Transient
+    // Log File is not saved with the Session (#570), nor added to the recent
+    // files (#597). A Log File a converter plugin handles is opened as what
+    // the converter wrote, a Transient Log File (#605).
+    //
+    // A Log File asked for before the plugins have loaded opens once they
+    // have (#303); the call then returns true at once, and the provenance's
+    // whenOpened is called after. An open that fails keeps nothing of the
+    // tab, and returns false.
+    bool openLogFile( const QString& fileName, LogFileProvenance provenance,
+                      bool followFile = false );
 
     void reTranslateUI();
 
@@ -306,12 +322,15 @@ private:
     void createTrayIcon();
     void readSettings();
     void writeSettings();
-    // Opens a Log File in a new tab. A Transient Log File -- one the window
-    // made for this run alone -- is not saved with the Session (#570), nor
-    // added to the recent files (#597). A Log File a converter plugin
-    // handles is opened as what the converter wrote, a Transient Log File
-    // (#605).
-    bool loadFile( const QString& fileName, bool followFile = false, LogFileOrigin origin = {} );
+    // Opens an Ordinary Log File the user asked for (see openLogFile()).
+    bool loadFile( const QString& fileName, bool followFile = false );
+    // Opens a Log File now that the plugins have loaded: shows its tab if it
+    // is open already, converts it, decompresses it or builds its tab.
+    bool openNow( const QString& fileName, bool followFile, const LogFileOrigin& origin );
+    // Forgets what was kept of the tab of a Log File whose open failed.
+    void forgetOpening( const QString& fileName );
+    // Stops the Command Source of the tab of `fileName`, if it has one.
+    void stopCommandSource( const QString& fileName );
     bool extractAndLoadFile( const QString& fileName );
     // Opens the Log Files of `window` as a restore does, and reloadSession()
     // does with the window stored in the Session (#576). Returns the paths of
@@ -348,11 +367,6 @@ private:
     // Shows how the Command Source of the tab of `spoolPath` ended.
     void showCommandSourceEnded( const QString& spoolPath, const CommandEnd& end );
     void updateTitleBar( const QString& fileName );
-    // The file the recent files keep for a Log File open from this origin:
-    // the Log File itself, the archive a decompressed Log File came from
-    // (#609), the one a converted Log File was converted from (#605), or none
-    // for any other Transient Log File (#597).
-    QString recentFileOf( const QString& fileName, const LogFileOrigin& origin ) const;
     void addRecentFile( const QString& fileName );
     void updateRecentFileActions();
     void clearRecentFileActions();

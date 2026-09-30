@@ -667,22 +667,10 @@ bool MainWindow::openCommandSource( std::unique_ptr<CommandSource> source, const
                                     const QString& toolTip )
 {
     const auto filePath = source->spoolPath();
-
-    // The tab is named when it is opened, which is later than here when the
-    // plugins have not loaded yet: it is the file's, not the current tab's.
-    mainTabWidget_.setOpeningTitle( filePath, title, toolTip );
     // The spool lives as long as its tab: it is not saved with the Session
     // (#570).
-    if ( !loadFile( filePath, true, LogFileOrigin::transient() ) ) {
-        mainTabWidget_.setOpeningTitle( filePath, {} );
-        return false;
-    }
-
-    connect(
-        source.get(), &CommandSource::ended, this,
-        [ this, filePath ]( const CommandEnd& end ) { showCommandSourceEnded( filePath, end ); } );
-    commandSources_[ filePath ] = std::move( source );
-    return true;
+    return openLogFile(
+        filePath, LogFileProvenance::commandOutput( std::move( source ), title, toolTip ), true );
 }
 
 void MainWindow::showCommandSourceEnded( const QString& spoolPath, const CommandEnd& end )
@@ -1591,7 +1579,7 @@ void MainWindow::openRemoteFile( const QUrl& url )
         if ( !progressDialog.exec() ) {
             // Not saved with the Session: a start never fetches anything
             // unasked (#596).
-            loadFile( tempFile->fileName(), false, LogFileOrigin::transient() );
+            openLogFile( tempFile->fileName(), LogFileProvenance::transient() );
         }
         else {
             QMessageBox::critical( this, tr( "LogSquirl - File download" ),
@@ -1766,7 +1754,7 @@ void MainWindow::tryOpenClipboard( int tryTimes )
 
             // The file goes with this window: it is not saved with the
             // Session (#570).
-            loadFile( tempFile->fileName(), false, LogFileOrigin::transient() );
+            openLogFile( tempFile->fileName(), LogFileProvenance::transient() );
         }
     }
 }
@@ -2132,16 +2120,14 @@ void MainWindow::handleDataSourceStarted( const QString& pluginId, const QString
 {
     LOG_INFO << "DataSource started: " << pluginId << " -> " << filePath;
 
-    // Open the temp file with follow mode so it tails as the plugin pushes lines
-    // A friendly tab title instead of the temp file path, given to the tab of
-    // that file when it opens.
-    mainTabWidget_.setOpeningTitle( filePath, displayName,
-                                    tr( "DataSource: %1\n%2" ).arg( displayName, filePath ) );
-    // The file goes with the data source's run: it is not saved with the
-    // Session (#570).
-    if ( !loadFile( filePath, true, LogFileOrigin::transient() ) ) {
-        mainTabWidget_.setOpeningTitle( filePath, {} );
-    }
+    // Open the temp file with follow mode so it tails as the plugin pushes
+    // lines, with a friendly tab title instead of the temp file path. The
+    // file goes with the data source's run: it is not saved with the Session
+    // (#570).
+    openLogFile( filePath,
+                 LogFileProvenance::transient(
+                     displayName, tr( "DataSource: %1\n%2" ).arg( displayName, filePath ) ),
+                 true );
 }
 
 void MainWindow::about()
@@ -2290,15 +2276,11 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
 
     // Open the merged temp file as a tab of its own. It goes with its tab, so
     // it is not saved with the Session (#570).
-    const auto direction = dedup ? tr( "Merged (dedup)" ) : tr( "Merged" );
-    mainTabWidget_.setOpeningTitle( mergedPath, direction );
-    loadFile( mergedPath, false, LogFileOrigin::transient() );
-
-    // A file asked for before the plugins have loaded opens once they have,
-    // so the tab is looked for after that.
-    plugins_->whenLoaded( this, [ this, controller, mergedPath ] {
-        auto* crawler = qobject_cast<CrawlerWidget*>(
-            mainTabWidget_.widget( mainTabWidget_.tabOfPath( mergedPath ) ) );
+    auto provenance
+        = LogFileProvenance::transient( dedup ? tr( "Merged (dedup)" ) : tr( "Merged" ) );
+    // The tab is there once the open is done, which is after the plugins
+    // have loaded when they have not yet (#537).
+    provenance.whenOpened = [ controller, mergedPath ]( CrawlerWidget* crawler ) {
         if ( crawler == nullptr ) {
             LOG_WARNING << "No tab holds the merged file " << mergedPath;
             delete controller;
@@ -2306,8 +2288,10 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
         }
         controller->setParent( crawler );
         // When the merged file is rebuilt, its tab reads it again
-        connect( controller, &MergeController::mergedFileUpdated, crawler, &CrawlerWidget::reload );
-    } );
+        QObject::connect( controller, &MergeController::mergedFileUpdated, crawler,
+                          &CrawlerWidget::reload );
+    };
+    openLogFile( mergedPath, std::move( provenance ) );
 }
 
 void MainWindow::toggleSidebar()
@@ -2689,7 +2673,7 @@ void MainWindow::closeTabs( const QList<int>& indices, ActionInitiator initiator
         // one by its archive (#609).
         const auto fileName = session_.getFilename( crawler );
         if ( initiator == ActionInitiator::User ) {
-            const auto recentFile = recentFileOf( fileName, session_.originOf( crawler ) );
+            const auto recentFile = session_.originOf( crawler ).recentFile( fileName );
             if ( !recentFile.isEmpty() ) {
                 addRecentFile( recentFile );
             }
@@ -2700,13 +2684,8 @@ void MainWindow::closeTabs( const QList<int>& indices, ActionInitiator initiator
         session_.close( crawler );
         crawler->deleteLater();
 
-        // What feeds the tab stops now; its spool file goes after the tab,
-        // which still reads it until then (#575).
-        if ( auto source = commandSources_.extract( fileName ) ) {
-            source.mapped()->stop();
-            source.mapped()->setParent( this );
-            source.mapped().release()->deleteLater();
-        }
+        // What feeds the tab stops now.
+        stopCommandSource( fileName );
     }
 
     updateOpenedFilesMenu();
@@ -3004,8 +2983,8 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
                 return false;
             }
 
-            archiveMembers_.insert( tempFile->fileName(), archiveMember.inside( fileName, {} ) );
-            return this->loadFile( tempFile->fileName() );
+            return openLogFile( tempFile->fileName(), LogFileProvenance::fromArchive(
+                                                          archiveMember.inside( fileName, {} ) ) );
         }
         else {
             QMessageBox::warning(
@@ -3030,11 +3009,11 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
             for ( const auto& extractedFile : selectedFiles ) {
                 // A file picked beside the archive's is a Log File of its own.
                 const auto member = extracted.relativeFilePath( extractedFile );
-                if ( !member.startsWith( "../" ) && !QDir::isAbsolutePath( member ) ) {
-                    archiveMembers_.insert( extractedFile,
-                                            archiveMember.inside( fileName, member ) );
-                }
-                this->loadFile( extractedFile );
+                openLogFile(
+                    extractedFile,
+                    !member.startsWith( "../" ) && !QDir::isAbsolutePath( member )
+                        ? LogFileProvenance::fromArchive( archiveMember.inside( fileName, member ) )
+                        : LogFileProvenance::ordinary() );
             }
 
             return true;
@@ -3049,30 +3028,95 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
     return false;
 }
 
-// Create a CrawlerWidget for the passed file, start its loading
-// and update the title bar.
-// The loading is done asynchronously.
-bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileOrigin origin )
+bool MainWindow::loadFile( const QString& fileName, bool followFile )
 {
-    LOG_DEBUG << "loadFile ( " << fileName.toStdString() << " )";
+    return openLogFile( fileName, LogFileProvenance::ordinary(), followFile );
+}
+
+bool MainWindow::openLogFile( const QString& fileName, LogFileProvenance provenance,
+                              bool followFile )
+{
+    LOG_DEBUG << "openLogFile ( " << fileName.toStdString() << " )";
+
+    // What the tab is, kept by the path until the tab closes. The tab is
+    // named when it opens, which is later than here while the plugins load:
+    // the title is the file's, not the current tab's (#606).
+    if ( !provenance.openingTitle.isEmpty() ) {
+        mainTabWidget_.setOpeningTitle( fileName, provenance.openingTitle, provenance.toolTip );
+    }
+    // The Session saves a decompressed Log File with its archive (#596), and
+    // the recent files, tab names and groups know it by that (#609). One
+    // decompressed into tempDir_ before is known by it again.
+    if ( provenance.origin.archiveMember.isEmpty() ) {
+        provenance.origin.archiveMember = archiveMembers_.value( fileName );
+    }
+    else {
+        archiveMembers_.insert( fileName, provenance.origin.archiveMember );
+    }
+    // The Command Source lives as long as the tab (#575).
+    if ( provenance.commandSource ) {
+        connect( provenance.commandSource.get(), &CommandSource::ended, this,
+                 [ this, fileName ]( const CommandEnd& end ) {
+                     showCommandSourceEnded( fileName, end );
+                 } );
+        commandSources_[ fileName ] = std::move( provenance.commandSource );
+    }
+
+    auto open = [ this, fileName, followFile, origin = provenance.origin,
+                  whenOpened = std::move( provenance.whenOpened ) ] {
+        const auto isOpen = openNow( fileName, followFile, origin );
+        // Nothing of a tab that did not open is kept.
+        if ( !isOpen ) {
+            forgetOpening( fileName );
+        }
+        if ( whenOpened ) {
+            const auto tab = isOpen ? mainTabWidget_.tabOfPath( fileName ) : -1;
+            whenOpened( tab >= 0 ? qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( tab ) )
+                                 : nullptr );
+        }
+        return isOpen;
+    };
 
     // Whether a converter plugin opens this file is only known once the
     // plugins have loaded. A file asked for before -- from the command line,
     // by another instance, dropped at once -- waits for them rather than
     // being opened without its converter (#303).
-    if ( !plugins_->isLoaded() ) {
-        LOG_INFO << "Opening " << fileName << " once the plugins have loaded";
-        plugins_->whenLoaded( this, [ this, fileName, followFile, origin ] {
-            loadFile( fileName, followFile, origin );
-        } );
-        // A window just shown has them load once it is on screen; any other
-        // window asks for them itself.
-        if ( !waitingForExposure_ ) {
-            plugins_->loadSoon();
-        }
-        return true;
+    if ( plugins_->isLoaded() ) {
+        return open();
     }
+    LOG_INFO << "Opening " << fileName << " once the plugins have loaded";
+    plugins_->whenLoaded( this, [ open ] { open(); } );
+    // A window just shown has them load once it is on screen; any other
+    // window asks for them itself.
+    if ( !waitingForExposure_ ) {
+        plugins_->loadSoon();
+    }
+    return true;
+}
 
+void MainWindow::forgetOpening( const QString& fileName )
+{
+    mainTabWidget_.setOpeningTitle( fileName, {} );
+    archiveMembers_.remove( fileName );
+    stopCommandSource( fileName );
+}
+
+void MainWindow::stopCommandSource( const QString& fileName )
+{
+    // Its spool file goes after the tab, which still reads it until then
+    // (#575).
+    if ( auto source = commandSources_.extract( fileName ) ) {
+        source.mapped()->stop();
+        source.mapped()->setParent( this );
+        source.mapped().release()->deleteLater();
+    }
+}
+
+// Create a CrawlerWidget for the passed file, start its loading
+// and update the title bar.
+// The loading is done asynchronously.
+bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFileOrigin& origin )
+{
     // First check if the file is already open, or converted (#615), in any
     // window: the Session knows, and the window showing it brings its tab to
     // the front (#642).
@@ -3099,18 +3143,12 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileOrig
                 // be there for it. The recent files keep the Log File it was
                 // converted from instead, unless that one is Transient too;
                 // opening that one again shows this tab (#615).
-                return loadFile( tempFile->fileName(), followFile,
-                                 origin.lifetime == LogFileLifetime::Ordinary
-                                     ? LogFileOrigin::conversionOf( fileName )
-                                     : LogFileOrigin::transient() );
+                return openLogFile( tempFile->fileName(),
+                                    LogFileProvenance::conversionOf( fileName, origin ),
+                                    followFile );
             }
             LOG_ERROR << "Converter plugin " << converterId << " failed with rc=" << rc;
         }
-    }
-
-    // A Log File decompressed into tempDir_ is known by its archive and member.
-    if ( origin.archiveMember.isEmpty() ) {
-        origin.archiveMember = archiveMembers_.value( fileName );
     }
 
     const auto decompressAction = Decompressor::action( fileName );
@@ -3147,7 +3185,7 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileOrig
             // It opens with the title given to it, if any (#606). One from an
             // archive keeps its name and group by the archive (#609).
             int index = mainTabWidget_.addCrawler( crawlerWidget, fileName, origin.lifetime,
-                                                   origin.archiveMember.key() );
+                                                   origin.storedKey( fileName ) );
 
             // Setting the new tab, the user will see a blank page for the duration
             // of the loading, with no way to switch to another tab
@@ -3156,7 +3194,7 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile, LogFileOrig
             // A Transient Log File's path is gone after a restart (#597); a
             // converted one is kept by the file it was converted from (#605),
             // a decompressed one by its archive (#609).
-            if ( const auto recentFile = recentFileOf( fileName, origin ); !recentFile.isEmpty() ) {
+            if ( const auto recentFile = origin.recentFile( fileName ); !recentFile.isEmpty() ) {
                 addRecentFile( recentFile );
             }
             updateOpenedFilesMenu();
@@ -3227,20 +3265,6 @@ void MainWindow::updateTitleBar( const QString& file_name )
 
     setWindowTitle( tr( "%1 - %2%3" ).arg( shownName, tr( "logsquirl" ), indexPart )
                     + tr( " (build " ) + logsquirlVersion() + ")" );
-}
-
-QString MainWindow::recentFileOf( const QString& fileName, const LogFileOrigin& origin ) const
-{
-    if ( origin.lifetime == LogFileLifetime::Ordinary ) {
-        // Opened from the recent files, the archive asks for its member again.
-        return origin.archiveMember.isEmpty() ? fileName : origin.archiveMember.archive;
-    }
-    // What it was converted from may itself be from an archive.
-    return origin.convertedFrom.isEmpty()
-               ? QString{}
-               : recentFileOf(
-                     origin.convertedFrom,
-                     LogFileOrigin::fromArchive( archiveMembers_.value( origin.convertedFrom ) ) );
 }
 
 void MainWindow::addRecentFile( const QString& fileName )
