@@ -23,15 +23,19 @@
 #include "linetypes.h"
 #include "loadingstatus.h"
 
+#include <optional>
+
 class SearchAutoRefresh;
 
 // What a load, a change on disk and a reload mean for an Open Log File,
 // decided in one place and without reading the Log File (#396): whether the
 // load that finishes brings only lines that were added, whether the Marks are
 // cleared and the Log Format is recognized again, whether the Marks saved with
-// the Session are applied, and whether a Search waiting for the first load
-// runs now. Whether a Search continues or starts again after a truncation it
-// asks the Search's auto-refresh, which keeps deciding that.
+// the Session are applied, whether a Search waiting for the first load
+// runs now, how the Search Limits settle and what a continuing Search runs
+// over (#644), and when watching the Log File has stopped (#575). Whether a
+// Search continues or starts again after a truncation it asks the Search's
+// auto-refresh, which keeps deciding that.
 //
 // Like the auto-refresh it is a state machine without Qt, used on the Open
 // Log File's thread only: each event goes in, a decision comes out, and the
@@ -50,6 +54,30 @@ public:
 
     // What the users are told of a change on disk.
     enum class Change { Grew, Truncated };
+
+    // Search Limits, or the Log Lines a Search ran over: half-open, from
+    // start up to, not including, end.
+    struct SearchLimits {
+        LineNumber start = {};
+        LineNumber end = {};
+
+        bool operator==( const SearchLimits& ) const = default;
+    };
+
+    // What stopping to watch the Log File does next (#575).
+    enum class WatchingStep {
+        // Nothing: it is watched, it is not attached yet, a check or its load
+        // is under way, or watching has stopped already.
+        None,
+        // The Log File is checked once more for what was written to it.
+        CheckAgain,
+        // Watching has stopped: a check found the Log File unchanged, or it
+        // did not load.
+        Stopped,
+        // Watching has stopped though the Log File still changes: it was
+        // checked as often as it is waited for.
+        StoppedStillChanging,
+    };
 
     struct ReloadDecision {
         // The Search is dropped, with its cached results.
@@ -84,6 +112,13 @@ public:
         bool runWaitingSearch = false;
         // Format Recognition is taken.
         bool recognizeFormat = false;
+        // The Search Limits as the load leaves them.
+        SearchLimits searchLimits;
+        // The Search Limits a continuing Search is requested over, when they
+        // hold Log Lines it has not run over yet.
+        std::optional<SearchLimits> continueOver;
+        // What stopping to watch does next, while it stops.
+        WatchingStep watching = WatchingStep::None;
     };
 
     // Marks saved with the Session for the Log File, applied after the first
@@ -106,9 +141,21 @@ public:
     void waitingSearchDropped();
 
     // A load of the Log File finished with lineCount Log Lines, whatever its
-    // outcome. autoRefresh is the current Search's, as it stands now.
+    // outcome. autoRefresh is the current Search's, as it stands now; limits
+    // are the Search Limits as they were set, and searched the Log Lines the
+    // current Search last ran over.
     LoadDecision loadFinished( LoadingStatus status, LinesCount lineCount,
-                               const SearchAutoRefresh& autoRefresh );
+                               const SearchAutoRefresh& autoRefresh, SearchLimits limits,
+                               SearchLimits searched );
+
+    // The Log File grows no more: watching it stops (#575). attached tells
+    // whether a Log File is attached yet; before, its first load reads it all.
+    // Told again once it stops, it does nothing.
+    WatchingStep stopWatching( bool attached );
+    // A check of the Log File found it unchanged.
+    WatchingStep foundUnchanged();
+    // Whether the Log File is watched: until it is told to stop.
+    bool isWatching() const;
 
     // Whether the Log File is loading from its start: until the first load
     // has finished, and again after a reload until its load has.
@@ -137,4 +184,21 @@ private:
     // Whether the next load to finish is to recognize the Log Format: the
     // first load, and the one after a reload or a truncation.
     bool formatRecognitionPending_ = true;
+    // The Log Lines the last finished load brought: Search Limits that end
+    // there are the whole Log File.
+    LinesCount loadedLineCount_;
+
+    // Watching the Log File, stopping it -- the Log File is checked until a
+    // check finds it unchanged -- or stopped.
+    enum class Watching { On, Stopping, Stopped };
+    Watching watching_ = Watching::On;
+    // The checks made while stopping: a Log File that keeps changing is not
+    // waited for for ever.
+    int checksBeforeStopping_ = 0;
+
+    // Settles the Search Limits on the Log File's new end.
+    SearchLimits settleSearchLimits( SearchLimits limits, LinesCount lineCount ) const;
+    // Checks the Log File once more on the way to stopping, unless it was
+    // checked as often as it is waited for.
+    WatchingStep checkBeforeWatchingStops();
 };

@@ -21,6 +21,7 @@
 #include "searchautorefresh.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -36,6 +37,8 @@ namespace {
 using SearchRefresh = LoadRule::SearchRefresh;
 using Change = LoadRule::Change;
 using AutoRefreshState = SearchAutoRefresh::State;
+using Limits = LoadRule::SearchLimits;
+using WatchingStep = LoadRule::WatchingStep;
 
 // The events an Open Log File hands the Load Rule.
 struct SavedMarks {
@@ -53,10 +56,26 @@ struct LoadFinished {
     uint64_t lines = 30;
     // Where the Search's auto-refresh stands when the load finishes.
     AutoRefreshState search = AutoRefreshState::NoSearch;
+    // The Log Lines the current Search last ran over; when not given, the
+    // Search Limits as they stand before the load.
+    std::optional<Limits> searched = {};
 };
+// The user sets the Search Limits.
+struct SetLimits {
+    uint64_t start;
+    uint64_t end;
+};
+// The Open Log File is told to stop watching its Log File (#575), before or
+// after it was attached to it.
+struct StopWatching {
+    bool attached = true;
+};
+// A check of the Log File found it unchanged.
+struct FoundUnchanged {};
 
-using Event = std::variant<SavedMarks, Reload, ChangedOnDisk, SearchRequested, SearchCleared,
-                           WaitingSearchDropped, LoadFinished>;
+using Event
+    = std::variant<SavedMarks, Reload, ChangedOnDisk, SearchRequested, SearchCleared,
+                   WaitingSearchDropped, LoadFinished, SetLimits, StopWatching, FoundUnchanged>;
 
 const auto grew = ChangedOnDisk{ MonitoredFileStatus::DataAdded };
 const auto truncated = ChangedOnDisk{ MonitoredFileStatus::Truncated };
@@ -102,12 +121,23 @@ std::vector<uint64_t> numbers( const logsquirl::vector<LineNumber>& lines )
     return result;
 }
 
+Limits limits( uint64_t start, uint64_t end )
+{
+    return Limits{ LineNumber( start ), LineNumber( end ) };
+}
+
 // What the rule decided along the way: the last decision of each kind.
 struct Decisions {
     LoadRule::LoadDecision load;
     LoadRule::ChangeDecision change;
     LoadRule::ReloadDecision reload;
     bool searchWaits = false;
+    // The Search Limits as the Open Log File holds them: as set, and as each
+    // load settled them.
+    Limits limits = {};
+    // What stopping to watch did last: when told to stop, after a check that
+    // found nothing, or after a load.
+    WatchingStep watching = WatchingStep::None;
 };
 
 template <class... Ts>
@@ -136,9 +166,17 @@ Decisions run( LoadRule& rule, const std::vector<Event>& events )
                 [ & ]( const SearchCleared& ) { rule.searchCleared(); },
                 [ & ]( const WaitingSearchDropped& ) { rule.waitingSearchDropped(); },
                 [ & ]( const LoadFinished& load ) {
-                    decisions.load = rule.loadFinished( load.status, LinesCount( load.lines ),
-                                                        autoRefreshIn( load.search ) );
+                    decisions.load = rule.loadFinished(
+                        load.status, LinesCount( load.lines ), autoRefreshIn( load.search ),
+                        decisions.limits, load.searched.value_or( decisions.limits ) );
+                    decisions.limits = decisions.load.searchLimits;
+                    decisions.watching = decisions.load.watching;
                 },
+                [ & ]( const SetLimits& set ) { decisions.limits = limits( set.start, set.end ); },
+                [ & ]( const StopWatching& stop ) {
+                    decisions.watching = rule.stopWatching( stop.attached );
+                },
+                [ & ]( const FoundUnchanged& ) { decisions.watching = rule.foundUnchanged(); },
             },
             event );
     }
@@ -163,6 +201,20 @@ struct ChangeRow {
     bool clearMarks;
     bool dropSearch;
     bool forgetLogFormat;
+};
+
+struct LimitsRow {
+    std::string sequence;
+    std::vector<Event> events; // the last one is the load whose decision is checked
+    Limits searchLimits;
+    std::optional<Limits> continueOver;
+};
+
+struct WatchingRow {
+    std::string sequence;
+    std::vector<Event> events;
+    WatchingStep watching;
+    bool watched;
 };
 
 struct SearchRow {
@@ -392,5 +444,133 @@ SCENARIO( "The Load Rule keeps the Marks saved with the Session until the first 
                 REQUIRE( rule.savedMarks().empty() );
             }
         }
+    }
+}
+
+SCENARIO( "The Load Rule settles the Search Limits a load leaves", "[openlogfile][loadrule]" )
+{
+    const auto grewUnderAutoRefresh
+        = LoadFinished{ LoadingStatus::Successful, 40, AutoRefreshState::Autorefreshing };
+    const auto grewUnderStaticSearch
+        = LoadFinished{ LoadingStatus::Successful, 40, AutoRefreshState::Static };
+    const auto truncatedTo10 = LoadFinished{ LoadingStatus::Successful, 10 };
+
+    // clang-format off
+    const std::vector<LimitsRow> rows = {
+        // sequence, events, searchLimits, continueOver
+        { "the first load: the whole Log File", { loaded },
+          limits( 0, 30 ), std::nullopt },
+        // logsquirl-grep sets no Limits: its Search waits for the first load
+        // and runs over the whole Log File.
+        { "the grep CLI: a Search waiting for the first load", { SearchRequested{}, loaded },
+          limits( 0, 30 ), std::nullopt },
+        { "whole-file Limits, then grew: the end follows", { loaded, grew, grewUnderStaticSearch },
+          limits( 0, 40 ), std::nullopt },
+        { "whole-file Limits, then grew under an auto-refreshing Search",
+          { loaded, grew, grewUnderAutoRefresh },
+          limits( 0, 40 ), limits( 0, 40 ) },
+        { "narrowed Limits, then grew: they stay as set",
+          { loaded, SetLimits{ 5, 20 }, grew, grewUnderStaticSearch },
+          limits( 5, 20 ), std::nullopt },
+        // The Search already ran over the narrowed Limits: nothing was added
+        // to them, so it is not requested again.
+        { "narrowed Limits, then grew under an auto-refreshing Search",
+          { loaded, SetLimits{ 5, 20 }, grew, grewUnderAutoRefresh },
+          limits( 5, 20 ), std::nullopt },
+        // The Search ran before the Limits were narrowed: it continues within
+        // them, not over the Log Lines added.
+        { "narrowed after the Search ran, then grew under an auto-refreshing Search",
+          { loaded, SetLimits{ 5, 20 }, grew,
+            LoadFinished{ LoadingStatus::Successful, 40, AutoRefreshState::Autorefreshing,
+                          limits( 0, 30 ) } },
+          limits( 5, 20 ), limits( 5, 20 ) },
+        { "loaded again with nothing added, under an auto-refreshing Search",
+          { loaded, LoadFinished{ LoadingStatus::Successful, 30,
+                                  AutoRefreshState::Autorefreshing } },
+          limits( 0, 30 ), std::nullopt },
+        { "narrowed Limits reaching past a truncated end: cut back",
+          { loaded, SetLimits{ 5, 25 }, truncated, truncatedTo10 },
+          limits( 5, 10 ), std::nullopt },
+        { "narrowed Limits wholly past a truncated end: the whole Log File",
+          { loaded, SetLimits{ 15, 25 }, truncated, truncatedTo10 },
+          limits( 0, 10 ), std::nullopt },
+        { "whole-file Limits, then truncated: the end follows",
+          { loaded, truncated, truncatedTo10 },
+          limits( 0, 10 ), std::nullopt },
+        // A Search that starts again over a truncated Log File is requested
+        // anew; it does not continue.
+        { "truncated under an auto-refreshing Search",
+          { loaded, truncated, LoadFinished{ LoadingStatus::Successful, 10,
+                                             AutoRefreshState::TruncatedAutorefreshing } },
+          limits( 0, 10 ), std::nullopt },
+        { "narrowed Limits, then reloaded", { loaded, SetLimits{ 5, 20 }, Reload{}, loaded },
+          limits( 5, 20 ), std::nullopt },
+        { "set to the whole Log File by hand, then grew",
+          { loaded, SetLimits{ 0, 30 }, grew, grewUnderStaticSearch },
+          limits( 0, 40 ), std::nullopt },
+    };
+    // clang-format on
+
+    for ( const auto& row : rows ) {
+        INFO( row.sequence );
+        LoadRule rule;
+        const auto decision = run( rule, row.events ).load;
+
+        CHECK( decision.searchLimits == row.searchLimits );
+        CHECK( decision.continueOver == row.continueOver );
+    }
+}
+
+SCENARIO( "The Load Rule decides when watching has stopped", "[openlogfile][loadrule]" )
+{
+    const auto stop = StopWatching{};
+    // A check found the Log File changed, and it loaded.
+    const auto checkFailed = loaded;
+    const auto truncatedTo10 = LoadFinished{ LoadingStatus::Successful, 10 };
+
+    // clang-format off
+    const std::vector<WatchingRow> rows = {
+        // sequence, events, watching, watched
+        { "watched", { loaded },
+          WatchingStep::None, true },
+        { "a check found nothing while watched", { loaded, FoundUnchanged{} },
+          WatchingStep::None, true },
+        { "told to stop after the first load: checked", { loaded, stop },
+          WatchingStep::CheckAgain, false },
+        { "told to stop before it was attached: its first load reads it all",
+          { StopWatching{ false } },
+          WatchingStep::None, false },
+        { "told to stop before it was attached, then loaded: checked",
+          { StopWatching{ false }, loaded },
+          WatchingStep::CheckAgain, false },
+        { "told to stop twice", { loaded, stop, stop },
+          WatchingStep::None, false },
+        { "the check found nothing: stopped", { loaded, stop, FoundUnchanged{} },
+          WatchingStep::Stopped, false },
+        { "the check found a change that failed to load: stopped", { loaded, stop, failedToLoad },
+          WatchingStep::Stopped, false },
+        { "one failed check: check again", { loaded, stop, checkFailed },
+          WatchingStep::CheckAgain, false },
+        { "four failed checks: check again",
+          { loaded, stop, checkFailed, checkFailed, checkFailed, checkFailed },
+          WatchingStep::CheckAgain, false },
+        { "the fifth failed check: stopped, though it still changes",
+          { loaded, stop, checkFailed, checkFailed, checkFailed, checkFailed, checkFailed },
+          WatchingStep::StoppedStillChanging, false },
+        { "a check found it truncated: check again", { loaded, stop, truncated, truncatedTo10 },
+          WatchingStep::CheckAgain, false },
+        { "stopped, then loaded again", { loaded, stop, FoundUnchanged{}, Reload{}, loaded },
+          WatchingStep::None, false },
+        { "stopped, then a check found nothing",
+          { loaded, stop, FoundUnchanged{}, FoundUnchanged{} },
+          WatchingStep::None, false },
+    };
+    // clang-format on
+
+    for ( const auto& row : rows ) {
+        INFO( row.sequence );
+        LoadRule rule;
+        CHECK( run( rule, row.events ).watching == row.watching );
+        CHECK( rule.isWatching() == row.watched );
     }
 }

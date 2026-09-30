@@ -28,7 +28,6 @@
 
 #include "textencoding.h"
 
-#include <algorithm>
 #include <mutex>
 #include <utility>
 
@@ -74,12 +73,8 @@ OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPoli
     connect( logData_.get(), &LogData::loadingProgressed, this, &OpenLogFile::loadingProgressed );
     connect( logData_.get(), &LogData::loadingFinished, this, &OpenLogFile::handleLoadingFinished );
     connect( logData_.get(), &LogData::fileChanged, this, &OpenLogFile::handleFileChanged );
-    connect( logData_.get(), &LogData::fileUnchanged, this, [ this ] {
-        if ( watching_ == Watching::Stopping ) {
-            watching_ = Watching::Stopped;
-            Q_EMIT watchingStopped();
-        }
-    } );
+    connect( logData_.get(), &LogData::fileUnchanged, this,
+             [ this ] { continueStoppingToWatch( loadRule_.foundUnchanged() ); } );
     connect( logData_.get(), &LogData::decodingPolicyChanged, this,
              &OpenLogFile::decodingPolicyChanged );
 
@@ -262,7 +257,7 @@ SearchSession::State OpenLogFile::requestSearch( const RegularExpressionPattern&
 
     // The Search Session validates the pattern itself; an invalid one goes to
     // InvalidPattern synchronously, so the state is conclusive right away.
-    filteredData_->request( pattern, searchStartLine_, searchEndLine_ );
+    filteredData_->request( pattern, searchLimits_.start, searchLimits_.end );
     auto state = filteredData_->searchState();
 
     if ( state.phase != SearchSession::Phase::InvalidPattern ) {
@@ -321,29 +316,27 @@ const SearchAutoRefresh& OpenLogFile::searchAutoRefresh() const
 
 void OpenLogFile::setSearchLimits( LineNumber startLine, LineNumber endLine )
 {
-    searchStartLine_ = startLine;
-    searchEndLine_ = endLine;
+    searchLimits_ = LoadRule::SearchLimits{ startLine, endLine };
     tellSearchLimits();
 }
 
 void OpenLogFile::tellSearchLimits()
 {
-    const auto limits = std::pair{ searchStartLine_, searchEndLine_ };
-    if ( toldSearchLimits_ == limits ) {
+    if ( toldSearchLimits_ == searchLimits_ ) {
         return;
     }
-    toldSearchLimits_ = limits;
-    Q_EMIT searchLimitsChanged( searchStartLine_, searchEndLine_ );
+    toldSearchLimits_ = searchLimits_;
+    Q_EMIT searchLimitsChanged( searchLimits_.start, searchLimits_.end );
 }
 
 LineNumber OpenLogFile::searchStartLine() const
 {
-    return searchStartLine_;
+    return searchLimits_.start;
 }
 
 LineNumber OpenLogFile::searchEndLine() const
 {
-    return searchEndLine_;
+    return searchLimits_.end;
 }
 
 void OpenLogFile::setRecognitionPolicy( const RecognitionPolicy& policy )
@@ -417,7 +410,7 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     // Watched once a load has succeeded, and asked again after every one,
     // as the log data always did: the port ignores a file it already
     // watches.
-    if ( status == LoadingStatus::Successful && fileWatch_ && watching_ == Watching::On ) {
+    if ( status == LoadingStatus::Successful && fileWatch_ && loadRule_.isWatching() ) {
         fileWatch_->addFile( fileName_ );
         if ( !watched_ ) {
             watched_ = true;
@@ -430,8 +423,18 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     }
 
     const auto lineCount = logData_->getNbLine();
-    const auto nbLines = LineNumber( lineCount.get() );
-    auto decision = loadRule_.loadFinished( status, lineCount, autoRefresh_ );
+
+    // Settled before any Search runs below, so it matches the Log Lines as
+    // they read, and before the users hear of the load. The Encoding detected
+    // is known only now.
+    const auto encodingSettledAnew = settleEncoding();
+
+    // The Log Lines the Search ran over, as it stands once the Encoding is
+    // settled.
+    const auto searched = filteredData_->searchState();
+    auto decision
+        = loadRule_.loadFinished( status, lineCount, autoRefresh_, searchLimits_,
+                                  LoadRule::SearchLimits{ searched.startLine, searched.endLine } );
 
     LoadFinished load;
     load.status = status;
@@ -439,27 +442,9 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     load.fromStart = decision.fromStart;
     load.onlyAppended = decision.onlyAppended;
 
-    // Settled before any Search runs below, so it matches the Log Lines as
-    // they read, and before the users hear of the load. The Encoding detected
-    // is known only now.
-    const auto encodingSettledAnew = settleEncoding();
-
-    // Search Limits the user narrowed stay as set, whatever the load brought
-    // -- added Log Lines, a reload, a truncation, the Log File read anew in
-    // another Encoding -- cut back to the Log File's end; only when nothing
-    // of them is left do they become the whole Log File. Limits that were the
-    // whole Log File follow its end.
-    const auto limitsWereWholeFile
-        = searchStartLine_ == 0_lnum && searchEndLine_ >= LineNumber( loadedLineCount_.get() );
-    if ( limitsWereWholeFile || searchStartLine_ >= nbLines ) {
-        searchStartLine_ = 0_lnum;
-        searchEndLine_ = nbLines;
-    }
-    else {
-        searchEndLine_ = std::min( searchEndLine_, nbLines );
-    }
-    loadedLineCount_ = lineCount;
-    // Every view shows them as settled before the Search runs over them.
+    // The Search Limits as the Load Rule settled them: every view shows them
+    // before the Search runs over them.
+    searchLimits_ = decision.searchLimits;
     tellSearchLimits();
 
     // The Search follows the Log Lines loaded: it continues over the ones
@@ -468,16 +453,15 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     switch ( decision.searchRefresh ) {
     case LoadRule::SearchRefresh::None:
         break;
-    case LoadRule::SearchRefresh::Continue: {
+    case LoadRule::SearchRefresh::Continue:
         // Same pattern and start, a larger end: the Search Session continues
-        // the run rather than starting over. A Search that already ran over
-        // narrowed Limits has no Log Line added to them to run over.
-        const auto searched = filteredData_->searchState();
-        if ( searched.startLine != searchStartLine_ || searched.endLine != searchEndLine_ ) {
-            filteredData_->request( searched.pattern, searchStartLine_, searchEndLine_ );
+        // the run rather than starting over, when it has Log Lines to run
+        // over.
+        if ( decision.continueOver ) {
+            filteredData_->request( searched.pattern, decision.continueOver->start,
+                                    decision.continueOver->end );
         }
         break;
-    }
     case LoadRule::SearchRefresh::Restart:
         restartSearch();
         load.searchRestarted = true;
@@ -506,23 +490,15 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
 
     // Whatever this load brought, the Log File may have grown during it: it
     // is checked again until a check finds nothing new.
-    if ( watching_ == Watching::Stopping ) {
-        if ( status == LoadingStatus::Successful ) {
-            checkBeforeWatchingStops();
-        }
-        else {
-            watching_ = Watching::Stopped;
-            Q_EMIT watchingStopped();
-        }
-    }
+    continueStoppingToWatch( decision.watching );
 }
 
 void OpenLogFile::stopWatching()
 {
-    if ( watching_ != Watching::On ) {
+    if ( !loadRule_.isWatching() ) {
         return;
     }
-    watching_ = Watching::Stopping;
+    const auto step = loadRule_.stopWatching( !fileName_.isEmpty() );
 
     if ( fileWatch_ ) {
         disconnect( fileWatch_.get(), nullptr, this, nullptr );
@@ -532,23 +508,25 @@ void OpenLogFile::stopWatching()
         }
     }
 
-    // Before its first load there is nothing to check: that load reads it
-    // all, and the check after it finds it unchanged.
-    if ( !fileName_.isEmpty() ) {
-        checkBeforeWatchingStops();
-    }
+    continueStoppingToWatch( step );
 }
 
-void OpenLogFile::checkBeforeWatchingStops()
+void OpenLogFile::continueStoppingToWatch( LoadRule::WatchingStep step )
 {
-    constexpr int MaxChecks = 5;
-    if ( ++checksBeforeStopping_ > MaxChecks ) {
+    switch ( step ) {
+    case LoadRule::WatchingStep::None:
+        break;
+    case LoadRule::WatchingStep::CheckAgain:
+        logData_->fileChangedOnDisk( fileName_ );
+        break;
+    case LoadRule::WatchingStep::StoppedStillChanging:
         LOG_WARNING << "The Log File " << fileName_ << " still changes, no longer checked";
-        watching_ = Watching::Stopped;
         Q_EMIT watchingStopped();
-        return;
+        break;
+    case LoadRule::WatchingStep::Stopped:
+        Q_EMIT watchingStopped();
+        break;
     }
-    logData_->fileChangedOnDisk( fileName_ );
 }
 
 void OpenLogFile::handleChangeOnDisk( const QString& fileName )
