@@ -7,10 +7,12 @@
 add_library(
   logsquirl_valuenames STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include/naminggroup.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/shownline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/nametablecsv.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamer.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/naminggroup.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/nametablecsv.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/shownline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamer.cpp
 )
 
