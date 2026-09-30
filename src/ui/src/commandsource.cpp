@@ -302,8 +302,7 @@ bool endsInsideUtf8Character( QByteArrayView bytes )
 
 const TextEncoding* commandOutputEncoding( QByteArrayView output, int oemCodePage )
 {
-    // Stateful: a character cut off at the end is kept for the next call,
-    // not taken for an error.
+    // A character cut off at the end is not taken for an error.
     QStringDecoder utf8( QStringDecoder::Utf8 );
     [[maybe_unused]] const QString decoded = utf8.decode( output );
     if ( !utf8.hasError() ) {

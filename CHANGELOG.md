@@ -53,6 +53,13 @@
 
 ## Bug fixes
 
+- **A command's output on Windows shows its umlauts**: console programs such
+  as `dir` or `ping` write in the OEM code page of the console, CP850 on a
+  German Windows, and their output opened by *Open Command Output* showed `ä`
+  as `„`. A command's tab is now read as UTF-8 when its output is valid UTF-8,
+  otherwise in the OEM code page, as soon as the output holds more than ASCII.
+  The Encoding menu still changes it, and offers IBM437, the OEM code page of
+  a US Windows. (#655)
 - **Open Command Output runs commands in csh and tcsh**: with csh or tcsh as
   the login shell, every command ended at once with exit code 1 and the
   shell's `Unknown option: '-l'` in its tab. The command line now runs in
@@ -79,13 +86,6 @@
   removes its temporary file. A running LogSquirl that does not take the input
   over, such as one of another version, is reported instead. Before, the input
   was lost. (#623)
-- **A command's output on Windows shows its umlauts**: console programs such
-  as `dir` or `ping` write in the OEM code page of the console, CP850 on a
-  German Windows, and their output opened by *Open Command Output* showed `ä`
-  as `„`. A command's tab is now read as UTF-8 when its output is valid UTF-8,
-  otherwise in the OEM code page, as soon as the output holds more than ASCII.
-  The Encoding menu still changes it, and offers IBM437, the OEM code page of
-  a US Windows. (#655)
 
 # v26.10.0 (2026-09-29)
 

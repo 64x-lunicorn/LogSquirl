@@ -540,7 +540,8 @@ _Avoid_: temporary tab, temp file, volatile source
 
 **Command Source**:
 What feeds the Transient Log File of one tab, and its owner: a command line run through
-the user's login shell (`$SHELL -l -c`, `cmd.exe /d /s /c` on Windows), standard input, or
+the user's login shell (`$SHELL -l -c`; `$SHELL -c` for csh and tcsh, which take `-l` only
+alone; `cmd.exe /d /s /c` on Windows), standard input, or
 a spool file another process writes and hands over -- a `logsquirl -` started while
 LogSquirl runs reads standard input for the running one. It writes what arrives to the tab's
 spool file and tells how its command ended -- an exit code, or stopped by a signal. On
