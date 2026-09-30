@@ -3915,9 +3915,6 @@ SCENARIO( "QuickFind searches the Presentation shown, never the hidden one",
     }
 }
 
-// The window hears only the tab in front, so a tab replays the status of its
-// last load when it is brought to the front: a load still under way is
-// replayed as loading, never as loaded (#540).
 // A restored Log File stands on the Scroll Position it was saved with once
 // its first successful load is done. A load interrupted before that keeps the
 // Scroll Position: for the next load, and for a save in between (#559).
@@ -3980,10 +3977,17 @@ SCENARIO( "A restored Log File whose first load is interrupted stands where it s
     }
 }
 
-SCENARIO( "A Log File replays the status of its last load to the window", "[ui][loading]" )
+// The window hears only the tab in front, so it reads the state of a tab's
+// Log File once when the tab is brought to the front (#635): how its last load
+// ended, failed included, and a load still under way as loading, never as
+// loaded (#540); and what the window's menus show of it.
+SCENARIO( "A Log File tells the window its state in one value", "[ui][loading]" )
 {
-    QTemporaryFile file{ "crawler_replay_test_XXXXXX" };
+    QTemporaryFile file{ "crawler_state_test_XXXXXX" };
     REQUIRE( generateDataFiles( file ) );
+
+    // Outlives the Log File, which holds on to the Encoding it was reloaded with.
+    const TextEncoding unusableEncoding( -4242, "LogSquirl-Unusable-Encoding", std::nullopt );
 
     Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
 
@@ -3995,45 +3999,86 @@ SCENARIO( "A Log File replays the status of its last load to the window", "[ui][
     REQUIRE( waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); }, 10000 ) );
 
     QSignalSpy finished( &crawler, &CrawlerWidget::loadingFinished );
-    QSignalSpy progressed( &crawler, &CrawlerWidget::loadingProgressed );
 
     GIVEN( "a Log File that has loaded" )
     {
-        WHEN( "its state is replayed" )
-        {
-            crawler.sendAllStateSignals();
+        const auto state = crawler.state();
 
-            THEN( "it replays a successful load" )
+        THEN( "its state says the load was successful" )
+        {
+            REQUIRE( state.loadStatus == LoadingStatus::Successful );
+            REQUIRE( state.loadFailure.isEmpty() );
+        }
+
+        THEN( "its state says what the window's menus show of it" )
+        {
+            REQUIRE( state.selectedLine == 0_lnum );
+            REQUIRE_FALSE( state.follows );
+            REQUIRE( state.textWrap == crawler.isTextWrapEnabled() );
+            REQUIRE_FALSE( state.encodingMib.has_value() );
+            // No Log Format is recognized for it: no time navigation.
+            REQUIRE_FALSE( state.goToTimestampUnavailable.isEmpty() );
+            REQUIRE( state.goToTimestampUnavailable == crawler.goToTimestampUnavailableReason() );
+            REQUIRE( state.searchLimitsByTimeUnavailable
+                     == crawler.searchLimitsByTimeUnavailableReason() );
+            REQUIRE(
+                state.quickFindSearchable
+                == static_cast<const SearchableWidgetInterface*>( crawlerVisitor.textView() ) );
+        }
+
+        WHEN( "it is followed and an Encoding is chosen for it" )
+        {
+            crawler.followSet( true );
+            const auto mib = TextEncoding::forName( "ISO-8859-1" )->mibEnum();
+            crawler.setEncoding( mib );
+
+            THEN( "its state says so" )
             {
-                REQUIRE( finished.count() == 1 );
-                REQUIRE( finished.first().at( 0 ).value<LoadingStatus>()
-                         == LoadingStatus::Successful );
+                const auto followed = crawler.state();
+                REQUIRE( followed.follows );
+                REQUIRE( followed.encodingMib == mib );
             }
         }
 
-        WHEN( "it is reloaded and its state is replayed while the load is under way" )
+        WHEN( "it is reloaded" )
         {
             crawler.reload();
-            crawler.sendAllStateSignals();
 
-            THEN( "it replays loading, not loaded" )
+            THEN( "its state says it is loading, not loaded, while the load is under way" )
             {
-                REQUIRE( finished.isEmpty() );
-                REQUIRE( progressed.count() == 1 );
-            }
+                const auto loading = crawler.state();
+                REQUIRE_FALSE( loading.loadStatus.has_value() );
+                REQUIRE( loading.loadingProgress == 0 );
 
-            AND_WHEN( "the load has finished and its state is replayed" )
-            {
-                REQUIRE( finished.wait( 10000 ) );
-                finished.clear();
-                crawler.sendAllStateSignals();
-
-                THEN( "it replays a successful load" )
+                AND_WHEN( "the load has finished" )
                 {
-                    REQUIRE( finished.count() == 1 );
-                    REQUIRE( finished.first().at( 0 ).value<LoadingStatus>()
-                             == LoadingStatus::Successful );
+                    REQUIRE( finished.wait( 10000 ) );
+
+                    THEN( "its state says the load was successful" )
+                    {
+                        REQUIRE( crawler.state().loadStatus == LoadingStatus::Successful );
+                    }
                 }
+            }
+        }
+
+        WHEN( "it fails to load" )
+        {
+            crawlerVisitor.openLogFile().logData()->reload( &unusableEncoding );
+            REQUIRE( waitUiState(
+                [ & ] {
+                    return !finished.isEmpty()
+                           && finished.last().at( 0 ).value<LoadingStatus>()
+                                  == LoadingStatus::Failed;
+                },
+                10000 ) );
+
+            THEN( "its state says the load failed, and why" )
+            {
+                const auto failed = crawler.state();
+                REQUIRE( failed.loadStatus == LoadingStatus::Failed );
+                REQUIRE_FALSE( failed.loadFailure.isEmpty() );
+                REQUIRE( failed.loadFailure == finished.last().at( 1 ).toString() );
             }
         }
     }

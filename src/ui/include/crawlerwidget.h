@@ -76,7 +76,6 @@
 #include "predefinedfilters.h"
 #include "searchline.h"
 #include "searchlinewidget.h"
-#include "signalmux.h"
 #include "viewinterface.h"
 #include "viewset.h"
 
@@ -97,10 +96,7 @@ class OverviewWidget;
 // Implements the central widget of the application.
 // It includes both windows, the search line, the info
 // lines and various buttons.
-class CrawlerWidget : public QSplitter,
-                      public QuickFindMuxSelectorInterface,
-                      public ViewInterface,
-                      public MuxableDocumentInterface {
+class CrawlerWidget : public QSplitter, public QuickFindMuxSelectorInterface, public ViewInterface {
     Q_OBJECT
 
 public:
@@ -190,6 +186,32 @@ public:
 
     bool isTextWrapEnabled() const;
 
+    // What the window shows of this tab's Log File. The window hears only the
+    // tab in front, so it reads this once when the tab comes to the front,
+    // and what happened meanwhile -- a load that ended, failed or is under
+    // way (#540) -- is told by it (#635).
+    struct State {
+        // How the last load ended, and the failure of a Failed one; none
+        // while a load is under way, which has come as far as loadingProgress.
+        std::optional<LoadingStatus> loadStatus;
+        QString loadFailure;
+        int loadingProgress = 0;
+        // The Log Line selected last.
+        LineNumber selectedLine;
+        // Whether the Log File is followed, as its View Set holds it (#558).
+        bool follows = false;
+        bool textWrap = false;
+        // The Encoding chosen for the Log File, none when it is detected.
+        std::optional<int> encodingMib;
+        // Why Go to timestamp and the Search Limits given as a time are not
+        // available, empty when they are: the time navigation.
+        QString goToTimestampUnavailable;
+        QString searchLimitsByTimeUnavailable;
+        // The view QuickFind searches now.
+        const SearchableWidgetInterface* quickFindSearchable = nullptr;
+    };
+    State state() const;
+
     // The Policies this Log File's views show and search under, as last
     // handed down by the Session. They are held -- the Watch and QuickFind
     // Policies here, the others by the View Set -- so that a widget can be given what it
@@ -234,6 +256,13 @@ public Q_SLOTS:
     // changes, whichever tab is in front (#245).
     void broughtToFront();
 
+    // QuickFind is being entered: remember which view had the focus, the
+    // Filtered View or a Presentation, so QuickFind searches it while the
+    // QuickFind bar has the focus.
+    void enteringQuickFind();
+    // QuickFind is being closed: the view that had the focus gets it back.
+    void exitingQuickFind();
+
     // Paints every view of this Log File again with the Highlighter Sets now
     // active. A Highlighter Set is user data, not a setting, so nothing is
     // read from the Configuration.
@@ -259,17 +288,14 @@ protected:
     SearchableWidgetInterface* doGetActiveSearchable() const override;
     std::vector<QObject*> doGetAllSearchables() const override;
 
-    // Implementation of the MuxableDocumentInterface
-    void doSendAllStateSignals() override;
-
 Q_SIGNALS:
     // Sent to signal the client load has progressed,
     // passing the completion percentage.
     void loadingProgressed( int progress );
     // Sent to the client when the loading has finished
-    // whether successful or not, with the failure of a Failed load. Sent
-    // again, as are the progress of a load under way, when the tab is
-    // brought to the front (#540).
+    // whether successful or not, with the failure of a Failed load. The
+    // window learns how the last load ended when the tab comes to the front
+    // from state() (#540, #635).
     void loadingFinished( LoadingStatus status, QString failure );
     // Sent when text wrap mode is enabled/disabled
     void textWrapSet( bool checked );
@@ -309,12 +335,6 @@ private Q_SLOTS:
     // Stop the currently ongoing search (if one exists)
     void stopSearch();
     void loadIcons();
-    // QuickFind is being entered: remember which view had the focus, the
-    // Filtered View or a Presentation, so QuickFind searches it while the
-    // QuickFind bar has the focus.
-    void enteringQuickFind();
-    // QuickFind is being closed: the view that had the focus gets it back.
-    void exitingQuickFind();
     // Called when new data must be displayed in the filtered window.
     void updateFilteredView( SearchSession::State state );
     // Called when a new line has been selected in the filtered view,
@@ -583,8 +603,8 @@ private:
     // Current number of matches
     LinesCount nbMatches_;
 
-    // The status of the last load, which the window hears again when this
-    // tab is brought to the front (#540): none while a load is under way,
+    // The status of the last load, which the window reads in state() when
+    // this tab is brought to the front (#540): none while a load is under way,
     // whose progress is kept instead, and the failure of a Failed one.
     std::optional<LoadingStatus> lastLoadStatus_;
     QString lastLoadFailure_;

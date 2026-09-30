@@ -56,7 +56,6 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/archivemember.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/changed.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/sessioninfo.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/signalmux.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbedcrawlerwidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tableviewselection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tableviewstate.h
@@ -154,7 +153,6 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sessionfile.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/archivemember.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sessioninfo.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/signalmux.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbedcrawlerwidget.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tableviewselection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/wordrule.cpp

@@ -326,19 +326,20 @@ std::vector<QObject*> CrawlerWidget::doGetAllSearchables() const
     return searchables;
 }
 
-// Update the state of the parent
-void CrawlerWidget::doSendAllStateSignals()
+CrawlerWidget::State CrawlerWidget::state() const
 {
-    Q_EMIT newSelection( currentLineNumber_, 0_lcount, 0_lcol, 0_length );
-    // The window heard nothing of this Log File while its tab was not in
-    // front: the last load is replayed as it ended, failed included, and a
-    // load under way as loading (#540).
-    if ( lastLoadStatus_ ) {
-        Q_EMIT loadingFinished( *lastLoadStatus_, lastLoadFailure_ );
-    }
-    else {
-        Q_EMIT loadingProgressed( loadingProgress_ );
-    }
+    State state;
+    state.loadStatus = lastLoadStatus_;
+    state.loadFailure = lastLoadFailure_;
+    state.loadingProgress = loadingProgress_;
+    state.selectedLine = currentLineNumber_;
+    state.follows = isFollowEnabled();
+    state.textWrap = isTextWrapEnabled();
+    state.encodingMib = encodingMib();
+    state.goToTimestampUnavailable = goToTimestampUnavailableReason();
+    state.searchLimitsByTimeUnavailable = searchLimitsByTimeUnavailableReason();
+    state.quickFindSearchable = doGetActiveSearchable();
+    return state;
 }
 
 //

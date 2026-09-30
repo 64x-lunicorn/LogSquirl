@@ -196,8 +196,8 @@ QAction* viewMenuAction( const MainWindow& window, const char* text )
 
 // The View menu's toggles write a setting the Presentation Policy names, so
 // they must reach the re-derive the Options Dialog reaches (#192): the Session
-// re-derives and reaches every open Log File (#245), where the signal mux
-// would deliver to the active tab only.
+// re-derives and reaches every open Log File (#245), where the connections of
+// the window would deliver to the tab in front only.
 SCENARIO( "Toggling line numbers or the overview from the View menu reaches every open Log File",
           "[ui][settings]" )
 {

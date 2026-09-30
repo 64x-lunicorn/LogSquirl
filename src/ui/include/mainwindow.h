@@ -58,6 +58,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include "applicationplugins.h"
 #include "commandsource.h"
@@ -73,7 +74,6 @@
 #include "quickfindwidget.h"
 #include "session.h"
 #include "sessionfile.h"
-#include "signalmux.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabbedscratchpad.h"
 #include "tabgroupmanagerdialog.h"
@@ -288,6 +288,9 @@ private Q_SLOTS:
 
     // Instructs the widget to update the loading progress gauge
     void updateLoadingProgress( int progress );
+    // Shows the Log File in front loading, as far as progress, whatever the
+    // progress is.
+    void showLoadingProgress( int progress );
     // Instructs the widget to display the 'normal' status bar,
     // without the progress gauge and with file info
     // or an error recovery when loading is finished: a failed load closes
@@ -400,8 +403,12 @@ private:
     QString strippedName( const QString& fullFileName ) const;
     CrawlerWidget* currentCrawlerWidget() const;
     void displayQuickFindBar( QuickFindMux::QFDirection direction );
-    void updateMenuBarFromDocument( const CrawlerWidget* crawler );
-    void updateGoToTimestampAction( const CrawlerWidget* crawler );
+    // Connects the window to the Log File in front, and it alone: the
+    // connections to the tab shown before go (#635). Nothing is connected for
+    // nullptr.
+    void connectFrontTab( CrawlerWidget* crawler );
+    void updateMenuBarFromDocument( const CrawlerWidget::State& state );
+    void updateGoToTimestampAction( const CrawlerWidget::State& state );
     void updateInfoLine();
     void showInfoLabels( bool show );
     void logScreenInfo( QScreen* screen );
@@ -433,9 +440,8 @@ private:
     // While the Session's tabs are added: each becomes current in turn, and
     // none of them is to start loading for that (#300).
     bool restoringSession_ = false;
-    // While the tab brought to the front replays the state of its Log File:
-    // a load under way is shown whatever its progress (#540).
-    bool replayingFrontTab_ = false;
+    // The connections between the window and the Log File in front.
+    std::vector<QMetaObject::Connection> frontTabConnections_;
 
     std::array<QAction*, MAX_RECENT_FILES> recentFileActions;
     QActionGroup* recentFilesGroup;
@@ -529,9 +535,6 @@ private:
     QIcon mainIcon_;
 
     IconLoader iconLoader_;
-
-    // Multiplex signals to any of the CrawlerWidgets
-    SignalMux signalMux_;
 
     static QTranslator mTranslator;
     static QTranslator mQtTranslator;

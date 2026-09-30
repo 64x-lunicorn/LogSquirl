@@ -149,7 +149,6 @@ MainWindow::MainWindow( WindowSession session,
                         std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins )
     : session_( std::move( session ) )
     , mainIcon_()
-    , signalMux_()
     , quickFindMux_( session_.getQuickFindPattern() )
     , mainTabWidget_()
     , tempDir_( QDir::temp().filePath( "logsquirl_temp_" ) )
@@ -180,42 +179,6 @@ MainWindow::MainWindow( WindowSession session,
     readSettings();
 
     createTrayIcon();
-
-    // Connect the signals to the mux (they will be forwarded to the
-    // "current" crawlerwidget
-
-    // Send actions to the crawlerwidget
-    signalMux_.connect( this, SIGNAL( followSet( bool ) ), SLOT( followSet( bool ) ) );
-    signalMux_.connect( this, SIGNAL( textWrapSet( bool ) ), SIGNAL( textWrapSet( bool ) ) );
-    signalMux_.connect( this, SIGNAL( enteringQuickFind() ), SLOT( enteringQuickFind() ) );
-    signalMux_.connect( &quickFindWidget_, SIGNAL( close() ), SLOT( exitingQuickFind() ) );
-
-    // Actions from the CrawlerWidget
-    signalMux_.connect( SIGNAL( followModeChanged( bool ) ), this,
-                        SLOT( changeFollowMode( bool ) ) );
-    signalMux_.connect(
-        SIGNAL( newSelection( LineNumber, LinesCount, LineColumn, LineLength ) ), this,
-        SLOT( lineNumberHandler( LineNumber, LinesCount, LineColumn, LineLength ) ) );
-    signalMux_.connect( SIGNAL( saveCurrentSearchAsPredefinedFilter( QString ) ), this,
-                        SLOT( newPredefinedFilterHandler( QString ) ) );
-
-    signalMux_.connect( SIGNAL( sendToScratchpad( QString ) ), this,
-                        SLOT( sendToScratchpad( QString ) ) );
-
-    signalMux_.connect( SIGNAL( replaceDataInScratchpad( QString ) ), this,
-                        SLOT( replaceDataInScratchpad( QString ) ) );
-
-    // Register for progress status bar
-    signalMux_.connect( SIGNAL( loadingProgressed( int ) ), this,
-                        SLOT( updateLoadingProgress( int ) ) );
-    signalMux_.connect( SIGNAL( loadingFinished( LoadingStatus, QString ) ), this,
-                        SLOT( handleLoadingFinished( LoadingStatus, QString ) ) );
-
-    signalMux_.connect( SIGNAL( statusMessage( QString ) ), this,
-                        SLOT( showStatusMessage( QString ) ) );
-
-    signalMux_.connect( SIGNAL( filteredViewChanged() ), this,
-                        SLOT( handleFilteredViewChanged() ) );
 
     // Configure the main tabbed widget
     mainTabWidget_.setDocumentMode( true );
@@ -480,10 +443,6 @@ std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
     if ( currentFileIndex >= 0 && static_cast<size_t>( currentFileIndex ) < crawlers.size() ) {
         // By widget: the dashboard tab, if any, comes before the Log Files.
         mainTabWidget_.setCurrentWidget( crawlers[ static_cast<size_t>( currentFileIndex ) ] );
-
-        if ( followFileOnLoad ) {
-            followAction->setChecked( true );
-        }
     }
 
     mainTabWidget_.refreshAllTabGroupAppearances();
@@ -561,9 +520,6 @@ void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& m
     const auto& config = Configuration::get();
     if ( config.followFileOnLoad() && session_.watchPolicy().anyWatchEnabled() ) {
         signalCrawlerToFollowFile( crawlerWidget );
-        if ( opened.inFront ) {
-            followAction->setChecked( true );
-        }
     }
 
     mainTabWidget_.refreshAllTabGroupAppearances();
@@ -727,7 +683,7 @@ void MainWindow::applyCommandOutputEncoding( const QString& spoolPath )
 
     crawler->setEncoding( source->second->outputEncoding()->mibEnum() );
     if ( crawler == currentCrawlerWidget() ) {
-        updateMenuBarFromDocument( crawler );
+        updateMenuBarFromDocument( crawler->state() );
         updateInfoLine();
     }
 }
@@ -992,21 +948,15 @@ void MainWindow::createActions()
 
     goToLineAction = new QAction( tr( action::goToLineText ), this );
     goToLineAction->setStatusTip( tr( action::goToLineStatusTip ) );
-    signalMux_.connect( goToLineAction, SIGNAL( triggered() ), SLOT( goToLine() ) );
 
     goToTimestampAction = new QAction( tr( action::goToTimestampText ), this );
     goToTimestampAction->setStatusTip( tr( action::goToTimestampStatusTip ) );
-    signalMux_.connect( goToTimestampAction, SIGNAL( triggered() ), SLOT( goToTimestamp() ) );
 
     searchLimitsTimeRangeAction = new QAction( tr( action::searchLimitsTimeRangeText ), this );
     searchLimitsTimeRangeAction->setStatusTip( tr( action::searchLimitsTimeRangeStatusTip ) );
-    signalMux_.connect( searchLimitsTimeRangeAction, SIGNAL( triggered() ),
-                        SLOT( setSearchLimitsToTimeRange() ) );
 
     searchLimitsAroundLineAction = new QAction( tr( action::searchLimitsAroundLineText ), this );
     searchLimitsAroundLineAction->setStatusTip( tr( action::searchLimitsAroundLineStatusTip ) );
-    signalMux_.connect( searchLimitsAroundLineAction, SIGNAL( triggered() ),
-                        SLOT( setSearchLimitsAroundCurrentLine() ) );
 
     findAction = new QAction( tr( action::findText ), this );
     findAction->setStatusTip( tr( action::findStatusTip ) );
@@ -1086,11 +1036,9 @@ void MainWindow::createActions()
     connect( textWrapAction, &QAction::toggled, this, &MainWindow::textWrapSet );
 
     reloadAction = new QAction( tr( action::reloadText ), this );
-    signalMux_.connect( reloadAction, SIGNAL( triggered() ), SLOT( reload() ) );
 
     stopAction = new QAction( tr( action::stopText ), this );
     stopAction->setEnabled( true );
-    signalMux_.connect( stopAction, SIGNAL( triggered() ), SLOT( stopLoading() ) );
 
     optionsAction = new QAction( tr( action::optionsText ), this );
     optionsAction->setMenuRole( QAction::PreferencesRole );
@@ -2523,6 +2471,9 @@ void MainWindow::toggleFilteredLineNumbersVisibility( bool isVisible )
     session_.applyChange( Changed::Settings );
 }
 
+// The one place the follow action is written: from what the View Set of the
+// Log File in front holds, as it says it or as it is read when the tab comes
+// to the front (#558, #635).
 void MainWindow::changeFollowMode( bool follow )
 {
     if ( follow && !session_.watchPolicy().anyWatchEnabled() ) {
@@ -2580,6 +2531,15 @@ void MainWindow::updateLoadingProgress( int progress )
 {
     LOG_DEBUG << "Loading progress: " << progress;
 
+    // We ignore 0% and 100% to avoid a flash when the file (or update)
+    // is very short.
+    if ( progress > 0 && progress < 100 ) {
+        showLoadingProgress( progress );
+    }
+}
+
+void MainWindow::showLoadingProgress( int progress )
+{
     // Guard: currentCrawlerWidget() returns nullptr when the active tab is
     // not a CrawlerWidget.
     auto* crawler = currentCrawlerWidget();
@@ -2589,19 +2549,13 @@ void MainWindow::updateLoadingProgress( int progress )
 
     QString current_file = QDir::toNativeSeparators( session_.getFilename( crawler ) );
 
-    // We ignore 0% and 100% to avoid a flash when the file (or update)
-    // is very short. A load under way replayed by the tab brought to the
-    // front is shown whatever its progress: the info line still describes
-    // the tab shown before (#540).
-    if ( replayingFrontTab_ || ( progress > 0 && progress < 100 ) ) {
-        infoLine->setText( current_file + tr( " - Indexing lines... (%1 %)" ).arg( progress ) );
-        infoLine->displayGauge( progress );
+    infoLine->setText( current_file + tr( " - Indexing lines... (%1 %)" ).arg( progress ) );
+    infoLine->displayGauge( progress );
 
-        showInfoLabels( false );
+    showInfoLabels( false );
 
-        stopAction->setEnabled( true );
-        reloadAction->setEnabled( false );
-    }
+    stopAction->setEnabled( true );
+    reloadAction->setEnabled( false );
 }
 
 void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& failure )
@@ -2628,7 +2582,7 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
         lineNumberHandler( 0_lnum, LinesCount( 0 ), LineColumn( 0 ), LineLength( 0 ) );
 
         // The Log Format is recognized once the load has finished.
-        updateGoToTimestampAction( crawler );
+        updateGoToTimestampAction( crawler->state() );
 
         // Now everything is ready, we can finally show the file!
         crawler->show();
@@ -2652,9 +2606,9 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
             alertBox.exec();
         }
 
-        // Heard as the load ended, or replayed as its tab is brought to the
-        // front after it failed there (#540): the tab is closed once the
-        // tab switch is done, and a Failed load is offered to be reported.
+        // Heard as the load ended, or read as its tab is brought to the front
+        // after it failed there (#540): the tab is closed once the tab switch
+        // is done, and a Failed load is offered to be reported.
         QTimer::singleShot(
             0, this, [ this, failed = QPointer<CrawlerWidget>( crawler ), status, failure ] {
                 const auto index = failed ? mainTabWidget_.indexOf( failed ) : -1;
@@ -2797,16 +2751,28 @@ void MainWindow::currentTabChanged( int index )
             session_.startLoading( crawler_widget );
         }
 
-        replayingFrontTab_ = true;
-        signalMux_.setCurrentDocument( crawler_widget );
-        replayingFrontTab_ = false;
+        connectFrontTab( crawler_widget );
         quickFindMux_.registerSelector( crawler_widget );
+
+        // The window heard nothing of this Log File while its tab was not in
+        // front: it shows what the Log File's state says (#540, #635).
+        const auto state = crawler_widget->state();
+        lineNumberHandler( state.selectedLine, 0_lcount, 0_lcol, 0_length );
+        if ( state.loadStatus ) {
+            // As the last load ended, failed included.
+            handleLoadingFinished( *state.loadStatus, state.loadFailure );
+        }
+        else {
+            // A load under way is shown loading whatever its progress: the
+            // info line still describes the tab shown before.
+            showLoadingProgress( state.loadingProgress );
+        }
 
         // No configuration is applied here: a settings change has already
         // reached this Log File, in front or not (#245).
         crawler_widget->broughtToFront();
 
-        updateMenuBarFromDocument( crawler_widget );
+        updateMenuBarFromDocument( state );
         updateTitleBar( session_.getFilename( crawler_widget ) );
         updateFavoritesMenu();
 
@@ -2818,7 +2784,7 @@ void MainWindow::currentTabChanged( int index )
     else {
         // No tab, or one that holds no Log File, such as the dashboard -- clear
         // the document state
-        signalMux_.setCurrentDocument( nullptr );
+        connectFrontTab( nullptr );
         quickFindMux_.registerSelector( nullptr );
 
         infoLine->hideGauge();
@@ -2846,6 +2812,50 @@ void MainWindow::currentTabChanged( int index )
             showDashboardOrTabs();
         }
     }
+}
+
+void MainWindow::connectFrontTab( CrawlerWidget* crawler )
+{
+    for ( const auto& connection : frontTabConnections_ ) {
+        disconnect( connection );
+    }
+    frontTabConnections_.clear();
+    if ( crawler == nullptr ) {
+        return;
+    }
+
+    frontTabConnections_ = {
+        // What the window asks of the Log File in front
+        connect( this, &MainWindow::followSet, crawler, &CrawlerWidget::followSet ),
+        connect( this, &MainWindow::textWrapSet, crawler, &CrawlerWidget::textWrapSet ),
+        connect( this, &MainWindow::enteringQuickFind, crawler, &CrawlerWidget::enteringQuickFind ),
+        connect( &quickFindWidget_, &QuickFindWidget::close, crawler,
+                 &CrawlerWidget::exitingQuickFind ),
+        connect( goToLineAction, &QAction::triggered, crawler, &CrawlerWidget::goToLine ),
+        connect( goToTimestampAction, &QAction::triggered, crawler, &CrawlerWidget::goToTimestamp ),
+        connect( searchLimitsTimeRangeAction, &QAction::triggered, crawler,
+                 &CrawlerWidget::setSearchLimitsToTimeRange ),
+        connect( searchLimitsAroundLineAction, &QAction::triggered, crawler,
+                 &CrawlerWidget::setSearchLimitsAroundCurrentLine ),
+        connect( reloadAction, &QAction::triggered, crawler, &CrawlerWidget::reload ),
+        connect( stopAction, &QAction::triggered, crawler, &CrawlerWidget::stopLoading ),
+
+        // What the Log File in front tells the window
+        connect( crawler, &CrawlerWidget::followModeChanged, this, &MainWindow::changeFollowMode ),
+        connect( crawler, &CrawlerWidget::newSelection, this, &MainWindow::lineNumberHandler ),
+        connect( crawler, &CrawlerWidget::saveCurrentSearchAsPredefinedFilter, this,
+                 &MainWindow::newPredefinedFilterHandler ),
+        connect( crawler, &CrawlerWidget::sendToScratchpad, this, &MainWindow::sendToScratchpad ),
+        connect( crawler, &CrawlerWidget::replaceDataInScratchpad, this,
+                 &MainWindow::replaceDataInScratchpad ),
+        connect( crawler, &CrawlerWidget::loadingProgressed, this,
+                 &MainWindow::updateLoadingProgress ),
+        connect( crawler, &CrawlerWidget::loadingFinished, this,
+                 &MainWindow::handleLoadingFinished ),
+        connect( crawler, &CrawlerWidget::statusMessage, this, &MainWindow::showStatusMessage ),
+        connect( crawler, &CrawlerWidget::filteredViewChanged, this,
+                 &MainWindow::handleFilteredViewChanged ),
+    };
 }
 
 void MainWindow::changeQFPattern( const QString& newPattern )
@@ -3309,7 +3319,6 @@ bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFil
             if ( session_.watchPolicy().anyWatchEnabled()
                  && ( followFile || config.followFileOnLoad() ) ) {
                 signalCrawlerToFollowFile( crawlerWidget );
-                followAction->setChecked( true );
             }
             // A command or standard input that ended before its tab opened.
             if ( const auto source = commandSources_.find( fileName );
@@ -3424,9 +3433,9 @@ void MainWindow::clearRecentFileActions()
 }
 // Update our menu bar to match the settings of the crawler
 // (used when the tab is changed)
-void MainWindow::updateMenuBarFromDocument( const CrawlerWidget* crawler )
+void MainWindow::updateMenuBarFromDocument( const CrawlerWidget::State& state )
 {
-    const auto encodingMib = crawler->encodingMib();
+    const auto& encodingMib = state.encodingMib;
 
     auto encodingActions = encodingGroup->actions();
     auto encodingItem = std::find_if( encodingActions.begin(), encodingActions.end(),
@@ -3440,24 +3449,23 @@ void MainWindow::updateMenuBarFromDocument( const CrawlerWidget* crawler )
         ( *encodingItem )->setChecked( true );
     }
 
-    // The action mirrors the Log File's follow; the View Set holds it.
-    followAction->setChecked( crawler->isFollowEnabled() );
-    textWrapAction->setChecked( crawler->isTextWrapEnabled() );
-    updateGoToTimestampAction( crawler );
+    changeFollowMode( state.follows );
+    textWrapAction->setChecked( state.textWrap );
+    updateGoToTimestampAction( state );
 }
 
 // "Go to timestamp" is there for a Log File whose Log Format has a timestamp
 // field; without one it says why it is not.
-void MainWindow::updateGoToTimestampAction( const CrawlerWidget* crawler )
+void MainWindow::updateGoToTimestampAction( const CrawlerWidget::State& state )
 {
-    const auto reason = crawler ? crawler->goToTimestampUnavailableReason() : QString();
-    goToTimestampAction->setEnabled( crawler != nullptr && reason.isEmpty() );
+    const auto& reason = state.goToTimestampUnavailable;
+    goToTimestampAction->setEnabled( reason.isEmpty() );
     goToTimestampAction->setToolTip( reason.isEmpty() ? goToTimestampAction->statusTip() : reason );
 
     // The time Search Limits need the same: a Timestamp on the Log Lines.
-    const auto limitsReason = crawler ? crawler->searchLimitsByTimeUnavailableReason() : QString();
+    const auto& limitsReason = state.searchLimitsByTimeUnavailable;
     for ( auto* action : { searchLimitsTimeRangeAction, searchLimitsAroundLineAction } ) {
-        action->setEnabled( crawler != nullptr && limitsReason.isEmpty() );
+        action->setEnabled( limitsReason.isEmpty() );
         action->setToolTip( limitsReason.isEmpty() ? action->statusTip() : limitsReason );
     }
 }
