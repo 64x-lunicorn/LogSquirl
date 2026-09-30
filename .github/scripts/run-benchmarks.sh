@@ -14,12 +14,19 @@
 # comparison with it would fail for reasons unrelated to either side; the
 # before side is the baseline here.
 #
+# A benchmark binary that runs longer than BENCHMARK_TIMEOUT_MINUTES (default
+# 30) is stopped and counts as failed, so one that hangs or has become far
+# slower on one side cannot use up the whole job and leave no comparison at
+# all: the first dispatched run spent its last 140 minutes in one binary (#674).
+#
 # Usage: run-benchmarks.sh   (from the workspace root)
 # Environment: BEFORE_CONTAINER, AFTER_CONTAINER, RUN_DIR, BENCHMARK_SAMPLES,
-# LOG_FILE_MB, E2E_RUNS, QT_QPA_PLATFORM and LOGSQUIRL_WORKSPACE.
+# LOG_FILE_MB, E2E_RUNS, QT_QPA_PLATFORM and LOGSQUIRL_WORKSPACE, optionally
+# BENCHMARK_TIMEOUT_MINUTES.
 set -euo pipefail
 
 status=0
+timeout_minutes=${BENCHMARK_TIMEOUT_MINUTES:-30}
 
 container_of() {
     if [ "$1" = before ]; then echo "$BEFORE_CONTAINER"; else echo "$AFTER_CONTAINER"; fi
@@ -46,9 +53,14 @@ for binary in $binaries; do
             continue
         fi
         echo "::group::$binary ($side)"
-        if ! in_container "$side" "$RUN_DIR/$side/bin/$binary" \
-                --reporter xml --out "$RUN_DIR/results/$side/catch2/$binary.xml" \
-                --benchmark-samples "$BENCHMARK_SAMPLES"; then
+        result=0
+        in_container "$side" timeout --kill-after=1m "${timeout_minutes}m" "$RUN_DIR/$side/bin/$binary" \
+            --reporter xml --out "$RUN_DIR/results/$side/catch2/$binary.xml" \
+            --benchmark-samples "$BENCHMARK_SAMPLES" || result=$?
+        if [ "$result" -eq 124 ] || [ "$result" -eq 137 ]; then
+            echo "::error::$binary ran longer than $timeout_minutes minutes on the $side side and was stopped"
+            status=1
+        elif [ "$result" -ne 0 ]; then
             echo "::error::$binary failed on the $side side"
             status=1
         fi

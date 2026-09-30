@@ -1,0 +1,136 @@
+name: "Benchmarks Comment"
+
+# Posts the result of a pull request's Benchmarks run (benchmarks.yml, #674) as
+# one comment on the pull request, and updates that comment on every later run.
+#
+# The Benchmarks run executes the pull request's code, a fork's too, so it has
+# only a read token and cannot comment. This workflow can: it runs after that
+# run completes, always from the default branch, and never checks out or runs
+# anything of the pull request. What it reads from the run's artifacts was
+# written by the pull request's code and is treated as untrusted data:
+#
+# - The pull request number must be plain digits, and that pull request's head
+#   must be the commit the run measured (workflow_run.head_sha, which GitHub
+#   sets), or nothing is posted: a run cannot comment on another pull request.
+# - The comparison is rendered by benchmark-pr-comment.py from this checkout,
+#   which accepts only the shape benchmark-compare.py writes and escapes all
+#   text, so it cannot mention anyone or carry HTML or links.
+# - No value from an artifact reaches a `run:` block through `${{ }}`; the
+#   steps read files and pass them on as data.
+#
+# A workflow_run workflow only runs from the file on the default branch, so a
+# change to this file takes effect once it is merged into master.
+#
+# zizmor flags workflow_run as dangerous because such workflows often check
+# out and run the triggering pull request's code with a write token. This one
+# runs only the default branch's script and treats the artifacts as data (see
+# above), which is the use the trigger exists for.
+on: # zizmor: ignore[dangerous-triggers]
+  workflow_run:
+    workflows: ["Benchmarks"]
+    types: [completed]
+
+# Runs for the same pull request branch post one after the other, so two of
+# them never both create a comment.
+concurrency:
+  group: benchmarks-comment-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  comment:
+    name: Benchmarks Comment
+    # Only pull request runs get a comment. A cancelled run was superseded by
+    # a newer push, whose own run comments.
+    if: >-
+      github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion != 'cancelled'
+      && github.event.workflow_run.conclusion != 'skipped'
+    runs-on: ubuntu-24.04
+    # A few API calls and a small artifact download.
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out the comment script
+      actions: read # list and download the run's artifacts
+      pull-requests: write # create or update the comment
+    steps:
+      # The default branch, never the pull request: only this script handles
+      # the artifact.
+      - name: Check out the comment script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      # benchmark-pull-request exists only when the run measured a pull
+      # request; benchmark-results only when it got as far as measuring.
+      - name: Download the run's artifacts
+        id: download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          names=$(gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.expired | not) | .name')
+          if ! grep -qx benchmark-pull-request <<< "$names"; then
+            echo "::notice::The run measured no pull request; nothing to comment"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          dir="$RUNNER_TEMP/benchmark-artifacts"
+          gh run download "$RUN_ID" --repo "$REPO" --name benchmark-pull-request --dir "$dir/pull-request"
+          if grep -qx benchmark-results <<< "$names"; then
+            gh run download "$RUN_ID" --repo "$REPO" --name benchmark-results --dir "$dir/results"
+          fi
+          echo "found=true" >> "$GITHUB_OUTPUT"
+
+      - name: Post or update the comment
+        if: steps.download.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/benchmark-artifacts"
+          script=.github/scripts/benchmark-pr-comment.py
+
+          if ! pr=$(python3 "$script" number "$dir/pull-request/number"); then
+            echo "::error::The run's benchmark-pull-request artifact holds no valid pull request number"
+            exit 1
+          fi
+          head=$(gh api "repos/$REPO/pulls/$pr" --jq .head.sha)
+          if [ "$head" != "$HEAD_SHA" ]; then
+            echo "::notice::The head of pull request #$pr is not the commit this run measured (it was pushed again, or the number is not the run's); not commenting"
+            exit 0
+          fi
+
+          python3 "$script" body --comparison "$dir/results/comparison.json" \
+            --run-url "$RUN_URL" --conclusion "$CONCLUSION" --out "$RUNNER_TEMP/comment.md"
+
+          marker=$(python3 "$script" marker)
+          ids=$(gh api --paginate "repos/$REPO/issues/$pr/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | [.id, .body] | @json' |
+            jq -r --arg marker "$marker" 'fromjson | select(.[1] | startswith($marker)) | .[0]')
+          id=${ids%%$'\n'*}
+          payload=$(jq -Rs '{body: .}' < "$RUNNER_TEMP/comment.md")
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$id" --input - <<< "$payload" > /dev/null
+            echo "Updated the comment on pull request #$pr"
+          else
+            gh api --method POST "repos/$REPO/issues/$pr/comments" --input - <<< "$payload" > /dev/null
+            echo "Commented on pull request #$pr"
+          fi
+          {
+            echo "Pull request #$pr"
+            echo
+            cat "$RUNNER_TEMP/comment.md"
+          } >> "$GITHUB_STEP_SUMMARY"

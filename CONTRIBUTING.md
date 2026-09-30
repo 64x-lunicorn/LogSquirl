@@ -197,7 +197,12 @@ pytest -m performance --update-baseline
 
 Commit the updated `tests/e2e/baseline.json` with your PR.
 
-Pull request CI does not run the performance suite. The weekly **Performance** workflow
+Pull request CI does not run the performance suite. A pull request that changes a hot path
+(reading and indexing, Search, QuickFind, the Line Decorator, the Text View or Table View
+paint path) or carries the `performance` label gets a before/after comparison of the
+benchmarks and the performance suite as a comment instead, from the **Benchmarks** workflow;
+it reports and never fails the pull request (`tests/benchmarks/README.md`, *Before and after
+in CI*). The weekly **Performance** workflow
 measures master on a GitHub-hosted runner and turns red when a benchmark is more than
 30 % slower than the median of its last six runs (BUILD.md, *Weekly performance*).
 

@@ -87,6 +87,16 @@
   over, such as one of another version, is reported instead. Before, the input
   was lost. (#623)
 
+## Internal
+
+- **A pull request that touches a hot path gets the benchmark comparison by
+  itself**: a pull request that changes reading and indexing, Search,
+  QuickFind, the Line Decorator or the paint path of the Text View or Table
+  View, or carries the `performance` label, runs the Benchmarks workflow
+  against master and shows the result as one comment that each run updates. It
+  is a report, never a gate. A benchmark binary that runs longer than 30
+  minutes is stopped instead of using up the whole run. (#674)
+
 # v26.10.0 (2026-09-29)
 
 The stable release of 26.10. It contains everything from
