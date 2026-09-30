@@ -72,7 +72,7 @@ add_executable(logsquirl_tests
     stdinpump_test.cpp
     quickfind_test.cpp
     quickfindmux_test.cpp
-    searchblockutf8view_test.cpp
+    loglinetext_test.cpp
     quickfindwidget_test.cpp
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
@@ -152,6 +152,30 @@ foreach(variant IN ITEMS
       LOGSQUIRL_LOADER_FIXTURE_${variant}_PATH="$<TARGET_FILE:${fixture_target}>")
 endforeach()
 # A CONVERTER fixture that is otherwise complete also stands for a good plugin.
+
+# On Windows a plugin finds the libraries it ships next to it. The fixture
+# imports a library that is built into a directory of its own, so neither the
+# test's directory nor PATH has it; the test copies both into a plugin
+# directory.
+if(WIN32)
+  add_library(logsquirl_loader_fixture_dependency SHARED plugins/loaderfixturedependency.cpp)
+  target_link_libraries(logsquirl_loader_fixture_dependency PRIVATE project_options project_warnings)
+  set_target_properties(logsquirl_loader_fixture_dependency PROPERTIES
+      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/loader-fixture-dependency")
+
+  add_library(logsquirl_loader_fixture_needs_dependency MODULE plugins/loaderfixture.cpp)
+  target_link_libraries(logsquirl_loader_fixture_needs_dependency
+      PRIVATE project_options project_warnings logsquirl_loader_fixture_dependency)
+  target_include_directories(logsquirl_loader_fixture_needs_dependency
+      PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+  target_compile_definitions(logsquirl_loader_fixture_needs_dependency
+      PRIVATE LOADER_FIXTURE_NEEDS_DEPENDENCY=1)
+
+  add_dependencies(logsquirl_tests logsquirl_loader_fixture_needs_dependency)
+  target_compile_definitions(logsquirl_tests PRIVATE
+      LOGSQUIRL_LOADER_FIXTURE_NEEDS_DEPENDENCY_PATH="$<TARGET_FILE:logsquirl_loader_fixture_needs_dependency>"
+      LOGSQUIRL_LOADER_FIXTURE_DEPENDENCY_PATH="$<TARGET_FILE:logsquirl_loader_fixture_dependency>")
+endif()
 
 # The example plugin of the plugin developer guide is built with the guide's
 # own CMakeLists.txt against the current header, and the Plugin Host test loads

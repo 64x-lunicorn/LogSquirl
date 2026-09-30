@@ -35,8 +35,8 @@
 #include "test_policies.h"
 
 #include "fake_run_control.h"
+#include "indexoperation.h"
 #include "linetypes.h"
-#include "logdataworker.h"
 
 // Indexing reads a Log File in blocks and parses them in parallel, so the
 // Log Lines crossing from one block into the next are where it can go wrong

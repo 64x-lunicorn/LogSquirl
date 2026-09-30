@@ -53,6 +53,7 @@
 #include "mainwindowtext.h"
 #include "openlogfile.h"
 #include "pathline.h"
+#include "searchlinewidget_access.h"
 #include "session.h"
 #include "sessionfile.h"
 #include "shortcuts.h"
@@ -77,7 +78,7 @@ struct CrawlerWidget::access_by<MainWindowLoadAccess> {
     // The Search line, whose drop-down list shows the Search history.
     static QComboBox& searchLine( CrawlerWidget& crawler )
     {
-        return *crawler.searchLineEdit_;
+        return *SearchLineAccess::patternEdit( *crawler.searchLine_ );
     }
 
     // The text view of the Log File.

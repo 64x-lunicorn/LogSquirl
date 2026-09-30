@@ -24,7 +24,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QStringDecoder>
 
+#include <algorithm>
 #include <mutex>
 #include <utility>
 
@@ -32,6 +34,7 @@
 #include "log.h"
 #include "stdinpump.h"
 #include "streamwriter.h"
+#include "textencoding.h"
 
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
@@ -241,7 +244,15 @@ ShellInvocation shellInvocation( const QString& commandLine, const QString& shel
     invocation.nativeArguments = QStringLiteral( "/d /s /c \"%1\"" ).arg( commandLine );
 #else
     invocation.program = shell.isEmpty() ? QStringLiteral( "/bin/sh" ) : shell;
-    invocation.arguments = { QStringLiteral( "-l" ), QStringLiteral( "-c" ), commandLine };
+    // csh and tcsh take -l only as their sole flag (#632); they read
+    // ~/.tcshrc or ~/.cshrc with -c, too, where their users set PATH.
+    const auto shellName = QFileInfo( invocation.program ).fileName();
+    if ( shellName == QLatin1String( "csh" ) || shellName == QLatin1String( "tcsh" ) ) {
+        invocation.arguments = { QStringLiteral( "-c" ), commandLine };
+    }
+    else {
+        invocation.arguments = { QStringLiteral( "-l" ), QStringLiteral( "-c" ), commandLine };
+    }
 #endif
     return invocation;
 }
@@ -260,16 +271,57 @@ QString commandTabTitle( const QString& commandLine )
     return simplified.left( head ) + QChar( 0x2026 ) + simplified.right( tail );
 }
 
+int systemOemCodePage()
+{
+#ifdef Q_OS_WIN
+    return static_cast<int>( ::GetOEMCP() );
+#else
+    return 0;
+#endif
+}
+
+namespace {
+
+bool endsInsideUtf8Character( QByteArrayView bytes )
+{
+    const auto lookBack = std::min<qsizetype>( 3, bytes.size() );
+    for ( qsizetype back = 1; back <= lookBack; ++back ) {
+        const auto byte = static_cast<unsigned char>( bytes[ bytes.size() - back ] );
+        if ( byte < 0x80 ) {
+            return false;
+        }
+        if ( byte >= 0xC0 ) {
+            const qsizetype length = byte >= 0xF0 ? 4 : byte >= 0xE0 ? 3 : 2;
+            return back < length;
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+const TextEncoding* commandOutputEncoding( QByteArrayView output, int oemCodePage )
+{
+    // A character cut off at the end is not taken for an error.
+    QStringDecoder utf8( QStringDecoder::Utf8 );
+    [[maybe_unused]] const QString decoded = utf8.decode( output );
+    if ( !utf8.hasError() ) {
+        return TextEncoding::forName( "UTF-8" );
+    }
+    return TextEncoding::forWindowsCodePage( oemCodePage );
+}
+
 CommandSource::CommandSource( Kind kind )
     : kind_( kind )
 {
 }
 
 std::unique_ptr<CommandSource> CommandSource::startCommand( const RecentCommand& command,
-                                                            QString* error )
+                                                            QString* error, int oemCodePage )
 {
     std::unique_ptr<CommandSource> source( new CommandSource( Kind::Command ) );
     source->command_ = command;
+    source->oemCodePage_ = oemCodePage;
     if ( source->command_.workingFolder.isEmpty() ) {
         source->command_.workingFolder = QDir::homePath();
     }
@@ -459,7 +511,41 @@ void CommandSource::readOutput()
     }
     const auto output = process_->readAllStandardOutput();
     if ( !output.isEmpty() ) {
+        decideOutputEncoding( output );
         writer_->pushBytes( output.constData(), static_cast<size_t>( output.size() ) );
+    }
+}
+
+void CommandSource::decideOutputEncoding( QByteArrayView output )
+{
+    // ASCII reads the same in UTF-8 and in every OEM code page: the output
+    // that tells them apart decides, once (#655).
+    if ( oemCodePage_ == 0 || outputEncoding_ != nullptr ) {
+        return;
+    }
+    if ( undecidedOutput_.isEmpty() && std::ranges::none_of( output, []( char byte ) {
+             return static_cast<unsigned char>( byte ) >= 0x80;
+         } ) ) {
+        return;
+    }
+    undecidedOutput_.append( output );
+    // A read may end inside a character: its first byte alone looks like
+    // UTF-8 also when it is a character of the OEM code page.
+    if ( endsInsideUtf8Character( undecidedOutput_ ) ) {
+        return;
+    }
+    useOutputEncoding( commandOutputEncoding( undecidedOutput_, oemCodePage_ ) );
+}
+
+void CommandSource::useOutputEncoding( const TextEncoding* encoding )
+{
+    outputEncoding_ = encoding;
+    undecidedOutput_.clear();
+    // No Encoding for the code page leaves it to the detection for good.
+    oemCodePage_ = 0;
+    if ( outputEncoding_ != nullptr ) {
+        LOG_INFO << "The output of the command is read as " << outputEncoding_->name().constData();
+        Q_EMIT outputEncodingDecided();
     }
 }
 
@@ -469,6 +555,10 @@ void CommandSource::finish( const CommandEnd& end )
         return;
     }
     ended_ = true;
+    if ( !undecidedOutput_.isEmpty() ) {
+        // The output ended inside a UTF-8 character: it is not UTF-8.
+        useOutputEncoding( TextEncoding::forWindowsCodePage( oemCodePage_ ) );
+    }
     if ( writer_ ) {
         writer_->signalEos();
     }

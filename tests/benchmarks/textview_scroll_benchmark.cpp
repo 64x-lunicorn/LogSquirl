@@ -87,10 +87,6 @@ protected:
         }
         return lines;
     }
-    LineNumber doGetLineNumber( LineNumber index ) const override
-    {
-        return index;
-    }
     LinesCount doGetNbLine() const override
     {
         return LinesCount( LogLineCount + appended );

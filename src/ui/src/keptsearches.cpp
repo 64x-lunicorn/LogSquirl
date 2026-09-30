@@ -40,7 +40,7 @@ KeptSearches::KeptSearches( std::shared_ptr<OpenLogFile> openLogFile, ViewSet& v
     // request is done; what was told before another Search was made current
     // is dropped then.
     connect( openLogFile_.get(), &OpenLogFile::searchUpdated, this,
-             [ this ]( const SearchSession::State& state ) {
+             [ this ]( const SearchSessionState& state ) {
                  QMetaObject::invokeMethod(
                      this,
                      [ this, state, toldOf = currentChanges_ ] {

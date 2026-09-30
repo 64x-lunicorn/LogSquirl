@@ -46,24 +46,14 @@
 #include <QObject>
 #include <QString>
 
-#ifndef Q_MOC_RUN
-#include <roaring.hh>
-#include <roaring64map.hh>
-#endif
-
 #include "backgroundrun.h"
 #include "linetypes.h"
 #include "regularexpression.h"
+#include "searchresults.h"
 #include "settingspolicies.h"
 #include "synchronization.h"
 
 class SearchBlockSource;
-
-// Identifies one Search run: the id of the Background Run it is. A new run
-// gets a fresh id; whatever owns the worker compares an incoming result's id
-// against the id it is currently waiting on to tell a result belonging to a
-// superseded run from a live one.
-using SearchId = RunId;
 
 // Class encapsulating a single matching line
 // Contains the line number the line was found in and its content.
@@ -88,22 +78,6 @@ public:
 private:
     LineNumber lineNumber_;
 };
-
-// This is an array of matching lines.
-// It shall be implemented for random lookup speed, so
-// a fixed "in-place" array (vector) is probably fine.
-using SearchResultArray = roaring::Roaring64Map;
-
-// The line at position in lines, counting from 0 in their order; none at or
-// past their end.
-inline OptionalLineNumber lineAtPosition( const SearchResultArray& lines, LineNumber position )
-{
-    LineNumber::UnderlyingType line = {};
-    if ( !lines.select( position.get(), &line ) ) {
-        return {};
-    }
-    return LineNumber( line );
-}
 
 struct SearchResults {
     SearchResultArray newMatches;

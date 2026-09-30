@@ -22,6 +22,9 @@
 
 #include <atomic>
 #include <memory>
+#include <optional>
+#include <stdexcept>
+#include <variant>
 
 #include <QSignalSpy>
 #include <QTemporaryFile>
@@ -31,6 +34,8 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
+#include "backgroundrun.h"
+#include "indexoperation.h"
 #include "logdata.h"
 #include "logdataworker.h"
 #include "logfiltereddata.h"
@@ -347,6 +352,100 @@ SCENARIO( "LogData destruction during indexing does not deadlock", "[logdata][de
             THEN( "No crash or deadlock occurred" )
             {
                 REQUIRE( true );
+            }
+        }
+    }
+}
+
+namespace {
+
+// Operations that cannot even be built: their constructors throw, as running
+// out of memory building them would. Nothing they could report a failure
+// through exists yet.
+class UnbuildableFullIndex : public FullIndexOperation {
+public:
+    UnbuildableFullIndex( const QString& fileName, const std::shared_ptr<IndexingData>& data,
+                          const RunControl& run, IndexingPolicy policy )
+        : FullIndexOperation( fileName, data, run, policy )
+    {
+        throw std::runtime_error( "no memory to index with" );
+    }
+};
+
+class UnbuildableCheck : public CheckFileChangesOperation {
+public:
+    UnbuildableCheck( const QString& fileName, const std::shared_ptr<IndexingData>& data,
+                      const RunControl& run, IndexingPolicy policy )
+        : CheckFileChangesOperation( fileName, data, run, policy )
+    {
+        throw std::runtime_error( "no memory to check with" );
+    }
+};
+
+using IndexRun = BackgroundRun<IndexingPolicy, IndexOutcome>;
+
+// Runs job on a Background Run of index runs, as the index worker does, and
+// returns how it ended.
+std::optional<RunEnd<IndexOutcome>> runToEnd( const IndexRun::Job& job )
+{
+    std::optional<RunEnd<IndexOutcome>> end;
+    IndexRun run{ "Index",
+                  testSettingsPolicies().indexing,
+                  {},
+                  {},
+                  [ &end ]( const RunEnd<IndexOutcome>& finished ) { end = finished; } };
+    run.start( job );
+    if ( !QTest::qWaitFor( [ &end ] { return end.has_value(); }, 10000 ) ) {
+        return std::nullopt;
+    }
+    return end;
+}
+
+} // namespace
+
+SCENARIO( "An index run whose operation cannot be built still ends as its kind",
+          "[logdata][destruction]" )
+{
+    GIVEN( "a Log File and its indexing data" )
+    {
+        QTemporaryFile file{ "index_unbuildable_test_XXXXXX" };
+        REQUIRE( generateTestFile( file, 10 ) );
+        auto data = std::make_shared<IndexingData>();
+
+        WHEN( "an index run cannot build its operation" )
+        {
+            const auto end
+                = runToEnd( [ &file, data ]( const RunControl& run, const IndexingPolicy& policy ) {
+                      return runIndexOperation<UnbuildableFullIndex>( file.fileName(), data, run,
+                                                                      policy );
+                  } );
+
+            THEN( "it ends as a failed index, telling what went wrong" )
+            {
+                REQUIRE( end.has_value() );
+                REQUIRE( end->failure.isEmpty() );
+                const auto* status = std::get_if<LoadingStatus>( &end->outcome.status );
+                REQUIRE( status != nullptr );
+                REQUIRE( *status == LoadingStatus::Failed );
+                REQUIRE( end->outcome.failure.contains( "no memory to index with" ) );
+            }
+        }
+
+        WHEN( "a check cannot build its operation" )
+        {
+            const auto end = runToEnd( [ &file, data ]( const RunControl& run,
+                                                        const IndexingPolicy& policy ) {
+                return runIndexOperation<UnbuildableCheck>( file.fileName(), data, run, policy );
+            } );
+
+            THEN( "it ends as a failed check, so the Log File is indexed again from the start" )
+            {
+                REQUIRE( end.has_value() );
+                REQUIRE( end->failure.isEmpty() );
+                const auto* status = std::get_if<MonitoredFileStatus>( &end->outcome.status );
+                REQUIRE( status != nullptr );
+                REQUIRE( *status == MonitoredFileStatus::Truncated );
+                REQUIRE( end->outcome.failure.contains( "no memory to check with" ) );
             }
         }
     }

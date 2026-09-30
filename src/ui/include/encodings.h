@@ -33,7 +33,7 @@ public:
             { "Korean", { -949, 38 } },
             { "Thai", { 2259 } },
             { "Turkish", { 6, 12, 2254 } },
-            { "Western European", { 3, 4, 111, 2009, 2252 } },
+            { "Western European", { 3, 4, 111, 2009, 2011, 2252 } },
             { "Vietnamese", { 2258 } }
         };
     }

@@ -54,6 +54,7 @@
 #include <QToolButton>
 #include <QTranslator>
 #include <array>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -65,6 +66,7 @@
 #include "downloader.h"
 #include "filterspanel.h"
 #include "iconloader.h"
+#include "logfileprovenance.h"
 #include "pathline.h"
 #include "pluginuiadapter.h"
 #include "quickfindmux.h"
@@ -149,6 +151,29 @@ public:
     // opens; returns whether one does. Closing the tab stops the command.
     bool openCommandOutput( const RecentCommand& command );
 
+    // Opens a Log File in a new tab, as its provenance says (#643): every
+    // open comes here. The window keeps what the tab is -- its opening title
+    // and tooltip, its archive member, its Command Source -- by the path
+    // until the tab closes, and the Session where it came from. A Transient
+    // Log File is not saved with the Session (#570), nor added to the recent
+    // files (#597). A Log File a converter plugin handles is opened as what
+    // the converter wrote, a Transient Log File (#605).
+    //
+    // A Log File asked for before the plugins have loaded opens once they
+    // have (#303); the call then returns true at once, and the provenance's
+    // whenOpened is called after. An open that fails keeps nothing of the
+    // tab, and returns false.
+    bool openLogFile( const QString& fileName, LogFileProvenance provenance,
+                      bool followFile = false );
+
+    // Asks which of the files an archive was extracted into `directory` to
+    // open; empty when the user cancels. A QFileDialog unless a test hands its
+    // own: Qt's file dialog starts a thread that ThreadSanitizer sees race
+    // with the dialog itself (#634).
+    using ArchiveMemberChooser
+        = std::function<QStringList( QWidget* parent, const QString& directory )>;
+    void setArchiveMemberChooser( ArchiveMemberChooser chooser );
+
     void reTranslateUI();
 
     static int installLanguage( QString lang );
@@ -157,6 +182,10 @@ public:
     // it was made in, once it has re-derived the Policies (#245): the window
     // takes its QuickFind Policy, its shortcuts and its chrome again.
     void applySettingsChange() override;
+
+    // The Session asks every window for the tab showing a Log File opened
+    // again, in whichever window it was opened (#642).
+    bool showView( const ViewInterface* view ) override;
 
 public Q_SLOTS:
     // Load a file in a new tab (non-interactive)
@@ -302,13 +331,15 @@ private:
     void createTrayIcon();
     void readSettings();
     void writeSettings();
-    // Opens a Log File in a new tab. A Transient Log File -- one the window
-    // made for this run alone -- is not saved with the Session (#570), nor
-    // added to the recent files (#597). A Log File a converter plugin
-    // handles is opened as what the converter wrote, a Transient Log File
-    // (#605).
-    bool loadFile( const QString& fileName, bool followFile = false,
-                   LogFileLifetime lifetime = LogFileLifetime::Ordinary );
+    // Opens an Ordinary Log File the user asked for (see openLogFile()).
+    bool loadFile( const QString& fileName, bool followFile = false );
+    // Opens a Log File now that the plugins have loaded: shows its tab if it
+    // is open already, converts it, decompresses it or builds its tab.
+    bool openNow( const QString& fileName, bool followFile, const LogFileOrigin& origin );
+    // Forgets what was kept of the tab of a Log File whose open failed.
+    void forgetOpening( const QString& fileName );
+    // Stops the Command Source of the tab of `fileName`, if it has one.
+    void stopCommandSource( const QString& fileName );
     bool extractAndLoadFile( const QString& fileName );
     // Opens the Log Files of `window` as a restore does, and reloadSession()
     // does with the window stored in the Session (#576). Returns the paths of
@@ -331,9 +362,6 @@ private:
     // Raises the window and gives it the focus, as a hand-over from another
     // instance does.
     void bringToFront();
-    // The view of this Log File open in any window, or of the Log File a
-    // converter plugin converted it into (#615); nullptr while neither is.
-    const ViewInterface* openViewOf( const QString& fileName ) const;
     void openRemoteFile( const QUrl& url );
     // Opens the spool file of a Command Source in a followed tab and keeps
     // the source with it until the tab closes; the title and tooltip are the
@@ -347,12 +375,11 @@ private:
     static QString standardInputToolTip( const QString& spoolPath );
     // Shows how the Command Source of the tab of `spoolPath` ended.
     void showCommandSourceEnded( const QString& spoolPath, const CommandEnd& end );
+    // Reads the tab of `spoolPath` in the Encoding its Command Source decided
+    // for the command's output (#655), once both are there, unless an
+    // Encoding is chosen for it already.
+    void applyCommandOutputEncoding( const QString& spoolPath );
     void updateTitleBar( const QString& fileName );
-    // The file the recent files keep for a Log File open with this lifetime:
-    // the Log File itself, the archive a decompressed Log File came from
-    // (#609), the one a converted Log File was converted from (#605), or none
-    // for any other Transient Log File (#597).
-    QString recentFileOf( const QString& fileName, LogFileLifetime lifetime ) const;
     void addRecentFile( const QString& fileName );
     void updateRecentFileActions();
     void clearRecentFileActions();
@@ -533,14 +560,10 @@ private:
     // it is read from: the Session saves that instead (#596), and the recent
     // files, tab names and tab groups know it by that (#609).
     QHash<QString, ArchiveMember> archiveMembers_;
+    ArchiveMemberChooser chooseArchiveMembers_;
     // The tab names and groups of a Session File for its Log Files from an
     // archive, applied to each as it opens (#576).
     WindowSnapshot pendingTabLabels_;
-    // The Ordinary Log File each Log File a converter plugin wrote into
-    // tempDir_ was converted from, by the path it is read from: the recent
-    // files keep that instead (#605), and opening it again shows that tab
-    // (#615). Dropped when the tab closes.
-    QHash<QString, QString> convertedFrom_;
     // Decompresses the archives of a restored Session into tempDir_ while the
     // window is in use; declared after it, so that it is gone, and has waited
     // for the decompression under way, before tempDir_ is removed (#610).

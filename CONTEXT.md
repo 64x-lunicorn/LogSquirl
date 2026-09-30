@@ -51,7 +51,7 @@ both use it.
 _Avoid_: document, loaded file, file session
 
 **Load Rule**:
-What a load, a change on disk and a reload mean for an Open Log File, decided in one place and without reading the Log File: whether the load that finishes brings only lines that were added, whether the Marks are cleared and the Log Format is recognized again, whether the Marks saved with the Session are applied, and whether a Search waiting for the first load runs now. Whether a Search continues or starts again after a truncation it asks the Search's auto-refresh, which keeps deciding that. The Open Log File carries out what it decides.
+What a load, a change on disk and a reload mean for an Open Log File, decided in one place and without reading the Log File: whether the load that finishes brings only lines that were added, whether the Marks are cleared and the Log Format is recognized again, whether the Marks saved with the Session are applied, whether a Search waiting for the first load runs now, how the Search Limits settle on the Log File's new end and whether a continuing Search has Log Lines to run over, and, once the Log File is to be watched no longer, whether it is checked again or watching has stopped. Whether a Search continues or starts again after a truncation it asks the Search's auto-refresh, which keeps deciding that. The Open Log File carries out what it decides.
 _Avoid_: follow rule (follow is the view following the end of the Log File), change tracker
 
 **File Watch Port**:
@@ -540,10 +540,13 @@ _Avoid_: temporary tab, temp file, volatile source
 
 **Command Source**:
 What feeds the Transient Log File of one tab, and its owner: a command line run through
-the user's login shell (`$SHELL -l -c`, `cmd.exe /d /s /c` on Windows), standard input, or
+the user's login shell (`$SHELL -l -c`; `$SHELL -c` for csh and tcsh, which take `-l` only
+alone; `cmd.exe /d /s /c` on Windows), standard input, or
 a spool file another process writes and hands over -- a `logsquirl -` started while
 LogSquirl runs reads standard input for the running one. It writes what arrives to the tab's
-spool file and tells how its command ended -- an exit code, or stopped by a signal. The
+spool file and tells how its command ended -- an exit code, or stopped by a signal. On
+Windows, a command's first output beyond ASCII decides the Encoding its tab is read in:
+UTF-8 when that is valid UTF-8, else the OEM code page console programs write in. The
 window keeps one per tab and destroys it with the tab: that stops the command with every
 process it started (its own process group, a Job Object on Windows) and removes the spool
 file, or, while the file is still held open, removes it when the application exits. One

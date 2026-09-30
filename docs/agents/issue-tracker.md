@@ -19,7 +19,8 @@ Which release a ticket is planned for is its **milestone**, never a label. Label
 
 - **One milestone per planned release**, named like the release tag without the `v`: `26.11.0`, `26.12.0`, …
 - **No milestone means backlog**: wanted, but not planned for a release yet. There is no "Later" milestone.
-- **Only the maintainer sets, moves or removes a milestone.** An agent never does, not even for a ticket it files or finishes. It may suggest one in its report.
+- **Every ticket gets its milestone when it is filed**: the release it is planned for. Whoever files it, the maintainer or an agent, sets it; if that release has no milestone yet, they create it (`gh api repos/<owner>/<repo>/milestones -f title=<release>`). An agent that finishes a ticket leaves its milestone as it is.
+- **Only the maintainer moves a ticket to another milestone or removes it.**
 - **An agent may filter by milestone** to find the planned work: `gh issue list --milestone "26.11.0" --state open`. Among `ready-for-agent` tickets, those in the nearest open milestone come first.
 - **A release that has gone into beta takes fixes only.** New features go into the next milestone.
 - **At release** the maintainer closes the milestone. Anything still open is moved to the next milestone or back to the backlog, deliberately.

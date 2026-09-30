@@ -308,7 +308,7 @@ SCENARIO( "A Session File holds what the automatic Session saves, and no Transie
     {
         WindowSession window{ appSession, windowId, 0 };
         const auto* transient = window.open( transientPath, RecordingViews::factory( built ),
-                                             LogFileLifetime::Transient );
+                                             LogFileOrigin::transient() );
         const auto* ordinary = window.open( ordinaryPath, RecordingViews::factory( built ) );
         std::vector<SaveFileInfo> tabs;
         tabs.emplace_back( transient, std::make_shared<const TextViewContext>( "{}" ) );

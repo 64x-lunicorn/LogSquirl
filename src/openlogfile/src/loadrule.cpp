@@ -21,7 +21,16 @@
 
 #include "searchautorefresh.h"
 
+#include <algorithm>
 #include <utility>
+
+namespace {
+
+// How often a Log File that is to stop being watched is checked for what was
+// written to it: one that keeps changing is not waited for for ever.
+constexpr int MaxChecksBeforeStopping = 5;
+
+} // namespace
 
 void LoadRule::restoreMarks( const logsquirl::vector<LineNumber>& marks )
 {
@@ -101,7 +110,8 @@ void LoadRule::waitingSearchDropped()
 }
 
 LoadRule::LoadDecision LoadRule::loadFinished( LoadingStatus status, LinesCount lineCount,
-                                               const SearchAutoRefresh& autoRefresh )
+                                               const SearchAutoRefresh& autoRefresh,
+                                               SearchLimits limits, SearchLimits searched )
 {
     LoadDecision decision;
     decision.fromStart = !firstLoadDone_;
@@ -114,6 +124,16 @@ LoadRule::LoadDecision LoadRule::loadFinished( LoadingStatus status, LinesCount 
     if ( autoRefresh.isAutoRefreshAllowed() ) {
         decision.searchRefresh
             = autoRefresh.isFileTruncated() ? SearchRefresh::Restart : SearchRefresh::Continue;
+    }
+
+    decision.searchLimits = settleSearchLimits( limits, lineCount );
+    loadedLineCount_ = lineCount;
+
+    // Same pattern and start, a larger end: the Search Session continues the
+    // run rather than starting over. A Search that already ran over narrowed
+    // Limits has no Log Line added to them to run over.
+    if ( decision.searchRefresh == SearchRefresh::Continue && searched != decision.searchLimits ) {
+        decision.continueOver = decision.searchLimits;
     }
 
     if ( !firstLoadDone_ ) {
@@ -141,7 +161,72 @@ LoadRule::LoadDecision LoadRule::loadFinished( LoadingStatus status, LinesCount 
         decision.recognizeFormat = true;
     }
 
+    // Whatever this load brought, the Log File may have grown during it: it
+    // is checked again until a check finds nothing new. A Log File that did
+    // not load has nothing more to wait for.
+    if ( watching_ == Watching::Stopping ) {
+        if ( status == LoadingStatus::Successful ) {
+            decision.watching = checkBeforeWatchingStops();
+        }
+        else {
+            watching_ = Watching::Stopped;
+            decision.watching = WatchingStep::Stopped;
+        }
+    }
+
     return decision;
+}
+
+LoadRule::SearchLimits LoadRule::settleSearchLimits( SearchLimits limits,
+                                                     LinesCount lineCount ) const
+{
+    // Search Limits the user narrowed stay as set, whatever the load brought
+    // -- added Log Lines, a reload, a truncation, the Log File read anew in
+    // another Encoding -- cut back to the Log File's end; only when nothing
+    // of them is left do they become the whole Log File. Limits that were the
+    // whole Log File follow its end.
+    const auto end = LineNumber( lineCount.get() );
+    const auto wereWholeFile
+        = limits.start == 0_lnum && limits.end >= LineNumber( loadedLineCount_.get() );
+    if ( wereWholeFile || limits.start >= end ) {
+        return SearchLimits{ 0_lnum, end };
+    }
+    return SearchLimits{ limits.start, std::min( limits.end, end ) };
+}
+
+LoadRule::WatchingStep LoadRule::stopWatching( bool attached )
+{
+    if ( watching_ != Watching::On ) {
+        return WatchingStep::None;
+    }
+    watching_ = Watching::Stopping;
+
+    // Before its first load there is nothing to check: that load reads it
+    // all, and the check after it finds it unchanged.
+    return attached ? checkBeforeWatchingStops() : WatchingStep::None;
+}
+
+LoadRule::WatchingStep LoadRule::foundUnchanged()
+{
+    if ( watching_ != Watching::Stopping ) {
+        return WatchingStep::None;
+    }
+    watching_ = Watching::Stopped;
+    return WatchingStep::Stopped;
+}
+
+bool LoadRule::isWatching() const
+{
+    return watching_ == Watching::On;
+}
+
+LoadRule::WatchingStep LoadRule::checkBeforeWatchingStops()
+{
+    if ( ++checksBeforeStopping_ > MaxChecksBeforeStopping ) {
+        watching_ = Watching::Stopped;
+        return WatchingStep::StoppedStillChanging;
+    }
+    return WatchingStep::CheckAgain;
 }
 
 bool LoadRule::isLoadingFromStart() const

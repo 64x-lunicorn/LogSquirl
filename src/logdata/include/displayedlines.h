@@ -22,8 +22,8 @@
 #include "abstractlogdata.h"
 #include "containers.h"
 #include "linetypes.h"
-#include "logfiltereddataworker.h"
 #include "matchesdelta.h"
+#include "searchresults.h"
 
 #include <cstddef>
 #include <cstdint>
