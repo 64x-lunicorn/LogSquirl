@@ -375,6 +375,10 @@ private:
     static QString standardInputToolTip( const QString& spoolPath );
     // Shows how the Command Source of the tab of `spoolPath` ended.
     void showCommandSourceEnded( const QString& spoolPath, const CommandEnd& end );
+    // Reads the tab of `spoolPath` in the Encoding its Command Source decided
+    // for the command's output (#655), once both are there, unless an
+    // Encoding is chosen for it already.
+    void applyCommandOutputEncoding( const QString& spoolPath );
     void updateTitleBar( const QString& fileName );
     void addRecentFile( const QString& fileName );
     void updateRecentFileActions();

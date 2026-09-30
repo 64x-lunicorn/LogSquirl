@@ -97,6 +97,7 @@ const std::vector<EncodingSpec>& specs()
         { 0, "x-mac-centraleurroman", std::nullopt, { "MAC-CENTRALEUROPE" }, {} },
         { 2086, "IBM866", std::nullopt, {}, {} },
         { 2009, "IBM850", std::nullopt, {}, {} },
+        { 2011, "IBM437", std::nullopt, {}, {} },
         { 2010, "IBM852", std::nullopt, {}, {} },
         { 2046, "IBM855", std::nullopt, {}, {} },
         { 2052, "IBM865", std::nullopt, {}, {} },
@@ -206,7 +207,17 @@ const TextEncoding* TextEncoding::forMib( int mib )
 const TextEncoding* TextEncoding::forLocale()
 {
 #ifdef Q_OS_WIN
-    switch ( ::GetACP() ) {
+    if ( const auto* codePage = forWindowsCodePage( static_cast<int>( ::GetACP() ) ) ) {
+        return codePage;
+    }
+#endif
+    // Qt 6 takes the locale of a Unix system to be UTF-8.
+    return forName( "UTF-8" );
+}
+
+const TextEncoding* TextEncoding::forWindowsCodePage( int codePage )
+{
+    switch ( codePage ) {
     case 932:
         return forName( "Shift_JIS" );
     case 936:
@@ -218,16 +229,16 @@ const TextEncoding* TextEncoding::forLocale()
     case 874:
         return forName( "TIS-620" );
     case 65001:
-        break;
+        return forName( "UTF-8" );
     default:
-        if ( const auto* codePage = forName( "windows-" + QByteArray::number( ::GetACP() ) ) ) {
-            return codePage;
-        }
         break;
     }
-#endif
-    // Qt 6 takes the locale of a Unix system to be UTF-8.
-    return forName( "UTF-8" );
+    // The ANSI code pages are windows-125x, the OEM ones IBM437, IBM850 and
+    // so on.
+    if ( const auto* ansi = forName( "windows-" + QByteArray::number( codePage ) ) ) {
+        return ansi;
+    }
+    return forName( "IBM" + QByteArray::number( codePage ) );
 }
 
 const TextEncoding* TextEncoding::forUtfText( QByteArrayView data, const TextEncoding* fallback )

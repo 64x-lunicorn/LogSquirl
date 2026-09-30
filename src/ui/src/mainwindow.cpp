@@ -704,6 +704,27 @@ void MainWindow::showCommandSourceEnded( const QString& spoolPath, const Command
     showStatusMessage( CommandSource::endedMessage( title, end ) );
 }
 
+void MainWindow::applyCommandOutputEncoding( const QString& spoolPath )
+{
+    const auto source = commandSources_.find( spoolPath );
+    if ( source == commandSources_.end() || source->second->outputEncoding() == nullptr ) {
+        return;
+    }
+    const auto tab = mainTabWidget_.tabOfPath( spoolPath );
+    auto* crawler
+        = tab >= 0 ? qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( tab ) ) : nullptr;
+    // The one the settings force or the user chose stays.
+    if ( crawler == nullptr || crawler->encodingMib() ) {
+        return;
+    }
+
+    crawler->setEncoding( source->second->outputEncoding()->mibEnum() );
+    if ( crawler == currentCrawlerWidget() ) {
+        updateMenuBarFromDocument( crawler );
+        updateInfoLine();
+    }
+}
+
 void MainWindow::reTranslateUI()
 {
     using namespace logsquirl::mainwindow;
@@ -3067,6 +3088,8 @@ bool MainWindow::openLogFile( const QString& fileName, LogFileProvenance provena
                  [ this, fileName ]( const CommandEnd& end ) {
                      showCommandSourceEnded( fileName, end );
                  } );
+        connect( provenance.commandSource.get(), &CommandSource::outputEncodingDecided, this,
+                 [ this, fileName ] { applyCommandOutputEncoding( fileName ); } );
         commandSources_[ fileName ] = std::move( provenance.commandSource );
     }
 
@@ -3076,6 +3099,11 @@ bool MainWindow::openLogFile( const QString& fileName, LogFileProvenance provena
         // Nothing of a tab that did not open is kept.
         if ( !isOpen ) {
             forgetOpening( fileName );
+        }
+        else {
+            // The command's output may have decided its Encoding before the
+            // tab opened.
+            applyCommandOutputEncoding( fileName );
         }
         if ( whenOpened ) {
             const auto tab = isOpen ? mainTabWidget_.tabOfPath( fileName ) : -1;

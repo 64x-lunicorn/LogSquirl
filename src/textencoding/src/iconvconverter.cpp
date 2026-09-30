@@ -75,6 +75,7 @@ constexpr std::array entries = {
     Entry{ "x-mac-centraleurroman", "MACCENTRALEUROPE" },
     Entry{ "IBM866", "CP866" },
     Entry{ "IBM850", "CP850" },
+    Entry{ "IBM437", "CP437" },
     Entry{ "IBM852", "CP852" },
     Entry{ "IBM855", "CP855" },
     Entry{ "IBM865", "CP865" },

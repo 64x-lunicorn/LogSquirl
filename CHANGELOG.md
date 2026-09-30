@@ -53,6 +53,18 @@
 
 ## Bug fixes
 
+- **A command's output on Windows shows its umlauts**: console programs such
+  as `dir` or `ping` write in the OEM code page of the console, CP850 on a
+  German Windows, and their output opened by *Open Command Output* showed `ä`
+  as `„`. A command's tab is now read as UTF-8 when its output is valid UTF-8,
+  otherwise in the OEM code page, as soon as the output holds more than ASCII.
+  The Encoding menu still changes it, and offers IBM437, the OEM code page of
+  a US Windows. (#655)
+- **Open Command Output runs commands in csh and tcsh**: with csh or tcsh as
+  the login shell, every command ended at once with exit code 1 and the
+  shell's `Unknown option: '-l'` in its tab. The command line now runs in
+  them as `$SHELL -c "…"`: `~/.tcshrc` or `~/.cshrc` is read, `~/.login` and
+  `/etc/csh.login` are not. (#632)
 - **A Windows plugin loads with the libraries it ships**: a plugin that brings
   a library LogSquirl does not have, such as a Qt module, in its own plugin
   directory loads; before, Windows did not look there and the plugin failed to

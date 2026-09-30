@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <QByteArrayView>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -28,6 +29,7 @@
 #include "configuration.h"
 
 class QProcess;
+class TextEncoding;
 
 namespace logsquirl::plugins {
 class StreamWriter;
@@ -56,7 +58,8 @@ struct CommandEnd {
 // How a command line is run through the user's shell (#575): on macOS and
 // Linux as `$SHELL -l -c "<command line>"` -- a login shell, so that an
 // application started from the Finder or the Dock finds what the user's PATH
-// finds -- with /bin/sh when `shell` is empty; on Windows as
+// finds -- with /bin/sh when `shell` is empty, and as `$SHELL -c "<command
+// line>"` for csh and tcsh, which take no -l with -c (#632); on Windows as
 // `cmd.exe /d /s /c "<command line>"`, given as native arguments so that
 // nothing is quoted again.
 struct ShellInvocation {
@@ -69,6 +72,16 @@ ShellInvocation shellInvocation( const QString& commandLine, const QString& shel
 // The title of a command's tab: its command line, elided in the middle to 40
 // characters.
 QString commandTabTitle( const QString& commandLine );
+
+// The OEM code page console programs write to a pipe in on Windows, such as
+// 850 on a German one (GetOEMCP()); 0 elsewhere, where there is none.
+int systemOemCodePage();
+
+// The Encoding a command's output is read in (#655): UTF-8 when the output is
+// valid UTF-8 -- a character cut off at its end does not count against it --
+// else the OEM code page's. nullptr when no Encoding this build can decode
+// stands for that code page: the ordinary detection decides then.
+const TextEncoding* commandOutputEncoding( QByteArrayView output, int oemCodePage );
 
 // The Command Source of a tab: what feeds the Transient Log File the tab
 // shows, and the owner of that file (#575). It is one of
@@ -104,8 +117,12 @@ public:
     // the working folder does not exist, the spool file cannot be created or
     // the shell cannot be started. A command the shell does not know is no
     // failure here: it ends with commandNotFound().
+    //
+    // With an OEM code page, as on Windows, the first output that holds more
+    // than ASCII decides the Encoding it is read in (outputEncoding()).
     static std::unique_ptr<CommandSource> startCommand( const RecentCommand& command,
-                                                        QString* error );
+                                                        QString* error,
+                                                        int oemCodePage = systemOemCodePage() );
 
     // Copies what arrives on `fd` into a new spool file until its writer
     // closes it. Null, with why in `error`, when the spool file cannot be
@@ -153,6 +170,14 @@ public:
         return ended_;
     }
 
+    // The Encoding the command's output is read in, as its first output
+    // beyond ASCII decided with commandOutputEncoding(); null until then, and
+    // for anything but a command started with an OEM code page (#655).
+    const TextEncoding* outputEncoding() const
+    {
+        return outputEncoding_;
+    }
+
     // Stops what feeds the spool file, as destroying this object does, but
     // keeps the file. Nothing is emitted after it.
     void stop();
@@ -171,12 +196,16 @@ Q_SIGNALS:
     // standard input was closed. Everything it wrote is in the spool file
     // by then.
     void ended( CommandEnd end );
+    // Emitted once, when outputEncoding() was decided.
+    void outputEncodingDecided();
 
 private:
     explicit CommandSource( Kind kind );
 
     QString startProcess();
     void readOutput();
+    void decideOutputEncoding( QByteArrayView output );
+    void useOutputEncoding( const TextEncoding* encoding );
     void finish( const CommandEnd& end );
     void stopProcess();
 
@@ -184,6 +213,11 @@ private:
     RecentCommand command_;
     QString spoolPath_;
     bool ended_ = false;
+    // 0 for none: the Encoding of the output is left to the detection.
+    int oemCodePage_ = 0;
+    const TextEncoding* outputEncoding_ = nullptr;
+    // Output that ends inside a UTF-8 character, kept until the rest arrives.
+    QByteArray undecidedOutput_;
 
     std::unique_ptr<logsquirl::plugins::StreamWriter> writer_;
     std::unique_ptr<logsquirl::plugins::StdinPump> pump_;

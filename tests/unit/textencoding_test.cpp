@@ -46,7 +46,8 @@ namespace {
 
 // What the Encoding menu offered while it was built on QTextCodec: the name
 // QTextCodec::codecForMib() gave each MIB enum. 38 is windows-949 there, and
-// -949 had no codec, so the menu never showed it.
+// -949 had no codec, so the menu never showed it. IBM437, the OEM code page
+// of a US Windows, came later (#655).
 const std::map<int, std::string>& menuEncodingsAsBefore()
 {
     static const std::map<int, std::string> encodings = {
@@ -63,6 +64,7 @@ const std::map<int, std::string>& menuEncodingsAsBefore()
         { 6, "ISO-8859-3" },      { 12, "ISO-8859-9" },     { 2254, "windows-1254" },
         { 3, "US-ASCII" },        { 4, "ISO-8859-1" },      { 111, "ISO-8859-15" },
         { 2009, "IBM850" },       { 2252, "windows-1252" }, { 2258, "windows-1258" },
+        { 2011, "IBM437" },
     };
     return encodings;
 }
@@ -172,6 +174,43 @@ SCENARIO( "An Encoding is found by name however it is spelled", "[encoding][text
     }
 }
 
+SCENARIO( "A Windows code page names its Encoding", "[encoding][textencoding]" )
+{
+    const auto nameOf = []( int codePage ) {
+        const auto* encoding = TextEncoding::forWindowsCodePage( codePage );
+        return encoding ? encoding->name().toStdString() : std::string{};
+    };
+
+    THEN( "an OEM code page is the IBM Encoding of that number" )
+    {
+        REQUIRE( nameOf( 850 ) == "IBM850" );
+        REQUIRE( nameOf( 437 ) == "IBM437" );
+        REQUIRE( nameOf( 866 ) == "IBM866" );
+    }
+
+    THEN( "an ANSI code page is the windows Encoding of that number" )
+    {
+        REQUIRE( nameOf( 1252 ) == "windows-1252" );
+        REQUIRE( nameOf( 1251 ) == "windows-1251" );
+    }
+
+    THEN( "the code pages of East Asia and Thailand, and UTF-8, go by their names" )
+    {
+        REQUIRE( nameOf( 932 ) == "Shift_JIS" );
+        REQUIRE( nameOf( 936 ) == "GBK" );
+        REQUIRE( nameOf( 949 ) == "windows-949" );
+        REQUIRE( nameOf( 950 ) == "Big5" );
+        REQUIRE( nameOf( 874 ) == "TIS-620" );
+        REQUIRE( nameOf( 65001 ) == "UTF-8" );
+    }
+
+    THEN( "a code page no Encoding stands for is none" )
+    {
+        REQUIRE( TextEncoding::forWindowsCodePage( 0 ) == nullptr );
+        REQUIRE( TextEncoding::forWindowsCodePage( 12345 ) == nullptr );
+    }
+}
+
 SCENARIO( "A byte order mark decides the Encoding of a text", "[encoding][textencoding]" )
 {
     THEN( "each Unicode byte order mark is recognized" )
@@ -226,9 +265,9 @@ SCENARIO( "An Encoding no converter exists for cannot be used", "[encoding][text
 SCENARIO( "The system's iconv converts the Encodings Qt for macOS lacks",
           "[encoding][textencoding]" )
 {
-    const auto name
-        = GENERATE( "windows-1252", "windows-1251", "ISO-8859-2", "KOI8-R", "IBM850", "Big5", "GBK",
-                    "Shift_JIS", "EUC-JP", "ISO-2022-JP", "windows-949", "TIS-620", "macintosh" );
+    const auto name = GENERATE( "windows-1252", "windows-1251", "ISO-8859-2", "KOI8-R", "IBM850",
+                                "IBM437", "Big5", "GBK", "Shift_JIS", "EUC-JP", "ISO-2022-JP",
+                                "windows-949", "TIS-620", "macintosh" );
 
     GIVEN( std::string( "the Encoding " ) + name )
     {
