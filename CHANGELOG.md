@@ -13,6 +13,15 @@
   background within bounds of time, lines, line length and marks, the Lab
   warns of a pattern that takes unusually long on the sample or on a line,
   and *Copy pattern* puts the pattern on the clipboard. (#659)
+- **Highlighters and Predefined Filters are tested in the Regex Lab**: *Test…*
+  next to a highlighter's pattern, and next to the buttons of a filter group,
+  opens the Regex Lab over the editor with the pattern, on the Log Lines of the
+  tab in front. For a highlighter the Lab marks what it would color -- the
+  whole line, or only the matched text and its capture groups -- in its colors,
+  and offers *Match case* and *Use regex*; for a filter it matches as a search
+  with the filter would, and offers *Use regex*. *Apply* writes the pattern and
+  the options changed back into the editor, *Cancel* leaves it as it was.
+  (#660)
 - **A session saves to and opens from a file**: *File → Save Session As…*
   writes the window's open files, their order, the tab in front, each tab's
   view state, tab names and groups to a `.logsquirl-session` file, and

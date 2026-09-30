@@ -92,6 +92,7 @@ PredefinedFilterSetEdit::PredefinedFilterSetEdit( QWidget* parent )
              &PredefinedFilterSetEdit::onCurrentCellChanged );
     connect( filtersTableWidget, &QTableWidget::cellChanged, this,
              &PredefinedFilterSetEdit::onCellChanged );
+    connect( testFilterButton, &QPushButton::clicked, this, &PredefinedFilterSetEdit::testFilter );
 
     loadIcons();
     Theme::whenApplied( this, [ this ] { loadIcons(); } );
@@ -111,10 +112,17 @@ void PredefinedFilterSetEdit::reset()
     upFilterButton->setEnabled( false );
     downFilterButton->setEnabled( false );
 
+    testFilterButton->setEnabled( false );
+
     nameEdit->clear();
     nameEdit->setEnabled( false );
     filtersTableWidget->clearContents();
     filtersTableWidget->setRowCount( 0 );
+}
+
+void PredefinedFilterSetEdit::setRegexLabAccess( RegexLabAccess access )
+{
+    regexLabAccess_ = std::move( access );
 }
 
 void PredefinedFilterSetEdit::setReadOnly( bool readOnly )
@@ -217,6 +225,8 @@ void PredefinedFilterSetEdit::updateButtons( int currentRow )
 {
     const int rowCount = filtersTableWidget->rowCount();
     removeFilterButton->setEnabled( !readOnly_ && currentRow >= 0 );
+    // A Team group that cannot be changed is still tested, without Apply.
+    testFilterButton->setEnabled( currentRow >= 0 && currentRow < rowCount );
     upFilterButton->setEnabled( !readOnly_ && currentRow > 0 );
     downFilterButton->setEnabled( !readOnly_ && currentRow >= 0 && currentRow < rowCount - 1 );
 }
@@ -294,4 +304,54 @@ void PredefinedFilterSetEdit::onCellChanged( int /*row*/, int /*column*/ )
 
     syncTableToSet();
     Q_EMIT changed();
+}
+
+// Opens the Regex Lab over the editor, which waits for its answer, with the
+// current filter's pattern read as a Search reads it when the filter is
+// used: with the Search's engine, and as one pattern, no logical
+// combination. A filter keeps only whether it is a regular expression; Match
+// case comes from the Search Line it is used in, so the Lab shows the one a
+// Search starts with, fixed.
+void PredefinedFilterSetEdit::testFilter()
+{
+    using Option = RegexLabWindow::Option;
+
+    const auto row = filtersTableWidget->currentRow();
+    auto* patternItem = filtersTableWidget->item( row, 1 );
+    if ( patternItem == nullptr ) {
+        return;
+    }
+    const auto* regex = static_cast<CenteredCheckbox*>( filtersTableWidget->cellWidget( row, 2 ) );
+    const auto isRegexp = regex != nullptr && regex->isChecked();
+
+    auto* lab = new RegexLabWindow( regexLabAccess_.searchEngine, this );
+    lab->setAttribute( Qt::WA_DeleteOnClose );
+    lab->setWindowModality( Qt::WindowModal );
+    lab->offerApply( !readOnly_ );
+    lab->setOptionsKept( Option::UseRegexp, Option::MatchCase );
+    lab->setPattern( RegularExpressionPattern(
+        patternItem->text(), regexLabAccess_.searchMatchesCase, false, false, !isRegexp ) );
+    if ( regexLabAccess_.sampleSource ) {
+        lab->setSampleSource( regexLabAccess_.sampleSource() );
+    }
+    connect( lab, &RegexLabWindow::applied, this,
+             [ this, row ]( const RegularExpressionPattern& pattern ) {
+                 applyTestedFilter( row, pattern );
+             } );
+    lab->show();
+}
+
+// Writes what the Lab applied into the filter's cells as if it was entered
+// there, so that whatever takes in an edit takes it in.
+void PredefinedFilterSetEdit::applyTestedFilter( int row, const RegularExpressionPattern& pattern )
+{
+    auto* patternItem = filtersTableWidget->item( row, 1 );
+    if ( patternItem == nullptr ) {
+        return;
+    }
+    patternItem->setText( pattern.pattern );
+    if ( auto* regex = static_cast<CenteredCheckbox*>( filtersTableWidget->cellWidget( row, 2 ) );
+         regex != nullptr ) {
+        regex->setChecked( !pattern.isPlainText );
+    }
 }

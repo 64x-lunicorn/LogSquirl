@@ -23,6 +23,7 @@
 #include <QWidget>
 
 #include "predefinedfilters.h"
+#include "regexlabwindow.h"
 #include "ui_predefinedfiltersetedit.h"
 
 class QCheckBox;
@@ -48,6 +49,10 @@ public:
     // the set shown next.
     void setReadOnly( bool readOnly );
 
+    // What Test... opens the Regex Lab with: the Search's engine, the Match
+    // case a Search starts with, and the tab's sample (#660).
+    void setRegexLabAccess( RegexLabAccess access );
+
 Q_SIGNALS:
     // Emitted whenever the set name or any filter changes.
     void changed();
@@ -71,9 +76,12 @@ private:
     void syncTableToSet();
     void updateButtons( int currentRow );
     void keepRegexChoice( QCheckBox* regex );
+    void testFilter();
+    void applyTestedFilter( int row, const RegularExpressionPattern& pattern );
 
     PredefinedFilterSet filterSet_;
     bool updatingTable_{ false };
     bool readOnly_{ false };
     QAbstractItemView::EditTriggers editTriggers_;
+    RegexLabAccess regexLabAccess_;
 };

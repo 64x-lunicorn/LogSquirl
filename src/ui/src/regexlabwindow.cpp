@@ -108,8 +108,10 @@ protected:
                 return;
             }
             QTextCharFormat format;
-            format.setBackground( matchColor( marked->subPattern ) );
-            format.setForeground( QColor( Qt::black ) );
+            format.setBackground( markColors_.has_value() ? markColors_->background
+                                                          : matchColor( marked->subPattern ) );
+            format.setForeground( markColors_.has_value() ? markColors_->text
+                                                          : QColor( Qt::black ) );
             format.setProperty( Match, true );
             format.setProperty( MatchingLine, isMatch );
             setFormat( static_cast<int>( marked->start ), static_cast<int>( marked->length ),
@@ -134,9 +136,16 @@ public:
         lineShade_ = shade;
     }
 
+    // The colors every mark is shown in, instead of one per sub-pattern.
+    void setMarkColors( std::optional<RegexLabWindow::MarkColors> colors )
+    {
+        markColors_ = colors;
+    }
+
 private:
     const regexlab::Result& result_;
     QColor lineShade_;
+    std::optional<RegexLabWindow::MarkColors> markColors_;
 };
 
 RegexLabWindow::RegexLabWindow( RegexpEngine engine, QWidget* parent )
@@ -329,6 +338,30 @@ RegularExpressionPattern RegexLabWindow::pattern() const
     return RegularExpressionPattern( patternEdit_->text(), matchCase_->isChecked(),
                                      inverse_->isChecked(), logicalCombination_->isChecked(),
                                      !useRegexp_->isChecked() );
+}
+
+void RegexLabWindow::setOptionsKept( Options kept, Options shownFixed )
+{
+    const auto show = [ & ]( QCheckBox* box, Option option ) {
+        box->setVisible( kept.testFlag( option ) || shownFixed.testFlag( option ) );
+        box->setEnabled( kept.testFlag( option ) );
+    };
+    show( matchCase_, Option::MatchCase );
+    show( useRegexp_, Option::UseRegexp );
+    show( inverse_, Option::Inverse );
+    show( logicalCombination_, Option::LogicalCombination );
+}
+
+void RegexLabWindow::setMarking( regexlab::Marking marking, std::optional<MarkColors> colors )
+{
+    marking_ = marking;
+    marks_->setMarkColors( colors );
+    evaluate();
+}
+
+regexlab::Marking RegexLabWindow::marking() const
+{
+    return marking_;
 }
 
 void RegexLabWindow::setEngine( RegexpEngine engine )
@@ -571,11 +604,11 @@ void RegexLabWindow::evaluate()
 
     auto lines = sample() == Sample::PastedText ? pastedLines() : logFileSample_;
     runner_.start<regexlab::Result>(
-        [ searched, engine = engine_,
+        [ searched, engine = engine_, marking = marking_,
           lines = std::move( lines ) ]( const std::atomic<bool>& cancelled ) {
             return regexlab::evaluate( searched, engine,
                                        lines ? *lines : logsquirl::vector<QString>{}, bounds(),
-                                       cancelled );
+                                       cancelled, marking );
         },
         [ this, searched ]( regexlab::Result evaluated ) {
             evaluatedPattern_ = searched;

@@ -474,6 +474,19 @@ same id or name exists (see [Using highlighters](#using-highlighters)). A group
 that carries the id of the Default group never replaces your Default group; it
 arrives as a group of its own.
 
+*Test…* next to the filter buttons opens the [Regex Lab](#regex-lab) with the
+pattern of the selected filter, on the Log Lines of the tab in front (or on
+pasted text while no file is open). The Lab reads the pattern as a search reads
+it when the filter is used: with the search engine, as a regular expression or
+as plain text as the filter says, and as one pattern, not a logical
+combination. Only *Use regex* can be changed there, since that is all a filter
+keeps besides its pattern; *Match case* comes from the search line the filter
+is used in, so the Lab shows the one a search starts with, fixed. *Apply*
+writes the pattern and the *Regex* setting back into the filter, as if you had
+typed them in the table; *Cancel* or closing the Lab changes nothing. The
+dialog waits while the Lab is open. For a filter of a Team group that cannot be
+changed, the Lab only shows what the pattern matches, with *Close*.
+
 ### Importing filters from Chipmunk
 
 *logsquirl* can import filters and highlighters from Chipmunk JSON export files.
@@ -535,7 +548,9 @@ lines and stops after two seconds, saying at which line it stopped. A line
 longer than 10000 characters is shown and marked only that far; whether it
 matches is still decided on the whole line. Typing starts a new evaluation that
 replaces the one running, and closing the window stops it. The Lab never
-changes a search, a highlighter or a filter by itself.
+changes a search, a highlighter or a filter by itself: opened with *Test…* from
+the editor of a [highlighter](#using-highlighters) or a [predefined
+filter](#predefined-filters), it writes the pattern back only on *Apply*.
 
 ### Using highlighters
 
@@ -561,6 +576,20 @@ parts of the matching line are highlighted.
 
 It is possible to set a color variance. In that case different strings
 that match the same regular expression will have slightly different color.
+
+*Test…* next to a highlighter's pattern opens the [Regex Lab](#regex-lab) with
+that pattern, on the Log Lines of the tab in front (or on pasted text while no
+file is open). The Lab marks what the highlighter would color, in its text and
+background colors: each whole matching line for a highlighter that colors the
+whole line, only the matched text -- or what its capture groups took --
+otherwise (the color variance is not shown). It matches the way a highlighter
+does, with Qt's regular expressions whatever the search engine, and offers
+only the options a highlighter has: *Match case* (the opposite of *Ignore
+case*) and *Use regex* (*Extended Regexp* or *Fixed Strings*). *Apply* writes
+the pattern and these options back into the editor, as if you had entered them
+there; *Cancel* or closing the Lab changes nothing. The dialog waits while the
+Lab is open. A pattern that is no valid regular expression is reported in the
+Lab; the highlighter itself colors such a pattern as plain text.
 
 Any number of highlighters set can be applied to opened file using either 
 the context menu or the main menu.

@@ -76,6 +76,10 @@ public:
     // on these.
     void updateTeamRevisions( const QStringList& ids, const QHash<QString, QString>& revisions );
 
+    // What Test... next to a Highlighter's pattern opens the Regex Lab with:
+    // the sample of the tab in front (#660). Without a call, pasted text only.
+    void setRegexLabAccess( RegexLabAccess access );
+
 Q_SIGNALS:
     // Is emitted when new settings must be used
     void optionsChanged();

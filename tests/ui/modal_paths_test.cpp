@@ -62,6 +62,7 @@
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
+#include "highlighteredit.h"
 #include "highlightersdialog.h"
 #include "highlighterset.h"
 #include "logformatcatalog.h"
@@ -69,7 +70,9 @@
 #include "mainwindowtext.h"
 #include "modal_answers.h"
 #include "openlogfile.h"
+#include "predefinedfiltersdialog.h"
 #include "recentfiles.h"
+#include "regexlabwindow.h"
 #include "session.h"
 #include "sessioninfo.h"
 #include "tabbedcrawlerwidget.h"
@@ -1171,6 +1174,83 @@ TEST_CASE( "The Highlighters dialog shares and copies and deletes Team sets",
         alice->sync();
         REQUIRE( settled( *alice ) );
         CHECK( alice->highlighterGroups().isEmpty() );
+    }
+}
+
+// --- Test... in the editors of Highlighters and Predefined Filters (#660) ---
+
+TEST_CASE( "Test... in the editors opens the Regex Lab on the tab in front",
+           "[ui][modal][regexlab]" )
+{
+    const KeepCollection keep;
+    TimedLogFile file;
+    WindowFixture window;
+    window.open( file.path );
+    ModalAnswers modals;
+
+    // The Lab Test... opened, once it shows a sample of the tab.
+    const auto labOver = [ & ]( QWidget& editor ) {
+        auto* lab = editor.window()->findChild<RegexLabWindow*>();
+        REQUIRE( lab != nullptr );
+        REQUIRE( waitUiState( [ & ] { return !lab->result().lines.empty(); }, 10'000 ) );
+        return lab;
+    };
+
+    SECTION( "The Highlighters dialog" )
+    {
+        modals.answerWith( [ & ]( QDialog& dialog ) {
+            auto& highlighters = static_cast<HighlightersDialog&>( dialog );
+            // A set of the user's own, with a Highlighter in it.
+            highlighters.addHighlighterButton->click();
+            QCoreApplication::processEvents();
+            auto* setEdit = dialog.findChild<HighlighterSetEdit*>();
+            REQUIRE( setEdit != nullptr );
+            setEdit->addHighlighterButton->click();
+            auto* edit = setEdit->findChild<HighlighterEdit*>();
+            REQUIRE( waitUiState( [ & ] { return edit->testPatternButton->isEnabled(); } ) );
+            edit->patternEdit->clear();
+            QTest::keyClicks( edit->patternEdit, "12:0[0-9]" );
+
+            edit->testPatternButton->click();
+            auto* lab = labOver( *edit );
+            CHECK( lab->sample() != RegexLabWindow::Sample::PastedText );
+            CHECK( lab->pattern().pattern == "12:0[0-9]" );
+            CHECK( lab->result().matchingLines > 0 );
+            lab->close();
+            highlighters.buttonBox->button( QDialogButtonBox::Cancel )->click();
+        } );
+        actionNamed( *window.mainWindow, logsquirl::mainwindow::action::editHighlightersText )
+            ->trigger();
+        CHECK( modals.unanswered() == 0 );
+    }
+
+    SECTION( "The Predefined Filters dialog" )
+    {
+        modals.answerWith( [ & ]( QDialog& dialog ) {
+            auto& filters = static_cast<PredefinedFiltersDialog&>( dialog );
+            // A group of the user's own, with a filter in it.
+            filters.addSetButton->click();
+            QCoreApplication::processEvents();
+            auto* edit = dialog.findChild<PredefinedFilterSetEdit*>();
+            REQUIRE( edit != nullptr );
+            REQUIRE( waitUiState( [ & ] { return edit->addFilterButton->isEnabled(); } ) );
+            edit->addFilterButton->click();
+            const auto row = edit->filtersTableWidget->rowCount() - 1;
+            edit->filtersTableWidget->item( row, 1 )->setText( "12:0" );
+            edit->filtersTableWidget->setCurrentCell( row, 1 );
+
+            edit->testFilterButton->click();
+            auto* lab = labOver( *edit );
+            CHECK( lab->sample() != RegexLabWindow::Sample::PastedText );
+            CHECK( lab->engine() == window.session->searchPolicy().regexpEngine );
+            CHECK( lab->result().matchingLines > 0 );
+            lab->close();
+            filters.buttonBox->button( QDialogButtonBox::Cancel )->click();
+        } );
+        actionNamed( *window.mainWindow,
+                     logsquirl::mainwindow::action::predefinedFiltersDialogText )
+            ->trigger();
+        CHECK( modals.unanswered() == 0 );
     }
 }
 

@@ -85,6 +85,8 @@ class QActionGroup;
 class Session;
 class RecentFiles;
 class RegexLabWindow;
+struct RegexLabAccess;
+struct RegexLabSampleSource;
 namespace logsquirl::teamfolder {
 struct PublishOutcome;
 }
@@ -328,6 +330,11 @@ Q_SIGNALS:
     void exitRequested();
 
 private:
+    // The tab in front as the Regex Lab's sample source; none without a tab.
+    RegexLabSampleSource tabInFrontAsRegexLabSample();
+    // What the editors open the Regex Lab with (#660).
+    RegexLabAccess regexLabAccess();
+
     void createActions();
     void loadIcons();
     void createMenus();

@@ -1528,32 +1528,42 @@ Deseja substituí-lo?</translation>
         <translation>Padrão de correspondência: </translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlighteredit.ui" line="36"/>
+        <location filename="../../ui/include/highlighteredit.ui" line="39"/>
+        <source>Test the pattern on Log Lines in the Regex Lab</source>
+        <translation>Testar o padrão em linhas do log no Laboratório de regex</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/highlighteredit.ui" line="42"/>
+        <source>Test…</source>
+        <translation>Testar…</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/highlighteredit.ui" line="53"/>
         <source>Pattern type:</source>
         <translation>Tipo de padrão:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlighteredit.ui" line="53"/>
+        <location filename="../../ui/include/highlighteredit.ui" line="70"/>
         <source>Ignore case</source>
         <translation>Ignorar maiúsculas/minúsculas</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlighteredit.ui" line="66"/>
+        <location filename="../../ui/include/highlighteredit.ui" line="83"/>
         <source>Highlight only match</source>
         <translation>Destacar somente a correspondência</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlighteredit.ui" line="80"/>
+        <location filename="../../ui/include/highlighteredit.ui" line="97"/>
         <source>Variate colors</source>
         <translation>Variar cores</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlighteredit.ui" line="104"/>
+        <location filename="../../ui/include/highlighteredit.ui" line="121"/>
         <source>Text Color: </source>
         <translation>Cor do texto: </translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlighteredit.ui" line="125"/>
+        <location filename="../../ui/include/highlighteredit.ui" line="142"/>
         <source>Background Color: </source>
         <translation>Cor de fundo: </translation>
     </message>
@@ -1568,7 +1578,7 @@ Deseja substituí-lo?</translation>
         <translation>Strings fixas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlighteredit.cpp" line="232"/>
+        <location filename="../../ui/src/highlighteredit.cpp" line="240"/>
         <source>Color presets:</source>
         <translation>Cores predefinidas:</translation>
     </message>
@@ -1731,12 +1741,12 @@ Deseja substituí-lo?</translation>
         <translation>Excluir para a equipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="562"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="567"/>
         <source>Delete Team highlighter set</source>
         <translation>Excluir conjunto de destacadores da equipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="563"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="568"/>
         <source>This deletes the group for the whole team.</source>
         <translation>Isso exclui o grupo para toda a equipe.</translation>
     </message>
@@ -1815,7 +1825,7 @@ Deseja substituí-lo?</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1568"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3066"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3084"/>
         <source>All files (*)</source>
         <translation>Todos os arquivos (*)</translation>
     </message>
@@ -1847,7 +1857,7 @@ Deseja substituí-lo?</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="357"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2797"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2815"/>
         <source>Dashboard</source>
         <translation>Painel inicial</translation>
     </message>
@@ -1975,208 +1985,208 @@ Pasta de trabalho: %2
         <translation>URL para baixar:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2023"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2041"/>
         <source>Team group changed</source>
         <translation>Grupo da equipe alterado</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2024"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2042"/>
         <source>Somebody else changed the Team group &quot;%1&quot; since you started editing it.</source>
         <translation>Outra pessoa alterou o grupo da equipe &quot;%1&quot; desde que você começou a editá-lo.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2030"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2048"/>
         <source>Keep your version and replace theirs, take theirs and drop your change, or save yours as a copy next to theirs?</source>
         <translation>Manter sua versão e substituir a dela, aceitar a dela e descartar sua alteração, ou salvar a sua como cópia ao lado da dela?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2032"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2050"/>
         <source>Somebody deleted it. Keep your version to publish it again, or take the deletion and drop your change?</source>
         <translation>Alguém o excluiu. Manter sua versão para publicá-lo novamente, ou aceitar a exclusão e descartar sua alteração?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2034"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2052"/>
         <source>Keep mine</source>
         <translation>Manter a minha</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2035"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2053"/>
         <source>Take theirs</source>
         <translation>Aceitar a dela</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2036"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2054"/>
         <source>Save mine as a copy</source>
         <translation>Salvar a minha como cópia</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2083"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2101"/>
         <source>Click to sync now.</source>
         <translation>Clique para sincronizar agora.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2110"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2128"/>
         <source>Start %1 data source</source>
         <translation>Iniciar fonte de dados %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2118"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2136"/>
         <source>(no data source plugins)</source>
         <translation>(nenhum plugin de fonte de dados)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2158"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2176"/>
         <source>Plugin Error</source>
         <translation>Erro de plugin</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2159"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2177"/>
         <source>Failed to load plugin:
 %1</source>
         <translation>Falha ao carregar o plugin:
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2171"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2189"/>
         <source>DataSource Error</source>
         <translation>Erro de fonte de dados</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2186"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2204"/>
         <source>DataSource: %1
 %2</source>
         <translation>Fonte de dados: %1
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2193"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2211"/>
         <source>About LogSquirl</source>
         <translation>Sobre o LogSquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2194"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2212"/>
         <source>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is a fork of &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; by Anton Filimonov, which is a fork of &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; by Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</source>
         <translation>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;Um explorador de logs rápido e avançado.&lt;/p&gt;&lt;p&gt;Compilado em %2 a partir de %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Este é um fork do &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; por Anton Filimonov, que é um fork do &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; por Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Utilizando ícones do projeto &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov e outros colaboradores&lt;/p&gt;&lt;p&gt;Você pode modificar e redistribuir o programa sob os termos da GPL (versão 3 ou posterior).&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2213"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2231"/>
         <source>About Qt</source>
         <translation>Sobre o Qt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2226"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2244"/>
         <source>logsquirl documentation</source>
         <translation>Documentação do logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2271"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2289"/>
         <source>Index cache cleared (%1 MB freed)</source>
         <translation>Cache de índices limpo (%1 MB liberados)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2337"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2355"/>
         <source>Merged (dedup)</source>
         <translation>Mesclado (sem duplicatas)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2337"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2355"/>
         <source>Merged</source>
         <translation>Mesclado</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2375"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2393"/>
         <source>Import Chipmunk filters</source>
         <translation>Importar filtros do Chipmunk</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2376"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2394"/>
         <source>Chipmunk filters (*.json);;All files (*)</source>
         <translation>Filtros do Chipmunk (*.json);;Todos os arquivos (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2384"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2402"/>
         <source>Import error</source>
         <translation>Erro de importação</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2385"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2403"/>
         <source>Could not open file: %1</source>
         <translation>Não foi possível abrir o arquivo: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2393"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2405"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2437"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2411"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2423"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2455"/>
         <source>Import result</source>
         <translation>Resultado da importação</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2394"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2412"/>
         <source>No filters found in the selected file.</source>
         <translation>Nenhum filtro encontrado no arquivo selecionado.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2406"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2424"/>
         <source>A filter group named &apos;%1&apos; already exists. Skipping filter import.</source>
         <translation>Já existe um grupo de filtros chamado &apos;%1&apos;. Ignorando a importação de filtros.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2438"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2456"/>
         <source>Imported %1 filter(s) and %2 highlighter set.</source>
         <translation>%1 filtro(s) e %2 conjunto de destacadores importados.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2513"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2531"/>
         <source>Ln:%1/%2</source>
         <translation>Ln:%1/%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2518"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2536"/>
         <source>Ln:%1/%2 Col:%3 Sel:%4|%5</source>
         <translation>Ln:%1/%2 Col:%3 Sel:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2527"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2545"/>
         <source>Ln:%1/%2 Sel:%4|%5</source>
         <translation>Ln:%1/%2 Sel:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2563"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2581"/>
         <source> - Indexing lines... (%1 %)</source>
         <translation> - Indexando linhas... (%1 %)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2613"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2631"/>
         <source>Not enough memory.</source>
         <translation>Memória insuficiente.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2615"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2633"/>
         <source>The system does not have enough memory to hold the index for this file. The file will now be closed.</source>
         <translation>O sistema não possui memória suficiente para manter o índice deste arquivo. O arquivo será fechado agora.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2698"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2716"/>
         <source>Close Tab</source>
         <translation>Fechar aba</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2699"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2717"/>
         <source>Close tab &quot;%1&quot;?</source>
         <translation>Fechar a aba &quot;%1&quot;?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2708"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2726"/>
         <source>Don&apos;t ask again</source>
         <translation>Não perguntar novamente</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2702"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2720"/>
         <source>Close Tabs</source>
         <translation>Fechar abas</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../ui/src/mainwindow.cpp" line="2703"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2721"/>
         <source>Close %n tab(s)?</source>
         <translation>
             <numerusform>Fechar %n aba?</numerusform>
@@ -2184,119 +2194,119 @@ Pasta de trabalho: %2
         </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3003"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3048"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3083"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3338"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3021"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3066"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3101"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3356"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3004"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3022"/>
         <source>Extract archive to temp folder?</source>
         <translation>Extrair arquivo compactado para pasta temporária?</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="588"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3020"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3038"/>
         <source>Extracting %1</source>
         <translation>Extraindo %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3049"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3067"/>
         <source>Failed to decompress %1</source>
         <translation>Falha ao descompactar %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3065"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3083"/>
         <source>Open file from archive</source>
         <translation>Abrir arquivo do arquivo compactado</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3084"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3102"/>
         <source>Failed to extract %1</source>
         <translation>Falha ao extrair %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3328"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3346"/>
         <source>Untitled</source>
         <translation>Sem título</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3338"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3356"/>
         <source>%1 - %2%3</source>
         <translation>%1 - %2%3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3339"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3357"/>
         <source> (build </source>
         <translation> (versão </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3365"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3383"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3458"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3476"/>
         <source>modified on %1</source>
         <translation>modificado em %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3584"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3602"/>
         <source>Remove from favorites</source>
         <translation>Remover dos favoritos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3585"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3603"/>
         <source>Select item to remove from favorites</source>
         <translation>Selecione o item a remover dos favoritos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3630"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3648"/>
         <source>logsquirl -- switch to file</source>
         <translation>logsquirl -- alternar para arquivo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3746"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3769"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3764"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3787"/>
         <source>Save Session As</source>
         <translation>Salvar sessão como</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3747"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3781"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3765"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3799"/>
         <source>LogSquirl sessions (*.%1)</source>
         <translation>Sessões do LogSquirl (*.%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3770"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3788"/>
         <source>The session could not be saved to %1:
 %2</source>
         <translation>Não foi possível salvar a sessão em %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3780"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3790"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3842"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3798"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3808"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3860"/>
         <source>Open Session</source>
         <translation>Abrir sessão</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3795"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3813"/>
         <source>The session file %1 could not be read:
 %2</source>
         <translation>Não foi possível ler o arquivo de sessão %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3816"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3834"/>
         <source>The session holds no log files.</source>
         <translation>A sessão não contém arquivos de log.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3817"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3835"/>
         <source>None of the log files of this session could be opened. They are missing or already open:
 
 %1</source>
@@ -2305,7 +2315,7 @@ Pasta de trabalho: %2
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3843"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3861"/>
         <source>These log files of the session were left out. They are missing or already open in another window:
 
 %1</source>
@@ -2314,12 +2324,12 @@ Pasta de trabalho: %2
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3908"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3926"/>
         <source>logsquirl - generate crash dump</source>
         <translation>logsquirl - gerar relatório de falha</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3909"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3927"/>
         <source>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</source>
         <translation>Isso encerrará o logsquirl e gerará um relatório de falha de diagnóstico. Continuar?</translation>
     </message>
@@ -3260,27 +3270,37 @@ Reinicie o LogSquirl para tentar novamente.</translation>
         <translation>Excluir filtro</translation>
     </message>
     <message>
-        <location filename="../../ui/include/predefinedfiltersetedit.ui" line="80"/>
+        <location filename="../../ui/include/predefinedfiltersetedit.ui" line="70"/>
+        <source>Test the pattern of the selected filter on Log Lines in the Regex Lab</source>
+        <translation>Testar o padrão do filtro selecionado em linhas do log no Laboratório de regex</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/predefinedfiltersetedit.ui" line="73"/>
+        <source>Test…</source>
+        <translation>Testar…</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/predefinedfiltersetedit.ui" line="93"/>
         <source>Move Filter Up</source>
         <translation>Mover filtro para cima</translation>
     </message>
     <message>
-        <location filename="../../ui/include/predefinedfiltersetedit.ui" line="94"/>
+        <location filename="../../ui/include/predefinedfiltersetedit.ui" line="107"/>
         <source>Move Filter Down</source>
         <translation>Mover filtro para baixo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersetedit.cpp" line="159"/>
+        <location filename="../../ui/src/predefinedfiltersetedit.cpp" line="171"/>
         <source>Name</source>
         <translation>Nome</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersetedit.cpp" line="159"/>
+        <location filename="../../ui/src/predefinedfiltersetedit.cpp" line="171"/>
         <source>Pattern</source>
         <translation>Padrão</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersetedit.cpp" line="160"/>
+        <location filename="../../ui/src/predefinedfiltersetedit.cpp" line="172"/>
         <source>Regex</source>
         <translation>Regex</translation>
     </message>
@@ -3368,47 +3388,47 @@ Reinicie o LogSquirl para tentar novamente.</translation>
         <translation>Importar filtros predefinidos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="372"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="377"/>
         <source>Team groups</source>
         <translation>Grupos da equipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="375"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="380"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
         <translation>Compartilhados por meio da Pasta da equipe: mudam quando a equipe os altera.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="383"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="388"/>
         <source>New Team group</source>
         <translation>Novo grupo da equipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="386"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="391"/>
         <source>Share with team</source>
         <translation>Compartilhar com a equipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="387"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="392"/>
         <source>Adds a Team copy of the selected group of your own.</source>
         <translation>Adiciona uma cópia da equipe do grupo próprio selecionado.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="390"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="395"/>
         <source>Copy to my groups</source>
         <translation>Copiar para meus grupos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="393"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="398"/>
         <source>Delete for the team</source>
         <translation>Excluir para a equipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="470"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="475"/>
         <source>Delete Team group</source>
         <translation>Excluir grupo da equipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="470"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="475"/>
         <source>This deletes the group for the whole team.</source>
         <translation>Isso exclui o grupo para toda a equipe.</translation>
     </message>
@@ -4127,147 +4147,147 @@ Reinicie o LogSquirl para tentar novamente.</translation>
 <context>
     <name>RegexLabWindow</name>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="176"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="185"/>
         <source>Pattern</source>
         <translation>Padrão</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="178"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="187"/>
         <source>Copy pattern</source>
         <translation>Copiar padrão</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="181"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="190"/>
         <source>&amp;Pattern:</source>
         <translation>&amp;Padrão:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="226"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="235"/>
         <source>Selected Log Lines</source>
         <translation>Linhas de log selecionadas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="227"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="236"/>
         <source>Lines around the current line</source>
         <translation>Linhas ao redor da linha atual</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="229"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="238"/>
         <source>Pasted text</source>
         <translation>Texto colado</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="230"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="239"/>
         <source>Refresh sample</source>
         <translation>Atualizar amostra</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="232"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="241"/>
         <source>&amp;Sample:</source>
         <translation>&amp;Amostra:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="244"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="253"/>
         <source>Paste or type sample lines here.</source>
         <translation>Cole ou digite linhas de exemplo aqui.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="245"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="254"/>
         <source>Sample lines</source>
         <translation>Linhas de exemplo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="250"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="259"/>
         <source>Group</source>
         <translation>Grupo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="250"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="259"/>
         <source>Name</source>
         <translation>Nome</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="250"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="259"/>
         <source>Text</source>
         <translation>Texto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="255"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="264"/>
         <source>Capture groups of the line with the cursor</source>
         <translation>Grupos de captura da linha com o cursor</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="425"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="458"/>
         <source>Regex Lab</source>
         <translation>Laboratório de regex</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="426"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="459"/>
         <source>Regex Lab - %1</source>
         <translation>Laboratório de regex - %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="625"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="658"/>
         <source>(no part in the match)</source>
         <translation>(não participa da correspondência)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="653"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="686"/>
         <source>Error at character %1 of the pattern: %2</source>
         <translation>Erro no caractere %1 do padrão: %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="694"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="727"/>
         <source>Lines longer than %1 characters are shown and marked only up to there; whether they match is decided on the whole line.</source>
         <translation>Linhas com mais de %1 caracteres são mostradas e marcadas apenas até esse ponto; se correspondem é decidido pela linha inteira.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="699"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="732"/>
         <source>Not every match is marked: at most %1 in a line and %2 in all.</source>
         <translation>Nem toda correspondência é marcada: no máximo %1 por linha e %2 no total.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="717"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="750"/>
         <source>%1 lines took more than %2 ms each. On such a line the engine may have given up and reported no match, as a Search would.</source>
         <translation>%1 linhas levaram mais de %2 ms cada. Numa linha assim o mecanismo pode ter desistido e informado que não há correspondência, como uma pesquisa faria.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="647"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="680"/>
         <source>Error in the pattern: %1</source>
         <translation>Erro no padrão: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="676"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="709"/>
         <source>No Log Lines are selected in the tab.</source>
         <translation>Nenhuma linha de log está selecionada na aba.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="677"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="710"/>
         <source>The tab shows no Log Lines.</source>
         <translation>A aba não mostra linhas de log.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="680"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="713"/>
         <source>Type a pattern to see what it matches in the sample.</source>
         <translation>Digite um padrão para ver o que ele encontra na amostra.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="683"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="716"/>
         <source>%1 of %2 sample lines match.</source>
         <translation>%1 de %2 linhas de exemplo correspondem.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="687"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="720"/>
         <source>The evaluation stopped after %1 ms, at line %2 of %3.</source>
         <translation>A avaliação parou após %1 ms, na linha %2 de %3.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="706"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="739"/>
         <source>Only the first %1 lines of the sample are evaluated.</source>
         <translation>Apenas as primeiras %1 linhas da amostra são avaliadas.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="712"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="745"/>
         <source>Evaluating the sample took %1 ms: the pattern may backtrack excessively on some lines.</source>
         <translation>A avaliação da amostra levou %1 ms: o padrão pode estar fazendo retrocesso excessivo em algumas linhas.</translation>
     </message>

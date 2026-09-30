@@ -157,6 +157,72 @@ SCENARIO( "The Regex Lab shows where a pattern matches a line", "[regexlab]" )
     }
 }
 
+SCENARIO( "The Regex Lab marks what a Highlighter colors of a matching line", "[regexlab]" )
+{
+    const logsquirl::vector<QString> sample{ QStringLiteral( "user=alice id=7 user=bob" ),
+                                             QStringLiteral( "no one here" ) };
+    const auto mark = [ & ]( const QString& text, regexlab::Marking marking ) {
+        return regexlab::evaluate( regexp( text ), RegexpEngine::QRegularExpression, sample, {},
+                                   NotCancelled, marking );
+    };
+    const auto marked = [ & ]( const regexlab::LineResult& line ) {
+        QStringList texts;
+        for ( const auto& match : line.matches ) {
+            texts.append( sample[ 0 ].mid( match.start, match.length ) );
+        }
+        return texts;
+    };
+
+    GIVEN( "a Highlighter that colors the whole Log Line" )
+    {
+        const auto result = mark( "user=\\w+", regexlab::Marking::WholeLine );
+
+        THEN( "a matching line is marked whole, once, and a line without a match not at all" )
+        {
+            REQUIRE( result.lines.size() == 2 );
+            CHECK( marked( result.lines[ 0 ] ) == QStringList{ sample[ 0 ] } );
+            CHECK( result.lines[ 1 ].matches.empty() );
+            CHECK( result.matchingLines == 1 );
+        }
+
+        THEN( "the capture groups of its first match are still listed" )
+        {
+            REQUIRE_FALSE( result.lines[ 0 ].groups.empty() );
+            CHECK( result.lines[ 0 ].groups[ 0 ].text == "user=alice" );
+        }
+    }
+
+    GIVEN( "a Highlighter that colors only the matched text, with a pattern without groups" )
+    {
+        const auto result = mark( "user=\\w+", regexlab::Marking::HighlightedText );
+
+        THEN( "each whole match is marked" )
+        {
+            CHECK( marked( result.lines[ 0 ] ) == QStringList{ "user=alice", "user=bob" } );
+        }
+    }
+
+    GIVEN( "a Highlighter that colors only the matched text, with a pattern with groups" )
+    {
+        const auto result = mark( "user=(\\w+)|id=(\\d+)", regexlab::Marking::HighlightedText );
+
+        THEN( "only the text the groups took is marked, as the Highlighter colors it" )
+        {
+            CHECK( marked( result.lines[ 0 ] ) == QStringList{ "alice", "7", "bob" } );
+        }
+    }
+
+    GIVEN( "the Search Line's marking" )
+    {
+        const auto result = mark( "user=(\\w+)", regexlab::Marking::Matches );
+
+        THEN( "each whole match is marked, groups or not" )
+        {
+            CHECK( marked( result.lines[ 0 ] ) == QStringList{ "user=alice", "user=bob" } );
+        }
+    }
+}
+
 SCENARIO( "The Regex Lab lists the capture groups of a line, numbered and named", "[regexlab]" )
 {
     const auto engine = GENERATE( RegexpEngine::Vectorscan, RegexpEngine::QRegularExpression );

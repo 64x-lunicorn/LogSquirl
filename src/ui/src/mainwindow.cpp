@@ -1831,6 +1831,7 @@ void MainWindow::openCommandOutputDialog()
 void MainWindow::editHighlighters()
 {
     HighlightersDialog dialog( this );
+    dialog.setRegexLabAccess( regexLabAccess() );
     if ( const auto teamFolder = session_.teamFolder();
          teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
         dialog.showTeamGroups( teamFolder->highlighterGroups(), teamFolder->isWritable(),
@@ -1870,21 +1871,38 @@ void MainWindow::openRegexLab()
         regexLab_->setEngine( session_.searchPolicy().regexpEngine );
     }
 
-    auto* crawler = currentCrawlerWidget();
-    regexLab_->setSampleSource(
-        crawler != nullptr ? regexLabSampleSource(
-                                 *crawler, mainTabWidget_.tabText( mainTabWidget_.currentIndex() ) )
-                           : RegexLabSampleSource{} );
+    regexLab_->setSampleSource( tabInFrontAsRegexLabSample() );
 
     regexLab_->show();
     regexLab_->raise();
     regexLab_->activateWindow();
 }
 
+RegexLabSampleSource MainWindow::tabInFrontAsRegexLabSample()
+{
+    auto* crawler = currentCrawlerWidget();
+    return crawler != nullptr
+               ? regexLabSampleSource( *crawler,
+                                       mainTabWidget_.tabText( mainTabWidget_.currentIndex() ) )
+               : RegexLabSampleSource{};
+}
+
+// The editors are modal, so the tab in front is the one they were opened
+// over; it is asked for as a Lab opens all the same.
+RegexLabAccess MainWindow::regexLabAccess()
+{
+    RegexLabAccess access;
+    access.searchEngine = session_.searchPolicy().regexpEngine;
+    access.searchMatchesCase = !session_.quickFindPolicy().searchIgnoreCaseDefault;
+    access.sampleSource = [ this ]() { return tabInFrontAsRegexLabSample(); };
+    return access;
+}
+
 // Opens dialog to configure predefined filters
 void MainWindow::editPredefinedFilters( const QString& newFilter )
 {
     PredefinedFiltersDialog dialog( newFilter, this );
+    dialog.setRegexLabAccess( regexLabAccess() );
     if ( const auto teamFolder = session_.teamFolder();
          teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
         dialog.showTeamGroups( teamFolder->filterGroups(), teamFolder->isWritable(),

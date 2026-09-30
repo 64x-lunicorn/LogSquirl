@@ -235,8 +235,42 @@ struct MarkBudget {
     bool isCut = false;
 };
 
+// Marks a span of the line, unless the marks run out.
+bool addMark( LineResult& result, MatchSpan span, const Bounds& bounds, MarkBudget& marks )
+{
+    if ( marks.left == 0 || result.matches.size() == bounds.maxMarksPerLine ) {
+        marks.isCut = true;
+        return false;
+    }
+    result.matches.push_back( span );
+    --marks.left;
+    return true;
+}
+
+// Marks what a Highlighter colors of a match: the text each of its capture
+// groups took, or the whole match when the pattern has no groups.
+bool addHighlightedText( LineResult& result, const QRegularExpression& regexp,
+                         const QRegularExpressionMatch& match, const Bounds& bounds,
+                         MarkBudget& marks )
+{
+    if ( regexp.captureCount() == 0 ) {
+        return match.capturedLength() == 0
+               || addMark( result, { match.capturedStart(), match.capturedLength(), 0 }, bounds,
+                           marks );
+    }
+    for ( int group = 1; group <= match.lastCapturedIndex(); ++group ) {
+        if ( match.capturedLength( group ) > 0
+             && !addMark( result,
+                          { match.capturedStart( group ), match.capturedLength( group ), 0 },
+                          bounds, marks ) ) {
+            return false;
+        }
+    }
+    return true;
+}
+
 LineResult evaluateLine( const PatternMatcher& matcher,
-                         const logsquirl::vector<QRegularExpression>& marking,
+                         const logsquirl::vector<QRegularExpression>& marking, Marking whatIsMarked,
                          const QString& wholeLine, const Bounds& bounds, MarkBudget& marks )
 {
     const auto started = Clock::now();
@@ -262,17 +296,27 @@ LineResult evaluateLine( const PatternMatcher& matcher,
                 addGroups( regexp, match, subPatternIndex, result.groups );
                 isFirst = false;
             }
-            if ( match.capturedLength() == 0 ) {
-                continue;
-            }
-            if ( marks.left == 0 || result.matches.size() == bounds.maxMarksPerLine ) {
-                marks.isCut = true;
+            if ( whatIsMarked == Marking::WholeLine ) {
+                // Only the groups of the first match are wanted.
                 break;
             }
-            result.matches.push_back(
-                { match.capturedStart(), match.capturedLength(), subPatternIndex } );
-            --marks.left;
+            if ( whatIsMarked == Marking::HighlightedText ) {
+                if ( !addHighlightedText( result, regexp, match, bounds, marks ) ) {
+                    break;
+                }
+                continue;
+            }
+            if ( match.capturedLength() > 0
+                 && !addMark( result,
+                              { match.capturedStart(), match.capturedLength(), subPatternIndex },
+                              bounds, marks ) ) {
+                break;
+            }
         }
+    }
+
+    if ( whatIsMarked == Marking::WholeLine && result.isMatch && !line.isEmpty() ) {
+        addMark( result, { 0, line.size(), 0 }, bounds, marks );
     }
 
     std::ranges::sort( result.matches, []( const MatchSpan& left, const MatchSpan& right ) {
@@ -297,7 +341,7 @@ QString cutLine( const QString& line, qsizetype length )
 
 Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
                  const logsquirl::vector<QString>& sample, const Bounds& bounds,
-                 const std::atomic<bool>& cancelled )
+                 const std::atomic<bool>& cancelled, Marking marking )
 {
     const auto started = Clock::now();
     const auto elapsed = [ started ]() {
@@ -316,7 +360,7 @@ Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
         return result;
     }
     const auto matcher = expression.createMatcher();
-    const auto marking = markingRegexps( pattern );
+    const auto markingRegexp = markingRegexps( pattern );
     MarkBudget marks{ bounds.maxMarks };
 
     result.lines.reserve( result.sampleLines );
@@ -329,7 +373,8 @@ Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
             result.stop = Stop::TimeLimit;
             break;
         }
-        result.lines.push_back( evaluateLine( *matcher, marking, sample[ index ], bounds, marks ) );
+        result.lines.push_back(
+            evaluateLine( *matcher, markingRegexp, marking, sample[ index ], bounds, marks ) );
         const auto& line = result.lines.back();
         result.matchingLines += line.isMatch ? 1 : 0;
         result.slowLines += line.isSlow ? 1 : 0;

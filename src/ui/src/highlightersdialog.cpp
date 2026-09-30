@@ -491,6 +491,11 @@ void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups, bo
     }
 }
 
+void HighlightersDialog::setRegexLabAccess( RegexLabAccess access )
+{
+    highlighterSetEdit_->setRegexLabAccess( std::move( access ) );
+}
+
 void HighlightersDialog::updateTeamRevisions( const QStringList& ids,
                                               const QHash<QString, QString>& revisions )
 {

@@ -25,6 +25,8 @@
 #include <memory>
 #include <optional>
 
+#include <QColor>
+#include <QFlags>
 #include <QMetaObject>
 #include <QObject>
 #include <QPointer>
@@ -77,6 +79,17 @@ struct RegexLabSampleSource {
     }
 };
 
+// What an editor opens the Regex Lab with (#660): the engine a Search runs
+// on, whether a Search starts out matching case, and where the tab in front
+// takes its sample from, asked for as the Lab opens. The editors are dialogs
+// that know no tab, so whoever opens them hands this over. Without a sample
+// source, only pasted text is a sample.
+struct RegexLabAccess {
+    RegexpEngine searchEngine = RegexpEngine::Vectorscan;
+    bool searchMatchesCase = false;
+    std::function<RegexLabSampleSource()> sampleSource;
+};
+
 // The Regex Lab (#659): a window, not modal, that shows what a pattern does
 // on sample Log Lines, with the Search's engine and options. It changes no
 // Search, Highlighter or filter by itself.
@@ -96,6 +109,21 @@ public:
     // Which sample the pattern is evaluated on.
     enum class Sample { SelectedLines, LinesAroundCurrentLine, PastedText };
 
+    // The options a pattern is read with.
+    enum class Option {
+        MatchCase = 0x1,
+        UseRegexp = 0x2,
+        Inverse = 0x4,
+        LogicalCombination = 0x8,
+    };
+    Q_DECLARE_FLAGS( Options, Option )
+
+    // The colors a mark is shown in instead of the Lab's own.
+    struct MarkColors {
+        QColor text;
+        QColor background;
+    };
+
     explicit RegexLabWindow( RegexpEngine engine, QWidget* parent = nullptr );
     ~RegexLabWindow() override;
 
@@ -106,6 +134,19 @@ public:
     // them.
     void setPattern( const RegularExpressionPattern& pattern );
     RegularExpressionPattern pattern() const;
+
+    // The options whoever opened the Lab keeps with its pattern (#660): only
+    // those can be changed. One it does not keep is shown, but cannot be
+    // changed, when it is in shownFixed -- it still decides how the pattern
+    // is read -- and hidden otherwise. It keeps the value setPattern() gave
+    // it. All options are kept until this is called.
+    void setOptionsKept( Options kept, Options shownFixed = {} );
+
+    // What of a matching line is marked, and in which colors (#660): each
+    // match in the Lab's color for its sub-pattern until this is called. A
+    // change evaluates the pattern again.
+    void setMarking( regexlab::Marking marking, std::optional<MarkColors> colors = std::nullopt );
+    regexlab::Marking marking() const;
 
     // The engine a Search runs on, which the Lab matches with. A change
     // evaluates the pattern again.
@@ -188,6 +229,7 @@ private:
     regexlab::Result result_;
     // The pattern and options the result shown was evaluated with.
     RegularExpressionPattern evaluatedPattern_;
+    regexlab::Marking marking_ = regexlab::Marking::Matches;
     bool hasPattern_ = false;
     bool isApplyOffered_ = false;
     bool isAnswered_ = false;
@@ -216,5 +258,7 @@ private:
     LookupRunner sampleReader_;
     LookupRunner runner_;
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS( RegexLabWindow::Options )
 
 #endif

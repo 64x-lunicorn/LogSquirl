@@ -126,6 +126,11 @@ void HighlighterSetEdit::reset()
     highlighterEdit_->reset();
 }
 
+void HighlighterSetEdit::setRegexLabAccess( RegexLabAccess access )
+{
+    highlighterEdit_->setRegexLabAccess( std::move( access ) );
+}
+
 HighlighterSet HighlighterSetEdit::highlighters() const
 {
     return highlighterSet_;

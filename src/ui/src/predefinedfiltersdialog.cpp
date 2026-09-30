@@ -347,6 +347,11 @@ void PredefinedFiltersDialog::updateFilterSetProperties()
 
 // --- Team groups ---
 
+void PredefinedFiltersDialog::setRegexLabAccess( RegexLabAccess access )
+{
+    filterSetEdit_->setRegexLabAccess( std::move( access ) );
+}
+
 void PredefinedFiltersDialog::updateTeamRevisions( const QStringList& ids,
                                                    const QHash<QString, QString>& revisions )
 {

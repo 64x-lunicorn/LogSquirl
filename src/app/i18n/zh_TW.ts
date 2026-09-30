@@ -1528,32 +1528,42 @@ Do you want to replace it?</source>
         <translation>搜尋模式: </translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlighteredit.ui" line="36"/>
+        <location filename="../../ui/include/highlighteredit.ui" line="39"/>
+        <source>Test the pattern on Log Lines in the Regex Lab</source>
+        <translation>在正規表示式實驗室中以日誌行測試此模式</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/highlighteredit.ui" line="42"/>
+        <source>Test…</source>
+        <translation>測試…</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/highlighteredit.ui" line="53"/>
         <source>Pattern type:</source>
         <translation>模式類型：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlighteredit.ui" line="53"/>
+        <location filename="../../ui/include/highlighteredit.ui" line="70"/>
         <source>Ignore case</source>
         <translation>忽略大小寫</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlighteredit.ui" line="66"/>
+        <location filename="../../ui/include/highlighteredit.ui" line="83"/>
         <source>Highlight only match</source>
         <translation>僅醒目顯示符合項目</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlighteredit.ui" line="80"/>
+        <location filename="../../ui/include/highlighteredit.ui" line="97"/>
         <source>Variate colors</source>
         <translation>變化顏色</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlighteredit.ui" line="104"/>
+        <location filename="../../ui/include/highlighteredit.ui" line="121"/>
         <source>Text Color: </source>
         <translation>文字顏色: </translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlighteredit.ui" line="125"/>
+        <location filename="../../ui/include/highlighteredit.ui" line="142"/>
         <source>Background Color: </source>
         <translation>背景顏色: </translation>
     </message>
@@ -1568,7 +1578,7 @@ Do you want to replace it?</source>
         <translation>固定字串</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlighteredit.cpp" line="232"/>
+        <location filename="../../ui/src/highlighteredit.cpp" line="240"/>
         <source>Color presets:</source>
         <translation>顏色預設組：</translation>
     </message>
@@ -1731,12 +1741,12 @@ Do you want to replace it?</source>
         <translation>為團隊刪除</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="562"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="567"/>
         <source>Delete Team highlighter set</source>
         <translation>刪除團隊醒目提示規則集</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="563"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="568"/>
         <source>This deletes the group for the whole team.</source>
         <translation>這會為整個團隊刪除此群組。</translation>
     </message>
@@ -1794,55 +1804,55 @@ Do you want to replace it?</source>
         <translation>開啟 URL 作為日誌檔案</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3585"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3603"/>
         <source>Select item to remove from favorites</source>
         <translation>選擇從書籤中移除的項目</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3630"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3648"/>
         <source>logsquirl -- switch to file</source>
         <translation>logsquirl -- 切換到已開啟的檔案</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3746"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3769"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3764"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3787"/>
         <source>Save Session As</source>
         <translation>工作階段另存為</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3747"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3781"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3765"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3799"/>
         <source>LogSquirl sessions (*.%1)</source>
         <translation>LogSquirl 工作階段 (*.%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3770"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3788"/>
         <source>The session could not be saved to %1:
 %2</source>
         <translation>無法將工作階段儲存至 %1：
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3780"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3790"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3842"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3798"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3808"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3860"/>
         <source>Open Session</source>
         <translation>開啟工作階段</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3795"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3813"/>
         <source>The session file %1 could not be read:
 %2</source>
         <translation>無法讀取工作階段檔案 %1：
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3816"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3834"/>
         <source>The session holds no log files.</source>
         <translation>此工作階段不包含記錄檔。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3817"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3835"/>
         <source>None of the log files of this session could be opened. They are missing or already open:
 
 %1</source>
@@ -1851,7 +1861,7 @@ Do you want to replace it?</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3843"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3861"/>
         <source>These log files of the session were left out. They are missing or already open in another window:
 
 %1</source>
@@ -1860,12 +1870,12 @@ Do you want to replace it?</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3908"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3926"/>
         <source>logsquirl - generate crash dump</source>
         <translation>logsquirl - 產生當機記錄</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3909"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3927"/>
         <source>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</source>
         <translation>關閉 logsquirl 並產生診斷性的當機記錄。是否繼續？</translation>
     </message>
@@ -1891,7 +1901,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1568"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3066"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3084"/>
         <source>All files (*)</source>
         <translation>全部檔案 (*)</translation>
     </message>
@@ -1942,45 +1952,45 @@ Do you want to replace it?</source>
         <translation>下載檔案的URL：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2193"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2211"/>
         <source>About LogSquirl</source>
         <translation>關於 LogSquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2194"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2212"/>
         <source>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is a fork of &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; by Anton Filimonov, which is a fork of &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; by Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</source>
         <translation>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;一款快速、先進的日誌檢視器。&lt;/p&gt;&lt;p&gt;建構於 %2 來自 %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;這是 &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; 的分支（由 Anton Filimonov 開發），而 klogg 是 &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; 的分支（由 Nicolas Bonnefon 開發）。&lt;/p&gt;&lt;p&gt;使用來自 &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; 專案的圖示&lt;/p&gt;&lt;p&gt;版權 &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov 和其他貢獻者&lt;/p&gt;&lt;p&gt;您可以根據 GPL-3（或更新的版本）的條款修改和重新散佈該程式。&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2213"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2231"/>
         <source>About Qt</source>
         <translation>關於 Qt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2226"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2244"/>
         <source>logsquirl documentation</source>
         <translation>logsquirl 文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3065"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3083"/>
         <source>Open file from archive</source>
         <translation>從壓縮檔中開啟檔案</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3328"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3346"/>
         <source>Untitled</source>
         <translation>未命名</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3338"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3356"/>
         <source>%1 - %2%3</source>
         <translation>%1 - %2%3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3003"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3048"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3083"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3338"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3021"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3066"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3101"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3356"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
@@ -2012,7 +2022,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="357"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2797"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2815"/>
         <source>Dashboard</source>
         <translation>儀表板</translation>
     </message>
@@ -2094,231 +2104,231 @@ Working folder: %2
         <translation>要清除檔案 %1 嗎？檔案內容將從磁碟中移除，此操作無法復原</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2023"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2041"/>
         <source>Team group changed</source>
         <translation>團隊群組已變更</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2024"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2042"/>
         <source>Somebody else changed the Team group &quot;%1&quot; since you started editing it.</source>
         <translation>自您開始編輯後，其他人已變更團隊群組「%1」。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2030"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2048"/>
         <source>Keep your version and replace theirs, take theirs and drop your change, or save yours as a copy next to theirs?</source>
         <translation>要保留您的版本並取代對方的版本、採用對方的版本並捨棄您的變更，還是將您的版本另存為對方版本旁的副本？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2032"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2050"/>
         <source>Somebody deleted it. Keep your version to publish it again, or take the deletion and drop your change?</source>
         <translation>有人已將它刪除。要保留您的版本並重新發佈，還是接受刪除並捨棄您的變更？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2034"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2052"/>
         <source>Keep mine</source>
         <translation>保留我的版本</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2035"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2053"/>
         <source>Take theirs</source>
         <translation>採用對方的版本</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2036"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2054"/>
         <source>Save mine as a copy</source>
         <translation>將我的版本另存為副本</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2083"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2101"/>
         <source>Click to sync now.</source>
         <translation>按一下以立即同步。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2110"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2128"/>
         <source>Start %1 data source</source>
         <translation>啟動 %1 資料來源</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2118"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2136"/>
         <source>(no data source plugins)</source>
         <translation>（沒有資料來源外掛程式）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2158"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2176"/>
         <source>Plugin Error</source>
         <translation>外掛程式錯誤</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2159"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2177"/>
         <source>Failed to load plugin:
 %1</source>
         <translation>無法載入外掛程式：
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2171"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2189"/>
         <source>DataSource Error</source>
         <translation>資料來源錯誤</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2186"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2204"/>
         <source>DataSource: %1
 %2</source>
         <translation>資料來源：%1
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2271"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2289"/>
         <source>Index cache cleared (%1 MB freed)</source>
         <translation>已清除索引快取（釋放 %1 MB）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2337"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2355"/>
         <source>Merged (dedup)</source>
         <translation>已合併（去除重複）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2337"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2355"/>
         <source>Merged</source>
         <translation>已合併</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2375"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2393"/>
         <source>Import Chipmunk filters</source>
         <translation>匯入 Chipmunk 篩選器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2376"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2394"/>
         <source>Chipmunk filters (*.json);;All files (*)</source>
         <translation>Chipmunk 篩選器 (*.json);;全部檔案 (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2384"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2402"/>
         <source>Import error</source>
         <translation>匯入錯誤</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2385"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2403"/>
         <source>Could not open file: %1</source>
         <translation>無法開啟檔案：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2393"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2405"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2437"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2411"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2423"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2455"/>
         <source>Import result</source>
         <translation>匯入結果</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2394"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2412"/>
         <source>No filters found in the selected file.</source>
         <translation>在選取的檔案中找不到篩選器。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2406"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2424"/>
         <source>A filter group named &apos;%1&apos; already exists. Skipping filter import.</source>
         <translation>名為「%1」的篩選器群組已存在。略過篩選器匯入。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2438"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2456"/>
         <source>Imported %1 filter(s) and %2 highlighter set.</source>
         <translation>已匯入 %1 個篩選器及 %2 個醒目提示規則組。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2513"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2531"/>
         <source>Ln:%1/%2</source>
         <translation>行數：%1/%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2518"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2536"/>
         <source>Ln:%1/%2 Col:%3 Sel:%4|%5</source>
         <translation>行數：%1/%2 列數：%3 選取：%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2527"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2545"/>
         <source>Ln:%1/%2 Sel:%4|%5</source>
         <translation>行數：%1/%2 選取：%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2563"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2581"/>
         <source> - Indexing lines... (%1 %)</source>
         <translation> - 正在建立行數索引... (%1 %)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2613"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2631"/>
         <source>Not enough memory.</source>
         <translation>記憶體不足。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2615"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2633"/>
         <source>The system does not have enough memory to hold the index for this file. The file will now be closed.</source>
         <translation>系統記憶體不足，無法存放此檔案的索引。檔案將會被關閉。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2698"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2716"/>
         <source>Close Tab</source>
         <translation>關閉分頁</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2699"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2717"/>
         <source>Close tab &quot;%1&quot;?</source>
         <translation>要關閉分頁「%1」嗎？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2708"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2726"/>
         <source>Don&apos;t ask again</source>
         <translation>不要再詢問</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2702"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2720"/>
         <source>Close Tabs</source>
         <translation>關閉分頁</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../ui/src/mainwindow.cpp" line="2703"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2721"/>
         <source>Close %n tab(s)?</source>
         <translation>
             <numerusform>要關閉 %n 個分頁嗎？</numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3004"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3022"/>
         <source>Extract archive to temp folder?</source>
         <translation>將壓縮檔解壓縮到臨時資料夾？</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="588"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3020"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3038"/>
         <source>Extracting %1</source>
         <translation>正在解壓縮 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3049"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3067"/>
         <source>Failed to decompress %1</source>
         <translation>解壓縮 %1 失敗</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3084"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3102"/>
         <source>Failed to extract %1</source>
         <translation>提取 %1 失敗</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3339"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3357"/>
         <source> (build </source>
         <translation> （建構 </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3365"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3383"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3458"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3476"/>
         <source>modified on %1</source>
         <translation>修改於 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3584"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3602"/>
         <source>Remove from favorites</source>
         <translation>從書籤中移除</translation>
     </message>
@@ -3259,27 +3269,37 @@ Restart LogSquirl to try again.</source>
         <translation>刪除篩選器</translation>
     </message>
     <message>
-        <location filename="../../ui/include/predefinedfiltersetedit.ui" line="80"/>
+        <location filename="../../ui/include/predefinedfiltersetedit.ui" line="70"/>
+        <source>Test the pattern of the selected filter on Log Lines in the Regex Lab</source>
+        <translation>在正規表示式實驗室中以日誌行測試所選篩選器的模式</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/predefinedfiltersetedit.ui" line="73"/>
+        <source>Test…</source>
+        <translation>測試…</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/predefinedfiltersetedit.ui" line="93"/>
         <source>Move Filter Up</source>
         <translation>上移篩選器</translation>
     </message>
     <message>
-        <location filename="../../ui/include/predefinedfiltersetedit.ui" line="94"/>
+        <location filename="../../ui/include/predefinedfiltersetedit.ui" line="107"/>
         <source>Move Filter Down</source>
         <translation>下移篩選器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersetedit.cpp" line="159"/>
+        <location filename="../../ui/src/predefinedfiltersetedit.cpp" line="171"/>
         <source>Name</source>
         <translation>名稱</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersetedit.cpp" line="159"/>
+        <location filename="../../ui/src/predefinedfiltersetedit.cpp" line="171"/>
         <source>Pattern</source>
         <translation>模式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersetedit.cpp" line="160"/>
+        <location filename="../../ui/src/predefinedfiltersetedit.cpp" line="172"/>
         <source>Regex</source>
         <translation>正規表達式</translation>
     </message>
@@ -3367,47 +3387,47 @@ Restart LogSquirl to try again.</source>
         <translation>匯入預先定義的篩選器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="372"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="377"/>
         <source>Team groups</source>
         <translation>團隊群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="375"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="380"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
         <translation>透過團隊資料夾共用：團隊變更時它們也會隨之變更。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="383"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="388"/>
         <source>New Team group</source>
         <translation>新增團隊群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="386"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="391"/>
         <source>Share with team</source>
         <translation>與團隊共用</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="387"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="392"/>
         <source>Adds a Team copy of the selected group of your own.</source>
         <translation>為您自己所選的群組新增一份團隊副本。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="390"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="395"/>
         <source>Copy to my groups</source>
         <translation>複製到我的群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="393"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="398"/>
         <source>Delete for the team</source>
         <translation>為團隊刪除</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="470"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="475"/>
         <source>Delete Team group</source>
         <translation>刪除團隊群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="470"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="475"/>
         <source>This deletes the group for the whole team.</source>
         <translation>這會為整個團隊刪除此群組。</translation>
     </message>
@@ -4126,147 +4146,147 @@ Restart LogSquirl to try again.</source>
 <context>
     <name>RegexLabWindow</name>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="176"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="185"/>
         <source>Pattern</source>
         <translation>模式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="178"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="187"/>
         <source>Copy pattern</source>
         <translation>複製模式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="181"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="190"/>
         <source>&amp;Pattern:</source>
         <translation>模式(&amp;P):</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="226"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="235"/>
         <source>Selected Log Lines</source>
         <translation>選取的日誌行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="227"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="236"/>
         <source>Lines around the current line</source>
         <translation>目前行周圍的行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="229"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="238"/>
         <source>Pasted text</source>
         <translation>貼上的文字</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="230"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="239"/>
         <source>Refresh sample</source>
         <translation>重新整理樣本</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="232"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="241"/>
         <source>&amp;Sample:</source>
         <translation>樣本(&amp;S):</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="244"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="253"/>
         <source>Paste or type sample lines here.</source>
         <translation>在此貼上或輸入樣本行。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="245"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="254"/>
         <source>Sample lines</source>
         <translation>樣本行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="250"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="259"/>
         <source>Group</source>
         <translation>群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="250"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="259"/>
         <source>Name</source>
         <translation>名稱</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="250"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="259"/>
         <source>Text</source>
         <translation>文字</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="255"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="264"/>
         <source>Capture groups of the line with the cursor</source>
         <translation>游標所在行的擷取群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="425"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="458"/>
         <source>Regex Lab</source>
         <translation>正規表示式實驗室</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="426"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="459"/>
         <source>Regex Lab - %1</source>
         <translation>正規表示式實驗室 - %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="625"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="658"/>
         <source>(no part in the match)</source>
         <translation>（未參與比對）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="653"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="686"/>
         <source>Error at character %1 of the pattern: %2</source>
         <translation>模式第 %1 個字元處有錯誤：%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="694"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="727"/>
         <source>Lines longer than %1 characters are shown and marked only up to there; whether they match is decided on the whole line.</source>
         <translation>超過 %1 個字元的行只顯示並標記到該處；是否符合依整行判斷。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="699"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="732"/>
         <source>Not every match is marked: at most %1 in a line and %2 in all.</source>
         <translation>並非每個符合都有標記：每行最多 %1 個，總共最多 %2 個。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="717"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="750"/>
         <source>%1 lines took more than %2 ms each. On such a line the engine may have given up and reported no match, as a Search would.</source>
         <translation>有 %1 行各自花了超過 %2 毫秒。在這樣的行上，引擎可能已放棄並回報不符合，搜尋也會如此。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="647"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="680"/>
         <source>Error in the pattern: %1</source>
         <translation>模式中有錯誤：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="676"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="709"/>
         <source>No Log Lines are selected in the tab.</source>
         <translation>分頁中沒有選取的日誌行。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="677"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="710"/>
         <source>The tab shows no Log Lines.</source>
         <translation>分頁沒有顯示日誌行。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="680"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="713"/>
         <source>Type a pattern to see what it matches in the sample.</source>
         <translation>輸入模式以查看它在樣本中比對到的內容。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="683"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="716"/>
         <source>%1 of %2 sample lines match.</source>
         <translation>%2 行樣本中有 %1 行符合。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="687"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="720"/>
         <source>The evaluation stopped after %1 ms, at line %2 of %3.</source>
         <translation>評估在 %1 毫秒後停止，停在第 %2 行（共 %3 行）。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="706"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="739"/>
         <source>Only the first %1 lines of the sample are evaluated.</source>
         <translation>只評估樣本的前 %1 行。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/regexlabwindow.cpp" line="712"/>
+        <location filename="../../ui/src/regexlabwindow.cpp" line="745"/>
         <source>Evaluating the sample took %1 ms: the pattern may backtrack excessively on some lines.</source>
         <translation>評估樣本花了 %1 毫秒：此模式可能在某些行上過度回溯。</translation>
     </message>
