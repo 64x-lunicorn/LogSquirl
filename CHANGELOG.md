@@ -53,6 +53,10 @@
 
 ## Bug fixes
 
+- **A Windows plugin loads with the libraries it ships**: a plugin that brings
+  a library LogSquirl does not have, such as a Qt module, in its own plugin
+  directory loads; before, Windows did not look there and the plugin failed to
+  load with error 126.
 - **One Return runs one Search**: pressing Return in the Search line ran the
   Search twice; with *Keep Results* checked, the second run went into the tab
   the first one had just opened. It now runs once. (#648)
