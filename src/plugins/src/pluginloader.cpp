@@ -203,15 +203,23 @@ FnPtr resolveSymbol( QLibrary& lib, const char* name )
 //
 // When this first load fails (the plugin needs a library found only through
 // PATH, or the path is not a library), QLibrary loads the plugin as before and
-// reports the error.
+// reports the error. Like QLibrary, it suppresses the system error dialogs, so
+// a broken library next to a plugin is logged instead of stopping the start
+// with a modal "Bad Image" box.
 class LoadedFromOwnDirectory {
 public:
     explicit LoadedFromOwnDirectory( const QString& libraryPath )
-        : module_( LoadLibraryExW(
-              reinterpret_cast<const wchar_t*>(
-                  QDir::toNativeSeparators( QFileInfo( libraryPath ).absoluteFilePath() ).utf16() ),
-              nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS ) )
     {
+        DWORD previousMode = 0;
+        const auto modeSet
+            = SetThreadErrorMode( SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX, &previousMode );
+        module_ = LoadLibraryExW(
+            reinterpret_cast<const wchar_t*>(
+                QDir::toNativeSeparators( QFileInfo( libraryPath ).absoluteFilePath() ).utf16() ),
+            nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS );
+        if ( modeSet ) {
+            SetThreadErrorMode( previousMode, nullptr );
+        }
     }
 
     ~LoadedFromOwnDirectory()
@@ -227,7 +235,7 @@ public:
     LoadedFromOwnDirectory& operator=( LoadedFromOwnDirectory&& ) = delete;
 
 private:
-    HMODULE module_;
+    HMODULE module_ = nullptr;
 };
 #endif
 
