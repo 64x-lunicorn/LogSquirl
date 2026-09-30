@@ -83,30 +83,28 @@ export LC_ALL=C.UTF-8
 export LOGSQUIRL_BENCHMARK_LOG_FILE_MB=${LOGSQUIRL_BENCHMARK_LOG_FILE_MB:-4}
 export LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB=${LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB:-4}
 
-mkdir -p "$results"
-for target in $targets; do
-    out="$results/$target"
+# count <target> <output directory> [valgrind option...]
+count() {
+    local target=$1 out=$2
+    shift 2
     rm -rf "$out"
     mkdir -p "$out"
     if [ ! -x "$build_root/output/$target" ]; then
         echo "::warning::$target did not build"
         echo "not built" > "$out/exit_code"
-        continue
+        return
     fi
     echo "::group::$target"
+    local start code=0
     start=$(date +%s)
     # --trace-children: a binary with a settings file of its own relaunches
     # itself (tests/helpers/isolated_settings.h), and the relaunched process is
     # the one that runs the benchmarks. A child a benchmark starts (the command
     # line tool) runs with instrumentation off, so its own instructions are not
-    # counted.
-    code=0
-    # A larger main stack than the 8 MiB Valgrind gives by default: the
-    # generated Log Lines of some benchmarks are built on it. --fair-sched:
-    # the threads take turns in a fixed order, so a thread that waits for
-    # another spins about as often from run to run.
+    # counted. A larger main stack than the 8 MiB Valgrind gives by default:
+    # the generated Log Lines of some benchmarks are built on it.
     timeout "$binary_timeout" valgrind --tool=callgrind --instr-atstart=no --trace-children=yes \
-        --main-stacksize=67108864 --fair-sched=yes \
+        --main-stacksize=67108864 "$@" \
         --callgrind-out-file="$out/callgrind.out.%p" \
         "$build_root/output/$target" --order decl --rng-seed 1 '~[wall-clock]' --allow-running-no-tests \
         > "$out/log.txt" 2>&1 || code=$?
@@ -117,4 +115,29 @@ for target in $targets; do
     if [ "$code" != 0 ]; then
         echo "::warning::$target exited with $code under Callgrind"
     fi
+}
+
+mkdir -p "$results"
+for target in $targets; do
+    count "$target" "$results/$target"
 done
+
+# TEMPORARY (#671): which settings make the counts repeat.
+if [ -n "${INSTRUCTION_COUNTS_EXPERIMENT:-}" ]; then
+    noisy="logsquirl_textview_scroll_benchmark logsquirl_logdata_benchmark logsquirl_overview_selection_benchmark logsquirl_session_restore_benchmark logsquirl_filteredview_read_benchmark"
+    for variant in default arena1 fixed both fair; do
+        for rep in 1 2 3; do
+            for target in $noisy; do
+                opts=()
+                tunables=
+                case "$variant" in
+                    arena1) tunables=glibc.malloc.arena_max=1 ;;
+                    fixed) tunables=glibc.malloc.mmap_threshold=4194304:glibc.malloc.trim_threshold=67108864 ;;
+                    both) tunables=glibc.malloc.arena_max=1:glibc.malloc.mmap_threshold=4194304:glibc.malloc.trim_threshold=67108864 ;;
+                    fair) opts=(--fair-sched=yes) ;;
+                esac
+                GLIBC_TUNABLES=$tunables count "$target" "$results/../experiment/$variant/$rep/$target" "${opts[@]}"
+            done
+        done
+    done
+fi
