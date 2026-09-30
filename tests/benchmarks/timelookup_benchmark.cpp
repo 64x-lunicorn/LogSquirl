@@ -99,7 +99,8 @@ QDateTime timeOfLine( qint64 index )
 
 } // namespace
 
-TEST_CASE( "Go to timestamp on a Log File of 10 million Log Lines", "[timelookup-benchmark]" )
+TEST_CASE( "Go to timestamp on a Log File of 10 million Log Lines",
+           "[timelookup-benchmark][wall-clock]" )
 {
     const auto lines = lineCount();
 

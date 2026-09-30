@@ -110,7 +110,8 @@ double median( std::vector<double> values )
 
 } // namespace
 
-TEST_CASE( "Scrolling a Table View over 10 million Log Lines", "[tableview-scroll-benchmark]" )
+TEST_CASE( "Scrolling a Table View over 10 million Log Lines",
+           "[tableview-scroll-benchmark][wall-clock]" )
 {
     const auto lines = lineCount();
 

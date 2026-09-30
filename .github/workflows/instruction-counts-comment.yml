@@ -1,0 +1,76 @@
+name: "Instruction Counts Comment"
+
+# Posts the report of an Instruction Counts run (instruction-counts.yml) on its
+# pull request, or updates the comment an earlier run posted (#671).
+#
+# The measuring run cannot comment itself: for a pull request from a fork its
+# token is read-only, as it must be for a run that builds and executes the
+# pull request's code. This workflow runs when that run has completed, always
+# with master's version of this file and of instruction-counts.py (workflow_run
+# ignores the pull request's copy), and it never checks out or runs the pull
+# request's code. Its only input from the pull request is the run's artifact,
+# which that code could have written anything into: instruction-counts.py
+# validates it against the comparison's schema, puts nothing into the comment
+# but its numbers and escaped benchmark names, and posts only to the pull
+# request whose head is the commit the run was started for (the pull request
+# number comes from the artifact, since workflow_run leaves the pull request
+# list of a fork's run empty). No value of the artifact reaches a `run:` line.
+#
+# workflow_run only starts workflows that exist on the default branch, so this
+# one works once it is on master.
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] reads the artifact as untrusted data only, see above
+    workflows: ["Instruction Counts"]
+    types: [completed]
+
+permissions: {}
+
+concurrency:
+  group: instruction-counts-comment-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  comment:
+    name: Instruction counts / comment
+    # A failed run may still have counted and uploaded its report (a benchmark
+    # that failed on the after side); a cancelled one has not.
+    if: >-
+      github.event.workflow_run.event == 'pull_request'
+      && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read # download the artifact of the measuring run
+      pull-requests: write # create or update the comment
+    steps:
+      # Master's scripts; nothing of the pull request.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      # Missing when the run failed before it counted anything.
+      - name: Download the report
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: instruction-counts
+          path: ${{ runner.temp }}/instruction-counts
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Post or update the comment
+        if: steps.download.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/instruction-counts.py comment \
+            --comparison "$RUNNER_TEMP/instruction-counts/comparison.json" \
+            --repo "$REPO" --head-sha "$HEAD_SHA"
