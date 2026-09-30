@@ -250,13 +250,27 @@ SCENARIO( "A change to one Axis reaches every open Log File, and no other Axis i
 
 namespace {
 
-// A window as the Session sees it: it counts the settings changes it is told of.
+// A window as the Session sees it: it counts the settings changes it is told of,
+// and brings to the front the tabs it has when asked to (#642).
 struct CountingWindow final : SessionWindow {
     int settingsChanges = 0;
+    // The views of the window's tabs, and those it was asked to bring to the
+    // front, in order.
+    std::vector<const ViewInterface*> tabs;
+    std::vector<const ViewInterface*> shown;
 
     void applySettingsChange() override
     {
         ++settingsChanges;
+    }
+
+    bool showView( const ViewInterface* view ) override
+    {
+        if ( std::ranges::find( tabs, view ) == tabs.end() ) {
+            return false;
+        }
+        shown.push_back( view );
+        return true;
     }
 };
 
@@ -783,7 +797,7 @@ SCENARIO( "The Session saves no Transient Log File", "[ui][session]" )
             = savingWindow.open( ordinaryPath, RecordingViews::factory( savedViews.built ) );
         const auto* transient
             = savingWindow.open( transientPath, RecordingViews::factory( savedViews.built ),
-                                 LogFileLifetime::Transient );
+                                 LogFileOrigin::transient() );
         tabs.emplace_back( ordinary, std::make_shared<const SavedViewContext>( "ordinary state" ) );
         tabs.emplace_back( transient,
                            std::make_shared<const SavedViewContext>( "transient state" ) );
@@ -939,7 +953,7 @@ SCENARIO( "The Session saves a decompressed Log File with its archive", "[ui][se
                 = savingWindow.open( ordinaryPath, RecordingViews::factory( savedViews.built ) );
             const auto* decompressed
                 = savingWindow.open( decompressedPath, RecordingViews::factory( savedViews.built ),
-                                     LogFileLifetime::Ordinary, gzMember );
+                                     LogFileOrigin::fromArchive( gzMember ) );
             std::vector<SaveFileInfo> tabs;
             tabs.emplace_back( decompressed,
                                std::make_shared<const SavedViewContext>( "archive state" ) );
@@ -1196,4 +1210,101 @@ SCENARIO( "A restore leaves a Log File from an archive to be opened once decompr
     for ( const auto* view : openViews ) {
         window.close( view );
     }
+}
+
+// Which views, in which window, show a Log File asked for again: the Session
+// knows every open Log File and where it came from, and the window that has
+// the tab brings it to the front; no window reads another's tabs (#642).
+SCENARIO( "The Session finds the views showing a Log File and has its window show them",
+          "[ui][session]" )
+{
+    QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+    const auto path = [ &folder ]( const char* name ) {
+        const auto filePath = folder.filePath( QString::fromLatin1( name ) );
+        QFile file( filePath );
+        REQUIRE( file.open( QIODevice::WriteOnly ) );
+        return filePath;
+    };
+    const auto ordinaryPath = path( "ordinary.log" );
+    const auto sourcePath = path( "source.slowconv" );
+    const auto convertedPath = path( "source.slowconv.txt" );
+    const auto streamedPath = path( "streamed.slowconv.txt" );
+    const auto unknownPath = folder.filePath( "unknown.log" );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    OpenedViews views;
+    CountingWindow windowA;
+    CountingWindow windowB;
+    session.addWindow( &windowA );
+    session.addWindow( &windowB );
+
+    const auto* ordinary = session.open( ordinaryPath, RecordingViews::factory( views.built ) );
+    const auto* converted
+        = session.open( convertedPath, RecordingViews::factory( views.built ), {},
+                        Session::Loading::Now, LogFileOrigin::conversionOf( sourcePath ) );
+    // Converted from a Transient Log File: found by its own path alone.
+    const auto* streamed = session.open( streamedPath, RecordingViews::factory( views.built ), {},
+                                         Session::Loading::Now, LogFileOrigin::transient() );
+    windowA.tabs = { ordinary };
+    windowB.tabs = { converted, streamed };
+
+    THEN( "each Log File is found by its path, and a converted one by what it was converted "
+          "from too" )
+    {
+        const std::vector<std::pair<QString, const ViewInterface*>> expected{
+            { ordinaryPath, ordinary }, { sourcePath, converted }, { convertedPath, converted },
+            { streamedPath, streamed }, { unknownPath, nullptr },  { QString{}, nullptr },
+        };
+        for ( const auto& [ fileName, view ] : expected ) {
+            INFO( fileName.toStdString() );
+            REQUIRE( session.viewShowing( fileName ) == view );
+        }
+    }
+
+    THEN( "each Log File keeps where it came from" )
+    {
+        REQUIRE( session.originOf( ordinary ) == LogFileOrigin{} );
+        REQUIRE( session.originOf( converted ) == LogFileOrigin::conversionOf( sourcePath ) );
+        REQUIRE( session.originOf( streamed ) == LogFileOrigin::transient() );
+    }
+
+    WHEN( "the Log File a converted one was converted from is asked to be shown" )
+    {
+        const auto showing = session.showOpen( sourcePath );
+
+        THEN( "the window with the tab of the converted one brings it to the front, and no "
+              "other" )
+        {
+            REQUIRE( showing );
+            REQUIRE( windowA.shown.empty() );
+            REQUIRE( windowB.shown == std::vector<const ViewInterface*>{ converted } );
+        }
+    }
+
+    WHEN( "a Log File open nowhere is asked to be shown" )
+    {
+        const auto showing = session.showOpen( unknownPath );
+
+        THEN( "no window is asked" )
+        {
+            REQUIRE_FALSE( showing );
+            REQUIRE( windowA.shown.empty() );
+            REQUIRE( windowB.shown.empty() );
+        }
+    }
+
+    WHEN( "the converted Log File is closed" )
+    {
+        session.close( converted );
+
+        THEN( "the Log File it was converted from is shown nowhere any more" )
+        {
+            REQUIRE( session.viewShowing( sourcePath ) == nullptr );
+            REQUIRE_FALSE( session.showOpen( sourcePath ) );
+        }
+    }
+
+    session.removeWindow( &windowA );
+    session.removeWindow( &windowB );
 }
