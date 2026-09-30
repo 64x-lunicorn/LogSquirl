@@ -27,6 +27,7 @@
 
 #include "commandsource.h"
 #include "test_utils.h"
+#include "textencoding.h"
 
 #include <QDir>
 #include <QElapsedTimer>
@@ -86,13 +87,14 @@ struct Run {
     std::optional<CommandEnd> end;
 };
 
-Run runToEnd( const QString& commandLine, bool includeStandardError = true )
+Run runToEnd( const QString& commandLine, bool includeStandardError = true,
+              int oemCodePage = systemOemCodePage(), const QByteArray& shellPath = "/bin/sh" )
 {
-    const ShellForTests shell;
+    const ShellForTests shell( shellPath );
     Run run;
     QString error;
     run.source = CommandSource::startCommand(
-        RecentCommand{ commandLine, QDir::tempPath(), includeStandardError }, &error );
+        RecentCommand{ commandLine, QDir::tempPath(), includeStandardError }, &error, oemCodePage );
     INFO( error.toStdString() );
     REQUIRE( run.source != nullptr );
     QObject::connect( run.source.get(), &CommandSource::ended,
@@ -120,6 +122,24 @@ TEST_CASE( "A command line runs through the user's shell", "[commandsource]" )
     CHECK( invocation.program == "/bin/zsh" );
     CHECK( invocation.arguments == QStringList{ "-l", "-c", "kubectl logs -f api | grep ERROR" } );
     CHECK( shellInvocation( "true", {} ).program == "/bin/sh" );
+    CHECK( shellInvocation( "true", "/bin/bash" ).arguments == QStringList{ "-l", "-c", "true" } );
+#endif
+}
+
+// csh and tcsh take -l only as their sole flag (#632).
+TEST_CASE( "A command line runs through csh and tcsh without -l", "[commandsource]" )
+{
+    const auto shell = GENERATE( QStringLiteral( "/bin/tcsh" ), QStringLiteral( "/bin/csh" ),
+                                 QStringLiteral( "/usr/local/bin/tcsh" ) );
+    INFO( shell.toStdString() );
+    const auto invocation = shellInvocation( "echo hello", shell );
+#ifdef Q_OS_WIN
+    CHECK( invocation.program == shell );
+    CHECK( invocation.arguments.isEmpty() );
+    CHECK( invocation.nativeArguments == "/d /s /c \"echo hello\"" );
+#else
+    CHECK( invocation.program == shell );
+    CHECK( invocation.arguments == QStringList{ "-c", "echo hello" } );
 #endif
 }
 
@@ -159,6 +179,47 @@ TEST_CASE( "The title and status of an ended command tell how it ended", "[comma
     CHECK_FALSE( stopped.commandNotFound() );
     CHECK( CommandSource::endedTitle( "make", stopped ) == "make [stopped]" );
     CHECK( CommandSource::endedMessage( "make", stopped ) == "\"make\" was stopped" );
+}
+
+// Console programs on Windows write to a pipe in the OEM code page, modern
+// ones in UTF-8 (#655).
+TEST_CASE( "A command's output is read as UTF-8 when it is, else in the OEM code page",
+           "[commandsource]" )
+{
+    const auto nameOf = []( const TextEncoding* encoding ) {
+        return encoding ? encoding->name().toStdString() : std::string{};
+    };
+    const auto groesse = QStringLiteral( "Gr\u00F6\u00DFe" );
+
+    SECTION( "valid UTF-8 is UTF-8" )
+    {
+        CHECK( nameOf( commandOutputEncoding( groesse.toUtf8(), 850 ) ) == "UTF-8" );
+        CHECK( nameOf( commandOutputEncoding( "plain ASCII\n", 437 ) ) == "UTF-8" );
+    }
+
+    SECTION( "a character cut off at the end of the output is no reason against UTF-8" )
+    {
+        CHECK( nameOf( commandOutputEncoding( "Gr\xC3", 850 ) ) == "UTF-8" );
+    }
+
+    SECTION( "anything else is the OEM code page" )
+    {
+        // "Größe" in CP850 and CP437 alike.
+        const QByteArray oemBytes( "\x47\x72\x94\xE1\x65" );
+
+        const auto* cp850 = commandOutputEncoding( oemBytes, 850 );
+        REQUIRE( nameOf( cp850 ) == "IBM850" );
+        CHECK( cp850->toUnicode( oemBytes ) == groesse );
+
+        const auto* cp437 = commandOutputEncoding( oemBytes, 437 );
+        REQUIRE( nameOf( cp437 ) == "IBM437" );
+        CHECK( cp437->toUnicode( oemBytes ) == groesse );
+    }
+
+    SECTION( "an OEM code page no Encoding stands for leaves it to the detection" )
+    {
+        CHECK( commandOutputEncoding( "\x47\x72\x94\xE1\x65", 12345 ) == nullptr );
+    }
 }
 
 TEST_CASE( "A command does not start in a working folder that does not exist", "[commandsource]" )
@@ -278,6 +339,43 @@ TEST_CASE( "A command's standard error is in its output only when asked for", "[
     CHECK( contentOf( withoutErrors.source->spoolPath() ) == "out\n" );
 }
 
+TEST_CASE( "A command's output decides its Encoding once it holds more than ASCII",
+           "[commandsource]" )
+{
+    SECTION( "with an OEM code page, as on Windows" )
+    {
+        const auto ascii = runToEnd( "printf 'Ping\\n'", true, 850 );
+        CHECK( ascii.source->outputEncoding() == nullptr );
+
+        const auto oem = runToEnd( "printf 'Ping\\n'; printf 'Gr\\224\\341e\\n'", true, 850 );
+        REQUIRE( oem.source->outputEncoding() != nullptr );
+        CHECK( oem.source->outputEncoding()->name() == "IBM850" );
+
+        const auto utf8 = runToEnd( "printf 'Gr\\303\\266\\303\\237e\\n'", true, 850 );
+        REQUIRE( utf8.source->outputEncoding() != nullptr );
+        CHECK( utf8.source->outputEncoding()->name() == "UTF-8" );
+    }
+
+    SECTION( "a character cut off at the end of a read waits for the next one" )
+    {
+        // "Straße" in CP850: E1 alone looks like the start of a UTF-8 character.
+        const auto split = runToEnd( "printf 'Stra\\341'; sleep 0.5; printf 'e\\n'", true, 850 );
+        REQUIRE( split.source->outputEncoding() != nullptr );
+        CHECK( split.source->outputEncoding()->name() == "IBM850" );
+
+        const auto atEnd = runToEnd( "printf 'Stra\\341'", true, 850 );
+        REQUIRE( atEnd.source->outputEncoding() != nullptr );
+        CHECK( atEnd.source->outputEncoding()->name() == "IBM850" );
+    }
+
+    SECTION( "without one, as on macOS and Linux, it is left to the detection" )
+    {
+        REQUIRE( systemOemCodePage() == 0 );
+        const auto oem = runToEnd( "printf 'Gr\\224\\341e\\n'" );
+        CHECK( oem.source->outputEncoding() == nullptr );
+    }
+}
+
 TEST_CASE( "A command the shell does not know ends as not found", "[commandsource]" )
 {
     const auto run = runToEnd( "no_such_command_for_logsquirl_575" );
@@ -290,6 +388,18 @@ TEST_CASE( "A command killed by a signal ends as stopped", "[commandsource]" )
 {
     const auto run = runToEnd( "kill -9 $$" );
     CHECK( run.end->kind == CommandEnd::Kind::Stopped );
+}
+
+TEST_CASE( "A command line runs in tcsh", "[commandsource]" )
+{
+    if ( !QFileInfo( "/bin/tcsh" ).isExecutable() ) {
+        SKIP( "/bin/tcsh is not installed" );
+    }
+
+    const auto run = runToEnd( "echo hello", true, systemOemCodePage(), "/bin/tcsh" );
+    REQUIRE( run.end->kind == CommandEnd::Kind::Exited );
+    CHECK( run.end->exitCode == 0 );
+    CHECK( contentOf( run.source->spoolPath() ) == "hello\n" );
 }
 
 TEST_CASE( "A pipe works in a command line", "[commandsource]" )
