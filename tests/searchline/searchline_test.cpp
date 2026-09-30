@@ -20,8 +20,8 @@
 // The Search Line without a widget (#399): how adding a word to the Search,
 // excluding one, replacing the Search or combining Predefined Filters edits
 // its pattern in each reading of it, and what the line says about the Search
-// that runs. The Crawler Widget's tests keep a few of these to check that it
-// mirrors the line.
+// that runs. The Search Line widget's tests (tests/ui) check that it mirrors
+// the line (#638).
 
 #include "regularexpression.h"
 #include "searchline.h"

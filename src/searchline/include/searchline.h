@@ -36,8 +36,9 @@
 //
 // It knows no widget. Each event goes in -- the user edits the pattern or a
 // button, a word is added to the Search, the Search is requested, progresses,
-// stops -- and the Crawler Widget then mirrors flags(), pattern() and
-// display(). The search history offered while typing is not part of it.
+// stops -- and the Search Line widget of the UI library then mirrors
+// flags(), pattern() and display() (#638). The search history offered while
+// typing is not part of it.
 class SearchLine {
 public:
     // How the pattern is read: the buttons of the line.

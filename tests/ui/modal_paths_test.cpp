@@ -108,7 +108,7 @@ struct CrawlerWidget::access_by<ModalPathsAccess> {
 
     QString searchText() const
     {
-        return crawler.searchLineEdit_->currentText();
+        return crawler.searchLine_->pattern();
     }
 
     LinesCount nbLines() const
