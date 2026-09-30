@@ -52,6 +52,10 @@ public:
     {
         checkbox_->setChecked( checked );
     }
+    QCheckBox* checkBox() const
+    {
+        return checkbox_;
+    }
 
 private:
     // The check box shows its cell's window color as its base. A role set
@@ -166,6 +170,7 @@ void PredefinedFilterSetEdit::populateTable()
         regexCheckbox->setChecked( filters[ i ].useRegex );
         regexCheckbox->setEnabled( !readOnly_ );
         filtersTableWidget->setCellWidget( i, 2, regexCheckbox );
+        keepRegexChoice( regexCheckbox->checkBox() );
     }
 
     filtersTableWidget->horizontalHeader()->setSectionResizeMode( 0,
@@ -201,6 +206,13 @@ void PredefinedFilterSetEdit::syncTableToSet()
     filterSet_.filters_ = std::move( filters );
 }
 
+// A filter's Regex box is no item of the table: checking it alone changes no
+// cell, so it is kept as it is checked.
+void PredefinedFilterSetEdit::keepRegexChoice( QCheckBox* regex )
+{
+    connect( regex, &QCheckBox::toggled, this, [ this ]() { onCellChanged( -1, 2 ); } );
+}
+
 void PredefinedFilterSetEdit::updateButtons( int currentRow )
 {
     const int rowCount = filtersTableWidget->rowCount();
@@ -217,6 +229,7 @@ void PredefinedFilterSetEdit::addFilter()
     filtersTableWidget->setItem( newRow, 1, new QTableWidgetItem( "" ) );
     auto* regexCheckbox = new CenteredCheckbox;
     filtersTableWidget->setCellWidget( newRow, 2, regexCheckbox );
+    keepRegexChoice( regexCheckbox->checkBox() );
 
     filtersTableWidget->scrollToItem( filtersTableWidget->item( newRow, 0 ) );
     filtersTableWidget->setCurrentCell( newRow, 0 );

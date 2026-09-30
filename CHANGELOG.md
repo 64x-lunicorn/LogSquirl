@@ -64,6 +64,9 @@
 
 ## Bug fixes
 
+- **A Predefined Filter's Regex box is kept**: checking or unchecking only the
+  *Regex* box of a filter in *Predefined Filters…* was lost on *OK* or *Apply*
+  unless another cell of the table was edited as well. (#660)
 - **A command's output on Windows shows its umlauts**: console programs such
   as `dir` or `ping` write in the OEM code page of the console, CP850 on a
   German Windows, and their output opened by *Open Command Output* showed `ä`

@@ -25,6 +25,8 @@
 #include "predefinedfilters.h"
 #include "ui_predefinedfiltersetedit.h"
 
+class QCheckBox;
+
 // Widget for editing a single PredefinedFilterSet (group name + filter table).
 // Mirrors HighlighterSetEdit but uses a table for filter editing.
 class PredefinedFilterSetEdit : public QWidget, public Ui::PredefinedFilterSetEdit {
@@ -68,6 +70,7 @@ private:
     void loadIcons();
     void syncTableToSet();
     void updateButtons( int currentRow );
+    void keepRegexChoice( QCheckBox* regex );
 
     PredefinedFilterSet filterSet_;
     bool updatingTable_{ false };
