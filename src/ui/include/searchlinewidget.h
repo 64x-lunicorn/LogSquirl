@@ -20,6 +20,7 @@
 #pragma once
 
 #include <map>
+#include <optional>
 
 #include <QList>
 #include <QPalette>
@@ -162,6 +163,8 @@ private:
     SearchLine searchLine_;
 
     QComboBox* patternEdit_;
+    // When the Return key press the line edit has already taken was made (#648).
+    std::optional<quint64> takenReturnAt_;
     QCompleter* completer_;
 
     QToolButton* matchCaseButton_;

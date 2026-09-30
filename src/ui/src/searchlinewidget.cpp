@@ -197,7 +197,7 @@ SearchLineWidget::SearchLineWidget( const QuickFindPolicy& startingState,
              &SearchLineWidget::patternEdited );
     connect( patternEdit_->lineEdit(), &QLineEdit::returnPressed, this,
              &SearchLineWidget::requestSearch );
-    patternEdit_->installEventFilter( this );
+    patternEdit_->lineEdit()->installEventFilter( this );
     connect( patternEdit_, &QWidget::customContextMenuRequested, this,
              &SearchLineWidget::contextMenuRequested );
 
@@ -353,14 +353,24 @@ QMenu* SearchLineWidget::createStandardContextMenu() const
 
 bool SearchLineWidget::eventFilter( QObject* watched, QEvent* event )
 {
-    // The line edit emits returnPressed() and leaves the key to its parent;
-    // the combo box would hand it back to the line edit, which would emit it
-    // again and ask for a second Search (#648). The line edit is done with
-    // it, so it stops here.
-    if ( watched == patternEdit_ && event->type() == QEvent::KeyPress ) {
-        const auto key = static_cast<QKeyEvent*>( event )->key();
-        if ( key == Qt::Key_Return || key == Qt::Key_Enter ) {
-            return true;
+    // The combo box, which has the focus, hands a Return key press to its line
+    // edit, which emits returnPressed() and leaves the key; the press then
+    // comes back to the line edit and would ask for a second Search (#648).
+    // The line edit takes each press once, known by when it was made; the
+    // release ends it.
+    if ( watched == patternEdit_->lineEdit()
+         && ( event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease ) ) {
+        const auto* keyEvent = static_cast<QKeyEvent*>( event );
+        if ( keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter ) {
+            if ( event->type() == QEvent::KeyRelease ) {
+                takenReturnAt_.reset();
+            }
+            else if ( takenReturnAt_ == keyEvent->timestamp() ) {
+                return true;
+            }
+            else {
+                takenReturnAt_ = keyEvent->timestamp();
+            }
         }
     }
     return QWidget::eventFilter( watched, event );

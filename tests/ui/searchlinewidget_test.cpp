@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QImage>
 #include <QLineEdit>
@@ -363,10 +364,11 @@ SCENARIO( "Return in the Search Line widget asks for the Search and says Keep Re
 
         WHEN( "Return is pressed" )
         {
-            QTest::keyClick( edit->lineEdit(), Qt::Key_Return );
+            QTest::keyClick( edit, Qt::Key_Return );
 
-            // Once: the combo box around the line edit hands Return back to it
-            // no more (#648).
+            // Once: the combo box, which has the focus, hands Return to its
+            // line edit, and the press that comes back is not taken again
+            // (#648).
             THEN( "the Search is asked for once, keeping the results, and Keep Results is off" )
             {
                 REQUIRE( searchRequested.count() == 1 );
@@ -377,7 +379,7 @@ SCENARIO( "Return in the Search Line widget asks for the Search and says Keep Re
 
             AND_WHEN( "Return is pressed again" )
             {
-                QTest::keyClick( edit->lineEdit(), Qt::Key_Return );
+                QTest::keyClick( edit, Qt::Key_Return );
 
                 THEN( "that Search is asked for once and keeps nothing" )
                 {
@@ -385,6 +387,44 @@ SCENARIO( "Return in the Search Line widget asks for the Search and says Keep Re
                     REQUIRE_FALSE( searchRequested.at( 1 ).at( 0 ).toBool() );
                 }
             }
+        }
+    }
+}
+
+SCENARIO( "Return reaches the Search Line widget the way the keyboard focus sends it",
+          "[ui][searchline]" )
+{
+    SearchLineWidget line{ QuickFindPolicy{}, {} };
+    line.show();
+    line.activateWindow();
+    auto* edit = SearchLineAccess::patternEdit( line );
+    edit->setFocus();
+    QCoreApplication::processEvents();
+    QSignalSpy searchRequested( &line, &SearchLineWidget::searchRequested );
+    QTest::keyClicks( edit, "needle" );
+
+    WHEN( "Return is pressed on the widget that has the focus" )
+    {
+        auto* focused = QApplication::focusWidget();
+        REQUIRE( focused != nullptr );
+        QTest::keyClick( focused, Qt::Key_Return );
+
+        // The combo box has the focus and hands the key to its line edit;
+        // the only Return must get through, once (#648).
+        THEN( "the Search is asked for once" )
+        {
+            REQUIRE( searchRequested.count() == 1 );
+        }
+    }
+
+    WHEN( "Return is pressed twice on the widget that has the focus" )
+    {
+        QTest::keyClick( QApplication::focusWidget(), Qt::Key_Return );
+        QTest::keyClick( QApplication::focusWidget(), Qt::Key_Return );
+
+        THEN( "the Search is asked for twice" )
+        {
+            REQUIRE( searchRequested.count() == 2 );
         }
     }
 }
