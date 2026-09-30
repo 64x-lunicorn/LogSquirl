@@ -256,24 +256,8 @@ private:
 
     logsquirl::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
                                                  QString ( *processLine )( QString&& ) ) const;
-    // The Log Lines asked for, read as getLinesSparse() does, each made a
-    // Line by toLine( QString&& decodedLine, bool hideAnsiColorSequences ).
-    template <typename Line, typename ToLine>
-    logsquirl::vector<Line> getSparseLinesFromFile( std::span<const LineNumber> lines,
-                                                    ToLine toLine ) const;
-
-    // A Log Line of a sparse read, as the Log File gave it.
-    struct SparseReadLine {
-        // Where it was asked for in the lines read.
-        std::size_t request = 0;
-        // Its bytes, without its line feed; empty when it could not be read.
-        std::string_view bytes;
-        // What it reads as when it could not be read; empty otherwise.
-        std::string_view warning;
-        bool hideAnsiColorSequences = false;
-    };
     // Reads the Log Lines asked for that are indexed, nearby ones merged into
-    // runs, and calls onLine( const SparseReadLine& ) for each, in the order
+    // runs, and calls onLine( const ReadLogLine& ) for each, in the order
     // read. Log Lines past the last one are not called for. The Index is
     // looked at under its lock, the Log File is read without it.
     template <typename OnLine>

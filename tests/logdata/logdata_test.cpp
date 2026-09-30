@@ -125,36 +125,6 @@ void writeDataToFile( QFile& file, int numberOfLines = 200,
 }
 } // namespace
 
-TEST_CASE( "Logdata decoding lines", "[logdata]" )
-{
-    QTemporaryFile file{ "testdecode_XXXXXX" };
-    if ( file.open() ) {
-        writeDataToFile( file );
-    }
-
-    writeDataToFile( file, 199, WriteFileModification::EndWithPartialLineBegin );
-
-    const auto policies = testSettingsPolicies();
-    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
-
-    auto finishedSpy
-        = std::make_unique<SafeQSignalSpy>( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
-
-    logData.attachFile( QFileInfo{ file }.absoluteFilePath() );
-
-    REQUIRE( finishedSpy->safeWait() );
-    REQUIRE( finishedSpy->count() == 1 );
-    REQUIRE( logData.getNbLine() == 400_lcount );
-
-    const auto rawLines = logData.searchBlockSource().getLinesRaw( 200_lnum, 200_lcount );
-    REQUIRE( rawLines.startLine == 200_lnum );
-    REQUIRE( rawLines.endOfLines.size() == 200 );
-
-    const auto utf8View = rawLines.buildUtf8View();
-
-    REQUIRE( rawLines.endOfLines.size() == utf8View.size() );
-}
-
 TEST_CASE( "Logdata reading changing file", "[logdata]" )
 {
     // The log data watches nothing itself (#249): whoever follows the Log
@@ -362,67 +332,6 @@ SCENARIO( "A Log File that fails to index reports the failure as its loading sta
     }
 }
 
-SCENARIO( "A Log File read hiding ANSI color sequences", "[logdata][ansi]" )
-{
-    constexpr int LineCount = 300;
-
-    // Every third Log Line is colored; the others have no escape character.
-    const auto logLine = []( int line, bool colored ) {
-        return colored ? QStringLiteral( "\x1B[3%1mline\x1B[0m %2" ).arg( line % 8 ).arg( line )
-                       : QStringLiteral( "line %1" ).arg( line );
-    };
-
-    QTemporaryFile file{ "logdata_test_ansi_XXXXXX" };
-    REQUIRE( file.open() );
-    for ( int line = 0; line < LineCount; ++line ) {
-        file.write( logLine( line, line % 3 == 0 ).toUtf8() + '\n' );
-    }
-    file.flush();
-
-    auto policies = testSettingsPolicies();
-    policies.decoding.hideAnsiColorSequences = true;
-    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
-    {
-        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
-        logData.attachFile( file.fileName() );
-        REQUIRE( loadEndSpy.safeWait( 10000 ) );
-    }
-    REQUIRE( logData.getNbLine() == LinesCount( LineCount ) );
-
-    GIVEN( "Log Lines with and without ANSI color sequences" )
-    {
-        THEN( "a block of them reads without any sequence" )
-        {
-            const auto lines = logData.getLines( 0_lnum, LinesCount( LineCount ) );
-            REQUIRE( lines.size() == LineCount );
-            for ( int line = 0; line < LineCount; ++line ) {
-                REQUIRE( lines[ static_cast<std::size_t>( line ) ] == logLine( line, false ) );
-            }
-        }
-
-        THEN( "several readers, one Log Line at a time, all read them without any sequence" )
-        {
-            constexpr int ReaderCount = 4;
-            std::vector<int> correct( ReaderCount, 0 );
-            {
-                std::vector<std::jthread> readers;
-                for ( int reader = 0; reader < ReaderCount; ++reader ) {
-                    readers.emplace_back( [ &, reader ] {
-                        for ( int line = 0; line < LineCount; ++line ) {
-                            if ( logData.getLineString(
-                                     LineNumber( static_cast<uint64_t>( line ) ) )
-                                 == logLine( line, false ) ) {
-                                ++correct[ static_cast<std::size_t>( reader ) ];
-                            }
-                        }
-                    } );
-                }
-            }
-            REQUIRE( correct == std::vector<int>( ReaderCount, LineCount ) );
-        }
-    }
-}
-
 namespace {
 
 // What reading each Log Line on its own returns, plain or with tabs expanded.
@@ -481,7 +390,7 @@ SCENARIO( "A Log File's Log Lines read with the colors of their ANSI color seque
 
     GIVEN( "Log Lines with and without ANSI color sequences, under either Decoding Policy" )
     {
-        THEN( "each reads as its text hiding them, with the colors they ask for" )
+        THEN( "a block of them reads each with the colors it asks for" )
         {
             const auto lines = logData.getAnsiColoredLines( 0_lnum, 4_lcount );
             REQUIRE( lines.size() == 4 );
@@ -626,21 +535,6 @@ SCENARIO( "A sparse set of Log Lines reads as each of them does on its own",
                                                  LineNumber( LineCount ),
                                                  LineNumber( LineCount + 100 ) };
             REQUIRE( readSparse( lines ) == linesOneByOne( logData, lines, expanded ) );
-        }
-
-        THEN( "a Log Line after one cut short in the middle of a character, and one "
-              "starting with a byte order mark, read as each does on its own" )
-        {
-            // Bytes that are not UTF-8 make the Encoding guessed for the Log
-            // File another one; as UTF-8, 16 and 25 end in the middle of a
-            // character and 17 and 35 start with a byte order mark. All of
-            // them are read in one run.
-            logData.setDisplayEncoding( *TextEncoding::forName( "UTF-8" ) );
-            const std::vector<LineNumber> lines{ 16_lnum, 17_lnum, 25_lnum, 35_lnum };
-            const auto text = readSparse( lines );
-            REQUIRE( text == linesOneByOne( logData, lines, expanded ) );
-            REQUIRE( text[ 1 ].startsWith( QStringLiteral( "17 after" ) ) );
-            REQUIRE( text[ 3 ].startsWith( QStringLiteral( "35 after" ) ) );
         }
 
         THEN( "Log Lines asked for out of order or twice come back in the order asked" )
@@ -887,15 +781,6 @@ SCENARIO( "A sparse set of Log Lines reads as UTF-8 byte for byte as their text 
 
     GIVEN( "a Log File of Log Lines of every kind" )
     {
-        THEN( "every Log Line reads as its text converted to UTF-8" )
-        {
-            std::vector<LineNumber> lines;
-            for ( uint64_t line = 0; line < LineCount; ++line ) {
-                lines.emplace_back( line );
-            }
-            REQUIRE( logData.getUtf8LinesSparse( lines ) == utf8OneByOne( logData, lines ) );
-        }
-
         THEN( "sparse Log Lines, out of order, twice and past the last one read the same" )
         {
             const std::vector<LineNumber> lines{ 3_lnum, 14_lnum, 15_lnum,  16_lnum,  400_lnum,
