@@ -194,6 +194,13 @@ directory, that holds its `plugin.json` and its library:
     └── libmy_plugin.so
 ```
 
+A library the plugin needs that LogSquirl does not ship, such as a Qt module
+the application does not use, goes into the same subdirectory. On Windows
+LogSquirl loads the plugin so that the libraries it imports are also found
+there; on Linux and macOS the plugin finds them through an rpath of `$ORIGIN`
+or `@loader_path`. A library a plugin delay-loads or loads itself on Windows is
+looked for in the usual places only, so load it by its full path.
+
 LogSquirl reads the manifests when it starts. If two directories hold a plugin
 with the same `id`, the one found first is used. Plugins are enabled and
 disabled in `Plugins` → `Plugin Management...`.

@@ -53,6 +53,10 @@
 
 ## Bug fixes
 
+- **A Windows plugin loads with the libraries it ships**: a plugin that brings
+  a library LogSquirl does not have, such as a Qt module, in its own plugin
+  directory loads; before, Windows did not look there and the plugin failed to
+  load with error 126.
 - **A Log File that grows while it first loads shows all of it**: lines written
   while a tab was still loading, such as the whole output of a short command,
   no longer stay missing until the file grows again (#629).

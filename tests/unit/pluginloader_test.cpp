@@ -25,6 +25,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLibrary>
@@ -280,3 +281,36 @@ SCENARIO( "A converter plugin converts through its C entry points", "[pluginload
         }
     }
 }
+
+#ifdef Q_OS_WIN
+SCENARIO( "A plugin finds the libraries it ships next to it", "[pluginloader][plugins]" )
+{
+    GIVEN( "A plugin directory with a plugin and a library it imports, found nowhere else" )
+    {
+        QTemporaryDir root;
+        REQUIRE( root.isValid() );
+        const QDir pluginDir( QDir( root.path() ).filePath( "plugins/com.test.loader" ) );
+        REQUIRE( QDir().mkpath( pluginDir.path() ) );
+
+        const QFileInfo plugin( QStringLiteral( LOGSQUIRL_LOADER_FIXTURE_NEEDS_DEPENDENCY_PATH ) );
+        const QFileInfo dependency( QStringLiteral( LOGSQUIRL_LOADER_FIXTURE_DEPENDENCY_PATH ) );
+        const auto pluginPath = pluginDir.filePath( plugin.fileName() );
+        REQUIRE( QFile::copy( plugin.filePath(), pluginPath ) );
+        REQUIRE(
+            QFile::copy( dependency.filePath(), pluginDir.filePath( dependency.fileName() ) ) );
+
+        THEN( "QLibrary alone misses the library, and the Plugin Loader loads the plugin" )
+        {
+            // Before the Plugin Loader: once it has loaded the library, Windows
+            // finds it by name in the process.
+            QLibrary plainLoad( pluginPath );
+            REQUIRE( !plainLoad.load() );
+
+            auto result = PluginLoader::load( manifestFor( root, pluginPath ) );
+            REQUIRE( result.has_value() );
+            // Its init returns what the imported library returns.
+            REQUIRE( result->init( nullptr, nullptr ).isEmpty() );
+        }
+    }
+}
+#endif
