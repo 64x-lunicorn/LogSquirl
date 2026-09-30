@@ -48,7 +48,7 @@ struct RawLines {
 
 public:
     // Every Log Line of the block as its text (loglinetext.h): as it is
-    // displayed, before untabifying.
+    // displayed, before untabifying. Each is decoded on its own.
     logsquirl::vector<QString> decodeLines() const;
 
     // Every Log Line of the block as its text under a Decoding Policy that

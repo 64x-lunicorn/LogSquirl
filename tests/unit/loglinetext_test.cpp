@@ -425,7 +425,7 @@ SCENARIO( "A Log Line's text in UTF-8 by the per-line UTF-8 rule", "[loglinetext
     }
 }
 
-SCENARIO( "Log Lines read one at a time are each decoded on their own", "[loglinetext]" )
+SCENARIO( "Log Lines are each decoded on their own", "[loglinetext]" )
 {
     GIVEN( "a UTF-8 Log Line cut short in the middle of a character, and two after it" )
     {
@@ -445,6 +445,19 @@ SCENARIO( "Log Lines read one at a time are each decoded on their own", "[loglin
             REQUIRE( shapes.oneAtATimeColored.size() == 3 );
             for ( std::size_t line = 0; line < texts.size(); ++line ) {
                 CHECK( shapes.oneAtATimeColored[ line ].text == texts[ line ] );
+            }
+        }
+
+        THEN( "what is cut short does not reach the next in a block either (#649)" )
+        {
+            const auto shapes = shapesOf( bytes, "UTF-8", false );
+            const std::vector<QString> texts{ QStringLiteral( "cut short " ),
+                                              QStringLiteral( "next" ),
+                                              QStringLiteral( "after a byte order mark" ) };
+            CHECK( shapes.block == texts );
+            REQUIRE( shapes.blockColored.size() == 3 );
+            for ( std::size_t line = 0; line < texts.size(); ++line ) {
+                CHECK( shapes.blockColored[ line ].text == texts[ line ] );
             }
         }
     }

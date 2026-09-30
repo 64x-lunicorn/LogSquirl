@@ -181,8 +181,10 @@ logsquirl::vector<Line> decodeRawLines( const RawLines& rawLines, ToLine toLine 
                 break;
             }
 
-            // Not reset between the Log Lines of a block: the block is
-            // decoded as it was read.
+            // Each Log Line is decoded on its own, as when it is read alone: a
+            // character cut short at the end of one must not reach the next
+            // (#649).
+            textDecoder.decoder->resetState();
             decodedLines.push_back(
                 toLine( textDecoder.decode( line.bytes.data(),
                                             static_cast<qsizetype>( line.bytes.size() ) ),
