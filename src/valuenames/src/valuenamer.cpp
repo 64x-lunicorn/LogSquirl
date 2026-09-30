@@ -31,28 +31,33 @@ namespace logsquirl::valuenames {
 
 namespace {
 
-// Whether a key matches exactly the text it is made of, so that a table of
-// such keys can be looked up by hash. Only ASCII characters that are no
-// metacharacter qualify, so that ignoring case by folding the text treats it
-// as the regex does.
-bool isLiteralKey( const QString& key )
+// Rule and key regexes read \\w, \\d and case as the Highlighters and the
+// Predefined Filters do: by Unicode properties.
+QRegularExpression ruleRegex( const QString& pattern )
 {
-    static const QString metacharacters = QStringLiteral( "\\^$.|?*+()[]{}#" );
-    return std::all_of( key.cbegin(), key.cend(), [ & ]( QChar c ) {
-        return c.unicode() > 0x20 && c.unicode() < 0x7f && !metacharacters.contains( c );
-    } );
+    return QRegularExpression{ pattern, QRegularExpression::UseUnicodePropertiesOption };
 }
 
 QRegularExpression keyRegex( const QString& key, bool caseSensitive )
 {
-    return QRegularExpression{ QRegularExpression::anchoredPattern( key ),
-                               caseSensitive ? QRegularExpression::NoPatternOption
-                                             : QRegularExpression::CaseInsensitiveOption };
+    auto options
+        = QRegularExpression::PatternOptions{ QRegularExpression::UseUnicodePropertiesOption };
+    if ( !caseSensitive ) {
+        options |= QRegularExpression::CaseInsensitiveOption;
+    }
+    return QRegularExpression{ QRegularExpression::anchoredPattern( key ), options };
 }
 
 QString folded( const QString& key, bool caseSensitive )
 {
     return caseSensitive ? key : key.toCaseFolded();
+}
+
+bool isControlCharacter( QChar c )
+{
+    const auto category = c.category();
+    return category == QChar::Other_Control || category == QChar::Separator_Line
+           || category == QChar::Separator_Paragraph;
 }
 
 // The capture group of the rule's regex a group reference gives: its number,
@@ -100,6 +105,37 @@ void forEachGroupReference( const QString& name, Found&& found )
 
 } // namespace
 
+bool isLiteralKey( const QString& key )
+{
+    static const QString metacharacters = QStringLiteral( "\\^$.|?*+()[]{}#" );
+    return std::all_of( key.cbegin(), key.cend(), [ & ]( QChar c ) {
+        return c.unicode() > 0x20 && c.unicode() < 0x7f && !metacharacters.contains( c );
+    } );
+}
+
+QString keyIdentity( const QString& key, bool caseSensitive )
+{
+    return isLiteralKey( key ) ? folded( key, caseSensitive ) : key;
+}
+
+bool hasControlCharacters( QStringView text )
+{
+    return std::any_of( text.cbegin(), text.cend(), isControlCharacter );
+}
+
+QString withoutControlCharacters( QString text )
+{
+    if ( !hasControlCharacters( text ) ) {
+        return text;
+    }
+    for ( auto& c : text ) {
+        if ( isControlCharacter( c ) ) {
+            c = QLatin1Char( ' ' );
+        }
+    }
+    return text;
+}
+
 // A Name Table compiled: its rows' key regexes, or a hash of its keys when
 // all of them are literals. The first row whose key matches wins either way.
 struct CompiledTable {
@@ -142,15 +178,30 @@ struct CompiledTable {
             if ( found == namesByKey.cend() ) {
                 return std::nullopt;
             }
-            return nameWithKeyGroups( *found, { value } );
+            return withoutControlCharacters( nameWithKeyGroups( *found, { value } ) );
         }
         for ( const auto& row : rows ) {
             const auto match = row.key.match( value );
-            if ( match.hasMatch() ) {
-                return nameWithKeyGroups( row.name, match.capturedTexts() );
+            if ( !match.hasMatch() ) {
+                continue;
             }
+            // capturedTexts() ends at the last group that took part: a group
+            // after it has to become empty, not stay a reference.
+            QStringList keyGroups;
+            const auto groupCount = row.key.captureCount();
+            keyGroups.reserve( groupCount + 1 );
+            for ( int i = 0; i <= groupCount; ++i ) {
+                keyGroups.append( match.captured( i ) );
+            }
+            return withoutControlCharacters( nameWithKeyGroups( row.name, keyGroups ) );
         }
         return std::nullopt;
+    }
+
+    // Whether no value could ever get a name from it.
+    bool namesNothing() const
+    {
+        return byHash ? namesByKey.isEmpty() : rows.empty();
     }
 };
 
@@ -185,15 +236,22 @@ ValueNamer::ValueNamer( const QList<NamingGroup>& groups )
             if ( !rule.enabled ) {
                 continue;
             }
-            CompiledRule compiledRule{ QRegularExpression{ rule.pattern },
+            // Line breaks and control characters of the template are shown
+            // as spaces, as those of a name are: a Log Line is drawn on one
+            // line, whatever a Name Table says.
+            CompiledRule compiledRule{ ruleRegex( rule.pattern ),
                                        {},
-                                       rule.displayTemplate,
+                                       withoutControlCharacters( rule.displayTemplate ),
                                        rule.name,
                                        group.name() };
             if ( !compiledRule.regex.isValid() ) {
                 continue;
             }
             for ( const auto& groupTable : rule.groupTables ) {
+                if ( groupTable.table.isEmpty() ) {
+                    // No table, which never means a table without a name.
+                    continue;
+                }
                 const auto captureGroup = captureGroupIndex( compiledRule.regex, groupTable.group );
                 const auto* table = group.table( groupTable.table );
                 if ( captureGroup < 0 || table == nullptr
@@ -208,6 +266,9 @@ ValueNamer::ValueNamer( const QList<NamingGroup>& groups )
                 if ( tableIndex == tableIndexes.cend() ) {
                     compiled->tables.emplace_back( *table );
                     tableIndex = tableIndexes.insert( table->name, compiled->tables.size() - 1 );
+                }
+                if ( compiled->tables[ *tableIndex ].namesNothing() ) {
+                    continue;
                 }
                 compiledRule.groupTables.emplace_back( captureGroup, *tableIndex );
             }
@@ -331,13 +392,28 @@ QList<Problem> validate( const NamingGroup& group )
 {
     QList<Problem> problems;
 
+    QHash<QString, int> ruleNames;
     for ( const auto& rule : group.rules() ) {
-        const QRegularExpression regex{ rule.pattern };
+        if ( ruleNames.contains( rule.name ) ) {
+            problems.append(
+                Problem{ Problem::Kind::DuplicateRuleName, rule.name, {}, -1, -1, rule.name } );
+        }
+        ruleNames.insert( rule.name, 0 );
+        if ( hasControlCharacters( rule.displayTemplate ) ) {
+            problems.append( Problem{ Problem::Kind::ControlCharacterInTemplate,
+                                      rule.name,
+                                      {},
+                                      -1,
+                                      -1,
+                                      rule.displayTemplate } );
+        }
+        const auto regex = ruleRegex( rule.pattern );
         if ( !regex.isValid() ) {
             problems.append( Problem{
                 Problem::Kind::InvalidRuleRegex, rule.name, {}, -1, -1, regex.errorString() } );
             continue;
         }
+        QList<int> assignedGroups;
         for ( const auto& groupTable : rule.groupTables ) {
             if ( groupTable.table.isEmpty() ) {
                 continue;
@@ -346,9 +422,21 @@ QList<Problem> validate( const NamingGroup& group )
                 problems.append( Problem{
                     Problem::Kind::UnknownTable, rule.name, {}, -1, -1, groupTable.table } );
             }
-            if ( captureGroupIndex( regex, groupTable.group ) < 0 ) {
+            const auto captureGroup = captureGroupIndex( regex, groupTable.group );
+            if ( captureGroup < 0 ) {
                 problems.append( Problem{
                     Problem::Kind::UnknownCaptureGroup, rule.name, {}, -1, -1, groupTable.group } );
+            }
+            else if ( assignedGroups.contains( captureGroup ) ) {
+                problems.append( Problem{ Problem::Kind::DuplicateCaptureGroup,
+                                          rule.name,
+                                          {},
+                                          -1,
+                                          -1,
+                                          groupTable.group } );
+            }
+            else {
+                assignedGroups.append( captureGroup );
             }
         }
     }
@@ -363,13 +451,22 @@ QList<Problem> validate( const NamingGroup& group )
                     Problem::Kind::InvalidKeyRegex, {}, table.name, row, -1, key.errorString() } );
                 continue;
             }
-            const auto firstRow = firstRows.constFind( folded( nameRow.key, table.caseSensitive ) );
+            if ( hasControlCharacters( nameRow.name ) ) {
+                problems.append( Problem{ Problem::Kind::ControlCharacterInName,
+                                          {},
+                                          table.name,
+                                          row,
+                                          -1,
+                                          nameRow.name } );
+            }
+            const auto identity = keyIdentity( nameRow.key, table.caseSensitive );
+            const auto firstRow = firstRows.constFind( identity );
             if ( firstRow != firstRows.cend() ) {
                 problems.append( Problem{
                     Problem::Kind::DuplicateKey, {}, table.name, row, *firstRow, nameRow.key } );
                 continue;
             }
-            firstRows.insert( folded( nameRow.key, table.caseSensitive ), row );
+            firstRows.insert( identity, row );
 
             const auto keyGroups = key.captureCount();
             forEachGroupReference(

@@ -20,11 +20,22 @@
 #include "naminggroup.h"
 
 #include <QSettings>
+#include <QUuid>
 
 #include "log.h"
-#include "uuid.h"
 
 namespace logsquirl::valuenames {
+
+namespace {
+
+// A group id as generateIdFromUuid() of the utilities makes it, without
+// linking them and the Qt modules they bring for one line.
+QString newGroupId()
+{
+    return QUuid::createUuid().toString( QUuid::Id128 );
+}
+
+} // namespace
 
 QString NamingRule::tableFor( const QString& group ) const
 {
@@ -39,7 +50,7 @@ QString NamingRule::tableFor( const QString& group ) const
 NamingGroup NamingGroup::createNewGroup( const QString& name )
 {
     NamingGroup group;
-    group.id_ = generateIdFromUuid();
+    group.id_ = newGroupId();
     group.name_ = name;
     return group;
 }
@@ -49,6 +60,18 @@ NamingGroup NamingGroup::withId( const QString& id ) const
     auto copy = *this;
     copy.id_ = id;
     return copy;
+}
+
+bool NamingGroup::sameAs( const NamingGroup& other ) const
+{
+    const auto unchecked = []( QList<NamingRule> rules ) {
+        for ( auto& rule : rules ) {
+            rule.enabled = true;
+        }
+        return rules;
+    };
+    return name_ == other.name_ && tables_ == other.tables_
+           && unchecked( rules_ ) == unchecked( other.rules_ );
 }
 
 const NameTable* NamingGroup::table( const QString& name ) const
@@ -117,7 +140,7 @@ void NamingGroup::retrieveFromStorage( QSettings& settings )
     settings.beginGroup( "NamingGroup" );
     if ( settings.value( "version" ).toInt() <= NamingGroup_VERSION ) {
         name_ = settings.value( "name" ).toString();
-        id_ = settings.value( "id", generateIdFromUuid() ).toString();
+        id_ = settings.value( "id", newGroupId() ).toString();
 
         const int ruleCount = settings.beginReadArray( "rules" );
         rules_.reserve( ruleCount );

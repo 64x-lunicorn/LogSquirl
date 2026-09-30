@@ -63,7 +63,11 @@ struct NamedValue {
 // rules within a group; a later rule skips a range already taken. A rule
 // whose regex does not compile, and a key that does not, are left out.
 //
-// Copies share the compiled rules and may be used on several threads at once.
+// Line breaks and control characters of a name or a template are shown as
+// spaces: a Log Line is drawn on one line.
+//
+// Reentrant: copies share the compiled rules, which are never changed after
+// construction, so const calls on copies may run on several threads at once.
 class ValueNamer {
 public:
     // A Log Line longer than this gets no names, as it gets no Highlighters:
@@ -76,8 +80,9 @@ public:
     // The enabled rules of the enabled groups, in this order.
     explicit ValueNamer( const QList<NamingGroup>& groups );
 
-    // Whether no rule could name anything, so a Log Line need not be looked
-    // at. Constant time.
+    // Whether no rule could name anything -- none is enabled, compiles, or
+    // gives a capture group a table with a usable row -- so a Log Line need
+    // not be looked at. Constant time.
     bool isEmpty() const
     {
         return rules_ == nullptr;
@@ -106,6 +111,22 @@ QString nameWithKeyGroups( const QString& name, const QStringList& keyGroups );
 // that a name holding "{value}" stays as it is.
 QString fillTemplate( const QString& displayTemplate, const QString& name, const QString& value );
 
+// Whether a key is plain text that matches just itself: ASCII only, no blank
+// and no regex metacharacter. A table of such keys is looked up by hash.
+bool isLiteralKey( const QString& key );
+
+// What two keys of a table are compared by to find a duplicate: a literal
+// key case-folded unless the table is case-sensitive, any other key as it
+// is written (\d and \D are different keys in any table).
+QString keyIdentity( const QString& key, bool caseSensitive );
+
+// Whether the text holds a line break or another control character, which a
+// name or template must not bring into a Log Line.
+bool hasControlCharacters( QStringView text );
+
+// The text with every line break and control character replaced by a space.
+QString withoutControlCharacters( QString text );
+
 // --- Validation, for the edit dialog's warnings ---
 
 struct Problem {
@@ -125,6 +146,18 @@ struct Problem {
         // A rule gives a table to a capture group its regex does not have.
         // detail: the group as given.
         UnknownCaptureGroup,
+        // A rule gives a capture group a second table, by number and by name
+        // or twice: only the first is used. detail: the group as given.
+        DuplicateCaptureGroup,
+        // A rule has the name of a rule before it in the group; the name is
+        // what the rule's check is kept by. detail: the name.
+        DuplicateRuleName,
+        // A rule's template holds a line break or control character, shown
+        // as a space. detail: the template.
+        ControlCharacterInTemplate,
+        // A row's name holds a line break or control character, shown as a
+        // space. detail: the name.
+        ControlCharacterInName,
     };
 
     Kind kind;

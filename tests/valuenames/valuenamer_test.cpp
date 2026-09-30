@@ -518,3 +518,115 @@ TEST_CASE( "A Naming Group round-trips through the settings", "[valuenames]" )
         CHECK( none.tables().isEmpty() );
     }
 }
+
+TEST_CASE( "A key group that took no part in the match gives an empty text", "[valuenames]" )
+{
+    const ValueNamer namer{ { group( "G", { rule( "R", "v=(\\w+)", { { "1", "T" } } ) },
+                                     { table( "T", { { "(a)|(b)", "A{1}B{2}" } } ) } ) } };
+
+    CHECK( shown( namer, "v=a" ) == "v=AaB(a)" );
+    CHECK( shown( namer, "v=b" ) == "v=ABb(b)" );
+}
+
+TEST_CASE( "Rule and key regexes read Unicode", "[valuenames]" )
+{
+    const ValueNamer namer{ { group(
+        "G", { rule( "R", "door=(\\w+)", { { "1", "T" } } ) },
+        { table( "T", { { "t\\wr", "door" }, { "\\w+", "word" } } ) } ) } };
+
+    CHECK( shown( namer, "door=Tür" ) == "door=door(Tür)" );
+    CHECK( shown( namer, "door=Größe" ) == "door=word(Größe)" );
+}
+
+TEST_CASE( "Line breaks and control characters never reach the shown text", "[valuenames]" )
+{
+    const ValueNamer namer{ { group(
+        "G", { rule( "R", "v=(\\w+)", { { "1", "T" } }, "{name}\t({value})\n" ) },
+        { table( "T", { { "x", "Line\nBreak\r\x01" }, { "y\\w*", "Para\u2029graph" } } ) } ) } };
+
+    CHECK( shown( namer, "v=x" ) == "v=Line Break   (x) " );
+    CHECK( shown( namer, "v=y" ) == "v=Para graph (y) " );
+    CHECK( namer.namedValues( "v=x" ).front().name == "Line Break  " );
+}
+
+TEST_CASE( "No name is taken from a table without a name", "[valuenames]" )
+{
+    const ValueNamer namer{ { group( "G", { rule( "R", "v=(\\w+)", { { "1", "" } } ) },
+                                     { table( "", { { "x", "Ex" } } ) } ) } };
+
+    CHECK( namer.isEmpty() );
+    CHECK( shown( namer, "v=x" ) == "v=x" );
+}
+
+TEST_CASE( "A Value Namer whose tables name nothing is empty", "[valuenames]" )
+{
+    CHECK( ValueNamer{
+        { group( "G", { rule( "R", "v=(\\w+)", { { "1", "T" } } ) }, { table( "T", {} ) } ) } }
+               .isEmpty() );
+    CHECK( ValueNamer{ { group( "G", { rule( "R", "v=(\\w+)", { { "1", "T" } } ) },
+                                { table( "T", { { "(", "broken" }, { "[", "too" } } ) } ) } }
+               .isEmpty() );
+}
+
+TEST_CASE( "More of the edit dialog's warnings", "[valuenames]" )
+{
+    SECTION( "regex keys are duplicates only when written the same" )
+    {
+        CHECK( validate(
+                   group( "G", {}, { table( "T", { { "\\d", "digit" }, { "\\D", "other" } } ) } ) )
+                   .isEmpty() );
+        const auto problems
+            = validate( group( "G", {}, { table( "T", { { "\\d", "a" }, { "\\d", "b" } } ) } ) );
+        REQUIRE( problems.size() == 1 );
+        CHECK( problems[ 0 ].kind == Problem::Kind::DuplicateKey );
+    }
+
+    SECTION( "a capture group given two tables" )
+    {
+        const auto problems = validate(
+            group( "G", { rule( "R", "(?<ecu>\\w+)", { { "1", "T" }, { "ecu", "T" } } ) },
+                   { table( "T", {} ) } ) );
+        REQUIRE( problems.size() == 1 );
+        CHECK( problems[ 0 ]
+               == Problem{ Problem::Kind::DuplicateCaptureGroup, "R", {}, -1, -1, "ecu" } );
+    }
+
+    SECTION( "two rules of the same name" )
+    {
+        const auto problems = validate( group(
+            "G", { rule( "R", "a", {} ), rule( "S", "b", {} ), rule( "R", "c", {} ) }, {} ) );
+        REQUIRE( problems.size() == 1 );
+        CHECK( problems[ 0 ] == Problem{ Problem::Kind::DuplicateRuleName, "R", {}, -1, -1, "R" } );
+    }
+
+    SECTION( "line breaks and control characters in a name or a template" )
+    {
+        const auto problems
+            = validate( group( "G", { rule( "R", "a", {}, "{name}\n" ) },
+                               { table( "T", { { "k", "ok" }, { "l", "two\nlines" } } ) } ) );
+        REQUIRE( problems.size() == 2 );
+        CHECK(
+            problems[ 0 ]
+            == Problem{ Problem::Kind::ControlCharacterInTemplate, "R", {}, -1, -1, "{name}\n" } );
+        CHECK( problems[ 1 ]
+               == Problem{ Problem::Kind::ControlCharacterInName, {}, "T", 1, -1, "two\nlines" } );
+    }
+}
+
+TEST_CASE( "Naming Groups compare with and without their checks", "[valuenames]" )
+{
+    const auto original = bapGroup();
+    auto unchecked = original;
+    auto rules = unchecked.rules();
+    rules[ 0 ].enabled = false;
+    unchecked.setRules( rules );
+    unchecked.setEnabled( false );
+
+    CHECK_FALSE( unchecked == original );
+    CHECK( unchecked.sameAs( original ) );
+    CHECK( original.withId( "other" ).sameAs( original ) );
+
+    auto renamed = original;
+    renamed.setName( "Other" );
+    CHECK_FALSE( renamed.sameAs( original ) );
+}

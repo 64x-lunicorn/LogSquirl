@@ -16,11 +16,11 @@ add_library(
 
 target_include_directories(logsquirl_valuenames PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-# The CSV writer and the group ids come from the utilities.
+# The log macros come from the logging library.
 target_link_libraries(
   logsquirl_valuenames
   PUBLIC project_options
          project_warnings
-         logsquirl_utils
+         logsquirl_logging
          Qt6::Core
 )

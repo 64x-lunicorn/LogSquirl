@@ -19,6 +19,8 @@
 
 #include "nametablecsv.h"
 
+#include "valuenamer.h"
+
 #include <QHash>
 
 #include <algorithm>
@@ -44,6 +46,11 @@ public:
         : text_{ text }
         , separator_{ separator }
     {
+        // A byte order mark, as spreadsheets write one, is no part of the
+        // first field.
+        if ( text_.startsWith( QChar( QChar::ByteOrderMark ) ) ) {
+            position_ = 1;
+        }
     }
 
     // The next record, skipping empty and comment lines; false at the end.
@@ -171,7 +178,9 @@ constexpr int SeparatorSampleLines = 20;
 QString csvField( const QString& field, QChar separator, bool firstOfRecord )
 {
     const bool needsQuotes
-        = field.contains( separator ) || field.contains( Quote )
+        = std::any_of( Separators.cbegin(), Separators.cend(),
+                       [ &field ]( QChar c ) { return field.contains( c ); } )
+          || field.contains( separator ) || field.contains( Quote )
           || field.contains( QLatin1Char( '\n' ) ) || field.contains( QLatin1Char( '\r' ) )
           || ( !field.isEmpty() && ( field.front().isSpace() || field.back().isSpace() ) )
           || ( firstOfRecord && ( field.isEmpty() || field.startsWith( Comment ) ) );
@@ -187,78 +196,23 @@ QString csvField( const QString& field, QChar separator, bool firstOfRecord )
 
 QChar detectCsvSeparator( const QString& text )
 {
-    std::array<int, Separators.size()> linesWith{};
-    std::array<int, Separators.size()> occurrences{};
-
-    int lines = 0;
-    bool inQuotes = false;
-    bool atLineStart = true;
-    bool skipping = false;
-    std::array<bool, Separators.size()> inLine{};
-    const auto endLine = [ & ] {
-        if ( !skipping
-             && std::any_of( inLine.cbegin(), inLine.cend(), []( bool b ) { return b; } ) ) {
-            for ( size_t i = 0; i < Separators.size(); ++i ) {
-                linesWith[ i ] += inLine[ i ] ? 1 : 0;
-            }
-        }
-        if ( !skipping ) {
-            ++lines;
-        }
-        inLine.fill( false );
-        atLineStart = true;
-        skipping = false;
-    };
-
-    for ( qsizetype i = 0; i < text.size() && lines < SeparatorSampleLines; ++i ) {
-        const auto c = text[ i ];
-        if ( atLineStart ) {
-            atLineStart = false;
-            skipping = c == Comment || isLineEnd( c );
-            if ( skipping && isLineEnd( c ) ) {
-                inLine.fill( false );
-                atLineStart = true;
-                skipping = false;
-                continue;
-            }
-        }
-        if ( skipping ) {
-            if ( isLineEnd( c ) ) {
-                endLine();
-            }
-            continue;
-        }
-        if ( c == Quote ) {
-            inQuotes = !inQuotes;
-            continue;
-        }
-        if ( inQuotes ) {
-            continue;
-        }
-        if ( isLineEnd( c ) ) {
-            endLine();
-            continue;
-        }
-        for ( size_t s = 0; s < Separators.size(); ++s ) {
-            if ( c == Separators[ s ] ) {
-                inLine[ s ] = true;
-                ++occurrences[ s ];
-            }
-        }
-    }
-    if ( !atLineStart ) {
-        endLine();
-    }
-
+    // Each separator reads the first records as it would read them, so that
+    // one inside a quoted field, or a stray quote inside a field, counts as
+    // it would when importing.
     size_t best = Separators.size();
+    int bestRecords = 0;
     for ( size_t s = 0; s < Separators.size(); ++s ) {
-        if ( linesWith[ s ] == 0 ) {
-            continue;
+        CsvReader reader{ text, Separators[ s ] };
+        CsvRecord record;
+        int separated = 0;
+        for ( int i = 0; i < SeparatorSampleLines && reader.next( record ); ++i ) {
+            separated += record.fields.size() > 1 ? 1 : 0;
         }
-        if ( best == Separators.size() || linesWith[ s ] > linesWith[ best ]
-             || ( linesWith[ s ] == linesWith[ best ]
-                  && occurrences[ s ] > occurrences[ best ] ) ) {
+        // On a tie the earlier of tab, ';' and ',' wins: a ';' file holds
+        // commas in its fields far more often than the other way round.
+        if ( separated > bestRecords ) {
             best = s;
+            bestRecords = separated;
         }
     }
     return best == Separators.size() ? QLatin1Char( ',' ) : Separators[ best ];
@@ -298,7 +252,7 @@ CsvImport importCsv( const QString& text, const CsvImportOptions& options )
             continue;
         }
 
-        const auto foldedKey = options.caseSensitive ? key : key.toCaseFolded();
+        const auto foldedKey = keyIdentity( key, options.caseSensitive );
         const auto firstLine = firstLines.constFind( foldedKey );
         if ( firstLine != firstLines.cend() ) {
             imported.warnings.append( CsvImportWarning{ CsvImportWarning::Kind::DuplicateKey,
@@ -306,7 +260,16 @@ CsvImport importCsv( const QString& text, const CsvImportOptions& options )
             continue;
         }
         firstLines.insert( foldedKey, record.line );
-        imported.rows.append( NameRow{ key, fields[ nameColumn ] } );
+        const auto& name = fields[ nameColumn ];
+        if ( name.isEmpty() ) {
+            imported.warnings.append(
+                CsvImportWarning{ CsvImportWarning::Kind::EmptyName, record.line, key, 0 } );
+        }
+        else if ( hasControlCharacters( name ) ) {
+            imported.warnings.append( CsvImportWarning{
+                CsvImportWarning::Kind::ControlCharacterInName, record.line, key, 0 } );
+        }
+        imported.rows.append( NameRow{ key, name } );
     }
 
     return imported;

@@ -40,12 +40,13 @@ struct CsvRecord {
 };
 
 // The separator of a CSV text: ',', ';' or a tab, whichever separates the
-// fields of the most of its first records, outside quotes. A comma when
-// none does.
+// fields of the most of its first records, read as csvRecords() reads them;
+// on a tie the first of tab, ';' and ','. A comma when none does.
 QChar detectCsvSeparator( const QString& text );
 
-// The records of a CSV text (RFC 4180 quoting, any line end). Empty lines
-// and lines starting with '#' are skipped.
+// The records of a CSV text (RFC 4180 quoting, any line end). Only a quote
+// that starts a field opens a quoted field. A byte order mark at the start,
+// empty lines and lines starting with '#' are skipped.
 QList<CsvRecord> csvRecords( const QString& text, QChar separator );
 
 struct CsvImportOptions {
@@ -62,8 +63,14 @@ struct CsvImportWarning {
     enum class Kind {
         // The key was already read on firstLine: the first one wins.
         DuplicateKey,
-        // The record has no key or no name column, or an empty key.
+        // The record has no key or no name column, or an empty key: it is
+        // skipped.
         MissingColumn,
+        // The name is empty. The row is read all the same.
+        EmptyName,
+        // The name holds a line break or control character, which is shown as
+        // a space. The row is read all the same.
+        ControlCharacterInName,
     };
 
     Kind kind;
@@ -85,7 +92,9 @@ struct CsvImport {
 CsvImport importCsv( const QString& text, const CsvImportOptions& options = {} );
 
 // The rows as CSV, one record per row, key first, each line ended by '\n',
-// after header when that is not empty.
+// after header when that is not empty. A field is quoted when it would not
+// read back as it is: with any of the three separators, a quote, a line
+// end, blanks at either end, or a key that is empty or starts with '#'.
 QString exportCsv( const QList<NameRow>& rows, QChar separator = QLatin1Char( ',' ),
                    const QStringList& header = {} );
 

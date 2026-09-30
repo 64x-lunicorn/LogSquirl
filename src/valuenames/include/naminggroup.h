@@ -141,7 +141,12 @@ public:
         enabled_ = enabled;
     }
 
+    // Equal in everything, the checks included.
     bool operator==( const NamingGroup& ) const = default;
+
+    // Whether both have the same name, rules and tables, whatever is checked.
+    // The id is not compared.
+    bool sameAs( const NamingGroup& other ) const;
 
     // Reads/writes the group -- its id, name, rules and tables, not the
     // checks -- in the QSettings object passed, under "NamingGroup".

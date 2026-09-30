@@ -191,7 +191,7 @@ TEST_CASE( "A Name Table's rows are exported to CSV", "[valuenames][csv]" )
 
     CHECK( exportCsv( rows ) == "0x1[0-9],\"Door, left\"\nsay,\"\"\"hi\"\"\"\n" );
     CHECK( exportCsv( rows, QLatin1Char( ';' ), { "key", "name" } )
-           == "key;name\n0x1[0-9];Door, left\nsay;\"\"\"hi\"\"\"\n" );
+           == "key;name\n0x1[0-9];\"Door, left\"\nsay;\"\"\"hi\"\"\"\n" );
 
     SECTION( "and read back as they were" )
     {
@@ -206,4 +206,65 @@ TEST_CASE( "A Name Table's rows are exported to CSV", "[valuenames][csv]" )
             CHECK( importCsv( exportCsv( awkward, separator ) ).rows == awkward );
         }
     }
+}
+
+TEST_CASE( "Separators, quotes and byte order marks as spreadsheets write them",
+           "[valuenames][csv]" )
+{
+    SECTION( "a ';' file with commas in its names is read by ';'" )
+    {
+        const auto imported = importCsv( "0x15;Motor, links, vorne\n0x14;Tür, rechts\n" );
+        CHECK( imported.separator == QLatin1Char( ';' ) );
+        CHECK( imported.rows
+               == QList<NameRow>{ { "0x15", "Motor, links, vorne" }, { "0x14", "Tür, rechts" } } );
+    }
+
+    SECTION( "a stray quote inside a field opens no quoted field" )
+    {
+        const auto imported = importCsv( "12\";Zoll\n0x14;Sample\n0x15;Beispiel\n" );
+        CHECK( imported.separator == QLatin1Char( ';' ) );
+        CHECK(
+            imported.rows
+            == QList<NameRow>{ { "12\"", "Zoll" }, { "0x14", "Sample" }, { "0x15", "Beispiel" } } );
+    }
+
+    SECTION( "a byte order mark is skipped" )
+    {
+        CsvImportOptions options;
+        options.hasHeader = true;
+        CHECK( importCsv( QString( QChar( QChar::ByteOrderMark ) ) + "key,name\n0x15,Beispiel\n",
+                          options )
+                   .rows
+               == QList<NameRow>{ { "0x15", "Beispiel" } } );
+        CHECK( importCsv( QString( QChar( QChar::ByteOrderMark ) ) + "0x15,Beispiel\n" ).rows
+               == QList<NameRow>{ { "0x15", "Beispiel" } } );
+    }
+
+    SECTION( "a headerless ';' export with commas in its names reads back" )
+    {
+        const QList<NameRow> rows{ { "0x15", "Motor, links, vorne" }, { "0x14", "Tür\trechts" } };
+        const auto csv = exportCsv( rows, QLatin1Char( ';' ) );
+        CHECK( csv == "0x15;\"Motor, links, vorne\"\n0x14;\"Tür\trechts\"\n" );
+        const auto imported = importCsv( csv );
+        CHECK( imported.separator == QLatin1Char( ';' ) );
+        CHECK( imported.rows == rows );
+    }
+}
+
+TEST_CASE( "An empty name or one with a line break is read with a warning", "[valuenames][csv]" )
+{
+    const auto imported = importCsv( "a,\nb,\"two\nlines\"\nc,ok\n" );
+    CHECK( imported.rows == QList<NameRow>{ { "a", "" }, { "b", "two\nlines" }, { "c", "ok" } } );
+    CHECK( imported.warnings
+           == QList<CsvImportWarning>{
+               { CsvImportWarning::Kind::EmptyName, 1, "a", 0 },
+               { CsvImportWarning::Kind::ControlCharacterInName, 2, "b", 0 } } );
+}
+
+TEST_CASE( "Regex keys are duplicates on import only when written the same", "[valuenames][csv]" )
+{
+    const auto imported = importCsv( "\\d,digit\n\\D,other\n\\d,again\n" );
+    CHECK( imported.rows == QList<NameRow>{ { "\\d", "digit" }, { "\\D", "other" } } );
+    CHECK( imported.warnings
+           == QList<CsvImportWarning>{ { CsvImportWarning::Kind::DuplicateKey, 3, "\\d", 1 } } );
 }
