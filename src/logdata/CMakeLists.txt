@@ -43,6 +43,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdataworker.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddataworker.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/loglinetext.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/searchsession.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sparselineread.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/fileholder.cpp

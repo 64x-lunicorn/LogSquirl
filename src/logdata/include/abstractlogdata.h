@@ -74,8 +74,6 @@ public:
     // whatever the Decoding Policy is. For a view that shows the colors.
     logsquirl::vector<AnsiColoredText> getAnsiColoredLines( LineNumber first_line,
                                                             LinesCount number ) const;
-    // Returns the line numer
-    LineNumber getLineNumber( LineNumber index ) const;
     // Returns the total number of lines
     LinesCount getNbLine() const;
     // Returns the visible length of the longest line
@@ -84,11 +82,6 @@ public:
     // Returns the visible length of the passed line
     // Tabs are expanded
     LineLength getLineLength( LineNumber line ) const;
-
-    // Configure how the view shall interpret newline characters
-    // this should be non zero for encodings where \n is encoded
-    // in multiple bytes (e.g. UTF-16)
-    void setMultibyteEncodingOffsets( int before_cr, int after_cr );
 
     const TextEncoding* getDisplayEncoding() const;
 
