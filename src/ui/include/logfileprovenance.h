@@ -78,4 +78,8 @@ struct LogFileProvenance {
     QString shownTitle( const QString& fileName ) const;
 };
 
+// The name the tab of the Log File at `fileName` shows before the user renames
+// it, given the title it opened with: that title, else the file's name.
+QString openingTabTitle( const QString& fileName, const QString& openingTitle );
+
 #endif

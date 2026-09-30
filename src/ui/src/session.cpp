@@ -538,7 +538,7 @@ WindowSnapshot WindowSession::snapshot( const std::vector<SaveFileInfo>& view_li
 
         // Gone by the next start: a restore would open a file that is not
         // there (#570).
-        if ( file->origin.lifetime == LogFileLifetime::Transient ) {
+        if ( !file->origin.savedWithSession() ) {
             LOG_DEBUG << "Not saving the Transient Log File " << file->fileName << " in session.";
             continue;
         }
@@ -585,7 +585,7 @@ ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& 
     // The view context saved for this Log File in any window, if it was
     // open when the Session was last saved. A Transient Log File never was.
     const auto savedViewContext = [ &fileName, &origin ]() {
-        if ( origin.lifetime == LogFileLifetime::Transient ) {
+        if ( !origin.savedWithSession() ) {
             return QString{};
         }
         const auto& session = SessionInfo::get();

@@ -68,5 +68,10 @@ LogFileProvenance LogFileProvenance::commandOutput( std::unique_ptr<CommandSourc
 
 QString LogFileProvenance::shownTitle( const QString& fileName ) const
 {
+    return openingTabTitle( fileName, openingTitle );
+}
+
+QString openingTabTitle( const QString& fileName, const QString& openingTitle )
+{
     return openingTitle.isEmpty() ? QFileInfo( fileName ).fileName() : openingTitle;
 }
