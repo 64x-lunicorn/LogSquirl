@@ -429,6 +429,14 @@ percent; the `instruction-counts` artifact holds the same as JSON, and `instruct
 the Callgrind dumps, to see in `callgrind_annotate` or KCachegrind where the instructions went.
 The report does not fail anything yet (#672).
 
+A push to master counts the pushed commit and keeps its counts in the Actions cache, under the
+commit, the benchmark sources, the counting script and the runner's CPU model (glibc picks its
+string functions by CPU, so counts compare only between runners of one model). A pull request whose
+base was counted that way on a runner of the same model takes the before side from there and only
+builds and counts itself, in about 17 minutes with a warm sccache; otherwise it builds and counts
+both sides, which takes about twice that. Most of a side is the link time optimization of the
+twenty-odd benchmark executables and Vectorscan's runtime, which sccache does not cache.
+
 A count is reproducible where a time is not: two runs of the same commit differ by less than
 0.5 % per benchmark, on a shared runner whose times vary by 5–20 %. For that, each benchmark runs
 its measured code exactly once, in the benchmarks' **fixed-work mode**
@@ -437,7 +445,7 @@ with `LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1`, `BENCHMARK` and `BENCHMARK_ADVA
 Callgrind's counting where Catch2 would start its clock and write one dump, named
 `<test case> / <benchmark>`, where it would stop it. The count covers every thread. Test cases tagged
 `[wall-clock]` time themselves without a `BENCHMARK` and are left out. The generated Log Files are
-smaller than in a timed run (16 MiB, and 4 MiB per Session Log File), so the counts are not
+smaller than in a timed run (4 MiB, also per Session Log File), so the counts are not
 comparable with Catch2's times.
 
 The comment comes from a second workflow, **Instruction Counts Comment**
@@ -457,9 +465,9 @@ Docker does it):
 
 # Or one benchmark binary by hand, after building it with Valgrind's headers installed
 LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1 QT_HASH_SEED=0 QT_QPA_PLATFORM=offscreen \
-LOGSQUIRL_BENCHMARK_LOG_FILE_MB=16 LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB=4 \
+LOGSQUIRL_BENCHMARK_LOG_FILE_MB=4 LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB=4 \
   valgrind --tool=callgrind --instr-atstart=no --trace-children=yes \
-    --callgrind-out-file=counts/callgrind.out.%p \
+    --main-stacksize=67108864 --fair-sched=yes --callgrind-out-file=counts/callgrind.out.%p \
     build_root/output/logsquirl_decoration_benchmark --order decl --rng-seed 1 '~[wall-clock]'
 callgrind_annotate counts/callgrind.out.<pid>.<n>   # "totals:" is the count, the rest where it went
 ```
@@ -889,7 +897,7 @@ before anything is downloaded, because its signing job could not enter the
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
-| `instruction-counts.yml` | PR to master (the files CI Build builds for) | Count the instructions of every Catch2 benchmark before and after the pull request under Callgrind, report them in the job summary and the artifact (see *Instruction counts*) |
+| `instruction-counts.yml` | push/PR to master (the files CI Build builds for) | Count the instructions of every Catch2 benchmark under Callgrind: before and after a pull request, reported in the job summary and the artifact; a push to master keeps its counts for the pull requests based on it (see *Instruction counts*) |
 | `instruction-counts-comment.yml` | `workflow_run` of Instruction Counts | Post the report as one pull request comment, updated on every run, with master's code only |
 | `performance.yml` | weekly schedule (Mondays 03:41 UTC), dispatch | Measure master's e2e performance suite in an optimized build, compare it with the last runs and record it on the `perf-data` branch (see *Weekly performance*) |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |

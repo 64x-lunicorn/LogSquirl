@@ -11,7 +11,10 @@
 #
 # The build uses the CI Build noble job's configure options and its sccache
 # cache (restored by the workflow, never saved from here), in the same
-# build_root for both sides, so the after side only rebuilds what differs.
+# build_root for both sides, so the after side only rebuilds what differs. The
+# version it builds has build number 0, not the run's: the counts of a master
+# commit are kept for later runs (instruction-counts.yml), and a version
+# string of another length could change a count.
 #
 # Usage: instruction-counts-side.sh before|after   (from the workspace root)
 # Environment: RUN_DIR, LOGSQUIRL_CONTAINER, LOGSQUIRL_WORKSPACE,
@@ -40,7 +43,7 @@ start=$(date +%s)
 status=0
 # shellcheck disable=SC2016 # expanded by the shell in the container
 docker run --rm \
-    --env LOGSQUIRL_VERSION="$LOGSQUIRL_VERSION" \
+    --env LOGSQUIRL_VERSION="${LOGSQUIRL_VERSION%.*}.0" \
     --env BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
     --env CMAKE_OPTS="$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache" \
     --env SCCACHE_DIR=/usr/local/sccache_cache \

@@ -31,7 +31,7 @@
 #                    job's options so the sccache cache fits)
 #   BINARY_TIMEOUT   seconds one binary may take under Callgrind (default 1800)
 #   LOGSQUIRL_BENCHMARK_LOG_FILE_MB, LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB:
-#                    the size of the generated Log Files (default 16 and 4 MiB)
+#                    the size of the generated Log Files (default 4 and 4 MiB)
 set -euo pipefail
 
 results=${1:?usage: instruction-counts.sh <results directory>}
@@ -49,6 +49,9 @@ if [ -z "$targets" ]; then
     echo "::error::No benchmark targets in tests/benchmarks/CMakeLists.txt"
     exit 1
 fi
+
+grep -m 1 '^model name' /proc/cpuinfo || true
+valgrind --version
 
 echo "::group::Configure"
 # shellcheck disable=SC2086 # the options are a list of words
@@ -77,7 +80,7 @@ export LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1
 export QT_HASH_SEED=0
 export QT_QPA_PLATFORM=offscreen
 export LC_ALL=C.UTF-8
-export LOGSQUIRL_BENCHMARK_LOG_FILE_MB=${LOGSQUIRL_BENCHMARK_LOG_FILE_MB:-16}
+export LOGSQUIRL_BENCHMARK_LOG_FILE_MB=${LOGSQUIRL_BENCHMARK_LOG_FILE_MB:-4}
 export LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB=${LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB:-4}
 
 mkdir -p "$results"
@@ -99,9 +102,11 @@ for target in $targets; do
     # counted.
     code=0
     # A larger main stack than the 8 MiB Valgrind gives by default: the
-    # generated Log Lines of some benchmarks are built on it.
+    # generated Log Lines of some benchmarks are built on it. --fair-sched:
+    # the threads take turns in a fixed order, so a thread that waits for
+    # another spins about as often from run to run.
     timeout "$binary_timeout" valgrind --tool=callgrind --instr-atstart=no --trace-children=yes \
-        --main-stacksize=67108864 \
+        --main-stacksize=67108864 --fair-sched=yes \
         --callgrind-out-file="$out/callgrind.out.%p" \
         "$build_root/output/$target" --order decl --rng-seed 1 '~[wall-clock]' --allow-running-no-tests \
         > "$out/log.txt" 2>&1 || code=$?
