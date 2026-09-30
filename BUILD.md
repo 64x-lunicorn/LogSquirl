@@ -440,7 +440,7 @@ twenty-odd benchmark executables and Vectorscan's runtime, which sccache does no
 A count is reproducible where a time is not: two runs of the same commit differ by less than
 0.5 % for most benchmarks, on a shared runner whose times vary by 5–20 %. The exceptions wait for
 other threads: which heap blocks glibc's allocator has free, and how long an idle worker thread
-spins, then depend on how the threads took turns, and their counts vary by up to about 2 %
+spins, then depend on how the threads took turns, and their counts vary by up to about 3 %
 (Valgrind's `--fair-sched=yes` makes that about a third of what it is without). For that, each benchmark runs
 its measured code exactly once, in the benchmarks' **fixed-work mode**
 (`tests/benchmarks/instruction_count.h`), instead of as often as Catch2's clock asks for:

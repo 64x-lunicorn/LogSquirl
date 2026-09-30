@@ -282,7 +282,7 @@ def render_markdown(data: dict[str, Any], *, comment: bool = False) -> str:
         f"before is the base, {data['before']['sha'][:12]}, after is this pull request merged onto it, "
         f"{data['after']['sha'][:12]}. Two runs of the same commit differ by less than {NOISE_PERCENT} % "
         "for most benchmarks, so a smaller change is noise; a few that wait for other threads vary by "
-        "up to about 2 %. BUILD.md, *Instruction counts*, shows how to count one locally.",
+        "up to about 3 %. BUILD.md, *Instruction counts*, shows how to count one locally.",
         "",
     ]
     for key in ("before", "after"):
