@@ -28,6 +28,7 @@
 #include <whereami.h>
 
 #include <array>
+#include <optional>
 #include <vector>
 
 namespace {
@@ -106,12 +107,49 @@ QString runningExecutableDirectory()
     return QString::fromUtf8( path.data(), dirnameLength );
 }
 
+// The directory isolateCurrentIn() was given, and whether current() has
+// decided the location already. Both only touched from the main thread, before
+// and while the location is first asked for.
+std::optional<QString>& isolatedCurrentDirectory()
+{
+    static std::optional<QString> directory;
+    return directory;
+}
+
+bool& currentDecided()
+{
+    static bool decided = false;
+    return decided;
+}
+
 } // namespace
 
 const DataLocation& DataLocation::current()
 {
-    static const DataLocation location{ ForcePortable, runningExecutableDirectory() };
+    static const DataLocation location = [] {
+        currentDecided() = true;
+        if ( const auto& isolated = isolatedCurrentDirectory() ) {
+            return isolatedIn( *isolated );
+        }
+        return DataLocation{ ForcePortable, runningExecutableDirectory() };
+    }();
     return location;
+}
+
+DataLocation DataLocation::isolatedIn( const QString& directory )
+{
+    DataLocation location{ true, directory };
+    location.isolated_ = true;
+    return location;
+}
+
+bool DataLocation::isolateCurrentIn( const QString& directory )
+{
+    if ( currentDecided() ) {
+        return false;
+    }
+    isolatedCurrentDirectory() = directory;
+    return true;
 }
 
 DataLocation::DataLocation( bool forcePortable, const QString& executableDirectory )
@@ -166,7 +204,8 @@ DataLocation::takeOverOldPortableData( const QString& oldDataDirectory,
                                        const QString& oldConfigDirectory ) const
 {
     TakeOver takeOver;
-    if ( !portable_ || QFileInfo::exists( takeOverMarkerPath() ) ) {
+    // A Benchmark Run reads nothing of the user's (#666).
+    if ( !portable_ || isolated_ || QFileInfo::exists( takeOverMarkerPath() ) ) {
         return takeOver;
     }
 

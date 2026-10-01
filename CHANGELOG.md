@@ -97,6 +97,16 @@
   is a report, never a gate. A benchmark binary that runs longer than 30
   minutes is stopped instead of using up the whole run. (#674)
 
+- **The application has a benchmark mode**: `logsquirl --benchmark
+  open-and-index <Log File>` opens the Log File as a start from the command
+  line does, and writes one JSON object with the times its first Log Line was
+  displayed and its Index finished -- since the process started and since the
+  open, taken from those events -- and the peak RSS, then exits. It runs
+  offscreen and keeps its settings, Session and data in a temporary directory
+  of its own, so it reads and writes nothing of yours. The report format is
+  versioned and documented in BUILD.md, *Benchmark mode*; Search, QuickFind,
+  scrolling, follow and Session restore follow as further scenarios. (#666)
+
 # v26.10.0 (2026-09-29)
 
 The stable release of 26.10. It contains everything from

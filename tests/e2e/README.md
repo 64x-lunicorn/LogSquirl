@@ -153,6 +153,8 @@ tests/e2e/
 ├── test_heavy_tabs.py       # Heavy tabs crash test
 ├── test_user_data_untouched.py # The suite leaves the user's own LogSquirl alone
 ├── isolated_instance.py     # Starts LogSquirl with its own settings, Session, cache and plugins
+├── benchmark_mode.py        # Runs the benchmark mode (`--benchmark`) and checks its report (BUILD.md)
+├── test_benchmark_mode.py   # The benchmark mode reports its events and keeps nothing
 └── test_performance.py      # Performance regression tests (14 benchmarks)
 ```
 
