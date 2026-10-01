@@ -291,6 +291,26 @@ int pixelsIn( const QImage& image, const QColor& color )
     return pixels;
 }
 
+// The most dots in color any one row of the image has: pixels in color with
+// the next one not and the one after again in it, as the underline of a
+// Named Value is drawn. Text hardly draws such a run.
+int mostDotsInARow( const QImage& image, const QColor& color )
+{
+    int most = 0;
+    for ( int y = 0; y < image.height(); ++y ) {
+        int dots = 0;
+        for ( int x = 0; x + 2 < image.width(); ++x ) {
+            if ( image.pixelColor( x, y ).rgb() == color.rgb()
+                 && image.pixelColor( x + 1, y ).rgb() != color.rgb()
+                 && image.pixelColor( x + 2, y ).rgb() == color.rgb() ) {
+                ++dots;
+            }
+        }
+        most = std::max( most, dots );
+    }
+    return most;
+}
+
 } // namespace
 
 // The dotted underline of a Named Value is drawn in the text color of the
@@ -335,6 +355,17 @@ SCENARIO( "A Named Value's underline follows a Theme switch", "[ui][theme][viewp
                          == darkText.rgb() );
                 REQUIRE( pixelsIn( painted, darkText ) > 0 );
                 REQUIRE( pixelsIn( painted, lightText ) == 0 );
+            }
+
+            THEN( "the Named Values are underlined with dots in it, which go with them" )
+            {
+                // "Beispiel(0x15)" and "Sample(0x14)": a dot every other pixel.
+                REQUIRE( mostDotsInARow( painted, darkText ) >= 20 );
+                view.valueNamesShownSet( false );
+                QCoreApplication::processEvents();
+                const auto plain
+                    = view.viewport()->grab().toImage().convertToFormat( QImage::Format_RGB32 );
+                REQUIRE( mostDotsInARow( plain, darkText ) < 5 );
             }
         }
 
