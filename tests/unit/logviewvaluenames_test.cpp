@@ -25,13 +25,17 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QCoreApplication>
 #include <QFile>
 #include <QFileDialog>
 #include <QFontInfo>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QScrollBar>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 
 #include "abstractlogview.h"
@@ -41,6 +45,7 @@
 #include "regularexpressionpattern.h"
 #include "savelinesdialog.h"
 #include "valuenames_fixture.h"
+#include "vector_lines.h"
 #include "viewportlayout.h"
 
 using valuenamesfixture::ScopedValueNames;
@@ -102,19 +107,6 @@ QStringList valueNamesLines()
              QStringLiteral( "regenbogen 0x15" ) };
 }
 
-// The Log Lines, expanded as a Log File expands them: FakeLogData leaves
-// their tabs.
-class TabbedLogData : public FakeLogData {
-public:
-    using FakeLogData::FakeLogData;
-
-protected:
-    QString doGetExpandedLineString( LineNumber line ) const override
-    {
-        return untabify( doGetLineString( line ) );
-    }
-};
-
 class ValueNamesLogView : public AbstractLogView {
 public:
     ValueNamesLogView( const AbstractLogData* logData, const QuickFindPattern* quickFindPattern,
@@ -123,6 +115,8 @@ public:
     {
     }
 
+    using AbstractLogView::createContextMenu;
+    using AbstractLogView::saveLinesDialog;
     using AbstractLogView::saveLinesTo;
 };
 
@@ -171,6 +165,20 @@ void doubleClick( AbstractLogView& view, QPointF pos )
     sendMouse( view, QEvent::MouseButtonRelease, pos, Qt::LeftButton, Qt::NoButton );
 }
 
+// Chooses the entry of the view's context menu, opened at pos.
+void chooseFromMenu( ValueNamesLogView& view, QPointF pos, const QString& entry )
+{
+    const auto menu = view.createContextMenu( pos.toPoint() );
+    for ( auto* action : menu->actions() ) {
+        if ( action->text() == entry ) {
+            REQUIRE( action->isEnabled() );
+            action->trigger();
+            return;
+        }
+    }
+    FAIL( "no entry " << entry.toStdString() );
+}
+
 // How many Visual Lines of the Log Line the Viewport holds.
 size_t visualLinesOf( const AbstractLogView& view, LineNumber line )
 {
@@ -191,7 +199,7 @@ void paint( AbstractLogView& view )
 SCENARIO( "A text view showing Value Names selects and copies whole values", "[logviewvaluenames]" )
 {
     const ScopedValueNames valueNames;
-    const TabbedLogData logData{ valueNamesLines() };
+    const FakeLogData logData{ valueNamesLines() };
     const QuickFindPattern quickFindPattern;
 
     ValueNamesLogView view( &logData, &quickFindPattern, false );
@@ -211,6 +219,21 @@ SCENARIO( "A text view showing Value Names selects and copies whole values", "[l
         THEN( "Copy as Shown holds the whole name" )
         {
             REQUIRE( view.getSelectedTextAsShown() == QStringLiteral( " << ECU Beispiel(0x15)" ) );
+        }
+
+        THEN( "Add to search adds the whole raw value" )
+        {
+            QSignalSpy added( &view, qOverload<const QString&>( &AbstractLogView::addToSearch ) );
+            chooseFromMenu( view, onText( 0, 5 ), QStringLiteral( "&Add to search" ) );
+            REQUIRE( added.count() == 1 );
+            REQUIRE( added.front().front().toString() == QStringLiteral( " << ECU 0x15" ) );
+        }
+
+        THEN( "Copy with line numbers copies the whole raw value" )
+        {
+            QApplication::clipboard()->clear();
+            chooseFromMenu( view, onText( 0, 5 ), QStringLiteral( "Copy with line numbers" ) );
+            REQUIRE( QApplication::clipboard()->text() == QStringLiteral( "0:  << ECU 0x15" ) );
         }
     }
 
@@ -307,7 +330,7 @@ SCENARIO( "A text view showing Value Names selects and copies whole values", "[l
 SCENARIO( "A text view shows where a Named Value's name came from", "[logviewvaluenames]" )
 {
     const ScopedValueNames valueNames;
-    const TabbedLogData logData{ valueNamesLines() };
+    const FakeLogData logData{ valueNamesLines() };
     const QuickFindPattern quickFindPattern;
 
     ValueNamesLogView view( &logData, &quickFindPattern, false );
@@ -334,7 +357,7 @@ SCENARIO( "A text view shows where a Named Value's name came from", "[logviewval
 SCENARIO( "A Search over part of a Named Value colors all of what is shown", "[logviewvaluenames]" )
 {
     const ScopedValueNames valueNames;
-    const TabbedLogData logData{ valueNamesLines() };
+    const FakeLogData logData{ valueNamesLines() };
     const QuickFindPattern quickFindPattern;
 
     ValueNamesLogView view( &logData, &quickFindPattern, false );
@@ -375,7 +398,7 @@ SCENARIO( "A text view wraps and scrolls the text it shows with Value Names",
           "[logviewvaluenames]" )
 {
     const ScopedValueNames valueNames;
-    const TabbedLogData logData{ valueNamesLines() };
+    const FakeLogData logData{ valueNamesLines() };
     const QuickFindPattern quickFindPattern;
     REQUIRE( 51 < Columns );
     REQUIRE( 69 > Columns );
@@ -404,7 +427,7 @@ SCENARIO( "A text view wraps and scrolls the text it shows with Value Names",
         REQUIRE( view.horizontalScrollBar()->maximum() == 0 );
 
         // A view of Log Lines that are as wide raw as these are shown.
-        const TabbedLogData shownData{ { QStringLiteral(
+        const FakeLogData shownData{ { QStringLiteral(
             "BAP << ECU Beispiel(0x15) Sample(0x14) and thirty more characters." ) } };
         ValueNamesLogView shownView( &shownData, &quickFindPattern, false );
         showForTest( shownView );
@@ -439,7 +462,7 @@ SCENARIO( "A text view wraps and scrolls the text it shows with Value Names",
 
 SCENARIO( "Off, Value Names cost a text view nothing", "[logviewvaluenames]" )
 {
-    const TabbedLogData logData{ valueNamesLines() };
+    const FakeLogData logData{ valueNamesLines() };
     const QuickFindPattern quickFindPattern;
 
     GIVEN( "Naming Rules, and a view whose switch is off" )
@@ -508,7 +531,7 @@ SCENARIO( "A text view saves its Log Lines with Value Names when asked to",
           "[logviewvaluenames][linessaver]" )
 {
     const ScopedValueNames valueNames;
-    const TabbedLogData logData{ valueNamesLines() };
+    const FakeLogData logData{ valueNamesLines() };
     const QuickFindPattern quickFindPattern;
     ValueNamesLogView view( &logData, &quickFindPattern, false );
     showForTest( view );
@@ -558,28 +581,145 @@ SCENARIO( "A text view saves its Log Lines with Value Names when asked to",
     }
 }
 
-SCENARIO( "The save dialog offers With Value Names while the view shows them",
+SCENARIO( "The save dialog offers With Value Names only while the view shows them",
           "[logviewvaluenames][linessaver]" )
 {
-    for ( const bool shown : { true, false } ) {
-        GIVEN( "a view that " << ( shown ? "shows" : "does not show" ) << " Value Names" )
-        {
-            const auto dialog = SaveLinesDialog::create( nullptr, shown );
-            const auto* check
-                = dialog->findChild<QCheckBox*>( SaveLinesDialog::WithValueNamesName );
+    const ScopedValueNames valueNames;
+    const FakeLogData logData{ valueNamesLines() };
+    const QuickFindPattern quickFindPattern;
+    ValueNamesLogView view( &logData, &quickFindPattern, false );
+    showForTest( view );
 
-            THEN( "the check is there, off, and enabled only then" )
+    GIVEN( "a view that does not show Value Names, though a Naming Rule is enabled" )
+    {
+        THEN( "it asks with the platform's own dialog" )
+        {
+            REQUIRE( view.saveLinesDialog() == nullptr );
+        }
+    }
+
+    GIVEN( "a view that shows Value Names" )
+    {
+        view.valueNamesShownSet( true );
+        const auto dialog = view.saveLinesDialog();
+        REQUIRE( dialog != nullptr );
+        auto* check = dialog->findChild<QCheckBox*>( SaveLinesDialog::WithValueNamesName );
+
+        THEN( "it asks with a dialog whose check is there, off and enabled" )
+        {
+            REQUIRE( check != nullptr );
+            REQUIRE_FALSE( check->isChecked() );
+            REQUIRE( check->isEnabled() );
+            REQUIRE_FALSE( SaveLinesDialog::withValueNames( *dialog ) );
+        }
+
+        THEN( "checked, the save is with Value Names" )
+        {
+            REQUIRE( check != nullptr );
+            check->setChecked( true );
+            REQUIRE( SaveLinesDialog::withValueNames( *dialog ) );
+        }
+    }
+}
+
+// A Filtered View: its positions are not its Log Lines' numbers (#647).
+SCENARIO( "A Filtered View shows Value Names at its positions", "[logviewvaluenames]" )
+{
+    const ScopedValueNames valueNames;
+    // Log Lines 1, 3 and 4 are shown, at positions 0, 1 and 2.
+    const QStringList logFileLines{
+        QStringLiteral( "not shown" ), QStringLiteral( "BAP << ECU 0x15 0x14 sonstiges" ),
+        QStringLiteral( "not shown either" ), QStringLiteral( "a\tid=7\tb" ),
+        // Wrapped, Beispiel(0x15) starts the second Visual Line: the Viewport
+        // is 58 columns wide and it is shown from column 52 on.
+        QStringLiteral( "a Log Line wrapped inside a Named Value: BAP << ECU 0x15 0x14 end" )
+    };
+    const std::vector<uint64_t> shown{ 1, 3, 4 };
+    const FakeLogData logFile{ logFileLines };
+    QStringList shownLines;
+    for ( const auto line : shown ) {
+        shownLines << logFileLines[ static_cast<qsizetype>( line ) ];
+    }
+    const FakeLogData shownText{ shownLines };
+    const QuickFindPattern quickFindPattern;
+
+    for ( const bool textWrap : { false, true } ) {
+        GIVEN( "a Filtered View showing Value Names, text wrapping "
+               << ( textWrap ? "on" : "off" ) )
+        {
+            AbstractLogView view( &shownText, std::make_unique<VectorLines>( &logFile, shown ),
+                                  &quickFindPattern, textWrap );
+            showForTest( view );
+            view.valueNamesShownSet( true );
+
+            THEN( "a point on a Named Value tells where its name came from" )
             {
-                REQUIRE( check != nullptr );
-                REQUIRE_FALSE( check->isChecked() );
-                REQUIRE( check->isEnabled() == shown );
-                REQUIRE_FALSE( SaveLinesDialog::withValueNames( *dialog ) );
+                REQUIRE(
+                    view.valueNameToolTipAt( onText( 0, 12 ).toPoint() )
+                    == QStringLiteral( "0x15 → Beispiel · table ECU · rule BAP ECU · group BAP" ) );
+                REQUIRE( view.valueNameToolTipAt( onText( 1, 13 ).toPoint() )
+                         == QStringLiteral( "7 → seven · table Ids · rule Id · group BAP" ) );
             }
 
-            THEN( "checked, the save is with Value Names only while they are shown" )
+            WHEN( "text is dragged into a Named Value" )
             {
-                const_cast<QCheckBox*>( check )->setChecked( true );
-                REQUIRE( SaveLinesDialog::withValueNames( *dialog ) == shown );
+                drag( view, onText( 0, 3 ), onText( 0, 15 ) );
+
+                THEN( "the copy holds the raw value, Copy as Shown the name, of Log Line 1" )
+                {
+                    REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 1_lnum } );
+                    REQUIRE( view.getSelectedText() == QStringLiteral( " << ECU 0x15" ) );
+                    REQUIRE( view.getSelectedTextAsShown()
+                             == QStringLiteral( " << ECU Beispiel(0x15)" ) );
+                }
+            }
+
+            WHEN( "a Named Value between tabs is double-clicked" )
+            {
+                doubleClick( view, onText( 1, 13 ) );
+
+                THEN( "the whole value of Log Line 3 is selected" )
+                {
+                    REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 3_lnum } );
+                    REQUIRE( view.getSelectedText() == QStringLiteral( "7" ) );
+                    REQUIRE( view.getSelectedTextAsShown() == QStringLiteral( "seven(7)" ) );
+                }
+            }
+
+            if ( textWrap ) {
+                THEN( "a Named Value on the second Visual Line of a wrapped Log Line is found "
+                      "there" )
+                {
+                    REQUIRE( view.valueNameToolTipAt( onText( 3, 2 ).toPoint() )
+                                 .startsWith( QStringLiteral( "0x15 → Beispiel" ) ) );
+                    doubleClick( view, onText( 3, 2 ) );
+                    REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 4_lnum } );
+                    REQUIRE( view.getSelectedText() == QStringLiteral( "0x15" ) );
+                }
+            }
+
+            WHEN( "a Search matches part of a Named Value" )
+            {
+                const QColor searchBack{ 255, 200, 0 };
+                view.setDecorationPolicy(
+                    DecorationPolicy{ .mainSearchHighlight = true,
+                                      .variateMainSearchHighlight = false,
+                                      .mainSearchBackColor = searchBack,
+                                      .quickFindBackColor = QColor{ Qt::yellow } } );
+                view.setSearchPattern( RegularExpressionPattern{ QStringLiteral( "x15" ) } );
+                paint( view );
+
+                THEN( "its color covers the whole name at the position shown" )
+                {
+                    const auto spans = Access::decorationSpans( view, 0_lnum );
+                    std::vector<std::pair<int64_t, int64_t>> searched;
+                    for ( const auto& span : spans ) {
+                        if ( span.backColor() == searchBack ) {
+                            searched.emplace_back( span.startColumn().get(), span.size().get() );
+                        }
+                    }
+                    REQUIRE( searched == std::vector<std::pair<int64_t, int64_t>>{ { 11, 14 } } );
+                }
             }
         }
     }

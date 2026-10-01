@@ -919,19 +919,6 @@ LogFormatDefinition makeTwoFieldFormat()
     return format;
 }
 
-// A Log File that expands tabs where it hands out the text QuickFind reads,
-// as LogData does.
-class TabExpandingLogData : public FakeLogData {
-public:
-    using FakeLogData::FakeLogData;
-
-protected:
-    QString doGetExpandedLineString( LineNumber line ) const override
-    {
-        return untabify( doGetLineString( line ) );
-    }
-};
-
 int columnOf( const LogTableView& view, const QString& field )
 {
     for ( int column = 0; column < view.model()->columnCount(); ++column ) {
@@ -950,7 +937,7 @@ SCENARIO( "A QuickFind in the Table View starts from the selected characters and
           "[logtableview][quickfind]" )
 {
     const auto format = makeTwoFieldFormat();
-    TabExpandingLogData logData(
+    FakeLogData logData(
         QStringList{ "a=needle b=needle", "a=other b=needle", "a=foo b=bar", "a=tab\tb=needle" } );
     InspectedTableView view;
     QuickFindBar quickFind( view, testSettingsPolicies().quickFind );

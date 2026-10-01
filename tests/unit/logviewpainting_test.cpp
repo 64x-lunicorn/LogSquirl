@@ -59,6 +59,7 @@
 #include <utility>
 #include <vector>
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFontInfo>
@@ -1432,17 +1433,27 @@ QStringList valueNamesTexts()
 }
 
 // The view, showing Value Names or not, with a search for x15.
+// With themePalette, in the palette of the active Theme rather than the fixed
+// one; textColor, if given, is set to the text color it was painted with.
 QImage paintValueNames( const QFont& font, bool textWrap, bool showValueNames,
-                        const QPalette& palette = fixedPalette() )
+                        bool themePalette = false, QColor* textColor = nullptr )
 {
     const FakeLogData logData{ valueNamesTexts() };
     const QuickFindPattern quickFindPattern;
     PaintingLogView view( &logData, &quickFindPattern, textWrap );
     showForPainting( view, logData, font, { .textWrap = textWrap } );
-    view.setPalette( palette );
+    if ( themePalette ) {
+        // The view's and its viewport's, which painting reads.
+        view.setPalette( Theme::active().palette() );
+        view.viewport()->setPalette( Theme::active().palette() );
+    }
     view.setSearchPattern( RegularExpressionPattern{ QStringLiteral( "x15" ) } );
     view.valueNamesShownSet( showValueNames );
-    return grabViewport( view );
+    auto painted = grabViewport( view );
+    if ( textColor != nullptr ) {
+        *textColor = view.viewport()->palette().color( QPalette::Text );
+    }
+    return painted;
 }
 
 // The row of pixels a Log Line's Named Values are underlined on: two below
@@ -1505,17 +1516,19 @@ SCENARIO( "The log view shows Value Names underlined", "[logviewpainting][valuen
             }
         }
 
-        WHEN( "it shows them in a dark palette" )
+        WHEN( "it shows them in the Dark Theme" )
         {
-            auto dark = fixedPalette();
-            dark.setColor( QPalette::Base, QColor{ 30, 30, 30 } );
-            dark.setColor( QPalette::Text, QColor{ 220, 220, 220 } );
-            const auto painted = paintValueNames( font, false, true, dark );
+            Theme::apply( Theme::DarkKey );
+            QColor text;
+            const auto painted = paintValueNames( font, false, true, true, &text );
+            // The Theme the other sections expect.
+            Theme::apply( Theme::LightKey );
 
-            THEN( "the Named Values are dotted in the palette's text color, every other pixel" )
+            THEN( "the Named Values are dotted in the Theme's text color, every other pixel" )
             {
+                // Light text on a dark Base.
+                REQUIRE( text.lightness() > 128 );
                 // "BAP << ECU " | "Beispiel(0x15)" | " " | "Sample(0x14)" | " sonstiges"
-                const QColor text{ 220, 220, 220 };
                 REQUIRE( underlinePixels( painted, 0, 11, 25, text ) == 14 * 8 / 2 );
                 REQUIRE( underlinePixels( painted, 0, 26, 38, text ) == 12 * 8 / 2 );
                 REQUIRE( underlinePixels( painted, 0, 0, 11, text ) == 0 );

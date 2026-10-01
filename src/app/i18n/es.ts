@@ -4,7 +4,7 @@
 <context>
     <name>AbstractLogView</name>
     <message>
-        <location filename="../../ui/src/abstractlogview.cpp" line="1576"/>
+        <location filename="../../ui/src/abstractlogview.cpp" line="1586"/>
         <source>%1 → %2 · table %3 · rule %4 · group %5</source>
         <extracomment>The tooltip over a Named Value: the raw value, its name, the Name Table, the Naming Rule and the Naming Group it came from.</extracomment>
         <translation>%1 → %2 · tabla %3 · regla %4 · grupo %5</translation>
@@ -4219,12 +4219,17 @@ Reinicie LogSquirl para volver a intentarlo.</translation>
 <context>
     <name>SaveLinesDialog</name>
     <message>
-        <location filename="../../ui/src/savelinesdialog.cpp" line="32"/>
+        <location filename="../../ui/src/savelinesdialog.cpp" line="28"/>
+        <source>Save content</source>
+        <translation>Guardar contenido</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/savelinesdialog.cpp" line="39"/>
         <source>With Value Names</source>
         <translation>Con nombres de valores</translation>
     </message>
     <message>
-        <location filename="../../ui/src/savelinesdialog.cpp" line="37"/>
+        <location filename="../../ui/src/savelinesdialog.cpp" line="43"/>
         <source>Save the Log Lines as they are shown, with the names of their values</source>
         <translation>Guardar las líneas de registro como se muestran, con los nombres de sus valores</translation>
     </message>

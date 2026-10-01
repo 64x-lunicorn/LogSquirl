@@ -79,6 +79,7 @@
 #include "viewportlayout.h"
 #include "wrappedstring.h"
 
+class QFileDialog;
 class QKeyEvent;
 class QMenu;
 class QPainter;
@@ -286,6 +287,11 @@ protected:
     // Reads the lines a save from this view writes, by their position in the
     // view, off the UI thread (see LineMapping::linesToSave()).
     DisplayedLinesReader linesToSave() const;
+
+    // The dialog Save to file and Save selected to file ask with: one that
+    // offers to save With Value Names while the view shows them; none, and
+    // the platform's own dialog, otherwise (#647).
+    std::unique_ptr<QFileDialog> saveLinesDialog();
 
     // Saves the lines at positions [begin, end) to filename, behind an application
     // modal progress dialog. filename is replaced only when every line was
@@ -755,6 +761,11 @@ private:
     // Drops what was named with the Value Names shown before, and the widths
     // scrolled to for them.
     void renameLogLines();
+    // The selection with its portion grown to take in every Named Value it
+    // takes in part of; none while there is nothing to grow (#647).
+    std::optional<Selection> selectionCoveringNamedValues() const;
+    // The selected text, never half a raw value, with line numbers or not.
+    QString selectedText( bool lineNumbers ) const;
     // The portion grown to take in every Named Value it takes in part of.
     Portion coveringNamedValues( const Portion& portion ) const;
     // The Log Line in the Viewport at a position of the view, if it is there.

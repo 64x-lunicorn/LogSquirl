@@ -689,8 +689,8 @@ color of the text, and hovering over it tells where its name came from, as in
 **Showing and hiding them.** *View → Show Value Names* (`Ctrl+Shift+N`,
 `Cmd+Shift+N` on macOS) shows or hides them in the main view and every
 filtered view of the current tab, the way *Wrap text* does; every tab keeps its
-own. A tab starts as the setting *Show Value Names on file open*
-(*Settings → View*) says. With Value Names hidden, or no Naming Rule enabled,
+own. A tab starts as *Show Value Names on file open* says, in the *View* tab of
+*File → Preferences...* (see [View](#view) under [Settings](#settings)). With Value Names hidden, or no Naming Rule enabled,
 nothing is looked up, and the views are as fast as without them.
 
 **Search, filters and highlighters** work on the raw text. A match or a

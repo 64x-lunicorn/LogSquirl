@@ -27,6 +27,7 @@
 #include "quickfindpattern.h"
 #include "selection.h"
 #include "shortcuts.h"
+#include "vector_lines.h"
 
 #include <QShortcut>
 #include <QSignalSpy>
@@ -65,90 +66,6 @@ std::vector<uint64_t> everyLogLine()
     }
     return lines;
 }
-
-// Shows the Log Lines in shown, in order, of a Log File whose Log Lines read
-// "log line N"; the Log Lines in marks are Marks, shown or not.
-class VectorLines : public LineMapping {
-public:
-    VectorLines( const AbstractLogData* logFile, std::vector<uint64_t> shown,
-                 std::vector<uint64_t> marks = {} )
-        : logFile_( logFile )
-        , shown_( std::move( shown ) )
-        , marks_( std::move( marks ) )
-    {
-    }
-
-    OptionalLineNumber logLineAt( LineNumber position ) const override
-    {
-        if ( position.get() < shown_.size() ) {
-            return LineNumber( shown_[ position.get() ] );
-        }
-        return std::nullopt;
-    }
-
-    LineNumber nearestPositionOf( LineNumber logLine ) const override
-    {
-        const auto after = std::upper_bound( shown_.begin(), shown_.end(), logLine.get() );
-        const auto shownUpTo = static_cast<uint64_t>( after - shown_.begin() );
-        return LineNumber( shownUpTo > 0 ? shownUpTo - 1 : 0 );
-    }
-
-    LineType lineType( LineNumber logLine ) const override
-    {
-        return std::ranges::find( marks_, logLine.get() ) != marks_.end()
-                   ? LineType{ AbstractLogData::LineTypeFlags::Mark }
-                   : LineType{ AbstractLogData::LineTypeFlags::Match };
-    }
-
-    LinesCount logLineCount() const override
-    {
-        return logFile_->getNbLine();
-    }
-
-    OptionalLineNumber markAfter( LineNumber logLine ) const override
-    {
-        const auto mark = std::upper_bound( marks_.begin(), marks_.end(), logLine.get() );
-        return mark != marks_.end() ? OptionalLineNumber( LineNumber( *mark ) ) : std::nullopt;
-    }
-
-    OptionalLineNumber markBefore( LineNumber logLine ) const override
-    {
-        const auto mark = std::lower_bound( marks_.begin(), marks_.end(), logLine.get() );
-        return mark != marks_.begin() ? OptionalLineNumber( LineNumber( *std::prev( mark ) ) )
-                                      : std::nullopt;
-    }
-
-    const AbstractLogData& logFile() const override
-    {
-        return *logFile_;
-    }
-
-    QuickFindLines quickFindLines() const override
-    {
-        SearchResultArray lines;
-        for ( const auto line : shown_ ) {
-            lines.add( line );
-        }
-        return QuickFindLines::someLogLines( *logFile_, std::move( lines ) );
-    }
-
-    DisplayedLinesReader linesToSave() const override
-    {
-        return [ this ]( LineNumber first, LinesCount count ) {
-            logsquirl::vector<QString> text;
-            for ( auto position = first; position < first + count; ++position ) {
-                const auto logLine = logLineAt( position );
-                text.push_back( logLine ? logFile_->getLineString( *logLine ) : QString{} );
-            }
-            return text;
-        };
-    }
-
-private:
-    const AbstractLogData* logFile_;
-    std::vector<uint64_t> shown_;
-    std::vector<uint64_t> marks_;
-};
 
 // Every one of a huge number of Log Lines shown at its own position, counting
 // how many positions are looked at: no Log File of that size is needed.

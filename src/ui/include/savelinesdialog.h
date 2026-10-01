@@ -27,18 +27,19 @@ class QFileDialog;
 class QWidget;
 
 // The file dialog Save to file and Save selected to file of a text view ask
-// with while a Naming Rule can name a value: under the file, the check "With
-// Value Names", off at first and enabled only while the view shows Value
-// Names (#647). The platform's own dialog cannot hold it, so this one is
-// Qt's; without a Naming Rule the view asks with the platform's as before.
+// with while the view shows Value Names: under the file, the check "With
+// Value Names", off at first (#647). The platform's own dialog cannot hold
+// it, so this one is Qt's; a view showing none asks with the platform's as
+// before.
 class SaveLinesDialog {
     Q_DECLARE_TR_FUNCTIONS( SaveLinesDialog )
 
 public:
-    // Not shown yet: the caller runs it.
-    static std::unique_ptr<QFileDialog> create( QWidget* parent, bool valueNamesShown );
+    // Not shown yet: the caller runs it. Should Qt's dialog ever be laid out
+    // other than on a grid, it comes without the check.
+    static std::unique_ptr<QFileDialog> create( QWidget* parent );
 
-    // Whether a dialog create() built has "With Value Names" checked.
+    // Whether a dialog create() built has "With Value Names", and it is checked.
     static bool withValueNames( const QFileDialog& dialog );
 
     // The object name of the check, which a test finds it by.

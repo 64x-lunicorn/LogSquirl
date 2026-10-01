@@ -282,10 +282,10 @@ private:
 // each chunk having a different colour
 class LineDrawer {
 public:
-    // underlineColor is what a chunk showing a Named Value is underlined in.
-    LineDrawer( const QColor& backColor, const QColor& underlineColor )
+    // underlinePen is what a chunk showing a Named Value is underlined with.
+    LineDrawer( const QColor& backColor, const QPen& underlinePen )
         : backColor_( backColor )
-        , underlineColor_( underlineColor )
+        , underlinePen_( underlinePen )
     {
     }
 
@@ -388,10 +388,15 @@ public:
                     // A fine dotted line just below the baseline: no
                     // background, which is the Highlighters', so it shows
                     // under any of them.
-                    const int underlineY = yPos + std::min( fontAscent + 2, fontHeight - 1 );
-                    for ( int dotX = xPos; dotX < xPos + chunkWidth; dotX += 2 ) {
-                        painter->fillRect( dotX, underlineY, 1, 1, underlineColor_ );
-                    }
+                    // Drawn on whole pixels: a dot on every other one.
+                    const double underlineY
+                        = yPos + std::min( fontAscent + 2, fontHeight - 1 ) + 0.5;
+                    const bool antialiased = painter->testRenderHint( QPainter::Antialiasing );
+                    painter->setRenderHint( QPainter::Antialiasing, false );
+                    painter->setPen( underlinePen_ );
+                    painter->drawLine( QPointF( xPos, underlineY ),
+                                       QPointF( xPos + chunkWidth, underlineY ) );
+                    painter->setRenderHint( QPainter::Antialiasing, antialiased );
                 }
 
                 xPos += chunkWidth;
@@ -408,7 +413,7 @@ public:
 private:
     logsquirl::vector<LineChunk> chunks_;
     QColor backColor_;
-    QColor underlineColor_;
+    QPen underlinePen_;
 };
 
 } // namespace
@@ -1098,7 +1103,7 @@ bool AbstractLogView::event( QEvent* e )
 
 bool AbstractLogView::viewportEvent( QEvent* e )
 {
-    if ( e->type() == QEvent::ToolTip ) {
+    if ( e->type() == QEvent::ToolTip && showsValueNames() ) {
         // Over a Named Value, where its name came from (#647).
         const auto* helpEvent = static_cast<QHelpEvent*>( e );
         const auto toolTip = valueNameToolTipAt( helpEvent->pos() );
@@ -1633,7 +1638,7 @@ void AbstractLogView::addToSearch()
 {
     if ( selection_.isPortion() ) {
         LOG_DEBUG << "AbstractLogView::addToSearch()";
-        Q_EMIT addToSearch( selection_.getSelectedText( *lines_, *logData_ ) );
+        Q_EMIT addToSearch( getSelectedText() );
     }
     else {
         LOG_ERROR << "AbstractLogView::addToSearch called for a wrong type of selection";
@@ -1645,7 +1650,7 @@ void AbstractLogView::replaceSearch()
 {
     if ( selection_.isPortion() ) {
         LOG_DEBUG << "AbstractLogView::replaceSearch()";
-        Q_EMIT replaceSearch( selection_.getSelectedText( *lines_, *logData_ ) );
+        Q_EMIT replaceSearch( getSelectedText() );
     }
     else {
         LOG_ERROR << "AbstractLogView::replaceSearch called for a wrong type of selection";
@@ -1656,7 +1661,7 @@ void AbstractLogView::excludeFromSearch()
 {
     if ( selection_.isPortion() ) {
         LOG_DEBUG << "AbstractLogView::excludeFromSearch()";
-        Q_EMIT excludeFromSearch( selection_.getSelectedText( *lines_, *logData_ ) );
+        Q_EMIT excludeFromSearch( getSelectedText() );
     }
     else {
         LOG_ERROR << "AbstractLogView::excludeFromSearch called for a wrong type of selection";
@@ -1668,8 +1673,7 @@ void AbstractLogView::findNextSelected()
 {
     // Use the selected 'word' and search forward
     if ( selection_.isPortion() ) {
-        Q_EMIT changeQuickFind( selection_.getSelectedText( *lines_, *logData_ ),
-                                QuickFindMux::Forward );
+        Q_EMIT changeQuickFind( getSelectedText(), QuickFindMux::Forward );
         Q_EMIT searchNext();
     }
 }
@@ -1678,8 +1682,7 @@ void AbstractLogView::findNextSelected()
 void AbstractLogView::findPreviousSelected()
 {
     if ( selection_.isPortion() ) {
-        Q_EMIT changeQuickFind( selection_.getSelectedText( *lines_, *logData_ ),
-                                QuickFindMux::Backward );
+        Q_EMIT changeQuickFind( getSelectedText(), QuickFindMux::Backward );
         Q_EMIT searchNext();
     }
 }
@@ -1699,8 +1702,7 @@ void AbstractLogView::copyAsShown()
 // Copy the selection with line numbers to the clipboard
 void AbstractLogView::copyWithLineNumbers()
 {
-    sendSelectionToClipboard(
-        [ this ] { return selection_.getSelectedText( *lines_, *logData_, true ); } );
+    sendSelectionToClipboard( [ this ] { return selectedText( true ); } );
 }
 
 void AbstractLogView::markSelected()
@@ -1752,9 +1754,10 @@ OptionalLineNumber AbstractLogView::logLineAtPoint( const QPoint& pos ) const
 
 void AbstractLogView::saveLinesToFile( LineNumber begin, LineNumber end )
 {
-    // Without a Naming Rule there is nothing to save with Value Names, and
-    // the platform's own dialog is shown as it always was.
-    if ( ValueNamesCollection::get().namer().isEmpty() ) {
+    // Only a tab showing Value Names has any to save with; any other asks
+    // with the platform's own dialog, as it always did.
+    const auto dialog = saveLinesDialog();
+    if ( dialog == nullptr ) {
         const auto filename = QFileDialog::getSaveFileName( this, "Save content" );
         if ( filename.isEmpty() ) {
             return;
@@ -1763,12 +1766,16 @@ void AbstractLogView::saveLinesToFile( LineNumber begin, LineNumber end )
         return;
     }
 
-    const auto dialog = SaveLinesDialog::create( this, showsValueNames() );
     if ( dialog->exec() != QDialog::Accepted || dialog->selectedFiles().isEmpty() ) {
         return;
     }
     saveLinesTo( dialog->selectedFiles().front(), begin, end,
                  SaveLinesDialog::withValueNames( *dialog ) );
+}
+
+std::unique_ptr<QFileDialog> AbstractLogView::saveLinesDialog()
+{
+    return showsValueNames() ? SaveLinesDialog::create( this ) : nullptr;
 }
 
 void AbstractLogView::saveLinesTo( const QString& filename, LineNumber begin, LineNumber end,
@@ -1925,16 +1932,29 @@ ScrollPosition AbstractLogView::scrollPosition() const
     return scrolling_.position();
 }
 
+std::optional<Selection> AbstractLogView::selectionCoveringNamedValues() const
+{
+    if ( !selection_.isPortion() || shownValueNamer() == nullptr ) {
+        return std::nullopt;
+    }
+    auto covering = selection_;
+    const auto line = selection_.getLines( *lines_ ).front();
+    covering.selectPortion( coveringNamedValues( selection_.getPortionForLine( line ) ) );
+    return covering;
+}
+
 QString AbstractLogView::getSelectedText() const
 {
-    if ( selection_.isPortion() && shownValueNamer() != nullptr ) {
-        // Never half a raw value.
-        auto covering = selection_;
-        const auto line = selection_.getLines( *lines_ ).front();
-        covering.selectPortion( coveringNamedValues( selection_.getPortionForLine( line ) ) );
-        return covering.getSelectedText( *lines_, *logData_ );
+    return selectedText( false );
+}
+
+QString AbstractLogView::selectedText( bool lineNumbers ) const
+{
+    // Never half a raw value (#647).
+    if ( const auto covering = selectionCoveringNamedValues(); covering.has_value() ) {
+        return covering->getSelectedText( *lines_, *logData_, lineNumbers );
     }
-    return selection_.getSelectedText( *lines_, *logData_ );
+    return selection_.getSelectedText( *lines_, *logData_, lineNumbers );
 }
 
 QString AbstractLogView::getSelectedTextAsShown() const
@@ -2541,6 +2561,9 @@ void AbstractLogView::updateGlobalSelection()
 
 LineLength AbstractLogView::selectedTextLength()
 {
+    if ( const auto covering = selectionCoveringNamedValues(); covering.has_value() ) {
+        return selectedTextLength_.of( *covering, *lines_, *logData_ );
+    }
     return selectedTextLength_.of( selection_, *lines_, *logData_ );
 }
 
@@ -2871,6 +2894,13 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
     // to display columns once afterwards. Tab expansion stays this view's
     // step.
     const auto linePalette = LinePalette::fromPalette( palette );
+    // A Named Value is underlined with dots in the palette's text color, one
+    // pixel on and one off (#647).
+    QPen valueNameUnderline( palette.color( QPalette::Text ) );
+    valueNameUnderline.setWidth( 1 );
+    valueNameUnderline.setCapStyle( Qt::FlatCap );
+    valueNameUnderline.setDashPattern( { 1.0, 1.0 } );
+
     const LineDecorator lineDecorator{ decorationSetup_.context(
         highlighterSet, SearchLimits{ searchStart_, searchEnd_ }, linePalette,
         LineStatusDisplay::InGutter ) };
@@ -2965,7 +2995,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
 
         // The Decoration covers the whole text; only the part of it in view
         // is drawn, each span as it is.
-        LineDrawer lineDrawer( lineColors.backColor, palette.color( QPalette::Text ) );
+        LineDrawer lineDrawer( lineColors.backColor, valueNameUnderline );
         const auto firstVisibleColumn
             = std::clamp( textWrap ? 0_lcol : firstColumn, 0_lcol,
                           LineColumn{ logsquirl::isize( expandedLine ) } );
