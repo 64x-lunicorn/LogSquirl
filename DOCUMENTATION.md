@@ -6,6 +6,7 @@
    - [Installing](#installing)
    - [The Dashboard](#the-dashboard)
 1. [Exploring log files](#Exploring-log-files)
+   - [Value Names](#value-names)
    - [Auto Log Format Detection (Table View)](#auto-log-format-detection-table-view)
    - [Chart Panel](#chart-panel)
    - [Tab groups](#tab-groups)
@@ -662,6 +663,51 @@ will remove all color labels.
 The colors that are used for text highlight can be configured from the color labels
 tab of highlighters configuration dialog.
 
+### Value Names
+
+Value Names show the raw values of a Log Line -- an ECU address, an error
+code, an ID -- with a name from a table, while the Log File itself is never
+changed. A **Naming Rule** says which Log Lines and which values: a regex whose
+capture groups are looked up, each in the **Name Table** given for it; a Name
+Table lists key regexes with the name each gives a value. Rules and tables are
+kept in **Naming Groups**.
+
+```
+Naming Rule:  BAP << ECU (0x[0-9A-F]{2}) (0x[0-9A-F]{2})
+              group 1 -> Name Table "ECU", group 2 -> Name Table "Function"
+Name Table "ECU":  0x0*15 -> Beispiel
+
+BAP << ECU 0x15 0x14 sonstiges  is shown as  BAP << ECU Beispiel(0x15) Sample(0x14) sonstiges
+regenbogen 0x15                 is shown as it is: no Naming Rule matches it
+```
+
+The main view and the filtered view show Value Names; the Table View shows
+the Log Lines as they are. A named value is underlined with fine dots in the
+color of the text, and hovering over it tells where its name came from, as in
+`0x15 → Beispiel · table ECU · rule BAP ECU · group BAP`.
+
+**Showing and hiding them.** *View → Show Value Names* (`Ctrl+Shift+N`,
+`Cmd+Shift+N` on macOS) shows or hides them in the main view and every
+filtered view of the current tab, the way *Wrap text* does; every tab keeps its
+own. A tab starts as the setting *Show Value Names on file open*
+(*Settings → View*) says. With Value Names hidden, or no Naming Rule enabled,
+nothing is looked up, and the views are as fast as without them.
+
+**Search, filters and highlighters** work on the raw text. A match or a
+highlight that covers part of a named value covers the whole name shown in its
+place; a search for a name finds nothing.
+
+**Selecting and copying.** A double-click on a named value selects the whole
+value. *Copy* copies the raw text, and a selection that takes in part of a
+named value copies its whole raw value, never half of it. *Copy as shown*, in
+the context menu of the view and as *Copy as Shown* in the *Edit* menu,
+copies the text as it is shown, with the names.
+
+**Saving.** *Save to file* and *Save selected to file* ask for the file with
+the check *With Value Names*: checked, the Log Lines are saved as shown. It is
+off at first, and can only be checked while the tab shows Value Names. *Export
+as CSV...* always writes the raw values.
+
 ### Auto Log Format Detection (Table View)
 
 *logsquirl* can automatically detect the format of a log file and display it
@@ -1088,7 +1134,7 @@ whole list, with what the entries not explained elsewhere do.
   with `Clear List`, `Open Session...` and `Save Session As...` (see
   [Session files](#session-files)), `Close`, `Close All`, `Preferences...` and
   `Exit`.
-- **Edit**: `Copy`, `Select All`, `Find...` (the QuickFind bar), `Go to line...`
+- **Edit**: `Copy`, `Copy as Shown` (see [Value Names](#value-names)), `Select All`, `Find...` (the QuickFind bar), `Go to line...`
   and `Go to timestamp...`, then `Copy full path` (of the current file to the
   clipboard), `Open containing folder`, `Open in editor` (in the default
   editor of the system) and `Clear file...`. `Clear file...` asks first and then
@@ -1096,7 +1142,8 @@ whole list, with what the entries not explained elsewhere do.
 - **View**: `Opened files` (see
   [Switching between opened files](#switching-between-opened-files)),
   `Matches overview`, `Line numbers in main view`,
-  `Line numbers in filtered view`, `Wrap text`, `Follow File`, `Reload`,
+  `Line numbers in filtered view`, `Wrap text`, `Show Value Names` (see
+  [Value Names](#value-names)), `Follow File`, `Reload`,
   `Chart Panel` and `Show Filter Frequency`, which charts how often the current
   search matched, one series for every alternative of the search pattern (it
   does nothing while the search line is empty).
@@ -1465,6 +1512,8 @@ The main commands are:
 |F5              |reload current file                                               |
 |Ctrl+S          |Set focus to search string edit box                               |
 |Ctrl+Shift+O    |Open dialog to switch to another file                             |
+|Ctrl+Shift+N    |show or hide Value Names in the current tab                       |
+|                |(see [Value Names](#value-names))                                 |
 
 Every key in this table is a default and can be changed in the shortcuts tab of
 the options dialog, where the commands without a default key, such as

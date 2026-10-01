@@ -2,6 +2,15 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_CN">
 <context>
+    <name>AbstractLogView</name>
+    <message>
+        <location filename="../../ui/src/abstractlogview.cpp" line="1576"/>
+        <source>%1 → %2 · table %3 · rule %4 · group %5</source>
+        <extracomment>The tooltip over a Named Value: the raw value, its name, the Name Table, the Naming Rule and the Naming Group it came from.</extracomment>
+        <translation>%1 → %2 · 表 %3 · 规则 %4 · 组 %5</translation>
+    </message>
+</context>
+<context>
     <name>ChartPanel</name>
     <message>
         <location filename="../../ui/src/chartpanel.cpp" line="63"/>
@@ -902,12 +911,12 @@ Pattern: %2</source>
 <context>
     <name>CrawlerWidget</name>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="697"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="718"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="698"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="719"/>
         <source>Search history:</source>
         <translation>搜索历史：</translation>
     </message>
@@ -927,27 +936,27 @@ Pattern: %2</source>
         <translation> 目前已找到 %1 个匹配。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1266"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1294"/>
         <source>Marks and matches</source>
         <translation>标记和匹配</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1272"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1300"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>标记、匹配 + 上下文行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1277"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1305"/>
         <source>Matches + breadcrumbs</source>
         <translation>匹配 + 上下文行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1282"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1310"/>
         <source>Marks</source>
         <translation>仅标记</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1286"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1314"/>
         <source>Matches</source>
         <translation>仅匹配</translation>
     </message>
@@ -991,32 +1000,32 @@ Pattern: %2</source>
         <translation>搜索表达式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1328"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1356"/>
         <source>Clear search history</source>
         <translation>清空搜索历史</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1329"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1357"/>
         <source>Edit search history</source>
         <translation>编辑搜索历史</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1330"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1358"/>
         <source>Save as Filter</source>
         <translation>保存为过滤器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1331"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1359"/>
         <source>Open in Regex Lab...</source>
         <translation>在正则实验室中打开...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1333"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1361"/>
         <source>Try out the pattern and its options on Log Lines in the Regex Lab</source>
         <translation>在正则实验室中用日志行试用该模式及其选项</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1339"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1367"/>
         <source>Count values of capture group</source>
         <translation>统计捕获组的值</translation>
     </message>
@@ -1041,32 +1050,32 @@ Pattern: %2</source>
         <translation>保留这些结果，并在新窗口中显示后续结果</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1352"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1380"/>
         <source>Toggle table/text view</source>
         <translation>切换表格/文本视图</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1353"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1381"/>
         <source>Toggle table view</source>
         <translation>切换表格视图</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1751"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1781"/>
         <source>Group %1</source>
         <translation>分组 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1752"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1782"/>
         <source>Group %1 (%2)</source>
         <translation>分组 %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1780"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1810"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>“%2”的分组 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2159"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2192"/>
         <source>Toggle table/text view (%1)</source>
         <translation>切换表格/文本视图 (%1)</translation>
     </message>
@@ -1096,12 +1105,12 @@ Pattern: %2</source>
         <translation>磁盘上的文件已被截断</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2038"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2071"/>
         <source>Displayed as %1</source>
         <translation>显示编码：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2038"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2071"/>
         <source>Detected as %1</source>
         <translation>检测到编码：%1</translation>
     </message>
@@ -1674,60 +1683,60 @@ Do you want to replace it?</source>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1759"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1791"/>
         <source>Open URL as log file</source>
         <translation>打开URL作为日志文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3632"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3667"/>
         <source>Select item to remove from favorites</source>
         <translation>选择要从收藏中移除的项目</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3677"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3712"/>
         <source>logsquirl -- switch to file</source>
         <translation>logsquirl -- 切换到已打开的文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3793"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3816"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3828"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3851"/>
         <source>Save Session As</source>
         <translation>会话另存为</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3794"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3828"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3829"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3863"/>
         <source>LogSquirl sessions (*.%1)</source>
         <translation>LogSquirl 会话 (*.%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3817"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3852"/>
         <source>The session could not be saved to %1:
 %2</source>
         <translation>无法将会话保存到 %1：
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3827"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3837"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3889"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3862"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3872"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3924"/>
         <source>Open Session</source>
         <translation>打开会话</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3842"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3877"/>
         <source>The session file %1 could not be read:
 %2</source>
         <translation>无法读取会话文件 %1：
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3863"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3898"/>
         <source>The session holds no log files.</source>
         <translation>该会话不包含日志文件。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3864"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3899"/>
         <source>None of the log files of this session could be opened. They are missing or already open:
 
 %1</source>
@@ -1736,7 +1745,7 @@ Do you want to replace it?</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3890"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3925"/>
         <source>These log files of the session were left out. They are missing or already open in another window:
 
 %1</source>
@@ -1745,127 +1754,127 @@ Do you want to replace it?</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3955"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3990"/>
         <source>logsquirl - generate crash dump</source>
         <translation>logsquirl - 生成崩溃记录</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3956"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3991"/>
         <source>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</source>
         <translation>关闭logsquirl并产生诊断性的崩溃信息。是否继续？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1464"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1481"/>
         <source>Open window</source>
         <translation>打开窗口</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1287"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1302"/>
         <source>Open Recent</source>
         <translation>最近打开的文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1465"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1482"/>
         <source>Quit</source>
         <translation>退出</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1526"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1543"/>
         <source>Open file</source>
         <translation>打开文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1521"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3115"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1538"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3149"/>
         <source>All files (*)</source>
         <translation>全部文件 (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1549"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1566"/>
         <source>Downloading %1</source>
         <translation>正在下载 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1570"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="1575"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1587"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1592"/>
         <source>LogSquirl - File download</source>
         <translation>LogSquirl -- 文件下载</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1576"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1593"/>
         <source>Failed to create temp file</source>
         <translation>创建临时文件失败</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1601"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1618"/>
         <source>logsquirl - remove from recent</source>
         <translation>logsquirl - 从最近文件中移除</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1602"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1619"/>
         <source>Could not read file %1. Remove it from recent files?</source>
         <translation>无法读取文件%1, 是否从最近的文件中移除？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1623"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1640"/>
         <source>logsquirl - remove from favorites</source>
         <translation>logsquirl - 从收藏中移除</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1624"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1641"/>
         <source>Could not read file %1. Remove it from favorites?</source>
         <translation>无法读取文件%1, 从收藏夹中删除它?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1700"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1732"/>
         <source>logsquirl - clear file</source>
         <translation>logsquirl - 清除文件内容</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1759"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1791"/>
         <source>URL to download:</source>
         <translation>下载文件的URL:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2175"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2207"/>
         <source>About LogSquirl</source>
         <translation>关于LogSquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2176"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2208"/>
         <source>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is a fork of &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; by Anton Filimonov, which is a fork of &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; by Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</source>
         <translation>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;一款快速、先进的日志浏览器。&lt;/p&gt;&lt;p&gt;构建于 %2，源自 %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;本程序是 Anton Filimonov 的 &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; 的分支，而 klogg 是 Nicolas Bonnefon 的 &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; 的分支。&lt;/p&gt;&lt;p&gt;使用了 &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; 项目的图标&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon、Anton Filimonov 及其他贡献者&lt;/p&gt;&lt;p&gt;您可以依据 GPL（第 3 版或更高版本）的条款修改和再发布本程序。&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2195"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2227"/>
         <source>About Qt</source>
         <translation>关于QT</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2208"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2240"/>
         <source>logsquirl documentation</source>
         <translation>logsquirl文档</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3114"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3148"/>
         <source>Open file from archive</source>
         <translation>从压缩包中打开文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3376"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3410"/>
         <source>Untitled</source>
         <translation>未命名</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3386"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3420"/>
         <source>%1 - %2%3</source>
         <translation>%1 - %2%3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3052"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3097"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3132"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3386"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3086"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3131"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3166"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3420"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
@@ -1897,7 +1906,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="320"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2802"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2834"/>
         <source>Dashboard</source>
         <translation>仪表板</translation>
     </message>
@@ -1949,267 +1958,267 @@ Working folder: %2
         <translation>标准输入已关闭</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1156"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1170"/>
         <source>Manage Tab Groups...</source>
         <translation>管理标签页分组...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1157"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1171"/>
         <source>Rename, recolor, or delete tab groups</source>
         <translation>重命名、更改颜色或删除标签页分组</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1161"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1175"/>
         <source>Plugin Management...</source>
         <translation>插件管理...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1162"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1176"/>
         <source>Manage, install, and update plugins</source>
         <translation>管理、安装和更新插件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1379"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1396"/>
         <source>Sources</source>
         <translation>数据源</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1701"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1733"/>
         <source>Clear file %1? File content will be removed from disk, this is irreversible</source>
         <translation>要清除文件 %1 吗？文件内容将从磁盘中删除，此操作不可撤销</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2005"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2037"/>
         <source>Team group changed</source>
         <translation>团队分组已更改</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2006"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2038"/>
         <source>Somebody else changed the Team group &quot;%1&quot; since you started editing it.</source>
         <translation>自您开始编辑以来，其他人更改了团队分组“%1”。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2012"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2044"/>
         <source>Keep your version and replace theirs, take theirs and drop your change, or save yours as a copy next to theirs?</source>
         <translation>保留您的版本并替换对方的版本、采用对方的版本并放弃您的更改，还是将您的版本另存为副本放在对方的版本旁边？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2014"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2046"/>
         <source>Somebody deleted it. Keep your version to publish it again, or take the deletion and drop your change?</source>
         <translation>有人已将其删除。保留您的版本以重新发布，还是接受删除并放弃您的更改？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2016"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2048"/>
         <source>Keep mine</source>
         <translation>保留我的</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2017"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2049"/>
         <source>Take theirs</source>
         <translation>采用对方的</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2018"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2050"/>
         <source>Save mine as a copy</source>
         <translation>将我的另存为副本</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2065"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2097"/>
         <source>Click to sync now.</source>
         <translation>点击立即同步。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2092"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2124"/>
         <source>Start %1 data source</source>
         <translation>启动 %1 数据源</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2100"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2132"/>
         <source>(no data source plugins)</source>
         <translation>（没有数据源插件）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2140"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2172"/>
         <source>Plugin Error</source>
         <translation>插件错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2141"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2173"/>
         <source>Failed to load plugin:
 %1</source>
         <translation>加载插件失败：
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2153"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2185"/>
         <source>DataSource Error</source>
         <translation>数据源错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2168"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2200"/>
         <source>DataSource: %1
 %2</source>
         <translation>数据源：%1
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2253"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2285"/>
         <source>Index cache cleared (%1 MB freed)</source>
         <translation>索引缓存已清除（释放了 %1 MB）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2319"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2351"/>
         <source>Merged (dedup)</source>
         <translation>已合并（去重）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2319"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2351"/>
         <source>Merged</source>
         <translation>已合并</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2357"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2389"/>
         <source>Import Chipmunk filters</source>
         <translation>导入 Chipmunk 过滤器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2358"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2390"/>
         <source>Chipmunk filters (*.json);;All files (*)</source>
         <translation>Chipmunk 过滤器 (*.json);;所有文件 (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2366"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2398"/>
         <source>Import error</source>
         <translation>导入错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2367"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2399"/>
         <source>Could not open file: %1</source>
         <translation>无法打开文件：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2375"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2387"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2407"/>
         <location filename="../../ui/src/mainwindow.cpp" line="2419"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2451"/>
         <source>Import result</source>
         <translation>导入结果</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2376"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2408"/>
         <source>No filters found in the selected file.</source>
         <translation>所选文件中未找到过滤器。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2388"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2420"/>
         <source>A filter group named &apos;%1&apos; already exists. Skipping filter import.</source>
         <translation>名为“%1”的过滤器分组已存在。跳过过滤器导入。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2420"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2452"/>
         <source>Imported %1 filter(s) and %2 highlighter set.</source>
         <translation>已导入 %1 个过滤器和 %2 个高亮规则集。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2498"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2530"/>
         <source>Ln:%1/%2</source>
         <translation>行:%1/%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2503"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2535"/>
         <source>Ln:%1/%2 Col:%3 Sel:%4|%5</source>
         <translation>行:%1/%2 列:%3 选:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2512"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2544"/>
         <source>Ln:%1/%2 Sel:%4|%5</source>
         <translation>行:%1/%2 选:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2552"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2584"/>
         <source> - Indexing lines... (%1 %)</source>
         <translation> - 正在索引行... (%1 %)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2601"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2633"/>
         <source>Not enough memory.</source>
         <translation>内存不足。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2603"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2635"/>
         <source>The system does not have enough memory to hold the index for this file. The file will now be closed.</source>
         <translation>系统内存不足，无法保存此文件的索引。文件将被关闭。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2686"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2718"/>
         <source>Close Tab</source>
         <translation>关闭标签页</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2687"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2719"/>
         <source>Close tab &quot;%1&quot;?</source>
         <translation>要关闭标签页“%1”吗？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2696"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2728"/>
         <source>Don&apos;t ask again</source>
         <translation>不再询问</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2690"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2722"/>
         <source>Close Tabs</source>
         <translation>关闭标签页</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../ui/src/mainwindow.cpp" line="2691"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2723"/>
         <source>Close %n tab(s)?</source>
         <translation>
             <numerusform>要关闭 %n 个标签页吗？</numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3053"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3087"/>
         <source>Extract archive to temp folder?</source>
         <translation>将存档解压缩到临时文件夹？</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="549"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3069"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3103"/>
         <source>Extracting %1</source>
         <translation>正在解压 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3098"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3132"/>
         <source>Failed to decompress %1</source>
         <translation>解压 %1 失败</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3133"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3167"/>
         <source>Failed to extract %1</source>
         <translation>提取 %1 失败</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3387"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3421"/>
         <source> (build </source>
         <translation> （构建 </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3413"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3447"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3505"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3540"/>
         <source>modified on %1</source>
         <translation>修改于 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3631"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3666"/>
         <source>Remove from favorites</source>
         <translation>从收藏中移除</translation>
     </message>
     <message>
         <location filename="../../ui/include/pluginuiadapter.h" line="167"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="1373"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1390"/>
         <source>Plugins</source>
         <translation>插件</translation>
     </message>
@@ -2420,277 +2429,282 @@ Working folder: %2
         <translation>强制字体抗锯齿</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="369"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="362"/>
+        <source>Show Value Names on file open</source>
+        <translation>打开文件时显示值名称</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="376"/>
         <source>Language</source>
         <translation>语言</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="381"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="388"/>
         <source>Style</source>
         <translation>主题</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="395"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="402"/>
         <source>High DPI</source>
         <translation>高分辨率</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="401"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="408"/>
         <source>Enable Qt High DPI support</source>
         <translation>启用Qt高分辨率支持</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="413"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="420"/>
         <source>Scale rounding:</source>
         <translation>缩放取整方式：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="427"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="434"/>
         <source>Round</source>
         <translation>四舍五入</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="432"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="439"/>
         <source>Ceil</source>
         <translation>向上取整</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="437"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="444"/>
         <source>Floor</source>
         <translation>向下取整</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="442"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="449"/>
         <source>RoundPreferFloor</source>
         <translation>四舍五入（偏向向下取整）</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="447"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="454"/>
         <source>PassThrough</source>
         <translation>不取整</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="457"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="464"/>
         <source>Need to restart application to apply these settings</source>
         <translation>设置生效需要重新启动应用程序</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="467"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="474"/>
         <source>Miscellaneous</source>
         <translation>其他</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="522"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="529"/>
         <source>Enable fast scrolling with Alt key</source>
         <translation>启用 Alt 键快速滚动</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="531"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="538"/>
         <source>Fast scroll multiplier</source>
         <translation>快速滚动倍数</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="555"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="562"/>
         <source>Context lines around matches (0 = off)</source>
         <translation>匹配项周围的上下文行数（0 = 关闭）</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="594"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="601"/>
         <source>File</source>
         <translation>文件</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="600"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="607"/>
         <source>File change monitoring</source>
         <translation>文件变化时检测</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="606"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="613"/>
         <source>Enable filesystem change monitoring</source>
         <translation>启用文件系统变化监控</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="613"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="620"/>
         <source>Enable polling</source>
         <translation>启用轮询</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="622"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="629"/>
         <source>Polling interval (ms):</source>
         <translation>轮询间隔 (ms):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="644"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="651"/>
         <source>Use fast modification detection</source>
         <translation>使用快速修改检测</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="651"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="658"/>
         <source>Turn on follow on scroll past the end</source>
         <translation>允许越界滚动</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="661"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="668"/>
         <source>Encoding</source>
         <translation>编码</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="669"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="676"/>
         <source>Encoding for new files</source>
         <translation>新文件的编码</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="693"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="700"/>
         <source>Recent files</source>
         <translation>最近打开文件</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="707"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="714"/>
         <source>Show the number of recently opened files:</source>
         <translation>显示最近打开文件的数量：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="729"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="736"/>
         <source>Archives</source>
         <translation>压缩包</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="735"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="742"/>
         <source>Extract archives</source>
         <translation>解压压缩包</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="742"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="749"/>
         <source>Extract archives without confirmation</source>
         <translation>无需确认即解压压缩包</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="752"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="759"/>
         <source>File download</source>
         <translation>文件下载</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="758"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="765"/>
         <source>Verify certificates for https connections</source>
         <translation>验证HTTPS连接证书</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="785"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="792"/>
         <source>Shortcuts</source>
         <translation>快捷键</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="819"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="826"/>
         <source>Restore defaults</source>
         <translation>恢复默认值</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="832"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="839"/>
         <source>Advanced</source>
         <translation>高级</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="838"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="845"/>
         <source>Indexing and search</source>
         <translation>索引和搜索</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="848"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="855"/>
         <source>Regular expressions engine:</source>
         <translation>正则表达式引擎:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="913"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="920"/>
         <source>Keep file closed (file reload required)</source>
         <translation>保持文件关闭（需要重新加载文件）</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="920"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="927"/>
         <source>Use compressed index (file reload required)</source>
         <translation>使用压缩索引（需要重新加载文件）</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="930"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="937"/>
         <source>Use parallel search</source>
         <translation>使用并行搜索</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1093"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1100"/>
         <source>Team Folder</source>
         <translation>团队文件夹</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1099"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1106"/>
         <source>Share Filter Groups with the team through a Team Folder</source>
         <translation>通过团队文件夹与团队共享过滤器分组</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1108"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1115"/>
         <source>Repository URL:</source>
         <translation>仓库 URL：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1118"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1125"/>
         <source>https://… or git@…</source>
         <translation>https://… 或 git@…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1125"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1132"/>
         <source>Subfolder:</source>
         <translation>子文件夹：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1135"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1142"/>
         <source>The repository&apos;s top folder</source>
         <translation>仓库的顶层文件夹</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1144"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1151"/>
         <source>LogSquirl clones the repository into its own data folder with the Git installed on this computer, and signs in the way Git does for you. Turning the Team Folder off or changing the repository leaves your own groups as they are.</source>
         <translation>LogSquirl 使用本机安装的 Git 将仓库克隆到自己的数据文件夹中，并按 Git 为您配置的方式登录。关闭团队文件夹或更换仓库不会影响您自己的分组。</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1172"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1179"/>
         <source>Sync Now</source>
         <translation>立即同步</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1195"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1202"/>
         <source>Log Formats</source>
         <translation>日志格式</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1201"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1208"/>
         <source>Auto-detect log format (table view)</source>
         <translation>自动检测日志格式（表格视图）</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1208"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1215"/>
         <source>Automatically switch to table view when format is detected</source>
         <translation>检测到格式时自动切换到表格视图</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1215"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1222"/>
         <source>Available Formats:</source>
         <translation>可用格式：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1241"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1248"/>
         <source>Name</source>
         <translation>名称</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1246"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1253"/>
         <source>Description</source>
         <translation>描述</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1254"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1261"/>
         <source>Open Formats Folder…</source>
         <translation>打开格式文件夹…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="865"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="872"/>
         <source>Index file read buffer (Mib):</source>
         <translation>索引文件读取缓冲区大小 (Mib)：</translation>
     </message>
@@ -2705,87 +2719,87 @@ Working folder: %2
         <translation>打开文件时启用自动换行</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="475"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="482"/>
         <source>ANSI color sequences:</source>
         <translation>ANSI 颜色序列：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="492"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="499"/>
         <source>Show as text</source>
         <translation>显示为文本</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="497"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="504"/>
         <source>Hide</source>
         <translation>隐藏</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="502"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="509"/>
         <source>Show colors</source>
         <translation>显示颜色</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="512"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="519"/>
         <source>Hide and Show colors reduce search performance</source>
         <translation>“隐藏”和“显示颜色”会降低搜索性能</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="885"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="892"/>
         <source>Search read buffer (lines):</source>
         <translation>搜索读取缓冲区大小（行）：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="910"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="917"/>
         <source>File will be kept closed as much as possible. Affects only files opened after check state changed</source>
         <translation>文件将尽可能保持关闭状态。仅影响更改此选项后打开的文件</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="940"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="947"/>
         <source>Optimize search for non-latin encodings</source>
         <translation>优化非拉丁编码的搜索</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="952"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="959"/>
         <source>Caching</source>
         <translation>缓存</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="967"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="974"/>
         <source>Enable search results cache</source>
         <translation>启用搜索结果缓存</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="977"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="984"/>
         <source>Search cache size (lines):</source>
         <translation>搜索缓存大小（行）：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1000"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1007"/>
         <source>Cache file indexes to disk so re-opening a file skips indexing</source>
         <translation>将文件索引缓存到磁盘，重新打开文件时可跳过索引</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1003"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1010"/>
         <source>Enable index cache (persist indexes to disk)</source>
         <translation>启用索引缓存（将索引保存到磁盘）</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1013"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1020"/>
         <source>Index cache max size (MB):</source>
         <translation>索引缓存最大大小 (MB)：</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1042"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1049"/>
         <source>Logging</source>
         <translation>日志</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1048"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1055"/>
         <source>Enable logging</source>
         <translation>启用日志记录</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1057"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1064"/>
         <source>Verbosity</source>
         <translation>详细级别</translation>
     </message>
@@ -2810,34 +2824,34 @@ Working folder: %2
         <translation>Vectorscan</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="489"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="490"/>
         <source>Turned off when LogSquirl was installed. Run the installer again to turn it back on.</source>
         <translation>安装 LogSquirl 时已关闭。再次运行安装程序即可重新开启。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="744"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="746"/>
         <source>LogSquirl needs to be restarted to apply some changes. </source>
         <translation>LogSquirl 需要重新启动才能应用部分更改。 </translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="932"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="934"/>
         <source>Click or press Enter to record a shortcut, Escape cancels.
 Backspace or Delete clears the shortcut.</source>
         <translation>单击或按 Enter 键录制快捷键，按 Escape 键取消。
 按 Backspace 或 Delete 键清除快捷键。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="947"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="949"/>
         <source>Action</source>
         <translation>操作</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="948"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="950"/>
         <source>Primary shortcut</source>
         <translation>主快捷键</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="950"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="952"/>
         <source>Secondary shortcut</source>
         <translation>备用快捷键</translation>
     </message>
@@ -3355,112 +3369,122 @@ Restart LogSquirl to try again.</source>
         <translation>拷贝并附加行号</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="152"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="153"/>
+        <source>Copy as shown</source>
+        <translation>按显示内容复制</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/presentationmenu.cpp" line="154"/>
+        <source>Copy the selection as shown, with its Value Names</source>
+        <translation>按显示内容复制所选内容，包括其值名称</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/presentationmenu.cpp" line="157"/>
         <source>Send to scratchpad</source>
         <translation>追加到暂存器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="154"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="159"/>
         <source>Replace scratchpad</source>
         <translation>替换暂存器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="160"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="165"/>
         <source>Find &amp;next</source>
         <translation>查找下一个(&amp;N)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="164"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="169"/>
         <source>Find the next occurrence</source>
         <translation>查找下一个匹配项</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="166"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="171"/>
         <source>Find &amp;previous</source>
         <translation>查找上一个(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="168"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="173"/>
         <source>/</source>
         <translation>/</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="170"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="175"/>
         <source>Find the previous occurrence</source>
         <translation>查找上一个匹配项</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="174"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="179"/>
         <source>&amp;Replace search</source>
         <translation>替换搜索(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="175"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="180"/>
         <source>Replace the search expression with the selection</source>
         <translation>用选中内容替换搜索表达式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="177"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="182"/>
         <source>&amp;Add to search</source>
         <translation>添加到搜索(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="178"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="183"/>
         <source>Add the selection to the current search</source>
         <translation>将选中内容添加到当前搜索</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="180"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="185"/>
         <source>&amp;Exclude from search</source>
         <translation>从搜索中排除(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="186"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="191"/>
         <source>Excludes the selection from search</source>
         <translation>从搜索中排除选中内容</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="197"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="202"/>
         <source>Set search start</source>
         <translation>设置搜索起点</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="204"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="209"/>
         <source>Set search end</source>
         <translation>设置搜索终点</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="211"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="216"/>
         <source>Clear search limits</source>
         <translation>清除搜索范围</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="215"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="220"/>
         <source>Set selection start</source>
         <translation>设置选择起点</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="217"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="222"/>
         <source>Set selection end</source>
         <translation>设置选择终点</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="222"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="227"/>
         <source>Save splitter position</source>
         <translation>保存分割线位置</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="223"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="228"/>
         <source>Save to file</source>
         <translation>保存到文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="224"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="229"/>
         <source>Save selected to file</source>
         <translation>将选中内容保存到文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="227"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="232"/>
         <source>Export as CSV...</source>
         <translation>导出为 CSV...</translation>
     </message>
@@ -3593,87 +3617,87 @@ Restart LogSquirl to try again.</source>
         <translation>切换自动换行</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="293"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="300"/>
         <source>Reload file</source>
         <translation>重新加载文件</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="300"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="307"/>
         <source>Stop file loading</source>
         <translation>停止加载文件</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="307"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="314"/>
         <source>Open scratchpad</source>
         <translation>打开暂存器</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="314"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="321"/>
         <source>Switch to file</source>
         <translation>切换到文件</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="321"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="328"/>
         <source>Change filtered lines visibility forward</source>
         <translation>向前切换过滤行的可见性</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="328"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="335"/>
         <source>Change filtered lines visibility backward</source>
         <translation>向后切换过滤行的可见性</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="335"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="342"/>
         <source>Change filtered lines visibility to marks and matches</source>
         <translation>将过滤行的可见性切换为标记和匹配</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="342"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="349"/>
         <source>Change filtered lines visibility to marks</source>
         <translation>将过滤行的可见性切换为仅标记</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="349"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="356"/>
         <source>Change filtered lines visibility to matches</source>
         <translation>将过滤行的可见性切换为仅匹配</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="370"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="377"/>
         <source>Enable case matching</source>
         <translation>启用大小写匹配</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="377"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="384"/>
         <source>Enable regex</source>
         <translation>启用正则表达式</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="384"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="391"/>
         <source>Enable inverse matching</source>
         <translation>启用反向匹配</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="391"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="398"/>
         <source>Enable regex combining</source>
         <translation>启用正则表达式组合</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="398"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="405"/>
         <source>Enable auto refresh</source>
         <translation>启用自动刷新</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="405"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="412"/>
         <source>Keep search results</source>
         <translation>保留搜索结果</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="505"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="512"/>
         <source>Jump to the bottom of the text</source>
         <translation>跳转到文本末尾</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="356"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="363"/>
         <source>Increase main view</source>
         <translation>扩大主视图</translation>
     </message>
@@ -3693,212 +3717,217 @@ Restart LogSquirl to try again.</source>
         <translation>打开命令输出</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="363"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="293"/>
+        <source>Toggle Value Names</source>
+        <translation>显示/隐藏值名称</translation>
+    </message>
+    <message>
+        <location filename="../../settings/src/shortcuts.cpp" line="370"/>
         <source>Decrease main view</source>
         <translation>缩小主视图</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="417"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="424"/>
         <source>Add line mark</source>
         <translation>添加行标记</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="424"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="431"/>
         <source>Jump to next mark</source>
         <translation>跳转到下一个标记</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="431"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="438"/>
         <source>Jump to previous mark</source>
         <translation>跳转到上一个标记</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="438"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="445"/>
         <source>Move selection up</source>
         <translation>向上移动选择</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="445"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="452"/>
         <source>Move selection down</source>
         <translation>向下移动选择</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="453"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="460"/>
         <source>Scroll up</source>
         <translation>向上滚动</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="460"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="467"/>
         <source>Scroll down</source>
         <translation>向下滚动</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="467"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="474"/>
         <source>Scroll left</source>
         <translation>向左滚动</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="475"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="482"/>
         <source>Scroll right</source>
         <translation>向右滚动</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="483"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="490"/>
         <source>Jump to the beginning of the current line</source>
         <translation>跳转到当前行的行首</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="491"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="498"/>
         <source>Jump to the end start of the current line</source>
         <translation>跳转到当前行的行尾</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="498"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="505"/>
         <source>Jump to the right of the text</source>
         <translation>跳转到文本最右侧</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="512"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="519"/>
         <source>Jump to the top of the text</source>
         <translation>跳转到文本开头</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="519"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="526"/>
         <source>Jump to line</source>
         <translation>跳转到行</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="526"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="533"/>
         <source>Jump to line number</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="533"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="540"/>
         <source>Jump to timestamp</source>
         <translation>跳转到时间戳</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="540"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="547"/>
         <source>Set search limits to a time range</source>
         <translation>将搜索范围设为时间段</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="547"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="554"/>
         <source>Set search limits around the current line</source>
         <translation>将搜索范围设为当前行前后</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="554"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="561"/>
         <source>Main view: find next</source>
         <translation>主视图：查找下一个</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="561"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="568"/>
         <source>Main view: find previous</source>
         <translation>主视图：查找上一个</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="567"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="574"/>
         <source>Set selection to QuickFind and find next</source>
         <translation>将选中内容设为快速查找并查找下一个</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="574"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="581"/>
         <source>Set selection to QuickFind and find previous</source>
         <translation>将选中内容设为快速查找并查找上一个</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="582"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="589"/>
         <source>Release focus from view</source>
         <translation>从视图释放焦点</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="589"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="596"/>
         <source>Highlight text with color 1</source>
         <translation>使用颜色 1 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="596"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="603"/>
         <source>Highlight text with color 2</source>
         <translation>使用颜色 2 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="603"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="610"/>
         <source>Highlight text with color 3</source>
         <translation>使用颜色 3 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="610"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="617"/>
         <source>Highlight text with color 4</source>
         <translation>使用颜色 4 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="617"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="624"/>
         <source>Highlight text with color 5</source>
         <translation>使用颜色 5 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="624"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="631"/>
         <source>Highlight text with color 6</source>
         <translation>使用颜色 6 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="631"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="638"/>
         <source>Highlight text with color 7</source>
         <translation>使用颜色 7 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="638"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="645"/>
         <source>Highlight text with color 8</source>
         <translation>使用颜色 8 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="645"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="652"/>
         <source>Highlight text with color 9</source>
         <translation>使用颜色 9 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="652"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="659"/>
         <source>Highlight text with next color</source>
         <translation>使用下一个颜色高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="659"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="666"/>
         <source>Clear all color labels</source>
         <translation>清除所有颜色标签</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="666"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="673"/>
         <source>Send selection to scratchpad</source>
         <translation>将选中内容追加到暂存器</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="673"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="680"/>
         <source>Replace scratchpad with selection</source>
         <translation>用选中内容替换暂存器</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="680"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="687"/>
         <source>Add selection to search pattern</source>
         <translation>将选中内容添加到搜索表达式</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="687"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="694"/>
         <source>Exclude selection from search pattern </source>
         <translation>从搜索表达式中排除选中内容 </translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="694"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="701"/>
         <source>Replace search pattern with selection</source>
         <translation>用选中内容替换搜索表达式</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="708"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="715"/>
         <source>Select lines down</source>
         <translation>向下选择多行</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="701"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="708"/>
         <source>Select lines up</source>
         <translation>向上选择多行</translation>
     </message>
@@ -4184,6 +4213,19 @@ Restart LogSquirl to try again.</source>
         <location filename="../../ui/src/regexlabwindow.cpp" line="923"/>
         <source>Evaluating the sample took %1 ms: the pattern may backtrack excessively on some lines.</source>
         <translation>评估样本耗时 %1 毫秒：该模式可能在某些行上过度回溯。</translation>
+    </message>
+</context>
+<context>
+    <name>SaveLinesDialog</name>
+    <message>
+        <location filename="../../ui/src/savelinesdialog.cpp" line="32"/>
+        <source>With Value Names</source>
+        <translation>包含值名称</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/savelinesdialog.cpp" line="37"/>
+        <source>Save the Log Lines as they are shown, with the names of their values</source>
+        <translation>按显示内容保存日志行，包括其值的名称</translation>
     </message>
 </context>
 <context>
@@ -4843,371 +4885,391 @@ Without a date, %1 is used.</source>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="42"/>
+        <source>Copy as &amp;Shown</source>
+        <translation>按显示内容复制(&amp;S)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="44"/>
+        <source>Copy the selection as shown, with its Value Names</source>
+        <translation>按显示内容复制所选内容，包括其值名称</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="45"/>
         <source>Select &amp;All</source>
         <translation>选择全部(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="43"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="46"/>
         <source>Select all the text</source>
         <translation>选择全部文本</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="44"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="47"/>
         <source>Go to line...</source>
         <translation>跳转到行...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="46"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="49"/>
         <source>Scrolls selected main view to specified line</source>
         <translation>将所选主视图滚动到指定行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="47"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="50"/>
         <source>Go to timestamp...</source>
         <translation>跳转到时间戳...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="49"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="52"/>
         <source>Scrolls selected main view to the first line at or after a time</source>
         <translation>将所选主视图滚动到时间点当时或之后的第一行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="50"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="53"/>
         <source>Set search limits to time range...</source>
         <translation>将搜索范围设为时间段...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="52"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="55"/>
         <source>Limits the search to the log lines between a start and an end time</source>
         <translation>将搜索限制在开始与结束时间之间的日志行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="54"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="57"/>
         <source>Set search limits around current line...</source>
         <translation>将搜索范围设为当前行前后...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="56"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="59"/>
         <source>Limits the search to N minutes before and after the current log line</source>
         <translation>将搜索限制在当前日志行前后 N 分钟内</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="57"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="60"/>
         <source>&amp;Find...</source>
         <translation>查找(&amp;F)...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="58"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="61"/>
         <source>Find the text</source>
         <translation>查找当前文本</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="59"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="62"/>
         <source>Clear file...</source>
         <translation>清除文件内容...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="60"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="63"/>
         <source>Clear current file</source>
         <translation>清除当前文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="61"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="64"/>
         <source>Open containing folder</source>
         <translation>打开包含此文件的文件夹</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="63"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="66"/>
         <source>Open folder containing current file</source>
         <translation>打开包含当前文件的文件夹</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="64"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="67"/>
         <source>Open in editor</source>
         <translation>在编辑器中打开</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="65"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="68"/>
         <source>Open current file in default editor</source>
         <translation>默认编辑器中打开当前文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="66"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="69"/>
         <source>Copy full path</source>
         <translation>拷贝完整路径</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="68"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="71"/>
         <source>Copy full path for file to clipboard</source>
         <translation>拷贝完整路径到剪贴板</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="69"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="72"/>
         <source>Open from clipboard</source>
         <translation>从剪贴板打开</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="70"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="73"/>
         <source>Open clipboard as log file</source>
         <translation>打开剪贴板作为日志文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="71"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="74"/>
         <source>Open from URL...</source>
         <translation>从URL中打开...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="72"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="75"/>
         <source>Open URL as log file</source>
         <translation>打开URL作为日志文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="73"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="76"/>
         <source>Open Session...</source>
         <translation>打开会话...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="75"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="78"/>
         <source>Open the log files of a saved session in a new window</source>
         <translation>在新窗口中打开已保存会话的日志文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="76"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="79"/>
         <source>Save Session As...</source>
         <translation>会话另存为...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="78"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="81"/>
         <source>Save this window&apos;s log files, tabs and view states to a session file</source>
         <translation>将此窗口的日志文件、标签页和视图状态保存到会话文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="79"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="82"/>
         <source>Open Command Output...</source>
         <translation>打开命令输出...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="81"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="84"/>
         <source>Run a command and open its output as a followed log file</source>
         <translation>运行命令并将其输出作为跟踪的日志文件打开</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="82"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="85"/>
         <source>Matches &amp;overview</source>
         <translation>匹配概览(&amp;O)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="83"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="86"/>
         <source>Line &amp;numbers in main view</source>
         <translation>主视图中的行号(&amp;N)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="85"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="88"/>
         <source>Line &amp;numbers in filtered view</source>
         <translation>过滤视图中的行号(&amp;N)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="86"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="89"/>
         <source>&amp;Follow File</source>
         <translation>跟随文件尾部变化(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="87"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="90"/>
         <source>&amp;Wrap text</source>
         <translation>自动换行(&amp;W)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="88"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="91"/>
+        <source>Show &amp;Value Names</source>
+        <translation>显示值名称(&amp;V)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="93"/>
+        <source>Show values of the Log Lines with their names from the Name Tables</source>
+        <translation>用名称表中的名称显示日志行的值</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="94"/>
         <source>&amp;Reload</source>
         <translation>重新加载(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="89"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="95"/>
         <source>&amp;Stop</source>
         <translation>停止(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="90"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="96"/>
         <source>&amp;Preferences...</source>
         <translation>首选项(&amp;P)...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="91"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="97"/>
         <source>Show application settings dialog</source>
         <translation>显示应用程序设置对话框</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="92"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="98"/>
         <source>Configure &amp;highlighters...</source>
         <translation>配置高亮规则(&amp;H)...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="93"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="99"/>
         <source>Show highlighters configuration</source>
         <translation>显示高亮规则配置</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="94"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="100"/>
         <source>&amp;Documentation...</source>
         <translation>文档(&amp;D)...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="95"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="101"/>
         <source>Show documentation</source>
         <translation>显示文档</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="96"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="102"/>
         <source>&amp;About</source>
         <translation>关于(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="97"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="103"/>
         <source>Show the About box</source>
         <translation>显示关于项</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="98"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="104"/>
         <source>About &amp;Qt</source>
         <translation>关于&amp;QT</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="99"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="105"/>
         <source>Show the Qt library&apos;s About box</source>
         <translation>显示 Qt 库的“关于”对话框</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="100"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="106"/>
         <source>Report issue...</source>
         <translation>报告问题...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="101"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="107"/>
         <source>Report an issue on GitHub</source>
         <translation>在GitHub上报告一个问题</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="102"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="108"/>
         <source>Generate crash dump</source>
         <translation>生成崩溃报告</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="103"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="109"/>
         <source>Generate diagnostic crash dump</source>
         <translation>生成崩溃诊断报告</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="104"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="110"/>
         <source>Scratchpad</source>
         <translation>暂存器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="105"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="111"/>
         <source>Command Palette...</source>
         <translation>命令面板...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="106"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="112"/>
         <source>Search and run any menu command</source>
         <translation>搜索并运行任意菜单命令</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="107"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="113"/>
         <source>Show the scratchpad</source>
         <translation>显示暂存器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="108"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="114"/>
         <source>Add to favorites</source>
         <translation>加入收藏</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="109"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="115"/>
         <source>Remove from favorites...</source>
         <translation>从收藏中移除...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="110"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="116"/>
         <source>Switch to opened file...</source>
         <translation>切换到已打开文件...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="111"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="117"/>
         <source>Predefined filters...</source>
         <translation>预定义的过滤器...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="113"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="119"/>
         <source>Show dialog to configure filters</source>
         <translation>显示过滤器配置对话框</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="114"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="120"/>
         <source>Import Chipmunk filters...</source>
         <translation>导入 Chipmunk 过滤器...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="116"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="122"/>
         <source>Import filters from a Chipmunk JSON export file</source>
         <translation>从 Chipmunk JSON 导出文件导入过滤器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="117"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="123"/>
         <source>Regex Lab...</source>
         <translation>正则实验室...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="119"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="125"/>
         <source>Test a pattern on Log Lines of the current tab before searching with it</source>
         <translation>在搜索之前，用当前标签页的日志行测试模式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="120"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="126"/>
         <source>Filters panel</source>
         <translation>过滤器面板</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="121"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="127"/>
         <source>Show the filters panel</source>
         <translation>显示过滤器面板</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="122"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="128"/>
         <source>Sidebar</source>
         <translation>侧边栏</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="123"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="129"/>
         <source>Toggle the sidebar panel</source>
         <translation>切换侧边栏面板</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="124"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="130"/>
         <source>Chart Panel</source>
         <translation>图表面板</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="126"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="132"/>
         <source>Toggle the chart panel for visualizing extracted values</source>
         <translation>切换用于可视化提取值的图表面板</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="127"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="133"/>
         <source>Show Filter Frequency</source>
         <translation>显示过滤器频率</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="129"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="135"/>
         <source>Chart the frequency of current search filter matches</source>
         <translation>绘制当前搜索过滤器匹配频率的图表</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="130"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="136"/>
         <source>Auto</source>
         <translation>自动</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="132"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="138"/>
         <source>Automatically detect the file&apos;s encoding</source>
         <translation>自动检测文件的编码</translation>
     </message>

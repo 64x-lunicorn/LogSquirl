@@ -312,6 +312,14 @@ key's capture groups as `{1}`, `{2}`, … A value no row matches stays as it is.
 A named group of Naming Rules and the Name Tables they use; the unit that is enabled, exported
 and shared. A rule only uses the Name Tables of its own group.
 
+**Named Value**:
+One value of a Log Line that a Naming Rule captured and a Name Table named. The Text View and
+the Filtered View show the rule's template in its place, underlined, and treat it as a whole:
+a Search, a Highlighter or the selection over part of it covers all of it, a copy takes its
+whole raw text, a double-click selects it. *Copy as Shown* copies the text shown instead. Each
+tab shows Value Names or not, by its own switch (View → Show Value Names).
+_Avoid_: replacement, substitution (the Log File is never changed)
+
 ### Appearance
 
 **Theme**:

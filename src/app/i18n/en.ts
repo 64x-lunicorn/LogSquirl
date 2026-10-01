@@ -2,6 +2,15 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="en">
 <context>
+    <name>AbstractLogView</name>
+    <message>
+        <location filename="../../ui/src/abstractlogview.cpp" line="1576"/>
+        <source>%1 → %2 · table %3 · rule %4 · group %5</source>
+        <extracomment>The tooltip over a Named Value: the raw value, its name, the Name Table, the Naming Rule and the Naming Group it came from.</extracomment>
+        <translation>%1 → %2 · table %3 · rule %4 · group %5</translation>
+    </message>
+</context>
+<context>
     <name>ChartPanel</name>
     <message>
         <location filename="../../ui/src/chartpanel.cpp" line="63"/>
@@ -902,12 +911,12 @@ Pattern: %2</translation>
 <context>
     <name>CrawlerWidget</name>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="697"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="718"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="698"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="719"/>
         <source>Search history:</source>
         <translation>Search history:</translation>
     </message>
@@ -927,27 +936,27 @@ Pattern: %2</translation>
         <translation> %1 match found so far.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1266"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1294"/>
         <source>Marks and matches</source>
         <translation>Marks and matches</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1272"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1300"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>Marks, matches + breadcrumbs</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1277"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1305"/>
         <source>Matches + breadcrumbs</source>
         <translation>Matches + breadcrumbs</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1282"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1310"/>
         <source>Marks</source>
         <translation>Marks</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1286"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1314"/>
         <source>Matches</source>
         <translation>Matches</translation>
     </message>
@@ -991,32 +1000,32 @@ Pattern: %2</translation>
         <translation>Search pattern</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1328"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1356"/>
         <source>Clear search history</source>
         <translation>Clear search history</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1329"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1357"/>
         <source>Edit search history</source>
         <translation>Edit search history</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1330"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1358"/>
         <source>Save as Filter</source>
         <translation>Save as Filter</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1331"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1359"/>
         <source>Open in Regex Lab...</source>
         <translation>Open in Regex Lab...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1333"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1361"/>
         <source>Try out the pattern and its options on Log Lines in the Regex Lab</source>
         <translation>Try out the pattern and its options on Log Lines in the Regex Lab</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1339"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1367"/>
         <source>Count values of capture group</source>
         <translation>Count values of capture group</translation>
     </message>
@@ -1041,32 +1050,32 @@ Pattern: %2</translation>
         <translation>Keep these results and show subsequent results in a new window</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1352"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1380"/>
         <source>Toggle table/text view</source>
         <translation>Toggle table/text view</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1353"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1381"/>
         <source>Toggle table view</source>
         <translation>Toggle table view</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1751"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1781"/>
         <source>Group %1</source>
         <translation>Group %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1752"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1782"/>
         <source>Group %1 (%2)</source>
         <translation>Group %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1780"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1810"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>group %1 of &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2159"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2192"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Toggle table/text view (%1)</translation>
     </message>
@@ -1096,12 +1105,12 @@ Pattern: %2</translation>
         <translation>File truncated on disk</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2038"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2071"/>
         <source>Displayed as %1</source>
         <translation>Displayed as %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2038"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2071"/>
         <source>Detected as %1</source>
         <translation>Detected as %1</translation>
     </message>
@@ -1674,33 +1683,33 @@ Do you want to replace it?</translation>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1759"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1791"/>
         <source>Open URL as log file</source>
         <translation>Open URL as log file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1464"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1481"/>
         <source>Open window</source>
         <translation>Open window</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1287"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1302"/>
         <source>Open Recent</source>
         <translation>Open Recent</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1465"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1482"/>
         <source>Quit</source>
         <translation>Quit</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1526"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1543"/>
         <source>Open file</source>
         <translation>Open file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1521"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3115"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1538"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3149"/>
         <source>All files (*)</source>
         <translation>All files (*)</translation>
     </message>
@@ -1732,7 +1741,7 @@ Do you want to replace it?</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="320"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2802"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2834"/>
         <source>Dashboard</source>
         <translation>Dashboard</translation>
     </message>
@@ -1784,284 +1793,284 @@ Working folder: %2
         <translation>Standard input closed</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1156"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1170"/>
         <source>Manage Tab Groups...</source>
         <translation>Manage Tab Groups...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1157"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1171"/>
         <source>Rename, recolor, or delete tab groups</source>
         <translation>Rename, recolor, or delete tab groups</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1161"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1175"/>
         <source>Plugin Management...</source>
         <translation>Plugin Management...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1162"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1176"/>
         <source>Manage, install, and update plugins</source>
         <translation>Manage, install, and update plugins</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1379"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1396"/>
         <source>Sources</source>
         <translation>Sources</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1549"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1566"/>
         <source>Downloading %1</source>
         <translation>Downloading %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1570"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="1575"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1587"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1592"/>
         <source>LogSquirl - File download</source>
         <translation>LogSquirl - File download</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1576"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1593"/>
         <source>Failed to create temp file</source>
         <translation>Failed to create temp file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1601"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1618"/>
         <source>logsquirl - remove from recent</source>
         <translation>logsquirl - remove from recent</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1602"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1619"/>
         <source>Could not read file %1. Remove it from recent files?</source>
         <translation>Could not read file %1. Remove it from recent files?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1623"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1640"/>
         <source>logsquirl - remove from favorites</source>
         <translation>logsquirl - remove from favorites</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1624"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1641"/>
         <source>Could not read file %1. Remove it from favorites?</source>
         <translation>Could not read file %1. Remove it from favorites?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1700"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1732"/>
         <source>logsquirl - clear file</source>
         <translation>logsquirl - clear file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1701"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1733"/>
         <source>Clear file %1? File content will be removed from disk, this is irreversible</source>
         <translation>Clear file %1? File content will be removed from disk, this is irreversible</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1759"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1791"/>
         <source>URL to download:</source>
         <translation>URL to download:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2005"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2037"/>
         <source>Team group changed</source>
         <translation>Team group changed</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2006"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2038"/>
         <source>Somebody else changed the Team group &quot;%1&quot; since you started editing it.</source>
         <translation>Somebody else changed the Team group &quot;%1&quot; since you started editing it.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2012"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2044"/>
         <source>Keep your version and replace theirs, take theirs and drop your change, or save yours as a copy next to theirs?</source>
         <translation>Keep your version and replace theirs, take theirs and drop your change, or save yours as a copy next to theirs?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2014"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2046"/>
         <source>Somebody deleted it. Keep your version to publish it again, or take the deletion and drop your change?</source>
         <translation>Somebody deleted it. Keep your version to publish it again, or take the deletion and drop your change?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2016"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2048"/>
         <source>Keep mine</source>
         <translation>Keep mine</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2017"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2049"/>
         <source>Take theirs</source>
         <translation>Take theirs</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2018"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2050"/>
         <source>Save mine as a copy</source>
         <translation>Save mine as a copy</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2065"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2097"/>
         <source>Click to sync now.</source>
         <translation>Click to sync now.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2092"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2124"/>
         <source>Start %1 data source</source>
         <translation>Start %1 data source</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2100"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2132"/>
         <source>(no data source plugins)</source>
         <translation>(no data source plugins)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2140"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2172"/>
         <source>Plugin Error</source>
         <translation>Plugin Error</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2141"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2173"/>
         <source>Failed to load plugin:
 %1</source>
         <translation>Failed to load plugin:
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2153"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2185"/>
         <source>DataSource Error</source>
         <translation>DataSource Error</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2168"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2200"/>
         <source>DataSource: %1
 %2</source>
         <translation>DataSource: %1
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2175"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2207"/>
         <source>About LogSquirl</source>
         <translation>About LogSquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2176"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2208"/>
         <source>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is a fork of &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; by Anton Filimonov, which is a fork of &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; by Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</source>
         <translation>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is a fork of &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; by Anton Filimonov, which is a fork of &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; by Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2195"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2227"/>
         <source>About Qt</source>
         <translation>About Qt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2208"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2240"/>
         <source>logsquirl documentation</source>
         <translation>logsquirl documentation</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2253"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2285"/>
         <source>Index cache cleared (%1 MB freed)</source>
         <translation>Index cache cleared (%1 MB freed)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2319"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2351"/>
         <source>Merged (dedup)</source>
         <translation>Merged (dedup)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2319"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2351"/>
         <source>Merged</source>
         <translation>Merged</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2357"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2389"/>
         <source>Import Chipmunk filters</source>
         <translation>Import Chipmunk filters</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2358"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2390"/>
         <source>Chipmunk filters (*.json);;All files (*)</source>
         <translation>Chipmunk filters (*.json);;All files (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2366"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2398"/>
         <source>Import error</source>
         <translation>Import error</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2367"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2399"/>
         <source>Could not open file: %1</source>
         <translation>Could not open file: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2375"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2387"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2407"/>
         <location filename="../../ui/src/mainwindow.cpp" line="2419"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2451"/>
         <source>Import result</source>
         <translation>Import result</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2376"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2408"/>
         <source>No filters found in the selected file.</source>
         <translation>No filters found in the selected file.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2388"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2420"/>
         <source>A filter group named &apos;%1&apos; already exists. Skipping filter import.</source>
         <translation>A filter group named &apos;%1&apos; already exists. Skipping filter import.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2420"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2452"/>
         <source>Imported %1 filter(s) and %2 highlighter set.</source>
         <translation>Imported %1 filter(s) and %2 highlighter set.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2498"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2530"/>
         <source>Ln:%1/%2</source>
         <translation>Ln:%1/%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2503"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2535"/>
         <source>Ln:%1/%2 Col:%3 Sel:%4|%5</source>
         <translation>Ln:%1/%2 Col:%3 Sel:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2512"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2544"/>
         <source>Ln:%1/%2 Sel:%4|%5</source>
         <translation>Ln:%1/%2 Sel:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2552"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2584"/>
         <source> - Indexing lines... (%1 %)</source>
         <translation> - Indexing lines... (%1 %)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2601"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2633"/>
         <source>Not enough memory.</source>
         <translation>Not enough memory.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2603"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2635"/>
         <source>The system does not have enough memory to hold the index for this file. The file will now be closed.</source>
         <translation>The system does not have enough memory to hold the index for this file. The file will now be closed.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2686"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2718"/>
         <source>Close Tab</source>
         <translation>Close Tab</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2687"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2719"/>
         <source>Close tab &quot;%1&quot;?</source>
         <translation>Close tab &quot;%1&quot;?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2696"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2728"/>
         <source>Don&apos;t ask again</source>
         <translation>Don&apos;t ask again</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2690"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2722"/>
         <source>Close Tabs</source>
         <translation>Close Tabs</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../ui/src/mainwindow.cpp" line="2691"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2723"/>
         <source>Close %n tab(s)?</source>
         <translation>
             <numerusform>Close %n tab?</numerusform>
@@ -2069,119 +2078,119 @@ Working folder: %2
         </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3052"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3097"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3132"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3386"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3086"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3131"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3166"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3420"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3053"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3087"/>
         <source>Extract archive to temp folder?</source>
         <translation>Extract archive to temp folder?</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="549"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3069"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3103"/>
         <source>Extracting %1</source>
         <translation>Extracting %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3098"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3132"/>
         <source>Failed to decompress %1</source>
         <translation>Failed to decompress %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3114"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3148"/>
         <source>Open file from archive</source>
         <translation>Open file from archive</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3133"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3167"/>
         <source>Failed to extract %1</source>
         <translation>Failed to extract %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3376"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3410"/>
         <source>Untitled</source>
         <translation>Untitled</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3386"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3420"/>
         <source>%1 - %2%3</source>
         <translation>%1 - %2%3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3387"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3421"/>
         <source> (build </source>
         <translation> (build </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3413"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3447"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3505"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3540"/>
         <source>modified on %1</source>
         <translation>modified on %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3631"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3666"/>
         <source>Remove from favorites</source>
         <translation>Remove from favorites</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3632"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3667"/>
         <source>Select item to remove from favorites</source>
         <translation>Select item to remove from favorites</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3677"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3712"/>
         <source>logsquirl -- switch to file</source>
         <translation>logsquirl -- switch to file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3793"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3816"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3828"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3851"/>
         <source>Save Session As</source>
         <translation>Save Session As</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3794"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3828"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3829"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3863"/>
         <source>LogSquirl sessions (*.%1)</source>
         <translation>LogSquirl sessions (*.%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3817"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3852"/>
         <source>The session could not be saved to %1:
 %2</source>
         <translation>The session could not be saved to %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3827"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3837"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3889"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3862"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3872"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3924"/>
         <source>Open Session</source>
         <translation>Open Session</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3842"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3877"/>
         <source>The session file %1 could not be read:
 %2</source>
         <translation>The session file %1 could not be read:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3863"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3898"/>
         <source>The session holds no log files.</source>
         <translation>The session holds no log files.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3864"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3899"/>
         <source>None of the log files of this session could be opened. They are missing or already open:
 
 %1</source>
@@ -2190,7 +2199,7 @@ Working folder: %2
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3890"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3925"/>
         <source>These log files of the session were left out. They are missing or already open in another window:
 
 %1</source>
@@ -2199,18 +2208,18 @@ Working folder: %2
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3955"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3990"/>
         <source>logsquirl - generate crash dump</source>
         <translation>logsquirl - generate crash dump</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3956"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3991"/>
         <source>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</source>
         <translation>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</translation>
     </message>
     <message>
         <location filename="../../ui/include/pluginuiadapter.h" line="167"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="1373"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1390"/>
         <source>Plugins</source>
         <translation>Plugins</translation>
     </message>
@@ -2421,277 +2430,282 @@ Working folder: %2
         <translation>Force font anti-aliasing</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="369"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="362"/>
+        <source>Show Value Names on file open</source>
+        <translation>Show Value Names on file open</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="376"/>
         <source>Language</source>
         <translation>Language</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="381"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="388"/>
         <source>Style</source>
         <translation>Style</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="395"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="402"/>
         <source>High DPI</source>
         <translation>High DPI</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="401"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="408"/>
         <source>Enable Qt High DPI support</source>
         <translation>Enable Qt High DPI support</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="413"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="420"/>
         <source>Scale rounding:</source>
         <translation>Scale rounding:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="427"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="434"/>
         <source>Round</source>
         <translation>Round</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="432"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="439"/>
         <source>Ceil</source>
         <translation>Ceil</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="437"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="444"/>
         <source>Floor</source>
         <translation>Floor</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="442"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="449"/>
         <source>RoundPreferFloor</source>
         <translation>RoundPreferFloor</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="447"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="454"/>
         <source>PassThrough</source>
         <translation>PassThrough</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="457"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="464"/>
         <source>Need to restart application to apply these settings</source>
         <translation>Need to restart application to apply these settings</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="467"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="474"/>
         <source>Miscellaneous</source>
         <translation>Miscellaneous</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="522"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="529"/>
         <source>Enable fast scrolling with Alt key</source>
         <translation>Enable fast scrolling with Alt key</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="531"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="538"/>
         <source>Fast scroll multiplier</source>
         <translation>Fast scroll multiplier</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="555"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="562"/>
         <source>Context lines around matches (0 = off)</source>
         <translation>Context lines around matches (0 = off)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="594"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="601"/>
         <source>File</source>
         <translation>File</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="600"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="607"/>
         <source>File change monitoring</source>
         <translation>File change monitoring</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="606"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="613"/>
         <source>Enable filesystem change monitoring</source>
         <translation>Enable filesystem change monitoring</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="613"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="620"/>
         <source>Enable polling</source>
         <translation>Enable polling</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="622"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="629"/>
         <source>Polling interval (ms):</source>
         <translation>Polling interval (ms):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="644"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="651"/>
         <source>Use fast modification detection</source>
         <translation>Use fast modification detection</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="651"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="658"/>
         <source>Turn on follow on scroll past the end</source>
         <translation>Turn on follow on scroll past the end</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="661"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="668"/>
         <source>Encoding</source>
         <translation>Encoding</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="669"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="676"/>
         <source>Encoding for new files</source>
         <translation>Encoding for new files</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="693"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="700"/>
         <source>Recent files</source>
         <translation>Recent files</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="707"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="714"/>
         <source>Show the number of recently opened files:</source>
         <translation>Show the number of recently opened files:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="729"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="736"/>
         <source>Archives</source>
         <translation>Archives</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="735"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="742"/>
         <source>Extract archives</source>
         <translation>Extract archives</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="742"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="749"/>
         <source>Extract archives without confirmation</source>
         <translation>Extract archives without confirmation</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="752"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="759"/>
         <source>File download</source>
         <translation>File download</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="758"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="765"/>
         <source>Verify certificates for https connections</source>
         <translation>Verify certificates for https connections</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="785"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="792"/>
         <source>Shortcuts</source>
         <translation>Shortcuts</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="819"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="826"/>
         <source>Restore defaults</source>
         <translation>Restore defaults</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="832"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="839"/>
         <source>Advanced</source>
         <translation>Advanced</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="838"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="845"/>
         <source>Indexing and search</source>
         <translation>Indexing and search</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="848"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="855"/>
         <source>Regular expressions engine:</source>
         <translation>Regular expressions engine:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="913"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="920"/>
         <source>Keep file closed (file reload required)</source>
         <translation>Keep file closed (file reload required)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="920"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="927"/>
         <source>Use compressed index (file reload required)</source>
         <translation>Use compressed index (file reload required)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="930"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="937"/>
         <source>Use parallel search</source>
         <translation>Use parallel search</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1093"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1100"/>
         <source>Team Folder</source>
         <translation>Team Folder</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1099"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1106"/>
         <source>Share Filter Groups with the team through a Team Folder</source>
         <translation>Share Filter Groups with the team through a Team Folder</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1108"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1115"/>
         <source>Repository URL:</source>
         <translation>Repository URL:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1118"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1125"/>
         <source>https://… or git@…</source>
         <translation>https://… or git@…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1125"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1132"/>
         <source>Subfolder:</source>
         <translation>Subfolder:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1135"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1142"/>
         <source>The repository&apos;s top folder</source>
         <translation>The repository&apos;s top folder</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1144"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1151"/>
         <source>LogSquirl clones the repository into its own data folder with the Git installed on this computer, and signs in the way Git does for you. Turning the Team Folder off or changing the repository leaves your own groups as they are.</source>
         <translation>LogSquirl clones the repository into its own data folder with the Git installed on this computer, and signs in the way Git does for you. Turning the Team Folder off or changing the repository leaves your own groups as they are.</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1172"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1179"/>
         <source>Sync Now</source>
         <translation>Sync Now</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1195"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1202"/>
         <source>Log Formats</source>
         <translation>Log Formats</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1201"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1208"/>
         <source>Auto-detect log format (table view)</source>
         <translation>Auto-detect log format (table view)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1208"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1215"/>
         <source>Automatically switch to table view when format is detected</source>
         <translation>Automatically switch to table view when format is detected</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1215"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1222"/>
         <source>Available Formats:</source>
         <translation>Available Formats:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1241"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1248"/>
         <source>Name</source>
         <translation>Name</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1246"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1253"/>
         <source>Description</source>
         <translation>Description</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1254"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1261"/>
         <source>Open Formats Folder…</source>
         <translation>Open Formats Folder…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="865"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="872"/>
         <source>Index file read buffer (Mib):</source>
         <translation>Index file read buffer (Mib):</translation>
     </message>
@@ -2706,87 +2720,87 @@ Working folder: %2
         <translation>Enable text wrap on file open</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="475"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="482"/>
         <source>ANSI color sequences:</source>
         <translation>ANSI color sequences:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="492"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="499"/>
         <source>Show as text</source>
         <translation>Show as text</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="497"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="504"/>
         <source>Hide</source>
         <translation>Hide</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="502"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="509"/>
         <source>Show colors</source>
         <translation>Show colors</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="512"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="519"/>
         <source>Hide and Show colors reduce search performance</source>
         <translation>Hide and Show colors reduce search performance</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="885"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="892"/>
         <source>Search read buffer (lines):</source>
         <translation>Search read buffer (lines):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="910"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="917"/>
         <source>File will be kept closed as much as possible. Affects only files opened after check state changed</source>
         <translation>File will be kept closed as much as possible. Affects only files opened after check state changed</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="940"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="947"/>
         <source>Optimize search for non-latin encodings</source>
         <translation>Optimize search for non-latin encodings</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="952"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="959"/>
         <source>Caching</source>
         <translation>Caching</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="967"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="974"/>
         <source>Enable search results cache</source>
         <translation>Enable search results cache</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="977"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="984"/>
         <source>Search cache size (lines):</source>
         <translation>Search cache size (lines):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1000"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1007"/>
         <source>Cache file indexes to disk so re-opening a file skips indexing</source>
         <translation>Cache file indexes to disk so re-opening a file skips indexing</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1003"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1010"/>
         <source>Enable index cache (persist indexes to disk)</source>
         <translation>Enable index cache (persist indexes to disk)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1013"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1020"/>
         <source>Index cache max size (MB):</source>
         <translation>Index cache max size (MB):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1042"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1049"/>
         <source>Logging</source>
         <translation>Logging</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1048"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1055"/>
         <source>Enable logging</source>
         <translation>Enable logging</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1057"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1064"/>
         <source>Verbosity</source>
         <translation>Verbosity</translation>
     </message>
@@ -2811,34 +2825,34 @@ Working folder: %2
         <translation>Vectorscan</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="489"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="490"/>
         <source>Turned off when LogSquirl was installed. Run the installer again to turn it back on.</source>
         <translation>Turned off when LogSquirl was installed. Run the installer again to turn it back on.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="744"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="746"/>
         <source>LogSquirl needs to be restarted to apply some changes. </source>
         <translation>LogSquirl needs to be restarted to apply some changes. </translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="932"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="934"/>
         <source>Click or press Enter to record a shortcut, Escape cancels.
 Backspace or Delete clears the shortcut.</source>
         <translation>Click or press Enter to record a shortcut, Escape cancels.
 Backspace or Delete clears the shortcut.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="947"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="949"/>
         <source>Action</source>
         <translation>Action</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="948"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="950"/>
         <source>Primary shortcut</source>
         <translation>Primary shortcut</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="950"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="952"/>
         <source>Secondary shortcut</source>
         <translation>Secondary shortcut</translation>
     </message>
@@ -3356,112 +3370,122 @@ Restart LogSquirl to try again.</translation>
         <translation>Copy with line numbers</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="152"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="153"/>
+        <source>Copy as shown</source>
+        <translation>Copy as shown</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/presentationmenu.cpp" line="154"/>
+        <source>Copy the selection as shown, with its Value Names</source>
+        <translation>Copy the selection as shown, with its Value Names</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/presentationmenu.cpp" line="157"/>
         <source>Send to scratchpad</source>
         <translation>Send to scratchpad</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="154"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="159"/>
         <source>Replace scratchpad</source>
         <translation>Replace scratchpad</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="160"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="165"/>
         <source>Find &amp;next</source>
         <translation>Find &amp;next</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="164"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="169"/>
         <source>Find the next occurrence</source>
         <translation>Find the next occurrence</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="166"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="171"/>
         <source>Find &amp;previous</source>
         <translation>Find &amp;previous</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="168"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="173"/>
         <source>/</source>
         <translation>/</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="170"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="175"/>
         <source>Find the previous occurrence</source>
         <translation>Find the previous occurrence</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="174"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="179"/>
         <source>&amp;Replace search</source>
         <translation>&amp;Replace search</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="175"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="180"/>
         <source>Replace the search expression with the selection</source>
         <translation>Replace the search expression with the selection</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="177"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="182"/>
         <source>&amp;Add to search</source>
         <translation>&amp;Add to search</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="178"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="183"/>
         <source>Add the selection to the current search</source>
         <translation>Add the selection to the current search</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="180"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="185"/>
         <source>&amp;Exclude from search</source>
         <translation>&amp;Exclude from search</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="186"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="191"/>
         <source>Excludes the selection from search</source>
         <translation>Excludes the selection from search</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="197"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="202"/>
         <source>Set search start</source>
         <translation>Set search start</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="204"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="209"/>
         <source>Set search end</source>
         <translation>Set search end</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="211"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="216"/>
         <source>Clear search limits</source>
         <translation>Clear search limits</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="215"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="220"/>
         <source>Set selection start</source>
         <translation>Set selection start</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="217"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="222"/>
         <source>Set selection end</source>
         <translation>Set selection end</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="222"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="227"/>
         <source>Save splitter position</source>
         <translation>Save splitter position</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="223"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="228"/>
         <source>Save to file</source>
         <translation>Save to file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="224"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="229"/>
         <source>Save selected to file</source>
         <translation>Save selected to file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="227"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="232"/>
         <source>Export as CSV...</source>
         <translation>Export as CSV...</translation>
     </message>
@@ -3594,87 +3618,87 @@ Restart LogSquirl to try again.</translation>
         <translation>Toggle text wrap</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="293"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="300"/>
         <source>Reload file</source>
         <translation>Reload file</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="300"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="307"/>
         <source>Stop file loading</source>
         <translation>Stop file loading</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="307"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="314"/>
         <source>Open scratchpad</source>
         <translation>Open scratchpad</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="314"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="321"/>
         <source>Switch to file</source>
         <translation>Switch to file</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="321"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="328"/>
         <source>Change filtered lines visibility forward</source>
         <translation>Change filtered lines visibility forward</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="328"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="335"/>
         <source>Change filtered lines visibility backward</source>
         <translation>Change filtered lines visibility backward</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="335"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="342"/>
         <source>Change filtered lines visibility to marks and matches</source>
         <translation>Change filtered lines visibility to marks and matches</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="342"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="349"/>
         <source>Change filtered lines visibility to marks</source>
         <translation>Change filtered lines visibility to marks</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="349"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="356"/>
         <source>Change filtered lines visibility to matches</source>
         <translation>Change filtered lines visibility to matches</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="370"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="377"/>
         <source>Enable case matching</source>
         <translation>Enable case matching</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="377"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="384"/>
         <source>Enable regex</source>
         <translation>Enable regex</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="384"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="391"/>
         <source>Enable inverse matching</source>
         <translation>Enable inverse matching</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="391"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="398"/>
         <source>Enable regex combining</source>
         <translation>Enable regex combining</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="398"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="405"/>
         <source>Enable auto refresh</source>
         <translation>Enable auto refresh</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="405"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="412"/>
         <source>Keep search results</source>
         <translation>Keep search results</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="505"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="512"/>
         <source>Jump to the bottom of the text</source>
         <translation>Jump to the bottom of the text</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="356"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="363"/>
         <source>Increase main view</source>
         <translation>Increase main view</translation>
     </message>
@@ -3694,212 +3718,217 @@ Restart LogSquirl to try again.</translation>
         <translation>Open command output</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="363"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="293"/>
+        <source>Toggle Value Names</source>
+        <translation>Toggle Value Names</translation>
+    </message>
+    <message>
+        <location filename="../../settings/src/shortcuts.cpp" line="370"/>
         <source>Decrease main view</source>
         <translation>Decrease main view</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="417"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="424"/>
         <source>Add line mark</source>
         <translation>Add line mark</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="424"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="431"/>
         <source>Jump to next mark</source>
         <translation>Jump to next mark</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="431"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="438"/>
         <source>Jump to previous mark</source>
         <translation>Jump to previous mark</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="438"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="445"/>
         <source>Move selection up</source>
         <translation>Move selection up</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="445"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="452"/>
         <source>Move selection down</source>
         <translation>Move selection down</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="453"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="460"/>
         <source>Scroll up</source>
         <translation>Scroll up</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="460"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="467"/>
         <source>Scroll down</source>
         <translation>Scroll down</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="467"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="474"/>
         <source>Scroll left</source>
         <translation>Scroll left</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="475"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="482"/>
         <source>Scroll right</source>
         <translation>Scroll right</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="483"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="490"/>
         <source>Jump to the beginning of the current line</source>
         <translation>Jump to the beginning of the current line</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="491"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="498"/>
         <source>Jump to the end start of the current line</source>
         <translation>Jump to the end start of the current line</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="498"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="505"/>
         <source>Jump to the right of the text</source>
         <translation>Jump to the right of the text</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="512"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="519"/>
         <source>Jump to the top of the text</source>
         <translation>Jump to the top of the text</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="519"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="526"/>
         <source>Jump to line</source>
         <translation>Jump to line</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="526"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="533"/>
         <source>Jump to line number</source>
         <translation>Jump to line number</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="533"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="540"/>
         <source>Jump to timestamp</source>
         <translation>Jump to timestamp</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="540"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="547"/>
         <source>Set search limits to a time range</source>
         <translation>Set search limits to a time range</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="547"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="554"/>
         <source>Set search limits around the current line</source>
         <translation>Set search limits around the current line</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="554"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="561"/>
         <source>Main view: find next</source>
         <translation>Main view: find next</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="561"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="568"/>
         <source>Main view: find previous</source>
         <translation>Main view: find previous</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="567"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="574"/>
         <source>Set selection to QuickFind and find next</source>
         <translation>Set selection to QuickFind and find next</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="574"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="581"/>
         <source>Set selection to QuickFind and find previous</source>
         <translation>Set selection to QuickFind and find previous</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="582"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="589"/>
         <source>Release focus from view</source>
         <translation>Release focus from view</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="589"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="596"/>
         <source>Highlight text with color 1</source>
         <translation>Highlight text with color 1</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="596"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="603"/>
         <source>Highlight text with color 2</source>
         <translation>Highlight text with color 2</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="603"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="610"/>
         <source>Highlight text with color 3</source>
         <translation>Highlight text with color 3</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="610"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="617"/>
         <source>Highlight text with color 4</source>
         <translation>Highlight text with color 4</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="617"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="624"/>
         <source>Highlight text with color 5</source>
         <translation>Highlight text with color 5</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="624"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="631"/>
         <source>Highlight text with color 6</source>
         <translation>Highlight text with color 6</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="631"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="638"/>
         <source>Highlight text with color 7</source>
         <translation>Highlight text with color 7</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="638"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="645"/>
         <source>Highlight text with color 8</source>
         <translation>Highlight text with color 8</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="645"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="652"/>
         <source>Highlight text with color 9</source>
         <translation>Highlight text with color 9</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="652"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="659"/>
         <source>Highlight text with next color</source>
         <translation>Highlight text with next color</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="659"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="666"/>
         <source>Clear all color labels</source>
         <translation>Clear all color labels</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="666"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="673"/>
         <source>Send selection to scratchpad</source>
         <translation>Send selection to scratchpad</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="673"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="680"/>
         <source>Replace scratchpad with selection</source>
         <translation>Replace scratchpad with selection</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="680"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="687"/>
         <source>Add selection to search pattern</source>
         <translation>Add selection to search pattern</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="687"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="694"/>
         <source>Exclude selection from search pattern </source>
         <translation>Exclude selection from search pattern </translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="694"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="701"/>
         <source>Replace search pattern with selection</source>
         <translation>Replace search pattern with selection</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="708"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="715"/>
         <source>Select lines down</source>
         <translation>Select lines down</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="701"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="708"/>
         <source>Select lines up</source>
         <translation>Select lines up</translation>
     </message>
@@ -4185,6 +4214,19 @@ Restart LogSquirl to try again.</translation>
         <location filename="../../ui/src/regexlabwindow.cpp" line="923"/>
         <source>Evaluating the sample took %1 ms: the pattern may backtrack excessively on some lines.</source>
         <translation>Evaluating the sample took %1 ms: the pattern may backtrack excessively on some lines.</translation>
+    </message>
+</context>
+<context>
+    <name>SaveLinesDialog</name>
+    <message>
+        <location filename="../../ui/src/savelinesdialog.cpp" line="32"/>
+        <source>With Value Names</source>
+        <translation>With Value Names</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/savelinesdialog.cpp" line="37"/>
+        <source>Save the Log Lines as they are shown, with the names of their values</source>
+        <translation>Save the Log Lines as they are shown, with the names of their values</translation>
     </message>
 </context>
 <context>
@@ -4845,371 +4887,391 @@ Without a date, %1 is used.</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="42"/>
+        <source>Copy as &amp;Shown</source>
+        <translation>Copy as &amp;Shown</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="44"/>
+        <source>Copy the selection as shown, with its Value Names</source>
+        <translation>Copy the selection as shown, with its Value Names</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="45"/>
         <source>Select &amp;All</source>
         <translation>Select &amp;All</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="43"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="46"/>
         <source>Select all the text</source>
         <translation>Select all the text</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="44"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="47"/>
         <source>Go to line...</source>
         <translation>Go to line...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="46"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="49"/>
         <source>Scrolls selected main view to specified line</source>
         <translation>Scrolls selected main view to specified line</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="47"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="50"/>
         <source>Go to timestamp...</source>
         <translation>Go to timestamp...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="49"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="52"/>
         <source>Scrolls selected main view to the first line at or after a time</source>
         <translation>Scrolls selected main view to the first line at or after a time</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="50"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="53"/>
         <source>Set search limits to time range...</source>
         <translation>Set search limits to time range...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="52"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="55"/>
         <source>Limits the search to the log lines between a start and an end time</source>
         <translation>Limits the search to the log lines between a start and an end time</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="54"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="57"/>
         <source>Set search limits around current line...</source>
         <translation>Set search limits around current line...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="56"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="59"/>
         <source>Limits the search to N minutes before and after the current log line</source>
         <translation>Limits the search to N minutes before and after the current log line</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="57"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="60"/>
         <source>&amp;Find...</source>
         <translation>&amp;Find...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="58"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="61"/>
         <source>Find the text</source>
         <translation>Find the text</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="59"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="62"/>
         <source>Clear file...</source>
         <translation>Clear file...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="60"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="63"/>
         <source>Clear current file</source>
         <translation>Clear current file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="61"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="64"/>
         <source>Open containing folder</source>
         <translation>Open containing folder</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="63"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="66"/>
         <source>Open folder containing current file</source>
         <translation>Open folder containing current file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="64"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="67"/>
         <source>Open in editor</source>
         <translation>Open in editor</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="65"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="68"/>
         <source>Open current file in default editor</source>
         <translation>Open current file in default editor</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="66"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="69"/>
         <source>Copy full path</source>
         <translation>Copy full path</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="68"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="71"/>
         <source>Copy full path for file to clipboard</source>
         <translation>Copy full path for file to clipboard</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="69"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="72"/>
         <source>Open from clipboard</source>
         <translation>Open from clipboard</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="70"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="73"/>
         <source>Open clipboard as log file</source>
         <translation>Open clipboard as log file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="71"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="74"/>
         <source>Open from URL...</source>
         <translation>Open from URL...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="72"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="75"/>
         <source>Open URL as log file</source>
         <translation>Open URL as log file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="73"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="76"/>
         <source>Open Session...</source>
         <translation>Open Session...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="75"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="78"/>
         <source>Open the log files of a saved session in a new window</source>
         <translation>Open the log files of a saved session in a new window</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="76"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="79"/>
         <source>Save Session As...</source>
         <translation>Save Session As...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="78"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="81"/>
         <source>Save this window&apos;s log files, tabs and view states to a session file</source>
         <translation>Save this window&apos;s log files, tabs and view states to a session file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="79"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="82"/>
         <source>Open Command Output...</source>
         <translation>Open Command Output...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="81"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="84"/>
         <source>Run a command and open its output as a followed log file</source>
         <translation>Run a command and open its output as a followed log file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="82"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="85"/>
         <source>Matches &amp;overview</source>
         <translation>Matches &amp;overview</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="83"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="86"/>
         <source>Line &amp;numbers in main view</source>
         <translation>Line &amp;numbers in main view</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="85"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="88"/>
         <source>Line &amp;numbers in filtered view</source>
         <translation>Line &amp;numbers in filtered view</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="86"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="89"/>
         <source>&amp;Follow File</source>
         <translation>&amp;Follow File</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="87"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="90"/>
         <source>&amp;Wrap text</source>
         <translation>&amp;Wrap text</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="88"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="91"/>
+        <source>Show &amp;Value Names</source>
+        <translation>Show &amp;Value Names</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="93"/>
+        <source>Show values of the Log Lines with their names from the Name Tables</source>
+        <translation>Show values of the Log Lines with their names from the Name Tables</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="94"/>
         <source>&amp;Reload</source>
         <translation>&amp;Reload</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="89"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="95"/>
         <source>&amp;Stop</source>
         <translation>&amp;Stop</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="90"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="96"/>
         <source>&amp;Preferences...</source>
         <translation>&amp;Preferences...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="91"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="97"/>
         <source>Show application settings dialog</source>
         <translation>Show application settings dialog</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="92"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="98"/>
         <source>Configure &amp;highlighters...</source>
         <translation>Configure &amp;highlighters...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="93"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="99"/>
         <source>Show highlighters configuration</source>
         <translation>Show highlighters configuration</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="94"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="100"/>
         <source>&amp;Documentation...</source>
         <translation>&amp;Documentation...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="95"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="101"/>
         <source>Show documentation</source>
         <translation>Show documentation</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="96"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="102"/>
         <source>&amp;About</source>
         <translation>&amp;About</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="97"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="103"/>
         <source>Show the About box</source>
         <translation>Show the About box</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="98"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="104"/>
         <source>About &amp;Qt</source>
         <translation>About &amp;Qt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="99"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="105"/>
         <source>Show the Qt library&apos;s About box</source>
         <translation>Show the Qt library&apos;s About box</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="100"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="106"/>
         <source>Report issue...</source>
         <translation>Report issue...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="101"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="107"/>
         <source>Report an issue on GitHub</source>
         <translation>Report an issue on GitHub</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="102"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="108"/>
         <source>Generate crash dump</source>
         <translation>Generate crash dump</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="103"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="109"/>
         <source>Generate diagnostic crash dump</source>
         <translation>Generate diagnostic crash dump</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="104"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="110"/>
         <source>Scratchpad</source>
         <translation>Scratchpad</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="105"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="111"/>
         <source>Command Palette...</source>
         <translation>Command Palette...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="106"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="112"/>
         <source>Search and run any menu command</source>
         <translation>Search and run any menu command</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="107"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="113"/>
         <source>Show the scratchpad</source>
         <translation>Show the scratchpad</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="108"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="114"/>
         <source>Add to favorites</source>
         <translation>Add to favorites</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="109"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="115"/>
         <source>Remove from favorites...</source>
         <translation>Remove from favorites...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="110"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="116"/>
         <source>Switch to opened file...</source>
         <translation>Switch to opened file...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="111"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="117"/>
         <source>Predefined filters...</source>
         <translation>Predefined filters...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="113"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="119"/>
         <source>Show dialog to configure filters</source>
         <translation>Show dialog to configure filters</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="114"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="120"/>
         <source>Import Chipmunk filters...</source>
         <translation>Import Chipmunk filters...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="116"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="122"/>
         <source>Import filters from a Chipmunk JSON export file</source>
         <translation>Import filters from a Chipmunk JSON export file</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="117"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="123"/>
         <source>Regex Lab...</source>
         <translation>Regex Lab...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="119"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="125"/>
         <source>Test a pattern on Log Lines of the current tab before searching with it</source>
         <translation>Test a pattern on Log Lines of the current tab before searching with it</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="120"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="126"/>
         <source>Filters panel</source>
         <translation>Filters panel</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="121"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="127"/>
         <source>Show the filters panel</source>
         <translation>Show the filters panel</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="122"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="128"/>
         <source>Sidebar</source>
         <translation>Sidebar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="123"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="129"/>
         <source>Toggle the sidebar panel</source>
         <translation>Toggle the sidebar panel</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="124"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="130"/>
         <source>Chart Panel</source>
         <translation>Chart Panel</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="126"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="132"/>
         <source>Toggle the chart panel for visualizing extracted values</source>
         <translation>Toggle the chart panel for visualizing extracted values</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="127"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="133"/>
         <source>Show Filter Frequency</source>
         <translation>Show Filter Frequency</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="129"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="135"/>
         <source>Chart the frequency of current search filter matches</source>
         <translation>Chart the frequency of current search filter matches</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="130"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="136"/>
         <source>Auto</source>
         <translation>Auto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="132"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="138"/>
         <source>Automatically detect the file&apos;s encoding</source>
         <translation>Automatically detect the file&apos;s encoding</translation>
     </message>

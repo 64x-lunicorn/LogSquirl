@@ -2,6 +2,20 @@
 
 ## Changes
 
+- **Values in a Log Line are shown with names from Name Tables (Value
+  Names)**: a Naming Rule picks the values of a Log Line by the capture groups
+  of its regex and looks each up in a Name Table, and the main view and the
+  filtered view show `BAP << ECU 0x15` as `BAP << ECU Beispiel(0x15)`. The Log
+  File is never changed, the Table View shows the raw text, and search,
+  filters, QuickFind and highlighters match the raw text -- a match inside a
+  value covers its whole name. A named value is underlined with fine dots and
+  its tooltip tells the table, rule and group the name came from. *View → Show
+  Value Names* (`Ctrl+Shift+N`) shows or hides them per tab, starting from the
+  new setting *Show Value Names on file open*. *Copy* copies the raw text --
+  a whole value, never half of one --, the new *Copy as Shown* copies what is
+  shown, and *Save to file* can save *With Value Names*. With them hidden or
+  no rule enabled, nothing is looked up. The sidebar tab and the dialog that
+  edit Naming Rules and Name Tables follow. (#647)
 - **The Regex Lab tests a pattern on Log Lines**: *Tools → Regex Lab…* opens a
   window beside the main window where a pattern, with the search line's
   options, is matched live against the selected Log Lines of the tab in front,

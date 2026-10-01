@@ -2,6 +2,15 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="uk">
 <context>
+    <name>AbstractLogView</name>
+    <message>
+        <location filename="../../ui/src/abstractlogview.cpp" line="1576"/>
+        <source>%1 → %2 · table %3 · rule %4 · group %5</source>
+        <extracomment>The tooltip over a Named Value: the raw value, its name, the Name Table, the Naming Rule and the Naming Group it came from.</extracomment>
+        <translation>%1 → %2 · таблиця %3 · правило %4 · група %5</translation>
+    </message>
+</context>
+<context>
     <name>ChartPanel</name>
     <message>
         <location filename="../../ui/src/chartpanel.cpp" line="63"/>
@@ -902,12 +911,12 @@ Pattern: %2</source>
 <context>
     <name>CrawlerWidget</name>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="697"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="718"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="698"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="719"/>
         <source>Search history:</source>
         <translation>Історія пошуку:</translation>
     </message>
@@ -927,27 +936,27 @@ Pattern: %2</source>
         <translation> Знайдено %1 збіг.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1266"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1294"/>
         <source>Marks and matches</source>
         <translation>Позначки та збіги</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1272"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1300"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>Позначки, збіги + контекст</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1277"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1305"/>
         <source>Matches + breadcrumbs</source>
         <translation>Збіги + контекст</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1282"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1310"/>
         <source>Marks</source>
         <translation>Позначки</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1286"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1314"/>
         <source>Matches</source>
         <translation>Збіги</translation>
     </message>
@@ -991,32 +1000,32 @@ Pattern: %2</source>
         <translation>Шаблон пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1328"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1356"/>
         <source>Clear search history</source>
         <translation>Очистити історію пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1329"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1357"/>
         <source>Edit search history</source>
         <translation>Редагувати історію пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1330"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1358"/>
         <source>Save as Filter</source>
         <translation>Зберегти як фільтр</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1331"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1359"/>
         <source>Open in Regex Lab...</source>
         <translation>Відкрити в Лабораторії регулярних виразів...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1333"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1361"/>
         <source>Try out the pattern and its options on Log Lines in the Regex Lab</source>
         <translation>Випробувати шаблон і його параметри на рядках журналу в Лабораторії регулярних виразів</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1339"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1367"/>
         <source>Count values of capture group</source>
         <translation>Підрахунок значень групи захоплення</translation>
     </message>
@@ -1041,32 +1050,32 @@ Pattern: %2</source>
         <translation>Зберегти ці результати й показувати наступні результати в новому вікні</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1352"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1380"/>
         <source>Toggle table/text view</source>
         <translation>Перемкнути табличний/текстовий вигляд</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1353"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1381"/>
         <source>Toggle table view</source>
         <translation>Перемкнути табличний вигляд</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1751"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1781"/>
         <source>Group %1</source>
         <translation>Група %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1752"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1782"/>
         <source>Group %1 (%2)</source>
         <translation>Група %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1780"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1810"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>група %1 з &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2159"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2192"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Перемкнути табличний/текстовий вигляд (%1)</translation>
     </message>
@@ -1096,12 +1105,12 @@ Pattern: %2</source>
         <translation>Файл обрізаний на диску</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2038"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2071"/>
         <source>Displayed as %1</source>
         <translation>Відображено як %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2038"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2071"/>
         <source>Detected as %1</source>
         <translation>Визначено як %1</translation>
     </message>
@@ -1674,33 +1683,33 @@ Do you want to replace it?</source>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1759"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1791"/>
         <source>Open URL as log file</source>
         <translation>Відкрити URL як лог-файл</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1464"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1481"/>
         <source>Open window</source>
         <translation>Відкрити вікно</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1287"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1302"/>
         <source>Open Recent</source>
         <translation>Нещодавні файли</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1465"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1482"/>
         <source>Quit</source>
         <translation>Вийти</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1526"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1543"/>
         <source>Open file</source>
         <translation>Відкрити файл</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1521"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3115"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1538"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3149"/>
         <source>All files (*)</source>
         <translation>Усі файли (*)</translation>
     </message>
@@ -1732,7 +1741,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="320"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2802"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2834"/>
         <source>Dashboard</source>
         <translation>Стартова сторінка</translation>
     </message>
@@ -1784,284 +1793,284 @@ Working folder: %2
         <translation>Стандартний ввід закрито</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1156"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1170"/>
         <source>Manage Tab Groups...</source>
         <translation>Керування групами вкладок...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1157"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1171"/>
         <source>Rename, recolor, or delete tab groups</source>
         <translation>Перейменувати, змінити колір або видалити групи вкладок</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1161"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1175"/>
         <source>Plugin Management...</source>
         <translation>Керування плагінами...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1162"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1176"/>
         <source>Manage, install, and update plugins</source>
         <translation>Керувати, встановлювати та оновлювати плагіни</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1379"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1396"/>
         <source>Sources</source>
         <translation>Джерела</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1549"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1566"/>
         <source>Downloading %1</source>
         <translation>Завантаження %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1570"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="1575"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1587"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1592"/>
         <source>LogSquirl - File download</source>
         <translation>LogSquirl - Завантаження файлу</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1576"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1593"/>
         <source>Failed to create temp file</source>
         <translation>Не вдалося створити тимчасовий файл</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1601"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1618"/>
         <source>logsquirl - remove from recent</source>
         <translation>logsquirl - Видалити з нещодавніх</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1602"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1619"/>
         <source>Could not read file %1. Remove it from recent files?</source>
         <translation>Не вдалося прочитати файл %1. Видалити з нещодавніх файлів?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1623"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1640"/>
         <source>logsquirl - remove from favorites</source>
         <translation>logsquirl - Видалити з обраного</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1624"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1641"/>
         <source>Could not read file %1. Remove it from favorites?</source>
         <translation>Не вдалося прочитати файл %1. Видалити з обраного?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1700"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1732"/>
         <source>logsquirl - clear file</source>
         <translation>logsquirl - Очистити файл</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1701"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1733"/>
         <source>Clear file %1? File content will be removed from disk, this is irreversible</source>
         <translation>Очистити файл %1? Вміст файлу буде видалено з диска, цю дію неможливо скасувати</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1759"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1791"/>
         <source>URL to download:</source>
         <translation>URL для завантаження:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2005"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2037"/>
         <source>Team group changed</source>
         <translation>Командну групу змінено</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2006"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2038"/>
         <source>Somebody else changed the Team group &quot;%1&quot; since you started editing it.</source>
         <translation>Хтось інший змінив командну групу &quot;%1&quot; відтоді, як ви почали її редагувати.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2012"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2044"/>
         <source>Keep your version and replace theirs, take theirs and drop your change, or save yours as a copy next to theirs?</source>
         <translation>Залишити вашу версію й замінити їхню, прийняти їхню й відкинути вашу зміну чи зберегти вашу як копію поруч з їхньою?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2014"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2046"/>
         <source>Somebody deleted it. Keep your version to publish it again, or take the deletion and drop your change?</source>
         <translation>Хтось її видалив. Залишити вашу версію, щоб опублікувати її знову, чи прийняти видалення й відкинути вашу зміну?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2016"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2048"/>
         <source>Keep mine</source>
         <translation>Залишити мою</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2017"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2049"/>
         <source>Take theirs</source>
         <translation>Прийняти їхню</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2018"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2050"/>
         <source>Save mine as a copy</source>
         <translation>Зберегти мою як копію</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2065"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2097"/>
         <source>Click to sync now.</source>
         <translation>Натисніть, щоб синхронізувати зараз.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2092"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2124"/>
         <source>Start %1 data source</source>
         <translation>Запустити джерело даних %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2100"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2132"/>
         <source>(no data source plugins)</source>
         <translation>(немає плагінів джерел даних)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2140"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2172"/>
         <source>Plugin Error</source>
         <translation>Помилка плагіна</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2141"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2173"/>
         <source>Failed to load plugin:
 %1</source>
         <translation>Не вдалося завантажити плагін:
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2153"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2185"/>
         <source>DataSource Error</source>
         <translation>Помилка джерела даних</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2168"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2200"/>
         <source>DataSource: %1
 %2</source>
         <translation>Джерело даних: %1
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2175"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2207"/>
         <source>About LogSquirl</source>
         <translation>Про LogSquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2176"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2208"/>
         <source>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is a fork of &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; by Anton Filimonov, which is a fork of &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; by Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</source>
         <translation>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;Швидкий та просунутий переглядач логів.&lt;/p&gt;&lt;p&gt;Зібрано %2 з %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Це форк &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; від Anton Filimonov, який є форком &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; від Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Використовує іконки з проєкту &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov та інші учасники&lt;/p&gt;&lt;p&gt;Ви можете змінювати та розповсюджувати програму відповідно до умов GPL (версія 3 або пізніша).&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2195"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2227"/>
         <source>About Qt</source>
         <translation>Про Qt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2208"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2240"/>
         <source>logsquirl documentation</source>
         <translation>Документація logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2253"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2285"/>
         <source>Index cache cleared (%1 MB freed)</source>
         <translation>Кеш індексів очищено (звільнено %1 МБ)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2319"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2351"/>
         <source>Merged (dedup)</source>
         <translation>Об&apos;єднано (без дублікатів)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2319"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2351"/>
         <source>Merged</source>
         <translation>Об&apos;єднано</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2357"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2389"/>
         <source>Import Chipmunk filters</source>
         <translation>Імпорт фільтрів Chipmunk</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2358"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2390"/>
         <source>Chipmunk filters (*.json);;All files (*)</source>
         <translation>Фільтри Chipmunk (*.json);;Усі файли (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2366"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2398"/>
         <source>Import error</source>
         <translation>Помилка імпорту</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2367"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2399"/>
         <source>Could not open file: %1</source>
         <translation>Не вдалося відкрити файл: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2375"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2387"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2407"/>
         <location filename="../../ui/src/mainwindow.cpp" line="2419"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2451"/>
         <source>Import result</source>
         <translation>Результат імпорту</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2376"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2408"/>
         <source>No filters found in the selected file.</source>
         <translation>У вибраному файлі не знайдено фільтрів.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2388"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2420"/>
         <source>A filter group named &apos;%1&apos; already exists. Skipping filter import.</source>
         <translation>Група фільтрів з назвою &apos;%1&apos; вже існує. Імпорт фільтрів пропущено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2420"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2452"/>
         <source>Imported %1 filter(s) and %2 highlighter set.</source>
         <translation>Імпортовано фільтрів: %1, наборів підсвічувань: %2.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2498"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2530"/>
         <source>Ln:%1/%2</source>
         <translation>Рд:%1/%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2503"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2535"/>
         <source>Ln:%1/%2 Col:%3 Sel:%4|%5</source>
         <translation>Рд:%1/%2 Кл:%3 Вид:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2512"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2544"/>
         <source>Ln:%1/%2 Sel:%4|%5</source>
         <translation>Рд:%1/%2 Вид:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2552"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2584"/>
         <source> - Indexing lines... (%1 %)</source>
         <translation> - Індексація рядків... (%1 %)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2601"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2633"/>
         <source>Not enough memory.</source>
         <translation>Недостатньо пам&apos;яті.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2603"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2635"/>
         <source>The system does not have enough memory to hold the index for this file. The file will now be closed.</source>
         <translation>Система не має достатньо пам&apos;яті для зберігання індексу цього файлу. Файл буде закрито.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2686"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2718"/>
         <source>Close Tab</source>
         <translation>Закрити вкладку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2687"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2719"/>
         <source>Close tab &quot;%1&quot;?</source>
         <translation>Закрити вкладку &quot;%1&quot;?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2696"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2728"/>
         <source>Don&apos;t ask again</source>
         <translation>Більше не питати</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2690"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2722"/>
         <source>Close Tabs</source>
         <translation>Закрити вкладки</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../ui/src/mainwindow.cpp" line="2691"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2723"/>
         <source>Close %n tab(s)?</source>
         <translation>
             <numerusform>Закрити %n вкладку?</numerusform>
@@ -2070,119 +2079,119 @@ Working folder: %2
         </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3052"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3097"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3132"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3386"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3086"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3131"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3166"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3420"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3053"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3087"/>
         <source>Extract archive to temp folder?</source>
         <translation>Розпакувати архів у тимчасову теку?</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="549"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3069"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3103"/>
         <source>Extracting %1</source>
         <translation>Розпакування %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3098"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3132"/>
         <source>Failed to decompress %1</source>
         <translation>Не вдалося розпакувати %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3114"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3148"/>
         <source>Open file from archive</source>
         <translation>Відкрити файл з архіву</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3133"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3167"/>
         <source>Failed to extract %1</source>
         <translation>Не вдалося розпакувати %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3376"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3410"/>
         <source>Untitled</source>
         <translation>Без назви</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3386"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3420"/>
         <source>%1 - %2%3</source>
         <translation>%1 - %2%3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3387"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3421"/>
         <source> (build </source>
         <translation> (збірка </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3413"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3447"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3505"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3540"/>
         <source>modified on %1</source>
         <translation>змінено %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3631"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3666"/>
         <source>Remove from favorites</source>
         <translation>Видалити з обраного</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3632"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3667"/>
         <source>Select item to remove from favorites</source>
         <translation>Виберіть елемент для видалення з обраного</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3677"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3712"/>
         <source>logsquirl -- switch to file</source>
         <translation>logsquirl -- Перейти до файлу</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3793"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3816"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3828"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3851"/>
         <source>Save Session As</source>
         <translation>Зберегти сеанс як</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3794"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3828"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3829"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3863"/>
         <source>LogSquirl sessions (*.%1)</source>
         <translation>Сеанси LogSquirl (*.%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3817"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3852"/>
         <source>The session could not be saved to %1:
 %2</source>
         <translation>Не вдалося зберегти сеанс у %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3827"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3837"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3889"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3862"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3872"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3924"/>
         <source>Open Session</source>
         <translation>Відкрити сеанс</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3842"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3877"/>
         <source>The session file %1 could not be read:
 %2</source>
         <translation>Не вдалося прочитати файл сеансу %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3863"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3898"/>
         <source>The session holds no log files.</source>
         <translation>Сеанс не містить файлів журналу.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3864"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3899"/>
         <source>None of the log files of this session could be opened. They are missing or already open:
 
 %1</source>
@@ -2191,7 +2200,7 @@ Working folder: %2
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3890"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3925"/>
         <source>These log files of the session were left out. They are missing or already open in another window:
 
 %1</source>
@@ -2200,18 +2209,18 @@ Working folder: %2
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3955"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3990"/>
         <source>logsquirl - generate crash dump</source>
         <translation>logsquirl - Створити звіт про збій</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3956"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3991"/>
         <source>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</source>
         <translation>LogSquirl буде закрито та створено діагностичний звіт про збій. Продовжити?</translation>
     </message>
     <message>
         <location filename="../../ui/include/pluginuiadapter.h" line="167"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="1373"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1390"/>
         <source>Plugins</source>
         <translation>Плагіни</translation>
     </message>
@@ -2422,277 +2431,282 @@ Working folder: %2
         <translation>Примусове згладжування шрифтів</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="369"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="362"/>
+        <source>Show Value Names on file open</source>
+        <translation>Показувати назви значень під час відкриття файлу</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="376"/>
         <source>Language</source>
         <translation>Мова</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="381"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="388"/>
         <source>Style</source>
         <translation>Стиль</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="395"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="402"/>
         <source>High DPI</source>
         <translation>Висока DPI</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="401"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="408"/>
         <source>Enable Qt High DPI support</source>
         <translation>Увімкнути підтримку Qt High DPI</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="413"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="420"/>
         <source>Scale rounding:</source>
         <translation>Округлення масштабу:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="427"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="434"/>
         <source>Round</source>
         <translation>Округлення</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="432"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="439"/>
         <source>Ceil</source>
         <translation>Вгору</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="437"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="444"/>
         <source>Floor</source>
         <translation>Вниз</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="442"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="449"/>
         <source>RoundPreferFloor</source>
         <translation>Округлення (переважно вниз)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="447"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="454"/>
         <source>PassThrough</source>
         <translation>Без змін</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="457"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="464"/>
         <source>Need to restart application to apply these settings</source>
         <translation>Для застосування цих налаштувань потрібно перезапустити програму</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="467"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="474"/>
         <source>Miscellaneous</source>
         <translation>Різне</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="522"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="529"/>
         <source>Enable fast scrolling with Alt key</source>
         <translation>Увімкнути швидку прокрутку з клавішею Alt</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="531"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="538"/>
         <source>Fast scroll multiplier</source>
         <translation>Множник швидкої прокрутки</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="555"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="562"/>
         <source>Context lines around matches (0 = off)</source>
         <translation>Контекстні рядки навколо збігів (0 = вимк.)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="594"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="601"/>
         <source>File</source>
         <translation>Файл</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="600"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="607"/>
         <source>File change monitoring</source>
         <translation>Моніторинг змін файлу</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="606"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="613"/>
         <source>Enable filesystem change monitoring</source>
         <translation>Увімкнути моніторинг файлової системи</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="613"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="620"/>
         <source>Enable polling</source>
         <translation>Увімкнути опитування</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="622"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="629"/>
         <source>Polling interval (ms):</source>
         <translation>Інтервал опитування (мс):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="644"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="651"/>
         <source>Use fast modification detection</source>
         <translation>Використовувати швидке виявлення змін</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="651"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="658"/>
         <source>Turn on follow on scroll past the end</source>
         <translation>Увімкнути стеження при прокрутці за кінець</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="661"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="668"/>
         <source>Encoding</source>
         <translation>Кодування</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="669"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="676"/>
         <source>Encoding for new files</source>
         <translation>Кодування для нових файлів</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="693"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="700"/>
         <source>Recent files</source>
         <translation>Нещодавні файли</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="707"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="714"/>
         <source>Show the number of recently opened files:</source>
         <translation>Показувати кількість нещодавно відкритих файлів:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="729"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="736"/>
         <source>Archives</source>
         <translation>Архіви</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="735"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="742"/>
         <source>Extract archives</source>
         <translation>Розпаковувати архіви</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="742"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="749"/>
         <source>Extract archives without confirmation</source>
         <translation>Розпаковувати архіви без підтвердження</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="752"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="759"/>
         <source>File download</source>
         <translation>Завантаження файлів</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="758"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="765"/>
         <source>Verify certificates for https connections</source>
         <translation>Перевіряти сертифікати для HTTPS-з&apos;єднань</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="785"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="792"/>
         <source>Shortcuts</source>
         <translation>Гарячі клавіші</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="819"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="826"/>
         <source>Restore defaults</source>
         <translation>Відновити типові</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="832"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="839"/>
         <source>Advanced</source>
         <translation>Розширені</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="838"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="845"/>
         <source>Indexing and search</source>
         <translation>Індексація та пошук</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="848"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="855"/>
         <source>Regular expressions engine:</source>
         <translation>Рушій регулярних виразів:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="913"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="920"/>
         <source>Keep file closed (file reload required)</source>
         <translation>Утримувати файл закритим (потрібне перезавантаження файлу)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="920"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="927"/>
         <source>Use compressed index (file reload required)</source>
         <translation>Використовувати стиснений індекс (потрібне перезавантаження файлу)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="930"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="937"/>
         <source>Use parallel search</source>
         <translation>Використовувати паралельний пошук</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1093"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1100"/>
         <source>Team Folder</source>
         <translation>Командна тека</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1099"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1106"/>
         <source>Share Filter Groups with the team through a Team Folder</source>
         <translation>Ділитися групами фільтрів з командою через командну теку</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1108"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1115"/>
         <source>Repository URL:</source>
         <translation>URL репозиторію:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1118"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1125"/>
         <source>https://… or git@…</source>
         <translation>https://… або git@…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1125"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1132"/>
         <source>Subfolder:</source>
         <translation>Підтека:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1135"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1142"/>
         <source>The repository&apos;s top folder</source>
         <translation>Верхня тека репозиторію</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1144"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1151"/>
         <source>LogSquirl clones the repository into its own data folder with the Git installed on this computer, and signs in the way Git does for you. Turning the Team Folder off or changing the repository leaves your own groups as they are.</source>
         <translation>LogSquirl клонує репозиторій у власну теку даних за допомогою Git, встановленого на цьому комп&apos;ютері, і входить так, як це робить для вас Git. Вимкнення командної теки або зміна репозиторію не торкається ваших власних груп.</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1172"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1179"/>
         <source>Sync Now</source>
         <translation>Синхронізувати зараз</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1195"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1202"/>
         <source>Log Formats</source>
         <translation>Формати логів</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1201"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1208"/>
         <source>Auto-detect log format (table view)</source>
         <translation>Автовизначення формату логу (табличний вигляд)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1208"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1215"/>
         <source>Automatically switch to table view when format is detected</source>
         <translation>Автоматично перемикатися на табличний вигляд, коли формат визначено</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1215"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1222"/>
         <source>Available Formats:</source>
         <translation>Доступні формати:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1241"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1248"/>
         <source>Name</source>
         <translation>Назва</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1246"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1253"/>
         <source>Description</source>
         <translation>Опис</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1254"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1261"/>
         <source>Open Formats Folder…</source>
         <translation>Відкрити теку форматів…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="865"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="872"/>
         <source>Index file read buffer (Mib):</source>
         <translation>Буфер читання індексного файлу (МіБ):</translation>
     </message>
@@ -2707,87 +2721,87 @@ Working folder: %2
         <translation>Вмикати перенос тексту під час відкриття файлу</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="475"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="482"/>
         <source>ANSI color sequences:</source>
         <translation>Послідовності ANSI-кольорів:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="492"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="499"/>
         <source>Show as text</source>
         <translation>Показувати як текст</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="497"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="504"/>
         <source>Hide</source>
         <translation>Приховувати</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="502"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="509"/>
         <source>Show colors</source>
         <translation>Показувати кольори</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="512"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="519"/>
         <source>Hide and Show colors reduce search performance</source>
         <translation>«Приховувати» і «Показувати кольори» знижують продуктивність пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="885"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="892"/>
         <source>Search read buffer (lines):</source>
         <translation>Буфер читання пошуку (рядків):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="910"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="917"/>
         <source>File will be kept closed as much as possible. Affects only files opened after check state changed</source>
         <translation>Файл буде утримуватися закритим якомога довше. Впливає лише на файли, відкриті після зміни налаштування</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="940"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="947"/>
         <source>Optimize search for non-latin encodings</source>
         <translation>Оптимізувати пошук для нелатинських кодувань</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="952"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="959"/>
         <source>Caching</source>
         <translation>Кешування</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="967"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="974"/>
         <source>Enable search results cache</source>
         <translation>Увімкнути кеш результатів пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="977"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="984"/>
         <source>Search cache size (lines):</source>
         <translation>Розмір кешу пошуку (рядків):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1000"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1007"/>
         <source>Cache file indexes to disk so re-opening a file skips indexing</source>
         <translation>Кешувати індекси файлів на диску, щоб повторне відкриття файлу пропускало індексацію</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1003"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1010"/>
         <source>Enable index cache (persist indexes to disk)</source>
         <translation>Увімкнути кеш індексів (зберігати індекси на диску)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1013"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1020"/>
         <source>Index cache max size (MB):</source>
         <translation>Максимальний розмір кешу індексів (МБ):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1042"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1049"/>
         <source>Logging</source>
         <translation>Журналювання</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1048"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1055"/>
         <source>Enable logging</source>
         <translation>Увімкнути журналювання</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1057"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1064"/>
         <source>Verbosity</source>
         <translation>Деталізація</translation>
     </message>
@@ -2812,34 +2826,34 @@ Working folder: %2
         <translation>Vectorscan</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="489"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="490"/>
         <source>Turned off when LogSquirl was installed. Run the installer again to turn it back on.</source>
         <translation>Вимкнено під час встановлення LogSquirl. Запустіть інсталятор ще раз, щоб увімкнути знову.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="744"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="746"/>
         <source>LogSquirl needs to be restarted to apply some changes. </source>
         <translation>LogSquirl потрібно перезапустити для застосування деяких змін. </translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="932"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="934"/>
         <source>Click or press Enter to record a shortcut, Escape cancels.
 Backspace or Delete clears the shortcut.</source>
         <translation>Клацніть або натисніть Enter, щоб записати комбінацію клавіш, Escape — скасувати.
 Backspace або Delete очищає комбінацію.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="947"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="949"/>
         <source>Action</source>
         <translation>Дія</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="948"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="950"/>
         <source>Primary shortcut</source>
         <translation>Основна комбінація</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="950"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="952"/>
         <source>Secondary shortcut</source>
         <translation>Додаткова комбінація</translation>
     </message>
@@ -3357,112 +3371,122 @@ Restart LogSquirl to try again.</source>
         <translation>Копіювати з номерами рядків</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="152"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="153"/>
+        <source>Copy as shown</source>
+        <translation>Копіювати як показано</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/presentationmenu.cpp" line="154"/>
+        <source>Copy the selection as shown, with its Value Names</source>
+        <translation>Копіювати виділення як показано, з назвами значень</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/presentationmenu.cpp" line="157"/>
         <source>Send to scratchpad</source>
         <translation>Відправити до чернетки</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="154"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="159"/>
         <source>Replace scratchpad</source>
         <translation>Замінити чернетку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="160"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="165"/>
         <source>Find &amp;next</source>
         <translation>Знайти &amp;наступне</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="164"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="169"/>
         <source>Find the next occurrence</source>
         <translation>Знайти наступний збіг</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="166"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="171"/>
         <source>Find &amp;previous</source>
         <translation>Знайти &amp;попереднє</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="168"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="173"/>
         <source>/</source>
         <translation>/</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="170"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="175"/>
         <source>Find the previous occurrence</source>
         <translation>Знайти попередній збіг</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="174"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="179"/>
         <source>&amp;Replace search</source>
         <translation>&amp;Замінити пошук</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="175"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="180"/>
         <source>Replace the search expression with the selection</source>
         <translation>Замінити пошуковий вираз виділенням</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="177"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="182"/>
         <source>&amp;Add to search</source>
         <translation>&amp;Додати до пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="178"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="183"/>
         <source>Add the selection to the current search</source>
         <translation>Додати виділення до поточного пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="180"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="185"/>
         <source>&amp;Exclude from search</source>
         <translation>&amp;Виключити з пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="186"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="191"/>
         <source>Excludes the selection from search</source>
         <translation>Виключає виділення з пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="197"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="202"/>
         <source>Set search start</source>
         <translation>Встановити початок пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="204"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="209"/>
         <source>Set search end</source>
         <translation>Встановити кінець пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="211"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="216"/>
         <source>Clear search limits</source>
         <translation>Очистити межі пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="215"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="220"/>
         <source>Set selection start</source>
         <translation>Встановити початок виділення</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="217"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="222"/>
         <source>Set selection end</source>
         <translation>Встановити кінець виділення</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="222"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="227"/>
         <source>Save splitter position</source>
         <translation>Зберегти позицію розділювача</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="223"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="228"/>
         <source>Save to file</source>
         <translation>Зберегти у файл</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="224"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="229"/>
         <source>Save selected to file</source>
         <translation>Зберегти вибране у файл</translation>
     </message>
     <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="227"/>
+        <location filename="../../ui/src/presentationmenu.cpp" line="232"/>
         <source>Export as CSV...</source>
         <translation>Експорт у CSV...</translation>
     </message>
@@ -3595,87 +3619,87 @@ Restart LogSquirl to try again.</source>
         <translation>Перемкнути перенос тексту</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="293"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="300"/>
         <source>Reload file</source>
         <translation>Перезавантажити файл</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="300"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="307"/>
         <source>Stop file loading</source>
         <translation>Зупинити завантаження файлу</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="307"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="314"/>
         <source>Open scratchpad</source>
         <translation>Відкрити чернетку</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="314"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="321"/>
         <source>Switch to file</source>
         <translation>Перейти до файлу</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="321"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="328"/>
         <source>Change filtered lines visibility forward</source>
         <translation>Змінити видимість відфільтрованих рядків вперед</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="328"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="335"/>
         <source>Change filtered lines visibility backward</source>
         <translation>Змінити видимість відфільтрованих рядків назад</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="335"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="342"/>
         <source>Change filtered lines visibility to marks and matches</source>
         <translation>Показувати у відфільтрованих рядках позначки та збіги</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="342"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="349"/>
         <source>Change filtered lines visibility to marks</source>
         <translation>Показувати у відфільтрованих рядках позначки</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="349"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="356"/>
         <source>Change filtered lines visibility to matches</source>
         <translation>Показувати у відфільтрованих рядках збіги</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="370"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="377"/>
         <source>Enable case matching</source>
         <translation>Увімкнути врахування регістру</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="377"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="384"/>
         <source>Enable regex</source>
         <translation>Увімкнути regex</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="384"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="391"/>
         <source>Enable inverse matching</source>
         <translation>Увімкнути інвертований збіг</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="391"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="398"/>
         <source>Enable regex combining</source>
         <translation>Увімкнути поєднання regex</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="398"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="405"/>
         <source>Enable auto refresh</source>
         <translation>Увімкнути автооновлення</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="405"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="412"/>
         <source>Keep search results</source>
         <translation>Зберегти результати пошуку</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="505"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="512"/>
         <source>Jump to the bottom of the text</source>
         <translation>Перейти до кінця тексту</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="356"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="363"/>
         <source>Increase main view</source>
         <translation>Збільшити основний вигляд</translation>
     </message>
@@ -3695,212 +3719,217 @@ Restart LogSquirl to try again.</source>
         <translation>Відкрити вивід команди</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="363"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="293"/>
+        <source>Toggle Value Names</source>
+        <translation>Показати або сховати назви значень</translation>
+    </message>
+    <message>
+        <location filename="../../settings/src/shortcuts.cpp" line="370"/>
         <source>Decrease main view</source>
         <translation>Зменшити основний вигляд</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="417"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="424"/>
         <source>Add line mark</source>
         <translation>Додати позначку рядка</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="424"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="431"/>
         <source>Jump to next mark</source>
         <translation>Перейти до наступної позначки</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="431"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="438"/>
         <source>Jump to previous mark</source>
         <translation>Перейти до попередньої позначки</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="438"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="445"/>
         <source>Move selection up</source>
         <translation>Перемістити виділення вгору</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="445"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="452"/>
         <source>Move selection down</source>
         <translation>Перемістити виділення вниз</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="453"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="460"/>
         <source>Scroll up</source>
         <translation>Прокрутити вгору</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="460"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="467"/>
         <source>Scroll down</source>
         <translation>Прокрутити вниз</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="467"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="474"/>
         <source>Scroll left</source>
         <translation>Прокрутити ліворуч</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="475"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="482"/>
         <source>Scroll right</source>
         <translation>Прокрутити праворуч</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="483"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="490"/>
         <source>Jump to the beginning of the current line</source>
         <translation>Перейти до початку поточного рядка</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="491"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="498"/>
         <source>Jump to the end start of the current line</source>
         <translation>Перейти до кінця поточного рядка</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="498"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="505"/>
         <source>Jump to the right of the text</source>
         <translation>Перейти до правого краю тексту</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="512"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="519"/>
         <source>Jump to the top of the text</source>
         <translation>Перейти до початку тексту</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="519"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="526"/>
         <source>Jump to line</source>
         <translation>Перейти до рядка</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="526"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="533"/>
         <source>Jump to line number</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="533"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="540"/>
         <source>Jump to timestamp</source>
         <translation>Перейти до мітки часу</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="540"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="547"/>
         <source>Set search limits to a time range</source>
         <translation>Обмежити пошук діапазоном часу</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="547"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="554"/>
         <source>Set search limits around the current line</source>
         <translation>Обмежити пошук навколо поточного рядка</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="554"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="561"/>
         <source>Main view: find next</source>
         <translation>Основний вигляд: знайти наступне</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="561"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="568"/>
         <source>Main view: find previous</source>
         <translation>Основний вигляд: знайти попереднє</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="567"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="574"/>
         <source>Set selection to QuickFind and find next</source>
         <translation>Задати виділення для швидкого пошуку і знайти наступне</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="574"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="581"/>
         <source>Set selection to QuickFind and find previous</source>
         <translation>Задати виділення для швидкого пошуку і знайти попереднє</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="582"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="589"/>
         <source>Release focus from view</source>
         <translation>Зняти фокус з вигляду</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="589"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="596"/>
         <source>Highlight text with color 1</source>
         <translation>Підсвітити текст кольором 1</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="596"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="603"/>
         <source>Highlight text with color 2</source>
         <translation>Підсвітити текст кольором 2</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="603"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="610"/>
         <source>Highlight text with color 3</source>
         <translation>Підсвітити текст кольором 3</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="610"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="617"/>
         <source>Highlight text with color 4</source>
         <translation>Підсвітити текст кольором 4</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="617"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="624"/>
         <source>Highlight text with color 5</source>
         <translation>Підсвітити текст кольором 5</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="624"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="631"/>
         <source>Highlight text with color 6</source>
         <translation>Підсвітити текст кольором 6</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="631"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="638"/>
         <source>Highlight text with color 7</source>
         <translation>Підсвітити текст кольором 7</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="638"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="645"/>
         <source>Highlight text with color 8</source>
         <translation>Підсвітити текст кольором 8</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="645"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="652"/>
         <source>Highlight text with color 9</source>
         <translation>Підсвітити текст кольором 9</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="652"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="659"/>
         <source>Highlight text with next color</source>
         <translation>Підсвітити текст наступним кольором</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="659"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="666"/>
         <source>Clear all color labels</source>
         <translation>Очистити всі кольорові мітки</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="666"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="673"/>
         <source>Send selection to scratchpad</source>
         <translation>Відправити виділення до чернетки</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="673"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="680"/>
         <source>Replace scratchpad with selection</source>
         <translation>Замінити чернетку виділенням</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="680"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="687"/>
         <source>Add selection to search pattern</source>
         <translation>Додати виділення до шаблону пошуку</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="687"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="694"/>
         <source>Exclude selection from search pattern </source>
         <translation>Виключити виділення з шаблону пошуку </translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="694"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="701"/>
         <source>Replace search pattern with selection</source>
         <translation>Замінити шаблон пошуку виділенням</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="708"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="715"/>
         <source>Select lines down</source>
         <translation>Виділити рядки вниз</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="701"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="708"/>
         <source>Select lines up</source>
         <translation>Виділити рядки вгору</translation>
     </message>
@@ -4186,6 +4215,19 @@ Restart LogSquirl to try again.</source>
         <location filename="../../ui/src/regexlabwindow.cpp" line="923"/>
         <source>Evaluating the sample took %1 ms: the pattern may backtrack excessively on some lines.</source>
         <translation>Обчислення вибірки тривало %1 мс: шаблон може надмірно повертатися назад (backtracking) на деяких рядках.</translation>
+    </message>
+</context>
+<context>
+    <name>SaveLinesDialog</name>
+    <message>
+        <location filename="../../ui/src/savelinesdialog.cpp" line="32"/>
+        <source>With Value Names</source>
+        <translation>З назвами значень</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/savelinesdialog.cpp" line="37"/>
+        <source>Save the Log Lines as they are shown, with the names of their values</source>
+        <translation>Зберегти рядки журналу як показано, з назвами їхніх значень</translation>
     </message>
 </context>
 <context>
@@ -4847,371 +4889,391 @@ Without a date, %1 is used.</source>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="42"/>
+        <source>Copy as &amp;Shown</source>
+        <translation>Копіювати як &amp;показано</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="44"/>
+        <source>Copy the selection as shown, with its Value Names</source>
+        <translation>Копіювати виділення як показано, з назвами значень</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="45"/>
         <source>Select &amp;All</source>
         <translation>Вибрати &amp;все</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="43"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="46"/>
         <source>Select all the text</source>
         <translation>Вибрати весь текст</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="44"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="47"/>
         <source>Go to line...</source>
         <translation>Перейти до рядка...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="46"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="49"/>
         <source>Scrolls selected main view to specified line</source>
         <translation>Прокрутити основний вигляд до вказаного рядка</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="47"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="50"/>
         <source>Go to timestamp...</source>
         <translation>Перейти до мітки часу...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="49"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="52"/>
         <source>Scrolls selected main view to the first line at or after a time</source>
         <translation>Прокручує вибраний головний вигляд до першого рядка з указаним часом або після нього</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="50"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="53"/>
         <source>Set search limits to time range...</source>
         <translation>Обмежити пошук діапазоном часу...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="52"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="55"/>
         <source>Limits the search to the log lines between a start and an end time</source>
         <translation>Обмежує пошук рядками логу між часом початку та часом завершення</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="54"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="57"/>
         <source>Set search limits around current line...</source>
         <translation>Обмежити пошук навколо поточного рядка...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="56"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="59"/>
         <source>Limits the search to N minutes before and after the current log line</source>
         <translation>Обмежує пошук N хвилинами до і після поточного рядка логу</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="57"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="60"/>
         <source>&amp;Find...</source>
         <translation>&amp;Знайти...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="58"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="61"/>
         <source>Find the text</source>
         <translation>Знайти текст</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="59"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="62"/>
         <source>Clear file...</source>
         <translation>Очистити файл...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="60"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="63"/>
         <source>Clear current file</source>
         <translation>Очистити поточний файл</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="61"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="64"/>
         <source>Open containing folder</source>
         <translation>Відкрити теку з файлом</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="63"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="66"/>
         <source>Open folder containing current file</source>
         <translation>Відкрити теку з поточним файлом</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="64"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="67"/>
         <source>Open in editor</source>
         <translation>Відкрити в редакторі</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="65"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="68"/>
         <source>Open current file in default editor</source>
         <translation>Відкрити поточний файл у стандартному редакторі</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="66"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="69"/>
         <source>Copy full path</source>
         <translation>Копіювати повний шлях</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="68"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="71"/>
         <source>Copy full path for file to clipboard</source>
         <translation>Копіювати повний шлях до файлу в буфер обміну</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="69"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="72"/>
         <source>Open from clipboard</source>
         <translation>Відкрити з буфера обміну</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="70"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="73"/>
         <source>Open clipboard as log file</source>
         <translation>Відкрити буфер обміну як лог-файл</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="71"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="74"/>
         <source>Open from URL...</source>
         <translation>Відкрити за URL...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="72"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="75"/>
         <source>Open URL as log file</source>
         <translation>Відкрити URL як лог-файл</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="73"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="76"/>
         <source>Open Session...</source>
         <translation>Відкрити сеанс...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="75"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="78"/>
         <source>Open the log files of a saved session in a new window</source>
         <translation>Відкрити файли журналу збереженого сеансу в новому вікні</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="76"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="79"/>
         <source>Save Session As...</source>
         <translation>Зберегти сеанс як...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="78"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="81"/>
         <source>Save this window&apos;s log files, tabs and view states to a session file</source>
         <translation>Зберегти файли журналу, вкладки та стани перегляду цього вікна у файл сеансу</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="79"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="82"/>
         <source>Open Command Output...</source>
         <translation>Відкрити вивід команди...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="81"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="84"/>
         <source>Run a command and open its output as a followed log file</source>
         <translation>Виконати команду й відкрити її вивід як відстежуваний файл журналу</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="82"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="85"/>
         <source>Matches &amp;overview</source>
         <translation>&amp;Огляд збігів</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="83"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="86"/>
         <source>Line &amp;numbers in main view</source>
         <translation>&amp;Номери рядків в основному вигляді</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="85"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="88"/>
         <source>Line &amp;numbers in filtered view</source>
         <translation>&amp;Номери рядків у відфільтрованому вигляді</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="86"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="89"/>
         <source>&amp;Follow File</source>
         <translation>&amp;Стежити за файлом</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="87"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="90"/>
         <source>&amp;Wrap text</source>
         <translation>&amp;Перенос тексту</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="88"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="91"/>
+        <source>Show &amp;Value Names</source>
+        <translation>Показувати назви &amp;значень</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="93"/>
+        <source>Show values of the Log Lines with their names from the Name Tables</source>
+        <translation>Показувати значення рядків журналу з їхніми назвами з таблиць назв</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="94"/>
         <source>&amp;Reload</source>
         <translation>Пере&amp;завантажити</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="89"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="95"/>
         <source>&amp;Stop</source>
         <translation>&amp;Зупинити</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="90"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="96"/>
         <source>&amp;Preferences...</source>
         <translation>&amp;Налаштування...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="91"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="97"/>
         <source>Show application settings dialog</source>
         <translation>Показати діалог налаштувань програми</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="92"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="98"/>
         <source>Configure &amp;highlighters...</source>
         <translation>Налаштувати &amp;підсвічування...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="93"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="99"/>
         <source>Show highlighters configuration</source>
         <translation>Показати конфігурацію підсвічувань</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="94"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="100"/>
         <source>&amp;Documentation...</source>
         <translation>&amp;Документація...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="95"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="101"/>
         <source>Show documentation</source>
         <translation>Показати документацію</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="96"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="102"/>
         <source>&amp;About</source>
         <translation>&amp;Про програму</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="97"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="103"/>
         <source>Show the About box</source>
         <translation>Показати вікно «Про програму»</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="98"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="104"/>
         <source>About &amp;Qt</source>
         <translation>Про &amp;Qt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="99"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="105"/>
         <source>Show the Qt library&apos;s About box</source>
         <translation>Показати вікно «Про Qt»</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="100"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="106"/>
         <source>Report issue...</source>
         <translation>Повідомити про проблему...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="101"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="107"/>
         <source>Report an issue on GitHub</source>
         <translation>Повідомити про проблему на GitHub</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="102"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="108"/>
         <source>Generate crash dump</source>
         <translation>Створити звіт про збій</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="103"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="109"/>
         <source>Generate diagnostic crash dump</source>
         <translation>Створити діагностичний звіт про збій</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="104"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="110"/>
         <source>Scratchpad</source>
         <translation>Чернетка</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="105"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="111"/>
         <source>Command Palette...</source>
         <translation>Палітра команд...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="106"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="112"/>
         <source>Search and run any menu command</source>
         <translation>Знайти й виконати будь-яку команду меню</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="107"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="113"/>
         <source>Show the scratchpad</source>
         <translation>Показати чернетку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="108"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="114"/>
         <source>Add to favorites</source>
         <translation>Додати до обраного</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="109"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="115"/>
         <source>Remove from favorites...</source>
         <translation>Видалити з обраного...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="110"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="116"/>
         <source>Switch to opened file...</source>
         <translation>Перейти до відкритого файлу...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="111"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="117"/>
         <source>Predefined filters...</source>
         <translation>Попередньо визначені фільтри...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="113"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="119"/>
         <source>Show dialog to configure filters</source>
         <translation>Показати діалог налаштування фільтрів</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="114"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="120"/>
         <source>Import Chipmunk filters...</source>
         <translation>Імпортувати фільтри Chipmunk...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="116"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="122"/>
         <source>Import filters from a Chipmunk JSON export file</source>
         <translation>Імпортувати фільтри з файлу експорту JSON Chipmunk</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="117"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="123"/>
         <source>Regex Lab...</source>
         <translation>Лабораторія регулярних виразів...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="119"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="125"/>
         <source>Test a pattern on Log Lines of the current tab before searching with it</source>
         <translation>Перевірити шаблон на рядках журналу поточної вкладки перед пошуком</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="120"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="126"/>
         <source>Filters panel</source>
         <translation>Панель фільтрів</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="121"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="127"/>
         <source>Show the filters panel</source>
         <translation>Показати панель фільтрів</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="122"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="128"/>
         <source>Sidebar</source>
         <translation>Бічна панель</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="123"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="129"/>
         <source>Toggle the sidebar panel</source>
         <translation>Перемкнути бічну панель</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="124"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="130"/>
         <source>Chart Panel</source>
         <translation>Панель графіків</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="126"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="132"/>
         <source>Toggle the chart panel for visualizing extracted values</source>
         <translation>Перемкнути панель графіків для візуалізації отриманих значень</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="127"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="133"/>
         <source>Show Filter Frequency</source>
         <translation>Показати частоту фільтра</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="129"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="135"/>
         <source>Chart the frequency of current search filter matches</source>
         <translation>Побудувати графік частоти збігів поточного фільтра пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="130"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="136"/>
         <source>Auto</source>
         <translation>Авто</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="132"/>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="138"/>
         <source>Automatically detect the file&apos;s encoding</source>
         <translation>Автоматично визначити кодування файлу</translation>
     </message>
