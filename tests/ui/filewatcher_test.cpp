@@ -26,6 +26,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QPlainTextEdit>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QThread>
@@ -290,6 +291,42 @@ SCENARIO( "Polling does not run on the UI thread", "[filewatch]" )
         }
 
         FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{} );
+    }
+}
+
+// #698: QApplication::notify reads the application's gesture manager for every
+// event it delivers, the poll thread's timer events included, and Qt creates
+// that manager when the first scroll area is built. Built while the poll
+// thread ran, it was written under that thread's reads, and the TSan job
+// reported the race. main() creates it before any test starts the poll thread,
+// as the application does; under TSan this case fails without that.
+SCENARIO( "A scroll area built while the poll thread polls does not race it", "[filewatch]" )
+{
+    GIVEN( "a Policy that polls a watched file at a short interval" )
+    {
+        QTemporaryDir tempDir;
+        REQUIRE( tempDir.isValid() );
+        const auto path = writeFile( tempDir, "first line\n" );
+
+        FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{
+            .nativeWatchEnabled = false, .pollingEnabled = true, .pollIntervalMs = 1 } );
+        WatchedFile watched{ path };
+
+        QElapsedTimer pollTicks;
+        pollTicks.start();
+        while ( pollTicks.elapsed() < 50 ) {
+            QCoreApplication::processEvents();
+        }
+
+        WHEN( "a scroll area is built on the UI thread" )
+        {
+            const QPlainTextEdit scrollArea;
+
+            THEN( "it is built, while the poll thread goes on receiving its timer events" )
+            {
+                REQUIRE( scrollArea.viewport() != nullptr );
+            }
+        }
     }
 }
 

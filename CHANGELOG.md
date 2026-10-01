@@ -210,6 +210,12 @@
   versioned and documented in BUILD.md, *Benchmark mode*; Search, QuickFind,
   scrolling, follow and Session restore follow as further scenarios. (#666)
 
+- **Widgets built while the File Watcher polls do not race its poll thread**:
+  the application creates Qt's gesture manager before the poll thread starts,
+  instead of when the first scroll area of a window is built. That thread reads
+  it for every timer event it receives, and the ThreadSanitizer job reported
+  the race whenever a window was built while polling ran. (#698)
+
 # v26.10.0 (2026-09-29)
 
 The stable release of 26.10. It contains everything from

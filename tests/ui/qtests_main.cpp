@@ -26,6 +26,7 @@
 #include <configuration.h>
 #include <datalocation.h>
 #include <filewatcher.h>
+#include <gesturemanager.h>
 #include <highlighterset.h>
 
 #include <logger.h>
@@ -78,6 +79,8 @@ int main( int argc, char* argv[] )
     }
 
     QApplication a( argc, argv );
+    // Before a test case starts the File Watcher's poll thread (#698).
+    createGestureManager();
 
     logging::enableLogging();
 
