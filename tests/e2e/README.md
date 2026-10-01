@@ -58,6 +58,18 @@ around a process and never with a fixed wait:
   (`benchmark_mode.py`, BUILD.md "Benchmark mode") and report two benchmarks per Log File:
   `_first_line`, the open to the first Log Line displayed, and `_indexed`, the open to the
   Index finished. The process startup and the window come before the open and are not in them.
+- **Search cases** (`gui_search_*`, #668) run the `search` scenario: the Log File is opened and
+  loaded first, unmeasured, then one Search runs as the Search Line runs it. `_first_match` is
+  the request to the first Match displayed in the Filtered View, `_finished` the request to the
+  Search complete (its MB/s is the Search's). Five Searches per generated Log File
+  (`SEARCH_VARIANTS` in `benchmark_mode.py`): plain text, a regular expression, no Match
+  (`_finished` only), case ignored, an alternation. Every run must report the Matches counted
+  without LogSquirl (`SearchVariant.known_match_count()`), or it fails.
+- **QuickFind cases** (`gui_quickfind_*`, #668) run the `quickfind` scenario: on the loaded Log
+  File, QuickFind is opened and `slow response` typed a character at a time, at most ten a
+  second; each keystroke is timed until the first paint of the Text View after it, the one that
+  marks the Matches on screen. `_keystroke_p50` and `_keystroke_p99` are a run's median and
+  99th percentile keystroke.
 - **Grep cases** (`grep_*`) run `logsquirl_grep --benchmark-output <file>`, which writes a
   report of the same format for its Search (scenario `grep`): `index_finished`,
   `search_finished` and `matches_written`, timed from the open of the Log File. A case reports
@@ -165,10 +177,15 @@ pytest -v -m "performance and not slow"          # quick benchmarks only (1-1.5 
 | `gui_open_1mb_first_line` / `_indexed` | Open to first Log Line displayed / Index finished | 1 MB random block |
 | `gui_open_log_100mb_first_line` / `_indexed` | Open to first Log Line displayed / Index finished | 100 MB Log File, generated |
 | `gui_open_log_1gb_first_line` / `_indexed` | Open to first Log Line displayed / Index finished | 1 GB Log File, generated |
+| `gui_search_log_100mb_<variant>_first_match` / `_finished` | Search requested to first Match displayed / Search finished; variants `plain`, `regex`, `no_match` (`_finished` only), `case_insensitive`, `alternation` | 100 MB Log File, generated |
+| `gui_search_log_1gb_<variant>_first_match` / `_finished` | The same | 1 GB Log File, generated |
+| `gui_quickfind_log_100mb_keystroke_p50` / `_p99` | QuickFind typed character by character: keystroke to Matches on screen marked, median / 99th percentile of a run | 100 MB Log File, generated |
+| `gui_quickfind_log_1gb_keystroke_p50` / `_p99` | The same | 1 GB Log File, generated |
 | `gui_startup_version` | Process start to exit of `logsquirl --version` | — |
 
-Every grep case is timed from the open of the Log File to its last match written, every GUI
-case from the open; neither contains the process startup.
+Every grep case is timed from the open of the Log File to its last match written, every
+`gui_open_*` case from the open, every Search case from its request and every QuickFind case
+from each keystroke; none contains the process startup.
 
 ### Renamed benchmarks (#667)
 
@@ -186,7 +203,10 @@ A case on another Log File is a row in `GREP_CASES` or `GUI_OPEN_CASES` in
 the test turns one run's report into `{benchmark name: seconds}` -- use
 `seconds_since_scenario_start(report, event)` -- and hands that function to
 `measure_events()`, which keeps the statistics of each name; `_record()` compares and reports
-them. Add the names to `all_benchmark_names()` and a slot in `baseline.json`.
+them. Add the names to `all_benchmark_names()` and a slot in `baseline.json`. A scenario a
+binary may not have yet -- the before side of the Benchmarks workflow runs its own commit's --
+is run with `run_known_scenario()`, which raises `ScenarioUnknown` for the test to skip on.
+`SEARCH_CASES` and `QUICKFIND_CASES` are examples.
 
 ## Test Structure
 

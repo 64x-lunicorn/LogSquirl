@@ -4,7 +4,8 @@ Performance regression tests for LogSquirl ("Safari Rule").
 Every benchmark reports what a user waits for, timed by the application at the
 event itself (#667): the GUI cases run the benchmark mode (BUILD.md, "Benchmark
 mode") and report when the first Log Line was displayed and when the Index was
-finished; the grep cases run logsquirl_grep with a benchmark report and time
+finished, when the first Match of a Search was displayed and when it finished,
+and how long each keystroke of a QuickFind took to be marked (#668); the grep cases run logsquirl_grep with a benchmark report and time
 its Search from the open of the Log File to the last match written. Neither
 contains the process startup or a fixed wait; the startup is a case of its own
 (gui_startup_version), the one case timed around a whole process.
@@ -38,8 +39,12 @@ import pytest
 
 from benchmark_mode import (
     EXIT_PASSED,
+    SEARCH_VARIANTS,
+    ScenarioUnknown,
+    SearchVariant,
     run_benchmark,
     run_grep_benchmark,
+    run_known_scenario,
     seconds_since_scenario_start,
 )
 from conftest import (
@@ -271,6 +276,164 @@ def test_perf_gui_open_and_index(
 
 
 # ---------------------------------------------------------------------------
+# GUI: the benchmark mode's search scenario, a Search on a loaded Log File
+# ---------------------------------------------------------------------------
+
+# The generated Log Files the GUI's Search and QuickFind are measured on, by the
+# label their benchmarks carry: (Log File, 1 GB).
+GENERATED_LOG_FILES = {
+    "log_100mb": ("generated_100Mb.log", False),
+    "log_1gb": ("generated_1Gb.log", True),
+}
+
+
+@dataclass(frozen=True)
+class SearchCase:
+    # The benchmarks are gui_search_<label>_first_match (none for a Search
+    # without a Match) and gui_search_<label>_finished.
+    label: str
+    log_file: str  # in test_data/, generated
+    variant: SearchVariant
+    large: bool = False
+    timeout: float = 900
+
+    @property
+    def name(self) -> str:
+        return f"gui_search_{self.label}"
+
+    @property
+    def generated(self) -> bool:
+        return True
+
+    def benchmark_names(self) -> set[str]:
+        names = {f"{self.name}_finished"}
+        if self.variant.label != "no_match":
+            names.add(f"{self.name}_first_match")
+        return names
+
+
+SEARCH_CASES = [
+    SearchCase(f"{label}_{variant.label}", log_file, variant, large=large,
+               timeout=1800 if large else 900)
+    for label, (log_file, large) in GENERATED_LOG_FILES.items()
+    for variant in SEARCH_VARIANTS
+]
+
+
+@pytest.mark.performance
+@pytest.mark.parametrize("case", _cases(SEARCH_CASES))
+def test_perf_gui_search(
+    case: SearchCase, isolated_gui_module, test_data_dir, tmp_path, baseline,
+    collected_results, bench_config, request,
+):
+    """The GUI searches a loaded Log File: its first Match displayed and the Search finished."""
+    filepath = _log_file(test_data_dir, case.log_file, case.generated)
+    report_path = tmp_path / "search.json"
+    first_match, finished = f"{case.name}_first_match", f"{case.name}_finished"
+    # What a correct Search finds, counted without LogSquirl: a Search that
+    # finds anything else is not measured.
+    known = case.variant.known_match_count(filepath)
+
+    def search() -> dict[str, float]:
+        try:
+            run = run_known_scenario(isolated_gui_module, "search", [filepath], report_path,
+                                     options=case.variant.options(), timeout=case.timeout)
+        except ScenarioUnknown:
+            pytest.skip("this logsquirl has no search scenario (#668)")
+        assert run.process.returncode == EXIT_PASSED and run.report is not None, (
+            run.process.stdout + run.process.stderr
+        )
+        assert run.report["results"]["match_count"] == known, (
+            f"the Search found {run.report['results']['match_count']} Matches, not {known}"
+        )
+        measured = {finished: seconds_since_scenario_start(run.report, "search_finished")}
+        if first_match in case.benchmark_names():
+            measured[first_match] = seconds_since_scenario_start(run.report, "first_match_displayed")
+        return measured
+
+    results = measure_events(search, **_runs(bench_config, case.large))
+    description = f"{case.variant.description} ({case.log_file})"
+    if first_match in results:
+        results[first_match]["measures"] = (
+            f"{description}: Search requested to first Match displayed, Log File loaded before"
+        )
+    results[finished]["measures"] = (
+        f"{description}: Search requested to Search finished, Log File loaded before"
+    )
+    results[finished]["throughput"] = calculate_throughput(
+        filepath, results[finished]["median_seconds"]
+    )
+    _record(results, collected_results, baseline, request)
+
+
+# ---------------------------------------------------------------------------
+# GUI: the benchmark mode's quickfind scenario, typing a QuickFind pattern
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class QuickFindCase:
+    # The benchmarks are gui_quickfind_<label>_keystroke_p50 and _p99: of one
+    # run's keystrokes, the median and the 99th percentile of the time from a
+    # keystroke to the Matches on screen marked.
+    label: str
+    log_file: str  # in test_data/, generated
+    pattern: str
+    large: bool = False
+    timeout: float = 900
+
+    @property
+    def name(self) -> str:
+        return f"gui_quickfind_{self.label}"
+
+    @property
+    def generated(self) -> bool:
+        return True
+
+    def benchmark_names(self) -> set[str]:
+        return {f"{self.name}_keystroke_p50", f"{self.name}_keystroke_p99"}
+
+
+# "slow response" is in every WARN Log Line, one in 13: a few on every screen.
+QUICKFIND_CASES = [
+    QuickFindCase(label, log_file, "slow response", large=large,
+                  timeout=1800 if large else 900)
+    for label, (log_file, large) in GENERATED_LOG_FILES.items()
+]
+
+
+@pytest.mark.performance
+@pytest.mark.parametrize("case", _cases(QUICKFIND_CASES))
+def test_perf_gui_quickfind(
+    case: QuickFindCase, isolated_gui_module, test_data_dir, tmp_path, baseline,
+    collected_results, bench_config, request,
+):
+    """The GUI's QuickFind typed character by character: each keystroke until marked on screen."""
+    filepath = _log_file(test_data_dir, case.log_file, case.generated)
+    report_path = tmp_path / "quickfind.json"
+    p50, p99 = f"{case.name}_keystroke_p50", f"{case.name}_keystroke_p99"
+
+    def type_pattern() -> dict[str, float]:
+        try:
+            run = run_known_scenario(isolated_gui_module, "quickfind", [filepath], report_path,
+                                     options={"pattern": case.pattern}, timeout=case.timeout)
+        except ScenarioUnknown:
+            pytest.skip("this logsquirl has no quickfind scenario (#668)")
+        assert run.process.returncode == EXIT_PASSED and run.report is not None, (
+            run.process.stdout + run.process.stderr
+        )
+        latency = run.report["results"]["keystroke_latency"]
+        assert latency["count"] == len(case.pattern)
+        return {p50: latency["p50_ms"] / 1000.0, p99: latency["p99_ms"] / 1000.0}
+
+    results = measure_events(type_pattern, **_runs(bench_config, case.large))
+    what = f"QuickFind typing '{case.pattern}' in {case.log_file}, a keystroke to its Matches marked"
+    results[p50]["measures"] = f"{what}: the median keystroke of a run"
+    results[p99]["measures"] = f"{what}: the 99th percentile keystroke of a run"
+    _record(results, collected_results, baseline, request)
+
+
+# ---------------------------------------------------------------------------
 # Startup: the one case timed around a whole process
 # ---------------------------------------------------------------------------
 
@@ -297,6 +460,8 @@ def all_benchmark_names() -> set[str]:
     names = {case.name for case in GREP_CASES}
     for case in GUI_OPEN_CASES:
         names |= {f"{case.name}_first_line", f"{case.name}_indexed"}
+    for case in [*SEARCH_CASES, *QUICKFIND_CASES]:
+        names |= case.benchmark_names()
     names.add("gui_startup_version")
     return names
 
