@@ -8,9 +8,27 @@ name: "Benchmarks"
 #
 # Debug numbers say little about performance, and the CI Build workflow never
 # runs the benchmarks and deselects the performance suite, so pull requests
-# stay as fast as they are; this runs only when dispatched.
+# stay as fast as they are. This workflow runs when dispatched, and by itself
+# for a pull request that changes a hot path or carries the `performance`
+# label (#674).
 #
-# Run it from the Actions tab or with
+# Pull requests: a pull request into master runs the comparison when it
+# carries the `performance` label (adding the label starts it) or when its
+# changes touch one of the hot paths listed in the "Decide whether to measure"
+# step, the one place that list lives. Before is the tip of master the pull
+# request's merge commit was made on, after is that merge commit, so the
+# comparison shows exactly what merging would change. Every push starts it
+# again and cancels the run of the previous push. The result is the pull
+# request comment the Benchmarks Comment workflow (benchmarks-comment.yml)
+# posts and updates from this run's artifacts; like the job summary it is a
+# report, never a gate: wall-clock on a shared runner is too noisy for that.
+# A pull request run executes the pull request's code (a fork's too), so it has
+# no token that can write, no secrets, and saves no cache: the composite
+# actions save the sccache cache only for a run on master, and CPM's is only
+# restored here. It writes nothing but its artifacts, which the comment
+# workflow treats as untrusted data.
+#
+# Dispatch it from the Actions tab or with
 #   gh workflow run benchmarks.yml --ref <branch> [-f base_ref=master]
 # The after side is the commit the run is dispatched from (`--ref`, "Use
 # workflow from"), so the branch must contain this workflow file. The before
@@ -21,12 +39,15 @@ name: "Benchmarks"
 # default branch: until this file is merged into master it cannot be
 # dispatched, not even for the branch that adds it.
 #
-# Both sides therefore come from the history of the dispatched commit, never
-# from an arbitrary ref (#276, CodeQL actions/cache-poisoning/poisonable-step):
-# a dispatch from master can write master's Actions caches, which every branch
-# and pull request restores, and the code a run builds and executes can reach
-# the cache token. Measuring a pull request from a fork means pushing it to a
-# branch here first.
+# Both sides therefore come from the history of the dispatched commit (for a
+# pull request, of its merge commit), never from an arbitrary ref (#276, CodeQL
+# actions/cache-poisoning/poisonable-step): a dispatch from master can write
+# master's Actions caches, which every branch and pull request restores, and
+# the code a run builds and executes can reach the cache token. A pull request
+# run cannot write them: it saves nothing (see above), and a cache it could
+# save anyway would belong to its own merge ref, which no other branch reads.
+# A pull request from a fork is measured by itself like any other; dispatching
+# it means pushing it to a branch here first.
 #
 # Both sides are built with this workflow's composite actions, but from
 # their own docker/ and .github/scripts: a before side older than the image
@@ -68,10 +89,25 @@ on:
         description: "Measured runs per e2e performance benchmark (--bench-runs)"
         type: number
         default: 21
+  # A pull request runs with the defaults of the inputs above: see the
+  # benchmarks job's env, which repeats them.
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, labeled]
 
+# A dispatch waits for the one before it with the same ref and base_ref. A
+# pull request run cancels the one of its previous push, which measured code
+# that is gone; adding any other label than `performance` starts a run that
+# does nothing (see the sides job), so it gets a group of its own rather than
+# cancelling a comparison in progress.
 concurrency:
-  group: benchmarks-${{ github.ref }}-${{ inputs.base_ref }}
-  cancel-in-progress: false
+  group: >-
+    ${{ github.event_name != 'pull_request'
+        && format('benchmarks-{0}-{1}', github.ref, inputs.base_ref)
+        || (github.event.action != 'labeled' || github.event.label.name == 'performance')
+        && format('benchmarks-pr-{0}', github.event.pull_request.number)
+        || format('benchmarks-other-label-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions: {}
 
@@ -81,12 +117,17 @@ env:
 jobs:
   sides:
     name: Benchmarks / resolve the before side
+    # Adding a label other than `performance` changes nothing to measure.
+    if: >-
+      github.event_name != 'pull_request' || github.event.action != 'labeled'
+      || github.event.label.name == 'performance'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
     outputs:
       before: ${{ steps.resolve.outputs.before }}
+      measure: ${{ steps.measure.outputs.measure }}
     steps:
       # All branches and tags, without file contents: enough to resolve
       # base_ref and find the merge base.
@@ -100,11 +141,13 @@ jobs:
           sparse-checkout-cone-mode: false
 
       # The merge base is an ancestor of the dispatched commit by definition,
-      # so the before side never brings in code from outside its history.
+      # so the before side never brings in code from outside its history. For
+      # a pull request, base_ref is its base branch and the commit is its merge
+      # commit, whose merge base with it is the tip it was merged onto.
       - name: Resolve the before side
         id: resolve
         env:
-          BASE_REF: ${{ inputs.base_ref }}
+          BASE_REF: ${{ inputs.base_ref || github.base_ref }}
         run: |
           set -euo pipefail
           base=
@@ -130,6 +173,95 @@ jobs:
           fi
           echo "before=$before" >> "$GITHUB_OUTPUT"
 
+      # A dispatch always measures. A pull request is measured when it carries
+      # the `performance` label or changes a hot path: a file below one of the
+      # paths in HOT_PATHS (git pathspecs, a directory with a trailing slash),
+      # compared between the before side and the merge commit, so every
+      # change of the pull request counts, not only the last push's. This is
+      # the one list of hot paths; keep it to the code the benchmarks in
+      # tests/benchmarks and the e2e performance suite exercise.
+      - name: Decide whether to measure
+        id: measure
+        env:
+          EVENT: ${{ github.event_name }}
+          LABELED: >-
+            ${{ contains(github.event.pull_request.labels.*.name, 'performance')
+                || github.event.label.name == 'performance' }}
+          BEFORE: ${{ steps.resolve.outputs.before }}
+          HOT_PATHS: |
+            # Reading and indexing a Log File, the Index, Search and its
+            # workers, Displayed Lines and ANSI colors
+            src/logdata/
+            src/compression/
+            src/textencoding/
+            # Search and QuickFind patterns
+            src/regex/
+            # The Line Decorator, Highlighters and QuickFind's pattern
+            src/highlighting/
+            # QuickFind
+            src/ui/include/quickfind.h
+            src/ui/src/quickfind.cpp
+            # The Text View paint path: the view, its Viewport layout and
+            # wrapping
+            src/ui/include/abstractlogview.h
+            src/ui/src/abstractlogview.cpp
+            src/textviewscrolling/
+            # The Table View paint path: the view, its delegate, and the
+            # model and field extraction it paints from
+            src/ui/include/logtableview.h
+            src/ui/src/logtableview.cpp
+            src/ui/include/logtablehighlightdelegate.h
+            src/logformat/
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != pull_request ]; then
+            echo "measure=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$LABELED" = true ]; then
+            echo "::notice::The pull request carries the performance label: measuring"
+            echo "measure=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          paths=()
+          while IFS= read -r line; do
+            case "$line" in '' | '#'*) continue ;; esac
+            paths+=("$line")
+          done < <(sed 's/^[[:space:]]*//; s/[[:space:]]*$//' <<< "$HOT_PATHS")
+          # Trees only: no file contents are needed, and without renames git
+          # never asks for them.
+          diff=$(git diff --no-renames --name-only "$BEFORE" "$GITHUB_SHA" -- "${paths[@]}")
+          mapfile -t changed <<< "$diff"
+          if [ -n "$diff" ]; then
+            echo "The pull request changes these hot path files:"
+            printf '  %s\n' "${changed[@]}"
+            echo "::notice::The pull request changes a hot path: measuring"
+            echo "measure=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::The pull request changes no hot path and has no performance label: nothing to measure"
+            echo "measure=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The Benchmarks Comment workflow finds the pull request by this number,
+      # which it checks against the run's head commit; it is written here, so
+      # a run that fails later still gets its comment.
+      - name: Remember the pull request
+        if: github.event_name == 'pull_request' && steps.measure.outputs.measure == 'true'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/benchmark-pull-request"
+          echo "$PR_NUMBER" > "$RUNNER_TEMP/benchmark-pull-request/number"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'pull_request' && steps.measure.outputs.measure == 'true'
+        with:
+          name: benchmark-pull-request
+          path: ${{ runner.temp }}/benchmark-pull-request
+          if-no-files-found: error
+          retention-days: 7
+
   benchmarks:
     name: Benchmarks / before and after
     # Single-entry matrix so the shared composite actions (which read
@@ -146,11 +278,14 @@ jobs:
             cmake_opts:
 
     needs: sides
+    if: needs.sides.outputs.measure == 'true'
     runs-on: ubuntu-24.04
     # No run history yet: two builds of about 20 minutes each with a warm
     # sccache (longer when a side's objects are not cached), and each side's
     # benchmarks and e2e performance suite (#218).
     timeout-minutes: 180
+    # For a pull request, the token can only read, whatever the job asks for
+    # when it comes from a fork; nothing here needs more.
     permissions:
       contents: read
       packages: read # pull the signed build container from GHCR
@@ -160,6 +295,13 @@ jobs:
       # second checkout (clean: false) keeps it.
       RUN_DIR: benchmark-run
       QT_QPA_PLATFORM: offscreen
+      # The dispatch inputs; a pull request run has none and takes their
+      # defaults, which these repeat.
+      BASE_REF: ${{ inputs.base_ref || github.base_ref }}
+      SAME_SOURCES: ${{ github.event_name == 'pull_request' || inputs.same_benchmark_sources }}
+      BENCHMARK_SAMPLES: ${{ inputs.benchmark_samples || 20 }}
+      LOG_FILE_MB: ${{ inputs.log_file_mb || 256 }}
+      E2E_RUNS: ${{ inputs.e2e_runs || 21 }}
     steps:
       # Before first: its build_root is then built again for after, which
       # recompiles only what differs.
@@ -180,7 +322,7 @@ jobs:
           sparse-checkout: .github
 
       - name: Check out the after side's benchmarks
-        if: inputs.same_benchmark_sources
+        if: env.SAME_SOURCES == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -233,14 +375,14 @@ jobs:
 
       # RelWithDebInfo with LTO, as the noble job builds and ships it. Like
       # every master build, it saves the sccache cache when dispatched from
-      # master; the after side's save of the same key then only warns.
+      # master; the after side's save of the same key then only warns. A pull
+      # request run (github.ref refs/pull/<n>/merge) only restores it.
       - uses: ./benchmark-run/tools/.github/actions/docker-build
 
       # With same_benchmark_sources, the after side's tests/benchmarks
       # replaces the before side's for this build only.
       - name: Build and collect the before side's benchmarks
         env:
-          SAME_SOURCES: ${{ inputs.same_benchmark_sources }}
           CONTAINER: ${{ steps.before_container.outputs.image }}
         run: |
           set -euo pipefail
@@ -296,24 +438,25 @@ jobs:
         env:
           BEFORE_CONTAINER: ${{ steps.before_container.outputs.image }}
           AFTER_CONTAINER: ${{ steps.after_container.outputs.image }}
-          BENCHMARK_SAMPLES: ${{ inputs.benchmark_samples }}
-          LOG_FILE_MB: ${{ inputs.log_file_mb }}
-          E2E_RUNS: ${{ inputs.e2e_runs }}
         run: '"$RUN_DIR/tools/.github/scripts/run-benchmarks.sh"'
 
       - name: Compare before and after
         if: always() && steps.run.outcome != 'skipped'
         env:
-          BASE_REF: ${{ inputs.base_ref }}
           AFTER_REF: ${{ github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           BEFORE_SHA: ${{ steps.before_side.outputs.sha }}
           AFTER_SHA: ${{ steps.after_side.outputs.sha }}
         run: |
           set -euo pipefail
+          after_label="$AFTER_REF (${AFTER_SHA:0:12})"
+          if [ -n "$PR_NUMBER" ]; then
+            after_label="pull request #$PR_NUMBER merged into $BASE_REF (${AFTER_SHA:0:12})"
+          fi
           python3 "$RUN_DIR/tools/.github/scripts/benchmark-compare.py" \
             --before "$RUN_DIR/results/before" --after "$RUN_DIR/results/after" \
             --before-label "merge base with $BASE_REF (${BEFORE_SHA:0:12})" \
-            --after-label "$AFTER_REF (${AFTER_SHA:0:12})" \
+            --after-label "$after_label" \
             --markdown "$RUN_DIR/results/comparison.md" \
             --json "$RUN_DIR/results/comparison.json"
           cat "$RUN_DIR/results/comparison.md" >> "$GITHUB_STEP_SUMMARY"

@@ -636,8 +636,34 @@ date with it, otherwise the older commit the branch starts from. Both sides
 thus come from the history of the dispatched commit and never from an
 arbitrary ref: a run dispatched from master writes master's Actions caches,
 which every branch and pull request restores, and the code a run builds and
-executes can reach the cache token. To measure a pull request from a fork,
-push it to a branch in this repository first.
+executes can reach the cache token. To dispatch it for a pull request from a
+fork, push the pull request to a branch in this repository first.
+
+## Pull requests
+
+A pull request into master is measured by itself (#674) when it carries the
+`performance` label, or when it changes a hot path: reading and indexing
+(`src/logdata`, `src/compression`, `src/textencoding`), Search and QuickFind
+(`src/regex`, QuickFind in `src/ui`), the Line Decorator (`src/highlighting`),
+and the paint path of the Text View (`abstractlogview`, `src/textviewscrolling`)
+and of the Table View (`logtableview`, its delegate, `src/logformat`). The
+exact list is `HOT_PATHS` in the workflow's "Decide whether to measure" step;
+add a path there when a benchmark starts to cover it. Adding the label starts
+a run, and so does every push while the pull request qualifies; a push cancels
+the run of the one before.
+
+Before is the tip of master the pull request's merge commit was made on, after
+is that merge commit, with the dispatch defaults. The result appears as one
+comment on the pull request, which the next run updates. It is a report, not a
+gate: shared runners vary by several percent from run to run, so rerun (or
+dispatch with more samples) before trusting a small change. A benchmark binary
+that runs longer than 30 minutes on a side is stopped and reported as failed.
+
+A pull request run executes the pull request's code, a fork's too, so it gets a
+token that can only read and saves no cache. The comment comes from the
+**Benchmarks Comment** workflow (`benchmarks-comment.yml`), which runs from
+master after the run, never runs the pull request's code, and renders the
+run's artifacts as untrusted data (`.github/scripts/benchmark-pr-comment.py`).
 
 By default the before side is built with this branch's `tests/benchmarks`, so
 both sides run the same benchmark code, as described above for comparing by
@@ -646,7 +672,8 @@ after. The comparison (`.github/scripts/benchmark-compare.py`) also works on
 two local runs: put each side's `--reporter xml` output under
 `<dir>/catch2/<binary>.xml` and run it with `--before <dir> --after <dir>`.
 
-The workflow can only be dispatched once it is on master.
+The workflow can only be dispatched once it is on master, and the comment
+workflow only works from master.
 
 # Filtered View read benchmark
 
