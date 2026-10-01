@@ -227,6 +227,34 @@
   versioned and documented in BUILD.md, *Benchmark mode*; Search, QuickFind,
   scrolling, follow and Session restore follow as further scenarios. (#666)
 
+- **The benchmark mode times a Search, QuickFind, scrolling, following a Log
+  File, a Session restore and reading while indexing**: `search` reports when
+  the first Match is displayed and when the Search is finished, in GB/s;
+  `quickfind` the time from each keystroke until the Matches on screen are
+  marked; `scroll` every frame of a scripted scroll through the Text View and
+  the Table View, with and without Highlighters and ANSI colors, as p50, p99,
+  max and the frames over 16.7 ms; `follow` the time from an append to the Log
+  Line displayed and charted, at two append rates; `session-restore` when the
+  current tab is usable and when every tab is indexed; `read-while-indexing`
+  the latency of reads from the UI thread while a Log File is indexed, and the
+  indexing's wall and CPU time and their ratio. `logsquirl_grep
+  --benchmark-output` reports a Search's throughput without the process start.
+  (#668, #669, #670, #686, #667)
+
+- **The e2e performance suite measures events, not sleeps and process
+  startup**: its GUI cases run the benchmark mode's scenarios, its grep cases
+  report MB/s without the process start, and it measures generated 100 MB and
+  1 GB Log Files next to the small ones. (#667)
+
+- **A pull request that costs more instructions turns CI red**: a benchmark
+  that counts more than its threshold (+2 % unless a noisier one has its own)
+  more instructions than on the merge base, or that is missing on the pull
+  request's side, fails the *Instruction counts gate*, which *CI passed* needs.
+  A maintainer accepts an intended cost with the `perf-accepted` label; the
+  comment then lists what was accepted. The comment also shows each
+  benchmark's heap allocations and peak heap, before and after, as a report.
+  (#672, #673)
+
 - **Widgets built while the File Watcher polls do not race its poll thread**:
   the application creates Qt's gesture manager before the poll thread starts,
   instead of when the first scroll area of a window is built. That thread reads

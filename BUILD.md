@@ -308,7 +308,7 @@ skipped with the measured value, never as passed. CI does not compare with it.
 The **Performance** workflow (`.github/workflows/performance.yml`) runs every Monday at
 03:41 UTC on a GitHub-hosted `ubuntu-24.04` runner. It builds master as CI ships it
 (RelWithDebInfo with LTO, in the noble build container), generates the 10, 50 and 100 MB
-test files and runs the whole e2e performance suite (`-m performance`, 21 measured runs per
+test files and the generated 100 MB and 1 GB Log Files and runs the whole e2e performance suite (`-m performance`, 21 measured runs per
 benchmark) with `--no-baseline-compare`. The application is started only through the suite's
 isolated instances, as in every e2e run. A benchmark that is skipped fails the run.
 
@@ -340,6 +340,11 @@ compares with, so a branch never moves master's reference.
 That run is recorded as the start of a new level, does not fail, and comparisons from then on use
 only it and the runs after it, so the check reports only until six such runs exist; dispatching
 a few more runs from master shortens that.
+
+The suite measures events, not sleeps (#667): the GUI cases run the benchmark mode's scenarios,
+the grep cases the grep tool's own report. The rename of its benchmarks (`grep_search_*` to
+`grep_*`, `gui_load_1mb` to `gui_open_1mb_*`) removes benchmarks the history knows, so the first
+Performance run after it is dispatched from master with `accept_new_level=true`.
 
 See [`tests/e2e/README.md`](tests/e2e/README.md) for full documentation.
 
@@ -382,6 +387,12 @@ one machine; numbers of a Debug build say nothing.
 | Scenario | Events | Results |
 |---|---|---|
 | `open-and-index` | `log_file_opened`: the tab opened and loading started (after the window is shown and the plugins are loaded, as for a Log File given on the command line); `first_log_line_displayed`: the first paint of the Text View's Viewport that shows a Log Line ended; `index_finished`: the Index is complete. Both of the last two carry `log_line_count`. | `log_line_count`, `log_file_bytes`, `index_mb_per_s` (10^6 bytes per second from the open to `index_finished`) |
+| `search` | On a loaded Log File (opened and loaded first, unmeasured), one Search as a user typing it into the Search Line and pressing Return runs it (#668). `first_match_displayed`: the first paint of the Filtered View's Viewport that shows a Match ended (none without a Match); `search_finished`: the Search is complete, with `match_count`. Options: `pattern` (required), `regex` (`true`: a regular expression), `match_case` (`false`: case is ignored). An invalid pattern, a failed or an interrupted Search fails the run. | `match_count`, `undecided_count`, `log_line_count`, `log_file_bytes`, `search_gb_per_s` |
+| `quickfind` | On a loaded and shown Log File, QuickFind is opened as *Edit → Find* opens it, then `pattern` is typed into it character by character (#668). Each keystroke is answered by the first paint of the Text View's Viewport that starts after it; the next comes once it is answered and at least `keystroke_interval_ms` (100) after the one before. `keystroke_marked` per keystroke, with `typed` and `latency_ms`. Fails when the bar does not hold the typed pattern at the end. | `keystroke_count`, `keystroke_latency` (a summary), `log_line_count`, `log_file_bytes` |
+| `scroll` | On a loaded Log File (with `view=table` the Table View is then shown as its toggle shows it), the view's vertical scroll bar steps `line_steps` (200) lines down, `page_steps` (40) pages down and jumps to the end (`QAbstractSlider::triggerAction`), each step once the first paint of the view's Viewport that starts after it has ended (#669). Every paint of that Viewport from the first step until the paint answering the jump has ended is a frame: from its paint event reaching the Viewport to the view's handler returning. The Overview, the Filtered View and compositing are not part of it. `scrolled_to_end`: that last paint ended, with `frame_count`. Options: `view` (`text`, `table`), `highlighters` (`true`: a Highlighter Set of five is made and activated in the run's own collection), `ansi` (`text`, `hide`, `colors`: the setting *ANSI color sequences*), `line_steps`, `page_steps`. For `view=table` Format Recognition is on, and the Log File needs a Log Format the Catalog knows. | `view`, `frame_time` (a summary of the frames, with `budget_ms`, 1000/60, and `over_budget_count`, the frames longer than it), `step_count`, `line_step_count`, `page_step_count`, `unmoved_step_count`, `highlighter_count`, `log_line_count`, `log_file_bytes` |
+| `follow` | Writes its own Log File (no Log File argument), follows it with a chart, and a writer thread appends `lines_per_second` (10) Log Lines a second for `duration_ms` (5000), reading the clock just before each write (#670). A Log Line is displayed at the first Text View paint that shows the file through it while following at the end, charted at the chart's first such paint. `writer_finished`, `last_log_line_displayed`, `last_log_line_charted`. Options: `initial_lines` (1000), `chart` (`true`), `chart_budget_ms` (1000), `settle_ms` (5000); a Log Line not displayed within `settle_ms` fails the run. | `display_latency` and `chart_latency` (append to displayed / charted), `chart_behind_display`, `chart_kept_up` (every Log Line charted within `chart_budget_ms` of being displayed), `writer_lateness` |
+| `session-restore` | Two or more Log Files. Generates a Session of one tab each, with `marks` (10) Marks and tab `current` (0) in front, in the run's own data location, and restores it (#670). `tab_indexed` per tab, `current_tab_usable` (the first paint of the front tab after its Index finished), `all_tabs_indexed`. No Kept Searches yet: the Session does not keep them (#704). | `tab_count`, `current_tab`, `marks_per_tab`, `log_line_count`, `log_file_bytes` |
+| `read-while-indexing` | A small Log File of the run's own is loaded first, unmeasured, so the scenario starts with the request to open the Log File (#686). While it is indexed, a timer on the UI thread reads every `read_interval_ms` (2) `getNbLine`, `getLineString` of one Log Line and `getExpandedLines` of `lines` (60) Log Lines, each timed apart. `log_file_opened`; `index_finished`, with `log_line_count` and `read_count`. Fails when the Index finished before a Log Line could be read. | `nb_line_latency`, `line_string_latency`, `expanded_lines_latency` (summaries), `read_count`, `indexing` (`wall_ms` from the open request to `index_finished`; `cpu_ms`, the process's CPU time in it, every thread together; `parallelism` = `cpu_ms` / `wall_ms`, the last two only where the platform reports CPU time), `index_mb_per_s`, `log_line_count`, `log_file_bytes` |
 
 **The report**, format version 1. Times are milliseconds as floating point numbers, sizes bytes.
 
@@ -416,6 +427,18 @@ and a `ScenarioRegistration` with its name. It is handed a `ScenarioRun`
 events and results in, new windows and the Session of the run's own directory, and ends the run
 with `finish()` or `fail()`. `PaintProbe` times the paints of a widget, `Distribution` summarizes
 many durations. Nothing in the report or its writer changes for a new scenario.
+`LoadedLogFile` opens, loads and shows a Log File before the measured part starts,
+`InputLatency` pairs each input with the first paint after it, `FrameTimes` summarizes the frames
+of a view, `AppendLatency` pairs appended Log Lines with the paints that show them and
+`ProcessWork` takes wall and CPU time. A scenario that measures under settings of its own
+overrides `prepare()`: it is called once the run is isolated and before the application reads a
+setting, and writes them into the run's settings. Nothing is set up there yet, so no regular
+expression is compiled in it.
+
+**The grep tool** takes `--benchmark-output <file>` too (#667): it then writes a report in the
+same format, scenario `grep`, timed from just before the Log File is opened, so a Search's
+throughput leaves out the process start. Events: `index_finished`, `search_finished`,
+`matches_written`; results: `match_count`, `log_file_bytes`, `mb_per_s`.
 
 ### Instruction counts
 
