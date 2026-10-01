@@ -158,6 +158,16 @@ RegularExpressionPattern SearchLine::request() const
                                      flags_.booleanCombination, !flags_.useRegexp );
 }
 
+bool SearchLine::apply( const RegularExpressionPattern& pattern )
+{
+    pattern_ = pattern.pattern;
+    flags_.matchCase = pattern.isCaseSensitive;
+    flags_.useRegexp = !pattern.isPlainText;
+    flags_.inverse = pattern.isExclude;
+    flags_.booleanCombination = pattern.isBoolean;
+    return flags_.autoRefresh;
+}
+
 void SearchLine::requested( const SearchSessionState& state )
 {
     display_.offerIssueReport.clear();

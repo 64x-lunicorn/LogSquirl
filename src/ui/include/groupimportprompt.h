@@ -33,8 +33,13 @@ namespace logsquirl::groupexchange {
 // conflicts".
 ConflictResolver askUser( QWidget* parent, const QString& title );
 
-// Tells the user, on screen, of a file that could not be imported: one that
-// cannot be read, or that holds no group. Nothing when the import went fine.
+// What the user is told of a file that could not be imported: one that
+// cannot be read, that holds no group, a group of another kind than the
+// dialog imports, or one written by a newer version. Empty for None.
+QString importErrorMessage( const QString& file, ReadError error );
+
+// Tells the user, on screen, of a file that could not be imported, with
+// importErrorMessage(). Nothing when the import went fine.
 void reportImportError( QWidget* parent, const QString& title, const QString& file,
                         const ImportResult& result );
 

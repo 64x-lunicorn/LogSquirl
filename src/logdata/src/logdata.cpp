@@ -129,6 +129,11 @@ void LogData::setIndexingPolicy( const IndexingPolicy& indexingPolicy )
     operationQueue_.setIndexingPolicy( indexingPolicy );
 }
 
+const SearchPolicy& LogData::searchPolicy() const
+{
+    return searchPolicy_;
+}
+
 void LogData::setSearchPolicy( const SearchPolicy& searchPolicy )
 {
     searchPolicy_ = searchPolicy;
@@ -642,6 +647,72 @@ logsquirl::vector<AnsiColoredText> LogData::doGetAnsiColoredLines( LineNumber fi
         lines.push_back( AnsiColoredText{ warningText( LinesNotReadWarning ) } );
     }
     return lines;
+}
+
+void LogData::readLinePrefixes(
+    std::span<const LineNumber> lines, qint64 maxBytes,
+    const std::function<bool( QString&& text, bool cut )>& onLine ) const
+{
+    // Where each Log Line lies, taken under the index lock; the file is read
+    // without it, as by readSparseLines().
+    struct Place {
+        OffsetInFile begin;
+        qint64 length = 0; // without its line feed
+    };
+    logsquirl::vector<Place> places;
+    bool hideAnsiColorSequences = false;
+    const auto lineFeedWidth = codec_.encodingParameters().lineFeedWidth;
+    {
+        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+        const auto nbLines = scopedAccessor.getNbLines();
+        places.reserve( lines.size() );
+        for ( const auto line : lines ) {
+            if ( line.get() >= nbLines.get() ) {
+                break;
+            }
+            const auto first = line.get() == 0 ? line : line - 1_lcount;
+            const auto count = line.get() == 0 ? 1_lcount : 2_lcount;
+            const auto ends = scopedAccessor.getEndOfLineOffsets( first, count );
+            if ( ends.size() != count.get() ) {
+                break;
+            }
+            const auto begin = line.get() == 0 ? OffsetInFile( 0 ) : ends.front();
+            places.push_back( Place{ .begin = begin,
+                                     .length = std::max( ( ends.back() - begin ).get()
+                                                             - static_cast<qint64>( lineFeedWidth ),
+                                                         qint64{ 0 } ) } );
+        }
+        hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+    }
+    if ( places.empty() ) {
+        return;
+    }
+
+    ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
+    const auto textDecoder = codec_.makeDecoder();
+    logsquirl::vector<char> buffer;
+    for ( const auto& place : places ) {
+        const auto toRead = std::min( place.length, std::max( maxBytes, qint64{ 0 } ) );
+        buffer.resize( static_cast<std::size_t>( toRead ) );
+        fileHolder.getFile()->seek( place.begin.get() );
+        const auto bytesRead
+            = toRead > 0
+                  ? std::max( fileHolder.getFile()->read( buffer.data(), toRead ), qint64{ 0 } )
+                  : qint64{ 0 };
+        const bool cut = place.length > toRead;
+
+        textDecoder.decoder->resetState();
+        auto text
+            = logLineText( textDecoder.decode( buffer.data(), static_cast<qsizetype>( bytesRead ) ),
+                           hideAnsiColorSequences );
+        // A character the bound cut in two decodes as a replacement character.
+        while ( cut && text.endsWith( QChar::ReplacementCharacter ) ) {
+            text.chop( 1 );
+        }
+        if ( !onLine( std::move( text ), cut ) ) {
+            return;
+        }
+    }
 }
 
 std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) const

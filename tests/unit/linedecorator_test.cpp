@@ -1287,3 +1287,131 @@ SCENARIO( "ANSI colors are the Line Decorator's lowest source", "[linedecorator]
         }
     }
 }
+
+// Value Names (#647): the Text View shows a Named Value in place of its raw
+// text, so a source that colors part of the raw text colors the whole of it,
+// and the finished Decoration moves to the columns of the text shown.
+SCENARIO( "A source coloring part of a Whole Run colors all of it", "[linedecorator][valuenames]" )
+{
+    // "ECU 0x15 0x14 end": the runs are 0x15 and 0x14.
+    const QString rawText = "ECU 0x15 0x14 end";
+    const logsquirl::vector<WholeRun> wholeRuns{ { 4, 8 }, { 9, 13 } };
+    const QColor selectedText{ Qt::white };
+    const QColor selection{ Qt::blue };
+
+    GIVEN( "a decorator with a QuickFind pattern for 15" )
+    {
+        auto context = emptyContext();
+        QRegularExpression qfRegex{ "15" };
+        context.quickFind = QuickFindMatcher{ true, qfRegex };
+        context.quickFindColor = QColor{ Qt::cyan };
+        const LineDecorator decorator{ std::move( context ) };
+        const auto verdict
+            = decorator.verdictFor( LogLine{ 0_lnum, rawText }, LineTypeFlags::Plain );
+
+        WHEN( "the text is decorated with its Whole Runs" )
+        {
+            const auto decoration
+                = decorator.decorate( rawText, verdict, std::nullopt, {}, wholeRuns );
+
+            THEN( "the match covers the whole of 0x15" )
+            {
+                REQUIRE( coversWithoutGaps( decoration, 17 ) );
+                const auto& spans = decoration.spans();
+                REQUIRE( spans.size() == 3 );
+                REQUIRE( spans[ 1 ].startColumn() == 4_lcol );
+                REQUIRE( spans[ 1 ].size() == LineLength{ 4 } );
+                REQUIRE( spans[ 1 ].backColor() == QColor{ Qt::cyan } );
+            }
+        }
+
+        WHEN( "it is decorated without them" )
+        {
+            const auto decoration = decorator.decorate( rawText, verdict );
+
+            THEN( "the match covers just 15" )
+            {
+                REQUIRE( decoration.spans()[ 1 ].startColumn() == 6_lcol );
+                REQUIRE( decoration.spans()[ 1 ].size() == LineLength{ 2 } );
+            }
+        }
+
+        WHEN( "a selection from the blank before 0x14 into it is decorated" )
+        {
+            const auto decoration = decorator.decorate(
+                rawText, verdict,
+                HighlightedMatch{ 8_lcol, LineLength{ 3 }, selectedText, selection }, {},
+                wholeRuns );
+
+            THEN( "the selection covers the whole of 0x14" )
+            {
+                const auto& spans = decoration.spans();
+                REQUIRE( coversWithoutGaps( decoration, 17 ) );
+                REQUIRE( spans.size() == 4 );
+                REQUIRE( spans[ 2 ].startColumn() == 8_lcol );
+                REQUIRE( spans[ 2 ].size() == LineLength{ 5 } );
+                REQUIRE( spans[ 2 ].backColor() == selection );
+            }
+        }
+    }
+
+    GIVEN( "a word-only Highlighter for x1 and a main search for 0x14 E" )
+    {
+        auto context = emptyContext();
+        context.highlighterSet
+            = setWithHighlighter( "x1", true, QColor{ Qt::white }, QColor{ Qt::darkGreen } );
+        context.mainSearch = Highlighter{ "4 e", true, true, QColor{}, QColor{ Qt::magenta } };
+        const LineDecorator decorator{ std::move( context ) };
+        const auto verdict
+            = decorator.verdictFor( LogLine{ 0_lnum, rawText }, LineTypeFlags::Plain );
+
+        WHEN( "the text is decorated with its Whole Runs" )
+        {
+            const auto decoration
+                = decorator.decorate( rawText, verdict, std::nullopt, {}, wholeRuns );
+
+            THEN( "each source covers the runs it touches, and its own text after them" )
+            {
+                REQUIRE( coversWithoutGaps( decoration, 17 ) );
+                const auto& spans = decoration.spans();
+                // "ECU " | 0x15 in the Highlighter's color | " " | "0x14 e" of the search
+                // | "nd"
+                REQUIRE( spans.size() == 5 );
+                REQUIRE( spans[ 1 ].startColumn() == 4_lcol );
+                REQUIRE( spans[ 1 ].size() == LineLength{ 4 } );
+                REQUIRE( spans[ 1 ].backColor() == QColor{ Qt::darkGreen } );
+                REQUIRE( spans[ 3 ].startColumn() == 9_lcol );
+                REQUIRE( spans[ 3 ].size() == LineLength{ 6 } );
+                REQUIRE( spans[ 3 ].backColor() == QColor{ Qt::magenta } );
+            }
+        }
+    }
+}
+
+SCENARIO( "A Decoration moves to the columns of another text", "[linedecorator][valuenames]" )
+{
+    GIVEN( "a Decoration of 10 columns in three spans" )
+    {
+        Decoration decoration{ { HighlightedMatch{ 0_lcol, LineLength{ 4 }, Qt::black, Qt::white },
+                                 HighlightedMatch{ 4_lcol, LineLength{ 4 }, Qt::black, Qt::red },
+                                 HighlightedMatch{ 8_lcol, LineLength{ 2 }, Qt::black,
+                                                   Qt::white } },
+                               HighlightColor{ Qt::black, Qt::white } };
+
+        WHEN( "columns 4 to 8 are shown as 12 columns" )
+        {
+            const auto moved = std::move( decoration ).inColumns( []( int column ) {
+                return column <= 4 ? column : column + 8;
+            } );
+
+            THEN( "each span stretches with its text" )
+            {
+                REQUIRE( coversWithoutGaps( moved, 18 ) );
+                REQUIRE( moved.spans()[ 1 ].startColumn() == 4_lcol );
+                REQUIRE( moved.spans()[ 1 ].size() == LineLength{ 12 } );
+                REQUIRE( moved.spans()[ 1 ].backColor() == QColor{ Qt::red } );
+                REQUIRE( moved.spans()[ 2 ].startColumn() == 16_lcol );
+            }
+        }
+    }
+}

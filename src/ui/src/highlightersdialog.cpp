@@ -258,7 +258,8 @@ void HighlightersDialog::importHighlighters()
 
     using namespace logsquirl::groupexchange;
     const auto title = tr( "Import highlighters configuration" );
-    ImportSession session( askUser( this, title ) );
+    // A set of a Team set's id is a copy of it, not that set.
+    ImportSession session( askUser( this, title ), idsOf( teamGroups_ ) );
 
     // The imported sets are only in this dialog's copy: OK / Apply take them
     // over, Cancel discards them. A replaced set keeps its id, so it stays
@@ -489,6 +490,11 @@ void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups, bo
     for ( const auto& group : teamGroups_ ) {
         teamGroupsList_->addItem( group.name() );
     }
+}
+
+void HighlightersDialog::setRegexLabAccess( RegexLabAccess access )
+{
+    highlighterSetEdit_->setRegexLabAccess( std::move( access ) );
 }
 
 void HighlightersDialog::updateTeamRevisions( const QStringList& ids,

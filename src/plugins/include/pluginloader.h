@@ -59,7 +59,8 @@ public:
     }
 
     /**
-     * Initialise the plugin by calling its init entry point.
+     * Initialise the plugin by calling its init entry point: the extended
+     * one with the size of the whole table when the plugin exports it.
      * @param api     Host API function table (must outlive the plugin).
      * @param handle  Opaque handle passed back through every host API call.
      * @return Empty string on success, error message on failure.
@@ -95,7 +96,8 @@ private:
 
     PluginHandle( PluginMetadata meta, std::unique_ptr<QLibrary> lib,
                   LogSquirlPluginGetInfoFn getInfoFn, LogSquirlPluginInitFn initFn,
-                  LogSquirlPluginShutdownFn shutdownFn, LogSquirlPluginConfigureFn configureFn,
+                  LogSquirlPluginInitExFn initExFn, LogSquirlPluginShutdownFn shutdownFn,
+                  LogSquirlPluginConfigureFn configureFn,
                   LogSquirlConverterGetExtsFn converterGetExtsFn,
                   LogSquirlConverterConvertFn converterConvertFn );
 
@@ -104,6 +106,8 @@ private:
 
     LogSquirlPluginGetInfoFn getInfoFn_ = nullptr;
     LogSquirlPluginInitFn initFn_ = nullptr;
+    /// Optional: called instead of initFn_ when the plugin exports it.
+    LogSquirlPluginInitExFn initExFn_ = nullptr;
     LogSquirlPluginShutdownFn shutdownFn_ = nullptr;
     LogSquirlPluginConfigureFn configureFn_ = nullptr;
     LogSquirlConverterGetExtsFn converterGetExtsFn_ = nullptr;

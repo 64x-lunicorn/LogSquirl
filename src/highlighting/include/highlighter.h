@@ -63,14 +63,27 @@ struct HighlightColor {
 
 // Represents a filter, i.e. a regexp and the colors matching text
 // should be rendered in.
+enum class HighlighterMatchType { NoMatch, WordMatch, LineMatch };
+
 class Highlighter {
 public:
+    // A Log Line longer than this is never highlighted: matching it could
+    // hang the views.
+    static constexpr qsizetype MaxHighlightLineLength = 1'000'000;
+
     // Construct an uninitialized Highlighter (when reading from a config file)
     Highlighter() = default;
     Highlighter( const QString& pattern, bool ignoreCase, bool onlyMatch, const QColor& foreColor,
                  const QColor& backColor );
 
     bool matchLine( const QString& line, logsquirl::vector<HighlightedMatch>& matches ) const;
+
+    // What this Highlighter colors of the line, as a Highlighter Set colors
+    // it: nothing, also for a line longer than MaxHighlightLineLength; the
+    // matches, which it leaves in matches (WordMatch); or the whole line
+    // (LineMatch, matches left empty). The Regex Lab asks the same (#660).
+    HighlighterMatchType colorLine( const QString& line,
+                                    logsquirl::vector<HighlightedMatch>& matches ) const;
 
     // Accessor functions
     QString pattern() const;
@@ -136,8 +149,6 @@ private:
 
     HighlightColor color_;
 };
-
-enum class HighlighterMatchType { NoMatch, WordMatch, LineMatch };
 
 class HighlighterSetEdit;
 class HighlighterSetCollection;

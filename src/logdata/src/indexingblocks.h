@@ -173,6 +173,11 @@ struct IndexingBlock {
     int bytesBefore = 0;
     int bytesAfter = 0;
     EncodingParameters encoding;
+    // Whether parsing is to look for the first byte beyond ASCII, while the
+    // guessed encoding is provisional (#657), and the offset within the
+    // block where it found one.
+    bool findBeyondAscii = false;
+    std::optional<std::int64_t> firstBeyondAscii;
 
     // Where the Log Lines ending after the first line feed of the block end.
     FastLinePositionArray endOfLines;

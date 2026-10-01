@@ -475,6 +475,32 @@ logsquirl::vector<LineNumber> LogTableView::selectedLogLines() const
     return selection().selectedLogLines( *rows_ );
 }
 
+logsquirl::vector<LineNumber> LogTableView::selectedLogLines( LinesCount limit ) const
+{
+    logsquirl::vector<LineNumber> lines;
+    if ( !model_ || !selectionModel() || limit.get() == 0 ) {
+        return lines;
+    }
+    // The selected rows from the selection's ranges, in order: never every
+    // row of a huge selection, as selectedRows() would list them (#663).
+    std::vector<std::pair<int, int>> ranges;
+    for ( const auto& range : selectionModel()->selection() ) {
+        ranges.emplace_back( range.top(), range.bottom() );
+    }
+    std::ranges::sort( ranges );
+    int next = 0;
+    for ( const auto& [ top, bottom ] : ranges ) {
+        for ( auto row = std::max( top, next ); row <= bottom; ++row ) {
+            lines.push_back( rows_->logLineAt( row ) );
+            if ( lines.size() == limit.get() ) {
+                return lines;
+            }
+        }
+        next = std::max( next, bottom + 1 );
+    }
+    return lines;
+}
+
 // A new Row selection: tell the holder the Log Line now selected.
 void LogTableView::rowSelectionChanged()
 {

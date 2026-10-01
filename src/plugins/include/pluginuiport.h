@@ -20,6 +20,14 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
+
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <optional>
+
+class QObject;
 
 namespace logsquirl::plugins {
 
@@ -38,6 +46,39 @@ struct PluginWidgetHandle {
     void* widget = nullptr;
 
     bool operator==( const PluginWidgetHandle& ) const = default;
+};
+
+/** A pattern a plugin has the user test in the Regex Lab, and how it reads it. */
+struct PluginPattern {
+    QString pattern;
+    bool matchesCase = true;
+
+    bool operator==( const PluginPattern& ) const = default;
+};
+
+/**
+ * Called once with the answer of a Regex Lab a plugin opened: the pattern the
+ * user applied, or none when the user cancelled.
+ */
+using PluginRegexLabAnswer = std::function<void( std::optional<PluginPattern> applied )>;
+
+/** The text of the Log Lines selected in the tab in front, as far as read (#663). */
+struct PluginSelectedLogLines {
+    /// In the order of the Log File.
+    QStringList lines;
+    /// The last of lines was cut short for the byte budget.
+    bool lastCut = false;
+    /// Selected Log Lines after lines were left unread for the byte budget.
+    bool more = false;
+
+    bool operator==( const PluginSelectedLogLines& ) const = default;
+};
+
+/** How going to a Log Line a plugin asked for ended (#663). */
+enum class PluginLogLineJump {
+    Shown,     ///< Selected and scrolled into view.
+    NoLogFile, ///< The tab in front shows no Log File, or there is no window.
+    OutOfRange ///< The Log File has no such line.
 };
 
 /**
@@ -93,6 +134,51 @@ public:
 
     /** The widget a plugin's configuration dialog is opened on. */
     virtual PluginWidgetHandle configurationParent() = 0;
+
+    /**
+     * Open the Regex Lab for a plugin's pattern (#662), on the UI thread
+     * only. The Lab reads the pattern as a regular expression and lets the
+     * user change it and whether it matches case.
+     *
+     * answer is called once, on the UI thread, when the user applies or
+     * cancels, or the Lab goes along with its window -- unless context is
+     * destroyed first: then never. removeContributions() closes the plugin's
+     * Labs.
+     *
+     * @return Whether a Lab opened; answer is never called when not. A port
+     *         that shows no Regex Lab opens none.
+     */
+    virtual bool openRegexLab( const QString& /* pluginId */, const PluginPattern& /* pattern */,
+                               QObject* /* context */, PluginRegexLabAnswer /* answer */ )
+    {
+        return false;
+    }
+
+    /**
+     * Select a Log Line of the tab in front and scroll it into view, as Go to
+     * line does (#663), on the UI thread only.
+     * @param logLine  Counted from 0, as the Log File's lines are.
+     * A port that shows no Log File shows none.
+     */
+    virtual PluginLogLineJump goToLogLine( std::uint64_t /* logLine */ )
+    {
+        return PluginLogLineJump::NoLogFile;
+    }
+
+    /**
+     * The text of the Log Lines selected in the tab in front, in the order
+     * of the Log File (#663), on the UI thread only: those of the view the
+     * user was last in, a selection within a Log Line counting as the whole
+     * Log Line. At most maxLines of them, each read from at most maxBytes of
+     * its bytes, and none read after one that was cut or after their UTF-8
+     * text passed maxBytes: a huge selection costs no more than that. None without an open Log
+     * File; no lines without a selection.
+     */
+    virtual std::optional<PluginSelectedLogLines> selectedLogLines( std::size_t /* maxLines */,
+                                                                    std::size_t /* maxBytes */ )
+    {
+        return std::nullopt;
+    }
 };
 
 } // namespace logsquirl::plugins

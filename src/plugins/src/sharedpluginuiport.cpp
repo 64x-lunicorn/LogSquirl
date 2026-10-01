@@ -234,4 +234,28 @@ PluginWidgetHandle SharedPluginUiPort::configurationParent()
     return window ? window->configurationParent() : PluginWidgetHandle{};
 }
 
+bool SharedPluginUiPort::openRegexLab( const QString& pluginId, const PluginPattern& pattern,
+                                       QObject* context, PluginRegexLabAnswer answer )
+{
+    const std::scoped_lock lock( mutex_ );
+    auto* window = mostRecentlyActive();
+    return window != nullptr
+           && window->openRegexLab( pluginId, pattern, context, std::move( answer ) );
+}
+
+PluginLogLineJump SharedPluginUiPort::goToLogLine( std::uint64_t logLine )
+{
+    const std::scoped_lock lock( mutex_ );
+    auto* window = mostRecentlyActive();
+    return window != nullptr ? window->goToLogLine( logLine ) : PluginLogLineJump::NoLogFile;
+}
+
+std::optional<PluginSelectedLogLines> SharedPluginUiPort::selectedLogLines( std::size_t maxLines,
+                                                                            std::size_t maxBytes )
+{
+    const std::scoped_lock lock( mutex_ );
+    auto* window = mostRecentlyActive();
+    return window != nullptr ? window->selectedLogLines( maxLines, maxBytes ) : std::nullopt;
+}
+
 } // namespace logsquirl::plugins

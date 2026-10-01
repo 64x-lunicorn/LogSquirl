@@ -31,6 +31,7 @@
 #include "quickfindpattern.h"
 #include "rowmapping.h"
 #include "test_policies.h"
+#include "valuenames_fixture.h"
 
 #include <QAccessible>
 #include <QAction>
@@ -558,7 +559,8 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
             const auto tableMenu = tableView.createContextMenu( centerOfRow( tableView, 0 ) );
 
             THEN( "both offer the same entries in the same order, only the Text View lets a "
-                  "selection start and end be set, and only the Table View exports as CSV" )
+                  "selection start and end be set and copies as shown, and only the Table View "
+                  "exports as CSV" )
             {
                 QStringList tableEntries = {
                     "Highlighters",
@@ -581,6 +583,7 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
                     "Save selected to file",
                 };
                 auto textEntries = tableEntries;
+                textEntries.insert( textEntries.indexOf( "Send to scratchpad" ), "Copy as shown" );
                 const auto beforeSplitter = textEntries.indexOf( "Save splitter position" );
                 textEntries.insert( beforeSplitter, "Set selection end" );
                 textEntries.insert( beforeSplitter, "Set selection start" );
@@ -681,6 +684,37 @@ SCENARIO( "The Text View and the Table View copy a Log Line holding a null chara
                 REQUIRE( fromTextView == "before after" );
                 REQUIRE( fromTableView == fromTextView );
             }
+        }
+    }
+}
+
+// The Table View shows no Value Names: its cells and its copy hold the raw
+// text while the Text View beside it shows the names (#647).
+SCENARIO( "The Table View shows the raw text of a Log Line the Text View shows with Value Names",
+          "[logtableview][valuenames]" )
+{
+    const valuenamesfixture::ScopedValueNames valueNames;
+    const auto format = makeWholeLineFormat();
+    const QStringList lines = { QStringLiteral( "BAP << ECU 0x15 0x14 sonstiges" ) };
+    FakeLogData logData( lines );
+
+    GIVEN( "the Log Line selected in a Text View showing Value Names and in the Table View" )
+    {
+        QuickFindPattern quickFindPattern;
+        TextView textView( &logData, &quickFindPattern );
+        textView.resize( 800, 400 );
+        textView.valueNamesShownSet( true );
+        textView.selectAndDisplayLine( 0_lnum );
+
+        InspectedTableView tableView;
+        open( tableView, format, logData );
+        tableView.applyValueNamesChange();
+
+        THEN( "the Text View shows the names, and the Table View's cell the raw text" )
+        {
+            REQUIRE( textView.getSelectedTextAsShown()
+                     == QStringLiteral( "BAP << ECU Beispiel(0x15) Sample(0x14) sonstiges" ) );
+            REQUIRE( tableView.model()->index( 0, BodyColumn ).data().toString() == lines[ 0 ] );
         }
     }
 }
@@ -885,19 +919,6 @@ LogFormatDefinition makeTwoFieldFormat()
     return format;
 }
 
-// A Log File that expands tabs where it hands out the text QuickFind reads,
-// as LogData does.
-class TabExpandingLogData : public FakeLogData {
-public:
-    using FakeLogData::FakeLogData;
-
-protected:
-    QString doGetExpandedLineString( LineNumber line ) const override
-    {
-        return untabify( doGetLineString( line ) );
-    }
-};
-
 int columnOf( const LogTableView& view, const QString& field )
 {
     for ( int column = 0; column < view.model()->columnCount(); ++column ) {
@@ -916,7 +937,7 @@ SCENARIO( "A QuickFind in the Table View starts from the selected characters and
           "[logtableview][quickfind]" )
 {
     const auto format = makeTwoFieldFormat();
-    TabExpandingLogData logData(
+    FakeLogData logData(
         QStringList{ "a=needle b=needle", "a=other b=needle", "a=foo b=bar", "a=tab\tb=needle" } );
     InspectedTableView view;
     QuickFindBar quickFind( view, testSettingsPolicies().quickFind );

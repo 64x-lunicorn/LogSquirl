@@ -621,6 +621,17 @@ public:
         useTextWrap_ = enable;
     }
 
+    // Whether a tab starts showing Value Names (#647); the View menu turns
+    // them on and off per tab afterwards.
+    bool showValueNames() const
+    {
+        return showValueNames_;
+    }
+    void setShowValueNames( bool show )
+    {
+        showValueNames_ = show;
+    }
+
     bool autoRunSearchOnPatternChange() const
     {
         return autoRunSearchOnPatternChange_;
@@ -886,6 +897,7 @@ private:
     bool qfIgnoreCase_{};
 
     bool useTextWrap_{};
+    bool showValueNames_{};
 
     std::map<std::string, QStringList> shortcuts_;
 

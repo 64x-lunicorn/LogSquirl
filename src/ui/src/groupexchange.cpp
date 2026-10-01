@@ -28,6 +28,8 @@
 
 namespace logsquirl::groupexchange {
 
+using logsquirl::valuenames::NamingGroup;
+
 namespace {
 
 QString& lastExportFolder()
@@ -87,8 +89,9 @@ ImportResult mergeImpl( QList<Group>& groups, const QList<Group>& imported, Impo
     ImportResult result;
     for ( Group group : imported ) {
         // Whatever the Default Filter Group's id stands for on the sender's
-        // side, on the recipient's it is a group of its own.
-        if ( group.id() == defaultFilterSetId() ) {
+        // side, on the recipient's it is a group of its own; and a group
+        // with the id of a Team group is not that Team group.
+        if ( group.id() == defaultFilterSetId() || session.isReserved( group.id() ) ) {
             group = group.withId( generateIdFromUuid() );
         }
 
@@ -142,6 +145,35 @@ bool isReadableSettings( const QString& file, const QSettings& settings )
     return info.isFile() && info.isReadable() && settings.status() == QSettings::NoError;
 }
 
+// Whether the settings hold a Filter Group or Highlighter Set collection:
+// a file of that kind, whether it holds a group or not.
+bool holdsFilterGroups( const QSettings& settings )
+{
+    return settings.childGroups().contains( QStringLiteral( "PredefinedFiltersCollection" ) );
+}
+
+bool holdsHighlighterSets( const QSettings& settings )
+{
+    return settings.childGroups().contains( QStringLiteral( "HighlighterSetCollection" ) );
+}
+
+// Whether a reader can read the settings at all.
+bool isReadable( const QSettings& settings )
+{
+    return isReadableSettings( settings.fileName(), settings );
+}
+
+// A Naming Group as its file holds it: the kind entry, then the group.
+struct NamingGroupFile {
+    const NamingGroup& group;
+
+    void saveToStorage( QSettings& settings ) const
+    {
+        settings.setValue( QLatin1String( KindKey ), QLatin1String( ValueNamesKind ) );
+        group.saveToStorage( settings );
+    }
+};
+
 template <typename Group>
 ImportResult importImpl( const ReadGroups<Group>& read, QList<Group>& groups,
                          ImportSession& session )
@@ -174,9 +206,15 @@ QString firstFreeName( const QString& name, const QStringList& takenNames )
     }
 }
 
-ImportSession::ImportSession( ConflictResolver resolver )
+ImportSession::ImportSession( ConflictResolver resolver, QSet<QString> reservedIds )
     : resolver_( std::move( resolver ) )
+    , reservedIds_( std::move( reservedIds ) )
 {
+}
+
+bool declaresKind( const QSettings& settings )
+{
+    return settings.contains( QLatin1String( KindKey ) );
 }
 
 ConflictAnswer ImportSession::decide( const ConflictQuestion& question )
@@ -193,10 +231,31 @@ ConflictAnswer ImportSession::decide( const ConflictQuestion& question )
 
 ReadGroups<PredefinedFilterSet> readFilterGroups( const QString& file )
 {
-    ReadGroups<PredefinedFilterSet> read;
     QSettings settings{ file, QSettings::IniFormat };
-    if ( !isReadableSettings( file, settings ) ) {
+    return readFilterGroups( settings );
+}
+
+ReadGroups<HighlighterSet> readHighlighterGroups( const QString& file )
+{
+    QSettings settings{ file, QSettings::IniFormat };
+    return readHighlighterGroups( settings );
+}
+
+ReadGroups<NamingGroup> readNamingGroups( const QString& file )
+{
+    QSettings settings{ file, QSettings::IniFormat };
+    return readNamingGroups( settings );
+}
+
+ReadGroups<PredefinedFilterSet> readFilterGroups( QSettings& settings )
+{
+    ReadGroups<PredefinedFilterSet> read;
+    if ( !isReadable( settings ) ) {
         read.error = ReadError::Unreadable;
+        return read;
+    }
+    if ( declaresKind( settings ) ) {
+        read.error = ReadError::OtherKind;
         return read;
     }
 
@@ -209,23 +268,70 @@ ReadGroups<PredefinedFilterSet> readFilterGroups( const QString& file )
             read.groups.append( set );
         }
     }
-    read.error = read.groups.isEmpty() ? ReadError::NoGroups : ReadError::None;
+    if ( read.groups.isEmpty() ) {
+        read.error = !holdsFilterGroups( settings ) && holdsHighlighterSets( settings )
+                         ? ReadError::OtherKind
+                         : ReadError::NoGroups;
+    }
     return read;
 }
 
-ReadGroups<HighlighterSet> readHighlighterGroups( const QString& file )
+ReadGroups<HighlighterSet> readHighlighterGroups( QSettings& settings )
 {
     ReadGroups<HighlighterSet> read;
-    QSettings settings{ file, QSettings::IniFormat };
-    if ( !isReadableSettings( file, settings ) ) {
+    if ( !isReadable( settings ) ) {
         read.error = ReadError::Unreadable;
+        return read;
+    }
+    if ( declaresKind( settings ) ) {
+        read.error = ReadError::OtherKind;
         return read;
     }
 
     HighlighterSetCollection collection;
     collection.retrieveFromStorage( settings );
     read.groups = collection.highlighterSets();
-    read.error = read.groups.isEmpty() ? ReadError::NoGroups : ReadError::None;
+    if ( read.groups.isEmpty() ) {
+        read.error = !holdsHighlighterSets( settings ) && holdsFilterGroups( settings )
+                         ? ReadError::OtherKind
+                         : ReadError::NoGroups;
+    }
+    return read;
+}
+
+ReadGroups<NamingGroup> readNamingGroups( QSettings& settings )
+{
+    ReadGroups<NamingGroup> read;
+    if ( !isReadable( settings ) ) {
+        read.error = ReadError::Unreadable;
+        return read;
+    }
+
+    // Only the kind entry makes it a Naming Group file, whatever else it holds.
+    if ( !declaresKind( settings ) ) {
+        read.error = holdsFilterGroups( settings ) || holdsHighlighterSets( settings )
+                         ? ReadError::OtherKind
+                         : ReadError::NoGroups;
+        return read;
+    }
+    if ( settings.value( QLatin1String( KindKey ) ).toString()
+         != QLatin1String( ValueNamesKind ) ) {
+        read.error = ReadError::OtherKind;
+        return read;
+    }
+    if ( !settings.contains( QStringLiteral( "NamingGroup/version" ) ) ) {
+        read.error = ReadError::NoGroups;
+        return read;
+    }
+    if ( settings.value( QStringLiteral( "NamingGroup/version" ) ).toInt()
+         > NamingGroup::newestStorageVersion() ) {
+        read.error = ReadError::NewerVersion;
+        return read;
+    }
+
+    NamingGroup group;
+    group.retrieveFromStorage( settings );
+    read.groups.append( group );
     return read;
 }
 
@@ -236,6 +342,12 @@ ImportResult mergeGroups( QList<PredefinedFilterSet>& groups,
 }
 
 ImportResult mergeGroups( QList<HighlighterSet>& groups, const QList<HighlighterSet>& imported,
+                          ImportSession& session )
+{
+    return mergeImpl( groups, imported, session );
+}
+
+ImportResult mergeGroups( QList<NamingGroup>& groups, const QList<NamingGroup>& imported,
                           ImportSession& session )
 {
     return mergeImpl( groups, imported, session );
@@ -253,6 +365,11 @@ ImportResult importFile( const QString& file, QList<HighlighterSet>& groups,
     return importImpl( readHighlighterGroups( file ), groups, session );
 }
 
+ImportResult importFile( const QString& file, QList<NamingGroup>& groups, ImportSession& session )
+{
+    return importImpl( readNamingGroups( file ), groups, session );
+}
+
 QString suggestedFileName( const QString& groupName, GroupKind kind )
 {
     QString name = groupName;
@@ -261,9 +378,15 @@ QString suggestedFileName( const QString& groupName, GroupKind kind )
             character = QLatin1Char( '_' );
         }
     }
-    return name
-           + ( kind == GroupKind::Filter ? QStringLiteral( "_filter.conf" )
-                                         : QStringLiteral( "_highlighter.conf" ) );
+    switch ( kind ) {
+    case GroupKind::Filter:
+        return name + QStringLiteral( "_filter.conf" );
+    case GroupKind::Highlighter:
+        return name + QStringLiteral( "_highlighter.conf" );
+    case GroupKind::ValueNames:
+        break;
+    }
+    return name + QStringLiteral( "_valuenames.conf" );
 }
 
 bool writeGroup( const QString& file, const PredefinedFilterSet& group )
@@ -279,6 +402,11 @@ bool writeGroup( const QString& file, const HighlighterSet& group )
     HighlighterSetCollection collection;
     collection.setHighlighterSets( { group } );
     return writeCollection( file, collection );
+}
+
+bool writeGroup( const QString& file, const NamingGroup& group )
+{
+    return writeCollection( file, NamingGroupFile{ group } );
 }
 
 QString exportFolder()

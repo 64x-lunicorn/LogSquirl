@@ -68,7 +68,15 @@ LOGSQUIRL_PLUGIN_EXPORT const LogSquirlPluginInfo* logsquirl_plugin_get_info( vo
 }
 #endif
 
-#if !defined( LOADER_FIXTURE_NO_INIT )
+#if defined( LOADER_FIXTURE_INIT_EX_ONLY )
+// Only the extended init: an older host could not load it (#662).
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi*, void*, size_t )
+{
+    return 0;
+}
+#endif
+
+#if !defined( LOADER_FIXTURE_NO_INIT ) && !defined( LOADER_FIXTURE_INIT_EX_ONLY )
 LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init( const LogSquirlHostApi*, void* )
 {
 #if defined( LOADER_FIXTURE_INIT_FAILS )

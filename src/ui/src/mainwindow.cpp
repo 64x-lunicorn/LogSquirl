@@ -121,22 +121,50 @@
 #include "progress.h"
 #include "readablesize.h"
 #include "recentfiles.h"
+#include "regexlabsource.h"
+#include "regexlabwindow.h"
 #include "shortcuts.h"
 #include "tabbedcrawlerwidget.h"
 #include "teamfolder.h"
 #include "theme.h"
+#include "valuenamescollection.h"
+#include "valuenamesdialog.h"
 
 namespace {
 
-// Queued on the Crawler Widget itself, so Qt drops the call when the widget is
-// destroyed before the event loop runs it, as when its window closes right
-// after opening the Log File (#607).
-void signalCrawlerToFollowFile( CrawlerWidget* crawler_widget )
+// Followed as it opens, not one event loop turn later: a follow queued for
+// then would overrule what came in between -- the user turning it off, or a
+// tab shown unfollowed for a moment to a command that ends at once (#635).
+// The window's follow action follows from the View Set.
+void followOnOpen( CrawlerWidget* crawler_widget )
 {
-    dispatchToObject( [ crawler_widget ]() { crawler_widget->followSet( true ); }, crawler_widget );
+    crawler_widget->followSet( true );
 }
 
 static constexpr auto ClipboardMaxTry = 5;
+
+// Shows the Team groups of a kind in the dialog that edits that kind, and
+// publishes what OK or Apply change of them. What Apply published has new
+// revisions: the dialog is still open and edits on them.
+template <typename Dialog, typename Group>
+void showTeamGroupsIn( Dialog& dialog, TeamFolder& folder, const QList<Group>& groups,
+                       QHash<QString, QString> ( TeamFolder::*revisions )() const )
+{
+    dialog.showTeamGroups( groups, folder.isWritable(), ( folder.*revisions )() );
+    QObject::connect( &dialog, &Dialog::publishRequested, &folder, &TeamFolder::publish );
+    QObject::connect( &folder, &TeamFolder::publishFinished, &dialog,
+                      [ &dialog, &folder, revisions ]( const auto& outcome ) {
+                          QStringList ids;
+                          for ( const auto& result : outcome.results ) {
+                              if ( result.status == logsquirl::teamfolder::PublishStatus::Published
+                                   || result.status
+                                          == logsquirl::teamfolder::PublishStatus::Pending ) {
+                                  ids.append( result.request.id );
+                              }
+                          }
+                          dialog.updateTeamRevisions( ids, ( folder.*revisions )() );
+                      } );
+}
 
 } // namespace
 
@@ -147,7 +175,6 @@ MainWindow::MainWindow( WindowSession session,
                         std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins )
     : session_( std::move( session ) )
     , mainIcon_()
-    , signalMux_()
     , quickFindMux_( session_.getQuickFindPattern() )
     , mainTabWidget_()
     , tempDir_( QDir::temp().filePath( "logsquirl_temp_" ) )
@@ -179,42 +206,6 @@ MainWindow::MainWindow( WindowSession session,
 
     createTrayIcon();
 
-    // Connect the signals to the mux (they will be forwarded to the
-    // "current" crawlerwidget
-
-    // Send actions to the crawlerwidget
-    signalMux_.connect( this, SIGNAL( followSet( bool ) ), SLOT( followSet( bool ) ) );
-    signalMux_.connect( this, SIGNAL( textWrapSet( bool ) ), SIGNAL( textWrapSet( bool ) ) );
-    signalMux_.connect( this, SIGNAL( enteringQuickFind() ), SLOT( enteringQuickFind() ) );
-    signalMux_.connect( &quickFindWidget_, SIGNAL( close() ), SLOT( exitingQuickFind() ) );
-
-    // Actions from the CrawlerWidget
-    signalMux_.connect( SIGNAL( followModeChanged( bool ) ), this,
-                        SLOT( changeFollowMode( bool ) ) );
-    signalMux_.connect(
-        SIGNAL( newSelection( LineNumber, LinesCount, LineColumn, LineLength ) ), this,
-        SLOT( lineNumberHandler( LineNumber, LinesCount, LineColumn, LineLength ) ) );
-    signalMux_.connect( SIGNAL( saveCurrentSearchAsPredefinedFilter( QString ) ), this,
-                        SLOT( newPredefinedFilterHandler( QString ) ) );
-
-    signalMux_.connect( SIGNAL( sendToScratchpad( QString ) ), this,
-                        SLOT( sendToScratchpad( QString ) ) );
-
-    signalMux_.connect( SIGNAL( replaceDataInScratchpad( QString ) ), this,
-                        SLOT( replaceDataInScratchpad( QString ) ) );
-
-    // Register for progress status bar
-    signalMux_.connect( SIGNAL( loadingProgressed( int ) ), this,
-                        SLOT( updateLoadingProgress( int ) ) );
-    signalMux_.connect( SIGNAL( loadingFinished( LoadingStatus, QString ) ), this,
-                        SLOT( handleLoadingFinished( LoadingStatus, QString ) ) );
-
-    signalMux_.connect( SIGNAL( statusMessage( QString ) ), this,
-                        SLOT( showStatusMessage( QString ) ) );
-
-    signalMux_.connect( SIGNAL( filteredViewChanged() ), this,
-                        SLOT( handleFilteredViewChanged() ) );
-
     // Configure the main tabbed widget
     mainTabWidget_.setDocumentMode( true );
     mainTabWidget_.setMovable( true );
@@ -229,6 +220,7 @@ MainWindow::MainWindow( WindowSession session,
     sidebarTabs_ = new QTabWidget( sidebarDock_ );
     sidebarTabs_->addTab( &filtersPanel_, tr( "Filters" ) );
     sidebarTabs_->addTab( &scratchPad_, tr( "Scratchpad" ) );
+    sidebarTabs_->addTab( &valueNamesPanel_, tr( "Value Names" ) );
     sidebarDock_->setWidget( sidebarTabs_ );
     addDockWidget( Qt::RightDockWidgetArea, sidebarDock_ );
 
@@ -303,6 +295,13 @@ MainWindow::MainWindow( WindowSession session,
     // Open the predefined filters dialog when the sidebar "Edit..." button is clicked.
     connect( &filtersPanel_, &FiltersPanel::editFiltersRequested, this,
              [ this ]() { editPredefinedFilters(); } );
+
+    // A check of the Value Names tab is global: every open Log File and every
+    // window's sidebar is told (#647).
+    connect( &valueNamesPanel_, &ValueNamesPanel::valueNamesChanged, this,
+             [ this ]() { session_.applyChange( Changed::ValueNames ); } );
+    connect( &valueNamesPanel_, &ValueNamesPanel::editRequested, this,
+             [ this ]() { editValueNames(); } );
 
     connect( &mainTabWidget_, &TabbedCrawlerWidget::tabCloseRequested, this,
              [ this ]( int index ) { this->closeTab( index, ActionInitiator::User ); } );
@@ -386,6 +385,11 @@ MainWindow::MainWindow( WindowSession session,
     // plugins load, so what they register while loading is shown.
     pluginUi_ = std::make_unique<PluginUiAdapter>( *this, *pluginsMenu, pluginMenuSeparator_,
                                                    *sidebarTabs_ );
+    // A plugin's Regex Lab samples the tab in front, as the menu's does (#662).
+    pluginUi_->setRegexLabSampleSource( [ this ]() { return tabInFrontAsRegexLabSample(); } );
+    // A plugin goes to a Log Line of the tab in front and reads its selected
+    // Log Lines (#663).
+    pluginUi_->setTabInFront( [ this ]() { return currentCrawlerWidget(); } );
     plugins_->uiPort().addWindow( pluginUi_.get() );
     servePluginCallbacks();
 
@@ -465,7 +469,7 @@ std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
                                    archiveMembers_.value( fileName ).key() );
 
         if ( followFileOnLoad ) {
-            signalCrawlerToFollowFile( crawlerWidget );
+            followOnOpen( crawlerWidget );
         }
     }
     restoringSession_ = false;
@@ -473,10 +477,6 @@ std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
     if ( currentFileIndex >= 0 && static_cast<size_t>( currentFileIndex ) < crawlers.size() ) {
         // By widget: the dashboard tab, if any, comes before the Log Files.
         mainTabWidget_.setCurrentWidget( crawlers[ static_cast<size_t>( currentFileIndex ) ] );
-
-        if ( followFileOnLoad ) {
-            followAction->setChecked( true );
-        }
     }
 
     mainTabWidget_.refreshAllTabGroupAppearances();
@@ -553,10 +553,7 @@ void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& m
 
     const auto& config = Configuration::get();
     if ( config.followFileOnLoad() && session_.watchPolicy().anyWatchEnabled() ) {
-        signalCrawlerToFollowFile( crawlerWidget );
-        if ( opened.inFront ) {
-            followAction->setChecked( true );
-        }
+        followOnOpen( crawlerWidget );
     }
 
     mainTabWidget_.refreshAllTabGroupAppearances();
@@ -720,7 +717,7 @@ void MainWindow::applyCommandOutputEncoding( const QString& spoolPath )
 
     crawler->setEncoding( source->second->outputEncoding()->mibEnum() );
     if ( crawler == currentCrawlerWidget() ) {
-        updateMenuBarFromDocument( crawler );
+        updateMenuBarFromDocument( crawler->state() );
         updateInfoLine();
     }
 }
@@ -768,6 +765,8 @@ void MainWindow::reTranslateUI()
 
     copyAction->setText( transAction( action::copyText ) );
     copyAction->setStatusTip( transAction( action::copyStatusTip ) );
+    copyAsShownAction->setText( transAction( action::copyAsShownText ) );
+    copyAsShownAction->setStatusTip( transAction( action::copyAsShownStatusTip ) );
 
     selectAllAction->setText( transAction( action::selectAllText ) );
     selectAllAction->setStatusTip( transAction( action::selectAllStatusTip ) );
@@ -823,6 +822,8 @@ void MainWindow::reTranslateUI()
 
     followAction->setText( transAction( action::followText ) );
     textWrapAction->setText( transAction( action::wrapText ) );
+    showValueNamesAction->setText( transAction( action::showValueNamesText ) );
+    showValueNamesAction->setStatusTip( transAction( action::showValueNamesStatusTip ) );
     reloadAction->setText( transAction( action::reloadText ) );
     stopAction->setText( transAction( action::stopText ) );
 
@@ -855,6 +856,8 @@ void MainWindow::reTranslateUI()
 
     showFiltersPanelAction->setText( transAction( action::showFiltersPanelText ) );
     showFiltersPanelAction->setStatusTip( transAction( action::showFiltersPanelStatusTip ) );
+    showValueNamesPanelAction->setText( transAction( action::showValueNamesPanelText ) );
+    showValueNamesPanelAction->setStatusTip( transAction( action::showValueNamesPanelStatusTip ) );
 
     toggleSidebarAction->setText( transAction( action::toggleSidebarText ) );
     toggleSidebarAction->setStatusTip( transAction( action::toggleSidebarStatusTip ) );
@@ -882,6 +885,11 @@ void MainWindow::reTranslateUI()
     predefinedFiltersDialogAction->setText( transAction( action::predefinedFiltersDialogText ) );
     predefinedFiltersDialogAction->setStatusTip(
         transAction( action::predefinedFiltersDialogStatusTip ) );
+    valueNamesDialogAction->setText( transAction( action::valueNamesDialogText ) );
+    valueNamesDialogAction->setStatusTip( transAction( action::valueNamesDialogStatusTip ) );
+
+    regexLabAction->setText( transAction( action::regexLabText ) );
+    regexLabAction->setStatusTip( transAction( action::regexLabStatusTip ) );
 
     // trayIcon
     trayIcon_->setToolTip( QApplication::translate(
@@ -976,27 +984,26 @@ void MainWindow::createActions()
     copyAction->setStatusTip( tr( action::copyStatusTip ) );
     connect( copyAction, &QAction::triggered, this, [ this ]( auto ) { this->copy(); } );
 
+    copyAsShownAction = new QAction( tr( action::copyAsShownText ), this );
+    copyAsShownAction->setStatusTip( tr( action::copyAsShownStatusTip ) );
+    connect( copyAsShownAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->copyAsShown(); } );
+
     selectAllAction = new QAction( tr( action::selectAllText ), this );
     selectAllAction->setStatusTip( tr( action::selectAllStatusTip ) );
     connect( selectAllAction, &QAction::triggered, this, [ this ]( auto ) { this->selectAll(); } );
 
     goToLineAction = new QAction( tr( action::goToLineText ), this );
     goToLineAction->setStatusTip( tr( action::goToLineStatusTip ) );
-    signalMux_.connect( goToLineAction, SIGNAL( triggered() ), SLOT( goToLine() ) );
 
     goToTimestampAction = new QAction( tr( action::goToTimestampText ), this );
     goToTimestampAction->setStatusTip( tr( action::goToTimestampStatusTip ) );
-    signalMux_.connect( goToTimestampAction, SIGNAL( triggered() ), SLOT( goToTimestamp() ) );
 
     searchLimitsTimeRangeAction = new QAction( tr( action::searchLimitsTimeRangeText ), this );
     searchLimitsTimeRangeAction->setStatusTip( tr( action::searchLimitsTimeRangeStatusTip ) );
-    signalMux_.connect( searchLimitsTimeRangeAction, SIGNAL( triggered() ),
-                        SLOT( setSearchLimitsToTimeRange() ) );
 
     searchLimitsAroundLineAction = new QAction( tr( action::searchLimitsAroundLineText ), this );
     searchLimitsAroundLineAction->setStatusTip( tr( action::searchLimitsAroundLineStatusTip ) );
-    signalMux_.connect( searchLimitsAroundLineAction, SIGNAL( triggered() ),
-                        SLOT( setSearchLimitsAroundCurrentLine() ) );
 
     findAction = new QAction( tr( action::findText ), this );
     findAction->setStatusTip( tr( action::findStatusTip ) );
@@ -1075,12 +1082,15 @@ void MainWindow::createActions()
     textWrapAction->setEnabled( true );
     connect( textWrapAction, &QAction::toggled, this, &MainWindow::textWrapSet );
 
+    showValueNamesAction = new QAction( tr( action::showValueNamesText ), this );
+    showValueNamesAction->setStatusTip( tr( action::showValueNamesStatusTip ) );
+    showValueNamesAction->setCheckable( true );
+    connect( showValueNamesAction, &QAction::toggled, this, &MainWindow::valueNamesShownSet );
+
     reloadAction = new QAction( tr( action::reloadText ), this );
-    signalMux_.connect( reloadAction, SIGNAL( triggered() ), SLOT( reload() ) );
 
     stopAction = new QAction( tr( action::stopText ), this );
     stopAction->setEnabled( true );
-    signalMux_.connect( stopAction, SIGNAL( triggered() ), SLOT( stopLoading() ) );
 
     optionsAction = new QAction( tr( action::optionsText ), this );
     optionsAction->setMenuRole( QAction::PreferencesRole );
@@ -1130,6 +1140,11 @@ void MainWindow::createActions()
     showFiltersPanelAction->setStatusTip( tr( action::showFiltersPanelStatusTip ) );
     connect( showFiltersPanelAction, &QAction::triggered, this,
              [ this ]( auto ) { this->showFiltersPanel(); } );
+
+    showValueNamesPanelAction = new QAction( tr( action::showValueNamesPanelText ), this );
+    showValueNamesPanelAction->setStatusTip( tr( action::showValueNamesPanelStatusTip ) );
+    connect( showValueNamesPanelAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->showValueNamesPanel(); } );
 
     toggleSidebarAction = new QAction( tr( action::toggleSidebarText ), this );
     toggleSidebarAction->setStatusTip( tr( action::toggleSidebarStatusTip ) );
@@ -1189,6 +1204,16 @@ void MainWindow::createActions()
     predefinedFiltersDialogAction->setStatusTip( tr( action::predefinedFiltersDialogStatusTip ) );
     connect( predefinedFiltersDialogAction, &QAction::triggered, this,
              [ this ]( auto ) { this->editPredefinedFilters(); } );
+
+    valueNamesDialogAction = new QAction( tr( action::valueNamesDialogText ), this );
+    valueNamesDialogAction->setStatusTip( tr( action::valueNamesDialogStatusTip ) );
+    connect( valueNamesDialogAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->editValueNames(); } );
+
+    regexLabAction = new QAction( tr( action::regexLabText ), this );
+    regexLabAction->setStatusTip( tr( action::regexLabStatusTip ) );
+    connect( regexLabAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->openRegexLab(); } );
 
     manageTabGroupsAction = new QAction( tr( "Manage Tab Groups..." ), this );
     manageTabGroupsAction->setStatusTip( tr( "Rename, recolor, or delete tab groups" ) );
@@ -1257,6 +1282,7 @@ void MainWindow::updateShortcuts()
     setShortcuts( openCommandOutputAction, ShortcutAction::MainWindowOpenCommandOutput );
     setShortcuts( followAction, ShortcutAction::MainWindowFollowFile );
     setShortcuts( textWrapAction, ShortcutAction::MainWindowTextWrap );
+    setShortcuts( showValueNamesAction, ShortcutAction::MainWindowShowValueNames );
     setShortcuts( reloadAction, ShortcutAction::MainWindowReload );
     setShortcuts( stopAction, ShortcutAction::MainWindowStop );
     setShortcuts( showScratchPadAction, ShortcutAction::MainWindowScratchpad );
@@ -1346,6 +1372,7 @@ void MainWindow::createMenus()
 
     editMenu = menuBar()->addMenu( tr( menu::editTitle ) );
     editMenu->addAction( copyAction );
+    editMenu->addAction( copyAsShownAction );
     editMenu->addAction( selectAllAction );
     editMenu->addSeparator();
     editMenu->addAction( findAction );
@@ -1372,6 +1399,7 @@ void MainWindow::createMenus()
     viewMenu->addAction( lineNumbersVisibleInFilteredAction );
     viewMenu->addSeparator();
     viewMenu->addAction( textWrapAction );
+    viewMenu->addAction( showValueNamesAction );
     viewMenu->addSeparator();
     viewMenu->addAction( followAction );
     viewMenu->addSeparator();
@@ -1390,13 +1418,16 @@ void MainWindow::createMenus()
         [ this ]() { session_.applyChange( Changed::HighlighterSets ); } );
 
     toolsMenu->addAction( predefinedFiltersDialogAction );
+    toolsMenu->addAction( valueNamesDialogAction );
     toolsMenu->addAction( importChipmunkFiltersAction );
+    toolsMenu->addAction( regexLabAction );
     toolsMenu->addSeparator();
     toolsMenu->addAction( manageTabGroupsAction );
 
     toolsMenu->addSeparator();
     toolsMenu->addAction( showScratchPadAction );
     toolsMenu->addAction( showFiltersPanelAction );
+    toolsMenu->addAction( showValueNamesPanelAction );
     toolsMenu->addSeparator();
     toolsMenu->addAction( commandPaletteAction );
 
@@ -1723,6 +1754,21 @@ void MainWindow::copy()
     }
 }
 
+// Copy the selection as the view shows it into the clipboard
+void MainWindow::copyAsShown()
+{
+    try {
+        if ( auto current = currentCrawlerWidget(); current != nullptr ) {
+            auto text = current->getSelectedTextAsShown();
+            text.replace( QChar::Null, QChar::Space );
+
+            sendTextToClipboard( text, true );
+        }
+    } catch ( std::exception& err ) {
+        LOG_ERROR << "failed to copy data to clipboard " << err.what();
+    }
+}
+
 // Display the QuickFind bar
 void MainWindow::find()
 {
@@ -1820,24 +1866,11 @@ void MainWindow::openCommandOutputDialog()
 void MainWindow::editHighlighters()
 {
     HighlightersDialog dialog( this );
+    dialog.setRegexLabAccess( regexLabAccess() );
     if ( const auto teamFolder = session_.teamFolder();
          teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
-        dialog.showTeamGroups( teamFolder->highlighterGroups(), teamFolder->isWritable(),
-                               teamFolder->highlighterGroupRevisions() );
-        connect( &dialog, &HighlightersDialog::publishRequested, teamFolder.get(),
-                 &TeamFolder::publish );
-        // What Apply published has new revisions: the dialog is still open.
-        connect( teamFolder.get(), &TeamFolder::publishFinished, &dialog,
-                 [ &dialog, folder = teamFolder.get() ]( const auto& outcome ) {
-                     QStringList ids;
-                     for ( const auto& result : outcome.results ) {
-                         if ( result.status == logsquirl::teamfolder::PublishStatus::Published
-                              || result.status == logsquirl::teamfolder::PublishStatus::Pending ) {
-                             ids.append( result.request.id );
-                         }
-                     }
-                     dialog.updateTeamRevisions( ids, folder->highlighterGroupRevisions() );
-                 } );
+        showTeamGroupsIn( dialog, *teamFolder, teamFolder->highlighterGroups(),
+                          &TeamFolder::highlighterGroupRevisions );
     }
 
     // Reaches every open Log File, in every window, not only the current tab.
@@ -1849,28 +1882,63 @@ void MainWindow::editHighlighters()
     dialog.exec();
 }
 
+void MainWindow::openRegexLab()
+{
+    if ( regexLab_.isNull() ) {
+        regexLab_ = new RegexLabWindow( session_.searchPolicy().regexpEngine, this );
+        regexLab_->setAttribute( Qt::WA_DeleteOnClose );
+    }
+    else {
+        regexLab_->setEngine( session_.searchPolicy().regexpEngine );
+    }
+
+    regexLab_->setSampleSource( tabInFrontAsRegexLabSample() );
+
+    regexLab_->show();
+    regexLab_->raise();
+    regexLab_->activateWindow();
+}
+
+RegexLabSampleSource MainWindow::tabInFrontAsRegexLabSample()
+{
+    auto* crawler = currentCrawlerWidget();
+    return crawler != nullptr
+               ? regexLabSampleSource( *crawler,
+                                       mainTabWidget_.tabText( mainTabWidget_.currentIndex() ) )
+               : RegexLabSampleSource{};
+}
+
+// The editors are modal, so the tab in front is the one they were opened
+// over, and its Search Line is the one a Predefined Filter would go to; the
+// sample is asked for as a Lab opens all the same. Without a tab, a Search
+// Line reads a pattern as one starts out.
+RegexLabAccess MainWindow::regexLabAccess()
+{
+    RegexLabAccess access;
+    access.searchEngine = session_.searchPolicy().regexpEngine;
+    if ( const auto* crawler = currentCrawlerWidget(); crawler != nullptr ) {
+        const auto flags = crawler->searchFlags();
+        access.searchMatchesCase = flags.matchCase;
+        access.searchUsesRegexp = flags.useRegexp;
+    }
+    else {
+        const auto& policy = session_.quickFindPolicy();
+        access.searchMatchesCase = !policy.searchIgnoreCaseDefault;
+        access.searchUsesRegexp = policy.mainRegexpType == SearchRegexpType::ExtendedRegexp;
+    }
+    access.sampleSource = [ this ]() { return tabInFrontAsRegexLabSample(); };
+    return access;
+}
+
 // Opens dialog to configure predefined filters
 void MainWindow::editPredefinedFilters( const QString& newFilter )
 {
     PredefinedFiltersDialog dialog( newFilter, this );
+    dialog.setRegexLabAccess( regexLabAccess() );
     if ( const auto teamFolder = session_.teamFolder();
          teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
-        dialog.showTeamGroups( teamFolder->filterGroups(), teamFolder->isWritable(),
-                               teamFolder->filterGroupRevisions() );
-        connect( &dialog, &PredefinedFiltersDialog::publishRequested, teamFolder.get(),
-                 &TeamFolder::publish );
-        // What Apply published has new revisions: the dialog is still open.
-        connect( teamFolder.get(), &TeamFolder::publishFinished, &dialog,
-                 [ &dialog, folder = teamFolder.get() ]( const auto& outcome ) {
-                     QStringList ids;
-                     for ( const auto& result : outcome.results ) {
-                         if ( result.status == logsquirl::teamfolder::PublishStatus::Published
-                              || result.status == logsquirl::teamfolder::PublishStatus::Pending ) {
-                             ids.append( result.request.id );
-                         }
-                     }
-                     dialog.updateTeamRevisions( ids, folder->filterGroupRevisions() );
-                 } );
+        showTeamGroupsIn( dialog, *teamFolder, teamFolder->filterGroups(),
+                          &TeamFolder::filterGroupRevisions );
     }
 
     // The Predefined Filters are no setting a Log File shows: only the filters
@@ -1879,6 +1947,36 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
              [ this ]() { filtersPanel_.refreshFilters(); } );
 
     dialog.exec();
+}
+
+// Opens the Value Names dialog. OK and Apply change the Value Names
+// Collection, which every open Log File and every window is told of (#647).
+void MainWindow::editValueNames()
+{
+    // The dialog reads the groups again from the settings store, which may
+    // hold what another instance saved: that is a change too, OK or Cancel.
+    const auto& collection = ValueNamesCollection::get();
+    auto applied = collection.generation();
+    ValueNamesDialog dialog( this );
+    if ( const auto teamFolder = session_.teamFolder();
+         teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
+        showTeamGroupsIn( dialog, *teamFolder, teamFolder->namingGroups(),
+                          &TeamFolder::namingGroupRevisions );
+    }
+    const auto applyIfChanged = [ this, &collection, &applied ] {
+        if ( collection.generation() != applied ) {
+            applied = collection.generation();
+            session_.applyChange( Changed::ValueNames );
+        }
+    };
+    connect( &dialog, &ValueNamesDialog::valueNamesChanged, this, applyIfChanged );
+    dialog.exec();
+    applyIfChanged();
+}
+
+void MainWindow::applyValueNamesChange()
+{
+    valueNamesPanel_.refresh();
 }
 
 // Opens the 'Options' modal dialog box
@@ -1914,6 +2012,10 @@ void MainWindow::connectTeamFolder()
     // at once, and a removed one is no longer active.
     connect( teamFolder.get(), &TeamFolder::highlighterGroupsChanged, this,
              [ this ] { applyTeamHighlighterSets( true ); } );
+    // A changed or removed Team Naming Group names values anew in every open
+    // Log File, and shows in the Value Names tab.
+    connect( teamFolder.get(), &TeamFolder::namingGroupsChanged, this,
+             &MainWindow::applyTeamNamingGroups );
     // A sync that reached the repository knows the groups, however few: only
     // then is an activation of a Team set that is not there dropped.
     connect( teamFolder.get(), &TeamFolder::syncFinished, this, [ this ] {
@@ -1929,6 +2031,7 @@ void MainWindow::connectTeamFolder()
     filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
     // Before the first sync no group is known yet: nothing is dropped.
     applyTeamHighlighterSets( teamFolder->state() == TeamFolder::State::Synced );
+    applyTeamNamingGroups();
     updateTeamFolderIndicator();
 }
 
@@ -1994,7 +2097,7 @@ void MainWindow::askAboutPendingConflicts()
                                   .arg( result.request.name ),
                               QMessageBox::NoButton, this );
         question.setInformativeText(
-            result.theirsFilterGroup || result.theirsHighlighterSet
+            result.hasTheirs()
                 ? tr( "Keep your version and replace theirs, take theirs and drop your change, or "
                       "save yours as a copy next to theirs?" )
                 : tr( "Somebody deleted it. Keep your version to publish it again, or take the "
@@ -2035,6 +2138,21 @@ void MainWindow::applyTeamHighlighterSets( bool dropUnknownActivations )
     updateHighlightersMenu();
 }
 
+void MainWindow::applyTeamNamingGroups()
+{
+    const auto teamFolder = session_.teamFolder();
+    if ( !teamFolder ) {
+        return;
+    }
+
+    // Every window comes here for the same sync; the first one changes the
+    // collection, which tells every window. The Team groups are never saved:
+    // the Team Folder holds them.
+    if ( ValueNamesCollection::get().setTeamGroups( teamFolder->namingGroups() ) ) {
+        session_.applyChange( Changed::ValueNames );
+    }
+}
+
 void MainWindow::updateTeamFolderIndicator()
 {
     const auto teamFolder = session_.teamFolder();
@@ -2060,6 +2178,10 @@ void MainWindow::applySettingsChange()
     newWindowAction->setVisible( config.allowMultipleWindows() );
     followAction->setEnabled( session_.watchPolicy().anyWatchEnabled() );
     applyQuickFindPolicy();
+    // The Regex Lab matches with the engine a Search runs on.
+    if ( !regexLab_.isNull() ) {
+        regexLab_->setEngine( session_.searchPolicy().regexpEngine );
+    }
 
     updateShortcuts();
     updateRecentFileActions();
@@ -2199,6 +2321,11 @@ void MainWindow::documentation()
 void MainWindow::showScratchPad()
 {
     showSidebar( SidebarScratchPadTab );
+}
+
+void MainWindow::showValueNamesPanel()
+{
+    showSidebar( SidebarValueNamesTab );
 }
 
 void MainWindow::sendToScratchpad( QString newData )
@@ -2453,6 +2580,9 @@ void MainWindow::toggleFilteredLineNumbersVisibility( bool isVisible )
     session_.applyChange( Changed::Settings );
 }
 
+// The one place the follow action is written: from what the View Set of the
+// Log File in front holds, as it says it or as it is read when the tab comes
+// to the front (#558, #635).
 void MainWindow::changeFollowMode( bool follow )
 {
     if ( follow && !session_.watchPolicy().anyWatchEnabled() ) {
@@ -2510,6 +2640,15 @@ void MainWindow::updateLoadingProgress( int progress )
 {
     LOG_DEBUG << "Loading progress: " << progress;
 
+    // We ignore 0% and 100% to avoid a flash when the file (or update)
+    // is very short.
+    if ( progress > 0 && progress < 100 ) {
+        showLoadingProgress( progress );
+    }
+}
+
+void MainWindow::showLoadingProgress( int progress )
+{
     // Guard: currentCrawlerWidget() returns nullptr when the active tab is
     // not a CrawlerWidget.
     auto* crawler = currentCrawlerWidget();
@@ -2519,19 +2658,13 @@ void MainWindow::updateLoadingProgress( int progress )
 
     QString current_file = QDir::toNativeSeparators( session_.getFilename( crawler ) );
 
-    // We ignore 0% and 100% to avoid a flash when the file (or update)
-    // is very short. A load under way replayed by the tab brought to the
-    // front is shown whatever its progress: the info line still describes
-    // the tab shown before (#540).
-    if ( replayingFrontTab_ || ( progress > 0 && progress < 100 ) ) {
-        infoLine->setText( current_file + tr( " - Indexing lines... (%1 %)" ).arg( progress ) );
-        infoLine->displayGauge( progress );
+    infoLine->setText( current_file + tr( " - Indexing lines... (%1 %)" ).arg( progress ) );
+    infoLine->displayGauge( progress );
 
-        showInfoLabels( false );
+    showInfoLabels( false );
 
-        stopAction->setEnabled( true );
-        reloadAction->setEnabled( false );
-    }
+    stopAction->setEnabled( true );
+    reloadAction->setEnabled( false );
 }
 
 void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& failure )
@@ -2558,7 +2691,7 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
         lineNumberHandler( 0_lnum, LinesCount( 0 ), LineColumn( 0 ), LineLength( 0 ) );
 
         // The Log Format is recognized once the load has finished.
-        updateGoToTimestampAction( crawler );
+        updateGoToTimestampAction( crawler->state() );
 
         // Now everything is ready, we can finally show the file!
         crawler->show();
@@ -2582,9 +2715,9 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
             alertBox.exec();
         }
 
-        // Heard as the load ended, or replayed as its tab is brought to the
-        // front after it failed there (#540): the tab is closed once the
-        // tab switch is done, and a Failed load is offered to be reported.
+        // Heard as the load ended, or read as its tab is brought to the front
+        // after it failed there (#540): the tab is closed once the tab switch
+        // is done, and a Failed load is offered to be reported.
         QTimer::singleShot(
             0, this, [ this, failed = QPointer<CrawlerWidget>( crawler ), status, failure ] {
                 const auto index = failed ? mainTabWidget_.indexOf( failed ) : -1;
@@ -2727,16 +2860,33 @@ void MainWindow::currentTabChanged( int index )
             session_.startLoading( crawler_widget );
         }
 
-        replayingFrontTab_ = true;
-        signalMux_.setCurrentDocument( crawler_widget );
-        replayingFrontTab_ = false;
+        connectFrontTab( crawler_widget );
         quickFindMux_.registerSelector( crawler_widget );
+
+        // The window heard nothing of this Log File while its tab was not in
+        // front: it shows what the Log File's state says (#540, #635).
+        const auto loadState = crawler_widget->state();
+        if ( loadState.loadStatus ) {
+            // As the last load ended, failed included.
+            handleLoadingFinished( *loadState.loadStatus, loadState.loadFailure );
+        }
+        else {
+            // A load under way is shown loading whatever its progress: the
+            // info line still describes the tab shown before.
+            showLoadingProgress( loadState.loadingProgress );
+        }
 
         // No configuration is applied here: a settings change has already
         // reached this Log File, in front or not (#245).
         crawler_widget->broughtToFront();
 
-        updateMenuBarFromDocument( crawler_widget );
+        // Read again: a failed load's message box runs an event loop, in which
+        // the Log File may have changed, a queued follow among others. The
+        // Log Line selected in it is shown after its load, which shows the
+        // first (#692).
+        const auto state = crawler_widget->state();
+        lineNumberHandler( state.selectedLine, 0_lcount, 0_lcol, 0_length );
+        updateMenuBarFromDocument( state );
         updateTitleBar( session_.getFilename( crawler_widget ) );
         updateFavoritesMenu();
 
@@ -2748,7 +2898,7 @@ void MainWindow::currentTabChanged( int index )
     else {
         // No tab, or one that holds no Log File, such as the dashboard -- clear
         // the document state
-        signalMux_.setCurrentDocument( nullptr );
+        connectFrontTab( nullptr );
         quickFindMux_.registerSelector( nullptr );
 
         infoLine->hideGauge();
@@ -2776,6 +2926,52 @@ void MainWindow::currentTabChanged( int index )
             showDashboardOrTabs();
         }
     }
+}
+
+void MainWindow::connectFrontTab( CrawlerWidget* crawler )
+{
+    for ( const auto& connection : frontTabConnections_ ) {
+        disconnect( connection );
+    }
+    frontTabConnections_.clear();
+    if ( crawler == nullptr ) {
+        return;
+    }
+
+    frontTabConnections_ = {
+        // What the window asks of the Log File in front
+        connect( this, &MainWindow::followSet, crawler, &CrawlerWidget::followSet ),
+        connect( this, &MainWindow::textWrapSet, crawler, &CrawlerWidget::textWrapSet ),
+        connect( this, &MainWindow::valueNamesShownSet, crawler,
+                 &CrawlerWidget::valueNamesShownSet ),
+        connect( this, &MainWindow::enteringQuickFind, crawler, &CrawlerWidget::enteringQuickFind ),
+        connect( &quickFindWidget_, &QuickFindWidget::close, crawler,
+                 &CrawlerWidget::exitingQuickFind ),
+        connect( goToLineAction, &QAction::triggered, crawler, &CrawlerWidget::goToLine ),
+        connect( goToTimestampAction, &QAction::triggered, crawler, &CrawlerWidget::goToTimestamp ),
+        connect( searchLimitsTimeRangeAction, &QAction::triggered, crawler,
+                 &CrawlerWidget::setSearchLimitsToTimeRange ),
+        connect( searchLimitsAroundLineAction, &QAction::triggered, crawler,
+                 &CrawlerWidget::setSearchLimitsAroundCurrentLine ),
+        connect( reloadAction, &QAction::triggered, crawler, &CrawlerWidget::reload ),
+        connect( stopAction, &QAction::triggered, crawler, &CrawlerWidget::stopLoading ),
+
+        // What the Log File in front tells the window
+        connect( crawler, &CrawlerWidget::followModeChanged, this, &MainWindow::changeFollowMode ),
+        connect( crawler, &CrawlerWidget::newSelection, this, &MainWindow::lineNumberHandler ),
+        connect( crawler, &CrawlerWidget::saveCurrentSearchAsPredefinedFilter, this,
+                 &MainWindow::newPredefinedFilterHandler ),
+        connect( crawler, &CrawlerWidget::sendToScratchpad, this, &MainWindow::sendToScratchpad ),
+        connect( crawler, &CrawlerWidget::replaceDataInScratchpad, this,
+                 &MainWindow::replaceDataInScratchpad ),
+        connect( crawler, &CrawlerWidget::loadingProgressed, this,
+                 &MainWindow::updateLoadingProgress ),
+        connect( crawler, &CrawlerWidget::loadingFinished, this,
+                 &MainWindow::handleLoadingFinished ),
+        connect( crawler, &CrawlerWidget::statusMessage, this, &MainWindow::showStatusMessage ),
+        connect( crawler, &CrawlerWidget::filteredViewChanged, this,
+                 &MainWindow::handleFilteredViewChanged ),
+    };
 }
 
 void MainWindow::changeQFPattern( const QString& newPattern )
@@ -3238,8 +3434,7 @@ bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFil
             const auto& config = Configuration::get();
             if ( session_.watchPolicy().anyWatchEnabled()
                  && ( followFile || config.followFileOnLoad() ) ) {
-                signalCrawlerToFollowFile( crawlerWidget );
-                followAction->setChecked( true );
+                followOnOpen( crawlerWidget );
             }
             // A command or standard input that ended before its tab opened.
             if ( const auto source = commandSources_.find( fileName );
@@ -3354,9 +3549,9 @@ void MainWindow::clearRecentFileActions()
 }
 // Update our menu bar to match the settings of the crawler
 // (used when the tab is changed)
-void MainWindow::updateMenuBarFromDocument( const CrawlerWidget* crawler )
+void MainWindow::updateMenuBarFromDocument( const CrawlerWidget::State& state )
 {
-    const auto encodingMib = crawler->encodingMib();
+    const auto& encodingMib = state.encodingMib;
 
     auto encodingActions = encodingGroup->actions();
     auto encodingItem = std::find_if( encodingActions.begin(), encodingActions.end(),
@@ -3370,24 +3565,24 @@ void MainWindow::updateMenuBarFromDocument( const CrawlerWidget* crawler )
         ( *encodingItem )->setChecked( true );
     }
 
-    // The action mirrors the Log File's follow; the View Set holds it.
-    followAction->setChecked( crawler->isFollowEnabled() );
-    textWrapAction->setChecked( crawler->isTextWrapEnabled() );
-    updateGoToTimestampAction( crawler );
+    changeFollowMode( state.follows );
+    textWrapAction->setChecked( state.textWrap );
+    showValueNamesAction->setChecked( state.valueNamesShown );
+    updateGoToTimestampAction( state );
 }
 
 // "Go to timestamp" is there for a Log File whose Log Format has a timestamp
 // field; without one it says why it is not.
-void MainWindow::updateGoToTimestampAction( const CrawlerWidget* crawler )
+void MainWindow::updateGoToTimestampAction( const CrawlerWidget::State& state )
 {
-    const auto reason = crawler ? crawler->goToTimestampUnavailableReason() : QString();
-    goToTimestampAction->setEnabled( crawler != nullptr && reason.isEmpty() );
+    const auto& reason = state.goToTimestampUnavailable;
+    goToTimestampAction->setEnabled( reason.isEmpty() );
     goToTimestampAction->setToolTip( reason.isEmpty() ? goToTimestampAction->statusTip() : reason );
 
     // The time Search Limits need the same: a Timestamp on the Log Lines.
-    const auto limitsReason = crawler ? crawler->searchLimitsByTimeUnavailableReason() : QString();
+    const auto& limitsReason = state.searchLimitsByTimeUnavailable;
     for ( auto* action : { searchLimitsTimeRangeAction, searchLimitsAroundLineAction } ) {
-        action->setEnabled( crawler != nullptr && limitsReason.isEmpty() );
+        action->setEnabled( limitsReason.isEmpty() );
         action->setToolTip( limitsReason.isEmpty() ? action->statusTip() : limitsReason );
     }
 }

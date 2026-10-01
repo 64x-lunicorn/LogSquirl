@@ -97,6 +97,7 @@ const QStringList DialogSettingNames = {
     "view.scaleFactorRounding",
     "view.showDashboard",
     "view.showSplashScreen",
+    "view.showValueNames",
     "view.style",
     "view.textWrap",
 };

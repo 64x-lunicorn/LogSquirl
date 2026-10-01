@@ -43,6 +43,7 @@
 #include "indexoperation.h"
 #include "logdata.h"
 #include "progress.h"
+#include "textencoding.h"
 
 // Indexing is built entirely from an Indexing Policy (#94): no
 // Configuration, no settings bootstrap, no portable-settings constant.
@@ -243,6 +244,36 @@ QByteArray linesOf( int first, int count, int paddingBytes = 0 )
     return content;
 }
 
+const auto Groesse = QStringLiteral( "Gr\u00f6\u00dfe" );
+
+// German Log Lines ending in one that says "Größe": enough of them for the
+// detector to tell the encoding they are written in.
+QString germanLines()
+{
+    return QStringLiteral( "Die Gr\u00f6\u00dfe der \u00dcbertragung betr\u00e4gt 1024 Bytes\n"
+                           "Gr\u00fc\u00dfe aus M\u00fcnchen, sch\u00f6ne Gr\u00fc\u00dfe\n"
+                           "Der B\u00e4cker \u00f6ffnet um f\u00fcnf, die Stra\u00dfe ist "
+                           "gro\u00df\n"
+                           "Gr\u00f6\u00dfe\n" );
+}
+
+QByteArray latin1Lines()
+{
+    return germanLines().toLatin1();
+}
+
+// More ASCII than the detector looks at in one sample.
+QByteArray asciiBeyondOneSample()
+{
+    return linesOf( 0, 5000, 60 );
+}
+
+bool isLatinEncoding( const TextEncoding* encoding )
+{
+    const auto name = encoding->name();
+    return name == "ISO-8859-1" || name == "windows-1252" || name == "ISO-8859-15";
+}
+
 // Where the last Log Line of an Index starts: the end of the line before it.
 qint64 startOfLastLine( const IndexingRun& run )
 {
@@ -347,6 +378,19 @@ SCENARIO( "Reopening a grown Log File indexes only what was added to it", "[inde
                     REQUIRE( again.bytesIndexed == 0 );
                     requireSameIndex( again, full );
                 }
+            }
+        }
+
+        WHEN( "Log Lines in ISO-8859-1 are appended and it is reopened" )
+        {
+            appendContent( logFile, latin1Lines() );
+            const auto resumed = runFullIndex( logFile, policy );
+
+            THEN( "the Encoding of the cached Index is kept, not detected again (#657)" )
+            {
+                REQUIRE( resumed.bytesIndexed < resumed.hash.size );
+                REQUIRE( cached.encoding == "UTF-8" );
+                REQUIRE( resumed.encoding == cached.encoding );
             }
         }
 
@@ -539,11 +583,14 @@ namespace {
 // partial index for what was appended.
 class FollowedIndex {
 public:
-    FollowedIndex( const QString& fileName, const IndexingPolicy& policy )
+    FollowedIndex( const QString& fileName, const IndexingPolicy& policy,
+                   const TextEncoding* forcedEncoding = nullptr )
         : fileName_( fileName )
         , policy_( policy )
     {
-        FullIndexOperation operation{ fileName_, data_, run_, policy_ };
+        FullIndexOperation operation{
+            fileName_, data_, run_, policy_, FullIndexRequest::Automatic, forcedEncoding
+        };
         REQUIRE( std::get<LoadingStatus>( operation.run().status ) == LoadingStatus::Successful );
     }
 
@@ -569,6 +616,40 @@ public:
     LinesCount lines() const
     {
         return IndexingData::ConstAccessor{ data_.get() }.getNbLines();
+    }
+
+    const TextEncoding* encodingGuess() const
+    {
+        return IndexingData::ConstAccessor{ data_.get() }.getEncodingGuess();
+    }
+
+    const TextEncoding* forcedEncoding() const
+    {
+        return IndexingData::ConstAccessor{ data_.get() }.getForcedEncoding();
+    }
+
+    // A Log Line as the Index reads it: in the Encoding forced, else in the
+    // one guessed.
+    QString line( LineNumber number ) const
+    {
+        IndexingData::ConstAccessor accessor{ data_.get() };
+        REQUIRE( number.get() < accessor.getNbLines().get() );
+        const auto start = number.get() > 0
+                               ? accessor.getEndOfLineOffset( LineNumber( number.get() - 1 ) ).get()
+                               : 0;
+        const auto end = accessor.getEndOfLineOffset( number ).get() - 1;
+
+        QFile file( fileName_ );
+        REQUIRE( file.open( QIODevice::ReadOnly ) );
+        REQUIRE( file.seek( start ) );
+        const auto* encoding = accessor.getForcedEncoding() ? accessor.getForcedEncoding()
+                                                            : accessor.getEncodingGuess();
+        return encoding->toUnicode( file.read( end - start ) );
+    }
+
+    QString lastLine() const
+    {
+        return line( LineNumber( lines().get() - 1 ) );
     }
 
 private:
@@ -950,6 +1031,199 @@ SCENARIO( "An explicit reload notices a Log File rewritten in place with the sam
                 REQUIRE( logData.getNbLine() == rewritten.lines );
                 REQUIRE( logData.getLineString( LineNumber( firstRewritten ) )
                          == QString( 99, QChar( 'r' ) ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A growing Log File that starts with ASCII detects its Encoding once it goes beyond",
+          "[indexing][follow][encoding]" )
+{
+    QTemporaryDir logDir;
+    REQUIRE( logDir.isValid() );
+
+    auto policy = testSettingsPolicies().indexing;
+    policy.useIndexCache = false;
+
+    const auto logFile = logDir.filePath( "growing.log" );
+    const auto* utf8 = TextEncoding::forName( "UTF-8" );
+
+    GIVEN( "an Index of a Log File of ASCII Log Lines" )
+    {
+        writeContent( logFile, "Ping 1\nPing 2\n" );
+        FollowedIndex index( logFile, policy );
+
+        THEN( "its Encoding is taken for UTF-8" )
+        {
+            REQUIRE( index.encodingGuess() == utf8 );
+        }
+
+        WHEN( "a Log Line in UTF-8 is appended and indexed" )
+        {
+            appendContent( logFile, Groesse.toUtf8() + "\n" );
+            index.indexAppendedLines();
+
+            THEN( "the Encoding is UTF-8 and the Log Line reads right" )
+            {
+                REQUIRE( index.encodingGuess() == utf8 );
+                REQUIRE( index.lastLine() == Groesse );
+            }
+        }
+
+        WHEN( "Log Lines in ISO-8859-1 are appended and indexed" )
+        {
+            appendContent( logFile, latin1Lines() );
+            index.indexAppendedLines();
+
+            THEN( "the Encoding is a Latin one and the Log Lines read right" )
+            {
+                INFO( "guess " << index.encodingGuess()->name().toStdString() );
+                REQUIRE( isLatinEncoding( index.encodingGuess() ) );
+                REQUIRE( index.lastLine() == Groesse );
+            }
+
+            AND_WHEN( "a Log Line in UTF-8 follows" )
+            {
+                const auto* latin = index.encodingGuess();
+                appendContent( logFile, Groesse.toUtf8() + "\n" );
+                index.indexAppendedLines();
+
+                THEN( "the Encoding is not detected again" )
+                {
+                    REQUIRE( index.encodingGuess() == latin );
+                }
+            }
+        }
+
+        WHEN( "more ASCII Log Lines come first, then ones in ISO-8859-1" )
+        {
+            appendContent( logFile, "Ping 3\n" );
+            index.indexAppendedLines();
+            REQUIRE( index.encodingGuess() == utf8 );
+
+            appendContent( logFile, latin1Lines() );
+            index.indexAppendedLines();
+
+            THEN( "the Encoding is still detected from the first bytes beyond ASCII" )
+            {
+                REQUIRE( isLatinEncoding( index.encodingGuess() ) );
+                REQUIRE( index.lastLine() == Groesse );
+            }
+        }
+    }
+
+    GIVEN( "an Index of a Log File of ASCII Log Lines, more than one sample of them" )
+    {
+        writeContent( logFile, asciiBeyondOneSample() );
+        FollowedIndex index( logFile, policy );
+
+        WHEN( "more of them and Log Lines in ISO-8859-1 are appended at once, and indexed" )
+        {
+            appendContent( logFile, asciiBeyondOneSample() + latin1Lines() );
+            index.indexAppendedLines();
+
+            THEN( "the Encoding is detected from the Log Lines in ISO-8859-1" )
+            {
+                INFO( "guess " << index.encodingGuess()->name().toStdString() );
+                REQUIRE( isLatinEncoding( index.encodingGuess() ) );
+                REQUIRE( index.lastLine() == Groesse );
+            }
+        }
+    }
+
+    GIVEN( "an Index of a Log File of more ASCII than one sample, then Log Lines in UTF-8" )
+    {
+        writeContent( logFile, asciiBeyondOneSample() + germanLines().toUtf8() );
+        FollowedIndex index( logFile, policy );
+        const auto lastUtf8Line = LineNumber( index.lines().get() - 1 );
+
+        THEN( "the Encoding is UTF-8 and the Log Lines read right" )
+        {
+            REQUIRE( index.encodingGuess() == utf8 );
+            REQUIRE( index.line( lastUtf8Line ) == Groesse );
+        }
+
+        WHEN( "Log Lines in ISO-8859-1 are appended and indexed" )
+        {
+            appendContent( logFile, latin1Lines() );
+            index.indexAppendedLines();
+
+            THEN( "the Encoding is not detected again, and the Log Lines in UTF-8 read right" )
+            {
+                REQUIRE( index.encodingGuess() == utf8 );
+                REQUIRE( index.line( lastUtf8Line ) == Groesse );
+            }
+        }
+    }
+
+    GIVEN( "an Index of an empty Log File" )
+    {
+        writeContent( logFile, "" );
+        FollowedIndex index( logFile, policy );
+
+        THEN( "its Encoding is taken for UTF-8, as for ASCII" )
+        {
+            REQUIRE( index.encodingGuess() == utf8 );
+        }
+
+        WHEN( "ASCII Log Lines are appended and indexed" )
+        {
+            appendContent( logFile, "Ping 1\n" );
+            index.indexAppendedLines();
+
+            THEN( "the Encoding is still UTF-8" )
+            {
+                REQUIRE( index.encodingGuess() == utf8 );
+            }
+        }
+
+        WHEN( "Log Lines in ISO-8859-1 are appended and indexed" )
+        {
+            appendContent( logFile, latin1Lines() );
+            index.indexAppendedLines();
+
+            THEN( "the Encoding is detected from them" )
+            {
+                REQUIRE( isLatinEncoding( index.encodingGuess() ) );
+                REQUIRE( index.lastLine() == Groesse );
+            }
+        }
+    }
+
+    GIVEN( "an Index of a Log File that goes beyond ASCII from the start" )
+    {
+        writeContent( logFile, "Ping 1\n" + Groesse.toUtf8() + "\n" );
+        FollowedIndex index( logFile, policy );
+        REQUIRE( index.encodingGuess() == utf8 );
+
+        WHEN( "Log Lines in ISO-8859-1 are appended and indexed" )
+        {
+            appendContent( logFile, latin1Lines() );
+            index.indexAppendedLines();
+
+            THEN( "it keeps the Encoding detected first" )
+            {
+                REQUIRE( index.encodingGuess() == utf8 );
+            }
+        }
+    }
+
+    GIVEN( "an Index of a Log File of ASCII Log Lines with an Encoding forced" )
+    {
+        writeContent( logFile, "Ping 1\nPing 2\n" );
+        FollowedIndex index( logFile, policy, utf8 );
+
+        WHEN( "Log Lines in ISO-8859-1 are appended and indexed" )
+        {
+            appendContent( logFile, latin1Lines() );
+            index.indexAppendedLines();
+
+            THEN( "the guess may change, but they are read in the Encoding forced" )
+            {
+                REQUIRE( isLatinEncoding( index.encodingGuess() ) );
+                REQUIRE( index.forcedEncoding() == utf8 );
+                REQUIRE( index.lastLine() == utf8->toUnicode( Groesse.toLatin1() ) );
+                REQUIRE( index.lastLine() != Groesse );
             }
         }
     }

@@ -60,6 +60,46 @@ QColor rowColorOr( const QColor& rowColor, QColor ( *gutterColor )() )
     return rowColor.isValid() ? rowColor : gutterColor();
 }
 
+// The match grown to cover every Whole Run it covers part of.
+HighlightedMatch coveringWholeRuns( const HighlightedMatch& match,
+                                    const logsquirl::vector<WholeRun>& wholeRuns )
+{
+    auto start = static_cast<int>( match.startColumn().get() );
+    auto end = start + static_cast<int>( match.size().get() );
+    if ( end <= start ) {
+        return match;
+    }
+
+    // The first run ending after the start, and the first starting at or
+    // after the end: only a run in between can be touched, and only the
+    // first and the last of them can stick out.
+    const auto first
+        = std::upper_bound( wholeRuns.begin(), wholeRuns.end(), start,
+                            []( int column, const WholeRun& run ) { return column < run.end; } );
+    const auto afterLast
+        = std::lower_bound( first, wholeRuns.end(), end,
+                            []( const WholeRun& run, int column ) { return run.start < column; } );
+    if ( first == afterLast ) {
+        return match;
+    }
+    start = std::min( start, first->start );
+    end = std::max( end, std::prev( afterLast )->end );
+
+    return HighlightedMatch{ LineColumn{ start }, LineLength{ end - start }, match.foreColor(),
+                             match.backColor() };
+}
+
+// The matches, each grown to cover the Whole Runs it covers part of.
+logsquirl::vector<HighlightedMatch>
+coveringWholeRuns( logsquirl::vector<HighlightedMatch> matches,
+                   const logsquirl::vector<WholeRun>& wholeRuns )
+{
+    for ( auto& match : matches ) {
+        match = coveringWholeRuns( match, wholeRuns );
+    }
+    return matches;
+}
+
 } // namespace
 
 LineVerdict LineDecorator::verdictFor( const LogLine& line, AbstractLogData::LineType lineType,
@@ -125,9 +165,21 @@ HighlightColor LineDecorator::lineColorsFor( const LineVerdict& verdict ) const
 
 Decoration LineDecorator::decorate( const QString& text, const LineVerdict& verdict,
                                     const std::optional<HighlightedMatch>& selection,
-                                    const logsquirl::vector<HighlightedMatch>& ansiColors ) const
+                                    const logsquirl::vector<HighlightedMatch>& ansiColors,
+                                    const logsquirl::vector<WholeRun>& wholeRuns ) const
 {
     HighlightedMatchRanges ranges;
+
+    // Every source is added through here. Without Whole Runs, as always but
+    // for a Text View showing Value Names, a match is added as it is.
+    const auto addMatches = [ &ranges, &wholeRuns ]( logsquirl::vector<HighlightedMatch> matches ) {
+        if ( wholeRuns.empty() ) {
+            ranges.addMatches( matches );
+        }
+        else {
+            ranges.addMatches( coveringWholeRuns( std::move( matches ), wholeRuns ) );
+        }
+    };
 
     if ( !verdict.isOutsideSearchLimits() && !verdict.isSelectedAsWhole() ) {
         // The lowest source: everything below paints over it. They come
@@ -140,33 +192,40 @@ Decoration LineDecorator::decorate( const QString& text, const LineVerdict& verd
                     ansiColor = HighlightedMatch{ ansiColor.startColumn(), ansiColor.size(), dimmed,
                                                   ansiColor.backColor() };
                 }
-                ranges.addMatch( ansiColor );
+                ranges.addMatch( wholeRuns.empty() ? ansiColor
+                                                   : coveringWholeRuns( ansiColor, wholeRuns ) );
             }
         }
 
-        ranges.addMatches( verdict.highlighterSpans() );
+        if ( wholeRuns.empty() ) {
+            ranges.addMatches( verdict.highlighterSpans() );
+        }
+        else {
+            addMatches( verdict.highlighterSpans() );
+        }
 
         if ( context_.mainSearch.has_value() ) {
             logsquirl::vector<HighlightedMatch> matches;
             context_.mainSearch->matchLine( text, matches );
-            ranges.addMatches( matches );
+            addMatches( std::move( matches ) );
         }
 
         for ( const auto& colorLabel : context_.colorLabels ) {
             logsquirl::vector<HighlightedMatch> matches;
             colorLabel.matchLine( text, matches );
-            ranges.addMatches( matches );
+            addMatches( std::move( matches ) );
         }
     }
 
     {
         logsquirl::vector<HighlightedMatch> quickFindMatches;
         context_.quickFind.matchLine( text, quickFindMatches, context_.quickFindColor );
-        ranges.addMatches( quickFindMatches );
+        addMatches( std::move( quickFindMatches ) );
     }
 
     if ( selection.has_value() && !verdict.isSelectedAsWhole() ) {
-        ranges.addMatch( *selection );
+        ranges.addMatch( wholeRuns.empty() ? *selection
+                                           : coveringWholeRuns( *selection, wholeRuns ) );
     }
 
     // Fill every gap between the sources with the line's own colors, so the
@@ -241,6 +300,17 @@ Decoration Decoration::inDisplayColumns( QStringView rawText, LineLength display
         };
     }
 
+    return std::move( *this );
+}
+
+Decoration Decoration::inColumns( const std::function<int( int )>& column ) &&
+{
+    for ( auto& span : spans_ ) {
+        const auto start = column( static_cast<int>( span.startColumn().get() ) );
+        const auto end = column( static_cast<int>( span.startColumn().get() + span.size().get() ) );
+        span = HighlightedMatch{ LineColumn{ start }, LineLength{ std::max( 0, end - start ) },
+                                 span.foreColor(), span.backColor() };
+    }
     return std::move( *this );
 }
 

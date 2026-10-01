@@ -167,6 +167,11 @@ void ViewSet::applyHighlighterSetChange()
     forEachView( []( const HeldView& held ) { held.view->updateDecorations(); } );
 }
 
+void ViewSet::applyValueNamesChange()
+{
+    forEachView( []( const HeldView& held ) { held.view->applyValueNamesChange(); } );
+}
+
 void ViewSet::registerShortcuts()
 {
     forEachView( []( const HeldView& held ) { held.view->registerShortcuts(); } );

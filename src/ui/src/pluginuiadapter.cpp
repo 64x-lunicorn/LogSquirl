@@ -19,7 +19,9 @@
 
 #include "pluginuiadapter.h"
 
+#include "crawlerwidget.h"
 #include "log.h"
+#include "regexlabwindow.h"
 
 #include <QCoreApplication>
 #include <QHBoxLayout>
@@ -31,8 +33,13 @@
 #include <QToolBar>
 
 #include <algorithm>
+#include <limits>
 
 using logsquirl::plugins::PluginCallbackFn;
+using logsquirl::plugins::PluginLogLineJump;
+using logsquirl::plugins::PluginPattern;
+using logsquirl::plugins::PluginRegexLabAnswer;
+using logsquirl::plugins::PluginSelectedLogLines;
 using logsquirl::plugins::PluginWidgetHandle;
 
 namespace {
@@ -356,10 +363,110 @@ void PluginUiAdapter::removeContributions( const QString& pluginId )
         removeFromToolBar( statusToolBar_, pluginId, nullptr );
         removeFromToolBar( footerToolBar_, pluginId, nullptr );
         removeFromSidebar( pluginId, nullptr );
+
+        // A Lab the plugin opened answers as it closes; once the plugin is
+        // unloaded, its answer context is gone and nothing reaches it.
+        if ( const auto it = regexLabs_.find( pluginId ); it != regexLabs_.end() ) {
+            const auto labs = std::move( it->second );
+            regexLabs_.erase( it );
+            for ( const auto& lab : labs ) {
+                if ( lab ) {
+                    lab->close();
+                }
+            }
+        }
     } );
 }
 
 PluginWidgetHandle PluginUiAdapter::configurationParent()
 {
     return PluginWidgetHandle{ static_cast<void*>( static_cast<QWidget*>( &window_ ) ) };
+}
+
+void PluginUiAdapter::setRegexLabSampleSource( std::function<RegexLabSampleSource()> sampleSource )
+{
+    regexLabSampleSource_ = std::move( sampleSource );
+}
+
+bool PluginUiAdapter::openRegexLab( const QString& pluginId, const PluginPattern& pattern,
+                                    QObject* context, PluginRegexLabAnswer answer )
+{
+    if ( QThread::currentThread() != window_.thread() || context == nullptr || !answer ) {
+        return false;
+    }
+
+    // Plugins match their patterns themselves, with Qt's QRegularExpression
+    // as a rule: the Lab matches as it does, whatever engine the Searches
+    // run on. A window of its own over the main window, which it goes with.
+    // Connected with the plugin's answer context, never with this adapter:
+    // along with the window, the Lab answers after the adapter is gone.
+    auto* lab = showRegexLab(
+        RegexLabOpening{ .engine = RegexpEngine::QRegularExpression,
+                         .parent = &window_,
+                         .modal = false,
+                         .offerApply = true,
+                         .sampleSource = regexLabSampleSource_ },
+        [ &pattern ]( RegexLabWindow& opened ) {
+            opened.setPattern( RegularExpressionPattern( pattern.pattern, pattern.matchesCase,
+                                                         false, false, false ) );
+            // Always a regular expression; the plugin keeps only whether it
+            // matches case.
+            opened.setOptionsKept( RegexLabWindow::Option::MatchCase,
+                                   RegexLabWindow::Option::UseRegexp );
+        },
+        context,
+        [ answer ]( const RegularExpressionPattern& applied ) {
+            answer( PluginPattern{ .pattern = applied.pattern,
+                                   .matchesCase = applied.isCaseSensitive } );
+        } );
+    QObject::connect( lab, &RegexLabWindow::cancelled, context,
+                      [ answer ]() { answer( std::nullopt ); } );
+
+    auto& labs = regexLabs_[ pluginId ];
+    std::erase_if( labs, []( const QPointer<RegexLabWindow>& open ) { return open.isNull(); } );
+    labs.emplace_back( lab );
+
+    LOG_INFO << "Plugin " << pluginId << " opened the Regex Lab";
+    lab->raise();
+    lab->activateWindow();
+    return true;
+}
+
+void PluginUiAdapter::setTabInFront( std::function<CrawlerWidget*()> tabInFront )
+{
+    tabInFront_ = std::move( tabInFront );
+}
+
+PluginLogLineJump PluginUiAdapter::goToLogLine( std::uint64_t logLine )
+{
+    if ( QThread::currentThread() != window_.thread() || !tabInFront_ ) {
+        return PluginLogLineJump::NoLogFile;
+    }
+    auto* tab = tabInFront_();
+    if ( tab == nullptr ) {
+        return PluginLogLineJump::NoLogFile;
+    }
+    return tab->goToLogLine( LineNumber( logLine ) ) ? PluginLogLineJump::Shown
+                                                     : PluginLogLineJump::OutOfRange;
+}
+
+std::optional<PluginSelectedLogLines> PluginUiAdapter::selectedLogLines( std::size_t maxLines,
+                                                                         std::size_t maxBytes )
+{
+    if ( QThread::currentThread() != window_.thread() || !tabInFront_ ) {
+        return std::nullopt;
+    }
+    auto* tab = tabInFront_();
+    if ( tab == nullptr ) {
+        return std::nullopt;
+    }
+    // A selection within a Log Line is that Log Line's, as for the Regex Lab;
+    // no more is looked at or read than the bounds let through.
+    auto texts = tab->selectedLogLineTexts(
+        LinesCount( maxLines ),
+        static_cast<qint64>( std::min<std::size_t>(
+            maxBytes, static_cast<std::size_t>( std::numeric_limits<qint64>::max() ) ) ) );
+    return PluginSelectedLogLines{ .lines = std::move( texts.lines ),
+                                   .lastCut = texts.lastCut,
+                                   .more = texts.more };
 }

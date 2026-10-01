@@ -585,6 +585,67 @@ SCENARIO( "An edited pattern runs the Search at once only when auto-run is on", 
     }
 }
 
+// A pattern tried out in the Regex Lab comes back into the Search Line, its
+// options with it (#661).
+SCENARIO( "A pattern applied from the Regex Lab takes the Search Line's pattern and buttons",
+          "[searchline][regexlab]" )
+{
+    for ( const auto autoRefresh : { false, true } ) {
+        GIVEN( "a Search Line with auto-refresh " << ( autoRefresh ? "on" : "off" ) )
+        {
+            SearchLine line{ startingState( Reading::Regexp ) };
+            line.setPattern( "alpha" );
+            line.setFlags( { .matchCase = false,
+                             .useRegexp = true,
+                             .inverse = false,
+                             .booleanCombination = false,
+                             .autoRefresh = autoRefresh } );
+
+            WHEN( "a logical combination of fixed strings, matching case and inverted, is applied" )
+            {
+                const RegularExpressionPattern applied( R"("beta" and not("gamma"))", true, true,
+                                                        true, true );
+                const auto runNow = line.apply( applied );
+
+                THEN( "the Search Line asks for exactly that Search" )
+                {
+                    REQUIRE( line.pattern() == applied.pattern );
+                    REQUIRE( line.request() == applied );
+                }
+
+                THEN( "auto-refresh stays as it was, and says whether the Search runs now" )
+                {
+                    REQUIRE( line.flags().autoRefresh == autoRefresh );
+                    REQUIRE( runNow == autoRefresh );
+                }
+            }
+        }
+    }
+
+    GIVEN( "a Search Line that reads its pattern as a fixed string, as Wildcard and Fixed String "
+           "do" )
+    {
+        auto policy = startingState( Reading::Plain );
+        policy.mainRegexpType
+            = GENERATE( SearchRegexpType::Wildcard, SearchRegexpType::FixedString );
+        SearchLine line{ policy };
+        line.setPattern( "a.c" );
+
+        WHEN( "the pattern it asks for is applied unchanged" )
+        {
+            const auto request = line.request();
+            REQUIRE( request.isPlainText );
+            line.apply( request );
+
+            THEN( "the Search Line is as it was" )
+            {
+                REQUIRE( line.request() == request );
+                REQUIRE_FALSE( line.flags().useRegexp );
+            }
+        }
+    }
+}
+
 SCENARIO( "The Search Line shows a requested Search", "[searchline]" )
 {
     SearchLine line{ startingState( Reading::Plain ) };

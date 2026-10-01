@@ -74,6 +74,11 @@ public:
     // on these.
     void updateTeamRevisions( const QStringList& ids, const QHash<QString, QString>& revisions );
 
+    // What Test... for a filter opens the Regex Lab with: the Search's engine
+    // and the sample of the tab in front (#660). Without a call, pasted text
+    // only.
+    void setRegexLabAccess( RegexLabAccess access );
+
 Q_SIGNALS:
     void optionsChanged();
     // Team groups were added, renamed or changed, and OK or Apply asks for them

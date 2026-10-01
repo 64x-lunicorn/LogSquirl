@@ -24,6 +24,7 @@
 #include "streamwriter.h"
 
 #include <QDir>
+#include <QThread>
 
 namespace logsquirl::plugins {
 
@@ -115,6 +116,7 @@ QString PluginHost::loadPlugin( const QString& pluginId )
     auto ctx = std::unique_ptr<PluginContext>(
         new PluginContext{ std::move( loadResult.value() ), {}, {}, {}, nullptr, this } );
     ctx->hostApi = buildHostApi();
+    ctx->answerContext = std::make_unique<QObject>();
 
     // Create plugin-private config directory, next to the user plugin
     // directory: beside the executable in a portable run (#602).
@@ -128,6 +130,7 @@ QString PluginHost::loadPlugin( const QString& pluginId )
     if ( !error.isEmpty() ) {
         LOG_ERROR << "Failed to init plugin '" << pluginId << "': " << error;
         // A plugin may have registered contributions before its init failed.
+        ctx->answerContext.reset();
         if ( uiPort_ ) {
             uiPort_->removeContributions( pluginId );
         }
@@ -163,6 +166,10 @@ void PluginHost::unloadPlugin( const QString& pluginId )
         it->second->stream.reset();
         Q_EMIT dataSourceStopped( pluginId );
     }
+
+    // From now on, no answer of the user interface reaches the plugin: a
+    // Regex Lab it opened may still answer while it is closed.
+    it->second->answerContext.reset();
 
     // Shut the plugin down while it is still loaded: it unregisters its
     // widgets through the host callbacks. Whatever it left behind is taken
@@ -380,6 +387,9 @@ LogSquirlHostApi PluginHost::buildHostApi()
     api.unregister_footer_widget = &PluginHost::hostUnregisterFooterWidget;
     api.get_active_file_path = &PluginHost::hostGetActiveFilePath;
     api.register_active_file_callback = &PluginHost::hostRegisterActiveFileCallback;
+    api.open_regex_lab = &PluginHost::hostOpenRegexLab;
+    api.go_to_log_line = &PluginHost::hostGoToLogLine;
+    api.get_selected_log_lines = &PluginHost::hostGetSelectedLogLines;
 
     return api;
 }
@@ -573,6 +583,185 @@ void PluginHost::hostRegisterActiveFileCallback(
     }
     ctx->activeFileCallback = callback;
     ctx->activeFileUserData = user_data;
+}
+
+int PluginHost::hostOpenRegexLab( void* handle, const char* pattern, int flags,
+                                  LogSquirlRegexLabCallbackFn callback, void* userData )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host ) {
+        return -1;
+    }
+    // A window opens on the UI thread only, and it is there the answer comes.
+    // Checked first: the answer context is only touched on that thread.
+    if ( QThread::currentThread() != ctx->host->thread() ) {
+        LOG_WARNING << "Plugin " << ctx->handle.metadata().id()
+                    << " opened the Regex Lab off the UI thread; not opened";
+        return -1;
+    }
+    if ( !ctx->answerContext || !callback ) {
+        return -1;
+    }
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
+        return -1;
+    }
+
+    const PluginPattern opened{ .pattern = QString::fromUtf8( pattern ? pattern : "" ),
+                                .matchesCase = ( flags & LOGSQUIRL_REGEX_LAB_MATCH_CASE ) != 0 };
+    // Called through the answer context only, so never after the plugin is
+    // shut down.
+    auto answer = [ callback, userData ]( const std::optional<PluginPattern>& applied ) {
+        if ( !applied ) {
+            callback( userData, LOGSQUIRL_REGEX_LAB_CANCELLED, nullptr, 0 );
+            return;
+        }
+        const auto appliedUtf8 = applied->pattern.toUtf8();
+        callback( userData, LOGSQUIRL_REGEX_LAB_APPLIED, appliedUtf8.constData(),
+                  applied->matchesCase ? LOGSQUIRL_REGEX_LAB_MATCH_CASE : 0 );
+    };
+    return port->openRegexLab( pluginId, opened, ctx->answerContext.get(), std::move( answer ) )
+               ? 0
+               : -1;
+}
+
+namespace {
+
+/// The selected Log Lines as get_selected_log_lines hands them over: whole
+/// lines joined by '\n' up to the byte bound, a first line longer than that
+/// cut at a character.
+struct SelectedLogLinesText {
+    QByteArray text;
+    size_t lineCount = 0;
+    bool truncated = false;
+};
+
+SelectedLogLinesText selectedLogLinesText( const QStringList& lines, bool more )
+{
+    constexpr auto MaxBytes = static_cast<qsizetype>( LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+    SelectedLogLinesText result;
+    result.truncated = more;
+    for ( const auto& line : lines ) {
+        auto utf8 = line.toUtf8();
+        const qsizetype separator = result.lineCount > 0 ? 1 : 0;
+        if ( result.text.size() + separator + utf8.size() > MaxBytes ) {
+            result.truncated = true;
+            if ( result.lineCount == 0 ) {
+                // Not in the middle of a character: back to its first byte.
+                auto cut = MaxBytes;
+                while ( cut > 0 && ( static_cast<unsigned char>( utf8[ cut ] ) & 0xC0 ) == 0x80 ) {
+                    --cut;
+                }
+                utf8.truncate( cut );
+                result.text = std::move( utf8 );
+                result.lineCount = 1;
+            }
+            break;
+        }
+        if ( separator != 0 ) {
+            result.text.append( '\n' );
+        }
+        result.text.append( utf8 );
+        ++result.lineCount;
+    }
+    return result;
+}
+
+} // namespace
+
+int PluginHost::hostGoToLogLine( void* handle, uint64_t lineNumber )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    // Checked first: the views are only touched on the UI thread.
+    if ( QThread::currentThread() != ctx->host->thread() ) {
+        LOG_WARNING << "Plugin " << ctx->handle.metadata().id()
+                    << " went to a Log Line off the UI thread; not done";
+        return LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD;
+    }
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    // The plugin counts as the view's line numbers do, from 1; the Log File
+    // from 0.
+    if ( lineNumber == 0 ) {
+        return LOGSQUIRL_LOG_LINES_OUT_OF_RANGE;
+    }
+    switch ( port->goToLogLine( lineNumber - 1 ) ) {
+    case PluginLogLineJump::Shown:
+        return LOGSQUIRL_LOG_LINES_OK;
+    case PluginLogLineJump::OutOfRange:
+        return LOGSQUIRL_LOG_LINES_OUT_OF_RANGE;
+    case PluginLogLineJump::NoLogFile:
+        break;
+    }
+    return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+}
+
+int PluginHost::hostGetSelectedLogLines( void* handle, const char** text, size_t* length,
+                                         size_t* lineCount )
+{
+    // Nothing is returned unless the text is.
+    if ( text != nullptr ) {
+        *text = nullptr;
+    }
+    if ( length != nullptr ) {
+        *length = 0;
+    }
+    if ( lineCount != nullptr ) {
+        *lineCount = 0;
+    }
+
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || text == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    // Checked first: the views and the cached text are only touched on the
+    // UI thread.
+    if ( QThread::currentThread() != ctx->host->thread() ) {
+        LOG_WARNING << "Plugin " << ctx->handle.metadata().id()
+                    << " read the selected Log Lines off the UI thread; not read";
+        return LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD;
+    }
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+
+    // One line more than returned says whether there are more; the port
+    // reads no more than the byte bound lets through.
+    auto selected = port->selectedLogLines( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 1,
+                                            LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+    if ( !selected ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    auto& lines = selected->lines;
+    if ( lines.isEmpty() ) {
+        return LOGSQUIRL_LOG_LINES_NO_SELECTION;
+    }
+    bool more = selected->more || selected->lastCut;
+    if ( lines.size() > LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES ) {
+        lines.resize( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+        more = true;
+    }
+    // Only a first Log Line comes cut: one cut after whole ones is left out.
+    else if ( selected->lastCut && lines.size() > 1 ) {
+        lines.removeLast();
+    }
+
+    auto result = selectedLogLinesText( lines, more );
+    ctx->selectedLogLinesUtf8 = std::move( result.text );
+    *text = ctx->selectedLogLinesUtf8.constData();
+    if ( length != nullptr ) {
+        *length = static_cast<size_t>( ctx->selectedLogLinesUtf8.size() );
+    }
+    if ( lineCount != nullptr ) {
+        *lineCount = result.lineCount;
+    }
+    return result.truncated ? LOGSQUIRL_LOG_LINES_TRUNCATED : LOGSQUIRL_LOG_LINES_OK;
 }
 
 } // namespace logsquirl::plugins

@@ -199,6 +199,10 @@ struct PresentationPolicy {
     // Whether the overview of matches and marks is shown beside either
     // Presentation, the Text View and the Table View alike.
     bool overviewVisible{};
+    // Whether a tab starts showing Value Names in its Text View and Filtered
+    // Views (#647). Like text wrapping, only the start: the View menu turns
+    // them on and off per tab.
+    bool showValueNames{};
 
     bool operator==( const PresentationPolicy& ) const = default;
 };

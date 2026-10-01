@@ -316,6 +316,9 @@ void Session::applyChange( Changed change )
     case Changed::HighlighterSets:
         applyHighlighterSetChange();
         break;
+    case Changed::ValueNames:
+        applyValueNamesChange();
+        break;
     }
 }
 
@@ -457,6 +460,21 @@ void Session::applyHighlighterSetChange()
     for ( auto& [ view, openFile ] : openFiles_ ) {
         Q_UNUSED( view );
         openFile.view->applyChange( change );
+    }
+}
+
+void Session::applyValueNamesChange()
+{
+    ViewChange change;
+    change.valueNames = true;
+    for ( auto& [ view, openFile ] : openFiles_ ) {
+        Q_UNUSED( view );
+        openFile.view->applyChange( change );
+    }
+
+    // Every window's sidebar shows the groups and checks, global for all.
+    for ( auto* window : windows_ ) {
+        window->applyValueNamesChange();
     }
 }
 

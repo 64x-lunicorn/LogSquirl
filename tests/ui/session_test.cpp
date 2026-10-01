@@ -229,6 +229,21 @@ SCENARIO( "A change to one Axis reaches every open Log File, and no other Axis i
         }
     }
 
+    WHEN( "the views of one Log File report that the Value Names changed" )
+    {
+        views.built.front()->reportChange( Changed::ValueNames );
+
+        THEN( "every open Log File hears of it, and of nothing else" )
+        {
+            ViewChange expected;
+            expected.valueNames = true;
+            for ( const auto* opened : views.built ) {
+                REQUIRE( opened->changes().size() == 1 );
+                REQUIRE( opened->changes().front() == expected );
+            }
+        }
+    }
+
     WHEN( "a Log File opened after a change" )
     {
         auto changed = policies;

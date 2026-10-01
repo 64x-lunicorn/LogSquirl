@@ -27,6 +27,7 @@
 #include "quickfindpattern.h"
 #include "selection.h"
 #include "shortcuts.h"
+#include "vector_lines.h"
 
 #include <QShortcut>
 #include <QSignalSpy>
@@ -66,91 +67,95 @@ std::vector<uint64_t> everyLogLine()
     return lines;
 }
 
-// Shows the Log Lines in shown, in order, of a Log File whose Log Lines read
-// "log line N"; the Log Lines in marks are Marks, shown or not.
-class VectorLines : public LineMapping {
+// Every one of a huge number of Log Lines shown at its own position, counting
+// how many positions are looked at: no Log File of that size is needed.
+class HugeLines : public VectorLines {
 public:
-    VectorLines( const AbstractLogData* logFile, std::vector<uint64_t> shown,
-                 std::vector<uint64_t> marks = {} )
-        : logFile_( logFile )
-        , shown_( std::move( shown ) )
-        , marks_( std::move( marks ) )
+    static constexpr uint64_t Count = 50'000'000;
+
+    explicit HugeLines( const AbstractLogData* logFile )
+        : VectorLines( logFile, {} )
     {
     }
 
     OptionalLineNumber logLineAt( LineNumber position ) const override
     {
-        if ( position.get() < shown_.size() ) {
-            return LineNumber( shown_[ position.get() ] );
-        }
-        return std::nullopt;
+        ++lookedAt;
+        return position.get() < Count ? OptionalLineNumber( position ) : std::nullopt;
     }
 
     LineNumber nearestPositionOf( LineNumber logLine ) const override
     {
-        const auto after = std::upper_bound( shown_.begin(), shown_.end(), logLine.get() );
-        const auto shownUpTo = static_cast<uint64_t>( after - shown_.begin() );
-        return LineNumber( shownUpTo > 0 ? shownUpTo - 1 : 0 );
-    }
-
-    LineType lineType( LineNumber logLine ) const override
-    {
-        return std::ranges::find( marks_, logLine.get() ) != marks_.end()
-                   ? LineType{ AbstractLogData::LineTypeFlags::Mark }
-                   : LineType{ AbstractLogData::LineTypeFlags::Match };
+        return LineNumber( std::min( logLine.get(), Count - 1 ) );
     }
 
     LinesCount logLineCount() const override
     {
-        return logFile_->getNbLine();
+        return LinesCount( Count );
     }
 
-    OptionalLineNumber markAfter( LineNumber logLine ) const override
-    {
-        const auto mark = std::upper_bound( marks_.begin(), marks_.end(), logLine.get() );
-        return mark != marks_.end() ? OptionalLineNumber( LineNumber( *mark ) ) : std::nullopt;
-    }
-
-    OptionalLineNumber markBefore( LineNumber logLine ) const override
-    {
-        const auto mark = std::lower_bound( marks_.begin(), marks_.end(), logLine.get() );
-        return mark != marks_.begin() ? OptionalLineNumber( LineNumber( *std::prev( mark ) ) )
-                                      : std::nullopt;
-    }
-
-    const AbstractLogData& logFile() const override
-    {
-        return *logFile_;
-    }
-
-    QuickFindLines quickFindLines() const override
-    {
-        SearchResultArray lines;
-        for ( const auto line : shown_ ) {
-            lines.add( line );
-        }
-        return QuickFindLines::someLogLines( *logFile_, std::move( lines ) );
-    }
-
-    DisplayedLinesReader linesToSave() const override
-    {
-        return [ this ]( LineNumber first, LinesCount count ) {
-            logsquirl::vector<QString> text;
-            for ( auto position = first; position < first + count; ++position ) {
-                const auto logLine = logLineAt( position );
-                text.push_back( logLine ? logFile_->getLineString( *logLine ) : QString{} );
-            }
-            return text;
-        };
-    }
-
-private:
-    const AbstractLogData* logFile_;
-    std::vector<uint64_t> shown_;
-    std::vector<uint64_t> marks_;
+    mutable uint64_t lookedAt = 0;
 };
 
 } // namespace
+
+SCENARIO( "A selection of many Log Lines is read only as far as asked", "[linemapping]" )
+{
+    const FakeLogData logFile{ logLineTexts( everyLogLine() ) };
+    const HugeLines lines{ &logFile };
+
+    GIVEN( "every one of 50 million Log Lines selected" )
+    {
+        Selection selection;
+        selection.selectRange( 0_lnum, LineNumber( HugeLines::Count - 1 ) );
+
+        WHEN( "the first five are asked for" )
+        {
+            const auto first = selection.getLines( lines, 5_lcount );
+
+            THEN( "they are the first five, and hardly more positions are looked at" )
+            {
+                REQUIRE(
+                    first
+                    == logsquirl::vector<LineNumber>{ 0_lnum, 1_lnum, 2_lnum, 3_lnum, 4_lnum } );
+                REQUIRE( lines.lookedAt < 10 );
+            }
+        }
+
+        WHEN( "none are asked for" )
+        {
+            THEN( "none come" )
+            {
+                REQUIRE( selection.getLines( lines, 0_lcount ).empty() );
+            }
+        }
+    }
+
+    GIVEN( "a range of three Log Lines selected" )
+    {
+        Selection selection;
+        selection.selectRange( 7_lnum, 9_lnum );
+
+        THEN( "asking for more gives the three" )
+        {
+            REQUIRE( lines.shownLogLinesFromTo( 7_lnum, 9_lnum, 1000_lcount )
+                     == logsquirl::vector<LineNumber>{ 7_lnum, 8_lnum, 9_lnum } );
+            REQUIRE( selection.getLines( lines, 1000_lcount ) == selection.getLines( lines ) );
+        }
+    }
+
+    GIVEN( "a single Log Line selected" )
+    {
+        Selection selection;
+        selection.selectLine( 12_lnum );
+
+        THEN( "asking for one gives it" )
+        {
+            REQUIRE( selection.getLines( lines, 1_lcount )
+                     == logsquirl::vector<LineNumber>{ 12_lnum } );
+        }
+    }
+}
 
 SCENARIO( "A line mapping answers in Log Lines over the positions it shows", "[linemapping]" )
 {

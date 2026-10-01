@@ -2,6 +2,88 @@
 
 ## Changes
 
+- **Values in a Log Line are shown with names from Name Tables (Value
+  Names)**: a Naming Rule picks the values of a Log Line by the capture groups
+  of its regex and looks each up in a Name Table, and the main view and the
+  filtered view show `BAP << ECU 0x15` as `BAP << ECU Beispiel(0x15)`. The Log
+  File is never changed, the Table View shows the raw text, and search,
+  filters, QuickFind and highlighters match the raw text -- a match inside a
+  value covers its whole name. A named value is underlined with fine dots and
+  its tooltip tells the table, rule and group the name came from. *View → Show
+  Value Names* (`Ctrl+Shift+N`) shows or hides them per tab, starting from the
+  new setting *Show Value Names on file open*. *Copy* copies the raw text --
+  a whole value, never half of one --, the new *Copy as Shown* copies what is
+  shown, and *Save to file* can save *With Value Names*. With them hidden or
+  no rule enabled, nothing is looked up. The new sidebar tab *Value Names*
+  checks Naming Rules and Naming Groups for every tab, like the Filters tab,
+  and keeps the checks across restarts. Its *Edit...* dialog, also in *Tools →
+  Value Names...*, edits the rules and which Name Table each capture group
+  uses. It edits the Name Tables too: they can be imported from CSV, exported
+  to CSV and pasted from a spreadsheet. A preview line shows a sample Log Line
+  named and warns of what is wrong. A Naming Group is shared like a filter
+  group: *Export...* writes it to `<name>_valuenames.conf`, *Import...* asks
+  *Replace*, *Keep both* or *Skip* for a group already there, and the Team
+  Folder shares Naming Groups as Team groups, listed last in the tab. A Value
+  Names file says what it holds and is never read as a filter group or
+  highlighter set; their files load as before. (#647)
+- **The Regex Lab tests a pattern on Log Lines**: *Tools → Regex Lab…* opens a
+  window beside the main window where a pattern, with the search line's
+  options, is matched live against the selected Log Lines of the tab in front,
+  up to 1000 lines around its current line, or pasted text. It marks the
+  matching lines and the matched text, lists the numbered and named capture
+  groups of the line with the cursor, counts the matching lines -- exactly
+  those a search with the same pattern and options selects -- and shows a
+  pattern error with its position. The sample is read and evaluated in the
+  background within bounds of time, lines, line length and marks, the Lab
+  warns of a pattern that takes unusually long on the sample or on a line,
+  and *Copy pattern* puts the pattern on the clipboard. (#659)
+- **Highlighters and Predefined Filters are tested in the Regex Lab**: *Test…*
+  next to a highlighter's pattern, and next to the buttons of a filter group,
+  opens the Regex Lab over the editor with the pattern, on the Log Lines of the
+  tab in front. For a highlighter the Lab marks what it would color -- the
+  whole line, or only the matched text and its capture groups -- in its colors,
+  and offers *Match case* and *Use regex*; for a filter it matches exactly
+  as the search line of the tab in front would with the filter, and offers
+  *Use regex* where that search line reads it. *Apply* writes the pattern and
+  the options changed back into the editor, *Cancel* leaves it as it was.
+  (#660)
+- **The search line opens its pattern in the Regex Lab**: *Open in Regex
+  Lab...* in the search line's context menu opens the Lab with the pattern and
+  every option the search line reads it with -- *Match case*, *Use regex* (a
+  *Wildcard* or *Fixed String* search comes as plain text), *Inverse match*,
+  *Boolean combining* -- on the Log Lines of the tab and with the engine its
+  searches run on. *Apply* fills the search line with the pattern and sets its
+  options; it runs the search only when *Auto-refresh* is on. *Cancel* leaves
+  the search line as it was. For a logical combination the Lab lists
+  its sub-patterns and shows beside each line which of them match it, the
+  line's verdict being exactly the search's. (#661)
+- **Plugins open the Regex Lab (plugin API)**: a plugin calls the new host
+  function `open_regex_lab` with a pattern; the Regex Lab opens over the
+  window, on the Log Lines of the tab in front, and the plugin's callback gets
+  the pattern the user applied -- and whether it matches case -- or hears that
+  the user cancelled, once, on the UI thread. A plugin that is unloaded while
+  its Lab is open is never called back. The plugin API grows compatibly
+  (ADR 0017): new host functions are appended to `LogSquirlHostApi`, a plugin
+  exports `logsquirl_plugin_init_ex` to be told the size of the host's table
+  and checks a function with `LOGSQUIRL_HOST_API_HAS` before calling it, and
+  degrades on an older LogSquirl. `LOGSQUIRL_PLUGIN_API_VERSION` stays 1;
+  plugins built against the earlier header load and run unchanged. The plugin
+  developer guide and its example show both. (#662)
+- **Plugins go to a Log Line and read the selected Log Lines (plugin API)**:
+  two new host functions work on the tab in front of the most recently active
+  window, on the UI thread only. `go_to_log_line` selects the line of a
+  number -- counted from 1, as LogSquirl shows them -- and scrolls it into
+  view, as *Go to line* does; it returns `LOGSQUIRL_LOG_LINES_OUT_OF_RANGE`
+  for 0 or a number past the end. `get_selected_log_lines` returns the text
+  of the selected Log Lines in UTF-8, joined by line feeds, a selection within
+  a line counting as the whole line: at most 1000 lines and 1 MiB, whole lines
+  but a longer first one, with `LOGSQUIRL_LOG_LINES_TRUNCATED` when that is
+  fewer than are selected. The host keeps the text until the plugin's next
+  call. Both return `LOGSQUIRL_LOG_LINES_NO_LOG_FILE` without an open Log
+  File, `LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD` off the UI thread and
+  `LOGSQUIRL_LOG_LINES_NO_SELECTION` without a selection; a plugin checks for
+  them with `LOGSQUIRL_HOST_API_HAS`. The plugin developer guide and its
+  example show both. (#663)
 - **A session saves to and opens from a file**: *File → Save Session As…*
   writes the window's open files, their order, the tab in front, each tab's
   view state, tab names and groups to a `.logsquirl-session` file, and
@@ -53,6 +135,19 @@
 
 ## Bug fixes
 
+- **An exported Team group imported again is a group of your own**: a filter
+  group or highlighter set exported from the Team groups and imported into
+  your own kept the Team group's id, so checking or activating one did the same
+  to the other. It now arrives under an id of its own. (#693) An import of a
+  file of another kind of group, or of one written by a newer version, now
+  says so instead of reporting no group. (#647)
+
+- **A tab brought to the front shows its selected Log Line**: switching to a
+  tab whose Log File had loaded showed `Ln:1` beside the info line instead of
+  the Log Line selected in it. (#692)
+- **A Predefined Filter's Regex box is kept**: checking or unchecking only the
+  *Regex* box of a filter in *Predefined Filters…* was lost on *OK* or *Apply*
+  unless another cell of the table was edited as well. (#660)
 - **A command's output on Windows shows its umlauts**: console programs such
   as `dir` or `ping` write in the OEM code page of the console, CP850 on a
   German Windows, and their output opened by *Open Command Output* showed `ä`
@@ -60,6 +155,14 @@
   otherwise in the OEM code page, as soon as the output holds more than ASCII.
   The Encoding menu still changes it, and offers IBM437, the OEM code page of
   a US Windows. (#655)
+- **A growing Log File that starts with ASCII shows its umlauts**: the
+  Encoding was detected from the first bytes only, so a followed Log File,
+  a standard input tab or a spool file whose first Log Lines were plain ASCII
+  showed later UTF-8 lines as `GrÃ¶Ãe`, while the same file opened afresh
+  read `Größe`. Plain ASCII is now taken for UTF-8, and the first bytes beyond
+  ASCII appended to such a Log File decide its Encoding, a Latin one included;
+  the status line and the *Auto* Encoding follow. An Encoding chosen in the
+  menu or forced by the settings stays as it is. (#657)
 - **Open Command Output runs commands in csh and tcsh**: with csh or tcsh as
   the login shell, every command ended at once with exit code 1 and the
   shell's `Unknown option: '-l'` in its tab. The command line now runs in

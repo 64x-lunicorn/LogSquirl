@@ -228,7 +228,8 @@ void PredefinedFiltersDialog::importFilters()
 
     using namespace logsquirl::groupexchange;
     const auto title = tr( "Import predefined filters" );
-    ImportSession session( askUser( this, title ) );
+    // A group of a Team group's id is a copy of it, not that group.
+    ImportSession session( askUser( this, title ), idsOf( teamGroups_ ) );
 
     // The imported groups are only in this dialog's copy: OK / Apply take
     // them over, Cancel discards them.
@@ -346,6 +347,11 @@ void PredefinedFiltersDialog::updateFilterSetProperties()
 }
 
 // --- Team groups ---
+
+void PredefinedFiltersDialog::setRegexLabAccess( RegexLabAccess access )
+{
+    filterSetEdit_->setRegexLabAccess( std::move( access ) );
+}
 
 void PredefinedFiltersDialog::updateTeamRevisions( const QStringList& ids,
                                                    const QHash<QString, QString>& revisions )

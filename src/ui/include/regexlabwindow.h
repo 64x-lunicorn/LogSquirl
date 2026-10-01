@@ -1,0 +1,328 @@
+/*
+ * Copyright (C) 2026 LogSquirl Contributors
+ *
+ * This file is part of LogSquirl.
+ *
+ * LogSquirl is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * LogSquirl is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef LOGSQUIRL_REGEXLABWINDOW_H
+#define LOGSQUIRL_REGEXLABWINDOW_H
+
+#include <cstddef>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <utility>
+
+#include <QColor>
+#include <QFlags>
+#include <QList>
+#include <QMetaObject>
+#include <QObject>
+#include <QPointer>
+#include <QString>
+#include <QWidget>
+
+#include "containers.h"
+#include "linetypes.h"
+#include "lookuprunner.h"
+#include "regexlab.h"
+#include "regexpengine.h"
+#include "regularexpressionpattern.h"
+
+class QCheckBox;
+class QComboBox;
+class QDialogButtonBox;
+class QLabel;
+class QLineEdit;
+class QPlainTextEdit;
+class RegexLabMarks;
+class RegexLabSubPatternColumn;
+class QPushButton;
+class QTableWidget;
+class QTimer;
+
+// Log Lines the Regex Lab takes as its sample: how many there are, and how to
+// read their text -- the whole text, as a Search matches it. read is called
+// off the UI thread and must hold on to whatever it reads from.
+struct RegexLabSample {
+    std::size_t count = 0;
+    std::function<logsquirl::vector<QString>()> read;
+};
+
+// Where the Regex Lab takes sample Log Lines from: the tab it is tied to.
+// Asked only when the user asks for a sample, never continuously. Without a
+// Log File, both are empty and only pasted text is a sample.
+// regexLabSampleSource() (regexlabsource.h) makes one for a tab.
+struct RegexLabSampleSource {
+    // The tab's name, for the window's title.
+    QString name;
+    // The tab itself: once it is destroyed, the Lab has no Log File.
+    QPointer<QObject> tab;
+    // The selected Log Lines, and the Log Lines around the current line of
+    // the view last in focus; at most as many as asked for.
+    std::function<RegexLabSample( LinesCount )> selectedLines;
+    std::function<RegexLabSample( LinesCount )> linesAroundCurrentLine;
+
+    bool hasLogFile() const
+    {
+        return selectedLines && linesAroundCurrentLine;
+    }
+};
+
+// What an editor opens the Regex Lab with (#660): the engine a Search runs
+// on, how the Search Line of the tab in front reads a pattern -- matching
+// case, as a regular expression or as plain text -- and where that tab takes
+// its sample from, asked for as the Lab opens. The editors are dialogs that
+// know no tab, so whoever opens them hands this over. Without a sample
+// source, only pasted text is a sample.
+struct RegexLabAccess {
+    RegexpEngine searchEngine = RegexpEngine::Vectorscan;
+    bool searchMatchesCase = false;
+    bool searchUsesRegexp = true;
+    std::function<RegexLabSampleSource()> sampleSource;
+};
+
+// The Regex Lab (#659): a window, not modal, that shows what a pattern does
+// on sample Log Lines, with the Search's engine and options. It changes no
+// Search, Highlighter or filter by itself.
+//
+// The pattern and its options come in with setPattern() and go out with
+// pattern(). Whoever opens the Lab to edit a pattern of its own offers Apply
+// (offerApply()) and hears exactly one of applied() or cancelled(), on the UI
+// thread: Apply, Cancel, closing the window and destroying it -- also along
+// with its parent, which may be a modal dialog -- each answer once, and
+// nothing is answered after that. Opened from the menu, the Lab offers
+// neither and only copies the pattern. A receiver that goes away while the
+// Lab is open is disconnected by Qt, so the Lab never calls into it.
+//
+// Destroyed along with its parent, the Lab answers cancelled() from within
+// the parent's destruction: its children go before Qt disconnects the parent
+// as a receiver, so a slot of the parent -- or of any widget the Lab is
+// destroyed with -- would run on an object half destroyed. Connect
+// cancelled() with a context object the Lab is not destroyed along with, or
+// to a slot that touches nothing the destruction takes away; the editors
+// (#660) only listen for applied(), which is never sent then.
+class RegexLabWindow : public QWidget {
+    Q_OBJECT
+
+public:
+    // Which sample the pattern is evaluated on.
+    enum class Sample { SelectedLines, LinesAroundCurrentLine, PastedText };
+
+    // The options a pattern is read with.
+    enum class Option {
+        MatchCase = 0x1,
+        UseRegexp = 0x2,
+        Inverse = 0x4,
+        LogicalCombination = 0x8,
+    };
+    Q_DECLARE_FLAGS( Options, Option )
+
+    // The colors a mark is shown in instead of the Lab's own.
+    struct MarkColors {
+        QColor text;
+        QColor background;
+    };
+
+    explicit RegexLabWindow( RegexpEngine engine, QWidget* parent = nullptr );
+    ~RegexLabWindow() override;
+
+    RegexLabWindow( const RegexLabWindow& ) = delete;
+    RegexLabWindow& operator=( const RegexLabWindow& ) = delete;
+
+    // The pattern and the options it is read with, as the Search Line has
+    // them.
+    void setPattern( const RegularExpressionPattern& pattern );
+    RegularExpressionPattern pattern() const;
+
+    // The options whoever opened the Lab keeps with its pattern (#660): only
+    // those can be changed. One it does not keep is shown, but cannot be
+    // changed, when it is in shownFixed -- it still decides how the pattern
+    // is read -- and hidden otherwise. It keeps the value setPattern() gave
+    // it. All options are kept until this is called.
+    void setOptionsKept( Options kept, Options shownFixed = {} );
+
+    // Makes the decision on each line, for the pattern and options in the
+    // Lab, that says whether the line matches and what of it is marked,
+    // instead of the Search (#660): a Highlighter's, which colors by rules of
+    // its own. Marks are shown in colors, if given, instead of the Lab's for
+    // each sub-pattern. A change evaluates the pattern again.
+    using DecisionFor
+        = std::function<regexlab::LineDecision( const RegularExpressionPattern& pattern )>;
+    void setLineDecision( DecisionFor decisionFor,
+                          std::optional<MarkColors> colors = std::nullopt );
+    bool hasLineDecision() const;
+
+    // The engine a Search runs on, which the Lab matches with. A change
+    // evaluates the pattern again.
+    void setEngine( RegexpEngine engine );
+    RegexpEngine engine() const;
+
+    // Ties the Lab to a tab, and takes a sample from it: the selected Log
+    // Lines, or the lines around the current one when none is selected.
+    void setSampleSource( RegexLabSampleSource source );
+
+    Sample sample() const;
+    void setSample( Sample sample );
+    // Takes the sample from the tab again. The text is read off the UI
+    // thread; sampleTaken() says when it is shown.
+    void refreshSample();
+
+    // Shows Apply and Cancel instead of Close.
+    void offerApply( bool offer );
+
+    // What the last evaluation shown found.
+    const regexlab::Result& result() const;
+
+    // For a logical combination: the sub-patterns shown beside a line of the
+    // sample as matching it, numbered from 1 as written (#661).
+    QList<int> subPatternsShown( int line ) const;
+    // The same in words, as the column beside the sample tells it when
+    // hovered and to a screen reader for the line with the cursor; empty for
+    // any other pattern.
+    QString subPatternsDescription( int line ) const;
+
+    // How far an evaluation goes.
+    static regexlab::Bounds bounds();
+
+Q_SIGNALS:
+    // A sample from the tab is shown.
+    void sampleTaken();
+    // An evaluation's result is shown.
+    void evaluated();
+    // With Apply offered: the user applied this pattern, or did not. The Lab
+    // closes after applied().
+    void applied( const RegularExpressionPattern& pattern );
+    void cancelled();
+
+protected:
+    void closeEvent( QCloseEvent* event ) override;
+
+private:
+    void buildWidgets();
+    void updateTitle();
+    void updateSampleChoices();
+
+    // The pattern or its options changed: the evaluation in flight is let go
+    // of, and a new one starts once the user pauses.
+    void patternEdited();
+    // Shows the sample chosen; one from the tab is taken, the one given if
+    // any.
+    void sampleChosen( std::optional<RegexLabSample> taken = std::nullopt );
+    void takeSample( std::optional<RegexLabSample> taken );
+    void pastedTextEdited();
+    // The pasted text as sample lines: the first bounds().maxLines of them,
+    // without the empty line after a final line feed.
+    std::shared_ptr<const logsquirl::vector<QString>> pastedLines();
+    void evaluate();
+    void showResult( regexlab::Result result );
+    void showGroups();
+    // The sub-patterns of a logical combination, and beside each line those
+    // that match it.
+    void showSubPatterns();
+    void showError();
+    void showStatus();
+
+    void copyPattern();
+    void apply();
+    // Says cancelled() unless the Lab has answered already.
+    void cancel();
+
+    RegexpEngine engine_;
+    RegexLabSampleSource source_;
+    QMetaObject::Connection tabDestroyed_;
+    // The whole text of the sample last taken from the tab, and the text the
+    // user pasted while another sample is shown.
+    std::shared_ptr<const logsquirl::vector<QString>> logFileSample_;
+    QString pastedText_;
+    // The sample the text shows; pasted text until one is chosen.
+    Sample shownSample_ = Sample::PastedText;
+    bool isShowingLogFileSample_ = false;
+    // Whether the pasted text last evaluated had more lines than are
+    // evaluated.
+    bool hasMorePastedLines_ = false;
+
+    regexlab::Result result_;
+    // The pattern and options the result shown was evaluated with.
+    RegularExpressionPattern evaluatedPattern_;
+    DecisionFor decisionFor_;
+    bool hasPattern_ = false;
+    bool isApplyOffered_ = false;
+    bool isAnswered_ = false;
+
+    QLineEdit* patternEdit_ = nullptr;
+    QCheckBox* matchCase_ = nullptr;
+    QCheckBox* useRegexp_ = nullptr;
+    QCheckBox* inverse_ = nullptr;
+    QCheckBox* logicalCombination_ = nullptr;
+    QPushButton* copyPattern_ = nullptr;
+    QLabel* error_ = nullptr;
+    QLabel* errorMarker_ = nullptr;
+    QComboBox* sampleChoice_ = nullptr;
+    QPushButton* refreshSample_ = nullptr;
+    QPlainTextEdit* sampleText_ = nullptr;
+    RegexLabMarks* marks_ = nullptr;
+    RegexLabSubPatternColumn* subPatternColumn_ = nullptr;
+    QLabel* subPatterns_ = nullptr;
+    QLabel* status_ = nullptr;
+    QLabel* warning_ = nullptr;
+    QTableWidget* groups_ = nullptr;
+    QDialogButtonBox* buttons_ = nullptr;
+
+    QTimer* debounce_ = nullptr;
+    // Reads a sample from the tab, and evaluates, off the UI thread, one at
+    // a time each: a newer one lets go of the older, whose result is never
+    // shown, and closing the window stops both.
+    LookupRunner sampleReader_;
+    LookupRunner runner_;
+};
+
+Q_DECLARE_OPERATORS_FOR_FLAGS( RegexLabWindow::Options )
+
+// How whoever tests a pattern of its own opens the Regex Lab: the engine it
+// matches with, the window it goes with, whether that window waits for the
+// Lab's answer (an editor does), whether Apply is offered, and where the
+// sample comes from -- none: only pasted text is a sample.
+struct RegexLabOpening {
+    RegexpEngine engine = RegexpEngine::QRegularExpression;
+    QWidget* parent = nullptr;
+    bool modal = false;
+    bool offerApply = true;
+    std::function<RegexLabSampleSource()> sampleSource;
+};
+
+// A Regex Lab, destroyed when closed, made as opening says; prepare gives it
+// the pattern and whatever else the caller keeps with it before it is shown.
+// Not shown yet.
+RegexLabWindow* makeRegexLab( const RegexLabOpening& opening,
+                              const std::function<void( RegexLabWindow& )>& prepare );
+
+// Opens the Regex Lab as makeRegexLab() makes it, with applied() connected to
+// onApplied, and shows it. The contract of RegexLabWindow holds: exactly one
+// of applied() or cancelled() is answered, and context must be an object the
+// Lab is not destroyed along with for whoever also listens for cancelled().
+template <typename Context, typename Slot>
+RegexLabWindow* showRegexLab( const RegexLabOpening& opening,
+                              const std::function<void( RegexLabWindow& )>& prepare,
+                              const Context* context, Slot&& onApplied )
+{
+    auto* lab = makeRegexLab( opening, prepare );
+    QObject::connect( lab, &RegexLabWindow::applied, context, std::forward<Slot>( onApplied ) );
+    lab->show();
+    return lab;
+}
+
+#endif

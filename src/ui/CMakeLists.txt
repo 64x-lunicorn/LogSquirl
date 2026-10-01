@@ -30,10 +30,16 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecount.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecountmodel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecounttab.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamescollection.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamespanel.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamesdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/savelinesdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/keptsearches.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindow.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/commandoutputdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/regexlabsource.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/regexlabwindow.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/commandsource.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/instancehandover.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindowtext.h
@@ -54,7 +60,6 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/archivemember.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/changed.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/sessioninfo.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/signalmux.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbedcrawlerwidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tableviewselection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tableviewstate.h
@@ -85,6 +90,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/charttemplategenerator.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/iconloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbarstyle.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/timenavigation.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayfilepath.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/downloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linessaver.h
@@ -125,12 +131,18 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecount.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecountmodel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecounttab.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamescollection.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamespanel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamesdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/savelinesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/keptsearches.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewstatecodec.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/presentationmenu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindow.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/commandoutputdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/regexlabsource.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/regexlabwindow.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/commandsource.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/instancehandover.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindowtext.cpp
@@ -150,8 +162,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sessionfile.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/archivemember.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sessioninfo.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/signalmux.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbedcrawlerwidget.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/timenavigation.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tableviewselection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/wordrule.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/scratchpad.cpp
@@ -208,6 +220,7 @@ target_link_libraries(
          logsquirl_searchline
          logsquirl_compression
          logsquirl_crash_handler
+         logsquirl_valuenames
          Qt6::Widgets
          Qt6::Xml
          Qt6::Concurrent

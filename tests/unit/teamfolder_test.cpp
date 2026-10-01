@@ -47,11 +47,17 @@
 #include <thread>
 
 #include "groupexchange.h"
+#include "naminggroup.h"
 #include "teamfolder.h"
 #include "teamfoldergit.h"
 
 using logsquirl::teamfolder::Git;
 using logsquirl::teamfolder::TeamGroupChanges;
+using logsquirl::valuenames::GroupTable;
+using logsquirl::valuenames::NameRow;
+using logsquirl::valuenames::NameTable;
+using logsquirl::valuenames::NamingGroup;
+using logsquirl::valuenames::NamingRule;
 using namespace logsquirl::groupexchange;
 
 namespace {
@@ -140,6 +146,34 @@ HighlighterSet makeSet( const QString& name, const QString& pattern = "ERROR" )
     auto set = HighlighterSet::createNewSet( name );
     set.addHighlighter( Highlighter( pattern, false, true, Qt::red, Qt::white ) );
     return set;
+}
+
+NamingGroup makeNamingGroup( const QString& name, const QString& ecuName = "Beispiel" )
+{
+    auto group = NamingGroup::createNewGroup( name );
+    NamingRule rule;
+    rule.name = "ECU";
+    rule.pattern = "ECU (0x[0-9A-F]{2})";
+    rule.groupTables = { GroupTable{ "1", "ECU" } };
+    group.setRules( { rule } );
+    group.setTables( { NameTable{ "ECU", { NameRow{ "0x15", ecuName } } } } );
+    return group;
+}
+
+QString ecuNameOf( const NamingGroup& group )
+{
+    return group.tables().isEmpty() || group.tables().front().rows.isEmpty()
+               ? QString()
+               : group.tables().front().rows.front().name;
+}
+
+QStringList namesOf( const QList<NamingGroup>& groups )
+{
+    QStringList names;
+    for ( const auto& group : groups ) {
+        names.append( group.name() );
+    }
+    return names;
 }
 
 QStringList namesOf( const QList<HighlighterSet>& sets )
@@ -252,6 +286,14 @@ public:
         const auto file = suggestedFileName( group.name(), GroupKind::Highlighter );
         REQUIRE( writeGroup( QDir( cloneOf( member ) ).filePath( file ), group ) );
         commitAndPush( member, { "add", "--", file }, "Share a set" );
+    }
+
+    // The same for a Naming Group of Value Names.
+    void pushGroupByHand( const QString& member, const NamingGroup& group ) const
+    {
+        const auto file = suggestedFileName( group.name(), GroupKind::ValueNames );
+        REQUIRE( writeGroup( QDir( cloneOf( member ) ).filePath( file ), group ) );
+        commitAndPush( member, { "add", "--", file }, "Share a naming group" );
     }
 
     void removeByHand( const QString& member, const QString& file ) const
@@ -1726,4 +1768,199 @@ TEST_CASE( "An index.lock older than the stopped run is not the run's and stays"
 
     CHECK_FALSE( result.succeeded );
     CHECK( QFileInfo::exists( lockPath ) );
+}
+
+// --- Naming Groups of Value Names: the third kind (#647) ---
+
+TEST_CASE( "Team Naming Groups arrive next to the other kinds, each file read by its kind",
+           "[teamfolder][valuenames]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    const auto bap = makeNamingGroup( "BAP" );
+    team.pushGroupByHand( "alice", makeNamingGroup( "zeta" ) );
+    team.pushGroupByHand( "alice", bap );
+    team.pushGroupByHand( "alice", makeSet( "Levels" ) );
+    team.pushGroupByHand( "alice", makeGroup( "Network" ) );
+    // A file naming a kind this version does not know is no group of it.
+    team.pushByHand( "alice", "future.conf", "kind=charts\n[PredefinedFiltersCollection]\n" );
+    // Nor is a Naming Group of a newer version.
+    team.pushByHand( "alice", "newer_valuenames.conf",
+                     "kind=valuenames\n[NamingGroup]\nversion=99\nid=x\nname=Newer\n" );
+
+    const auto bob = team.member( "bob" );
+    CHECK( namesOf( bob->namingGroups() ) == QStringList{ "BAP", "zeta" } );
+    CHECK( namesOf( bob->highlighterGroups() ) == QStringList{ "Levels" } );
+    CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Network" } );
+    REQUIRE( bob->namingGroups().size() == 2 );
+    CHECK( bob->namingGroups()[ 0 ].id() == bap.id() );
+    CHECK( bob->namingGroups()[ 0 ].sameAs( bap ) );
+    CHECK_FALSE( bob->namingGroupRevision( bap.id() ).isEmpty() );
+    const auto skipped = bob->skippedFiles();
+    REQUIRE( skipped.size() == 2 );
+    CHECK( skipped[ 0 ].file == "future.conf" );
+    CHECK( skipped[ 0 ].reason.contains( "kind of group this version does not know" ) );
+    CHECK( skipped[ 1 ].file == "newer_valuenames.conf" );
+    CHECK( skipped[ 1 ].reason.contains( "newer version" ) );
+
+    // A change shows at the next sync, as a change of the Naming Groups only.
+    QSignalSpy valueNamesChanged( bob.get(), &TeamFolder::namingGroupsChanged );
+    QSignalSpy filtersChanged( bob.get(), &TeamFolder::groupsChanged );
+    team.pushGroupByHand( "alice", makeNamingGroup( "BAP", "Other" ).withId( bap.id() ) );
+    syncNow( *bob );
+    REQUIRE( valueNamesChanged.size() == 1 );
+    CHECK( valueNamesChanged.at( 0 ).at( 0 ).value<TeamGroupChanges>().changed
+           == QStringList{ bap.id() } );
+    CHECK( filtersChanged.isEmpty() );
+    CHECK( ecuNameOf( bob->namingGroups()[ 0 ] ) == "Other" );
+}
+
+TEST_CASE( "A Naming Group is published, changed and deleted for the whole team",
+           "[teamfolder][valuenames][publish]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    const auto bob = team.member( "bob" );
+
+    auto bap = makeNamingGroup( "BAP" );
+    const auto added
+        = publishAndWait( *alice, { PublishRequest::forGroup( bap, GroupAction::Add ) } );
+    REQUIRE( added.results.size() == 1 );
+    CHECK( added.results[ 0 ].status == PublishStatus::Published );
+    CHECK(
+        team.lastCommit()
+        == QStringList{ "Add naming group \"BAP\"", "Team Folder Test", "BAP_valuenames.conf" } );
+
+    syncNow( *bob );
+    REQUIRE( bob->namingGroups().size() == 1 );
+    CHECK( bob->namingGroups()[ 0 ].sameAs( bap ) );
+    CHECK( bob->filterGroups().isEmpty() );
+    CHECK( bob->highlighterGroups().isEmpty() );
+
+    SECTION( "a change and a rename keep the file" )
+    {
+        auto changed = makeNamingGroup( "BAP renamed", "Changed" ).withId( bap.id() );
+        publishAndWait( *alice,
+                        { PublishRequest::forGroup( changed, GroupAction::Rename, "BAP" ) } );
+        CHECK( team.lastCommit()
+               == QStringList{ "Rename naming group \"BAP\" to \"BAP renamed\"", "Team Folder Test",
+                               "BAP_valuenames.conf" } );
+        syncNow( *bob );
+        REQUIRE( bob->namingGroups().size() == 1 );
+        CHECK( bob->namingGroups()[ 0 ].name() == "BAP renamed" );
+        CHECK( ecuNameOf( bob->namingGroups()[ 0 ] ) == "Changed" );
+    }
+
+    SECTION( "a deletion" )
+    {
+        const auto deleted = publishAndWait(
+            *alice,
+            { PublishRequest::forDeletion( GroupKind::ValueNames, bap.id(), bap.name() ) } );
+        CHECK( deleted.results[ 0 ].status == PublishStatus::Published );
+        CHECK( team.serverFiles().isEmpty() );
+        syncNow( *bob );
+        CHECK( bob->namingGroups().isEmpty() );
+    }
+
+    SECTION( "a dialog's edits ask for what changed of the Naming Groups" )
+    {
+        auto renamed = bap;
+        renamed.setName( "Renamed" );
+        const auto fresh = makeNamingGroup( "Fresh" );
+        // Checks are no change: they are the user's own.
+        auto unchecked = bap;
+        unchecked.setEnabled( false );
+        CHECK( logsquirl::teamfolder::requestsForChanges( { bap }, { unchecked } ).isEmpty() );
+
+        const auto requests = logsquirl::teamfolder::requestsForChanges(
+            { bap }, { renamed, fresh }, alice->namingGroupRevisions() );
+        REQUIRE( requests.size() == 2 );
+        CHECK( requests[ 0 ].kind == GroupKind::ValueNames );
+        CHECK( requests[ 0 ].action == GroupAction::Rename );
+        CHECK( requests[ 0 ].baseRevision.value_or( QString{} )
+               == alice->namingGroupRevision( bap.id() ) );
+        CHECK( requests[ 1 ].action == GroupAction::Add );
+        CHECK( requests[ 1 ].namingGroup.has_value() );
+        const auto deletions = logsquirl::teamfolder::requestsForChanges( { bap }, {} );
+        REQUIRE( deletions.size() == 1 );
+        CHECK( deletions[ 0 ].kind == GroupKind::ValueNames );
+        CHECK( deletions[ 0 ].action == GroupAction::Delete );
+    }
+}
+
+TEST_CASE( "Publishing a Naming Group someone else changed meanwhile reports a conflict",
+           "[teamfolder][valuenames][conflict]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    const auto bap = makeNamingGroup( "BAP", "Original" );
+    team.pushGroupByHand( "alice", bap );
+    syncNow( *alice );
+    const auto bob = team.member( "bob" );
+
+    auto request = PublishRequest::forGroup( makeNamingGroup( "BAP", "Bobs" ).withId( bap.id() ),
+                                             GroupAction::Change );
+    request.baseRevision = bob->namingGroupRevision( bap.id() );
+    REQUIRE_FALSE( request.baseRevision.value_or( QString{} ).isEmpty() );
+
+    const auto theirs = makeNamingGroup( "BAP", "Alices" ).withId( bap.id() );
+    REQUIRE( publishAndWait( *alice, { PublishRequest::forGroup( theirs, GroupAction::Change ) } )
+                 .results[ 0 ]
+                 .status
+             == PublishStatus::Published );
+    const auto serverHead = team.lastCommit();
+
+    const auto outcome = publishAndWait( *bob, { request } );
+    REQUIRE( outcome.results.size() == 1 );
+    const auto& conflict = outcome.results[ 0 ];
+    CHECK( conflict.status == PublishStatus::Conflict );
+    CHECK( conflict.hasTheirs() );
+    REQUIRE( conflict.theirsNamingGroup.has_value() );
+    CHECK( ecuNameOf( *conflict.theirsNamingGroup ) == "Alices" );
+    CHECK_FALSE( conflict.theirsFilterGroup.has_value() );
+    CHECK( team.lastCommit() == serverHead );
+
+    SECTION( "keep mine overwrites their version" )
+    {
+        QSignalSpy finished( bob.get(), &TeamFolder::publishFinished );
+        bob->resolveConflict( request, ConflictChoice::KeepMine );
+        REQUIRE( finished.wait( SyncTimeoutMs ) );
+        REQUIRE( settled( *bob ) );
+        syncNow( *alice );
+        REQUIRE( alice->namingGroups().size() == 1 );
+        CHECK( ecuNameOf( alice->namingGroups()[ 0 ] ) == "Bobs" );
+    }
+
+    SECTION( "save mine as a copy adds a Naming Group and leaves theirs" )
+    {
+        QSignalSpy finished( bob.get(), &TeamFolder::publishFinished );
+        bob->resolveConflict( request, ConflictChoice::SaveAsCopy );
+        REQUIRE( finished.wait( SyncTimeoutMs ) );
+        REQUIRE( settled( *bob ) );
+        syncNow( *alice );
+        const auto groups = alice->namingGroups();
+        CHECK( namesOf( groups ) == QStringList{ "BAP", "BAP (2)" } );
+        REQUIRE( groups.size() == 2 );
+        CHECK( ecuNameOf( groups[ 0 ] ) == "Alices" );
+        CHECK( groups[ 1 ].id() != bap.id() );
+        CHECK( ecuNameOf( groups[ 1 ] ) == "Bobs" );
+    }
 }

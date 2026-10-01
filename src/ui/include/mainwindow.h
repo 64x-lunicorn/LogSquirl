@@ -58,6 +58,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include "applicationplugins.h"
 #include "commandsource.h"
@@ -73,10 +74,10 @@
 #include "quickfindwidget.h"
 #include "session.h"
 #include "sessionfile.h"
-#include "signalmux.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabbedscratchpad.h"
 #include "tabgroupmanagerdialog.h"
+#include "valuenamespanel.h"
 #include "welcomedashboard.h"
 
 class CommandPalette;
@@ -84,6 +85,9 @@ class QAction;
 class QActionGroup;
 class Session;
 class RecentFiles;
+class RegexLabWindow;
+struct RegexLabAccess;
+struct RegexLabSampleSource;
 namespace logsquirl::teamfolder {
 struct PublishOutcome;
 }
@@ -187,6 +191,10 @@ public:
     // again, in whichever window it was opened (#642).
     bool showView( const ViewInterface* view ) override;
 
+    // The Naming Groups or their checks changed: the sidebar shows them
+    // again (#647).
+    void applyValueNamesChange() override;
+
 public Q_SLOTS:
     // Load a file in a new tab (non-interactive)
     // (for use from e.g. IPC)
@@ -222,6 +230,8 @@ private Q_SLOTS:
     void closeAll( ActionInitiator initiator );
     void selectAll();
     void copy();
+    // Copy the selection as the view shows it, with its Value Names.
+    void copyAsShown();
     void find();
     void clearLog();
     void copyFullPath();
@@ -233,12 +243,18 @@ private Q_SLOTS:
     void openCommandOutputDialog();
     void editHighlighters();
     void editPredefinedFilters( const QString& newFilter = {} );
+    // Opens the Value Names dialog (#647).
+    void editValueNames();
+    // Opens the Regex Lab, or brings it to the front, tied to the tab in
+    // front (#659).
+    void openRegexLab();
     void options();
     void about();
     void aboutQt();
     void documentation();
     void showScratchPad();
     void showFiltersPanel();
+    void showValueNamesPanel();
     void clearIndexCache();
     void manageTabGroups();
     void showCommandPalette();
@@ -282,6 +298,9 @@ private Q_SLOTS:
 
     // Instructs the widget to update the loading progress gauge
     void updateLoadingProgress( int progress );
+    // Shows the Log File in front loading, as far as progress, whatever the
+    // progress is.
+    void showLoadingProgress( int progress );
     // Instructs the widget to display the 'normal' status bar,
     // without the progress gauge and with file info
     // or an error recovery when loading is finished: a failed load closes
@@ -310,6 +329,8 @@ Q_SIGNALS:
     void followSet( bool checked );
     // Is emitted when the 'text wrap' option is enabled/disabled
     void textWrapSet( bool checked );
+    // Is emitted when Show Value Names is switched for the tab in front.
+    void valueNamesShownSet( bool shown );
     // Is emitted before the QuickFind box is activated,
     // to allow crawlers to get search in the right view.
     void enteringQuickFind();
@@ -324,6 +345,11 @@ Q_SIGNALS:
     void exitRequested();
 
 private:
+    // The tab in front as the Regex Lab's sample source; none without a tab.
+    RegexLabSampleSource tabInFrontAsRegexLabSample();
+    // What the editors open the Regex Lab with (#660).
+    RegexLabAccess regexLabAccess();
+
     void createActions();
     void loadIcons();
     void createMenus();
@@ -389,8 +415,12 @@ private:
     QString strippedName( const QString& fullFileName ) const;
     CrawlerWidget* currentCrawlerWidget() const;
     void displayQuickFindBar( QuickFindMux::QFDirection direction );
-    void updateMenuBarFromDocument( const CrawlerWidget* crawler );
-    void updateGoToTimestampAction( const CrawlerWidget* crawler );
+    // Connects the window to the Log File in front, and it alone: the
+    // connections to the tab shown before go (#635). Nothing is connected for
+    // nullptr.
+    void connectFrontTab( CrawlerWidget* crawler );
+    void updateMenuBarFromDocument( const CrawlerWidget::State& state );
+    void updateGoToTimestampAction( const CrawlerWidget::State& state );
     void updateInfoLine();
     void showInfoLabels( bool show );
     void logScreenInfo( QScreen* screen );
@@ -405,6 +435,8 @@ private:
     // Hands the Team Highlighter Sets to the Highlighter Set collection.
     // dropUnknownActivations false: the first sync has not delivered groups.
     void applyTeamHighlighterSets( bool dropUnknownActivations = true );
+    // Hands the Team Naming Groups to ValueNamesCollection (#647).
+    void applyTeamNamingGroups();
     // Asks what to do with a Team group somebody else changed while the user
     // was changing it too: keep mine, take theirs, or save mine as a copy.
     void askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome );
@@ -422,9 +454,8 @@ private:
     // While the Session's tabs are added: each becomes current in turn, and
     // none of them is to start loading for that (#300).
     bool restoringSession_ = false;
-    // While the tab brought to the front replays the state of its Log File:
-    // a load under way is shown whatever its progress (#540).
-    bool replayingFrontTab_ = false;
+    // The connections between the window and the Log File in front.
+    std::vector<QMetaObject::Connection> frontTabConnections_;
 
     std::array<QAction*, MAX_RECENT_FILES> recentFileActions;
     QActionGroup* recentFilesGroup;
@@ -481,6 +512,8 @@ private:
     QAction* lineNumbersVisibleInFilteredAction;
     QAction* followAction;
     QAction* textWrapAction;
+    QAction* showValueNamesAction;
+    QAction* copyAsShownAction;
     QAction* reloadAction;
     QAction* stopAction;
     QAction* editHighlightersAction;
@@ -488,6 +521,7 @@ private:
     QAction* showScratchPadAction;
     QAction* commandPaletteAction;
     QAction* showFiltersPanelAction;
+    QAction* showValueNamesPanelAction;
     QAction* toggleSidebarAction;
     QAction* toggleChartPanelAction;
     QAction* showFilterFrequencyAction;
@@ -496,6 +530,8 @@ private:
     QAction* aboutAction;
     QAction* aboutQtAction;
     QAction* predefinedFiltersDialogAction;
+    QAction* valueNamesDialogAction;
+    QAction* regexLabAction;
     QAction* manageTabGroupsAction;
     QAction* reportIssueAction;
     QAction* generateDumpAction;
@@ -518,9 +554,6 @@ private:
 
     IconLoader iconLoader_;
 
-    // Multiplex signals to any of the CrawlerWidgets
-    SignalMux signalMux_;
-
     static QTranslator mTranslator;
     static QTranslator mQtTranslator;
 
@@ -540,6 +573,8 @@ private:
 
     FiltersPanel filtersPanel_;
 
+    ValueNamesPanel valueNamesPanel_;
+
     // Right sidebar dock with tabbed panels
     QDockWidget* sidebarDock_{ nullptr };
     QToolButton* sidebarFloatButton_{ nullptr };
@@ -547,6 +582,7 @@ private:
     QTabWidget* sidebarTabs_{ nullptr };
     static constexpr int SidebarFiltersPanelTab = 0;
     static constexpr int SidebarScratchPadTab = 1;
+    static constexpr int SidebarValueNamesTab = 2;
     // The share of the window the sidebar opens at while no width was saved.
     static constexpr int SidebarDefaultWidthPercent = 27;
     // The width the sidebar opens at, or was last left at while docked; 0
@@ -569,6 +605,9 @@ private:
     // for the decompression under way, before tempDir_ is removed (#610).
     ArchiveMemberDecompression archiveRestores_;
     QPointer<QProgressDialog> archiveRestoreProgress_;
+
+    // The window's Regex Lab while it is open; it closes with the window.
+    QPointer<RegexLabWindow> regexLab_;
 
     bool isMaximized_ = false;
     bool isCloseFromTray_ = false;

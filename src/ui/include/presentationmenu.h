@@ -67,6 +67,9 @@ public:
         // whole Log Line is selected; elsewhere they are set whenever there is
         // a Log Line under the cursor.
         bool drawnLikeTextView = false;
+        // Whether the Presentation shows Value Names now: only then does Copy
+        // as Shown copy anything the Copy entry does not (#647).
+        bool showsValueNames = false;
     };
 
     // What each entry does, on the Presentation the menu was opened on.
@@ -77,6 +80,9 @@ public:
         std::function<void()> mark;
         std::function<void()> copy;
         std::function<void()> copyWithLineNumbers;
+        // Only for a Presentation that shows Value Names; left empty, the
+        // menu offers no Copy as Shown (#647).
+        std::function<void()> copyAsShown;
         std::function<void()> sendToScratchpad;
         std::function<void()> replaceScratchpad;
         // Find the next or previous Log Line matching the selected text.

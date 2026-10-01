@@ -76,16 +76,14 @@
 #include "predefinedfilters.h"
 #include "searchline.h"
 #include "searchlinewidget.h"
-#include "signalmux.h"
 #include "viewinterface.h"
 #include "viewset.h"
 
 #include "logformatdefinition.h"
-#include "lookuprunner.h"
 #include "settingspolicies.h"
-#include "timelookup.h"
-#include "timestampreader.h"
+#include "timenavigation.h"
 
+class RegexLabWindow;
 class LogFormatCatalog;
 class LogTableView;
 class QuickFindPattern;
@@ -96,10 +94,7 @@ class OverviewWidget;
 // Implements the central widget of the application.
 // It includes both windows, the search line, the info
 // lines and various buttons.
-class CrawlerWidget : public QSplitter,
-                      public QuickFindMuxSelectorInterface,
-                      public ViewInterface,
-                      public MuxableDocumentInterface {
+class CrawlerWidget : public QSplitter, public QuickFindMuxSelectorInterface, public ViewInterface {
     Q_OBJECT
 
 public:
@@ -112,6 +107,48 @@ public:
     QString getSelectedText() const;
     // True for partial selection
     bool isPartialSelection() const;
+
+    // How the Search Line reads its pattern now: what a Predefined Filter
+    // used here is searched with (#660).
+    SearchLine::Flags searchFlags() const;
+
+    // The Regex Lab's samples from this Log File (#659): the Log Lines
+    // selected in the view the user was last in -- the Filtered View or the
+    // Presentation shown -- and those that view shows around its current
+    // line, at most count of each, in order.
+    logsquirl::vector<LineNumber> selectedLogLines( LinesCount count ) const;
+    logsquirl::vector<LineNumber> logLinesAroundCurrentLine( LinesCount count ) const;
+
+    // The text of the first at most count Log Lines selectedLogLines() gives,
+    // for a plugin (#663): each read from at most maxBytes of its bytes, and
+    // none read after one that was cut -- the last, then -- or after their
+    // UTF-8 text passed maxBytes. more says Log Lines were left unread.
+    struct SelectedLogLineTexts {
+        QStringList lines;
+        bool lastCut = false;
+        bool more = false;
+    };
+    SelectedLogLineTexts selectedLogLineTexts( LinesCount count, qint64 maxBytes ) const;
+
+    // Selects the Log Line and shows it, as Go to line does, for a plugin
+    // (#663): in the Presentation shown, and the nearest line the Filtered
+    // View shows in that. False, and nothing changes, when the Log File has
+    // no such line.
+    bool goToLogLine( LineNumber line );
+
+    // Opens the Search Line's pattern, with the options it reads it with, in
+    // the Regex Lab (#661): tied to this tab, matching with the engine its
+    // Searches run on, and offering Apply and Cancel. Apply fills the Search
+    // Line with the pattern and sets its buttons; it runs the Search only
+    // when auto-refresh is on. Cancel or closing the Lab changes nothing.
+    // Asked again while it is open, the Lab comes to the front, with the
+    // Search Line's pattern of then unless the user edited the pattern in the
+    // Lab. It goes with the tab.
+    void openSearchInRegexLab();
+    // Reads the text of Log Lines, what a Search matches, also off the UI
+    // thread: it holds on to the Log File's data for as long as it lives.
+    std::function<logsquirl::vector<QString>( const logsquirl::vector<LineNumber>& )>
+    logLineTextReader() const;
 
     // Instructs the widget to select all the text in the window the user
     // is interacting with
@@ -146,6 +183,39 @@ public:
     QString searchLimitsByTimeUnavailableReason() const;
 
     bool isTextWrapEnabled() const;
+    // Whether the View menu's Show Value Names is on for this tab (#647).
+    bool isValueNamesShownSet() const;
+    // The selection's text as the view shows it: Copy as Shown.
+    QString getSelectedTextAsShown() const;
+
+    // What the window shows of this tab's Log File. The window hears only the
+    // tab in front, so it reads this once when the tab comes to the front,
+    // and what happened meanwhile -- a load that ended, failed or is under
+    // way (#540) -- is told by it (#635).
+    struct State {
+        // How the last load ended, and the failure of a Failed one; none
+        // while a load is under way, which has come as far as loadingProgress.
+        std::optional<LoadingStatus> loadStatus;
+        QString loadFailure;
+        int loadingProgress = 0;
+        // The Log Line selected last.
+        LineNumber selectedLine;
+        // Whether the Log File is followed, as its View Set holds it (#558).
+        bool follows = false;
+        bool textWrap = false;
+        // Whether the tab shows Value Names (#647).
+        bool valueNamesShown = false;
+        // The Encoding chosen for the Log File, none when it is detected.
+        std::optional<int> encodingMib;
+        // Why Go to timestamp and the Search Limits given as a time are not
+        // available, empty when they are: the Time Navigation.
+        QString goToTimestampUnavailable;
+        QString searchLimitsByTimeUnavailable;
+        // The view QuickFind searches now; for the QuickFind mux, which the
+        // window still re-points by a direct call (a follow-up of #635).
+        const SearchableWidgetInterface* quickFindSearchable = nullptr;
+    };
+    State state() const;
 
     // The Policies this Log File's views show and search under, as last
     // handed down by the Session. They are held -- the Watch and QuickFind
@@ -191,6 +261,13 @@ public Q_SLOTS:
     // changes, whichever tab is in front (#245).
     void broughtToFront();
 
+    // QuickFind is being entered: remember which view had the focus, the
+    // Filtered View or a Presentation, so QuickFind searches it while the
+    // QuickFind bar has the focus.
+    void enteringQuickFind();
+    // QuickFind is being closed: the view that had the focus gets it back.
+    void exitingQuickFind();
+
     // Paints every view of this Log File again with the Highlighter Sets now
     // active. A Highlighter Set is user data, not a setting, so nothing is
     // read from the Configuration.
@@ -216,20 +293,20 @@ protected:
     SearchableWidgetInterface* doGetActiveSearchable() const override;
     std::vector<QObject*> doGetAllSearchables() const override;
 
-    // Implementation of the MuxableDocumentInterface
-    void doSendAllStateSignals() override;
-
 Q_SIGNALS:
     // Sent to signal the client load has progressed,
     // passing the completion percentage.
     void loadingProgressed( int progress );
     // Sent to the client when the loading has finished
-    // whether successful or not, with the failure of a Failed load. Sent
-    // again, as are the progress of a load under way, when the tab is
-    // brought to the front (#540).
+    // whether successful or not, with the failure of a Failed load. The
+    // window learns how the last load ended when the tab comes to the front
+    // from state() (#540, #635).
     void loadingFinished( LoadingStatus status, QString failure );
     // Sent when text wrap mode is enabled/disabled
     void textWrapSet( bool checked );
+    // Sent when the View menu's Show Value Names switched for this tab: the
+    // Text View and every Filtered View show them or not (#647).
+    void valueNamesShownSet( bool shown );
     // Sent up when the Log File is now followed or not, as the View Set
     // holds it; the window's action mirrors it (#558).
     void followModeChanged( bool follow );
@@ -266,12 +343,6 @@ private Q_SLOTS:
     // Stop the currently ongoing search (if one exists)
     void stopSearch();
     void loadIcons();
-    // QuickFind is being entered: remember which view had the focus, the
-    // Filtered View or a Presentation, so QuickFind searches it while the
-    // QuickFind bar has the focus.
-    void enteringQuickFind();
-    // QuickFind is being closed: the view that had the focus gets it back.
-    void exitingQuickFind();
     // Called when new data must be displayed in the filtered window.
     void updateFilteredView( SearchSession::State state );
     // Called when a new line has been selected in the filtered view,
@@ -327,25 +398,12 @@ private Q_SLOTS:
 
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
     void clearSearchLimits();
-    // Turns a time range into line limits, once, here where the Limits are
-    // decided, and sets them; on failure tells the user and leaves them.
-    void setSearchLimitsFromTimes( const QDateTime& start, const QDateTime& end );
 
-    // Time lookups run on a worker thread (LookupRunner); whatever makes their
-    // answer stale -- a reload, a truncation, another Log Format -- cancels
-    // them, and a cancelled lookup reports nothing.
 private:
-    struct LookupSource;
-    std::optional<LookupSource> lookupSource() const;
-    template <typename Result, typename Work, typename Done>
-    void runTimeLookup( Work work, Done done );
-    void cancelTimeLookup();
-    // Looks up the Timestamp near the current line, then calls then with it.
-    void lookUpNearbyTimestamp( std::function<void( std::optional<QDateTime> )> then );
-    void showTimeLookupResult( const timelookup::Result& result );
-    // Said in the status bar when a time lookup landed among Timestamps that
-    // are not in time order.
-    static QString notInTimeOrderNotice();
+    // What the Time Navigation reads, and where what it finds goes: the
+    // Search Limits through this widget to the Open Log File.
+    TimeNavigation::Source timeNavigationSource() const;
+    TimeNavigation::Sink timeNavigationSink();
 private Q_SLOTS:
 
     void addColorLabelToSelection( size_t label );
@@ -405,6 +463,9 @@ private:
     // Whether the Filtered View has the focus, or had it when QuickFind was
     // entered and the Presentation shown has not taken it since.
     bool filteredViewIsActive() const;
+    // Whether the Filtered View was the view last in focus in this window,
+    // even while another window -- the Regex Lab -- is active.
+    bool filteredViewWasLastFocused() const;
     // The Presentation the upper pane shows, as a widget.
     QWidget* shownPresentation() const;
     // The Search Line says what is known of the Search, which does not run:
@@ -509,6 +570,12 @@ private:
     // Its entries, one per capture group of the current Search, are made when
     // the menu is shown.
     QMenu* countValuesMenu_ = nullptr;
+    // The Regex Lab the Search Line's pattern is open in, if any.
+    QPointer<RegexLabWindow> searchRegexLab_;
+    // The pattern the Lab was last given from the Search Line: while the Lab
+    // still has it, asking for the Lab again gives it the Search Line's
+    // pattern of then.
+    RegularExpressionPattern searchRegexLabOpenedWith_;
 
     std::map<QString, QShortcut*> shortcuts_;
 
@@ -531,8 +598,8 @@ private:
     // Current number of matches
     LinesCount nbMatches_;
 
-    // The status of the last load, which the window hears again when this
-    // tab is brought to the front (#540): none while a load is under way,
+    // The status of the last load, which the window reads in state() when
+    // this tab is brought to the front (#540): none while a load is under way,
     // whose progress is kept instead, and the failure of a Failed one.
     std::optional<LoadingStatus> lastLoadStatus_;
     QString lastLoadFailure_;
@@ -576,8 +643,10 @@ private:
     // The Log Format the Table View shows, if any: the one the Open Log File
     // recognized, kept alive for the Table View until it is handed another.
     std::shared_ptr<const LogFormatDefinition> recognizedFormat_;
-    // Runs the time lookups (Go to timestamp, Search Limits by time).
-    LookupRunner timeLookup_{ this };
+    // Go to timestamp and the Search Limits by time: this widget only
+    // forwards to it and tells it what makes a running lookup stale (#636).
+    TimeNavigation timeNavigation_{ [ this ] { return timeNavigationSource(); },
+                                    timeNavigationSink(), TimeNavigation::dialogPrompt( this ) };
 
     // The upper pane shows either the text view or the Table View
     QStackedWidget* mainViewStack_ = nullptr;

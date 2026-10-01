@@ -85,6 +85,15 @@ public:
     /** The most recently active window's, or a null handle without a window. */
     PluginWidgetHandle configurationParent() override;
 
+    /** Opens the Lab in the most recently active window; none without a window. */
+    bool openRegexLab( const QString& pluginId, const PluginPattern& pattern, QObject* context,
+                       PluginRegexLabAnswer answer ) override;
+
+    /** In the most recently active window's tab in front; no Log File without a window. */
+    PluginLogLineJump goToLogLine( std::uint64_t logLine ) override;
+    std::optional<PluginSelectedLogLines> selectedLogLines( std::size_t maxLines,
+                                                            std::size_t maxBytes ) override;
+
 private:
     enum class WidgetPlace { Status, Sidebar, Footer };
 

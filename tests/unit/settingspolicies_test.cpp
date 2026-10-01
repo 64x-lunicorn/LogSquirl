@@ -61,7 +61,8 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
                                                .autoShowTableView = false,
                                                .mainLineNumbersVisible = true,
                                                .filteredLineNumbersVisible = false,
-                                               .overviewVisible = true };
+                                               .overviewVisible = true,
+                                               .showValueNames = true };
         const QuickFindPolicy quickFind{ .quickFindRegexpType = SearchRegexpType::Wildcard,
                                          .mainRegexpType = SearchRegexpType::FixedString,
                                          .ignoreCase = true,
@@ -78,6 +79,7 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE( presentation.useTextWrap );
             REQUIRE_FALSE( presentation.fastScrollEnabled );
             REQUIRE( presentation.fastScrollMultiplier == 6 );
+            REQUIRE( presentation.showValueNames );
             REQUIRE( presentation.allowFollowOnScroll );
             REQUIRE_FALSE( presentation.autoShowTableView );
             REQUIRE( presentation.mainLineNumbersVisible );
@@ -146,6 +148,7 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE_FALSE( decoding.hideAnsiColorSequences );
 
             REQUIRE_FALSE( presentation.useTextWrap );
+            REQUIRE_FALSE( presentation.showValueNames );
             REQUIRE_FALSE( presentation.fastScrollEnabled );
             REQUIRE( presentation.fastScrollMultiplier == 0 );
             REQUIRE_FALSE( presentation.allowFollowOnScroll );
@@ -283,6 +286,7 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
         // A different value in each neighbouring field, so a mapping that
         // reads the wrong getter cannot pass unnoticed.
         config.setUseTextWrap( true );
+        config.setShowValueNames( false );
         config.setFastScrollEnabled( false );
         config.setFastScrollMultiplier( 13 );
         config.setAllowFollowOnScroll( true );
@@ -365,6 +369,7 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
             THEN( "the Presentation Policy carries what showing a Log File needs" )
             {
                 REQUIRE( policies.presentation.useTextWrap );
+                REQUIRE_FALSE( policies.presentation.showValueNames );
                 REQUIRE_FALSE( policies.presentation.fastScrollEnabled );
                 REQUIRE( policies.presentation.fastScrollMultiplier == 13 );
                 REQUIRE( policies.presentation.allowFollowOnScroll );

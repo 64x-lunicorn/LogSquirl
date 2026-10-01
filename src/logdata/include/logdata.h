@@ -41,6 +41,7 @@
 
 #include <cstddef>
 #include <exception>
+#include <functional>
 #include <memory>
 
 #include "textencoding.h"
@@ -155,6 +156,7 @@ public:
     // from this Log File -- including the ones a tab kept from an earlier
     // Search, which nothing else holds a list of.
     void setSearchPolicy( const SearchPolicy& searchPolicy );
+    const SearchPolicy& searchPolicy() const;
 
     // There is deliberately no setFileAccessPolicy(): both of its fields
     // are read when an object is built (the FileHolder, and the codec at
@@ -185,6 +187,16 @@ public:
     // File, or ASCII in an ASCII compatible one, is copied as it was read and
     // never decoded; any other is decoded on its own and converted back.
     std::string getUtf8LinesSparse( std::span<const LineNumber> lines ) const;
+
+    // Reads Log Lines one after another, in the order asked, each from at
+    // most maxBytes of its bytes, decoded as getLinesSparse() decodes them,
+    // and hands each to onLine( text, cut ) -- cut when the Log Line has more
+    // bytes than were read -- until onLine returns false. A Log Line past the
+    // last one indexed ends the read. Never reads more than maxBytes of a Log
+    // Line, nor a Log Line after the one onLine refused: what a plugin reads
+    // of a selection is bounded by that (#663).
+    void readLinePrefixes( std::span<const LineNumber> lines, qint64 maxBytes,
+                           const std::function<bool( QString&& text, bool cut )>& onLine ) const;
 
     // What a Search on this Log File reads its Log Lines through. Lives as
     // long as this object.

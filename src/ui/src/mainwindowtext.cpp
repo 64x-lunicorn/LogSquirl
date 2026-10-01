@@ -39,6 +39,9 @@ const char* action::exitText = QT_TR_NOOP( "E&xit" );
 const char* action::exitStatusTip = QT_TR_NOOP( "Exit the application" );
 const char* action::copyText = QT_TR_NOOP( "&Copy" );
 const char* action::copyStatusTip = QT_TR_NOOP( "Copy the selection" );
+const char* action::copyAsShownText = QT_TR_NOOP( "Copy as &Shown" );
+const char* action::copyAsShownStatusTip
+    = QT_TR_NOOP( "Copy the selection as shown, with its Value Names" );
 const char* action::selectAllText = QT_TR_NOOP( "Select &All" );
 const char* action::selectAllStatusTip = QT_TR_NOOP( "Select all the text" );
 const char* action::goToLineText = QT_TR_NOOP( "Go to line..." );
@@ -85,6 +88,9 @@ const char* action::lineNumbersVisibleInFilteredText
     = QT_TR_NOOP( "Line &numbers in filtered view" );
 const char* action::followText = QT_TR_NOOP( "&Follow File" );
 const char* action::wrapText = QT_TR_NOOP( "&Wrap text" );
+const char* action::showValueNamesText = QT_TR_NOOP( "Show &Value Names" );
+const char* action::showValueNamesStatusTip
+    = QT_TR_NOOP( "Show values of the Log Lines with their names from the Name Tables" );
 const char* action::reloadText = QT_TR_NOOP( "&Reload" );
 const char* action::stopText = QT_TR_NOOP( "&Stop" );
 const char* action::optionsText = QT_TR_NOOP( "&Preferences..." );
@@ -114,8 +120,17 @@ const char* action::predefinedFiltersDialogStatusTip
 const char* action::importChipmunkFiltersText = QT_TR_NOOP( "Import Chipmunk filters..." );
 const char* action::importChipmunkFiltersStatusTip
     = QT_TR_NOOP( "Import filters from a Chipmunk JSON export file" );
+const char* action::regexLabText = QT_TR_NOOP( "Regex Lab..." );
+const char* action::regexLabStatusTip
+    = QT_TR_NOOP( "Test a pattern on Log Lines of the current tab before searching with it" );
 const char* action::showFiltersPanelText = QT_TR_NOOP( "Filters panel" );
 const char* action::showFiltersPanelStatusTip = QT_TR_NOOP( "Show the filters panel" );
+const char* action::showValueNamesPanelText = QT_TR_NOOP( "Value Names tab" );
+const char* action::showValueNamesPanelStatusTip
+    = QT_TR_NOOP( "Show the Value Names tab of the sidebar" );
+const char* action::valueNamesDialogText = QT_TR_NOOP( "Value Names..." );
+const char* action::valueNamesDialogStatusTip
+    = QT_TR_NOOP( "Show dialog to edit the Naming Groups of Value Names" );
 const char* action::toggleSidebarText = QT_TR_NOOP( "Sidebar" );
 const char* action::toggleSidebarStatusTip = QT_TR_NOOP( "Toggle the sidebar panel" );
 const char* action::toggleChartPanelText = QT_TR_NOOP( "Chart Panel" );

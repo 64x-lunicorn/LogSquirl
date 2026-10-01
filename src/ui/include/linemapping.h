@@ -82,6 +82,10 @@ public:
                                                                       LineNumber last ) const;
     // The Log Lines shown from first through last, in order.
     logsquirl::vector<LineNumber> shownLogLinesFromTo( LineNumber first, LineNumber last ) const;
+    // The first at most limit of them: no position after those is looked at,
+    // however many there are (#663).
+    logsquirl::vector<LineNumber> shownLogLinesFromTo( LineNumber first, LineNumber last,
+                                                       LinesCount limit ) const;
     // The nearest Mark shown after logLine, and before it.
     OptionalLineNumber shownMarkAfter( LineNumber logLine ) const;
     OptionalLineNumber shownMarkBefore( LineNumber logLine ) const;

@@ -52,6 +52,35 @@ QIcon colorPresetIcon( const HighlighterColorPreset& preset, qreal devicePixelRa
     painter.drawText( QRect( QPoint( 0, 0 ), size ), Qt::AlignCenter, QStringLiteral( "Aa" ) );
     return QIcon( pixmap );
 }
+// What the Highlighter, with the pattern and options tested in the Regex Lab,
+// colors of a line (Highlighter::colorLine()): the whole line, or the
+// matches, as spans; nothing for a line it leaves alone. The Highlighter is
+// a copy of its own, which matches on the Lab's thread.
+regexlab::LineDecision highlighterDecision( Highlighter highlighter,
+                                            const RegularExpressionPattern& pattern )
+{
+    highlighter.setPattern( pattern.pattern );
+    highlighter.setIgnoreCase( !pattern.isCaseSensitive );
+    highlighter.setUseRegex( !pattern.isPlainText );
+    return [ highlighter = std::move( highlighter ) ](
+               const QString& line ) -> std::optional<logsquirl::vector<regexlab::MatchSpan>> {
+        logsquirl::vector<HighlightedMatch> matches;
+        switch ( highlighter.colorLine( line, matches ) ) {
+        case HighlighterMatchType::NoMatch:
+            return std::nullopt;
+        case HighlighterMatchType::LineMatch:
+            return logsquirl::vector<regexlab::MatchSpan>{ { 0, line.size(), 0 } };
+        case HighlighterMatchType::WordMatch:
+            break;
+        }
+        logsquirl::vector<regexlab::MatchSpan> spans;
+        spans.reserve( matches.size() );
+        for ( const auto& match : matches ) {
+            spans.push_back( { match.startColumn().get(), match.size().get(), 0 } );
+        }
+        return spans;
+    };
+}
 } // namespace
 
 HighlighterEdit::HighlighterEdit( Highlighter defaultHighlighter, QWidget* parent )
@@ -80,12 +109,19 @@ HighlighterEdit::HighlighterEdit( Highlighter defaultHighlighter, QWidget* paren
     connect( backColorButton, &QPushButton::clicked, this, &HighlighterEdit::changeBackColor );
     connect( patternTypeComboBox, QOverload<int>::of( &QComboBox::currentIndexChanged ), this,
              &HighlighterEdit::setPatternType );
+    connect( testPatternButton, &QPushButton::clicked, this, &HighlighterEdit::testPattern );
+}
+
+void HighlighterEdit::setRegexLabAccess( RegexLabAccess access )
+{
+    regexLabAccess_ = std::move( access );
 }
 
 void HighlighterEdit::reset()
 {
     patternEdit->clear();
     patternEdit->setEnabled( false );
+    testPatternButton->setEnabled( false );
     patternTypeComboBox->setEnabled( false );
 
     ignoreCaseCheckBox->setEnabled( false );
@@ -120,6 +156,7 @@ void HighlighterEdit::setHighlighter( Highlighter highlighter )
     updateIcon( backColorButton, highlighter_.backColor() );
 
     patternEdit->setEnabled( true );
+    testPatternButton->setEnabled( true );
     patternTypeComboBox->setEnabled( true );
     ignoreCaseCheckBox->setEnabled( true );
     onlyMatchCheckBox->setEnabled( true );
@@ -269,6 +306,45 @@ bool HighlighterEdit::showColorPicker( const QColor& in, QColor& out )
     out = dialog.currentColor();
 
     return ( dialog.result() == QDialog::Accepted );
+}
+
+// Opens the Regex Lab over the editor, which waits for its answer: the
+// Highlighter shown cannot change meanwhile, so Apply writes into the one
+// tested. The Lab marks what the Highlighter colors, in its colors, and
+// decides as it does: with QRegularExpression, whatever engine a Search runs
+// on. A Highlighter keeps neither Inverse match nor a logical combination.
+void HighlighterEdit::testPattern()
+{
+    using Option = RegexLabWindow::Option;
+
+    showRegexLab(
+        RegexLabOpening{ .engine = RegexpEngine::QRegularExpression,
+                         .parent = this,
+                         .modal = true,
+                         .offerApply = true,
+                         .sampleSource = regexLabAccess_.sampleSource },
+        [ this ]( RegexLabWindow& lab ) {
+            lab.setOptionsKept( Option::MatchCase | Option::UseRegexp );
+            lab.setLineDecision(
+                [ tested = highlighter_ ]( const RegularExpressionPattern& pattern ) {
+                    return highlighterDecision( tested, pattern );
+                },
+                RegexLabWindow::MarkColors{ highlighter_.foreColor(), highlighter_.backColor() } );
+            lab.setPattern( RegularExpressionPattern( highlighter_.pattern(),
+                                                      !highlighter_.ignoreCase(), false, false,
+                                                      !highlighter_.useRegex() ) );
+        },
+        this, &HighlighterEdit::applyTestedPattern );
+}
+
+// Writes what the Lab applied into the fields as if it was entered there, so
+// that whatever takes in an edit takes it in.
+void HighlighterEdit::applyTestedPattern( const RegularExpressionPattern& pattern )
+{
+    patternEdit->setText( pattern.pattern );
+    setPattern( pattern.pattern );
+    ignoreCaseCheckBox->setChecked( !pattern.isCaseSensitive );
+    patternTypeComboBox->setCurrentIndex( pattern.isPlainText ? 1 : 0 );
 }
 
 void HighlighterEdit::setPatternType( int index )
