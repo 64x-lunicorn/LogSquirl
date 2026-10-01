@@ -59,7 +59,7 @@ struct SyncOutcome {
     QString message;
     QList<TeamGroup<PredefinedFilterSet>> filterGroups;
     QList<TeamGroup<HighlighterSet>> highlighterGroups;
-    QList<TeamGroup<NamingGroup>> valueNameGroups;
+    QList<TeamGroup<NamingGroup>> namingGroups;
     QList<SkippedFile> skippedFiles;
 
     // Set when a publish was asked for.
@@ -160,7 +160,7 @@ GroupsOfFile readGroupsOfFile( const QString& path )
     QSettings settings{ path, QSettings::IniFormat };
     GroupsOfFile read;
     if ( declaresKind( settings ) ) {
-        auto valueNames = readValueNameGroups( settings );
+        auto valueNames = readNamingGroups( settings );
         read.error = valueNames.error;
         read.namingGroups = std::move( valueNames.groups );
         return read;
@@ -220,7 +220,7 @@ void readGroupFile( const QFileInfo& info, QSet<QString>& ids, SyncOutcome& outc
     }
     addGroupsOfFile( filterGroups, info, ids, outcome, outcome.filterGroups );
     addGroupsOfFile( read.highlighterSets, info, ids, outcome, outcome.highlighterGroups );
-    addGroupsOfFile( read.namingGroups, info, ids, outcome, outcome.valueNameGroups );
+    addGroupsOfFile( read.namingGroups, info, ids, outcome, outcome.namingGroups );
 }
 
 void readGroups( const QString& folder, SyncOutcome& outcome )
@@ -261,7 +261,7 @@ public:
             [ &file ]( const auto& known ) { return known.file == file; } );
         groups_.highlighterGroups.removeIf(
             [ &file ]( const auto& known ) { return known.file == file; } );
-        groups_.valueNameGroups.removeIf(
+        groups_.namingGroups.removeIf(
             [ &file ]( const auto& known ) { return known.file == file; } );
         groups_.skippedFiles.removeIf(
             [ &file ]( const auto& known ) { return known.file == file; } );
@@ -273,7 +273,7 @@ public:
         for ( const auto& known : std::as_const( groups_.highlighterGroups ) ) {
             ids.insert( known.group.id() );
         }
-        for ( const auto& known : std::as_const( groups_.valueNameGroups ) ) {
+        for ( const auto& known : std::as_const( groups_.namingGroups ) ) {
             ids.insert( known.group.id() );
         }
         const QFileInfo info( QDir( folder_ ).filePath( file ) );
@@ -539,7 +539,7 @@ std::optional<FoundGroup> findGroup( const GroupIndex& index, const PublishReque
         }
         break;
     case groupexchange::GroupKind::ValueNames:
-        if ( const auto* group = findById( known.valueNameGroups, request.id ); take( group ) ) {
+        if ( const auto* group = findById( known.namingGroups, request.id ); take( group ) ) {
             found.namingGroup = group->group;
             return found;
         }
@@ -1062,7 +1062,7 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
     }
     outcome->filterGroups = index.groups().filterGroups;
     outcome->highlighterGroups = index.groups().highlighterGroups;
-    outcome->valueNameGroups = index.groups().valueNameGroups;
+    outcome->namingGroups = index.groups().namingGroups;
     outcome->skippedFiles = index.groups().skippedFiles;
     return outcome;
 }
@@ -1291,7 +1291,7 @@ void TeamFolder::resolveConflict( const PublishRequest& request, ConflictChoice 
         }
         else if ( request.namingGroup ) {
             publish( { PublishRequest::forGroup(
-                copyOfGroup( *request.namingGroup, namesOf( valueNameGroups_ ) ),
+                copyOfGroup( *request.namingGroup, namesOf( namingGroups_ ) ),
                 GroupAction::Add ) } );
         }
         break;
@@ -1309,9 +1309,9 @@ QString TeamFolder::highlighterGroupRevision( const QString& id ) const
     return highlighterGroupRevisions().value( id );
 }
 
-QString TeamFolder::valueNameGroupRevision( const QString& id ) const
+QString TeamFolder::namingGroupRevision( const QString& id ) const
 {
-    return valueNameGroupRevisions().value( id );
+    return namingGroupRevisions().value( id );
 }
 
 QHash<QString, QString> TeamFolder::filterGroupRevisions() const
@@ -1324,9 +1324,9 @@ QHash<QString, QString> TeamFolder::highlighterGroupRevisions() const
     return revisionsOf( highlighterGroups_ );
 }
 
-QHash<QString, QString> TeamFolder::valueNameGroupRevisions() const
+QHash<QString, QString> TeamFolder::namingGroupRevisions() const
 {
-    return revisionsOf( valueNameGroups_ );
+    return revisionsOf( namingGroups_ );
 }
 
 bool TeamFolder::isWritable() const
@@ -1374,18 +1374,15 @@ void TeamFolder::takeOutcome()
         }
         switch ( outcome->result ) {
         case SyncOutcome::Result::Synced:
-            setGroups( outcome->filterGroups, outcome->highlighterGroups,
-                       outcome->valueNameGroups );
+            setGroups( outcome->filterGroups, outcome->highlighterGroups, outcome->namingGroups );
             setState( State::Synced, {} );
             break;
         case SyncOutcome::Result::Offline:
-            setGroups( outcome->filterGroups, outcome->highlighterGroups,
-                       outcome->valueNameGroups );
+            setGroups( outcome->filterGroups, outcome->highlighterGroups, outcome->namingGroups );
             setState( State::NotSynced, outcome->message );
             break;
         case SyncOutcome::Result::Failed:
-            setGroups( outcome->filterGroups, outcome->highlighterGroups,
-                       outcome->valueNameGroups );
+            setGroups( outcome->filterGroups, outcome->highlighterGroups, outcome->namingGroups );
             setState( State::Error, outcome->message );
             break;
         }
@@ -1418,26 +1415,26 @@ void TeamFolder::takeOutcome()
 
 void TeamFolder::setGroups( QList<TeamGroup<PredefinedFilterSet>> filterGroups,
                             QList<TeamGroup<HighlighterSet>> highlighterGroups,
-                            QList<TeamGroup<NamingGroup>> valueNameGroups )
+                            QList<TeamGroup<NamingGroup>> namingGroups )
 {
     sortByName( filterGroups );
     sortByName( highlighterGroups );
-    sortByName( valueNameGroups );
+    sortByName( namingGroups );
 
     const auto filterChanges = changesBetween( filterGroups_, filterGroups );
     const auto highlighterChanges = changesBetween( highlighterGroups_, highlighterGroups );
-    const auto valueNameChanges = changesBetween( valueNameGroups_, valueNameGroups );
+    const auto namingGroupChanges = changesBetween( namingGroups_, namingGroups );
     filterGroups_ = std::move( filterGroups );
     highlighterGroups_ = std::move( highlighterGroups );
-    valueNameGroups_ = std::move( valueNameGroups );
+    namingGroups_ = std::move( namingGroups );
     if ( !filterChanges.isEmpty() ) {
         Q_EMIT groupsChanged( filterChanges );
     }
     if ( !highlighterChanges.isEmpty() ) {
         Q_EMIT highlighterGroupsChanged( highlighterChanges );
     }
-    if ( !valueNameChanges.isEmpty() ) {
-        Q_EMIT valueNameGroupsChanged( valueNameChanges );
+    if ( !namingGroupChanges.isEmpty() ) {
+        Q_EMIT namingGroupsChanged( namingGroupChanges );
     }
 }
 
@@ -1517,9 +1514,9 @@ QList<HighlighterSet> TeamFolder::highlighterGroups() const
     return groupsOf( highlighterGroups_ );
 }
 
-QList<NamingGroup> TeamFolder::valueNameGroups() const
+QList<NamingGroup> TeamFolder::namingGroups() const
 {
-    return groupsOf( valueNameGroups_ );
+    return groupsOf( namingGroups_ );
 }
 
 namespace logsquirl::teamfolder {

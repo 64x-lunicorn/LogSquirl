@@ -282,10 +282,10 @@ public:
     // Team group; empty for a group that is not there.
     QString filterGroupRevision( const QString& id ) const;
     QString highlighterGroupRevision( const QString& id ) const;
-    QString valueNameGroupRevision( const QString& id ) const;
+    QString namingGroupRevision( const QString& id ) const;
     QHash<QString, QString> filterGroupRevisions() const;
     QHash<QString, QString> highlighterGroupRevisions() const;
-    QHash<QString, QString> valueNameGroupRevisions() const;
+    QHash<QString, QString> namingGroupRevisions() const;
 
     // Whether Team groups can be changed: not when the server refused a push,
     // until the Team Folder is set up again.
@@ -306,7 +306,7 @@ public:
     // The Team Highlighter Sets, sorted alphabetically by name.
     QList<HighlighterSet> highlighterGroups() const;
     // The Team Naming Groups of Value Names, sorted alphabetically by name.
-    QList<logsquirl::valuenames::NamingGroup> valueNameGroups() const;
+    QList<logsquirl::valuenames::NamingGroup> namingGroups() const;
 
 Q_SIGNALS:
     void stateChanged();
@@ -316,7 +316,7 @@ Q_SIGNALS:
     // The same for the Team Highlighter Sets.
     void highlighterGroupsChanged( const logsquirl::teamfolder::TeamGroupChanges& changes );
     // The same for the Team Naming Groups.
-    void valueNameGroupsChanged( const logsquirl::teamfolder::TeamGroupChanges& changes );
+    void namingGroupsChanged( const logsquirl::teamfolder::TeamGroupChanges& changes );
     // A publish ended.
     void publishFinished( const logsquirl::teamfolder::PublishOutcome& outcome );
     // A sync ended, whatever it brought.
@@ -325,10 +325,10 @@ Q_SIGNALS:
 private:
     void startSync();
     void takeOutcome();
-    void setGroups( QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups,
-                    QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups,
-                    QList<logsquirl::teamfolder::TeamGroup<logsquirl::valuenames::NamingGroup>>
-                        valueNameGroups );
+    void setGroups(
+        QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups,
+        QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups,
+        QList<logsquirl::teamfolder::TeamGroup<logsquirl::valuenames::NamingGroup>> namingGroups );
     void setState( State state, const QString& message );
 
     QString cloneDirectory_;
@@ -340,7 +340,7 @@ private:
     QList<logsquirl::teamfolder::SkippedFile> skippedFiles_;
     QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups_;
     QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups_;
-    QList<logsquirl::teamfolder::TeamGroup<logsquirl::valuenames::NamingGroup>> valueNameGroups_;
+    QList<logsquirl::teamfolder::TeamGroup<logsquirl::valuenames::NamingGroup>> namingGroups_;
 
     QTimer syncTimer_;
     QFutureWatcher<std::shared_ptr<logsquirl::teamfolder::SyncOutcome>> running_;

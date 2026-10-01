@@ -185,12 +185,12 @@ struct ReadGroups {
 };
 ReadGroups<PredefinedFilterSet> readFilterGroups( const QString& file );
 ReadGroups<HighlighterSet> readHighlighterGroups( const QString& file );
-ReadGroups<logsquirl::valuenames::NamingGroup> readValueNameGroups( const QString& file );
+ReadGroups<logsquirl::valuenames::NamingGroup> readNamingGroups( const QString& file );
 // The same, of a file opened already as settings: one opening serves every
 // reader the Team Folder tries.
 ReadGroups<PredefinedFilterSet> readFilterGroups( QSettings& settings );
 ReadGroups<HighlighterSet> readHighlighterGroups( QSettings& settings );
-ReadGroups<logsquirl::valuenames::NamingGroup> readValueNameGroups( QSettings& settings );
+ReadGroups<logsquirl::valuenames::NamingGroup> readNamingGroups( QSettings& settings );
 
 // Brings each of the imported groups into groups by these rules: a group of
 // the same id (failing that, of the same name) is a conflict the session

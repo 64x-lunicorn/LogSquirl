@@ -620,7 +620,7 @@ TEST_CASE( "Team Naming Groups reach the Value Names, and a conflict on one is a
     rule.pattern = "bob=(\\d+)";
     mine.setRules( { rule } );
     auto request = PublishRequest::forGroup( mine, GroupAction::Change );
-    request.baseRevision = bob->valueNameGroupRevision( shared.id() );
+    request.baseRevision = bob->namingGroupRevision( shared.id() );
     REQUIRE_FALSE( request.baseRevision.value_or( QString{} ).isEmpty() );
     auto theirs = shared;
     rule.pattern = "alice=(\\d+)";

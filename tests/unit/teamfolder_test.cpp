@@ -1795,13 +1795,13 @@ TEST_CASE( "Team Naming Groups arrive next to the other kinds, each file read by
                      "kind=valuenames\n[NamingGroup]\nversion=99\nid=x\nname=Newer\n" );
 
     const auto bob = team.member( "bob" );
-    CHECK( namesOf( bob->valueNameGroups() ) == QStringList{ "BAP", "zeta" } );
+    CHECK( namesOf( bob->namingGroups() ) == QStringList{ "BAP", "zeta" } );
     CHECK( namesOf( bob->highlighterGroups() ) == QStringList{ "Levels" } );
     CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Network" } );
-    REQUIRE( bob->valueNameGroups().size() == 2 );
-    CHECK( bob->valueNameGroups()[ 0 ].id() == bap.id() );
-    CHECK( bob->valueNameGroups()[ 0 ].sameAs( bap ) );
-    CHECK_FALSE( bob->valueNameGroupRevision( bap.id() ).isEmpty() );
+    REQUIRE( bob->namingGroups().size() == 2 );
+    CHECK( bob->namingGroups()[ 0 ].id() == bap.id() );
+    CHECK( bob->namingGroups()[ 0 ].sameAs( bap ) );
+    CHECK_FALSE( bob->namingGroupRevision( bap.id() ).isEmpty() );
     const auto skipped = bob->skippedFiles();
     REQUIRE( skipped.size() == 2 );
     CHECK( skipped[ 0 ].file == "future.conf" );
@@ -1810,7 +1810,7 @@ TEST_CASE( "Team Naming Groups arrive next to the other kinds, each file read by
     CHECK( skipped[ 1 ].reason.contains( "newer version" ) );
 
     // A change shows at the next sync, as a change of the Naming Groups only.
-    QSignalSpy valueNamesChanged( bob.get(), &TeamFolder::valueNameGroupsChanged );
+    QSignalSpy valueNamesChanged( bob.get(), &TeamFolder::namingGroupsChanged );
     QSignalSpy filtersChanged( bob.get(), &TeamFolder::groupsChanged );
     team.pushGroupByHand( "alice", makeNamingGroup( "BAP", "Other" ).withId( bap.id() ) );
     syncNow( *bob );
@@ -1818,7 +1818,7 @@ TEST_CASE( "Team Naming Groups arrive next to the other kinds, each file read by
     CHECK( valueNamesChanged.at( 0 ).at( 0 ).value<TeamGroupChanges>().changed
            == QStringList{ bap.id() } );
     CHECK( filtersChanged.isEmpty() );
-    CHECK( ecuNameOf( bob->valueNameGroups()[ 0 ] ) == "Other" );
+    CHECK( ecuNameOf( bob->namingGroups()[ 0 ] ) == "Other" );
 }
 
 TEST_CASE( "A Naming Group is published, changed and deleted for the whole team",
@@ -1844,8 +1844,8 @@ TEST_CASE( "A Naming Group is published, changed and deleted for the whole team"
         == QStringList{ "Add naming group \"BAP\"", "Team Folder Test", "BAP_valuenames.conf" } );
 
     syncNow( *bob );
-    REQUIRE( bob->valueNameGroups().size() == 1 );
-    CHECK( bob->valueNameGroups()[ 0 ].sameAs( bap ) );
+    REQUIRE( bob->namingGroups().size() == 1 );
+    CHECK( bob->namingGroups()[ 0 ].sameAs( bap ) );
     CHECK( bob->filterGroups().isEmpty() );
     CHECK( bob->highlighterGroups().isEmpty() );
 
@@ -1858,9 +1858,9 @@ TEST_CASE( "A Naming Group is published, changed and deleted for the whole team"
                == QStringList{ "Rename naming group \"BAP\" to \"BAP renamed\"", "Team Folder Test",
                                "BAP_valuenames.conf" } );
         syncNow( *bob );
-        REQUIRE( bob->valueNameGroups().size() == 1 );
-        CHECK( bob->valueNameGroups()[ 0 ].name() == "BAP renamed" );
-        CHECK( ecuNameOf( bob->valueNameGroups()[ 0 ] ) == "Changed" );
+        REQUIRE( bob->namingGroups().size() == 1 );
+        CHECK( bob->namingGroups()[ 0 ].name() == "BAP renamed" );
+        CHECK( ecuNameOf( bob->namingGroups()[ 0 ] ) == "Changed" );
     }
 
     SECTION( "a deletion" )
@@ -1871,7 +1871,7 @@ TEST_CASE( "A Naming Group is published, changed and deleted for the whole team"
         CHECK( deleted.results[ 0 ].status == PublishStatus::Published );
         CHECK( team.serverFiles().isEmpty() );
         syncNow( *bob );
-        CHECK( bob->valueNameGroups().isEmpty() );
+        CHECK( bob->namingGroups().isEmpty() );
     }
 
     SECTION( "a dialog's edits ask for what changed of the Naming Groups" )
@@ -1885,12 +1885,12 @@ TEST_CASE( "A Naming Group is published, changed and deleted for the whole team"
         CHECK( logsquirl::teamfolder::requestsForChanges( { bap }, { unchecked } ).isEmpty() );
 
         const auto requests = logsquirl::teamfolder::requestsForChanges(
-            { bap }, { renamed, fresh }, alice->valueNameGroupRevisions() );
+            { bap }, { renamed, fresh }, alice->namingGroupRevisions() );
         REQUIRE( requests.size() == 2 );
         CHECK( requests[ 0 ].kind == GroupKind::ValueNames );
         CHECK( requests[ 0 ].action == GroupAction::Rename );
         CHECK( requests[ 0 ].baseRevision.value_or( QString{} )
-               == alice->valueNameGroupRevision( bap.id() ) );
+               == alice->namingGroupRevision( bap.id() ) );
         CHECK( requests[ 1 ].action == GroupAction::Add );
         CHECK( requests[ 1 ].namingGroup.has_value() );
         const auto deletions = logsquirl::teamfolder::requestsForChanges( { bap }, {} );
@@ -1918,7 +1918,7 @@ TEST_CASE( "Publishing a Naming Group someone else changed meanwhile reports a c
 
     auto request = PublishRequest::forGroup( makeNamingGroup( "BAP", "Bobs" ).withId( bap.id() ),
                                              GroupAction::Change );
-    request.baseRevision = bob->valueNameGroupRevision( bap.id() );
+    request.baseRevision = bob->namingGroupRevision( bap.id() );
     REQUIRE_FALSE( request.baseRevision.value_or( QString{} ).isEmpty() );
 
     const auto theirs = makeNamingGroup( "BAP", "Alices" ).withId( bap.id() );
@@ -1945,8 +1945,8 @@ TEST_CASE( "Publishing a Naming Group someone else changed meanwhile reports a c
         REQUIRE( finished.wait( SyncTimeoutMs ) );
         REQUIRE( settled( *bob ) );
         syncNow( *alice );
-        REQUIRE( alice->valueNameGroups().size() == 1 );
-        CHECK( ecuNameOf( alice->valueNameGroups()[ 0 ] ) == "Bobs" );
+        REQUIRE( alice->namingGroups().size() == 1 );
+        CHECK( ecuNameOf( alice->namingGroups()[ 0 ] ) == "Bobs" );
     }
 
     SECTION( "save mine as a copy adds a Naming Group and leaves theirs" )
@@ -1956,7 +1956,7 @@ TEST_CASE( "Publishing a Naming Group someone else changed meanwhile reports a c
         REQUIRE( finished.wait( SyncTimeoutMs ) );
         REQUIRE( settled( *bob ) );
         syncNow( *alice );
-        const auto groups = alice->valueNameGroups();
+        const auto groups = alice->namingGroups();
         CHECK( namesOf( groups ) == QStringList{ "BAP", "BAP (2)" } );
         REQUIRE( groups.size() == 2 );
         CHECK( ecuNameOf( groups[ 0 ] ) == "Alices" );

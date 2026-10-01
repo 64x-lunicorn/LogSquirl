@@ -1959,8 +1959,8 @@ void MainWindow::editValueNames()
     ValueNamesDialog dialog( this );
     if ( const auto teamFolder = session_.teamFolder();
          teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
-        showTeamGroupsIn( dialog, *teamFolder, teamFolder->valueNameGroups(),
-                          &TeamFolder::valueNameGroupRevisions );
+        showTeamGroupsIn( dialog, *teamFolder, teamFolder->namingGroups(),
+                          &TeamFolder::namingGroupRevisions );
     }
     const auto applyIfChanged = [ this, &collection, &applied ] {
         if ( collection.generation() != applied ) {
@@ -2013,8 +2013,8 @@ void MainWindow::connectTeamFolder()
              [ this ] { applyTeamHighlighterSets( true ); } );
     // A changed or removed Team Naming Group names values anew in every open
     // Log File, and shows in the Value Names tab.
-    connect( teamFolder.get(), &TeamFolder::valueNameGroupsChanged, this,
-             &MainWindow::applyTeamValueNames );
+    connect( teamFolder.get(), &TeamFolder::namingGroupsChanged, this,
+             &MainWindow::applyTeamNamingGroups );
     // A sync that reached the repository knows the groups, however few: only
     // then is an activation of a Team set that is not there dropped.
     connect( teamFolder.get(), &TeamFolder::syncFinished, this, [ this ] {
@@ -2030,7 +2030,7 @@ void MainWindow::connectTeamFolder()
     filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
     // Before the first sync no group is known yet: nothing is dropped.
     applyTeamHighlighterSets( teamFolder->state() == TeamFolder::State::Synced );
-    applyTeamValueNames();
+    applyTeamNamingGroups();
     updateTeamFolderIndicator();
 }
 
@@ -2137,7 +2137,7 @@ void MainWindow::applyTeamHighlighterSets( bool dropUnknownActivations )
     updateHighlightersMenu();
 }
 
-void MainWindow::applyTeamValueNames()
+void MainWindow::applyTeamNamingGroups()
 {
     const auto teamFolder = session_.teamFolder();
     if ( !teamFolder ) {
@@ -2147,7 +2147,7 @@ void MainWindow::applyTeamValueNames()
     // Every window comes here for the same sync; the first one changes the
     // collection, which tells every window. The Team groups are never saved:
     // the Team Folder holds them.
-    if ( ValueNamesCollection::get().setTeamGroups( teamFolder->valueNameGroups() ) ) {
+    if ( ValueNamesCollection::get().setTeamGroups( teamFolder->namingGroups() ) ) {
         session_.applyChange( Changed::ValueNames );
     }
 }

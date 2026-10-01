@@ -641,7 +641,7 @@ TEST_CASE( "A Naming Group file names its kind and reads back as exactly that gr
         CHECK_FALSE( raw.contains( "PredefinedFiltersCollection/version" ) );
     }
 
-    const auto read = readValueNameGroups( file );
+    const auto read = readNamingGroups( file );
     CHECK( read.error == ReadError::None );
     REQUIRE( read.groups.size() == 1 );
     const auto& back = read.groups.front();
@@ -685,7 +685,7 @@ TEST_CASE( "A Naming Group file is never read as a Filter Group or Highlighter S
             settings.setValue( "kind", "somethingelse" );
         }
         CHECK( readFilterGroups( mixed ).error == ReadError::OtherKind );
-        CHECK( readValueNameGroups( mixed ).error == ReadError::OtherKind );
+        CHECK( readNamingGroups( mixed ).error == ReadError::OtherKind );
     }
 }
 
@@ -699,8 +699,8 @@ TEST_CASE( "A Filter Group or Highlighter Set file is never read as a Naming Gro
     REQUIRE( writeGroup( filterFile, makeFilterSet( "Network" ) ) );
     REQUIRE( writeGroup( highlighterFile, makeHighlighterSet( "Levels" ) ) );
 
-    CHECK( readValueNameGroups( filterFile ).error == ReadError::OtherKind );
-    CHECK( readValueNameGroups( highlighterFile ).error == ReadError::OtherKind );
+    CHECK( readNamingGroups( filterFile ).error == ReadError::OtherKind );
+    CHECK( readNamingGroups( highlighterFile ).error == ReadError::OtherKind );
 
     QList<NamingGroup> groups;
     FixedAnswer fixed{ ConflictAnswer::KeepBoth };
@@ -715,16 +715,15 @@ TEST_CASE( "A Filter Group or Highlighter Set file is never read as a Naming Gro
             QSettings settings{ unnamed, QSettings::IniFormat };
             makeNamingGroup( "BAP" ).saveToStorage( settings );
         }
-        CHECK( readValueNameGroups( unnamed ).error == ReadError::NoGroups );
+        CHECK( readNamingGroups( unnamed ).error == ReadError::NoGroups );
     }
 
     SECTION( "a missing or empty file" )
     {
-        CHECK( readValueNameGroups( dir.filePath( "missing.conf" ) ).error
-               == ReadError::Unreadable );
+        CHECK( readNamingGroups( dir.filePath( "missing.conf" ) ).error == ReadError::Unreadable );
         const auto empty = dir.filePath( "empty.conf" );
         writeText( empty, {} );
-        CHECK( readValueNameGroups( empty ).error == ReadError::NoGroups );
+        CHECK( readNamingGroups( empty ).error == ReadError::NoGroups );
     }
 }
 
@@ -754,8 +753,8 @@ TEST_CASE( "Filter Group and Highlighter Set files as written so far still load"
 
     // Neither is anything else.
     CHECK( readHighlighterGroups( filterFile ).error == ReadError::OtherKind );
-    CHECK( readValueNameGroups( filterFile ).error == ReadError::OtherKind );
-    CHECK( readValueNameGroups( highlighterFile ).error == ReadError::OtherKind );
+    CHECK( readNamingGroups( filterFile ).error == ReadError::OtherKind );
+    CHECK( readNamingGroups( highlighterFile ).error == ReadError::OtherKind );
 
     // And they import as before.
     QList<PredefinedFilterSet> groups{ filterGroup( defaultFilterSetId(), "Default", "own" ) };
@@ -850,7 +849,7 @@ TEST_CASE( "A Naming Group of a newer version is not read, and says so",
         settings.setValue( "NamingGroup/version", NamingGroup::newestStorageVersion() + 1 );
     }
 
-    CHECK( readValueNameGroups( file ).error == ReadError::NewerVersion );
+    CHECK( readNamingGroups( file ).error == ReadError::NewerVersion );
     QList<NamingGroup> groups;
     FixedAnswer fixed{ ConflictAnswer::KeepBoth };
     ImportSession session( fixed.resolver() );

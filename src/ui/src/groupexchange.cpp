@@ -241,10 +241,10 @@ ReadGroups<HighlighterSet> readHighlighterGroups( const QString& file )
     return readHighlighterGroups( settings );
 }
 
-ReadGroups<NamingGroup> readValueNameGroups( const QString& file )
+ReadGroups<NamingGroup> readNamingGroups( const QString& file )
 {
     QSettings settings{ file, QSettings::IniFormat };
-    return readValueNameGroups( settings );
+    return readNamingGroups( settings );
 }
 
 ReadGroups<PredefinedFilterSet> readFilterGroups( QSettings& settings )
@@ -299,7 +299,7 @@ ReadGroups<HighlighterSet> readHighlighterGroups( QSettings& settings )
     return read;
 }
 
-ReadGroups<NamingGroup> readValueNameGroups( QSettings& settings )
+ReadGroups<NamingGroup> readNamingGroups( QSettings& settings )
 {
     ReadGroups<NamingGroup> read;
     if ( !isReadable( settings ) ) {
@@ -367,7 +367,7 @@ ImportResult importFile( const QString& file, QList<HighlighterSet>& groups,
 
 ImportResult importFile( const QString& file, QList<NamingGroup>& groups, ImportSession& session )
 {
-    return importImpl( readValueNameGroups( file ), groups, session );
+    return importImpl( readNamingGroups( file ), groups, session );
 }
 
 QString suggestedFileName( const QString& groupName, GroupKind kind )

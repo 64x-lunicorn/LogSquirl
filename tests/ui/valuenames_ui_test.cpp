@@ -701,7 +701,7 @@ SCENARIO( "The Value Names dialog exports and imports a Naming Group",
     // Exported, then changed here, then imported again.
     const auto file = dir.filePath( suggestedFileName( "BAP", GroupKind::ValueNames ) );
     REQUIRE( dialog.exportShownGroup( file ) );
-    const auto exported = readValueNameGroups( file );
+    const auto exported = readNamingGroups( file );
     REQUIRE( exported.groups.size() == 1 );
     REQUIRE(
         exported.groups.front().sameAs( exampleGroup().withId( exported.groups.front().id() ) ) );
