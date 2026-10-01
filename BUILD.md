@@ -420,14 +420,27 @@ many durations. Nothing in the report or its writer changes for a new scenario.
 ### Instruction counts
 
 Every pull request that CI Build builds also gets the **Instruction Counts** workflow
-(`.github/workflows/instruction-counts.yml`, #671): it builds the Catch2 benchmarks of
+(`.github/workflows/instruction-counts.yml`, #671), which CI Build calls as its job
+*Instruction counts*: it builds the Catch2 benchmarks of
 `tests/benchmarks` in the noble build container as CI ships them (RelWithDebInfo with LTO), once
 for the master commit the pull request is merged onto and once for the merge, and counts the
 instructions of each benchmark under Valgrind's Callgrind. The job summary and one pull request
 comment, updated on every push, show each benchmark's count before and after and the change in
 percent; the `instruction-counts` artifact holds the same as JSON, and `instruction-counts-dumps`
 the Callgrind dumps, to see in `callgrind_annotate` or KCachegrind where the instructions went.
-The report does not fail anything yet (#672).
+
+The job *Instruction counts gate* judges the counts (#672), and the required **CI passed** check
+waits for it: a benchmark that costs more than its threshold more instructions than on the base
+fails it, unless the pull request carries the `perf-accepted` label, and a benchmark counted on
+the base but not on the pull request fails it, label or not (CONTRIBUTING.md, *Instruction
+count gate*). The thresholds live in one place, `THRESHOLD_PERCENT` in
+`.github/scripts/instruction-counts.py`: +2 % by default, more for the few benchmarks that vary
+more (twice the widest spread measured between counts of the same code). The gate reads the
+labels when it runs, so a re-run after the label changed judges again; the **Instruction Counts
+Label** workflow (`instruction-counts-label.yml`) re-runs it by itself when `perf-accepted` is
+added or removed on a pull request from a branch of this repository, and updates the comment.
+The verdict is in the job summary, in the `instruction-counts-gate` artifact and in the comment,
+which lists the benchmarks that are over their threshold, failed or accepted.
 
 A push to master counts the pushed commit and keeps its counts in the Actions cache, under the
 commit, the benchmark sources, the counting script and the runner's CPU model (glibc picks its
@@ -453,7 +466,7 @@ smaller than in a timed run (4 MiB, also per Session Log File), so the counts ar
 comparable with Catch2's times.
 
 The comment comes from a second workflow, **Instruction Counts Comment**
-(`instruction-counts-comment.yml`), which starts when a count has completed: a pull request from a
+(`instruction-counts-comment.yml`), which starts when a CI Build run has completed: a pull request from a
 fork has a read-only token and cannot comment, and the workflow that can runs only master's code
 and reads the artifact as untrusted data.
 
@@ -901,8 +914,9 @@ before anything is downloaded, because its signing job could not enter the
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
-| `instruction-counts.yml` | push/PR to master (the files CI Build builds for) | Count the instructions of every Catch2 benchmark under Callgrind: before and after a pull request, reported in the job summary and the artifact; a push to master keeps its counts for the pull requests based on it (see *Instruction counts*) |
-| `instruction-counts-comment.yml` | `workflow_run` of Instruction Counts | Post the report as one pull request comment, updated on every run, with master's code only |
+| `instruction-counts.yml` | called by CI Build for a push/PR to master it builds | Count the instructions of every Catch2 benchmark under Callgrind: before and after a pull request, reported in the job summary and the artifact, and judged by CI Build's gate; a push to master keeps its counts for the pull requests based on it (see *Instruction counts*) |
+| `instruction-counts-comment.yml` | `workflow_run` of CI Build | Post the report and the gate's verdict as one pull request comment, updated on every run, with master's code only |
+| `instruction-counts-label.yml` | `perf-accepted` added to or removed from a PR | Re-run CI Build's instruction counts gate and update the comment (see *Instruction counts*) |
 | `performance.yml` | weekly schedule (Mondays 03:41 UTC), dispatch | Measure master's e2e performance suite in an optimized build, compare it with the last runs and record it on the `perf-data` branch (see *Weekly performance*) |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 

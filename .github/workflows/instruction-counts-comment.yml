@@ -1,7 +1,9 @@
 name: "Instruction Counts Comment"
 
 # Posts the report of an Instruction Counts run (instruction-counts.yml) on its
-# pull request, or updates the comment an earlier run posted (#671).
+# pull request, or updates the comment an earlier run posted (#671), with the
+# verdict of the gate (#672): CI Build runs both, so this workflow starts when
+# a CI Build run, or a re-run of its gate, has completed.
 #
 # The measuring run cannot comment itself: for a pull request from a fork its
 # token is read-only, as it must be for a run that builds and executes the
@@ -14,13 +16,16 @@ name: "Instruction Counts Comment"
 # but its numbers and escaped benchmark names, and posts only to the pull
 # request whose head is the commit the run was started for (the pull request
 # number comes from the artifact, since workflow_run leaves the pull request
-# list of a fork's run empty). No value of the artifact reaches a `run:` line.
+# list of a fork's run empty). The gate's artifact is checked the same way and
+# may name only benchmarks of the comparison; an unusable one leaves the
+# verdict out of the comment (the check shows it anyway). No value of an
+# artifact reaches a `run:` line.
 #
 # workflow_run only starts workflows that exist on the default branch, so this
 # one works once it is on master.
 on:
   workflow_run: # zizmor: ignore[dangerous-triggers] reads the artifact as untrusted data only, see above
-    workflows: ["Instruction Counts"]
+    workflows: ["CI Build"]
     types: [completed]
 
 permissions: {}
@@ -35,8 +40,10 @@ env:
 jobs:
   comment:
     name: Instruction counts / comment
-    # A failed run may still have counted and uploaded its report (a benchmark
-    # that failed on the after side); a cancelled one has not.
+    # A failed run may still have counted and uploaded its report (the gate
+    # failed, or a benchmark failed on the after side); a cancelled one has
+    # not. A run that counted nothing (a pull request that changes only
+    # documentation) has no report, and the download below finds none.
     if: >-
       github.event.workflow_run.event == 'pull_request'
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
@@ -63,14 +70,31 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
 
+      # Missing when the gate did not run.
+      - name: Download the gate's verdict
+        id: gate
+        if: steps.download.outcome == 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: instruction-counts-gate
+          path: ${{ runner.temp }}/instruction-counts-gate
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
       - name: Post or update the comment
         if: steps.download.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          GATE: ${{ steps.gate.outcome == 'success' }}
         run: |
           set -euo pipefail
+          gate=()
+          if [ "$GATE" = true ]; then
+            gate=(--gate "$RUNNER_TEMP/instruction-counts-gate/gate.json")
+          fi
           python3 .github/scripts/instruction-counts.py comment \
-            --comparison "$RUNNER_TEMP/instruction-counts/comparison.json" \
+            --comparison "$RUNNER_TEMP/instruction-counts/comparison.json" "${gate[@]}" \
             --repo "$REPO" --head-sha "$HEAD_SHA"

@@ -1,0 +1,124 @@
+name: "Instruction Counts Label"
+
+# Adding or removing the `perf-accepted` label re-runs CI Build's "Instruction
+# counts gate" job (#672), so the required "CI passed" check follows the label
+# without a push: the gate reads the labels when it runs, and a re-run of the
+# gate re-runs "CI passed", which needs it. Then the pull request comment is
+# updated with the new verdict, here, because a re-run started with this
+# workflow's token starts no workflow_run workflow (Instruction Counts
+# Comment).
+#
+# A run of CI Build in progress cannot be re-run, so this waits for the run of
+# the pull request's head to end first (its gate may not have run yet; then it
+# reads the label itself, and the re-run only repeats the verdict).
+#
+# Only for a pull request from a branch of this repository: one from a fork
+# gets a read-only token here, which cannot re-run anything. There a maintainer
+# re-runs the gate job of the CI Build run by hand ("Re-run failed jobs" when
+# it failed), which also updates the comment. CONTRIBUTING.md,
+# *Instruction count gate*, describes the label.
+on:
+  pull_request:
+    branches: [master]
+    types: [labeled, unlabeled]
+
+permissions: {}
+
+# Adding and removing the label in quick succession: the last change wins.
+concurrency:
+  group: instruction-counts-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  rerun:
+    name: Re-run the instruction counts gate
+    if: >-
+      github.event.label.name == 'perf-accepted'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    # Waiting for a CI Build run of about an hour at most, then the gate.
+    timeout-minutes: 120
+    permissions:
+      actions: write # re-run the gate job, download its artifacts
+      pull-requests: write # update the comment
+    steps:
+      - name: Re-run the gate
+        id: rerun
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          run=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci-build.yml --event pull_request \
+            --commit "$HEAD_SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$run" ]; then
+            echo "::notice::No CI Build run of ${HEAD_SHA:0:12} yet; its gate reads the labels when it runs"
+            exit 0
+          fi
+          echo "CI Build run $run"
+          gh run watch "$run" --repo "$GITHUB_REPOSITORY" --interval 60 > /dev/null || true
+          gate=$(gh run view "$run" --repo "$GITHUB_REPOSITORY" --json jobs \
+            --jq '[.jobs[] | select(.name == "Instruction counts gate")][0] // {} | "\(.databaseId) \(.conclusion)"')
+          job=${gate%% *}
+          conclusion=${gate#* }
+          case "$conclusion" in
+            success | failure) ;;
+            *)
+              echo "::notice::The gate of run $run did not run ($conclusion); nothing to re-run"
+              exit 0
+              ;;
+          esac
+          gh run rerun "$run" --repo "$GITHUB_REPOSITORY" --job "$job"
+          # The re-run starts with a short delay; then wait for it to end.
+          for _ in $(seq 30); do
+            status=$(gh run view "$run" --repo "$GITHUB_REPOSITORY" --json status --jq .status)
+            [ "$status" != completed ] && break
+            sleep 5
+          done
+          gh run watch "$run" --repo "$GITHUB_REPOSITORY" --interval 15 > /dev/null || true
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+      # The pull request's own script, as the gate ran it: a branch of this
+      # repository, whose author can change the workflows anyway.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.rerun.outputs.run != ''
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      - name: Download the counts
+        id: counts
+        if: steps.rerun.outputs.run != ''
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: instruction-counts
+          path: ${{ runner.temp }}/instruction-counts
+          run-id: ${{ steps.rerun.outputs.run }}
+          github-token: ${{ github.token }}
+
+      - name: Download the gate's verdict
+        id: gate
+        if: steps.counts.outcome == 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: instruction-counts-gate
+          path: ${{ runner.temp }}/instruction-counts-gate
+          run-id: ${{ steps.rerun.outputs.run }}
+          github-token: ${{ github.token }}
+
+      - name: Update the comment
+        if: steps.gate.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/instruction-counts.py comment \
+            --comparison "$RUNNER_TEMP/instruction-counts/comparison.json" \
+            --gate "$RUNNER_TEMP/instruction-counts-gate/gate.json" \
+            --repo "$GITHUB_REPOSITORY" --head-sha "$HEAD_SHA"
