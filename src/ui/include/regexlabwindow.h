@@ -36,8 +36,8 @@
 #include <QWidget>
 
 #include "containers.h"
-#include "linetypes.h"
 #include "latestresultrunner.h"
+#include "linetypes.h"
 #include "regexlab.h"
 #include "regexpengine.h"
 #include "regularexpressionpattern.h"

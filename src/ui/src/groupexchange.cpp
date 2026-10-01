@@ -229,25 +229,8 @@ ConflictAnswer ImportSession::decide( const ConflictQuestion& question )
     return decision.answer;
 }
 
-ReadGroups<PredefinedFilterSet> readFilterGroups( const QString& file )
-{
-    QSettings settings{ file, QSettings::IniFormat };
-    return readFilterGroups( settings );
-}
-
-ReadGroups<HighlighterSet> readHighlighterGroups( const QString& file )
-{
-    QSettings settings{ file, QSettings::IniFormat };
-    return readHighlighterGroups( settings );
-}
-
-ReadGroups<NamingGroup> readNamingGroups( const QString& file )
-{
-    QSettings settings{ file, QSettings::IniFormat };
-    return readNamingGroups( settings );
-}
-
-ReadGroups<PredefinedFilterSet> readFilterGroups( QSettings& settings )
+template <>
+ReadGroups<PredefinedFilterSet> readGroups( QSettings& settings )
 {
     ReadGroups<PredefinedFilterSet> read;
     if ( !isReadable( settings ) ) {
@@ -276,7 +259,8 @@ ReadGroups<PredefinedFilterSet> readFilterGroups( QSettings& settings )
     return read;
 }
 
-ReadGroups<HighlighterSet> readHighlighterGroups( QSettings& settings )
+template <>
+ReadGroups<HighlighterSet> readGroups( QSettings& settings )
 {
     ReadGroups<HighlighterSet> read;
     if ( !isReadable( settings ) ) {
@@ -299,7 +283,8 @@ ReadGroups<HighlighterSet> readHighlighterGroups( QSettings& settings )
     return read;
 }
 
-ReadGroups<NamingGroup> readNamingGroups( QSettings& settings )
+template <>
+ReadGroups<NamingGroup> readGroups( QSettings& settings )
 {
     ReadGroups<NamingGroup> read;
     if ( !isReadable( settings ) ) {
@@ -335,39 +320,24 @@ ReadGroups<NamingGroup> readNamingGroups( QSettings& settings )
     return read;
 }
 
-ImportResult mergeGroups( QList<PredefinedFilterSet>& groups,
-                          const QList<PredefinedFilterSet>& imported, ImportSession& session )
+template <typename Group>
+ReadGroups<Group> readGroups( const QString& file )
 {
-    return mergeImpl( groups, imported, session );
+    QSettings settings{ file, QSettings::IniFormat };
+    return readGroups<Group>( settings );
 }
 
-ImportResult mergeGroups( QList<HighlighterSet>& groups, const QList<HighlighterSet>& imported,
+template <typename Group>
+ImportResult mergeGroups( QList<Group>& groups, const QList<Group>& imported,
                           ImportSession& session )
 {
     return mergeImpl( groups, imported, session );
 }
 
-ImportResult mergeGroups( QList<NamingGroup>& groups, const QList<NamingGroup>& imported,
-                          ImportSession& session )
+template <typename Group>
+ImportResult importFile( const QString& file, QList<Group>& groups, ImportSession& session )
 {
-    return mergeImpl( groups, imported, session );
-}
-
-ImportResult importFile( const QString& file, QList<PredefinedFilterSet>& groups,
-                         ImportSession& session )
-{
-    return importImpl( readFilterGroups( file ), groups, session );
-}
-
-ImportResult importFile( const QString& file, QList<HighlighterSet>& groups,
-                         ImportSession& session )
-{
-    return importImpl( readHighlighterGroups( file ), groups, session );
-}
-
-ImportResult importFile( const QString& file, QList<NamingGroup>& groups, ImportSession& session )
-{
-    return importImpl( readNamingGroups( file ), groups, session );
+    return importImpl( readGroups<Group>( file ), groups, session );
 }
 
 QString suggestedFileName( const QString& groupName, GroupKind kind )
@@ -389,6 +359,7 @@ QString suggestedFileName( const QString& groupName, GroupKind kind )
     return name + QStringLiteral( "_valuenames.conf" );
 }
 
+template <>
 bool writeGroup( const QString& file, const PredefinedFilterSet& group )
 {
     PredefinedFiltersCollection collection;
@@ -396,6 +367,7 @@ bool writeGroup( const QString& file, const PredefinedFilterSet& group )
     return writeCollection( file, collection );
 }
 
+template <>
 bool writeGroup( const QString& file, const HighlighterSet& group )
 {
     // A fresh collection has no Color Labels and no active sets.
@@ -404,6 +376,7 @@ bool writeGroup( const QString& file, const HighlighterSet& group )
     return writeCollection( file, collection );
 }
 
+template <>
 bool writeGroup( const QString& file, const NamingGroup& group )
 {
     return writeCollection( file, NamingGroupFile{ group } );
@@ -423,5 +396,23 @@ QString withConfSuffix( const QString& file )
 {
     return file.endsWith( QStringLiteral( ".conf" ) ) ? file : file + QStringLiteral( ".conf" );
 }
+
+// Every kind of group, for the templates above.
+template ReadGroups<PredefinedFilterSet> readGroups<PredefinedFilterSet>( const QString& file );
+template ImportResult mergeGroups<PredefinedFilterSet>( QList<PredefinedFilterSet>&,
+                                                        const QList<PredefinedFilterSet>&,
+                                                        ImportSession& );
+template ImportResult importFile<PredefinedFilterSet>( const QString&, QList<PredefinedFilterSet>&,
+                                                       ImportSession& );
+template ReadGroups<HighlighterSet> readGroups<HighlighterSet>( const QString& file );
+template ImportResult mergeGroups<HighlighterSet>( QList<HighlighterSet>&,
+                                                   const QList<HighlighterSet>&, ImportSession& );
+template ImportResult importFile<HighlighterSet>( const QString&, QList<HighlighterSet>&,
+                                                  ImportSession& );
+template ReadGroups<NamingGroup> readGroups<NamingGroup>( const QString& file );
+template ImportResult mergeGroups<NamingGroup>( QList<NamingGroup>&, const QList<NamingGroup>&,
+                                                ImportSession& );
+template ImportResult importFile<NamingGroup>( const QString&, QList<NamingGroup>&,
+                                               ImportSession& );
 
 } // namespace logsquirl::groupexchange

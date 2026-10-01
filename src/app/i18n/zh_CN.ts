@@ -1610,49 +1610,19 @@ Do you want to replace it?</source>
         <translation>导入高亮规则配置</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="454"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="449"/>
         <source>Team highlighter sets</source>
         <translation>团队高亮规则集</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="457"/>
-        <source>Shared through the Team Folder: they change when the team changes them.</source>
-        <translation>通过团队文件夹共享：团队修改后它们会随之变化。</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="465"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="450"/>
         <source>New Team highlighter set</source>
         <translation>新建团队高亮规则集</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="467"/>
-        <source>Share with team</source>
-        <translation>与团队共享</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="468"/>
-        <source>Adds a Team copy of the selected group of your own.</source>
-        <translation>为您自己的所选分组添加一份团队副本。</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="471"/>
-        <source>Copy to my groups</source>
-        <translation>复制到我的分组</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="474"/>
-        <source>Delete for the team</source>
-        <translation>为团队删除</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="568"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="519"/>
         <source>Delete Team highlighter set</source>
         <translation>删除团队高亮规则集</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="569"/>
-        <source>This deletes the group for the whole team.</source>
-        <translation>这将为整个团队删除该分组。</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="235"/>
@@ -3354,49 +3324,19 @@ Restart LogSquirl to try again.</source>
         <translation>导入预定义过滤器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="378"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="367"/>
         <source>Team groups</source>
         <translation>团队分组</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="381"/>
-        <source>Shared through the Team Folder: they change when the team changes them.</source>
-        <translation>通过团队文件夹共享：团队修改后它们会随之变化。</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="389"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="368"/>
         <source>New Team group</source>
         <translation>新建团队分组</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="392"/>
-        <source>Share with team</source>
-        <translation>与团队共享</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="393"/>
-        <source>Adds a Team copy of the selected group of your own.</source>
-        <translation>为您自己的所选分组添加一份团队副本。</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="396"/>
-        <source>Copy to my groups</source>
-        <translation>复制到我的分组</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="399"/>
-        <source>Delete for the team</source>
-        <translation>为团队删除</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="476"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="426"/>
         <source>Delete Team group</source>
         <translation>删除团队分组</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="476"/>
-        <source>This deletes the group for the whole team.</source>
-        <translation>这将为整个团队删除该分组。</translation>
     </message>
 </context>
 <context>
@@ -4516,82 +4456,82 @@ Restart LogSquirl to try again.</source>
 <context>
     <name>TeamFolder</name>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="122"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="124"/>
         <source>Another file holds the group %1 already.</source>
         <translation>另一个文件中已有分组 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="188"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="190"/>
         <source>The file cannot be read.</source>
         <translation>无法读取该文件。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="190"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="192"/>
         <source>The file holds a kind of group this version does not know.</source>
         <translation>该文件包含此版本不认识的分组类型。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="192"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="194"/>
         <source>The file was written by a newer version of LogSquirl.</source>
         <translation>该文件由更新版本的 LogSquirl 写入。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="197"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="199"/>
         <source>The file holds no Filter Group, Highlighter Set or Naming Group.</source>
         <translation>该文件中没有过滤器分组、高亮规则集或命名组。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="641"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="639"/>
         <source>The group could not be written to %1.</source>
         <translation>无法将分组写入 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="883"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="881"/>
         <source>The subfolder %1 does not lie inside the repository.</source>
         <translation>子文件夹 %1 不在仓库内。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1254"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1252"/>
         <source>The Team Folder is off.</source>
         <translation>团队文件夹已关闭。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1469"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1462"/>
         <source>Team Folder syncing…</source>
         <translation>团队文件夹同步中…</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1473"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1466"/>
         <source>Team Folder off</source>
         <translation>团队文件夹已关闭</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1475"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1468"/>
         <source>Team Folder not synced</source>
         <translation>团队文件夹未同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1477"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1470"/>
         <source>Team Folder synced</source>
         <translation>团队文件夹已同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1479"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1472"/>
         <source>Team Folder error</source>
         <translation>团队文件夹出错</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1491"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1484"/>
         <source>Not published: %1</source>
         <translation>未发布：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1494"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1487"/>
         <source>The Team groups are read-only: %1</source>
         <translation>团队分组为只读：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1497"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1490"/>
         <source>Skipped %1: %2</source>
         <translation>已跳过 %1：%2</translation>
     </message>
@@ -4614,6 +4554,39 @@ Restart LogSquirl to try again.</source>
         <location filename="../../ui/src/teamfoldergit.cpp" line="176"/>
         <source>Git ended with exit code %1.</source>
         <translation>Git 以退出码 %1 结束。</translation>
+    </message>
+</context>
+<context>
+    <name>TeamGroupsSection</name>
+    <message>
+        <location filename="../../ui/src/teamgroupssection.cpp" line="36"/>
+        <source>Share with team</source>
+        <translation>与团队共享</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamgroupssection.cpp" line="37"/>
+        <source>Copy to my groups</source>
+        <translation>复制到我的分组</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamgroupssection.cpp" line="38"/>
+        <source>Delete for the team</source>
+        <translation>为团队删除</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamgroupssection.cpp" line="42"/>
+        <source>Shared through the Team Folder: they change when the team changes them.</source>
+        <translation>通过团队文件夹共享：团队修改后它们会随之变化。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamgroupssection.cpp" line="50"/>
+        <source>Adds a Team copy of the selected group of your own.</source>
+        <translation>为您自己的所选分组添加一份团队副本。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamgroupssection.cpp" line="83"/>
+        <source>This deletes the group for the whole team.</source>
+        <translation>这将为整个团队删除该分组。</translation>
     </message>
 </context>
 <context>
@@ -5106,7 +5079,7 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="738"/>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="761"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1675"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1630"/>
         <source>New Naming Group</source>
         <translation>新建命名组</translation>
     </message>
@@ -5163,77 +5136,47 @@ Without a date, %1 is used.</source>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="1342"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1524"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1522"/>
         <source>The file %1 could not be written.</source>
         <translation>无法写入文件 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1515"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1523"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1513"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1521"/>
         <source>Export Naming Group</source>
         <translation>导出命名组</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1516"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1554"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1514"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1552"/>
         <source>Value Names (*.conf)</source>
         <translation>值名称 (*.conf)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1535"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1559"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1533"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1557"/>
         <source>Import Naming Groups</source>
         <translation>导入命名组</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1554"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1552"/>
         <source>Select one or more files to open</source>
         <translation>选择一个或多个要打开的文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1574"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1569"/>
         <source>Team groups</source>
         <translation>团队分组</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1577"/>
-        <source>Shared through the Team Folder: they change when the team changes them.</source>
-        <translation>通过团队文件夹共享：团队修改后它们会随之变化。</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1585"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1569"/>
         <source>New Team group</source>
         <translation>新建团队分组</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1588"/>
-        <source>Share with team</source>
-        <translation>与团队共享</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1590"/>
-        <source>Adds a Team copy of the selected group of your own.</source>
-        <translation>为您自己的所选分组添加一份团队副本。</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1593"/>
-        <source>Copy to my groups</source>
-        <translation>复制到我的分组</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1597"/>
-        <source>Delete for the team</source>
-        <translation>为团队删除</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1721"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1663"/>
         <source>Delete Team group</source>
         <translation>删除团队分组</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1721"/>
-        <source>This deletes the group for the whole team.</source>
-        <translation>这将为整个团队删除该分组。</translation>
     </message>
 </context>
 <context>

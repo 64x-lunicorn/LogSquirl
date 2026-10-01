@@ -52,6 +52,7 @@
 #include "teamfoldergit.h"
 
 using logsquirl::teamfolder::Git;
+using logsquirl::teamfolder::groupOfKind;
 using logsquirl::teamfolder::TeamGroupChanges;
 using logsquirl::valuenames::GroupTable;
 using logsquirl::valuenames::NameRow;
@@ -1216,9 +1217,10 @@ TEST_CASE( "Publishing a group someone else changed meanwhile reports a conflict
     REQUIRE( outcome.results.size() == 1 );
     const auto& conflict = outcome.results[ 0 ];
     CHECK( conflict.status == PublishStatus::Conflict );
-    REQUIRE( conflict.theirsFilterGroup.has_value() );
-    REQUIRE( conflict.theirsFilterGroup->filters().size() == 1 );
-    CHECK( conflict.theirsFilterGroup->filters()[ 0 ].pattern == "alices pattern" );
+    const auto* theirsGroup = groupOfKind<PredefinedFilterSet>( conflict.theirs );
+    REQUIRE( theirsGroup != nullptr );
+    REQUIRE( theirsGroup->filters().size() == 1 );
+    CHECK( theirsGroup->filters()[ 0 ].pattern == "alices pattern" );
     // Nothing was pushed or committed.
     CHECK( team.lastCommit() == serverHead );
     CHECK_FALSE( bob->hasPendingChanges() );
@@ -1305,8 +1307,8 @@ TEST_CASE( "A dialog's requests carry the revisions of the groups it loaded",
     changed.setFilters( { { "Full", "disk full", false } } );
     const auto added = makeGroup( "Fresh" );
 
-    const auto requests
-        = requestsForChanges( { network }, { changed, added }, { { network.id(), "abc123" } } );
+    const auto requests = requestsForChanges<PredefinedFilterSet>( { network }, { changed, added },
+                                                                   { { network.id(), "abc123" } } );
     REQUIRE( requests.size() == 2 );
     CHECK( requests[ 0 ].baseRevision == std::optional<QString>( "abc123" ) );
     // A new group has no base: nobody else can have changed it.
@@ -1651,8 +1653,9 @@ TEST_CASE( "A change made offline does not silently overwrite what a colleague p
     for ( const auto& result : outcome.results ) {
         if ( result.status == PublishStatus::Conflict ) {
             ++conflicts;
-            REQUIRE( result.theirsFilterGroup.has_value() );
-            CHECK( result.theirsFilterGroup->filters()[ 0 ].pattern == "bobs pattern" );
+            const auto* theirsGroup = groupOfKind<PredefinedFilterSet>( result.theirs );
+            REQUIRE( theirsGroup != nullptr );
+            CHECK( theirsGroup->filters()[ 0 ].pattern == "bobs pattern" );
             CHECK( result.request.id == network.id() );
         }
     }
@@ -1882,9 +1885,10 @@ TEST_CASE( "A Naming Group is published, changed and deleted for the whole team"
         // Checks are no change: they are the user's own.
         auto unchecked = bap;
         unchecked.setEnabled( false );
-        CHECK( logsquirl::teamfolder::requestsForChanges( { bap }, { unchecked } ).isEmpty() );
+        CHECK( logsquirl::teamfolder::requestsForChanges<NamingGroup>( { bap }, { unchecked } )
+                   .isEmpty() );
 
-        const auto requests = logsquirl::teamfolder::requestsForChanges(
+        const auto requests = logsquirl::teamfolder::requestsForChanges<NamingGroup>(
             { bap }, { renamed, fresh }, alice->namingGroupRevisions() );
         REQUIRE( requests.size() == 2 );
         CHECK( requests[ 0 ].kind == GroupKind::ValueNames );
@@ -1892,8 +1896,9 @@ TEST_CASE( "A Naming Group is published, changed and deleted for the whole team"
         CHECK( requests[ 0 ].baseRevision.value_or( QString{} )
                == alice->namingGroupRevision( bap.id() ) );
         CHECK( requests[ 1 ].action == GroupAction::Add );
-        CHECK( requests[ 1 ].namingGroup.has_value() );
-        const auto deletions = logsquirl::teamfolder::requestsForChanges( { bap }, {} );
+        CHECK( groupOfKind<NamingGroup>( requests[ 1 ].group ) != nullptr );
+        const auto deletions
+            = logsquirl::teamfolder::requestsForChanges<NamingGroup>( { bap }, {} );
         REQUIRE( deletions.size() == 1 );
         CHECK( deletions[ 0 ].kind == GroupKind::ValueNames );
         CHECK( deletions[ 0 ].action == GroupAction::Delete );
@@ -1933,9 +1938,10 @@ TEST_CASE( "Publishing a Naming Group someone else changed meanwhile reports a c
     const auto& conflict = outcome.results[ 0 ];
     CHECK( conflict.status == PublishStatus::Conflict );
     CHECK( conflict.hasTheirs() );
-    REQUIRE( conflict.theirsNamingGroup.has_value() );
-    CHECK( ecuNameOf( *conflict.theirsNamingGroup ) == "Alices" );
-    CHECK_FALSE( conflict.theirsFilterGroup.has_value() );
+    const auto* theirsGroup = groupOfKind<NamingGroup>( conflict.theirs );
+    REQUIRE( theirsGroup != nullptr );
+    CHECK( ecuNameOf( *theirsGroup ) == "Alices" );
+    CHECK( groupOfKind<PredefinedFilterSet>( conflict.theirs ) == nullptr );
     CHECK( team.lastCommit() == serverHead );
 
     SECTION( "keep mine overwrites their version" )

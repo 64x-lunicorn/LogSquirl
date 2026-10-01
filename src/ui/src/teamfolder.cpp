@@ -34,7 +34,9 @@
 
 #include <algorithm>
 #include <optional>
+#include <type_traits>
 #include <utility>
+#include <variant>
 
 #include "datalocation.h"
 #include "groupexchange.h"
@@ -160,19 +162,19 @@ GroupsOfFile readGroupsOfFile( const QString& path )
     QSettings settings{ path, QSettings::IniFormat };
     GroupsOfFile read;
     if ( declaresKind( settings ) ) {
-        auto valueNames = readNamingGroups( settings );
+        auto valueNames = readGroups<NamingGroup>( settings );
         read.error = valueNames.error;
         read.namingGroups = std::move( valueNames.groups );
         return read;
     }
 
-    auto filters = readFilterGroups( settings );
+    auto filters = readGroups<PredefinedFilterSet>( settings );
     if ( filters.error == ReadError::None || filters.error == ReadError::Unreadable ) {
         read.error = filters.error;
         read.filterGroups = std::move( filters.groups );
         return read;
     }
-    auto highlighters = readHighlighterGroups( settings );
+    auto highlighters = readGroups<HighlighterSet>( settings );
     // A file that is neither holds no group of any kind.
     read.error = highlighters.error == ReadError::None ? ReadError::None : ReadError::NoGroups;
     read.highlighterSets = std::move( highlighters.groups );
@@ -500,9 +502,7 @@ QString commitMessage( const PublishRequest& request )
 struct FoundGroup {
     QString file;
     QString revision;
-    std::optional<PredefinedFilterSet> filterGroup;
-    std::optional<HighlighterSet> highlighterSet;
-    std::optional<NamingGroup> namingGroup;
+    AnyGroup group;
 };
 
 template <typename Group>
@@ -528,19 +528,19 @@ std::optional<FoundGroup> findGroup( const GroupIndex& index, const PublishReque
     switch ( request.kind ) {
     case groupexchange::GroupKind::Filter:
         if ( const auto* group = findById( known.filterGroups, request.id ); take( group ) ) {
-            found.filterGroup = group->group;
+            found.group = group->group;
             return found;
         }
         break;
     case groupexchange::GroupKind::Highlighter:
         if ( const auto* group = findById( known.highlighterGroups, request.id ); take( group ) ) {
-            found.highlighterSet = group->group;
+            found.group = group->group;
             return found;
         }
         break;
     case groupexchange::GroupKind::ValueNames:
         if ( const auto* group = findById( known.namingGroups, request.id ); take( group ) ) {
-            found.namingGroup = group->group;
+            found.group = group->group;
             return found;
         }
         break;
@@ -576,9 +576,7 @@ PublishResult conflictResult( const GroupIndex& index, const PublishRequest& req
     result.request = request;
     if ( const auto found = findGroup( index, request ) ) {
         result.file = found->file;
-        result.theirsFilterGroup = found->filterGroup;
-        result.theirsHighlighterSet = found->highlighterSet;
-        result.theirsNamingGroup = found->namingGroup;
+        result.theirs = found->group;
     }
     return result;
 }
@@ -1279,20 +1277,15 @@ void TeamFolder::resolveConflict( const PublishRequest& request, ConflictChoice 
         // Their version is what the sync brought.
         break;
     case ConflictChoice::SaveAsCopy: {
-        if ( request.filterGroup ) {
-            publish( { PublishRequest::forGroup(
-                copyOfGroup( *request.filterGroup, namesOf( filterGroups_ ) ),
-                GroupAction::Add ) } );
-        }
-        else if ( request.highlighterSet ) {
-            publish( { PublishRequest::forGroup(
-                copyOfGroup( *request.highlighterSet, namesOf( highlighterGroups_ ) ),
-                GroupAction::Add ) } );
-        }
-        else if ( request.namingGroup ) {
-            publish( { PublishRequest::forGroup(
-                copyOfGroup( *request.namingGroup, namesOf( namingGroups_ ) ),
-                GroupAction::Add ) } );
+        if ( request.group ) {
+            std::visit(
+                [ this ]( const auto& group ) {
+                    using Group = std::decay_t<decltype( group )>;
+                    publish( { PublishRequest::forGroup(
+                        copyOfGroup( group, namesOf( teamGroupsOf<Group>() ) ),
+                        GroupAction::Add ) } );
+                },
+                *request.group );
         }
         break;
     }
@@ -1529,21 +1522,6 @@ std::optional<QString> revisionOf( const QHash<QString, QString>& revisions, con
     return found == revisions.constEnd() ? std::nullopt : std::optional<QString>( *found );
 }
 
-groupexchange::GroupKind kindOf( const PredefinedFilterSet& )
-{
-    return groupexchange::GroupKind::Filter;
-}
-
-groupexchange::GroupKind kindOf( const HighlighterSet& )
-{
-    return groupexchange::GroupKind::Highlighter;
-}
-
-groupexchange::GroupKind kindOf( const NamingGroup& )
-{
-    return groupexchange::GroupKind::ValueNames;
-}
-
 template <typename Group>
 QList<PublishRequest> requestsBetween( const QList<Group>& before, const QList<Group>& after,
                                        const QHash<QString, QString>& revisions )
@@ -1570,8 +1548,8 @@ QList<PublishRequest> requestsBetween( const QList<Group>& before, const QList<G
             = std::any_of( after.cbegin(), after.cend(),
                            [ &group ]( const auto& other ) { return other.id() == group.id(); } );
         if ( !stays ) {
-            requests.append(
-                PublishRequest::forDeletion( kindOf( group ), group.id(), group.name() ) );
+            requests.append( PublishRequest::forDeletion( groupexchange::GroupTraits<Group>::kind,
+                                                          group.id(), group.name() ) );
         }
     }
     return requests;
@@ -1579,64 +1557,11 @@ QList<PublishRequest> requestsBetween( const QList<Group>& before, const QList<G
 
 } // namespace
 
-QList<PublishRequest> requestsForChanges( const QList<PredefinedFilterSet>& before,
-                                          const QList<PredefinedFilterSet>& after,
+template <typename Group>
+QList<PublishRequest> requestsForChanges( const QList<Group>& before, const QList<Group>& after,
                                           const QHash<QString, QString>& revisions )
 {
     return requestsBetween( before, after, revisions );
-}
-
-QList<PublishRequest> requestsForChanges( const QList<HighlighterSet>& before,
-                                          const QList<HighlighterSet>& after,
-                                          const QHash<QString, QString>& revisions )
-{
-    return requestsBetween( before, after, revisions );
-}
-
-QList<PublishRequest> requestsForChanges( const QList<NamingGroup>& before,
-                                          const QList<NamingGroup>& after,
-                                          const QHash<QString, QString>& revisions )
-{
-    return requestsBetween( before, after, revisions );
-}
-
-PublishRequest PublishRequest::forGroup( const PredefinedFilterSet& group, GroupAction action,
-                                         const QString& previousName )
-{
-    PublishRequest request;
-    request.kind = groupexchange::GroupKind::Filter;
-    request.action = action;
-    request.id = group.id();
-    request.name = group.name();
-    request.previousName = previousName;
-    request.filterGroup = group;
-    return request;
-}
-
-PublishRequest PublishRequest::forGroup( const HighlighterSet& group, GroupAction action,
-                                         const QString& previousName )
-{
-    PublishRequest request;
-    request.kind = groupexchange::GroupKind::Highlighter;
-    request.action = action;
-    request.id = group.id();
-    request.name = group.name();
-    request.previousName = previousName;
-    request.highlighterSet = group;
-    return request;
-}
-
-PublishRequest PublishRequest::forGroup( const NamingGroup& group, GroupAction action,
-                                         const QString& previousName )
-{
-    PublishRequest request;
-    request.kind = groupexchange::GroupKind::ValueNames;
-    request.action = action;
-    request.id = group.id();
-    request.name = group.name();
-    request.previousName = previousName;
-    request.namingGroup = group;
-    return request;
 }
 
 PublishRequest PublishRequest::forDeletion( groupexchange::GroupKind kind, const QString& id,
@@ -1650,39 +1575,43 @@ PublishRequest PublishRequest::forDeletion( groupexchange::GroupKind kind, const
     return request;
 }
 
-PredefinedFilterSet copyOfGroup( const PredefinedFilterSet& group, const QStringList& takenNames )
+template <typename Group>
+Group copyOfGroup( const Group& group, const QStringList& takenNames )
 {
     const auto name = groupexchange::firstFreeName( group.name(), takenNames );
-    auto copy = group.withId( PredefinedFilterSet::createNewSet( name ).id() );
-    copy.setName( name );
-    return copy;
-}
-
-HighlighterSet copyOfGroup( const HighlighterSet& group, const QStringList& takenNames )
-{
-    const auto name = groupexchange::firstFreeName( group.name(), takenNames );
-    auto copy = group.withId( HighlighterSet::createNewSet( name ).id() );
-    copy.setName( name );
-    return copy;
-}
-
-NamingGroup copyOfGroup( const NamingGroup& group, const QStringList& takenNames )
-{
-    const auto name = groupexchange::firstFreeName( group.name(), takenNames );
-    auto copy = group.withId( NamingGroup::createNewGroup( name ).id() );
+    // A fresh id, of the form the kind of group gives a new group.
+    auto copy = [ & ] {
+        if constexpr ( std::is_same_v<Group, NamingGroup> ) {
+            return group.withId( NamingGroup::createNewGroup( name ).id() );
+        }
+        else {
+            return group.withId( Group::createNewSet( name ).id() );
+        }
+    }();
     copy.setName( name );
     return copy;
 }
 
 bool PublishRequest::writeTo( const QString& file ) const
 {
-    if ( filterGroup ) {
-        return groupexchange::writeGroup( file, *filterGroup );
-    }
-    if ( namingGroup ) {
-        return groupexchange::writeGroup( file, *namingGroup );
-    }
-    return highlighterSet && groupexchange::writeGroup( file, *highlighterSet );
+    return group
+           && std::visit(
+               [ &file ]( const auto& kept ) { return groupexchange::writeGroup( file, kept ); },
+               *group );
 }
+
+// Every kind of group, for the templates above.
+template QList<PublishRequest> requestsForChanges( const QList<PredefinedFilterSet>&,
+                                                   const QList<PredefinedFilterSet>&,
+                                                   const QHash<QString, QString>& );
+template QList<PublishRequest> requestsForChanges( const QList<HighlighterSet>&,
+                                                   const QList<HighlighterSet>&,
+                                                   const QHash<QString, QString>& );
+template QList<PublishRequest> requestsForChanges( const QList<NamingGroup>&,
+                                                   const QList<NamingGroup>&,
+                                                   const QHash<QString, QString>& );
+template PredefinedFilterSet copyOfGroup( const PredefinedFilterSet&, const QStringList& );
+template HighlighterSet copyOfGroup( const HighlighterSet&, const QStringList& );
+template NamingGroup copyOfGroup( const NamingGroup&, const QStringList& );
 
 } // namespace logsquirl::teamfolder

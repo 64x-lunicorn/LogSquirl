@@ -49,6 +49,7 @@
 #include "predefinedfilters.h"
 #include "predefinedfiltersetedit.h"
 #include "teamfolder.h"
+#include "teamgroupssection.h"
 #include "ui_predefinedfiltersdialog.h"
 
 // Dialog for managing predefined filter groups.
@@ -122,20 +123,12 @@ private:
 
     int selectedRow_;
 
-    QLabel* teamGroupsLabel_ = nullptr;
-    QListWidget* teamGroupsList_ = nullptr;
-    QList<PredefinedFilterSet> teamGroups_;
-    // The Team groups as they were given, to tell what OK or Apply publishes.
-    QList<PredefinedFilterSet> teamGroupsAsGiven_;
-    QPushButton* teamAddButton_ = nullptr;
-    QPushButton* teamShareButton_ = nullptr;
-    QPushButton* teamCopyButton_ = nullptr;
-    QPushButton* teamDeleteButton_ = nullptr;
+    // The Team groups, below the user's own: built when the dialog is first
+    // given them.
+    TeamGroupsSection* team_ = nullptr;
+    TeamGroupEdits<PredefinedFilterSet> teamEdits_;
     // What can be done with the selected group depends on which one it is.
     void updateTeamButtons();
-    bool teamEditable_ = false;
-    // The revision of each Team group's file when it was loaded, by id.
-    QHash<QString, QString> teamRevisions_;
     // The row of the Team group shown, -1 when none is.
     int selectedTeamRow_ = -1;
 };

@@ -32,6 +32,7 @@
 #include "nametablecsv.h"
 #include "naminggroup.h"
 #include "teamfolder.h"
+#include "teamgroupssection.h"
 #include "valuenamer.h"
 
 class QAbstractButton;
@@ -162,7 +163,7 @@ public:
     // The Team groups as edited here.
     const QList<logsquirl::valuenames::NamingGroup>& teamGroups() const
     {
-        return teamGroups_;
+        return teamEdits_.groups();
     }
 
     // Writes the group shown, one of the user's own or a Team group, to the
@@ -284,17 +285,10 @@ private:
     QPushButton* exportButton_ = nullptr;
     QPushButton* importButton_ = nullptr;
 
-    QListWidget* teamGroupList_ = nullptr;
-    QPushButton* teamAddButton_ = nullptr;
-    QPushButton* teamShareButton_ = nullptr;
-    QPushButton* teamCopyButton_ = nullptr;
-    QPushButton* teamDeleteButton_ = nullptr;
-    QList<logsquirl::valuenames::NamingGroup> teamGroups_;
-    // The Team groups as they were given, to tell what OK or Apply publishes.
-    QList<logsquirl::valuenames::NamingGroup> teamGroupsAsGiven_;
-    bool teamEditable_ = false;
-    // The revision of each Team group's file when it was loaded, by id.
-    QHash<QString, QString> teamRevisions_;
+    // The Team groups, below the user's own: built when the dialog is first
+    // given them.
+    TeamGroupsSection* team_ = nullptr;
+    TeamGroupEdits<logsquirl::valuenames::NamingGroup> teamEdits_;
     // The row of the Team group shown, -1 when none is. One group is shown
     // at a time: groupRow_ or teamRow_ is -1.
     int teamRow_ = -1;

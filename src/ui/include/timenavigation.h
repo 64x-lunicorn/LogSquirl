@@ -28,8 +28,8 @@
 #include <memory>
 #include <optional>
 
-#include "linetypes.h"
 #include "latestresultrunner.h"
+#include "linetypes.h"
 #include "timelookup.h"
 
 class AbstractLogData;
