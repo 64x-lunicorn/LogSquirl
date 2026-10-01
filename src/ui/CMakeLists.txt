@@ -66,6 +66,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/wordrule.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewinterface.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewstatecodec.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/gesturemanager.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/scratchpad.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbedscratchpad.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chipmunkimporter.h
@@ -166,6 +167,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/timenavigation.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tableviewselection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/wordrule.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/gesturemanager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/scratchpad.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbedscratchpad.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filterspanel.cpp

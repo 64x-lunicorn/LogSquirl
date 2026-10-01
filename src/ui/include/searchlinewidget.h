@@ -99,9 +99,11 @@ public:
     // info line show what the Search Line makes of it.
     void requested( const SearchSession::State& state );
     void progressed( const SearchSession::State& state, SearchAutoRefresh::State autoRefresh );
-    void stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount );
+    void stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                  LinesCount undecidedCount = 0_lcount );
     void cleared();
-    void settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount );
+    void settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                  LinesCount undecidedCount = 0_lcount );
 
     SearchLine::Display display() const;
 

@@ -45,6 +45,9 @@ struct SearchSessionState {
     LineNumber startLine{ 0 };
     LineNumber endLine{ 0 };
     LinesCount matchCount{ 0 };
+    // The Log Lines searched that the regex engine gave up on: whether they
+    // match is not known (#689).
+    LinesCount undecidedCount{ 0 };
     int progress = 0;
     SearchSessionPhase phase = SearchSessionPhase::Idle;
     bool fromCache = false;

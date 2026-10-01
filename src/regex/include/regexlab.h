@@ -63,9 +63,9 @@ struct Bounds {
     // An evaluation that took longer, or ran out of time, is reported as
     // slow: a hint at a pattern that backtracks catastrophically.
     std::chrono::milliseconds slowThreshold{ 250 };
-    // A single line whose verdict took longer is reported as slow. The engines give
-    // up on a line once they have backtracked too much, and then say only
-    // that it does not match: its time is what shows it.
+    // A single line whose verdict took longer is reported as slow, and so is
+    // one the engine gave up on once it had backtracked too much, however
+    // fast it did (#689).
     std::chrono::milliseconds slowLine{ 20 };
 };
 

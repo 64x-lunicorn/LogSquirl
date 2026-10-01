@@ -135,6 +135,23 @@
 
 ## Bug fixes
 
+- **A plugin disabled while one of its dialogs is open no longer crashes
+  LogSquirl**: a plugin whose menu action, configuration, converter, Regex Lab
+  answer or active-file callback shows a modal dialog could be disabled in
+  *Plugins* meanwhile, and was shut down under its own running code. It now
+  counts as disabled at once, gets no further calls, and is shut down once
+  that callback has returned. Enabled again before that, it simply stays
+  loaded. (#691)
+- **A Search says when the regex engine gave up on Log Lines**: with the
+  QRegularExpression engine, a pattern that backtracks too much -- such as
+  `(a|aa)+$` on a long Log Line -- makes PCRE2 give up on that Log Line, and
+  the Search counted it as no Match without a word. The Search Line now adds
+  how many Log Lines the engine gave up on to the Matches found, for example
+  *3 matches found (the regex engine gave up on 2 Log Lines: they may match)*,
+  and `logsquirl_grep` says so on stderr. The Regex Lab marks such a Log Line
+  as slow however fast the engine gave up. Vectorscan never gives up on a Log
+  Line. (#689)
+
 - **An exported Team group imported again is a group of your own**: a filter
   group or highlighter set exported from the Team groups and imported into
   your own kept the Team group's id, so checking or activating one did the same
@@ -209,6 +226,12 @@
   of its own, so it reads and writes nothing of yours. The report format is
   versioned and documented in BUILD.md, *Benchmark mode*; Search, QuickFind,
   scrolling, follow and Session restore follow as further scenarios. (#666)
+
+- **Widgets built while the File Watcher polls do not race its poll thread**:
+  the application creates Qt's gesture manager before the poll thread starts,
+  instead of when the first scroll area of a window is built. That thread reads
+  it for every timer event it receives, and the ThreadSanitizer job reported
+  the race whenever a window was built while polling ran. (#698)
 
 # v26.10.0 (2026-09-29)
 

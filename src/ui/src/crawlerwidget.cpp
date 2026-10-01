@@ -694,7 +694,8 @@ void CrawlerWidget::stopSearch()
     // An interrupted run no longer reports completion (it is not one): the
     // Search Line puts the buttons and the gauge back now, rather than
     // waiting on a signal that won't come.
-    searchLine_->stopped( openLogFile_->searchAutoRefresh().state(), openLogFile_->matchCount() );
+    searchLine_->stopped( openLogFile_->searchAutoRefresh().state(), openLogFile_->matchCount(),
+                          openLogFile_->searchState().undecidedCount );
 }
 
 void CrawlerWidget::clearSearchHistory()
@@ -2055,7 +2056,8 @@ void CrawlerWidget::updateSearchCombo()
 
 void CrawlerWidget::printSearchInfoMessage()
 {
-    searchLine_->settled( openLogFile_->searchAutoRefresh().state(), openLogFile_->matchCount() );
+    searchLine_->settled( openLogFile_->searchAutoRefresh().state(), openLogFile_->matchCount(),
+                          openLogFile_->searchState().undecidedCount );
 }
 
 // Change the data status and, if needed, advise upstream.

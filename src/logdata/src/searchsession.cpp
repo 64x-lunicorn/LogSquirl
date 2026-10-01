@@ -138,7 +138,7 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
         const auto cached = searchResultsCache_.find( key );
         if ( cached != std::end( searchResultsCache_ ) ) {
             adoptCacheHit( pattern, startLine, endLine, cached->second.matching_lines,
-                           cached->second.maxLength );
+                           cached->second.undecided_lines, cached->second.maxLength );
             return;
         }
     }
@@ -193,7 +193,7 @@ void SearchSession::stop()
 
 void SearchSession::adoptCacheHit( const RegularExpressionPattern& pattern, LineNumber startLine,
                                    LineNumber endLine, const SearchResultArray& matches,
-                                   LineLength maxLength )
+                                   const SearchResultArray& undecided, LineLength maxLength )
 {
     // A real run may still be in flight for a different pattern (the user
     // retyping a previously-searched, now-cached pattern before a newer
@@ -203,6 +203,7 @@ void SearchSession::adoptCacheHit( const RegularExpressionPattern& pattern, Line
 
     resetResults();
     matches_ = matches;
+    undecided_ = undecided;
     maxLength_ = maxLength;
     nbLinesProcessed_ = LinesCount( endLine.get() );
     currentSearchKey_ = makeCacheKey( pattern, startLine, endLine );
@@ -218,6 +219,7 @@ void SearchSession::adoptCacheHit( const RegularExpressionPattern& pattern, Line
     newState.startLine = startLine;
     newState.endLine = endLine;
     newState.matchCount = LinesCount( matches.cardinality() );
+    newState.undecidedCount = LinesCount( undecided.cardinality() );
     newState.progress = 100;
     newState.phase = Phase::Complete;
     newState.fromCache = true;
@@ -259,6 +261,7 @@ void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumbe
     newState.startLine = startLine;
     newState.endLine = endLine;
     newState.matchCount = LinesCount( matches_.cardinality() );
+    newState.undecidedCount = LinesCount( undecided_.cardinality() );
     newState.phase = Phase::Running;
     newState.isContinuation = isContinuation;
     applyState( std::move( newState ) );
@@ -352,7 +355,7 @@ void SearchSession::updateSearchResultsCache()
              << std::get<0>( currentSearchKey_ ).pattern << "_" << std::get<1>( currentSearchKey_ )
              << "_" << std::get<2>( currentSearchKey_ );
 
-    searchResultsCache_[ currentSearchKey_ ] = { matches_, maxLength_ };
+    searchResultsCache_[ currentSearchKey_ ] = { matches_, maxLength_, undecided_ };
     auto cacheSize = std::accumulate( searchResultsCache_.cbegin(), searchResultsCache_.cend(),
                                       uint64_t{ 0 }, []( const auto& acc, const auto& next ) {
                                           return acc + next.second.matching_lines.cardinality();
@@ -393,6 +396,7 @@ void SearchSession::resetResults()
     newMatches_ = SearchResultArray();
     removedMatches_ = SearchResultArray();
     recheckedLine_.reset();
+    undecided_ = SearchResultArray();
     matchesReplaced_ = true;
     maxLength_ = 0_length;
     nbLinesProcessed_ = 0_lcount;
@@ -412,6 +416,11 @@ void SearchSession::collectStaleMatch( const SearchResults& results )
 
     const auto line = recheckedLine_->get();
     recheckedLine_.reset();
+
+    // Whole now, it may be decided where it was not, or the other way round.
+    if ( !results.newUndecided.contains( line ) ) {
+        undecided_.remove( line );
+    }
 
     if ( results.newMatches.contains( line ) ) {
         // It matches as it did, and is one Match either way: the Matches are
@@ -434,6 +443,7 @@ void SearchSession::applyIncomingResults( SearchResults results )
     // as the Matches found so far.
     results.newMatches -= matches_;
     arrivedMatches_ |= results.newMatches;
+    undecided_ |= results.newUndecided;
     maxLength_ = results.maxLength;
     nbLinesProcessed_ = results.processedLines;
 
@@ -441,6 +451,7 @@ void SearchSession::applyIncomingResults( SearchResults results )
                                         - staleMatches_.cardinality() );
     ScopedLock lock( stateMutex_ );
     state_.matchCount = matchCount;
+    state_.undecidedCount = LinesCount( undecided_.cardinality() );
 }
 
 void SearchSession::handleSearchProgressed( int progress, SearchId searchId )
@@ -481,6 +492,7 @@ void SearchSession::handleSearchFinished( SearchId searchId, bool interrupted,
         {
             ScopedLock lock( stateMutex_ );
             state_.matchCount = 0_lcount;
+            state_.undecidedCount = 0_lcount;
             state_.progress = 0;
             state_.phase = Phase::Failed;
             state_.errorString = failure;

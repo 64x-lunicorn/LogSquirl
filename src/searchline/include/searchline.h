@@ -119,13 +119,17 @@ public:
     // another.
     void progressed( const SearchSessionState& state, SearchAutoRefresh::State autoRefresh );
     // The user stopped the Search; the Filtered View holds the Matches it
-    // found until then.
-    void stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount );
+    // found until then. undecidedCount counts the Log Lines searched that the
+    // regex engine gave up on (#689).
+    void stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                  LinesCount undecidedCount = 0_lcount );
     // The Search was replaced by none: the pattern is empty.
     void cleared();
-    // Nothing runs; the line says what is known of the Search: its Matches,
-    // a Log File truncated under it, or nothing when there is none.
-    void settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount );
+    // Nothing runs; the line says what is known of the Search: its Matches
+    // and the Log Lines the regex engine gave up on, a Log File truncated
+    // under it, or nothing when there is none.
+    void settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                  LinesCount undecidedCount = 0_lcount );
 
     Display display() const;
 

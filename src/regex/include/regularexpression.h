@@ -87,12 +87,24 @@ QString quoteSubPattern( const QString& subPattern );
 // quoted in \Q...\E. Empty alternatives are left out.
 QStringList regexpAlternatives( const QString& regexp );
 
+// What a pattern makes of a Log Line.
+struct MatchVerdict {
+    bool isMatch = false;
+    // The engine gave up on the line -- PCRE2 on a pattern that backtracks
+    // too much -- and took what it could not decide for "no match": isMatch
+    // may be wrong (#689).
+    bool isUndecided = false;
+};
+
 class PatternMatcher {
 public:
     explicit PatternMatcher( const RegularExpression& expression );
     ~PatternMatcher();
 
     bool hasMatch( std::string_view line ) const;
+
+    // hasMatch(), and whether the engine decided it.
+    MatchVerdict decide( std::string_view line ) const;
 
     // Whether each sub-pattern matches the line, in the order written -- a
     // single one for a pattern that is no logical combination: what
@@ -101,8 +113,8 @@ public:
     logsquirl::vector<bool> subPatternMatches( std::string_view line ) const;
 
 private:
-    using MatchFunc = bool ( * )( std::string_view line, const MatcherVariant& matcher,
-                                  BooleanExpressionEvaluator* evaluator );
+    using MatchFunc
+        = bool ( * )( const MatchedPatterns& matched, BooleanExpressionEvaluator* evaluator );
     MatchFunc hasMatchImpl_;
 
 private:

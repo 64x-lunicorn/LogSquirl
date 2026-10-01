@@ -38,7 +38,16 @@ PluginHost::PluginHost( const PluginCatalog& catalog, QObject* parent )
 
 PluginHost::~PluginHost()
 {
-    unloadAll();
+    // Nothing is left to wait for: whatever is still loaded goes now, an
+    // unload that waited for a call into its plugin included.
+    while ( !loaded_.empty() ) {
+        const auto pluginId = loaded_.begin()->first;
+        const auto wasPending = loaded_.begin()->second->unloadPending;
+        unloadNow( pluginId );
+        if ( !wasPending ) {
+            Q_EMIT pluginUnloaded( pluginId );
+        }
+    }
 }
 
 // ── Loading / unloading ─────────────────────────────────────────────────────
@@ -47,8 +56,10 @@ QStringList PluginHost::loadedPluginIds() const
 {
     QStringList ids;
     ids.reserve( static_cast<int>( loaded_.size() ) );
-    for ( const auto& [ id, _ ] : loaded_ ) {
-        ids.append( id );
+    for ( const auto& [ id, ctx ] : loaded_ ) {
+        if ( !ctx->unloadPending ) {
+            ids.append( id );
+        }
     }
     return ids;
 }
@@ -94,7 +105,14 @@ PluginAutoLoadResult PluginHost::autoLoadPlugins( const PluginAutoLoad& configur
 
 QString PluginHost::loadPlugin( const QString& pluginId )
 {
-    if ( loaded_.contains( pluginId ) ) {
+    if ( const auto it = loaded_.find( pluginId ); it != loaded_.end() ) {
+        // Loaded again before a call into it let its unload finish: it was
+        // never shut down, so it simply stays.
+        if ( it->second->unloadPending ) {
+            it->second->unloadPending = false;
+            Q_EMIT pluginLoaded( pluginId );
+            return {};
+        }
         return QStringLiteral( "Plugin already loaded" );
     }
 
@@ -153,6 +171,29 @@ QString PluginHost::loadPlugin( const QString& pluginId )
 
 void PluginHost::unloadPlugin( const QString& pluginId )
 {
+    const auto it = loaded_.find( pluginId );
+    if ( it == loaded_.end() || it->second->unloadPending ) {
+        return;
+    }
+
+    // A call into the plugin is still on the stack, below the event loop
+    // this unload came from: shutting the plugin down now would pull its
+    // state from under that call, and taking its menu action away would
+    // delete the action whose signal is being delivered. It goes once the
+    // call has returned.
+    if ( it->second->callsRunning > 0 ) {
+        LOG_INFO << "Unloading plugin " << pluginId << " once its running call has returned";
+        it->second->unloadPending = true;
+        Q_EMIT pluginUnloaded( pluginId );
+        return;
+    }
+
+    unloadNow( pluginId );
+    Q_EMIT pluginUnloaded( pluginId );
+}
+
+void PluginHost::unloadNow( const QString& pluginId )
+{
     auto it = loaded_.find( pluginId );
     if ( it == loaded_.end() ) {
         return;
@@ -180,7 +221,53 @@ void PluginHost::unloadPlugin( const QString& pluginId )
     }
 
     loaded_.erase( it );
-    Q_EMIT pluginUnloaded( pluginId );
+}
+
+PluginHost::PluginContext* PluginHost::loadedContext( const QString& pluginId ) const
+{
+    const auto it = loaded_.find( pluginId );
+    if ( it == loaded_.end() || it->second->unloadPending ) {
+        return nullptr;
+    }
+    return it->second.get();
+}
+
+bool PluginHost::callIntoPlugin( PluginContext& context, const std::function<void()>& call )
+{
+    if ( context.unloadPending ) {
+        return false;
+    }
+
+    ++context.callsRunning;
+    call();
+    --context.callsRunning;
+
+    if ( context.callsRunning == 0 && context.unloadPending ) {
+        // Finished from the event loop, once whatever delivered this call --
+        // the signal of a menu action, say -- has returned as well.
+        const auto pluginId = context.handle.metadata().id();
+        QMetaObject::invokeMethod(
+            this,
+            [ this, pluginId ] {
+                const auto it = loaded_.find( pluginId );
+                if ( it != loaded_.end() && it->second->unloadPending
+                     && it->second->callsRunning == 0 ) {
+                    unloadNow( pluginId );
+                }
+            },
+            Qt::QueuedConnection );
+    }
+    return true;
+}
+
+void PluginHost::runMenuAction( void* menuActionCall )
+{
+    const auto* call = static_cast<const MenuActionCall*>( menuActionCall );
+    if ( !call->callback ) {
+        return;
+    }
+    call->context->host->callIntoPlugin( *call->context,
+                                         [ call ] { call->callback( call->userData ); } );
 }
 
 void PluginHost::unloadAll()
@@ -194,7 +281,7 @@ void PluginHost::unloadAll()
 
 bool PluginHost::isLoaded( const QString& pluginId ) const
 {
-    return loaded_.contains( pluginId );
+    return loadedContext( pluginId ) != nullptr;
 }
 
 void PluginHost::setUiPort( PluginUiPort* uiPort )
@@ -204,19 +291,16 @@ void PluginHost::setUiPort( PluginUiPort* uiPort )
 
 PluginHandle* PluginHost::pluginHandle( const QString& pluginId )
 {
-    auto it = loaded_.find( pluginId );
-    if ( it != loaded_.end() ) {
-        return &it->second->handle;
-    }
-    return nullptr;
+    auto* ctx = loadedContext( pluginId );
+    return ctx ? &ctx->handle : nullptr;
 }
 
 void PluginHost::configurePlugin( const QString& pluginId )
 {
-    auto* handle = pluginHandle( pluginId );
-    if ( handle && handle->hasConfigureUi() ) {
+    auto* ctx = loadedContext( pluginId );
+    if ( ctx && ctx->handle.hasConfigureUi() ) {
         const auto parent = uiPort_ ? uiPort_->configurationParent() : PluginWidgetHandle{};
-        handle->configure( parent.widget );
+        callIntoPlugin( *ctx, [ ctx, &parent ] { ctx->handle.configure( parent.widget ); } );
     }
 }
 
@@ -233,9 +317,13 @@ void PluginHost::setActiveFilePathCallback( std::function<QString()> callback )
 void PluginHost::notifyActiveFileChanged( const QString& filePath )
 {
     const auto utf8 = filePath.toUtf8();
-    for ( auto& [ id, ctx ] : loaded_ ) {
-        if ( ctx->activeFileCallback ) {
-            ctx->activeFileCallback( ctx->activeFileUserData, utf8.constData() );
+    // By ID: a plugin's callback may unload another plugin.
+    for ( const auto& id : loadedPluginIds() ) {
+        auto* ctx = loadedContext( id );
+        if ( ctx && ctx->activeFileCallback ) {
+            callIntoPlugin( *ctx, [ ctx, &utf8 ] {
+                ctx->activeFileCallback( ctx->activeFileUserData, utf8.constData() );
+            } );
         }
     }
 }
@@ -244,12 +332,12 @@ void PluginHost::notifyActiveFileChanged( const QString& filePath )
 
 QString PluginHost::startDataSource( const QString& pluginId )
 {
-    auto it = loaded_.find( pluginId );
-    if ( it == loaded_.end() ) {
+    auto* loaded = loadedContext( pluginId );
+    if ( !loaded ) {
         return QString( "Plugin '%1' is not loaded" ).arg( pluginId );
     }
 
-    auto& ctx = *it->second;
+    auto& ctx = *loaded;
     if ( ctx.handle.metadata().type() != LOGSQUIRL_PLUGIN_DATASOURCE ) {
         return QString( "Plugin '%1' is not a DataSource plugin" ).arg( pluginId );
     }
@@ -313,7 +401,7 @@ QString PluginHost::converterForExtension( const QString& extension ) const
         return {};
     }
     for ( const auto& [ id, ctx ] : loaded_ ) {
-        if ( !ctx->handle.isConverter() ) {
+        if ( ctx->unloadPending || !ctx->handle.isConverter() ) {
             continue;
         }
         // Extensions are semicolon-separated, e.g. ".har;.pcap"
@@ -331,7 +419,7 @@ QStringList PluginHost::converterFileFilters() const
 {
     QStringList filters;
     for ( const auto& [ id, ctx ] : loaded_ ) {
-        if ( !ctx->handle.isConverter() ) {
+        if ( ctx->unloadPending || !ctx->handle.isConverter() ) {
             continue;
         }
         const auto exts = ctx->handle.converterExtensions();
@@ -356,11 +444,15 @@ QStringList PluginHost::converterFileFilters() const
 int PluginHost::runConverter( const QString& pluginId, const QString& inputPath,
                               const QString& outputPath )
 {
-    auto* handle = pluginHandle( pluginId );
-    if ( !handle || !handle->isConverter() ) {
+    auto* ctx = loadedContext( pluginId );
+    if ( !ctx || !ctx->handle.isConverter() ) {
         return -1;
     }
-    return handle->convert( inputPath, outputPath );
+    int result = -1;
+    callIntoPlugin( *ctx, [ ctx, &result, &inputPath, &outputPath ] {
+        result = ctx->handle.convert( inputPath, outputPath );
+    } );
+    return result;
 }
 
 // ── Host API construction ───────────────────────────────────────────────────
@@ -528,10 +620,24 @@ void PluginHost::hostUnregisterStatusWidget( void* handle, void* qwidgetPtr )
 void PluginHost::hostRegisterMenuAction( void* handle, const char* menuPath, const char* label,
                                          PluginCallbackFn callback, void* userData )
 {
-    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
-        port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), QString::fromUtf8( label ),
-                             callback, userData );
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
+        return;
     }
+    if ( !callback ) {
+        port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), QString::fromUtf8( label ),
+                             nullptr, userData );
+        return;
+    }
+    auto* ctx = contextFromHandle( handle );
+    MenuActionCall* call = nullptr;
+    {
+        const std::lock_guard lock( ctx->menuActionCallsMutex );
+        call = &ctx->menuActionCalls.emplace_back(
+            MenuActionCall{ .context = ctx, .callback = callback, .userData = userData } );
+    }
+    port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), QString::fromUtf8( label ),
+                         &PluginHost::runMenuAction, call );
 }
 
 void PluginHost::hostRegisterSidebarTab( void* handle, const char* label, void* qwidgetPtr )
@@ -611,14 +717,16 @@ int PluginHost::hostOpenRegexLab( void* handle, const char* pattern, int flags,
                                 .matchesCase = ( flags & LOGSQUIRL_REGEX_LAB_MATCH_CASE ) != 0 };
     // Called through the answer context only, so never after the plugin is
     // shut down.
-    auto answer = [ callback, userData ]( const std::optional<PluginPattern>& applied ) {
-        if ( !applied ) {
-            callback( userData, LOGSQUIRL_REGEX_LAB_CANCELLED, nullptr, 0 );
-            return;
-        }
-        const auto appliedUtf8 = applied->pattern.toUtf8();
-        callback( userData, LOGSQUIRL_REGEX_LAB_APPLIED, appliedUtf8.constData(),
-                  applied->matchesCase ? LOGSQUIRL_REGEX_LAB_MATCH_CASE : 0 );
+    auto answer = [ ctx, callback, userData ]( const std::optional<PluginPattern>& applied ) {
+        ctx->host->callIntoPlugin( *ctx, [ &applied, callback, userData ] {
+            if ( !applied ) {
+                callback( userData, LOGSQUIRL_REGEX_LAB_CANCELLED, nullptr, 0 );
+                return;
+            }
+            const auto appliedUtf8 = applied->pattern.toUtf8();
+            callback( userData, LOGSQUIRL_REGEX_LAB_APPLIED, appliedUtf8.constData(),
+                      applied->matchesCase ? LOGSQUIRL_REGEX_LAB_MATCH_CASE : 0 );
+        } );
     };
     return port->openRegexLab( pluginId, opened, ctx->answerContext.get(), std::move( answer ) )
                ? 0
