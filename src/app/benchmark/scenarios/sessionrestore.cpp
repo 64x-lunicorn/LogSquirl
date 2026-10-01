@@ -112,6 +112,7 @@ public:
         const auto viewContext = encodeViewState( state );
 
         std::vector<SessionInfo::OpenFile> openFiles;
+        openFiles.reserve( static_cast<std::size_t>( logFiles.size() ) );
         for ( const auto& logFile : logFiles ) {
             openFiles.emplace_back( logFile, viewContext );
         }

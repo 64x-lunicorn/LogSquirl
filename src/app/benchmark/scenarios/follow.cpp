@@ -491,6 +491,7 @@ private:
             const auto& charted = charted_.latencies();
             const auto& displayed = displayed_.latencies();
             std::vector<double> behind;
+            behind.reserve( charted.size() );
             for ( std::size_t line = 0; line < charted.size(); ++line ) {
                 behind.push_back( std::max( 0.0, charted[ line ] - displayed[ line ] ) );
             }
