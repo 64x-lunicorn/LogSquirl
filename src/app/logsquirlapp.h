@@ -55,6 +55,7 @@
 #include "configuration.h"
 #include "crashhandler.h"
 #include "filewatcher.h"
+#include "gesturemanager.h"
 #include "log.h"
 #include "logformatcatalog.h"
 #include "logsquirl_version.h"
@@ -103,6 +104,9 @@ public:
         : QApplication( argc, argv )
         , singleApplication_( singleApplicationName() )
     {
+        // Before the File Watcher's poll thread starts (#698).
+        createGestureManager();
+
         if ( singleApplication_.isPrimaryInstance() ) {
             QObject::connect( &singleApplication_, &KDSingleApplication::messageReceived,
                               &messageReceiver_, &MessageReceiver::receiveMessage,
