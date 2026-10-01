@@ -42,10 +42,25 @@
 //
 // A block's size is the size its allocator reports for it (malloc_usable_size,
 // mi_usable_size), which is the size asked for rounded up to the allocator's
-// granularity and does not depend on where the block lies. Outside the window,
-// and in a binary that never opens one, each call costs one load and a branch.
-// Inside it, the counting is a few instructions per call, which Callgrind
-// counts with the rest.
+// granularity and does not depend on where the block lies.
+//
+// What is counted cannot tell a block allocated before the window from one
+// allocated in it: telling them apart would need a table of the window's
+// blocks, kept from inside the allocator. So:
+// - Every call that hands out a block is an allocation, and that includes a
+//   realloc, moved or not, also of a block allocated before the window.
+// - The bytes held go up by each block handed out (by a realloc's growth) and
+//   down by each block freed (by a realloc's shrinking), but never below zero,
+//   the level when the window opened: freeing a block allocated before the
+//   window would otherwise make room that the window's own blocks then fill
+//   without raising the peak. The peak is therefore never more than the most
+//   heap the window's own blocks held at once: exactly that while the window
+//   frees (or shrinks) no block from before it, and possibly less when it
+//   does, by at most the bytes of those blocks freed before the peak.
+//
+// Outside the window, and in a binary that never opens one, each call costs
+// one load and a branch. Inside it, the counting is a few instructions per
+// call, which Callgrind counts with the rest.
 
 #define _GNU_SOURCE
 
@@ -91,8 +106,19 @@ static bool isCounting( void )
     return atomic_load_explicit( &counting, memory_order_relaxed );
 }
 
+// The bytes held change by bytes, but never fall below zero (see the top of
+// the file).
 static void noteBytes( long long bytes )
 {
+    if ( bytes < 0 ) {
+        long long before = atomic_load_explicit( &held, memory_order_relaxed );
+        long long after;
+        do {
+            after = before + bytes > 0 ? before + bytes : 0;
+        } while ( !atomic_compare_exchange_weak_explicit(
+            &held, &before, after, memory_order_relaxed, memory_order_relaxed ) );
+        return;
+    }
     const long long now = atomic_fetch_add_explicit( &held, bytes, memory_order_relaxed ) + bytes;
     long long highest = atomic_load_explicit( &peak, memory_order_relaxed );
     while ( now > highest
@@ -138,7 +164,8 @@ LOGSQUIRL_HEAP_EXPORT void* calloc( size_t count, size_t size )
 }
 
 // A realloc that hands out a block, moved or not, is an allocation: growing a
-// buffer one realloc at a time costs one each.
+// buffer one realloc at a time costs one each. That includes a block allocated
+// before the window, which this cannot tell apart.
 LOGSQUIRL_HEAP_EXPORT void* realloc( void* block, size_t size )
 {
     if ( !isCounting() ) {

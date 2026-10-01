@@ -492,7 +492,11 @@ The same run also counts each benchmark's **allocations and peak heap** (#673), 
 summary and the comment show before, after and as a change, in a table of their own: the heap
 blocks one run of the measured code allocated, all threads together, and the most heap it held
 at once above what was held when it started, in bytes as the allocators round them up. They are
-reported only; the gate judges instructions alone. Callgrind keeps the program's own allocator,
+reported only; the gate judges instructions alone. The counting cannot tell a block allocated
+before the measured code from one it allocated: a `realloc` of an older block counts as an
+allocation, as every `realloc` does, and freeing an older block lowers the heap held at most to
+where it started, never below, so the peak is the most the measured code's own blocks held at
+once while it frees no older block, and can be less than that when it does. Callgrind keeps the program's own allocator,
 and Valgrind's heap tools (DHAT, Massif) only report a whole process, not the stretch between two
 points of it, so the counting happens in the benchmark binary itself: configured with
 `LOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON`, as `instruction-counts.sh` does (Linux with glibc only, no

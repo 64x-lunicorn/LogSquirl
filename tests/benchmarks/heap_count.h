@@ -33,7 +33,8 @@
 extern "C" {
 #endif
 
-// Starts counting from zero: allocations, and bytes held above what is held now.
+// Starts counting from zero: allocations, and bytes held above what is held now
+// (never below it; heap_count.c says why).
 void logsquirl_benchmark_heap_start( void );
 
 // Stops counting and appends "<allocations>\t<peak heap bytes>\t<label>\n" to
