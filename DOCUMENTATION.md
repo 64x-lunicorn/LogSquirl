@@ -717,9 +717,10 @@ check or uncheck what it shows. A double-click on a rule checks only that rule,
 on a group only that group's rules. When two rules name the same text, the one
 higher in the list wins.
 
-**Editing Naming Groups.** *Edit...* in the tab opens the *Value Names*
-dialog. On the left are the Naming Groups, which can be added, removed and
-moved up or down. On the right, for the selected group:
+**Editing Naming Groups.** *Edit...* in the tab, or *Tools → Value
+Names...*, opens the *Value Names* dialog. On the left are the Naming Groups,
+which can be added, removed and moved up or down; every group needs a name of
+its own. *Tools → Value Names tab* shows the tab. On the right, for the selected group:
 
 - **Naming Rules**, each with a *Name*, a *Regex* and a *Template*. The
   template says how a named value is shown: `{name}` is the name and `{value}`
@@ -727,16 +728,19 @@ moved up or down. On the right, for the selected group:
   capture group of the selected rule's regex gets its Name Table, or *(none)*
   to leave it as it is: unnamed groups by their number, named groups such as
   `(?<ecu>...)` by their name. A regex without capture groups looks up its
-  whole match. A rule's name is unique in its group.
+  whole match. When the regex changes, a table stays with its capture group:
+  a named group renamed keeps it, the whole match's moves to the first capture
+  group added, and that of a group removed goes. A rule's name is unique in
+  its group.
 - **Name Tables**, with the rows of the selected one: a *Key regex*, which has
   to match the whole value, and the *Name* it gives. The first row that matches
   wins; keys ignore case unless *Keys are case-sensitive* is checked. The name
   can use the key's capture groups as `{1}`, `{2}`, ...: the key `0x2([0-9A-F])`
   with the name `Door{1}` shows `0x23` as `Door3(0x23)`. A table is renamed with
-  a double-click, and the rules using it follow. A rule only uses the tables of
-  its own group.
+  a double-click, and the rules using it follow; removed, the rules use no
+  table where they used it. A rule only uses the tables of its own group.
 - **Preview**: paste a sample Log Line and see it as the group shows it, with
-  all its rules. Below it the dialog warns of what is wrong: a regex or key
+  all its rules, checked or not. Below it the dialog warns of what is wrong: a regex or key
   that is not valid, a key already in an earlier row (that row is never used),
   a name using a key group the key does not have, a capture group given a
   table its regex or its group does not have, a line break in a template or a
@@ -744,11 +748,15 @@ moved up or down. On the right, for the selected group:
 
 *OK* and *Apply* take the changes over for every tab, *Cancel* drops them.
 
-**Name Tables from CSV.** *Import CSV...* reads a CSV file into the selected
-Name Table, replacing its rows, or into a new table named after the file when
-none is selected. The separator -- comma, semicolon or tab -- is detected and
-shown; the key and the name columns are chosen (the first and the second
-unless changed), and the first line can be marked as a header. Lines starting
+**Name Tables from CSV.** *Import CSV...* reads a CSV file into a new Name
+Table named after the file, or, when a table is selected and that is chosen,
+replaces the selected table's rows or appends to them. The separator --
+comma, semicolon or tab -- is detected and shown; the key and the name
+columns are chosen (the first and the second unless changed, never the same
+one), and the first line can be marked as a header. A file in UTF-8 or, with
+its byte order mark, UTF-16 is read as such; any other is read in the code
+page a spreadsheet saves CSV in (Windows' ANSI code page, windows-1252 on
+macOS and Linux). Lines starting
 with `#` are skipped. When a key is there twice the first wins, and the
 warnings name the line. *Export CSV...* writes the selected table's rows,
 key first. *Paste* adds the rows copied from a spreadsheet, key then name, to
@@ -1195,8 +1203,9 @@ whole list, with what the entries not explained elsewhere do.
   `Chart Panel` and `Show Filter Frequency`, which charts how often the current
   search matched, one series for every alternative of the search pattern (it
   does nothing while the search line is empty).
-- **Tools**: `Predefined filters...`, `Import Chipmunk filters...`,
-  `Regex Lab...` (see [Regex Lab](#regex-lab)), `Manage Tab Groups...`, `Scratchpad`, `Filters panel` and
+- **Tools**: `Predefined filters...`, `Value Names...` (see [Value Names](#value-names)),
+  `Import Chipmunk filters...`, `Regex Lab...` (see [Regex Lab](#regex-lab)),
+  `Manage Tab Groups...`, `Scratchpad`, `Filters panel`, `Value Names tab` and
   `Command Palette...` (`Ctrl+Shift+P`, `Cmd+Shift+P` on macOS), which lists
   every enabled menu command: type to filter, `Enter` runs the selected one.
   The key can be changed in the shortcut settings.

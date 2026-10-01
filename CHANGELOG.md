@@ -16,11 +16,11 @@
   shown, and *Save to file* can save *With Value Names*. With them hidden or
   no rule enabled, nothing is looked up. The new sidebar tab *Value Names*
   checks Naming Rules and Naming Groups for every tab, like the Filters tab,
-  and keeps the checks across restarts; its *Edit...* dialog edits the rules,
-  which Name Table each capture group uses, and the Name Tables, which can be
-  imported from and exported to CSV or pasted from a spreadsheet, with a
-  preview line that shows a sample Log Line named and warns of what is wrong.
-  (#647)
+  and keeps the checks across restarts. Its *Edit...* dialog, also in *Tools →
+  Value Names...*, edits the rules and which Name Table each capture group
+  uses. It edits the Name Tables too: they can be imported from CSV, exported
+  to CSV and pasted from a spreadsheet. A preview line shows a sample Log Line
+  named and warns of what is wrong. (#647)
 - **The Regex Lab tests a pattern on Log Lines**: *Tools → Regex Lab…* opens a
   window beside the main window where a pattern, with the search line's
   options, is matched live against the selected Log Lines of the tab in front,
