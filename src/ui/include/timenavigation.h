@@ -29,7 +29,7 @@
 #include <optional>
 
 #include "linetypes.h"
-#include "lookuprunner.h"
+#include "latestresultrunner.h"
 #include "timelookup.h"
 
 class AbstractLogData;
@@ -158,5 +158,5 @@ private:
     std::function<Source()> source_;
     Sink sink_;
     Prompt prompt_;
-    LookupRunner runner_;
+    LatestResultRunner runner_;
 };
