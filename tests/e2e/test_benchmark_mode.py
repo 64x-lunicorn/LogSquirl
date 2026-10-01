@@ -20,6 +20,12 @@ The search and quickfind scenarios measure a Search and a QuickFind typed
 character by character on a loaded Log File (#668). A Search they time must be
 a correct one: on a Log File written by the generator of the performance
 suite, the Matches it reports are the Log Lines counted here without LogSquirl.
+
+The scroll scenario scrolls a loaded Log File by a script in the Text View or
+the Table View and reports every frame, the paint of the view's Viewport
+(#669). It prepares the settings it measures under -- a Highlighter Set, ANSI
+colors, Format Recognition -- in the run's own settings, so the instance it runs
+in keeps its own as they were.
 """
 
 from __future__ import annotations
@@ -39,7 +45,7 @@ from benchmark_mode import (
     run_benchmark,
     run_grep_benchmark,
 )
-from generate_test_data import log_lines
+from generate_test_data import log_lines, scroll_log_lines
 
 pytestmark = pytest.mark.slow
 
@@ -70,6 +76,26 @@ def performance_log(tmp_path_factory) -> Path:
     """A Log File as generate_test_data.py writes the performance suite's, smaller."""
     path = tmp_path_factory.mktemp("benchmark") / "generated_small.log"
     path.write_bytes(log_lines(0, GENERATED_LOG_LINES).encode("utf-8"))
+    return path
+
+
+# Log Lines of the small scroll Log Files: more than the script scrolls by.
+SCROLL_LOG_LINES = 5_000
+
+
+@pytest.fixture(scope="module")
+def scroll_log(tmp_path_factory) -> Path:
+    """A scroll Log File as generate_test_data.py writes it, smaller."""
+    path = tmp_path_factory.mktemp("benchmark") / "scroll_small.log"
+    path.write_bytes(scroll_log_lines(0, SCROLL_LOG_LINES).encode("utf-8"))
+    return path
+
+
+@pytest.fixture(scope="module")
+def scroll_ansi_log(tmp_path_factory) -> Path:
+    """The same Log Lines with ANSI color sequences."""
+    path = tmp_path_factory.mktemp("benchmark") / "scroll_ansi_small.log"
+    path.write_bytes(scroll_log_lines(0, SCROLL_LOG_LINES, ansi=True).encode("utf-8"))
     return path
 
 
@@ -314,3 +340,90 @@ def test_quickfind_reports_the_latency_of_each_keystroke(isolated_gui, performan
     assert latency["min_ms"] <= latency["p50_ms"] <= latency["p99_ms"] <= latency["max_ms"]
     assert latency["p99_ms"] == pytest.approx(latencies[-1], abs=1e-6)
     assert report["results"]["log_line_count"] == GENERATED_LOG_LINES
+
+
+# A short script: 20 line steps, 5 page steps and the jump to the end.
+SCROLL_SCRIPT = {"line_steps": "20", "page_steps": "5"}
+
+
+def _scroll(isolated_gui, log_file: Path, tmp_path: Path, **options: str) -> dict:
+    run = run_benchmark(isolated_gui, "scroll", [log_file], tmp_path / "report.json",
+                        options={**SCROLL_SCRIPT, **options})
+    assert run.process.returncode == EXIT_PASSED, run.process.stdout + run.process.stderr
+    assert run.report is not None and run.report["scenario"] == "scroll"
+    return run.report
+
+
+def _check_frames(report: dict, view: str):
+    results = report["results"]
+    assert results["view"] == view
+    assert results["step_count"] == 26
+    assert (results["line_step_count"], results["page_step_count"]) == (20, 5)
+    assert results["unmoved_step_count"] == 0
+    assert results["log_line_count"] == SCROLL_LOG_LINES
+
+    # Every step was answered by a paint, and every paint is a frame.
+    frames = results["frame_time"]
+    assert frames["count"] >= results["step_count"]
+    assert 0 < frames["min_ms"] <= frames["p50_ms"] <= frames["p99_ms"] <= frames["max_ms"]
+    assert frames["budget_ms"] == pytest.approx(1000 / 60)
+    assert 0 <= frames["over_budget_count"] <= frames["count"]
+    assert event(report, "scrolled_to_end")["data"]["frame_count"] == frames["count"]
+
+
+def test_scroll_reports_every_frame_of_the_text_view(isolated_gui, scroll_log, tmp_path):
+    report = _scroll(isolated_gui, scroll_log, tmp_path)
+
+    _check_frames(report, "text")
+    assert report["results"]["highlighter_count"] == 0
+    assert report["options"] == SCROLL_SCRIPT
+
+
+def test_scroll_reports_every_frame_of_the_table_view(isolated_gui, scroll_log, tmp_path):
+    # The scroll Log File has a Log Format the Catalog knows, so a Table View.
+    report = _scroll(isolated_gui, scroll_log, tmp_path, view="table")
+
+    _check_frames(report, "table")
+
+
+def test_scroll_with_highlighters_keeps_the_instances_own(isolated_gui, scroll_log, tmp_path):
+    before = _stored_state(isolated_gui)
+
+    for view in ("text", "table"):
+        report = _scroll(isolated_gui, scroll_log, tmp_path, view=view, highlighters="true")
+        _check_frames(report, view)
+        assert report["results"]["highlighter_count"] == 5
+
+    # The Highlighter Set and the settings went into the run's own directory.
+    assert _stored_state(isolated_gui) == before
+
+
+@pytest.mark.parametrize("ansi", ["hide", "colors"])
+def test_scroll_shows_ansi_colors_as_the_option_says(isolated_gui, scroll_ansi_log, tmp_path, ansi):
+    report = _scroll(isolated_gui, scroll_ansi_log, tmp_path, ansi=ansi)
+
+    _check_frames(report, "text")
+    assert report["options"]["ansi"] == ansi
+
+
+def test_scroll_in_the_table_view_needs_a_log_format(isolated_gui, performance_log, tmp_path):
+    # The Log Lines of the other generated Log Files have no Log Format.
+    run = run_benchmark(isolated_gui, "scroll", [performance_log], tmp_path / "report.json",
+                        options={"view": "table"})
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert "no Log Format was recognized" in run.report["failure"]
+
+
+@pytest.mark.parametrize("option, value", [
+    ("view", "grid"), ("highlighters", "yes"), ("ansi", "rainbow"), ("line_steps", "-1"),
+])
+def test_scroll_with_a_wrong_option_reports_why(isolated_gui, scroll_log, tmp_path, option, value):
+    run = run_benchmark(isolated_gui, "scroll", [scroll_log], tmp_path / "report.json",
+                        options={option: value})
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert option in run.report["failure"]
+    assert run.report["events"] == []

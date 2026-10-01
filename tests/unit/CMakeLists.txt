@@ -313,6 +313,7 @@ add_executable(logsquirl_benchmark_tests
     benchmark_tests_main.cpp
     benchmarkreport_test.cpp
     benchmarkscenario_test.cpp
+    frametimes_test.cpp
     inputlatency_test.cpp
 )
 

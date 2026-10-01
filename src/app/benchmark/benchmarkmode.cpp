@@ -140,6 +140,13 @@ public:
         } );
     }
 
+    // Before the application reads a setting: the scenario writes those it
+    // measures under.
+    void prepare()
+    {
+        scenario_->prepare( *this );
+    }
+
     int exitCode() const
     {
         return exitCode_;
@@ -305,6 +312,7 @@ std::unique_ptr<BenchmarkMode> BenchmarkMode::prepare( const CliParameters& para
         return nullptr;
     }
     writeSettings( DataLocation::current().portableSettingsPath() );
+    mode->run_->prepare();
     return mode;
 }
 
