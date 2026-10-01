@@ -20,7 +20,12 @@
   Value Names...*, edits the rules and which Name Table each capture group
   uses. It edits the Name Tables too: they can be imported from CSV, exported
   to CSV and pasted from a spreadsheet. A preview line shows a sample Log Line
-  named and warns of what is wrong. (#647)
+  named and warns of what is wrong. A Naming Group is shared like a filter
+  group: *Export...* writes it to `<name>_valuenames.conf`, *Import...* asks
+  *Replace*, *Keep both* or *Skip* for a group already there, and the Team
+  Folder shares Naming Groups as Team groups, listed last in the tab. A Value
+  Names file says what it holds and is never read as a filter group or
+  highlighter set; their files load as before. (#647)
 - **The Regex Lab tests a pattern on Log Lines**: *Tools → Regex Lab…* opens a
   window beside the main window where a pattern, with the search line's
   options, is matched live against the selected Log Lines of the tab in front,

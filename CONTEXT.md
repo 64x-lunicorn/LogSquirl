@@ -189,7 +189,7 @@ Group's id never replaces the recipient's Default group: it arrives as a new gro
 _Avoid_: filter set, filter list, folder
 
 **Team Folder**:
-A Git repository a team shares its Filter Groups and Highlighter Sets through. LogSquirl clones
+A Git repository a team shares its Filter Groups, Highlighter Sets and Naming Groups through. LogSquirl clones
 it into its own data folder with the installed `git` and keeps it current: at startup, every
 five minutes and on "Sync now", never blocking the user interface. It is the only part of the
 application that runs Git, and Git's own authentication applies unchanged. Turning it off, or
@@ -197,9 +197,9 @@ pointing it at another repository, leaves the user's own groups alone.
 _Avoid_: shared folder, team repository, sync folder
 
 **Team group**:
-A Filter Group or Highlighter Set that lives in the Team Folder, one file each. Team groups
-show in their own section of the dialogs, sorted alphabetically, and are never written into the
-user's own settings. Changing a Team group and pressing OK or Apply publishes that one file
+A Filter Group, Highlighter Set or Naming Group that lives in the Team Folder, one file each.
+Team groups show in their own section of the dialogs, sorted alphabetically, and are never
+written into the user's own settings. Changing a Team group and pressing OK or Apply publishes that one file
 to the team; when someone else changed the same group meanwhile the user chooses keep mine,
 take theirs or save mine as a copy. Nothing is locked (ADR-0008). A personal group is shared
 as a Team copy, a Team group is copied back into the personal groups, each with a fresh id.
@@ -310,7 +310,11 @@ key's capture groups as `{1}`, `{2}`, … A value no row matches stays as it is.
 
 **Naming Group**:
 A named group of Naming Rules and the Name Tables they use; the unit that is enabled, exported
-and shared. A rule only uses the Name Tables of its own group.
+and shared. A rule only uses the Name Tables of its own group. The Group Exchange hands it on
+as `<name>_valuenames.conf` with the same conflict answers as a Filter Group; the file names
+its kind (`kind=valuenames`), and only a file that does is read as a Naming Group, while a
+file with a kind entry is never read as a Filter Group or Highlighter Set. Its checks stay
+with the user.
 
 **Named Value**:
 One value of a Log Line that a Naming Rule captured and a Name Table named. The Text View and

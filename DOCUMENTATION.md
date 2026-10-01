@@ -762,6 +762,28 @@ warnings name the line. *Export CSV...* writes the selected table's rows,
 key first. *Paste* adds the rows copied from a spreadsheet, key then name, to
 the selected table.
 
+**Sharing Naming Groups.** Naming Groups are exchanged the same way as filter
+groups and highlighter sets. *Export...*, below the groups in the dialog,
+writes the selected group with its Name Tables, and without its checks, to a
+file named `<name>_valuenames.conf` by default; *Import...* reads the Naming
+Groups of the selected files, asking *Replace*, *Keep both* or *Skip* when a
+group of the same id or name exists
+(see [Using highlighters](#using-highlighters)). An imported group arrives
+checked. A
+Value Names file says in itself that it holds a Naming Group: it is never
+imported as a filter group or highlighter set, and their files never as a
+Naming Group.
+
+With the Team Folder on, the team's Naming Groups are listed below your own in
+the dialog and last in the *Value Names* tab, marked *(Team)*; their checks are
+yours alone. *Share with team* publishes a copy of the selected group of your
+own, *New Team group* adds one, and changes to a Team group are published on
+*OK* or *Apply*; *Copy to my groups* copies a Team group into your own, and
+*Delete for the team* deletes it for everyone. When the Team Folder cannot
+publish, the Team groups are shown and previewed but not changed. When someone
+else changed the same group meanwhile, you choose *Keep mine*, *Take theirs*
+or *Save mine as a copy*, as for filter groups.
+
 ### Auto Log Format Detection (Table View)
 
 *logsquirl* can automatically detect the format of a log file and display it
