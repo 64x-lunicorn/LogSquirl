@@ -48,7 +48,6 @@
 //   log_line_count     Log Lines of the Log File
 //   log_file_bytes     its size
 
-#include <algorithm>
 #include <chrono>
 #include <memory>
 
@@ -149,6 +148,20 @@ private:
         ++typed_;
     }
 
+    // The next keystroke once keystroke_interval_ms passed since the last one,
+    // by the steady clock: a timer may fire a little early (on Windows by up to
+    // the system timer's resolution), so it is armed again until then.
+    void typeWhenDue()
+    {
+        const auto wait = lastKeystroke_ + interval_ - Clock::now();
+        if ( wait <= Clock::duration::zero() ) {
+            type();
+            return;
+        }
+        QTimer::singleShot( std::chrono::ceil<std::chrono::milliseconds>( wait ), Qt::PreciseTimer,
+                            run_->context(), [ this ] { typeWhenDue(); } );
+    }
+
     void painted( Clock::time_point started, Clock::time_point ended )
     {
         const auto answered = latency_.painted( started, ended );
@@ -163,10 +176,7 @@ private:
 
         if ( typed_ < pattern_.size() ) {
             // Not from within the paint; no sooner than a user types.
-            const auto due = lastKeystroke_ + interval_;
-            const auto wait = std::max( Clock::duration::zero(), due - Clock::now() );
-            QTimer::singleShot( std::chrono::ceil<std::chrono::milliseconds>( wait ),
-                                run_->context(), [ this ] { type(); } );
+            typeWhenDue();
             return;
         }
 
