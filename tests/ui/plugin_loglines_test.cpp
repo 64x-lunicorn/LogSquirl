@@ -192,6 +192,16 @@ bool writeLogFile( QTemporaryFile& file, int lines )
     return writeLogFile( file, logLines( lines ) );
 }
 
+// Whether the tab has loaded all of its Log File's lines. Counting them is not
+// enough: the Encoding is settled only when the tab hears the load has
+// finished, and a Log Line read before decodes "ä" in the locale's.
+bool loadedAll( CrawlerWidget& crawler, qsizetype lines )
+{
+    return crawler.state().loadStatus == LoadingStatus::Successful
+           && CrawlerAccess::openLogFile( crawler ).logData()->getNbLine().get()
+                  == static_cast<uint64_t>( lines );
+}
+
 // A Log File, of LogLineCount lines unless given, open in a Crawler Widget of
 // its own Session.
 struct OpenCrawler {
@@ -204,10 +214,7 @@ struct OpenCrawler {
                           []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
         crawler->resize( 800, 600 );
         crawler->show();
-        REQUIRE( waitUiState( [ this, &lines ] {
-            return CrawlerAccess::openLogFile( *crawler ).logData()->getNbLine().get()
-                   == static_cast<uint64_t>( lines.size() );
-        } ) );
+        REQUIRE( waitUiState( [ this, &lines ] { return loadedAll( *crawler, lines.size() ); } ) );
         QTest::qWait( 100 );
     }
 
@@ -572,11 +579,7 @@ SCENARIO( "A plugin reaches the tab in front of the most recently active window"
             [ & ] { return qobject_cast<CrawlerWidget*>( tabs->currentWidget() ) != nullptr; },
             10'000 ) );
         auto* crawler = qobject_cast<CrawlerWidget*>( tabs->currentWidget() );
-        REQUIRE( waitUiState(
-            [ & ] {
-                return CrawlerAccess::openLogFile( *crawler ).logData()->getNbLine().get() == 50;
-            },
-            10'000 ) );
+        REQUIRE( waitUiState( [ & ] { return loadedAll( *crawler, 50 ); }, 10'000 ) );
 
         WHEN( "a plugin goes to a Log Line of it and reads the selection" )
         {
