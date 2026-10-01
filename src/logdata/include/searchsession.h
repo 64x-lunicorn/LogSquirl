@@ -173,7 +173,7 @@ private:
     // real run does, rather than the shortcut a cache hit used to take.
     void adoptCacheHit( const RegularExpressionPattern& pattern, LineNumber startLine,
                         LineNumber endLine, const SearchResultArray& matches,
-                        LineLength maxLength );
+                        const SearchResultArray& undecided, LineLength maxLength );
     // Interrupts the worker and invalidates the run we were waiting on,
     // so a late result for it is discarded rather than applied on top of
     // whatever this call is about to transition to. Shared by every
@@ -219,6 +219,9 @@ private:
     // incomplete when it was searched before: the last one searched then.
     // Nothing while no continuation is waiting for its verdict.
     OptionalLineNumber recheckedLine_;
+    // The Log Lines searched that the engine gave up on, reported as they
+    // arrive: they decide nothing about the Matches (#689).
+    SearchResultArray undecided_;
     // Log Lines the run held searched changed since (logLinesChanged()), so
     // it cannot be continued, only started over.
     bool logLinesChangedUnderRun_ = false;
@@ -239,6 +242,7 @@ private:
     struct CachedSearchResult {
         SearchResultArray matching_lines;
         LineLength maxLength;
+        SearchResultArray undecided_lines{};
     };
 
     using SearchCacheKey = std::tuple<RegularExpressionPattern, LineNumber::UnderlyingType,

@@ -75,12 +75,13 @@ SearchLine lineWith( Reading reading, const QString& pattern )
 
 // A Search the Search Session tells about.
 SearchSessionState session( SearchSessionPhase phase, int progress = 0,
-                            LinesCount matches = 0_lcount )
+                            LinesCount matches = 0_lcount, LinesCount undecided = 0_lcount )
 {
     SearchSessionState state;
     state.phase = phase;
     state.progress = progress;
     state.matchCount = matches;
+    state.undecidedCount = undecided;
     return state;
 }
 
@@ -770,16 +771,25 @@ SCENARIO( "The Search Line shows a Search done", "[searchline]" )
             AutoRefresh autoRefresh;
             LinesCount matches;
             QString text;
+            LinesCount undecided = 0_lcount;
         };
+        // The Log Lines the regex engine gave up on are told beside the
+        // Matches (#689).
         const auto row = GENERATE( values<Row>( {
             { AutoRefresh::Static, 1_lcount, "1 match found" },
             { AutoRefresh::Static, 3_lcount, "3 matches found" },
             { AutoRefresh::Autorefreshing, 3_lcount, "3 matches found" },
             { AutoRefresh::FileTruncated, 3_lcount, "File truncated on disk" },
             { AutoRefresh::TruncatedAutorefreshing, 3_lcount, "File truncated on disk" },
+            { AutoRefresh::Static, 3_lcount,
+              "3 matches found (the regex engine gave up on 1 Log Line: it may match)", 1_lcount },
+            { AutoRefresh::Autorefreshing, 0_lcount,
+              "0 match found (the regex engine gave up on 4 Log Lines: they may match)", 4_lcount },
+            { AutoRefresh::FileTruncated, 3_lcount, "File truncated on disk", 4_lcount },
         } ) );
 
-        line.progressed( session( Phase::Complete, 100, row.matches ), row.autoRefresh );
+        line.progressed( session( Phase::Complete, 100, row.matches, row.undecided ),
+                         row.autoRefresh );
 
         THEN( "the text says " << row.text.toStdString()
                                << ", the gauge goes and the Search button is back" )
@@ -875,17 +885,20 @@ SCENARIO( "The Search Line shows a stopped Search", "[searchline]" )
     struct Row {
         LinesCount matches;
         QString text;
+        LinesCount undecided = 0_lcount;
     };
     const auto row = GENERATE( values<Row>( {
         { 0_lcount, "0 match found" },
         { 1_lcount, "1 match found" },
         { 7_lcount, "7 matches found" },
+        { 7_lcount, "7 matches found (the regex engine gave up on 2 Log Lines: they may match)",
+          2_lcount },
     } ) );
 
     WHEN( "the user stops the Search with " << row.matches.get()
                                             << " Matches in the Filtered View" )
     {
-        line.stopped( AutoRefresh::Static, row.matches );
+        line.stopped( AutoRefresh::Static, row.matches, row.undecided );
 
         THEN( "the text says " << row.text.toStdString() )
         {

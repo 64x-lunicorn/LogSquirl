@@ -142,6 +142,15 @@
   counts as disabled at once, gets no further calls, and is shut down once
   that callback has returned. Enabled again before that, it simply stays
   loaded. (#691)
+- **A Search says when the regex engine gave up on Log Lines**: with the
+  QRegularExpression engine, a pattern that backtracks too much -- such as
+  `(a|aa)+$` on a long Log Line -- makes PCRE2 give up on that Log Line, and
+  the Search counted it as no Match without a word. The Search Line now adds
+  how many Log Lines the engine gave up on to the Matches found, for example
+  *3 matches found (the regex engine gave up on 2 Log Lines: they may match)*,
+  and `logsquirl_grep` says so on stderr. The Regex Lab marks such a Log Line
+  as slow however fast the engine gave up. Vectorscan never gives up on a Log
+  Line. (#689)
 
 - **An exported Team group imported again is a group of your own**: a filter
   group or highlighter set exported from the Team groups and imported into
