@@ -1756,8 +1756,7 @@ void AbstractLogView::saveLinesToFile( LineNumber begin, LineNumber end )
 {
     // Only a tab showing Value Names has any to save with; any other asks
     // with the platform's own dialog, as it always did.
-    const auto dialog = saveLinesDialog();
-    if ( dialog == nullptr ) {
+    if ( !offersSaveWithValueNames() ) {
         const auto filename = QFileDialog::getSaveFileName( this, "Save content" );
         if ( filename.isEmpty() ) {
             return;
@@ -1766,6 +1765,7 @@ void AbstractLogView::saveLinesToFile( LineNumber begin, LineNumber end )
         return;
     }
 
+    const auto dialog = SaveLinesDialog::create( this );
     if ( dialog->exec() != QDialog::Accepted || dialog->selectedFiles().isEmpty() ) {
         return;
     }
@@ -1773,9 +1773,9 @@ void AbstractLogView::saveLinesToFile( LineNumber begin, LineNumber end )
                  SaveLinesDialog::withValueNames( *dialog ) );
 }
 
-std::unique_ptr<QFileDialog> AbstractLogView::saveLinesDialog()
+bool AbstractLogView::offersSaveWithValueNames() const
 {
-    return showsValueNames() ? SaveLinesDialog::create( this ) : nullptr;
+    return showsValueNames();
 }
 
 void AbstractLogView::saveLinesTo( const QString& filename, LineNumber begin, LineNumber end,

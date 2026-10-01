@@ -28,25 +28,28 @@ std::unique_ptr<QFileDialog> SaveLinesDialog::create( QWidget* parent )
     auto dialog = std::make_unique<QFileDialog>( parent, tr( "Save content" ) );
     dialog->setAcceptMode( QFileDialog::AcceptSave );
     dialog->setOption( QFileDialog::DontUseNativeDialog, true );
+    addWithValueNames( *dialog );
+    return dialog;
+}
 
+void SaveLinesDialog::addWithValueNames( QDialog& dialog )
+{
     // Qt's file dialog lays itself out on a grid: the check goes below it.
     // Laid out otherwise, the dialog is left as it is, without the check.
-    auto* grid = qobject_cast<QGridLayout*>( dialog->layout() );
+    auto* grid = qobject_cast<QGridLayout*>( dialog.layout() );
     if ( grid == nullptr ) {
-        return dialog;
+        return;
     }
 
-    auto* withValueNames = new QCheckBox( tr( "With Value Names" ), dialog.get() );
+    auto* withValueNames = new QCheckBox( tr( "With Value Names" ), &dialog );
     withValueNames->setObjectName( WithValueNamesName );
     withValueNames->setChecked( false );
     withValueNames->setToolTip(
         tr( "Save the Log Lines as they are shown, with the names of their values" ) );
     grid->addWidget( withValueNames, grid->rowCount(), 0, 1, -1 );
-
-    return dialog;
 }
 
-bool SaveLinesDialog::withValueNames( const QFileDialog& dialog )
+bool SaveLinesDialog::withValueNames( const QDialog& dialog )
 {
     const auto* check = dialog.findChild<QCheckBox*>( WithValueNamesName );
     return check != nullptr && check->isChecked();

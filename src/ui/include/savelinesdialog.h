@@ -23,6 +23,7 @@
 
 #include <QCoreApplication>
 
+class QDialog;
 class QFileDialog;
 class QWidget;
 
@@ -39,8 +40,14 @@ public:
     // other than on a grid, it comes without the check.
     static std::unique_ptr<QFileDialog> create( QWidget* parent );
 
-    // Whether a dialog create() built has "With Value Names", and it is checked.
-    static bool withValueNames( const QFileDialog& dialog );
+    // Puts the check, off, below a dialog laid out on a grid; leaves one laid
+    // out otherwise as it is. create() puts it below Qt's file dialog; the
+    // tests, below a dialog of their own: Qt's file dialog starts a thread
+    // that ThreadSanitizer sees race with the dialog itself (#634).
+    static void addWithValueNames( QDialog& dialog );
+
+    // Whether the dialog has "With Value Names", and it is checked.
+    static bool withValueNames( const QDialog& dialog );
 
     // The object name of the check, which a test finds it by.
     static constexpr auto WithValueNamesName = "withValueNames";

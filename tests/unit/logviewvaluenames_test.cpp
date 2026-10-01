@@ -29,14 +29,17 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCoreApplication>
+#include <QDialog>
 #include <QFile>
-#include <QFileDialog>
 #include <QFontInfo>
+#include <QGridLayout>
+#include <QLabel>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QVBoxLayout>
 
 #include "abstractlogview.h"
 #include "fake_log_data.h"
@@ -116,7 +119,7 @@ public:
     }
 
     using AbstractLogView::createContextMenu;
-    using AbstractLogView::saveLinesDialog;
+    using AbstractLogView::offersSaveWithValueNames;
     using AbstractLogView::saveLinesTo;
 };
 
@@ -594,30 +597,69 @@ SCENARIO( "The save dialog offers With Value Names only while the view shows the
     {
         THEN( "it asks with the platform's own dialog" )
         {
-            REQUIRE( view.saveLinesDialog() == nullptr );
+            REQUIRE_FALSE( view.offersSaveWithValueNames() );
         }
     }
 
     GIVEN( "a view that shows Value Names" )
     {
         view.valueNamesShownSet( true );
-        const auto dialog = view.saveLinesDialog();
-        REQUIRE( dialog != nullptr );
-        auto* check = dialog->findChild<QCheckBox*>( SaveLinesDialog::WithValueNamesName );
 
-        THEN( "it asks with a dialog whose check is there, off and enabled" )
+        THEN( "it asks with the dialog that offers them" )
+        {
+            REQUIRE( view.offersSaveWithValueNames() );
+        }
+    }
+}
+
+// Below a dialog of the test's own, laid out on a grid as Qt's file dialog is:
+// Qt's file dialog starts a thread that ThreadSanitizer sees race with the
+// dialog itself (#634).
+SCENARIO( "The save dialog's With Value Names is off at first and says what is saved",
+          "[logviewvaluenames][linessaver]" )
+{
+    GIVEN( "a dialog laid out on a grid, given the check" )
+    {
+        QDialog dialog;
+        auto* grid = new QGridLayout( &dialog );
+        grid->addWidget( new QLabel( QStringLiteral( "a file name" ), &dialog ), 0, 0 );
+        SaveLinesDialog::addWithValueNames( dialog );
+        auto* check = dialog.findChild<QCheckBox*>( SaveLinesDialog::WithValueNamesName );
+
+        THEN( "the check is below what was there, off and enabled" )
         {
             REQUIRE( check != nullptr );
+            REQUIRE( grid->indexOf( check ) >= 0 );
+            int row = 0;
+            int column = 0;
+            int rowSpan = 0;
+            int columnSpan = 0;
+            grid->getItemPosition( grid->indexOf( check ), &row, &column, &rowSpan, &columnSpan );
+            REQUIRE( row == 1 );
             REQUIRE_FALSE( check->isChecked() );
             REQUIRE( check->isEnabled() );
-            REQUIRE_FALSE( SaveLinesDialog::withValueNames( *dialog ) );
+            REQUIRE_FALSE( SaveLinesDialog::withValueNames( dialog ) );
         }
 
         THEN( "checked, the save is with Value Names" )
         {
             REQUIRE( check != nullptr );
             check->setChecked( true );
-            REQUIRE( SaveLinesDialog::withValueNames( *dialog ) );
+            REQUIRE( SaveLinesDialog::withValueNames( dialog ) );
+        }
+    }
+
+    GIVEN( "a dialog laid out otherwise" )
+    {
+        QDialog dialog;
+        new QVBoxLayout( &dialog );
+        SaveLinesDialog::addWithValueNames( dialog );
+
+        THEN( "it is left without the check, and the save is without Value Names" )
+        {
+            REQUIRE( dialog.findChild<QCheckBox*>( SaveLinesDialog::WithValueNamesName )
+                     == nullptr );
+            REQUIRE_FALSE( SaveLinesDialog::withValueNames( dialog ) );
         }
     }
 }
