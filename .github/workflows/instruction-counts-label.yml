@@ -25,8 +25,10 @@ on:
 permissions: {}
 
 # Adding and removing the label in quick succession: the last change wins.
+# The label is part of the group, so that adding or removing any other label,
+# whose run the job's condition skips, cannot cancel a re-run in progress.
 concurrency:
-  group: instruction-counts-label-${{ github.event.pull_request.number }}
+  group: instruction-counts-label-${{ github.event.pull_request.number }}-${{ github.event.label.name }}
   cancel-in-progress: true
 
 env:
