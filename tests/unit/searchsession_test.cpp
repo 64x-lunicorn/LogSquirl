@@ -1045,3 +1045,74 @@ SCENARIO( "A parallel Search interrupted mid-way continues without skipping a Lo
         }
     }
 }
+
+// #689: PCRE2 gives up on a Log Line it would have to backtrack through too
+// long, and its verdict is then "no match" without being one. The Search
+// counts such Log Lines, so that a missing Match is not taken for none.
+SCENARIO( "A Search counts the Log Lines the regex engine gave up on", "[searchsession]" )
+{
+    auto policies = testSettingsPolicies();
+    policies.search.readBufferSizeLines = 4;
+    const auto backtracking = QString( 5000, QChar( 'a' ) ) + QStringLiteral( "!" );
+    auto lines = numberedLines( 12 );
+    lines[ 2 ] = backtracking;
+    lines[ 9 ] = backtracking;
+    lines[ 5 ] = QStringLiteral( "aaaa" );
+    InMemoryBlockSource blockSource( lines );
+    const RegularExpressionPattern pattern( "(a|aa)+$" );
+
+    GIVEN( "the QRegularExpression engine" )
+    {
+        policies.search.regexpEngine = RegexpEngine::QRegularExpression;
+        SearchSession session( blockSource, policies.search );
+
+        WHEN( "a pattern that backtracks too much on two Log Lines is searched" )
+        {
+            session.request( pattern );
+            REQUIRE( waitUntilSettled( session ) );
+
+            THEN( "it finds the Match it could decide, and counts the two it could not" )
+            {
+                const auto state = session.state();
+                REQUIRE( state.phase == Phase::Complete );
+                REQUIRE( state.matchCount == 1_lcount );
+                REQUIRE( state.undecidedCount == 2_lcount );
+            }
+
+            AND_WHEN( "it is searched again, from the cache" )
+            {
+                session.request( RegularExpressionPattern( "line" ) );
+                REQUIRE( waitUntilSettled( session ) );
+                REQUIRE( session.state().undecidedCount == 0_lcount );
+                session.request( pattern );
+
+                THEN( "the cache keeps the count too" )
+                {
+                    const auto state = session.state();
+                    REQUIRE( state.fromCache );
+                    REQUIRE( state.matchCount == 1_lcount );
+                    REQUIRE( state.undecidedCount == 2_lcount );
+                }
+            }
+        }
+    }
+
+    GIVEN( "the Vectorscan engine, which never gives up on a Log Line" )
+    {
+        policies.search.regexpEngine = RegexpEngine::Vectorscan;
+        SearchSession session( blockSource, policies.search );
+
+        WHEN( "the same pattern is searched" )
+        {
+            session.request( pattern );
+            REQUIRE( waitUntilSettled( session ) );
+
+            THEN( "every Log Line is decided" )
+            {
+                const auto state = session.state();
+                REQUIRE( state.matchCount == 1_lcount );
+                REQUIRE( state.undecidedCount == 0_lcount );
+            }
+        }
+    }
+}

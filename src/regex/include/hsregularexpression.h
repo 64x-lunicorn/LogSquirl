@@ -46,6 +46,16 @@ using MatchedPatterns = std::string;
 
 using CompiledRegularExpressions = logsquirl::vector<QRegularExpression>;
 
+// Whether PCRE2 gave up on the line instead of deciding it: it ran into its
+// match limit, its depth limit or out of memory, on a pattern that backtracks
+// too much. QRegularExpression reports no match then, and tells the two apart
+// only by an invalid match: it keeps a match valid for "matched", "no match"
+// and "partial match" alone (#689).
+inline bool engineGaveUp( const QRegularExpressionMatch& match )
+{
+    return !match.isValid();
+}
+
 // Compiles every pattern once, for all the matchers an expression creates.
 // Those matchers share the compiled patterns (QRegularExpression is implicitly
 // shared) and may match on several search threads at once, so optimize()
@@ -77,15 +87,27 @@ public:
         const auto line = QString::fromUtf8( QByteArrayView( utf8Data ) );
 
         MatchedPatterns matchedPatterns( regexp_.size(), 0 );
-        std::transform(
-            regexp_.cbegin(), regexp_.cend(), matchedPatterns.begin(),
-            [ &line ]( const auto& regexp ) { return regexp.match( line ).hasMatch(); } );
+        gaveUp_ = false;
+        std::transform( regexp_.cbegin(), regexp_.cend(), matchedPatterns.begin(),
+                        [ &line, this ]( const auto& regexp ) {
+                            const auto match = regexp.match( line );
+                            gaveUp_ = gaveUp_ || engineGaveUp( match );
+                            return match.hasMatch();
+                        } );
 
         return matchedPatterns;
     }
 
+    // Whether the engine gave up on a sub-pattern in the last match(): what
+    // it reported for that one is "no match", not a verdict.
+    bool gaveUp() const
+    {
+        return gaveUp_;
+    }
+
 private:
     CompiledRegularExpressions regexp_;
+    mutable bool gaveUp_ = false;
 };
 
 #ifdef LOGSQUIRL_HAS_HS
@@ -116,11 +138,19 @@ public:
     HsMatcher( HsMatcher&& other ) noexcept = default;
     HsMatcher& operator=( HsMatcher&& other ) noexcept = default;
 
+    // Whether the last match() failed to scan the line: Vectorscan itself
+    // never gives up on one, but a scan that fails decides nothing.
+    bool gaveUp() const
+    {
+        return gaveUp_;
+    }
+
 protected:
     HsDatabase database_;
     HsScratch scratch_;
 
     mutable HsMatcherContext context_;
+    mutable bool gaveUp_ = false;
 };
 
 class HsSingleMatcher : public HsMatcher {
@@ -142,6 +172,11 @@ public:
 class HsNoopMatcher {
 public:
     MatchedPatterns match( const std::string_view& utf8Data ) const;
+
+    bool gaveUp() const
+    {
+        return false;
+    }
 };
 
 class HsPrefilterMatcher {
@@ -150,9 +185,17 @@ public:
 
     MatchedPatterns match( const std::string_view& utf8Data ) const;
 
+    // Whether the prefilter's scan failed, or PCRE2 gave up on a candidate
+    // it confirms, in the last match().
+    bool gaveUp() const
+    {
+        return gaveUp_ || hsMatcher_.gaveUp();
+    }
+
 private:
     CompiledRegularExpressions regexps_;
     HsMultiMatcher hsMatcher_;
+    mutable bool gaveUp_ = false;
 };
 
 using MatcherVariant = std::variant<DefaultRegularExpressionMatcher, HsNoopMatcher, HsSingleMatcher,

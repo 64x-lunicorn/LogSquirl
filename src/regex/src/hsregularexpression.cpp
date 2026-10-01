@@ -97,7 +97,8 @@ MatchedPatterns HsSingleMatcher::match( const std::string_view& utf8Data ) const
     const hs_error_t err
         = hs_scan( database_.get(), utf8Data.data(), static_cast<unsigned int>( utf8Data.size() ),
                    0, scratch_.get(), matchSingleCallback, static_cast<void*>( &context_ ) );
-    if ( err != HS_SUCCESS && err != HS_SCAN_TERMINATED ) {
+    gaveUp_ = err != HS_SUCCESS && err != HS_SCAN_TERMINATED;
+    if ( gaveUp_ ) {
         LOG_ERROR << "hs_scan (single) failed with code " << err;
     }
 
@@ -119,7 +120,8 @@ MatchedPatterns HsMultiMatcher::match( const std::string_view& utf8Data ) const
     const hs_error_t err
         = hs_scan( database_.get(), utf8Data.data(), static_cast<unsigned int>( utf8Data.size() ),
                    0, scratch_.get(), matchMultiCallback, static_cast<void*>( &context_ ) );
-    if ( err != HS_SUCCESS ) {
+    gaveUp_ = err != HS_SUCCESS;
+    if ( gaveUp_ ) {
         LOG_ERROR << "hs_scan (multi) failed with code " << err;
     }
 
@@ -145,12 +147,15 @@ MatchedPatterns HsPrefilterMatcher::match( const std::string_view& utf8Data ) co
 
     // Converted once, and only when the prefilter found a candidate.
     std::optional<QString> line;
+    gaveUp_ = false;
     for ( size_t i = 0u; i < matchingPatterns.size(); ++i ) {
         if ( matchingPatterns[ i ] ) {
             if ( !line ) {
                 line = QString::fromUtf8( QByteArrayView( utf8Data ) );
             }
-            matchingPatterns[ i ] = regexps_[ i ].match( *line ).hasMatch();
+            const auto match = regexps_[ i ].match( *line );
+            gaveUp_ = gaveUp_ || engineGaveUp( match );
+            matchingPatterns[ i ] = match.hasMatch();
         }
     }
 

@@ -70,6 +70,8 @@ struct PartialSearchResults {
     PartialSearchResults& operator=( PartialSearchResults&& ) = default;
 
     SearchResultArray matchingLines;
+    // The Log Lines the engine gave up on (#689).
+    SearchResultArray undecidedLines;
     LineLength maxLength;
 
     LineNumber chunkStart;
@@ -150,14 +152,17 @@ PartialSearchResults filterLines( const PatternMatcher& matcher, const RawLines&
     for ( auto offset = 0u; offset < lines.size(); ++offset ) {
         const auto& line = lines[ offset ];
 
-        const auto hasMatch = matcher.hasMatch( line );
+        const auto verdict = matcher.decide( line );
 
-        if ( hasMatch ) {
+        if ( verdict.isMatch ) {
             results.maxLength = qMax( results.maxLength, getUntabifiedLength( line ) );
             const auto lineNumber = chunkStart + LinesCount{ offset };
             results.matchingLines.add( lineNumber.get() );
 
             // LOG_INFO << "Match at " << lineNumber << ": " << line;
+        }
+        if ( verdict.isUndecided ) {
+            results.undecidedLines.add( ( chunkStart + LinesCount{ offset } ).get() );
         }
     }
     return results;
@@ -169,7 +174,7 @@ SearchResults SearchData::takeCurrentResults() const
 {
     UniqueLock lock( dataMutex_ );
     return SearchResults{ std::exchange( newMatches_, {} ), maxLength_,
-                          LinesCount{ searchedUntil_.get() } };
+                          LinesCount{ searchedUntil_.get() }, std::exchange( newUndecided_, {} ) };
 }
 
 void SearchData::searchFrom( LineNumber line )
@@ -180,12 +185,13 @@ void SearchData::searchFrom( LineNumber line )
 }
 
 void SearchData::addAll( LineLength length, const SearchResultArray& matches, LineNumber blockStart,
-                         LinesCount blockLines )
+                         LinesCount blockLines, const SearchResultArray& undecided )
 {
     UniqueLock lock( dataMutex_ );
 
     maxLength_ = qMax( maxLength_, length );
     newMatches_ |= matches;
+    newUndecided_ |= undecided;
 
     const auto blockEnd = blockStart.get() + blockLines.get();
     if ( blockStart > searchedUntil_ ) {
@@ -219,6 +225,7 @@ void SearchData::clear()
     searchedUntil_ = LineNumber( 0 );
     searchedAhead_.clear();
     newMatches_ = {};
+    newUndecided_ = {};
 }
 
 LogFilteredDataWorker::LogFilteredDataWorker( const SearchBlockSource& blockSource,
@@ -442,7 +449,8 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
                     // After each block, copy the data to shared data
                     // and update the client
                     searchData.addAll( maxLength, matchResults.matchingLines,
-                                       matchResults.chunkStart, matchResults.processedLines );
+                                       matchResults.chunkStart, matchResults.processedLines,
+                                       matchResults.undecidedLines );
 
                     LOG_DEBUG << "done Searching chunk starting at " << matchResults.chunkStart
                               << ", " << matchResults.processedLines << " lines read.";

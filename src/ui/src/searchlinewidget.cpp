@@ -281,9 +281,10 @@ void SearchLineWidget::progressed( const SearchSession::State& state,
     showDisplay();
 }
 
-void SearchLineWidget::stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount )
+void SearchLineWidget::stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                                LinesCount undecidedCount )
 {
-    searchLine_.stopped( autoRefresh, matchCount );
+    searchLine_.stopped( autoRefresh, matchCount, undecidedCount );
     showDisplay();
 }
 
@@ -293,9 +294,10 @@ void SearchLineWidget::cleared()
     showDisplay();
 }
 
-void SearchLineWidget::settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount )
+void SearchLineWidget::settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                                LinesCount undecidedCount )
 {
-    searchLine_.settled( autoRefresh, matchCount );
+    searchLine_.settled( autoRefresh, matchCount, undecidedCount );
     showDisplay();
 }
 

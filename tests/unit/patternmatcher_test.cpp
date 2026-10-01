@@ -119,3 +119,65 @@ SCENARIO( "Backslashes in a boolean pattern", "[patternmatcher]" )
         }
     }
 }
+
+// #689: PCRE2 gives up on a Log Line it would have to backtrack through too
+// long and reports no match; the matcher tells that apart from a "no match"
+// it decided. Vectorscan runs in linear time and never gives up.
+SCENARIO( "A pattern matcher tells a Log Line the engine gave up on", "[patternmatcher]" )
+{
+    const auto backtracking = std::string( 5000, 'a' ) + "!";
+
+    GIVEN( "the QRegularExpression engine and a pattern that backtracks catastrophically" )
+    {
+        const auto inverse = GENERATE( false, true );
+        RegularExpression expression(
+            RegularExpressionPattern( "(a|aa)+$", false, inverse, false, false ),
+            RegexpEngine::QRegularExpression );
+        const auto matcher = expression.createMatcher();
+
+        THEN( "a Log Line it gives up on is undecided, whichever way it is counted" )
+        {
+            const auto verdict = matcher->decide( backtracking );
+            REQUIRE( verdict.isUndecided );
+            REQUIRE( verdict.isMatch == inverse );
+            REQUIRE( matcher->hasMatch( backtracking ) == verdict.isMatch );
+        }
+
+        THEN( "a Log Line it decides is not" )
+        {
+            REQUIRE_FALSE( matcher->decide( "aaaa" ).isUndecided );
+            REQUIRE( matcher->decide( "aaaa" ).isMatch != inverse );
+            REQUIRE_FALSE( matcher->decide( "aaab" ).isUndecided );
+            REQUIRE( matcher->decide( "aaab" ).isMatch == inverse );
+        }
+    }
+
+    GIVEN( "a logical combination of such a pattern with another one" )
+    {
+        RegularExpression expression(
+            RegularExpressionPattern( "\"(a|aa)+$\" | \"!\"", false, false, true, false ),
+            RegexpEngine::QRegularExpression );
+        const auto matcher = expression.createMatcher();
+
+        THEN( "the Log Line is still undecided, though the other sub-pattern matches it" )
+        {
+            const auto verdict = matcher->decide( backtracking );
+            REQUIRE( verdict.isUndecided );
+            REQUIRE( verdict.isMatch );
+        }
+    }
+
+    GIVEN( "the Vectorscan engine" )
+    {
+        RegularExpression expression( RegularExpressionPattern( "(a|aa)+$" ),
+                                      RegexpEngine::Vectorscan );
+        const auto matcher = expression.createMatcher();
+
+        THEN( "the same Log Line is decided" )
+        {
+            const auto verdict = matcher->decide( backtracking );
+            REQUIRE_FALSE( verdict.isUndecided );
+            REQUIRE_FALSE( verdict.isMatch );
+        }
+    }
+}

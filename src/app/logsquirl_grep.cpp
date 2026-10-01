@@ -148,6 +148,13 @@ int main( int argc, char* argv[] )
                               break;
                           case SearchSession::Phase::Complete:
                               printMatches( *openLogFile.filteredData(), state.matchCount );
+                              // On stderr, like a failure: the matches
+                              // printed may be missing these (#689).
+                              if ( state.undecidedCount.get() > 0 ) {
+                                  printFailure( QString( "the regex engine gave up on %1 Log "
+                                                         "Line(s); they may match" )
+                                                    .arg( state.undecidedCount.get() ) );
+                              }
                               finish( EXIT_SUCCESS );
                               break;
                           default:
