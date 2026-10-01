@@ -164,7 +164,19 @@ if(_tsan_logs)
   endif()
 endif()
 
-logsquirl_empty_work_dir()
+# On Windows the links go with the case as well. NTFS allows a file 1023 hard
+# links, and every case links every library beside the binary: once more cases
+# than that had run, the next case's link failed without a word, the library
+# was missing from its directory and the case could not start (0xc0000135).
+# What keeps the links on macOS (#566) does not apply to Windows, where a
+# running executable cannot be removed and so is never started under a link
+# that is being removed. A file a program the case started still holds stays
+# behind; the next run of the case empties the directory first anyway.
+if(CMAKE_HOST_WIN32)
+  execute_process(COMMAND "${CMAKE_COMMAND}" -E rm -rf "${_work_dir}" RESULT_VARIABLE _removed)
+else()
+  logsquirl_empty_work_dir()
+endif()
 
 # A signal is reported as its name ("Subprocess killed", "Segmentation fault"),
 # so a case that crashed says so instead of ending in an exit code nobody can
