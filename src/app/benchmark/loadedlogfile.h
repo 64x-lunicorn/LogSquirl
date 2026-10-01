@@ -48,6 +48,9 @@ public:
     using Loaded = std::function<void( MainWindow& window, CrawlerWidget& crawler )>;
 
     LoadedLogFile( ScenarioRun& run, QString scenarioName, Loaded loaded );
+    // Opens logFile, not one given to the run: a Log File the scenario wrote
+    // itself, in the run's own directory (#670).
+    LoadedLogFile( ScenarioRun& run, QString scenarioName, QString logFile, Loaded loaded );
     ~LoadedLogFile();
 
     LoadedLogFile( const LoadedLogFile& ) = delete;
@@ -67,6 +70,8 @@ private:
 
     ScenarioRun& run_;
     QString scenarioName_;
+    // Empty: the one Log File given to the run.
+    QString logFile_;
     Loaded loaded_;
     QPointer<MainWindow> window_;
     QPointer<CrawlerWidget> crawler_;

@@ -59,7 +59,8 @@ public:
 
     // A new, empty main window, shown, at the size of the run.
     virtual MainWindow* newWindow() = 0;
-    // The windows of the Session in dataDirectory(), shown; the last of them.
+    // The windows of the Session in dataDirectory(), shown; the last of them,
+    // at the size of the run.
     virtual MainWindow* restoreSession() = 0;
 
     // Lives as long as the run: a parent for what the scenario creates, and a

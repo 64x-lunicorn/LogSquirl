@@ -26,6 +26,12 @@ the Table View and reports every frame, the paint of the view's Viewport
 (#669). It prepares the settings it measures under -- a Highlighter Set, ANSI
 colors, Format Recognition -- in the run's own settings, so the instance it runs
 in keeps its own as they were.
+
+The follow scenario writes a Log File of its own that grows at a fixed rate and
+reports the time from each append to its Log Line displayed, and whether a
+chart following it kept up (#670). The session-restore scenario generates a
+Session of several tabs in the run's own data location, never the instance's,
+restores it and reports when the tab in front was usable and every tab indexed.
 """
 
 from __future__ import annotations
@@ -427,3 +433,153 @@ def test_scroll_with_a_wrong_option_reports_why(isolated_gui, scroll_log, tmp_pa
     assert run.report is not None
     assert option in run.report["failure"]
     assert run.report["events"] == []
+
+
+# A short follow: 2 s at 20 Log Lines a second.
+FOLLOW_OPTIONS = {"lines_per_second": "20", "duration_ms": "2000", "initial_lines": "500"}
+
+
+def _follow(isolated_gui, tmp_path: Path, **options: str) -> dict:
+    run = run_benchmark(isolated_gui, "follow", [], tmp_path / "report.json",
+                        options={**FOLLOW_OPTIONS, **options})
+    assert run.process.returncode == EXIT_PASSED, run.process.stdout + run.process.stderr
+    assert run.report is not None and run.report["scenario"] == "follow"
+    return run.report
+
+
+def _check_latency(latency: dict, count: int):
+    assert latency["count"] == count
+    assert 0 <= latency["min_ms"] <= latency["p50_ms"] <= latency["p99_ms"] <= latency["max_ms"]
+
+
+def test_follow_reports_each_appended_log_line_until_displayed_and_charted(
+    isolated_gui, tmp_path
+):
+    report = _follow(isolated_gui, tmp_path)
+
+    results = report["results"]
+    assert results["lines_per_second"] == 20
+    assert results["appended_count"] == 40
+    assert results["log_line_count"] == 540
+    _check_latency(results["display_latency"], 40)
+    _check_latency(results["writer_lateness"], 40)
+    _check_latency(results["chart_latency"], 40)
+    _check_latency(results["chart_behind_display"], 40)
+    assert results["chart_charted_count"] == 40
+    assert isinstance(results["chart_kept_up"], bool)
+    assert results["chart_budget_ms"] == 1000
+
+    # The writer took the time it was given; then the last Log Line was
+    # displayed and charted.
+    finished = event(report, "writer_finished")
+    assert finished["data"]["appended_count"] == 40
+    assert finished["since_scenario_start_ms"] >= 39 * 50
+    displayed = event(report, "last_log_line_displayed")
+    assert displayed["since_scenario_start_ms"] >= finished["since_scenario_start_ms"]
+    assert event(report, "last_log_line_charted")["since_scenario_start_ms"] >= (
+        finished["since_scenario_start_ms"]
+    )
+
+
+def test_follow_without_a_chart_reports_the_display_only(isolated_gui, tmp_path):
+    before = _stored_state(isolated_gui)
+
+    report = _follow(isolated_gui, tmp_path, chart="false")
+
+    results = report["results"]
+    _check_latency(results["display_latency"], 40)
+    assert "chart_latency" not in results and "chart_kept_up" not in results
+    # The Log File it grew was the run's own.
+    assert _stored_state(isolated_gui) == before
+
+
+@pytest.mark.parametrize("option, value", [
+    ("lines_per_second", "0"), ("duration_ms", "soon"), ("chart", "yes"), ("initial_lines", "0"),
+])
+def test_follow_with_a_wrong_option_reports_why(isolated_gui, tmp_path, option, value):
+    run = run_benchmark(isolated_gui, "follow", [], tmp_path / "report.json",
+                        options={option: value})
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert option in run.report["failure"]
+    assert run.report["events"] == []
+
+
+def test_follow_takes_no_log_file(isolated_gui, generated_log, tmp_path):
+    run = run_benchmark(isolated_gui, "follow", [generated_log], tmp_path / "report.json")
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert "takes none" in run.report["failure"]
+
+
+@pytest.fixture(scope="module")
+def session_logs(tmp_path_factory) -> list[Path]:
+    """Three Log Files of different sizes, for the tabs of a Session."""
+    directory = tmp_path_factory.mktemp("session")
+    paths = []
+    for tab, lines in enumerate((5_000, 20_000, 10_000)):
+        path = directory / f"tab{tab}.log"
+        path.write_bytes(log_lines(0, lines).encode("utf-8"))
+        paths.append(path)
+    return paths
+
+
+def test_session_restore_reports_the_tab_in_front_usable_and_every_tab_indexed(
+    isolated_gui, session_logs, tmp_path
+):
+    before = _stored_state(isolated_gui)
+
+    run = run_benchmark(isolated_gui, "session-restore", session_logs, tmp_path / "report.json",
+                        options={"current": "1"})
+
+    assert run.process.returncode == EXIT_PASSED, run.process.stdout + run.process.stderr
+    report = run.report
+    results = report["results"]
+    assert (results["tab_count"], results["current_tab"]) == (3, 1)
+    assert results["marks_per_tab"] == 10
+    assert results["log_line_count"] == 35_000
+    assert results["log_file_bytes"] == sum(path.stat().st_size for path in session_logs)
+
+    indexed = {e["data"]["tab"]: e for e in report["events"] if e["name"] == "tab_indexed"}
+    assert sorted(indexed) == [0, 1, 2]
+    assert [indexed[tab]["data"]["log_line_count"] for tab in range(3)] == [5_000, 20_000, 10_000]
+    # The tab in front loads first, and is usable once its Index is done.
+    first = min(indexed.values(), key=lambda e: e["since_scenario_start_ms"])
+    assert first["data"]["tab"] == 1
+    usable = event(report, "current_tab_usable")
+    assert usable["data"]["tab"] == 1
+    assert usable["since_scenario_start_ms"] >= indexed[1]["since_scenario_start_ms"] > 0
+    all_indexed = event(report, "all_tabs_indexed")
+    assert all_indexed["since_scenario_start_ms"] == max(
+        e["since_scenario_start_ms"] for e in indexed.values()
+    )
+
+    # The Session was generated in the run's own data location: the
+    # instance's settings and Session are as they were.
+    assert _stored_state(isolated_gui) == before
+
+
+@pytest.mark.parametrize("options, says", [
+    ({"current": "3"}, "current"), ({"current": "front"}, "current"), ({"marks": "-1"}, "marks"),
+])
+def test_session_restore_with_a_wrong_option_reports_why(
+    isolated_gui, session_logs, tmp_path, options, says
+):
+    run = run_benchmark(isolated_gui, "session-restore", session_logs, tmp_path / "report.json",
+                        options=options)
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert says in run.report["failure"]
+    assert run.report["events"] == []
+
+
+def test_session_restore_needs_several_log_files(isolated_gui, session_logs, tmp_path):
+    run = run_benchmark(isolated_gui, "session-restore", session_logs[:1],
+                        tmp_path / "report.json")
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert "at least two Log Files" in run.report["failure"]

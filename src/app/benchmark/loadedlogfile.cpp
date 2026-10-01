@@ -35,8 +35,15 @@
 namespace logsquirl::benchmark {
 
 LoadedLogFile::LoadedLogFile( ScenarioRun& run, QString scenarioName, Loaded loaded )
+    : LoadedLogFile( run, std::move( scenarioName ), QString{}, std::move( loaded ) )
+{
+}
+
+LoadedLogFile::LoadedLogFile( ScenarioRun& run, QString scenarioName, QString logFile,
+                              Loaded loaded )
     : run_( run )
     , scenarioName_( std::move( scenarioName ) )
+    , logFile_( std::move( logFile ) )
     , loaded_( std::move( loaded ) )
 {
 }
@@ -45,7 +52,7 @@ LoadedLogFile::~LoadedLogFile() = default;
 
 void LoadedLogFile::open()
 {
-    if ( run_.logFiles().size() != 1 ) {
+    if ( logFile_.isEmpty() && run_.logFiles().size() != 1 ) {
         run_.fail( QStringLiteral( "%1 opens exactly one Log File, %2 given" )
                        .arg( scenarioName_ )
                        .arg( run_.logFiles().size() ) );
@@ -65,12 +72,12 @@ void LoadedLogFile::open()
             opened( crawler );
         }
     } );
-    window_->loadInitialFile( run_.logFiles().front(), false );
+    window_->loadInitialFile( logFile_.isEmpty() ? run_.logFiles().front() : logFile_, false );
 }
 
 qint64 LoadedLogFile::bytes() const
 {
-    return QFileInfo( run_.logFiles().front() ).size();
+    return QFileInfo( logFile_.isEmpty() ? run_.logFiles().front() : logFile_ ).size();
 }
 
 qint64 LoadedLogFile::logLineCount() const

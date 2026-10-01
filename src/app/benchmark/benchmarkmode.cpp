@@ -182,7 +182,11 @@ public:
 
     MainWindow* restoreSession() override
     {
-        return app_->reloadSession();
+        // At the size of the run, as a new window, whatever geometry the
+        // Session holds: runs paint the same number of Log Lines (#670).
+        auto* window = app_->reloadSession();
+        window->resize( windowSize_ );
+        return window;
     }
 
     QObject* context() override

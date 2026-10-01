@@ -4,11 +4,13 @@
 # drive windows, live with the application (src/app/benchmark).
 add_library(
   logsquirl_benchmark STATIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/appendlatency.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/benchmarkreport.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/benchmarkscenario.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/frametimes.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/inputlatency.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/processclock.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/appendlatency.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/benchmarkreport.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/benchmarkscenario.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/frametimes.cpp
