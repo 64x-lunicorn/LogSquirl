@@ -257,6 +257,18 @@ SCENARIO( "A text view showing Value Names selects and copies whole values", "[l
         }
     }
 
+    WHEN( "a QuickFind selects past the end of a Log Line with Named Values" )
+    {
+        // From the s of sonstiges to past the end of the Log Line.
+        Access::quickFindFound( view, Portion{ NamedLine, LineColumn{ 25 }, LineColumn{ 100 } } );
+
+        THEN( "the copy holds the raw text to the end of the Log Line" )
+        {
+            REQUIRE( view.getSelectedText() == QStringLiteral( "tiges" ) );
+            REQUIRE( view.getSelectedTextAsShown() == QStringLiteral( "tiges" ) );
+        }
+    }
+
     WHEN( "a whole Log Line is selected" )
     {
         drag( view, onText( 0, 3 ), onText( 1, 3 ) );

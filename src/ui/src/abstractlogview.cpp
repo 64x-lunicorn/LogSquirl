@@ -1515,10 +1515,14 @@ Portion AbstractLogView::coveringNamedValues( const Portion& portion ) const
     // The portion is in the display columns of the raw text.
     const auto rawColumns
         = rawToDisplayColumns( lines_->logFile().getLineString( portion.line() ) );
-    const auto first
-        = characterAtDisplayColumn( rawColumns, static_cast<int>( portion.startColumn().get() ) );
-    const auto last
-        = characterAtDisplayColumn( rawColumns, static_cast<int>( portion.endColumn().get() ) );
+    // Its characters, kept on the Log Line however far past its end it reaches.
+    const auto rawLength = static_cast<qsizetype>( rawColumns.size() ) - 1;
+    const auto last = std::min(
+        characterAtDisplayColumn( rawColumns, static_cast<int>( portion.endColumn().get() ) ),
+        rawLength - 1 );
+    const auto first = std::min(
+        characterAtDisplayColumn( rawColumns, static_cast<int>( portion.startColumn().get() ) ),
+        last );
     const auto [ start, end ] = shown->wholeRawRange( first, last + 1 );
     return Portion{ portion.line(), LineColumn{ rawColumns[ static_cast<size_t>( start ) ] },
                     LineColumn{ rawColumns[ static_cast<size_t>( end ) ] - 1 } };
@@ -1954,10 +1958,13 @@ QString AbstractLogView::getSelectedTextAsShown() const
     const logsquirl::valuenames::ShownLine shown{ raw, namer->namedValues( raw ) };
 
     const auto rawColumns = rawToDisplayColumns( raw );
-    const auto rawStart
-        = characterAtDisplayColumn( rawColumns, static_cast<int>( portion.startColumn().get() ) );
-    const auto rawEnd
-        = characterAtDisplayColumn( rawColumns, static_cast<int>( portion.endColumn().get() ) ) + 1;
+    const auto rawLength = static_cast<qsizetype>( rawColumns.size() ) - 1;
+    const auto rawEnd = std::min(
+        characterAtDisplayColumn( rawColumns, static_cast<int>( portion.endColumn().get() ) ) + 1,
+        rawLength );
+    const auto rawStart = std::min(
+        characterAtDisplayColumn( rawColumns, static_cast<int>( portion.startColumn().get() ) ),
+        rawEnd );
     const auto shownColumns = rawToDisplayColumns( shown.text() );
     const auto start = shownColumns[ static_cast<size_t>(
         shown.toShown( rawStart, logsquirl::valuenames::Snap::ToStart ) ) ];
