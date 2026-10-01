@@ -38,8 +38,7 @@ std::vector<double> InputLatency::painted( Clock::time_point started, Clock::tim
     std::vector<double> answered;
     // The inputs wait in the order they were handled.
     while ( !waiting_.empty() && waiting_.front() < started ) {
-        answered.push_back(
-            std::chrono::duration<double, std::milli>( ended - waiting_.front() ).count() );
+        answered.push_back( millisecondsBetween( waiting_.front(), ended ) );
         waiting_.pop_front();
     }
     latencies_.insert( latencies_.end(), answered.begin(), answered.end() );

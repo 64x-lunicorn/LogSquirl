@@ -28,6 +28,19 @@ namespace logsquirl::benchmark {
 // Every time a benchmark run reports is read from this clock (#666).
 using Clock = std::chrono::steady_clock;
 
+// A duration in milliseconds, as a benchmark run reports every time.
+template <typename Rep, typename Period>
+constexpr double milliseconds( std::chrono::duration<Rep, Period> duration )
+{
+    return std::chrono::duration<double, std::milli>( duration ).count();
+}
+
+// How long from started to ended, in milliseconds.
+constexpr double millisecondsBetween( Clock::time_point started, Clock::time_point ended )
+{
+    return milliseconds( ended - started );
+}
+
 // How long ago the operating system started this process, from the start time
 // it keeps for the process: on Linux in clock ticks (usually 10 ms), on macOS
 // in microseconds, on Windows in 100 ns. None where it cannot say.

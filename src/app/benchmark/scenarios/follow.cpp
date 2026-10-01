@@ -233,11 +233,11 @@ class Follow : public Scenario {
 public:
     void prepare( ScenarioRun& run ) override
     {
-        if ( !readNumber( run, "lines_per_second", 10, 1, linesPerSecond_ )
-             || !readNumber( run, "duration_ms", 5000, 1, durationMs_ )
-             || !readNumber( run, "initial_lines", 1000, 1, initialLines_ )
-             || !readNumber( run, "chart_budget_ms", 1000, 1, chartBudgetMs_ )
-             || !readNumber( run, "settle_ms", 5000, 0, settleMs_ ) ) {
+        if ( !run.numberOption( "lines_per_second", 10, 1, linesPerSecond_, failure_ )
+             || !run.numberOption( "duration_ms", 5000, 1, durationMs_, failure_ )
+             || !run.numberOption( "initial_lines", 1000, 1, initialLines_, failure_ )
+             || !run.numberOption( "chart_budget_ms", 1000, 1, chartBudgetMs_, failure_ )
+             || !run.numberOption( "settle_ms", 5000, 0, settleMs_, failure_ ) ) {
             return;
         }
         const auto chart = run.option( "chart", "true" );
@@ -278,20 +278,6 @@ public:
     }
 
 private:
-    bool readNumber( ScenarioRun& run, const char* name, int fallback, int least, int& value )
-    {
-        bool isNumber = false;
-        value = run.option( name, QString::number( fallback ) ).toInt( &isNumber );
-        if ( !isNumber || value < least ) {
-            failure_ = QStringLiteral( "%1 takes a number from %2 on, not '%3'" )
-                           .arg( name )
-                           .arg( least )
-                           .arg( run.option( name ) );
-            return false;
-        }
-        return true;
-    }
-
     void loaded( MainWindow& window, CrawlerWidget& crawler )
     {
         crawler_ = &crawler;
@@ -459,8 +445,7 @@ private:
             if ( chart_ ) {
                 charted_.appended( append.line, append.moment );
             }
-            lateness_.push_back(
-                std::chrono::duration<double, std::milli>( append.lateness ).count() );
+            lateness_.push_back( milliseconds( append.lateness ) );
             moments_.push_back( append.moment );
             ++taken_;
         }

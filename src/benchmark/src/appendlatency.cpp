@@ -38,8 +38,7 @@ std::vector<double> AppendLatency::shown( std::uint64_t through, Clock::time_poi
     std::vector<double> shownFirst;
     // The appends wait in the order of their Log Lines.
     while ( !waiting_.empty() && waiting_.front().line <= through ) {
-        shownFirst.push_back(
-            std::chrono::duration<double, std::milli>( ended - waiting_.front().moment ).count() );
+        shownFirst.push_back( millisecondsBetween( waiting_.front().moment, ended ) );
         lastShown_ = waiting_.front().line;
         waiting_.pop_front();
     }

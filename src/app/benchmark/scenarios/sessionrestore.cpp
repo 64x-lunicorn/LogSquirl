@@ -94,8 +94,8 @@ public:
                            .arg( logFiles.size() );
             return;
         }
-        if ( !readNumber( run, "current", 0, current_ )
-             || !readNumber( run, "marks", 10, marks_ ) ) {
+        if ( !run.numberOption( "current", 0, 0, current_, failure_ )
+             || !run.numberOption( "marks", 10, 0, marks_, failure_ ) ) {
             return;
         }
         if ( current_ >= static_cast<int>( logFiles.size() ) ) {
@@ -180,18 +180,6 @@ private:
         bool indexed = false;
         qint64 logLineCount = 0;
     };
-
-    bool readNumber( ScenarioRun& run, const char* name, int fallback, int& value )
-    {
-        bool isNumber = false;
-        value = run.option( name, QString::number( fallback ) ).toInt( &isNumber );
-        if ( !isNumber || value < 0 ) {
-            failure_ = QStringLiteral( "%1 takes a number from 0 on, not '%2'" )
-                           .arg( name, run.option( name ) );
-            return false;
-        }
-        return true;
-    }
 
     void indexed( std::size_t tab, LoadingStatus status, const QString& failure )
     {

@@ -84,11 +84,10 @@ public:
             run.fail( QStringLiteral( "quickfind needs the option pattern=<what is typed>" ) );
             return;
         }
-        bool isNumber = false;
-        const auto interval = run.option( "keystroke_interval_ms", "100" ).toInt( &isNumber );
-        if ( !isNumber || interval < 0 ) {
-            run.fail( QStringLiteral( "keystroke_interval_ms takes milliseconds, not '%1'" )
-                          .arg( run.option( "keystroke_interval_ms" ) ) );
+        int interval = 0;
+        QString failure;
+        if ( !run.numberOption( "keystroke_interval_ms", 100, 0, interval, failure ) ) {
+            run.fail( failure );
             return;
         }
         interval_ = std::chrono::milliseconds{ interval };

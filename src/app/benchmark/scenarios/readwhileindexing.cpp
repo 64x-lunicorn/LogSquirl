@@ -108,19 +108,13 @@ namespace logsquirl::benchmark {
 
 namespace {
 
-double millisecondsBetween( Clock::time_point started, Clock::time_point ended )
-{
-    return std::chrono::duration<double, std::milli>( ended - started ).count();
-}
-
 class ReadWhileIndexing : public Scenario {
 public:
     void prepare( ScenarioRun& run ) override
     {
-        if ( !readNumber( run, "read_interval_ms", 2, 1, readIntervalMs_ ) ) {
-            return;
+        if ( run.numberOption( "read_interval_ms", 2, 1, readIntervalMs_, failure_ ) ) {
+            run.numberOption( "lines", 60, 1, lines_, failure_ );
         }
-        readNumber( run, "lines", 60, 1, lines_ );
     }
 
     void start( ScenarioRun& run ) override
@@ -156,20 +150,6 @@ public:
     }
 
 private:
-    bool readNumber( ScenarioRun& run, const char* name, int fallback, int least, int& value )
-    {
-        bool isNumber = false;
-        value = run.option( name, QString::number( fallback ) ).toInt( &isNumber );
-        if ( !isNumber || value < least ) {
-            failure_ = QStringLiteral( "%1 takes a number from %2 on, not '%3'" )
-                           .arg( name )
-                           .arg( least )
-                           .arg( run.option( name ) );
-            return false;
-        }
-        return true;
-    }
-
     void openMeasured( MainWindow& window )
     {
         auto* tabs = window.findChild<TabbedCrawlerWidget*>();

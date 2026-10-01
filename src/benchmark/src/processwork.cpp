@@ -39,11 +39,6 @@ namespace logsquirl::benchmark {
 
 namespace {
 
-double milliseconds( std::chrono::nanoseconds duration )
-{
-    return std::chrono::duration<double, std::milli>( duration ).count();
-}
-
 #if defined( Q_OS_WIN )
 // A FILETIME of a duration counts 100 ns intervals.
 std::chrono::nanoseconds fromFileTime( const FILETIME& time )

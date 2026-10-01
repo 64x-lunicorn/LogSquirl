@@ -152,8 +152,8 @@ public:
             return;
         }
 
-        if ( !readSteps( run, "line_steps", 200, lineSteps_ )
-             || !readSteps( run, "page_steps", 40, pageSteps_ ) ) {
+        if ( !run.numberOption( "line_steps", 200, 0, lineSteps_, failure_ )
+             || !run.numberOption( "page_steps", 40, 0, pageSteps_, failure_ ) ) {
             return;
         }
 
@@ -202,18 +202,6 @@ private:
         collection.activateSet( set.id() );
         collection.save();
         highlighterCount_ = HighlighterCount;
-    }
-
-    bool readSteps( ScenarioRun& run, const char* name, int fallback, int& steps )
-    {
-        bool isNumber = false;
-        steps = run.option( name, QString::number( fallback ) ).toInt( &isNumber );
-        if ( !isNumber || steps < 0 ) {
-            failure_ = QStringLiteral( "%1 takes a number of steps, not '%2'" )
-                           .arg( name, run.option( name ) );
-            return false;
-        }
-        return true;
     }
 
     void loaded( CrawlerWidget& crawler )

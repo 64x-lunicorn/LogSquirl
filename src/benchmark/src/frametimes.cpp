@@ -31,7 +31,7 @@ FrameTimes::FrameTimes( double budgetMs )
 
 void FrameTimes::painted( Clock::time_point started, Clock::time_point ended )
 {
-    milliseconds_.push_back( std::chrono::duration<double, std::milli>( ended - started ).count() );
+    milliseconds_.push_back( millisecondsBetween( started, ended ) );
 }
 
 double FrameTimes::budgetMs() const
