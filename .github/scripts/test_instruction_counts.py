@@ -317,3 +317,276 @@ def test_an_artifact_naming_another_pull_request_is_not_posted():
     github = FakeGitHub(head_sha="d" * 40)
     assert ic.post_comment(ic.validate(valid()), repo="o/r", head_sha=HEAD_SHA, api=github) == "skipped"
     assert github.writes == []
+
+
+# ---------------------------------------------------------------------------
+# The gate (#672)
+# ---------------------------------------------------------------------------
+
+def gate(before: dict, after: dict, labels: list[str] | None = None, thresholds: dict | None = None) -> dict:
+    return ic.evaluate_gate(comparison(before, after), labels=labels or [],
+                            thresholds={} if thresholds is None else thresholds)
+
+
+def test_the_default_threshold_is_two_percent():
+    assert ic.DEFAULT_THRESHOLD_PERCENT == 2.0
+    assert ic.threshold_percent("b", "no such benchmark", {}) == 2.0
+
+
+def test_a_benchmark_listed_as_varying_has_its_own_threshold():
+    assert ic.threshold_percent("b", "noisy", {("b", "noisy"): 5.0}) == 5.0
+
+
+def test_the_listed_thresholds_are_above_the_default_and_name_benchmark_binaries():
+    assert ic.THRESHOLD_PERCENT
+    for (binary, name), threshold in ic.THRESHOLD_PERCENT.items():
+        assert threshold > ic.DEFAULT_THRESHOLD_PERCENT
+        assert ic.BINARY.fullmatch(binary) and binary.endswith("_benchmark")
+        assert " / " in name
+
+
+def test_the_gate_uses_the_listed_thresholds_by_default():
+    (binary, name), threshold = next(iter(ic.THRESHOLD_PERCENT.items()))
+    data = comparison(side({(binary, name): 100_000}), side({(binary, name): 100_000 + int(threshold * 1000)}))
+    assert ic.evaluate_gate(data, labels=[])["passed"] is True
+
+
+def test_a_cost_within_the_threshold_passes():
+    result = gate(side({("b", "case / x"): 100_000}), side({("b", "case / x"): 102_000}))
+    assert result["passed"] is True
+    assert result["over_threshold"] == [] and result["missing"] == [] and result["failed_binaries"] == []
+
+
+def test_a_cost_beyond_the_threshold_fails():
+    result = gate(side({("b", "case / x"): 100_000, ("b", "case / y"): 100}),
+                  side({("b", "case / x"): 102_001, ("b", "case / y"): 100}))
+    assert result["passed"] is False
+    assert result["accepted"] is False
+    assert result["over_threshold"] == [{"binary": "b", "name": "case / x", "threshold_percent": 2.0}]
+
+
+def test_fewer_instructions_never_fail():
+    assert gate(side({("b", "case / x"): 100_000}), side({("b", "case / x"): 50_000}))["passed"] is True
+
+
+def test_a_benchmark_with_its_own_threshold_fails_only_beyond_it():
+    thresholds = {("b", "noisy"): 5.0}
+    assert gate(side({("b", "noisy"): 1000}), side({("b", "noisy"): 1040}), thresholds=thresholds)["passed"]
+    result = gate(side({("b", "noisy"): 1000}), side({("b", "noisy"): 1051}), thresholds=thresholds)
+    assert result["over_threshold"] == [{"binary": "b", "name": "noisy", "threshold_percent": 5.0}]
+
+
+def test_the_label_accepts_a_cost_beyond_the_threshold():
+    result = gate(side({("b", "case / x"): 1000}), side({("b", "case / x"): 1500}),
+                  labels=["performance", "perf-accepted"])
+    assert result["passed"] is True
+    assert result["accepted"] is True
+    assert [b["name"] for b in result["over_threshold"]] == ["case / x"]
+
+
+def test_the_label_alone_is_not_an_acceptance_when_nothing_is_over():
+    result = gate(side({("b", "case / x"): 1000}), side({("b", "case / x"): 1000}), labels=["perf-accepted"])
+    assert result["passed"] is True
+    assert result["accepted"] is False
+
+
+def test_a_benchmark_missing_on_the_after_side_fails_even_with_the_label():
+    result = gate(side({("b", "case / x"): 10, ("b", "case / gone"): 10}), side({("b", "case / x"): 10}),
+                  labels=["perf-accepted"])
+    assert result["passed"] is False
+    assert result["missing"] == [{"binary": "b", "name": "case / gone"}]
+
+
+def test_a_binary_that_failed_on_the_after_side_fails_even_with_the_label():
+    result = gate(side({}), side({("b", "case / x"): 10}, failed=["logsquirl_logdata_benchmark"]),
+                  labels=["perf-accepted"])
+    assert result["passed"] is False
+    assert result["failed_binaries"] == ["logsquirl_logdata_benchmark"]
+
+
+def test_a_new_benchmark_passes():
+    assert gate(side({}), side({("b", "case / new"): 10}))["passed"] is True
+
+
+def test_a_binary_that_failed_on_the_before_side_does_not_fail_the_pull_request():
+    # The after side's benchmark sources may not build on the base.
+    assert gate(side({}, failed=["b"]), side({("b", "case / new"): 10}))["passed"] is True
+
+
+def test_nothing_counted_at_all_fails():
+    assert gate(side({}), side({}))["passed"] is False
+
+
+def test_a_benchmark_counted_at_zero_instructions_before_cannot_be_compared_and_passes():
+    assert gate(side({("b", "case / x"): 0}), side({("b", "case / x"): 10}))["passed"] is True
+
+
+def test_the_gate_names_the_pull_request_and_commit_it_judged():
+    result = gate(side({("b", "case / x"): 1}), side({("b", "case / x"): 1}))
+    assert result["schema_version"] == 1
+    assert result["pull_request"] == 17
+    assert result["head_sha"] == HEAD_SHA
+
+
+def test_thresholds_of_benchmarks_that_no_longer_exist_are_reported():
+    data = comparison(side({("b", "case / x"): 1}), side({("b", "case / x"): 1}))
+    assert ic.unused_thresholds(data, {("b", "case / x"): 3.0, ("b", "renamed"): 3.0}) == [("b", "renamed")]
+
+
+# ---------------------------------------------------------------------------
+# The gate in the report
+# ---------------------------------------------------------------------------
+
+def gated_report(before: dict, after: dict, labels: list[str] | None = None) -> str:
+    data = comparison(before, after)
+    return ic.render_markdown(data, gate=ic.evaluate_gate(data, labels=labels or [], thresholds={}))
+
+
+def test_a_passing_gate_says_so_with_the_threshold():
+    text = gated_report(side({("b", "case / x"): 1000}), side({("b", "case / x"): 1001}))
+    assert "**Gate: passed.**" in text
+    assert "+2.0 %" in text
+
+
+def test_a_failing_gate_lists_what_costs_too_much_and_how_to_accept_it():
+    text = gated_report(side({("b", "case / x"): 1000, ("b", "case / y"): 1000}),
+                        side({("b", "case / x"): 1100, ("b", "case / y"): 1000}))
+    gate_section = text.partition("**Gate: failed.**")[2].partition("**2 benchmarks")[0]
+    assert "| Benchmark | Before | After | Change | Threshold |" in gate_section
+    assert "| b: case / x | 1,000 | 1,100 | +10.00 % | +2.0 % |" in gate_section
+    assert "`perf-accepted`" in gate_section
+    assert "case / y" not in gate_section
+
+
+def test_an_accepted_gate_lists_the_accepted_benchmarks():
+    text = gated_report(side({("b", "case / x"): 1000}), side({("b", "case / x"): 1100}),
+                        labels=["perf-accepted"])
+    gate_section = text.partition("**Gate: accepted with `perf-accepted`.**")[2].partition("**1 benchmark")[0]
+    assert "| b: case / x | 1,000 | 1,100 | +10.00 % | +2.0 % |" in gate_section
+
+
+def test_a_missing_benchmark_is_named_as_failing_the_gate():
+    text = gated_report(side({("b", "case / gone"): 10}), side({("b", "case / x"): 10}),
+                        labels=["perf-accepted"])
+    gate_section = text.partition("**Gate: failed.**")[2].partition("**2 benchmarks")[0]
+    assert "b: case / gone" in gate_section
+    assert "does not accept" in gate_section
+
+
+def test_without_a_gate_the_report_has_no_gate_section():
+    assert "Gate" not in ic.render_markdown(comparison(side({("b", "x / y"): 1}), side({("b", "x / y"): 1})))
+
+
+# ---------------------------------------------------------------------------
+# The gate as the comment workflow reads it
+# ---------------------------------------------------------------------------
+
+def valid_gate(labels: list[str] | None = None) -> dict:
+    return json.loads(json.dumps(ic.evaluate_gate(valid(), labels=labels or [], thresholds={})))
+
+
+def test_a_valid_gate_passes_validation():
+    assert ic.validate_gate(valid_gate(["perf-accepted"]), ic.validate(valid())) == valid_gate(["perf-accepted"])
+
+
+@pytest.mark.parametrize("breakage", [
+    lambda g: g.update(schema_version=2),
+    lambda g: g.update(passed="yes"),
+    lambda g: g.update(accepted=1),
+    lambda g: g.update(pull_request=18),
+    lambda g: g.update(head_sha="d" * 40),
+    lambda g: g.update(over_threshold=[{"binary": "b", "name": "not compared", "threshold_percent": 2.0}]),
+    lambda g: g.update(over_threshold=[{"binary": "b", "name": "case / x", "threshold_percent": "2"}]),
+    lambda g: g.update(over_threshold=[{"binary": "b", "name": "case / x", "threshold_percent": 1e9}]),
+    lambda g: g.update(missing=[{"binary": "b"}]),
+    lambda g: g.update(failed_binaries=["a b"]),
+    lambda g: g.pop("missing"),
+    lambda g: g.update(over_threshold=[g["over_threshold"][0]] * 5000),
+])
+def test_a_gate_that_does_not_match_the_schema_or_the_comparison_is_rejected(breakage):
+    data = valid_gate()
+    breakage(data)
+    with pytest.raises(ValueError):
+        ic.validate_gate(data, ic.validate(valid()))
+
+
+def test_the_comment_carries_the_gate():
+    github = FakeGitHub()
+    data = ic.validate(valid())
+    ic.post_comment(data, repo="o/r", head_sha=HEAD_SHA, api=github,
+                    gate=ic.validate_gate(valid_gate(["perf-accepted"]), data))
+    [(_, _, body)] = github.writes
+    assert "**Gate: accepted with `perf-accepted`.**" in body["body"]
+
+
+# ---------------------------------------------------------------------------
+# The gate on the command line
+# ---------------------------------------------------------------------------
+
+def write_comparison(path: Path, before: dict, after: dict) -> Path:
+    path.write_text(json.dumps(comparison(before, after)), encoding="utf-8")
+    return path
+
+
+def run_gate(tmp_path: Path, before: dict, after: dict, labels: list[str]) -> tuple[int, dict, str]:
+    write_comparison(tmp_path / "comparison.json", before, after)
+    (tmp_path / "labels.json").write_text(json.dumps(labels), encoding="utf-8")
+    code = ic.main(["gate", "--comparison", str(tmp_path / "comparison.json"),
+                    "--labels", str(tmp_path / "labels.json"),
+                    "--json", str(tmp_path / "gate.json"), "--markdown", str(tmp_path / "gate.md")])
+    return (code, json.loads((tmp_path / "gate.json").read_text(encoding="utf-8")),
+            (tmp_path / "gate.md").read_text(encoding="utf-8"))
+
+
+def test_the_gate_command_fails_on_a_cost_beyond_the_threshold(tmp_path):
+    code, result, markdown = run_gate(tmp_path, side({("b", "case / x"): 1000}),
+                                      side({("b", "case / x"): 1100}), [])
+    assert code == 1
+    assert result["passed"] is False
+    assert "**Gate: failed.**" in markdown
+
+
+def test_the_gate_command_passes_with_the_label(tmp_path):
+    code, result, _ = run_gate(tmp_path, side({("b", "case / x"): 1000}),
+                               side({("b", "case / x"): 1100}), ["perf-accepted"])
+    assert code == 0
+    assert result["accepted"] is True
+
+
+def test_the_gate_command_fails_without_a_comparison(tmp_path):
+    (tmp_path / "labels.json").write_text("[]", encoding="utf-8")
+    assert ic.main(["gate", "--comparison", str(tmp_path / "none.json"),
+                    "--labels", str(tmp_path / "labels.json")]) == 1
+
+
+def test_the_gate_command_rejects_labels_that_are_not_a_list_of_names(tmp_path):
+    write_comparison(tmp_path / "comparison.json", side({("b", "x / y"): 1}), side({("b", "x / y"): 1}))
+    (tmp_path / "labels.json").write_text('{"perf-accepted": true}', encoding="utf-8")
+    assert ic.main(["gate", "--comparison", str(tmp_path / "comparison.json"),
+                    "--labels", str(tmp_path / "labels.json")]) == 1
+
+
+def test_the_comment_command_reads_the_gate_when_given(tmp_path, monkeypatch):
+    write_comparison(tmp_path / "comparison.json", side({("b", "case / x"): 1000}),
+                     side({("b", "case / x"): 1100}))
+    data = ic.validate(json.loads((tmp_path / "comparison.json").read_text(encoding="utf-8")))
+    (tmp_path / "gate.json").write_text(json.dumps(ic.evaluate_gate(data, labels=[], thresholds={})),
+                                        encoding="utf-8")
+    github = FakeGitHub()
+    monkeypatch.setattr(ic, "gh_api", github)
+    assert ic.main(["comment", "--comparison", str(tmp_path / "comparison.json"),
+                    "--gate", str(tmp_path / "gate.json"), "--repo", "o/r", "--head-sha", HEAD_SHA]) == 0
+    [(_, _, body)] = github.writes
+    assert "**Gate: failed.**" in body["body"]
+
+
+def test_a_gate_file_that_is_not_usable_leaves_the_gate_out_of_the_comment(tmp_path, monkeypatch):
+    write_comparison(tmp_path / "comparison.json", side({("b", "case / x"): 1000}),
+                     side({("b", "case / x"): 1100}))
+    (tmp_path / "gate.json").write_text('{"passed": true}', encoding="utf-8")
+    github = FakeGitHub()
+    monkeypatch.setattr(ic, "gh_api", github)
+    assert ic.main(["comment", "--comparison", str(tmp_path / "comparison.json"),
+                    "--gate", str(tmp_path / "gate.json"), "--repo", "o/r", "--head-sha", HEAD_SHA]) == 0
+    [(_, _, body)] = github.writes
+    assert "Gate" not in body["body"]
