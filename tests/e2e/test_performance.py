@@ -31,15 +31,16 @@ Methodology:
   - Auto-generated benchmark report (Markdown or JSON)
 
 Adding a case: a row in GREP_CASES or GUI_OPEN_CASES. A new scenario of the
-benchmark mode gets a table of its own and a test that turns one run's report
-into {benchmark name: seconds} for measure_events(), like
-test_perf_gui_open_and_index; _record() does the rest.
+benchmark mode gets a table of its own, usually of a ScenarioCase, and a test
+that turns one run's report into {benchmark name: seconds} for
+measure_events(), like test_perf_gui_quickfind; _record() does the rest.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -113,6 +114,59 @@ def _runs(bench_config: dict, large: bool) -> dict:
         return {"warmup": min(bench_config["warmup"], 1),
                 "runs": min(bench_config["runs"], LARGE_FILE_RUNS)}
     return {"warmup": bench_config["warmup"], "runs": bench_config["runs"]}
+
+
+def _scenario_report(instance, scenario: str, ticket: str, log_files: list[Path],
+                     report_path: Path, options: dict[str, str] | None = None,
+                     timeout: float = 300.0) -> dict:
+    """The report of one run of a scenario of the benchmark mode, which passed.
+
+    A logsquirl without the scenario skips the case: the before side of the
+    Benchmarks workflow runs this suite on the binaries of its own commit,
+    which may predate the scenario's ticket.
+    """
+    try:
+        run = run_known_scenario(instance, scenario, log_files, report_path,
+                                 options=options, timeout=timeout)
+    except ScenarioUnknown:
+        pytest.skip(f"this logsquirl has no {scenario} scenario ({ticket})")
+    assert run.process.returncode == EXIT_PASSED and run.report is not None, (
+        run.process.stdout + run.process.stderr
+    )
+    return run.report
+
+
+@dataclass(frozen=True)
+class ScenarioCase:
+    """A case of a scenario of the benchmark mode on a generated Log File.
+
+    Its benchmarks are gui_<scenario>_<label>_<what>. A subclass names the
+    scenario and the ticket that added it, and has a timeout (and its Log File)
+    of its own.
+    """
+
+    SCENARIO: ClassVar[str]
+    TICKET: ClassVar[str]
+
+    label: str
+
+    @property
+    def name(self) -> str:
+        return f"gui_{self.SCENARIO.replace('-', '_')}_{self.label}"
+
+    @property
+    def generated(self) -> bool:
+        # Written by generate_test_data.py, or by the scenario itself: `slow`.
+        return True
+
+    def options(self) -> dict[str, str]:
+        """The --benchmark-option values of a run."""
+        return {}
+
+    def run(self, instance, log_files: list[Path], report_path: Path) -> dict:
+        """The report of one run of the case, which passed."""
+        return _scenario_report(instance, self.SCENARIO, self.TICKET, log_files, report_path,
+                                options=self.options(), timeout=self.timeout)
 
 
 def _record(results: dict[str, dict], collected_results, baseline, request):
@@ -298,22 +352,19 @@ GENERATED_LOG_FILES = {
 
 
 @dataclass(frozen=True)
-class SearchCase:
+class SearchCase(ScenarioCase):
     # The benchmarks are gui_search_<label>_first_match (none for a Search
     # without a Match) and gui_search_<label>_finished.
-    label: str
+    SCENARIO: ClassVar[str] = "search"
+    TICKET: ClassVar[str] = "#668"
+
     log_file: str  # in test_data/, generated
     variant: SearchVariant
     large: bool = False
     timeout: float = 900
 
-    @property
-    def name(self) -> str:
-        return f"gui_search_{self.label}"
-
-    @property
-    def generated(self) -> bool:
-        return True
+    def options(self) -> dict[str, str]:
+        return self.variant.options()
 
     def benchmark_names(self) -> set[str]:
         names = {f"{self.name}_finished"}
@@ -345,20 +396,13 @@ def test_perf_gui_search(
     known = case.variant.known_match_count(filepath)
 
     def search() -> dict[str, float]:
-        try:
-            run = run_known_scenario(isolated_gui_module, "search", [filepath], report_path,
-                                     options=case.variant.options(), timeout=case.timeout)
-        except ScenarioUnknown:
-            pytest.skip("this logsquirl has no search scenario (#668)")
-        assert run.process.returncode == EXIT_PASSED and run.report is not None, (
-            run.process.stdout + run.process.stderr
+        report = case.run(isolated_gui_module, [filepath], report_path)
+        assert report["results"]["match_count"] == known, (
+            f"the Search found {report['results']['match_count']} Matches, not {known}"
         )
-        assert run.report["results"]["match_count"] == known, (
-            f"the Search found {run.report['results']['match_count']} Matches, not {known}"
-        )
-        measured = {finished: seconds_since_scenario_start(run.report, "search_finished")}
+        measured = {finished: seconds_since_scenario_start(report, "search_finished")}
         if first_match in case.benchmark_names():
-            measured[first_match] = seconds_since_scenario_start(run.report, "first_match_displayed")
+            measured[first_match] = seconds_since_scenario_start(report, "first_match_displayed")
         return measured
 
     results = measure_events(search, **_runs(bench_config, case.large))
@@ -382,23 +426,20 @@ def test_perf_gui_search(
 
 
 @dataclass(frozen=True)
-class QuickFindCase:
+class QuickFindCase(ScenarioCase):
     # The benchmarks are gui_quickfind_<label>_keystroke_p50 and _p99: of one
     # run's keystrokes, the median and the 99th percentile of the time from a
     # keystroke to the Matches on screen marked.
-    label: str
+    SCENARIO: ClassVar[str] = "quickfind"
+    TICKET: ClassVar[str] = "#668"
+
     log_file: str  # in test_data/, generated
     pattern: str
     large: bool = False
     timeout: float = 900
 
-    @property
-    def name(self) -> str:
-        return f"gui_quickfind_{self.label}"
-
-    @property
-    def generated(self) -> bool:
-        return True
+    def options(self) -> dict[str, str]:
+        return {"pattern": self.pattern}
 
     def benchmark_names(self) -> set[str]:
         return {f"{self.name}_keystroke_p50", f"{self.name}_keystroke_p99"}
@@ -424,15 +465,8 @@ def test_perf_gui_quickfind(
     p50, p99 = f"{case.name}_keystroke_p50", f"{case.name}_keystroke_p99"
 
     def type_pattern() -> dict[str, float]:
-        try:
-            run = run_known_scenario(isolated_gui_module, "quickfind", [filepath], report_path,
-                                     options={"pattern": case.pattern}, timeout=case.timeout)
-        except ScenarioUnknown:
-            pytest.skip("this logsquirl has no quickfind scenario (#668)")
-        assert run.process.returncode == EXIT_PASSED and run.report is not None, (
-            run.process.stdout + run.process.stderr
-        )
-        latency = run.report["results"]["keystroke_latency"]
+        report = case.run(isolated_gui_module, [filepath], report_path)
+        latency = report["results"]["keystroke_latency"]
         assert latency["count"] == len(case.pattern)
         return {p50: latency["p50_ms"] / 1000.0, p99: latency["p99_ms"] / 1000.0}
 
@@ -449,12 +483,14 @@ def test_perf_gui_quickfind(
 
 
 @dataclass(frozen=True)
-class ScrollCase:
+class ScrollCase(ScenarioCase):
     # The benchmarks are gui_scroll_<label>_frame_p50, _frame_p99 and
     # _frame_max: of one run's frames -- every paint of the view's Viewport
     # while the script scrolls -- the median, the 99th percentile and the
     # longest. _frame_p99 also carries the frames over budget of each run.
-    label: str
+    SCENARIO: ClassVar[str] = "scroll"
+    TICKET: ClassVar[str] = "#669"
+
     log_file: str  # in test_data/, generated
     view: str  # text or table
     description: str
@@ -462,14 +498,6 @@ class ScrollCase:
     # The setting "ANSI color sequences": text, hide or colors.
     ansi: str = "text"
     timeout: float = 600
-
-    @property
-    def name(self) -> str:
-        return f"gui_scroll_{self.label}"
-
-    @property
-    def generated(self) -> bool:
-        return True
 
     def options(self) -> dict[str, str]:
         """The --benchmark-option values of the scroll scenario; its script is the default one."""
@@ -511,15 +539,7 @@ def test_perf_gui_scroll(
     over_budget, frame_counts, budget_ms = [], [], []
 
     def scroll() -> dict[str, float]:
-        try:
-            run = run_known_scenario(isolated_gui_module, "scroll", [filepath], report_path,
-                                     options=case.options(), timeout=case.timeout)
-        except ScenarioUnknown:
-            pytest.skip("this logsquirl has no scroll scenario (#669)")
-        assert run.process.returncode == EXIT_PASSED and run.report is not None, (
-            run.process.stdout + run.process.stderr
-        )
-        results = run.report["results"]
+        results = case.run(isolated_gui_module, [filepath], report_path)["results"]
         assert results["view"] == case.view and results["unmoved_step_count"] == 0
         frames = results["frame_time"]
         assert frames["count"] >= results["step_count"]
@@ -550,26 +570,20 @@ def test_perf_gui_scroll(
 
 
 @dataclass(frozen=True)
-class FollowCase:
+class FollowCase(ScenarioCase):
     # The benchmarks are gui_follow_<label>_display_p50 and _display_p99, of one
     # run's appended Log Lines the median and the 99th percentile time from the
     # append to the Log Line displayed in the Text View, and _chart_p99, the
     # 99th percentile time to the Log Line charted; _chart_p99 also says
-    # whether the chart kept up with the Text View in each run.
-    label: str
+    # whether the chart kept up with the Text View in each run. The scenario
+    # writes its Log File itself; the case is slow for its duration.
+    SCENARIO: ClassVar[str] = "follow"
+    TICKET: ClassVar[str] = "#670"
+
     lines_per_second: int
     description: str
     duration_ms: int = 5000
     timeout: float = 120
-
-    @property
-    def name(self) -> str:
-        return f"gui_follow_{self.label}"
-
-    @property
-    def generated(self) -> bool:
-        # The scenario writes its Log File itself; slow for its duration.
-        return True
 
     def options(self) -> dict[str, str]:
         return {"lines_per_second": str(self.lines_per_second),
@@ -599,15 +613,7 @@ def test_perf_gui_follow(
     kept_up, behind_p99, budget_ms = [], [], []
 
     def follow() -> dict[str, float]:
-        try:
-            run = run_known_scenario(isolated_gui_module, "follow", [], report_path,
-                                     options=case.options(), timeout=case.timeout)
-        except ScenarioUnknown:
-            pytest.skip("this logsquirl has no follow scenario (#670)")
-        assert run.process.returncode == EXIT_PASSED and run.report is not None, (
-            run.process.stdout + run.process.stderr
-        )
-        results = run.report["results"]
+        results = case.run(isolated_gui_module, [], report_path)["results"]
         expected = case.lines_per_second * case.duration_ms // 1000
         assert results["appended_count"] == expected
         assert results["display_latency"]["count"] == expected
@@ -680,18 +686,12 @@ def test_perf_gui_session_restore(
     usable, indexed = f"{case.name}_current_tab_usable", f"{case.name}_all_tabs_indexed"
 
     def restore() -> dict[str, float]:
-        try:
-            run = run_known_scenario(isolated_gui_module, "session-restore", log_files,
-                                     report_path, options={"current": str(case.current)},
-                                     timeout=case.timeout)
-        except ScenarioUnknown:
-            pytest.skip("this logsquirl has no session-restore scenario (#670)")
-        assert run.process.returncode == EXIT_PASSED and run.report is not None, (
-            run.process.stdout + run.process.stderr
-        )
-        assert run.report["results"]["tab_count"] == len(log_files)
-        return {usable: seconds_since_scenario_start(run.report, "current_tab_usable"),
-                indexed: seconds_since_scenario_start(run.report, "all_tabs_indexed")}
+        report = _scenario_report(isolated_gui_module, "session-restore", "#670", log_files,
+                                  report_path, options={"current": str(case.current)},
+                                  timeout=case.timeout)
+        assert report["results"]["tab_count"] == len(log_files)
+        return {usable: seconds_since_scenario_start(report, "current_tab_usable"),
+                indexed: seconds_since_scenario_start(report, "all_tabs_indexed")}
 
     results = measure_events(restore, **_runs(bench_config, large=case.generated))
     what = f"A Session of {case.description}, restored"
@@ -713,24 +713,18 @@ INDEXING_READS = {
 
 
 @dataclass(frozen=True)
-class ReadWhileIndexingCase:
+class ReadWhileIndexingCase(ScenarioCase):
     # The benchmarks are gui_read_while_indexing_<label>_<read>_p50, _p99 and
     # _max for each read of INDEXING_READS: of one run's reads, the median, the
     # 99th percentile and the longest; and _index_wall and _index_cpu, the wall
     # time of the indexing and the process's CPU time in it. _index_wall also
     # carries the parallelism, CPU over wall time, of each run.
-    label: str
+    SCENARIO: ClassVar[str] = "read-while-indexing"
+    TICKET: ClassVar[str] = "#686"
+
     log_file: str  # in test_data/, generated
     large: bool = False
     timeout: float = 900
-
-    @property
-    def name(self) -> str:
-        return f"gui_read_while_indexing_{self.label}"
-
-    @property
-    def generated(self) -> bool:
-        return True
 
     def benchmark_names(self) -> set[str]:
         names = {f"{self.name}_index_wall", f"{self.name}_index_cpu"}
@@ -759,15 +753,7 @@ def test_perf_gui_read_while_indexing(
     parallelism = []
 
     def read_while_indexing() -> dict[str, float]:
-        try:
-            run = run_known_scenario(isolated_gui_module, "read-while-indexing", [filepath],
-                                     report_path, timeout=case.timeout)
-        except ScenarioUnknown:
-            pytest.skip("this logsquirl has no read-while-indexing scenario (#686)")
-        assert run.process.returncode == EXIT_PASSED and run.report is not None, (
-            run.process.stdout + run.process.stderr
-        )
-        results = run.report["results"]
+        results = case.run(isolated_gui_module, [filepath], report_path)["results"]
         measured = {}
         for read, (result, _) in INDEXING_READS.items():
             latency = results[result]
