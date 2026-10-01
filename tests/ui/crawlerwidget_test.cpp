@@ -3976,14 +3976,22 @@ SCENARIO( "A restored Log File whose first load is interrupted stands where it s
           "[ui][session]" )
 {
     const auto windowId = QStringLiteral( "crawlerwidget_test_window_559" );
-    // Big enough that a load interrupted at once has not finished yet.
-    constexpr auto nbLines = 50000;
+    // Big enough that a load interrupted at once has not finished yet: some
+    // 60 MB, which a fast machine indexes in about 50 ms. 3 MB were indexed
+    // before the interrupt came on a macOS runner (#702).
+    constexpr auto nbLines = 1'000'000;
     QTemporaryFile big{ "crawler_test_interrupted_XXXXXX" };
     REQUIRE( big.open() );
+    QByteArray block;
     for ( auto line = 0; line < nbLines; ++line ) {
-        big.write( QByteArray( "Log Line of a Log File big enough to take a while, number " )
-                   + QByteArray::number( line ) + '\n' );
+        block += QByteArray( "Log Line of a Log File big enough to take a while, number " )
+                 + QByteArray::number( line ) + '\n';
+        if ( block.size() > 1024 * 1024 ) {
+            REQUIRE( big.write( block ) == block.size() );
+            block.clear();
+        }
     }
+    REQUIRE( big.write( block ) == block.size() );
     big.flush();
 
     QTemporaryFile current{ "crawler_test_current_XXXXXX" };
