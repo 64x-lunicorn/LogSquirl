@@ -106,7 +106,7 @@ struct ViewChange {
     // everything is painted anew.
     bool highlighterSets = false;
 
-    // The Value Names Collection changed. The views read the namer as they
+    // The Naming Groups or their checks changed. The views read the namer as they
     // read a Log Line, so a view showing Value Names reads its Log Lines
     // again (#647).
     bool valueNames = false;

@@ -107,7 +107,7 @@ private:
 // Names and what is wrong with the group.
 //
 // It edits a copy of the groups, checks included (a rule renamed keeps its
-// check). OK and Apply hand them to the Value Names Collection, save it and,
+// check). OK and Apply hand them to ValueNamesCollection, save it and,
 // if anything changed, say valueNamesChanged().
 //
 // The selected group is exported to a file and groups are imported from
@@ -177,7 +177,7 @@ public:
                            const logsquirl::groupexchange::ConflictResolver& resolver );
 
 Q_SIGNALS:
-    // OK or Apply changed the Value Names Collection.
+    // OK or Apply changed the Naming Groups or their checks.
     void valueNamesChanged();
     // Team groups were added, renamed, changed or deleted, and OK or Apply
     // asks for them to be published.

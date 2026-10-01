@@ -20,7 +20,7 @@
 #pragma once
 
 // The Value Names the view tests name Log Lines with (#647): the example of
-// the ticket, set in the Value Names Collection for as long as a
+// the ticket, set in ValueNamesCollection for as long as a
 // ScopedValueNames lives.
 
 #include <utility>
@@ -66,7 +66,7 @@ inline NamingGroup exampleGroup()
     return group;
 }
 
-// The groups of the Value Names Collection, replaced for as long as this
+// The groups of ValueNamesCollection, replaced for as long as this
 // lives and restored when it goes.
 class ScopedValueNames {
 public:

@@ -17,7 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// The Value Names Collection stores the Naming Groups and, apart from them,
+// ValueNamesCollection stores the Naming Groups and, apart from them,
 // their checks, and keeps the checks of groups it does not hold now (#647).
 
 #include <catch2/catch_test_macros.hpp>
@@ -44,7 +44,7 @@ NamingGroup withIdUnchecked( NamingGroup group )
 
 } // namespace
 
-SCENARIO( "The Value Names Collection stores its groups and their checks apart",
+SCENARIO( "ValueNamesCollection stores its groups and their checks apart",
           "[valuenames][valuenamescollection]" )
 {
     QTemporaryDir dir;

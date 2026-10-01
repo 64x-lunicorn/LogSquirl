@@ -166,8 +166,8 @@ public:
     // it, if the window has one; returns whether it has (#642).
     virtual bool showView( const ViewInterface* view ) = 0;
 
-    // The Value Names Collection changed, in this window or another: show
-    // its groups and checks again (#647).
+    // The Naming Groups or their checks changed, in this window or another:
+    // show them again (#647).
     virtual void applyValueNamesChange() {}
 
 protected:

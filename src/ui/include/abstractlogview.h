@@ -218,7 +218,7 @@ public:
         return valueNamesShown_;
     }
     // Whether the view shows Value Names now: the switch is on and some
-    // Naming Rule of the Value Names Collection can name a value (#647).
+    // checked Naming Rule can name a value (#647).
     bool showsValueNames() const;
 
     // What the tooltip over pos, in Viewport coordinates, tells: the Named
@@ -265,8 +265,8 @@ public:
 
     void registerShortcuts() override;
 
-    // The Value Names Collection changed: the Log Lines are named again, if
-    // the view shows Value Names.
+    // The Naming Groups or their checks changed: the Log Lines are named
+    // again, if the view shows Value Names.
     void applyValueNamesChange() override;
 
 protected:

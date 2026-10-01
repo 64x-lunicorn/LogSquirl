@@ -32,7 +32,7 @@ enum class Changed {
     // imported, activated or deactivated, or a Color Label given another
     // color. Highlighter Sets are the user's coloring, not a setting.
     HighlighterSets,
-    // The Value Names Collection was written: a Naming Group edited, added
+    // The Naming Groups were written: a Naming Group edited, added
     // or removed, or a Naming Rule or Naming Group checked or unchecked
     // (#647). Like the Highlighter Sets, user data and not a setting.
     ValueNames,

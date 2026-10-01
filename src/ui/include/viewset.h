@@ -127,8 +127,8 @@ public:
     // their words.
     void applyHighlighterSetChange();
 
-    // Tell every view the Value Names Collection changed: one showing Value
-    // Names reads the Log Lines it shows again (#647).
+    // Tell every view the Naming Groups or their checks changed: one showing
+    // Value Names reads the Log Lines it shows again (#647).
     void applyValueNamesChange();
 
     // Register every view's shortcuts anew, the Filtered Views of kept Searches

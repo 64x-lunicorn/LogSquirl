@@ -191,7 +191,8 @@ public:
     // again, in whichever window it was opened (#642).
     bool showView( const ViewInterface* view ) override;
 
-    // The Value Names Collection changed: the sidebar shows it again (#647).
+    // The Naming Groups or their checks changed: the sidebar shows them
+    // again (#647).
     void applyValueNamesChange() override;
 
 public Q_SLOTS:
@@ -434,7 +435,7 @@ private:
     // Hands the Team Highlighter Sets to the Highlighter Set collection.
     // dropUnknownActivations false: the first sync has not delivered groups.
     void applyTeamHighlighterSets( bool dropUnknownActivations = true );
-    // Hands the Team Naming Groups to the Value Names Collection (#647).
+    // Hands the Team Naming Groups to ValueNamesCollection (#647).
     void applyTeamValueNames();
     // Asks what to do with a Team group somebody else changed while the user
     // was changing it too: keep mine, take theirs, or save mine as a copy.

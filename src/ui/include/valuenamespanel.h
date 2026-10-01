@@ -31,9 +31,9 @@ class QTreeWidget;
 class QTreeWidgetItem;
 
 // The sidebar's "Value Names" tab (#647), built like the Filters Panel: the
-// Naming Groups of the Value Names Collection as a tree, each with a check
-// per Naming Rule. The checks are those of the collection: global for every
-// tab, and kept across restarts. Team groups are listed last.
+// Naming Groups as a tree, each with a check per Naming Rule. The checks
+// are those of ValueNamesCollection: global for every tab, and kept across
+// restarts. Team groups are listed last.
 //
 // A check changed here is written to the collection and stored at once;
 // valueNamesChanged() then asks for the views to be told
