@@ -211,6 +211,20 @@ def test_the_entry_keeps_whether_the_chart_kept_up():
     assert stored["benchmarks"]["gui_follow_10_per_s_chart_p99"]["chart_following"] == chart
 
 
+def test_the_entry_keeps_the_indexing_parallelism():
+    # A read-while-indexing case says how many cores its indexing kept busy
+    # (#686): a fall back to one thread shows in the history as a ratio near 1.
+    suite_report = report({"gui_read_while_indexing_log_1gb_index_wall": 1.2})
+    parallelism = {"median": 3.1, "min": 2.9, "max": 3.4, "runs": [3.1, 2.9, 3.4]}
+    suite_report["benchmarks"]["gui_read_while_indexing_log_1gb_index_wall"][
+        "indexing_parallelism"] = parallelism
+    stored = ph.make_entry(suite_report, commit="a" * 40, ref="refs/heads/master", run_id="1",
+                           version="26.11.0", accept=False,
+                           recorded_at=datetime(2026, 10, 5, tzinfo=timezone.utc))
+    assert stored["benchmarks"]["gui_read_while_indexing_log_1gb_index_wall"][
+        "indexing_parallelism"] == parallelism
+
+
 def test_a_regressing_run_is_recorded_and_fails(tmp_path):
     for i in range(6):
         assert run_record(tmp_path, {"grep": 1.0}, run_id=str(i))[0] == 0

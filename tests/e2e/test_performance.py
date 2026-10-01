@@ -8,9 +8,11 @@ finished, when the first Match of a Search was displayed and when it finished,
 how long each keystroke of a QuickFind took to be marked (#668), how long
 each frame of a scripted scroll took to paint in the Text View and the Table
 View (#669), how long a Log Line appended to a followed Log File took to be
-displayed and charted, and how long a Session of several tabs took to restore
-(#670); the grep cases run logsquirl_grep with a benchmark report and time
-its Search from the open of the Log File to the last match written. Neither
+displayed and charted, how long a Session of several tabs took to restore
+(#670), and how long the UI thread's reads of a Log File took while it was
+indexed, with the wall and CPU time of the indexing (#686); the grep cases run
+logsquirl_grep with a benchmark report and time its Search from the open of
+the Log File to the last match written. Neither
 contains the process startup or a fixed wait; the startup is a case of its own
 (gui_startup_version), the one case timed around a whole process.
 
@@ -62,6 +64,7 @@ from conftest import (
     save_baseline,
     summarize_chart_following,
     summarize_frames_over_budget,
+    summarize_indexing_parallelism,
 )
 from generate_test_data import SCROLL_ANSI_LOG_FILE, SCROLL_LOG_FILE
 
@@ -698,6 +701,111 @@ def test_perf_gui_session_restore(
 
 
 # ---------------------------------------------------------------------------
+# GUI: the benchmark mode's read-while-indexing scenario
+# ---------------------------------------------------------------------------
+
+# The reads of read-while-indexing, by the label their benchmarks carry.
+INDEXING_READS = {
+    "nb_line": ("nb_line_latency", "getNbLine"),
+    "line_string": ("line_string_latency", "getLineString of one Log Line"),
+    "expanded_lines": ("expanded_lines_latency", "getExpandedLines of 60 Log Lines"),
+}
+
+
+@dataclass(frozen=True)
+class ReadWhileIndexingCase:
+    # The benchmarks are gui_read_while_indexing_<label>_<read>_p50, _p99 and
+    # _max for each read of INDEXING_READS: of one run's reads, the median, the
+    # 99th percentile and the longest; and _index_wall and _index_cpu, the wall
+    # time of the indexing and the process's CPU time in it. _index_wall also
+    # carries the parallelism, CPU over wall time, of each run.
+    label: str
+    log_file: str  # in test_data/, generated
+    large: bool = False
+    timeout: float = 900
+
+    @property
+    def name(self) -> str:
+        return f"gui_read_while_indexing_{self.label}"
+
+    @property
+    def generated(self) -> bool:
+        return True
+
+    def benchmark_names(self) -> set[str]:
+        names = {f"{self.name}_index_wall", f"{self.name}_index_cpu"}
+        for read in INDEXING_READS:
+            names |= {f"{self.name}_{read}_{stat}" for stat in ("p50", "p99", "max")}
+        return names
+
+
+# Read every 2 ms, 60 Log Lines a screen: the scenario's defaults.
+READ_WHILE_INDEXING_CASES = [
+    ReadWhileIndexingCase(label, log_file, large=large, timeout=1800 if large else 900)
+    for label, (log_file, large) in GENERATED_LOG_FILES.items()
+]
+
+
+@pytest.mark.performance
+@pytest.mark.parametrize("case", _cases(READ_WHILE_INDEXING_CASES))
+def test_perf_gui_read_while_indexing(
+    case: ReadWhileIndexingCase, isolated_gui_module, test_data_dir, tmp_path, baseline,
+    collected_results, bench_config, request,
+):
+    """The UI thread reads a Log File while it is indexed: each read, and the indexing's CPU use."""
+    filepath = _log_file(test_data_dir, case.log_file, case.generated)
+    report_path = tmp_path / "read_while_indexing.json"
+    wall, cpu = f"{case.name}_index_wall", f"{case.name}_index_cpu"
+    parallelism = []
+
+    def read_while_indexing() -> dict[str, float]:
+        try:
+            run = run_known_scenario(isolated_gui_module, "read-while-indexing", [filepath],
+                                     report_path, timeout=case.timeout)
+        except ScenarioUnknown:
+            pytest.skip("this logsquirl has no read-while-indexing scenario (#686)")
+        assert run.process.returncode == EXIT_PASSED and run.report is not None, (
+            run.process.stdout + run.process.stderr
+        )
+        results = run.report["results"]
+        measured = {}
+        for read, (result, _) in INDEXING_READS.items():
+            latency = results[result]
+            assert latency["count"] > 0
+            measured[f"{case.name}_{read}_p50"] = latency["p50_ms"] / 1000.0
+            measured[f"{case.name}_{read}_p99"] = latency["p99_ms"] / 1000.0
+            measured[f"{case.name}_{read}_max"] = latency["max_ms"] / 1000.0
+        indexing = results["indexing"]
+        measured[wall] = indexing["wall_ms"] / 1000.0
+        # The CPU time is told on Linux, macOS and Windows.
+        measured[cpu] = indexing["cpu_ms"] / 1000.0
+        parallelism.append(indexing["parallelism"])
+        return measured
+
+    results = measure_events(read_while_indexing, **_runs(bench_config, case.large))
+    measured_runs = len(results[wall]["runs"])
+    what = f"While {case.log_file} is indexed, read from the UI thread every 2 ms"
+    for read, (_, call) in INDEXING_READS.items():
+        results[f"{case.name}_{read}_p50"]["measures"] = f"{what}: {call}, the median of a run"
+        results[f"{case.name}_{read}_p99"]["measures"] = (
+            f"{what}: {call}, the 99th percentile of a run"
+        )
+        results[f"{case.name}_{read}_max"]["measures"] = f"{what}: {call}, the longest of a run"
+    results[wall]["measures"] = (
+        f"{what}: the indexing, from the request to open it to its Index finished"
+    )
+    results[cpu]["measures"] = (
+        f"{what}: the process's CPU time during the indexing, every thread together"
+    )
+    # The warmup runs counted too: only the measured ones are reported.
+    results[wall]["indexing_parallelism"] = summarize_indexing_parallelism(
+        parallelism[-measured_runs:]
+    )
+    results[wall]["throughput"] = calculate_throughput(filepath, results[wall]["median_seconds"])
+    _record(results, collected_results, baseline, request)
+
+
+# ---------------------------------------------------------------------------
 # Startup: the one case timed around a whole process
 # ---------------------------------------------------------------------------
 
@@ -725,7 +833,7 @@ def all_benchmark_names() -> set[str]:
     for case in GUI_OPEN_CASES:
         names |= {f"{case.name}_first_line", f"{case.name}_indexed"}
     for case in [*SEARCH_CASES, *QUICKFIND_CASES, *SCROLL_CASES, *FOLLOW_CASES,
-                 *SESSION_RESTORE_CASES]:
+                 *SESSION_RESTORE_CASES, *READ_WHILE_INDEXING_CASES]:
         names |= case.benchmark_names()
     names.add("gui_startup_version")
     return names

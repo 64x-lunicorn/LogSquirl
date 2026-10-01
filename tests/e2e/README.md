@@ -221,12 +221,22 @@ pytest -v -m "performance and not slow"          # quick benchmarks only (1-1.5 
 | `gui_follow_1000_per_s_*` | The same at 1000 Log Lines a second | Written by the scenario |
 | `gui_session_restore_small_current_tab_usable` / `_all_tabs_indexed` | A Session of 3 tabs restored: to the tab in front indexed and painted / to every tab indexed | 1 MB (in front), 1.5 MB and 512 KB random blocks |
 | `gui_session_restore_log_220mb_*` | The same | 20 MB scroll Log File with ANSI colors, 100 MB Log File (in front), 100 MB scroll Log File, generated |
+| `gui_read_while_indexing_log_100mb_<read>_p50` / `_p99` / `_max` | While the Log File is indexed, the UI thread reads every 2 ms: `nb_line` (`getNbLine`), `line_string` (`getLineString` of one Log Line), `expanded_lines` (`getExpandedLines` of 60 Log Lines); median / 99th percentile / longest read of a run | 100 MB Log File, generated |
+| `gui_read_while_indexing_log_100mb_index_wall` / `_index_cpu` | The same run's indexing, from the request to open the Log File to its Index finished: wall time / the process's CPU time, every thread together; `_index_wall` also the parallelism, CPU over wall time | 100 MB Log File, generated |
+| `gui_read_while_indexing_log_1gb_*` | The same | 1 GB Log File, generated |
 | `gui_startup_version` | Process start to exit of `logsquirl --version` | — |
 
 Every grep case is timed from the open of the Log File to its last match written, every
 `gui_open_*` case from the open, every Search case from its request, every QuickFind case
 from each keystroke, every scroll case is a paint, every follow case is timed from an append
-and every session restore case from the restore; none contains the process startup.
+every session restore case from the restore and every read-while-indexing case is a read or
+the indexing from the open; none contains the process startup.
+
+The read-while-indexing cases see what the instruction counts cannot (#686): Cachegrind runs
+one thread at a time, so a read that waits for the index lock costs no instruction more, and
+neither does indexing that falls back to one thread. Here the first shows as longer reads, the
+second as a longer `_index_wall` and a parallelism near 1, which the report lists under
+*Indexing Parallelism* and never compares.
 
 ### Renamed benchmarks (#667)
 
@@ -247,8 +257,8 @@ the test turns one run's report into `{benchmark name: seconds}` -- use
 them. Add the names to `all_benchmark_names()` and a slot in `baseline.json`. A scenario a
 binary may not have yet -- the before side of the Benchmarks workflow runs its own commit's --
 is run with `run_known_scenario()`, which raises `ScenarioUnknown` for the test to skip on.
-`SEARCH_CASES`, `QUICKFIND_CASES`, `SCROLL_CASES`, `FOLLOW_CASES` and `SESSION_RESTORE_CASES`
-are examples.
+`SEARCH_CASES`, `QUICKFIND_CASES`, `SCROLL_CASES`, `FOLLOW_CASES`, `SESSION_RESTORE_CASES`
+and `READ_WHILE_INDEXING_CASES` are examples.
 
 ## Test Structure
 

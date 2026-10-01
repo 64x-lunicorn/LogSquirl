@@ -485,6 +485,24 @@ def summarize_chart_following(kept_up: list[bool], behind_p99_ms: list[float],
     }
 
 
+def summarize_indexing_parallelism(parallelism: list[float]) -> dict | None:
+    """How many cores the indexing of a read-while-indexing case kept busy, run by run (#686).
+
+    A run's parallelism is the process's CPU time over the wall time of its
+    indexing; near 1 is indexing on one thread. A ratio, not a time: reported
+    beside the indexing's wall time, never compared with a baseline. None when
+    no run knew its CPU time.
+    """
+    if not parallelism:
+        return None
+    return {
+        "median": float(median(parallelism)),
+        "min": float(min(parallelism)),
+        "max": float(max(parallelism)),
+        "runs": list(parallelism),
+    }
+
+
 def _welch_t_test(sample_a: list[float], sample_b: list[float]) -> float:
     """
     Perform Welch's t-test and return the approximate two-tailed p-value.
@@ -921,6 +939,28 @@ def _generate_markdown_report(
             f"| Benchmark | Budget | Kept Up | Behind p99, Median Run | Behind p99, Worst Run |",
             f"|-----------|--------|---------|------------------------|-----------------------|",
         ] + chart_rows)
+
+    # How many cores the indexing of a read-while-indexing case kept busy (#686)
+    parallelism_rows = []
+    for name, r in sorted(results.items()):
+        parallelism = r.get("indexing_parallelism")
+        if parallelism:
+            parallelism_rows.append(
+                f"| {name} | {parallelism['median']:.2f} | {parallelism['min']:.2f} "
+                f"| {parallelism['max']:.2f} |"
+            )
+
+    if parallelism_rows:
+        lines.extend([
+            f"",
+            f"## Indexing Parallelism",
+            f"",
+            f"The process's CPU time over the wall time of the indexing, every thread "
+            f"together; near 1 is indexing on one thread. Not compared with the baseline.",
+            f"",
+            f"| Benchmark | Median Run | Lowest Run | Highest Run |",
+            f"|-----------|------------|------------|-------------|",
+        ] + parallelism_rows)
 
     if not_measured:
         lines.extend([

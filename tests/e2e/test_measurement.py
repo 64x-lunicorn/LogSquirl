@@ -146,6 +146,32 @@ def test_the_chart_following_is_summarized_over_the_runs():
                        "behind_display_p99_ms_max": 1200.0}
 
 
+def test_the_markdown_report_shows_the_indexing_parallelism(tmp_path, monkeypatch):
+    # A read-while-indexing case reports how many cores its indexing kept
+    # busy (#686): a ratio, not a time, so it is shown and not compared.
+    monkeypatch.setattr(conftest, "_REPORT_DIR", tmp_path)
+    result = summarize_runs([0.9, 1.0, 1.1])
+    result["indexing_parallelism"] = conftest.summarize_indexing_parallelism([3.1, 2.9, 3.4])
+
+    generate_benchmark_report({"gui_read_while_indexing_log_1gb_index_wall": result}, None, {},
+                              report_format="markdown")
+
+    markdown = (tmp_path / "benchmark_report.md").read_text(encoding="utf-8")
+    assert "## Indexing Parallelism" in markdown
+    assert "| gui_read_while_indexing_log_1gb_index_wall | 3.10 | 2.90 | 3.40 |" in markdown
+
+
+def test_the_indexing_parallelism_is_summarized_over_the_runs():
+    summary = conftest.summarize_indexing_parallelism([1.0, 3.0, 2.5, 2.0])
+
+    assert summary == {"median": 2.25, "min": 1.0, "max": 3.0, "runs": [1.0, 3.0, 2.5, 2.0]}
+
+
+def test_no_indexing_parallelism_where_the_cpu_time_is_unknown():
+    # The platform did not tell the CPU time of any run.
+    assert conftest.summarize_indexing_parallelism([]) is None
+
+
 def _baseline(median_seconds: float, **meta) -> dict:
     return {"_meta": {"tolerance_percent": 5, **meta},
             "benchmarks": {"case": {"median_seconds": median_seconds}}}
