@@ -1,0 +1,644 @@
+/*
+ * Copyright (C) 2026 LogSquirl Contributors
+ *
+ * This file is part of LogSquirl.
+ *
+ * LogSquirl is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * LogSquirl is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// The sidebar's Value Names tab and the Value Names dialog (#647): the tab
+// behaves like the Filters tab and keeps its checks across a restart, the
+// dialog edits the groups, and what either changes reaches the views.
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <QApplication>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QFile>
+#include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QMetaObject>
+#include <QPushButton>
+#include <QSignalSpy>
+#include <QTableWidget>
+#include <QTemporaryDir>
+#include <QTest>
+#include <QTimer>
+#include <QToolButton>
+#include <QTreeWidget>
+
+#include <memory>
+
+#include "abstractlogview.h"
+#include "applicationplugins.h"
+#include "crawlerwidget.h"
+#include "logformatcatalog.h"
+#include "mainwindow.h"
+#include "session.h"
+#include "test_policies.h"
+#include "test_utils.h"
+#include "valuenames_fixture.h"
+#include "valuenamescollection.h"
+#include "valuenamesdialog.h"
+#include "valuenamespanel.h"
+
+using valuenamesfixture::exampleGroup;
+using valuenamesfixture::GroupTable;
+using valuenamesfixture::NameRow;
+using valuenamesfixture::NameTable;
+using valuenamesfixture::NamingGroup;
+using valuenamesfixture::NamingRule;
+
+namespace {
+
+// Restores the collection, and what is stored of it, when it goes.
+class StoredValueNamesGuard {
+public:
+    StoredValueNamesGuard()
+        : before_( ValueNamesCollection::get().ownGroups() )
+        , teamBefore_( ValueNamesCollection::get().groups().mid(
+              ValueNamesCollection::get().ownGroups().size() ) )
+    {
+    }
+
+    ~StoredValueNamesGuard()
+    {
+        auto& collection = ValueNamesCollection::get();
+        collection.setTeamGroups( teamBefore_ );
+        collection.setGroups( before_ );
+        collection.save();
+    }
+
+    StoredValueNamesGuard( const StoredValueNamesGuard& ) = delete;
+    StoredValueNamesGuard& operator=( const StoredValueNamesGuard& ) = delete;
+
+private:
+    QList<NamingGroup> before_;
+    QList<NamingGroup> teamBefore_;
+};
+
+// Sets and stores the groups, as the dialog does.
+void storeGroups( const QList<NamingGroup>& groups )
+{
+    auto& collection = ValueNamesCollection::get();
+    collection.setTeamGroups( {} );
+    collection.setGroups( groups );
+    collection.save();
+}
+
+NamingRule rule( const QString& name, const QString& pattern )
+{
+    NamingRule namingRule;
+    namingRule.name = name;
+    namingRule.pattern = pattern;
+    return namingRule;
+}
+
+// Group A with the rules One, Two and Three, group B with the rule Four.
+QList<NamingGroup> twoGroups()
+{
+    auto first = NamingGroup::createNewGroup( QStringLiteral( "A" ) );
+    first.setRules( { rule( QStringLiteral( "One" ), QStringLiteral( "one=(\\d)" ) ),
+                      rule( QStringLiteral( "Two" ), QStringLiteral( "two=(\\d)" ) ),
+                      rule( QStringLiteral( "Three" ), QStringLiteral( "three=(\\d)" ) ) } );
+    auto second = NamingGroup::createNewGroup( QStringLiteral( "B" ) );
+    second.setRules( { rule( QStringLiteral( "Four" ), QStringLiteral( "four=(\\d)" ) ) } );
+    return { first, second };
+}
+
+QTreeWidget* treeOf( ValueNamesPanel& panel )
+{
+    auto* tree = panel.findChild<QTreeWidget*>();
+    REQUIRE( tree != nullptr );
+    return tree;
+}
+
+QPushButton* buttonOf( QWidget& widget, const QString& text )
+{
+    for ( auto* button : widget.findChildren<QPushButton*>() ) {
+        if ( button->text() == text ) {
+            return button;
+        }
+    }
+    FAIL( "no button " << text.toStdString() );
+    return nullptr;
+}
+
+QToolButton* toolButtonOf( QWidget& widget, const QString& toolTipOrText )
+{
+    for ( auto* button : widget.findChildren<QToolButton*>() ) {
+        if ( button->toolTip() == toolTipOrText || button->text() == toolTipOrText ) {
+            return button;
+        }
+    }
+    FAIL( "no tool button " << toolTipOrText.toStdString() );
+    return nullptr;
+}
+
+// Whether each rule of the collection's groups is checked, group by group.
+QList<QList<bool>> ruleChecks()
+{
+    QList<QList<bool>> checks;
+    for ( const auto& group : ValueNamesCollection::get().groups() ) {
+        QList<bool> rules;
+        for ( const auto& namingRule : group.rules() ) {
+            rules.append( group.isEnabled() && namingRule.enabled );
+        }
+        checks.append( rules );
+    }
+    return checks;
+}
+
+void doubleClick( ValueNamesPanel& panel, QTreeWidgetItem* item )
+{
+    REQUIRE( QMetaObject::invokeMethod( &panel, "onItemDoubleClicked",
+                                        Q_ARG( QTreeWidgetItem*, item ), Q_ARG( int, 0 ) ) );
+}
+
+} // namespace
+
+SCENARIO( "The Value Names tab checks rules and groups like the Filters tab",
+          "[ui][valuenames][valuenamespanel]" )
+{
+    const StoredValueNamesGuard guard;
+    storeGroups( twoGroups() );
+
+    GIVEN( "the tab showing two groups, all checked" )
+    {
+        ValueNamesPanel panel;
+        QSignalSpy changed( &panel, &ValueNamesPanel::valueNamesChanged );
+        auto* tree = treeOf( panel );
+        REQUIRE( tree->topLevelItemCount() == 2 );
+        auto* first = tree->topLevelItem( 0 );
+        REQUIRE( first->text( 0 ) == QStringLiteral( "A" ) );
+        REQUIRE( first->childCount() == 3 );
+        REQUIRE( first->checkState( 0 ) == Qt::Checked );
+
+        WHEN( "a rule is unchecked" )
+        {
+            first->child( 1 )->setCheckState( 0, Qt::Unchecked );
+            QCoreApplication::processEvents();
+
+            THEN( "its group is partly checked and the collection names without it" )
+            {
+                REQUIRE( first->checkState( 0 ) == Qt::PartiallyChecked );
+                REQUIRE( ruleChecks() == QList<QList<bool>>{ { true, false, true }, { true } } );
+                REQUIRE( changed.count() == 1 );
+            }
+        }
+
+        WHEN( "a group is unchecked" )
+        {
+            first->setCheckState( 0, Qt::Unchecked );
+            QCoreApplication::processEvents();
+
+            THEN( "all its rules are, in one change" )
+            {
+                REQUIRE( ruleChecks() == QList<QList<bool>>{ { false, false, false }, { true } } );
+                REQUIRE( changed.count() == 1 );
+            }
+        }
+
+        WHEN( "a rule is double-clicked" )
+        {
+            doubleClick( panel, first->child( 2 ) );
+
+            THEN( "only it is checked" )
+            {
+                REQUIRE( ruleChecks() == QList<QList<bool>>{ { false, false, true }, { false } } );
+            }
+        }
+
+        WHEN( "a group is double-clicked" )
+        {
+            doubleClick( panel, tree->topLevelItem( 1 ) );
+
+            THEN( "only its rules are checked" )
+            {
+                REQUIRE( ruleChecks() == QList<QList<bool>>{ { false, false, false }, { true } } );
+            }
+        }
+
+        WHEN( "Deselect All and then Select All are clicked" )
+        {
+            buttonOf( panel, QStringLiteral( "Deselect All" ) )->click();
+            const auto deselected = ruleChecks();
+            buttonOf( panel, QStringLiteral( "Select All" ) )->click();
+
+            THEN( "first none, then every rule is checked" )
+            {
+                REQUIRE( deselected == QList<QList<bool>>{ { false, false, false }, { false } } );
+                REQUIRE( ruleChecks() == QList<QList<bool>>{ { true, true, true }, { true } } );
+                REQUIRE( changed.count() == 2 );
+            }
+        }
+
+        WHEN( "the search shows the rule Two only, and Deselect All is clicked" )
+        {
+            panel.findChild<QLineEdit*>()->setText( QStringLiteral( "two" ) );
+            buttonOf( panel, QStringLiteral( "Deselect All" ) )->click();
+
+            THEN( "only Two is shown and unchecked; the others keep their checks" )
+            {
+                REQUIRE( first->child( 0 )->isHidden() );
+                REQUIRE_FALSE( first->child( 1 )->isHidden() );
+                REQUIRE( tree->topLevelItem( 1 )->isHidden() );
+                REQUIRE( ruleChecks() == QList<QList<bool>>{ { true, false, true }, { true } } );
+            }
+        }
+
+        WHEN( "the search matches a group's name" )
+        {
+            panel.findChild<QLineEdit*>()->setText( QStringLiteral( "b" ) );
+
+            THEN( "the group shows all its rules, and the other group is hidden" )
+            {
+                REQUIRE( first->isHidden() );
+                REQUIRE_FALSE( tree->topLevelItem( 1 )->isHidden() );
+                REQUIRE_FALSE( tree->topLevelItem( 1 )->child( 0 )->isHidden() );
+            }
+        }
+
+        WHEN( "the collection gets a Team group" )
+        {
+            auto team = NamingGroup::createNewGroup( QStringLiteral( "Shared" ) );
+            team.setRules( { rule( QStringLiteral( "Five" ), QStringLiteral( "five" ) ) } );
+            ValueNamesCollection::get().setTeamGroups( { team } );
+            panel.refresh();
+
+            THEN( "it is listed last, marked as a Team group" )
+            {
+                REQUIRE( tree->topLevelItemCount() == 3 );
+                REQUIRE( tree->topLevelItem( 2 )->text( 0 ) == QStringLiteral( "Shared (Team)" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "The checks of the Value Names tab outlive a restart",
+          "[ui][valuenames][valuenamespanel]" )
+{
+    const StoredValueNamesGuard guard;
+    storeGroups( twoGroups() );
+
+    GIVEN( "a rule unchecked and a rule soloed in the tab" )
+    {
+        {
+            ValueNamesPanel panel;
+            auto* tree = treeOf( panel );
+            tree->topLevelItem( 0 )->child( 0 )->setCheckState( 0, Qt::Unchecked );
+            QCoreApplication::processEvents();
+        }
+        const auto checked = ruleChecks();
+        REQUIRE( checked == QList<QList<bool>>{ { false, true, true }, { true } } );
+
+        WHEN( "the settings are read again, as at the next start" )
+        {
+            // Forgets the checks held, so that only what is stored counts.
+            ValueNamesCollection::get().setUncheckedKeys( {} );
+            REQUIRE( ruleChecks() != checked );
+            ValueNamesCollection::getSynced();
+            ValueNamesPanel panel;
+
+            THEN( "the same rules are checked, in the collection and in the tab" )
+            {
+                REQUIRE( ruleChecks() == checked );
+                REQUIRE( treeOf( panel )->topLevelItem( 0 )->child( 0 )->checkState( 0 )
+                         == Qt::Unchecked );
+                REQUIRE( treeOf( panel )->topLevelItem( 0 )->checkState( 0 )
+                         == Qt::PartiallyChecked );
+            }
+        }
+    }
+}
+
+SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][valuenamesdialog]" )
+{
+    const StoredValueNamesGuard guard;
+    storeGroups( { exampleGroup() } );
+
+    GIVEN( "the dialog showing the example group" )
+    {
+        ValueNamesDialog dialog;
+        QSignalSpy changed( &dialog, &ValueNamesDialog::valueNamesChanged );
+        auto* rules = dialog.findChild<QTableWidget*>( QStringLiteral( "rulesTable" ) );
+        auto* rows = dialog.findChild<QTableWidget*>( QStringLiteral( "rowsTable" ) );
+        auto* tables = dialog.findChild<QListWidget*>( QStringLiteral( "tablesList" ) );
+        auto* captureGroups = dialog.findChild<QTableWidget*>( QStringLiteral( "captureGroups" ) );
+        auto* preview = dialog.findChild<QLineEdit*>( QStringLiteral( "previewInput" ) );
+        auto* warnings = dialog.findChild<QListWidget*>( QStringLiteral( "warnings" ) );
+        REQUIRE( rules != nullptr );
+        REQUIRE( rows != nullptr );
+        REQUIRE( tables != nullptr );
+        REQUIRE( captureGroups != nullptr );
+        REQUIRE( preview != nullptr );
+        REQUIRE( warnings != nullptr );
+
+        REQUIRE( dialog.findChild<QListWidget*>( QStringLiteral( "groupList" ) )->count() == 1 );
+        REQUIRE( rules->rowCount() == 2 );
+        REQUIRE( tables->count() == 3 );
+        // The rule BAP ECU is selected: two capture groups, tables ECU and Function.
+        REQUIRE( captureGroups->rowCount() == 2 );
+        REQUIRE( warnings->count() == 0 );
+
+        const auto warningTexts = [ warnings ] {
+            QStringList texts;
+            for ( int row = 0; row < warnings->count(); ++row ) {
+                texts.append( warnings->item( row )->text() );
+            }
+            return texts.join( QLatin1Char( '\n' ) );
+        };
+
+        WHEN( "a sample Log Line is pasted into the preview" )
+        {
+            preview->setText( QStringLiteral( "BAP << ECU 0x15 0x14 id=7" ) );
+
+            THEN( "it is shown with the group's Value Names" )
+            {
+                REQUIRE(
+                    dialog.shownPreview()
+                    == QStringLiteral( "BAP << ECU Beispiel(0x15) Sample(0x14) id=seven(7)" ) );
+            }
+        }
+
+        WHEN( "a rule is added, named like another, and given a regex and a Name Table" )
+        {
+            toolButtonOf( dialog, QStringLiteral( "Add a Naming Rule" ) )->click();
+            REQUIRE( rules->rowCount() == 3 );
+            rules->item( 2, 0 )->setText( QStringLiteral( "Id" ) );
+            rules->item( 2, 1 )->setText( QStringLiteral( "v=(?<ecu>0x\\d+)" ) );
+            rules->item( 2, 2 )->setText( QStringLiteral( "{name}" ) );
+            REQUIRE( captureGroups->rowCount() == 1 );
+            REQUIRE( captureGroups->item( 0, 0 )->text() == QStringLiteral( "1 (ecu)" ) );
+            auto* combo = qobject_cast<QComboBox*>( captureGroups->cellWidget( 0, 1 ) );
+            REQUIRE( combo != nullptr );
+            combo->setCurrentIndex( combo->findText( QStringLiteral( "ECU" ) ) );
+            preview->setText( QStringLiteral( "v=0x15" ) );
+
+            THEN( "the rule gets a name of its own, uses the table by the group's name, and names" )
+            {
+                const auto& added = dialog.groups()[ 0 ].rules()[ 2 ];
+                REQUIRE( added.name == QStringLiteral( "Id (2)" ) );
+                REQUIRE( rules->item( 2, 0 )->text() == QStringLiteral( "Id (2)" ) );
+                REQUIRE(
+                    added.groupTables
+                    == QList<GroupTable>{ { QStringLiteral( "ecu" ), QStringLiteral( "ECU" ) } } );
+                REQUIRE( dialog.shownPreview() == QStringLiteral( "v=Beispiel" ) );
+            }
+        }
+
+        WHEN( "a capture group is given no Name Table" )
+        {
+            auto* combo = qobject_cast<QComboBox*>( captureGroups->cellWidget( 1, 1 ) );
+            REQUIRE( combo != nullptr );
+            combo->setCurrentIndex( 0 );
+            preview->setText( QStringLiteral( "BAP << ECU 0x15 0x14" ) );
+
+            THEN( "its value stays as it is" )
+            {
+                REQUIRE(
+                    dialog.groups()[ 0 ].rules()[ 0 ].tableFor( QStringLiteral( "2" ) ).isEmpty() );
+                REQUIRE( dialog.shownPreview()
+                         == QStringLiteral( "BAP << ECU Beispiel(0x15) 0x14" ) );
+            }
+        }
+
+        WHEN( "a row is added to the table Ids, a table renamed and keys made case-sensitive" )
+        {
+            tables->setCurrentRow( 2 );
+            toolButtonOf( dialog, QStringLiteral( "Add a row" ) )->click();
+            REQUIRE( rows->rowCount() == 2 );
+            rows->item( 1, 0 )->setText( QStringLiteral( "8" ) );
+            rows->item( 1, 1 )->setText( QStringLiteral( "eight" ) );
+            tables->item( 0 )->setText( QStringLiteral( "Ecus" ) );
+            tables->setCurrentRow( 0 );
+            dialog.findChild<QCheckBox*>( QStringLiteral( "caseSensitive" ) )->setChecked( true );
+            preview->setText( QStringLiteral( "id=8 BAP << ECU 0x15 0x14" ) );
+
+            THEN( "the group has the row, the rules use the table by its new name" )
+            {
+                const auto& group = dialog.groups()[ 0 ];
+                REQUIRE( group.tables()[ 2 ].rows.last()
+                         == NameRow{ QStringLiteral( "8" ), QStringLiteral( "eight" ) } );
+                REQUIRE( group.tables()[ 0 ].name == QStringLiteral( "Ecus" ) );
+                REQUIRE( group.tables()[ 0 ].caseSensitive );
+                REQUIRE( group.rules()[ 0 ].tableFor( QStringLiteral( "1" ) )
+                         == QStringLiteral( "Ecus" ) );
+                REQUIRE(
+                    dialog.shownPreview()
+                    == QStringLiteral( "id=eight(8) BAP << ECU Beispiel(0x15) Sample(0x14)" ) );
+                REQUIRE( warnings->count() == 0 );
+            }
+        }
+
+        WHEN(
+            "a key is not a valid regex, another is there twice, and a name uses a missing group" )
+        {
+            tables->setCurrentRow( 2 );
+            toolButtonOf( dialog, QStringLiteral( "Add a row" ) )->click();
+            toolButtonOf( dialog, QStringLiteral( "Add a row" ) )->click();
+            toolButtonOf( dialog, QStringLiteral( "Add a row" ) )->click();
+            rows->item( 1, 0 )->setText( QStringLiteral( "(" ) );
+            rows->item( 1, 1 )->setText( QStringLiteral( "broken" ) );
+            rows->item( 2, 0 )->setText( QStringLiteral( "7" ) );
+            rows->item( 2, 1 )->setText( QStringLiteral( "again" ) );
+            rows->item( 3, 0 )->setText( QStringLiteral( "9" ) );
+            rows->item( 3, 1 )->setText( QStringLiteral( "nine{1}" ) );
+            rules->item( 1, 1 )->setText( QStringLiteral( "id=(\\d+" ) );
+
+            THEN( "the warnings tell of each, with its row" )
+            {
+                const auto texts = warningTexts();
+                REQUIRE(
+                    texts.contains( QStringLiteral( "Rule \"Id\": the regex is not valid" ) ) );
+                REQUIRE( texts.contains(
+                    QStringLiteral( "Table \"Ids\", row 2: the key is not a valid regex" ) ) );
+                REQUIRE( texts.contains(
+                    QStringLiteral( "Table \"Ids\", row 3: the key \"7\" is already in row 1" ) ) );
+                REQUIRE( texts.contains( QStringLiteral(
+                    "Table \"Ids\", row 4: the name uses {1}, but the key has no such group" ) ) );
+            }
+        }
+
+        WHEN( "CSV with a header and a key twice is imported into the table Ids" )
+        {
+            tables->setCurrentRow( 2 );
+            logsquirl::valuenames::CsvImportOptions options;
+            options.hasHeader = true;
+            dialog.importCsvText( QStringLiteral( "key;name\n1;one\n1;uno\n2;two\n" ), options );
+
+            THEN( "it replaces the rows, the first key wins, and the warning names the line" )
+            {
+                REQUIRE( dialog.groups()[ 0 ].tables()[ 2 ].rows
+                         == QList<NameRow>{ { QStringLiteral( "1" ), QStringLiteral( "one" ) },
+                                            { QStringLiteral( "2" ), QStringLiteral( "two" ) } } );
+                REQUIRE( rows->rowCount() == 2 );
+                REQUIRE( warningTexts().contains( QStringLiteral( "CSV line 3: the key \"1\"" ) ) );
+            }
+
+            AND_WHEN( "rows copied from a spreadsheet are pasted" )
+            {
+                dialog.pasteRows( QStringLiteral( "3\tthree\n" ) );
+
+                THEN( "they are added, and Export CSV writes all of them" )
+                {
+                    REQUIRE( rows->rowCount() == 3 );
+                    REQUIRE( dialog.exportCsvText()
+                             == QStringLiteral( "1,one\n2,two\n3,three\n" ) );
+                }
+            }
+        }
+
+        WHEN( "CSV is imported while no table is selected" )
+        {
+            toolButtonOf( dialog, QStringLiteral( "Add a Naming Group" ) )->click();
+            dialog.importCsvText( QStringLiteral( "a,b\n" ), {}, QStringLiteral( "Codes" ) );
+
+            THEN( "it becomes a new table, named after the file" )
+            {
+                REQUIRE( dialog.groups().size() == 2 );
+                REQUIRE( dialog.groups()[ 1 ].tables().size() == 1 );
+                REQUIRE( dialog.groups()[ 1 ].tables()[ 0 ].name == QStringLiteral( "Codes" ) );
+            }
+        }
+
+        WHEN( "Apply is clicked after a change" )
+        {
+            const auto generation = ValueNamesCollection::get().generation();
+            auto* name = dialog.findChild<QLineEdit*>( QStringLiteral( "groupName" ) );
+            name->setText( QStringLiteral( "Renamed" ) );
+            Q_EMIT name->textEdited( name->text() );
+            dialog.findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Apply )->click();
+
+            THEN( "the collection holds and stores the groups, and says so" )
+            {
+                REQUIRE( changed.count() == 1 );
+                REQUIRE( ValueNamesCollection::get().generation() > generation );
+                REQUIRE( ValueNamesCollection::getSynced().ownGroups()[ 0 ].name()
+                         == QStringLiteral( "Renamed" ) );
+            }
+        }
+
+        WHEN( "Cancel is clicked after a change" )
+        {
+            toolButtonOf( dialog, QStringLiteral( "Remove the Naming Group" ) )->click();
+            dialog.findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Cancel )->click();
+
+            THEN( "the collection is unchanged" )
+            {
+                REQUIRE( changed.count() == 0 );
+                REQUIRE( ValueNamesCollection::get().ownGroups().size() == 1 );
+            }
+        }
+    }
+}
+
+SCENARIO( "The CSV import of a Name Table shows the separator and asks for the columns",
+          "[ui][valuenames][valuenamesdialog]" )
+{
+    GIVEN( "CSV separated by semicolons" )
+    {
+        const NameTableCsvImportDialog dialog( QStringLiteral( "a;b;c\n1;2;3\n" ), true );
+
+        THEN( "the separator shown is the semicolon, and the columns are 1 and 2" )
+        {
+            REQUIRE( dialog.separatorShown() == QStringLiteral( "semicolon" ) );
+            const auto options = dialog.options();
+            REQUIRE( options.keyColumn == 0 );
+            REQUIRE( options.nameColumn == 1 );
+            REQUIRE_FALSE( options.hasHeader );
+            REQUIRE( options.caseSensitive );
+        }
+    }
+}
+
+SCENARIO( "What the Value Names dialog and tab change reaches the views of a window",
+          "[ui][valuenames][valuenamesdialog][valuenamespanel]" )
+{
+    const StoredValueNamesGuard guard;
+    storeGroups( { exampleGroup() } );
+
+    QTemporaryDir dir;
+    REQUIRE( dir.isValid() );
+    const auto path = dir.filePath( QStringLiteral( "value-names.log" ) );
+    {
+        QFile file( path );
+        REQUIRE( file.open( QIODevice::WriteOnly ) );
+        file.write( "BAP << ECU 0x15 0x14 sonstiges\nid=7\n" );
+    }
+
+    auto policies = testSettingsPolicies();
+    policies.presentation.showValueNames = true;
+    const auto session
+        = std::make_shared<Session>( policies, std::make_shared<LogFormatCatalog>() );
+    auto mainWindow = std::make_unique<MainWindow>(
+        WindowSession{ session, "Main", 0 },
+        std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
+    mainWindow->show();
+    mainWindow->loadFileNonInteractive( path );
+
+    CrawlerWidget* crawler = nullptr;
+    REQUIRE( waitUiState( [ & ] {
+        crawler = mainWindow->findChild<CrawlerWidget*>();
+        return crawler != nullptr;
+    } ) );
+    auto* view = crawler->findChild<AbstractLogView*>();
+    REQUIRE( view != nullptr );
+    REQUIRE( waitUiState( [ view ] { return view->showsValueNames(); } ) );
+
+    auto* panel = mainWindow->findChild<ValueNamesPanel*>();
+    REQUIRE( panel != nullptr );
+    auto* tree = treeOf( *panel );
+
+    GIVEN( "the window's Value Names tab, third after Filters and Scratchpad" )
+    {
+        auto* tabs = qobject_cast<QTabWidget*>( panel->parentWidget()->parentWidget() );
+        REQUIRE( tabs != nullptr );
+        REQUIRE( tabs->indexOf( panel ) == 2 );
+        REQUIRE( tabs->tabText( 2 ) == QStringLiteral( "Value Names" ) );
+
+        WHEN( "its group is unchecked" )
+        {
+            tree->topLevelItem( 0 )->setCheckState( 0, Qt::Unchecked );
+
+            THEN( "the view no longer names values" )
+            {
+                REQUIRE( waitUiState( [ view ] { return !view->showsValueNames(); } ) );
+            }
+        }
+
+        WHEN( "the group is removed in the dialog opened by Edit..." )
+        {
+            QTimer::singleShot( 0, [] {
+                auto* dialog = qobject_cast<ValueNamesDialog*>( QApplication::activeModalWidget() );
+                REQUIRE( dialog != nullptr );
+                toolButtonOf( *dialog, QStringLiteral( "Remove the Naming Group" ) )->click();
+                dialog->findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Ok )->click();
+            } );
+            buttonOf( *panel, QStringLiteral( "Edit..." ) )->click();
+
+            THEN( "the view no longer names values, and the tab lists no group" )
+            {
+                REQUIRE( ValueNamesCollection::get().groups().isEmpty() );
+                REQUIRE( !view->showsValueNames() );
+                REQUIRE( tree->topLevelItemCount() == 0 );
+            }
+        }
+    }
+
+    mainWindow.reset();
+    QTest::qWait( 50 );
+}

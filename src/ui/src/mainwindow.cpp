@@ -127,6 +127,7 @@
 #include "tabbedcrawlerwidget.h"
 #include "teamfolder.h"
 #include "theme.h"
+#include "valuenamesdialog.h"
 
 namespace {
 
@@ -194,6 +195,7 @@ MainWindow::MainWindow( WindowSession session,
     sidebarTabs_ = new QTabWidget( sidebarDock_ );
     sidebarTabs_->addTab( &filtersPanel_, tr( "Filters" ) );
     sidebarTabs_->addTab( &scratchPad_, tr( "Scratchpad" ) );
+    sidebarTabs_->addTab( &valueNamesPanel_, tr( "Value Names" ) );
     sidebarDock_->setWidget( sidebarTabs_ );
     addDockWidget( Qt::RightDockWidgetArea, sidebarDock_ );
 
@@ -268,6 +270,13 @@ MainWindow::MainWindow( WindowSession session,
     // Open the predefined filters dialog when the sidebar "Edit..." button is clicked.
     connect( &filtersPanel_, &FiltersPanel::editFiltersRequested, this,
              [ this ]() { editPredefinedFilters(); } );
+
+    // A check of the Value Names tab is global: every open Log File and every
+    // window's sidebar is told (#647).
+    connect( &valueNamesPanel_, &ValueNamesPanel::valueNamesChanged, this,
+             [ this ]() { session_.applyChange( Changed::ValueNames ); } );
+    connect( &valueNamesPanel_, &ValueNamesPanel::editRequested, this,
+             [ this ]() { editValueNames(); } );
 
     connect( &mainTabWidget_, &TabbedCrawlerWidget::tabCloseRequested, this,
              [ this ]( int index ) { this->closeTab( index, ActionInitiator::User ); } );
@@ -1925,6 +1934,21 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
              [ this ]() { filtersPanel_.refreshFilters(); } );
 
     dialog.exec();
+}
+
+// Opens the Value Names dialog. OK and Apply change the Value Names
+// Collection, which every open Log File and every window is told of (#647).
+void MainWindow::editValueNames()
+{
+    ValueNamesDialog dialog( this );
+    connect( &dialog, &ValueNamesDialog::valueNamesChanged, this,
+             [ this ]() { session_.applyChange( Changed::ValueNames ); } );
+    dialog.exec();
+}
+
+void MainWindow::applyValueNamesChange()
+{
+    valueNamesPanel_.refresh();
 }
 
 // Opens the 'Options' modal dialog box

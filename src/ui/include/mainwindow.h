@@ -77,6 +77,7 @@
 #include "tabbedcrawlerwidget.h"
 #include "tabbedscratchpad.h"
 #include "tabgroupmanagerdialog.h"
+#include "valuenamespanel.h"
 #include "welcomedashboard.h"
 
 class CommandPalette;
@@ -190,6 +191,9 @@ public:
     // again, in whichever window it was opened (#642).
     bool showView( const ViewInterface* view ) override;
 
+    // The Value Names Collection changed: the sidebar shows it again (#647).
+    void applyValueNamesChange() override;
+
 public Q_SLOTS:
     // Load a file in a new tab (non-interactive)
     // (for use from e.g. IPC)
@@ -238,6 +242,8 @@ private Q_SLOTS:
     void openCommandOutputDialog();
     void editHighlighters();
     void editPredefinedFilters( const QString& newFilter = {} );
+    // Opens the Value Names dialog (#647).
+    void editValueNames();
     // Opens the Regex Lab, or brings it to the front, tied to the tab in
     // front (#659).
     void openRegexLab();
@@ -561,6 +567,8 @@ private:
 
     FiltersPanel filtersPanel_;
 
+    ValueNamesPanel valueNamesPanel_;
+
     // Right sidebar dock with tabbed panels
     QDockWidget* sidebarDock_{ nullptr };
     QToolButton* sidebarFloatButton_{ nullptr };
@@ -568,6 +576,7 @@ private:
     QTabWidget* sidebarTabs_{ nullptr };
     static constexpr int SidebarFiltersPanelTab = 0;
     static constexpr int SidebarScratchPadTab = 1;
+    static constexpr int SidebarValueNamesTab = 2;
     // The share of the window the sidebar opens at while no width was saved.
     static constexpr int SidebarDefaultWidthPercent = 27;
     // The width the sidebar opens at, or was last left at while docked; 0

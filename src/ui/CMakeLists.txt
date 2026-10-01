@@ -31,6 +31,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecountmodel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecounttab.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamescollection.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamespanel.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamesdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savelinesdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/keptsearches.h
@@ -130,6 +132,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecountmodel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecounttab.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamescollection.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamespanel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/savelinesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/keptsearches.cpp

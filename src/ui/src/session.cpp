@@ -471,6 +471,11 @@ void Session::applyValueNamesChange()
         Q_UNUSED( view );
         openFile.view->applyChange( change );
     }
+
+    // Every window's sidebar shows the groups and checks, global for all.
+    for ( auto* window : windows_ ) {
+        window->applyValueNamesChange();
+    }
 }
 
 std::vector<WindowSession> Session::windowSessions()
