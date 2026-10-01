@@ -62,7 +62,7 @@
 #include <memory>
 #include <vector>
 
-#include <catch2/benchmark/catch_benchmark.hpp>
+#include "instruction_count.h"
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
 

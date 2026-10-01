@@ -58,7 +58,7 @@
 #include <variant>
 #include <vector>
 
-#include <catch2/benchmark/catch_benchmark.hpp>
+#include "instruction_count.h"
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
 
@@ -338,7 +338,7 @@ private:
 } // namespace
 
 TEST_CASE( "Reading Log Lines while the Log File is indexed",
-           "[logdata-benchmark][read-while-indexing]" )
+           "[logdata-benchmark][read-while-indexing][wall-clock]" )
 {
     // Not a Catch2 BENCHMARK: what scrolling while indexing feels like is the
     // worst wait of a read, not the mean. A reader thread reads Log Lines

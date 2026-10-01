@@ -2,6 +2,8 @@ FROM ubuntu:noble@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffb
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# valgrind: the Instruction Counts workflow counts the benchmarks' instructions
+# under Callgrind, and the benchmarks build their counting with its headers (#671).
 RUN apt-get update -y && \
     apt-get install --no-install-recommends build-essential python3 python3-pip python-is-python3 \
                     libboost-dev libicu-dev libssl-dev libcurl4-openssl-dev \
@@ -12,7 +14,8 @@ RUN apt-get update -y && \
                     libxkbcommon-dev libxkbcommon-x11-dev \
                     libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 \
                     libxcb-xkb-dev libxcb-render-util0-dev libxcb-randr0-dev \
-                    libxcb-xinerama0-dev libxcb-image0-dev libxcb-util-dev -y && \
+                    libxcb-xinerama0-dev libxcb-image0-dev libxcb-util-dev \
+                    valgrind -y && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Qt via aqtinstall (same version as macOS/Windows CI; Renovate moves them together, #211).

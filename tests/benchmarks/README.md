@@ -675,6 +675,22 @@ two local runs: put each side's `--reporter xml` output under
 The workflow can only be dispatched once it is on master, and the comment
 workflow only works from master.
 
+# Instruction counts
+
+Every pull request also gets the instruction counts of these benchmarks, before
+and after, from the **Instruction Counts** workflow (#671; BUILD.md,
+*Instruction counts*). For that every benchmark file includes
+`instruction_count.h` instead of `<catch2/benchmark/catch_benchmark.hpp>`: its
+`BENCHMARK` and `BENCHMARK_ADVANCED` are Catch2's own, except with
+`LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1` under Callgrind, where they run the
+measured code exactly once and have Callgrind count only that run (the
+*fixed-work mode*). A new benchmark file includes it too, or its benchmarks are
+timed there instead of counted. A test case that times itself without a
+`BENCHMARK` (the latency of reads while indexing, the Table View scroll, Go to
+timestamp, the ANSI Log File), or whose work happens in another process (the
+command line tool printing its matches), carries the tag `[wall-clock]`, so the
+count leaves it out.
+
 # Filtered View read benchmark
 
 `logsquirl_filteredview_read_benchmark` (#288) measures the readers of a
