@@ -467,6 +467,24 @@ def summarize_frames_over_budget(over_budget: list[int], frame_counts: list[int]
     }
 
 
+def summarize_chart_following(kept_up: list[bool], behind_p99_ms: list[float],
+                              budget_ms: float) -> dict:
+    """Whether the chart following a growing Log File kept up, run by run (#670).
+
+    A run's chart kept up when it charted every appended Log Line no more than
+    the budget after the Text View displayed it; behind_p99_ms is how far
+    behind it was, the 99th percentile of a run. Reported beside the follow
+    case's chart latency, never compared with a baseline.
+    """
+    return {
+        "budget_ms": budget_ms,
+        "kept_up_runs": sum(1 for kept in kept_up if kept),
+        "runs": list(kept_up),
+        "behind_display_p99_ms_median": float(median(behind_p99_ms)),
+        "behind_display_p99_ms_max": float(max(behind_p99_ms)),
+    }
+
+
 def _welch_t_test(sample_a: list[float], sample_b: list[float]) -> float:
     """
     Perform Welch's t-test and return the approximate two-tailed p-value.
@@ -880,6 +898,29 @@ def _generate_markdown_report(
             f"| Benchmark | Budget | Median per Run | Max per Run | Frames per Run |",
             f"|-----------|--------|----------------|-------------|----------------|",
         ] + frame_rows)
+
+    # Whether the chart of a follow case kept up with the Text View (#670)
+    chart_rows = []
+    for name, r in sorted(results.items()):
+        chart = r.get("chart_following")
+        if chart:
+            chart_rows.append(
+                f"| {name} | {chart['budget_ms']:g} ms | {chart['kept_up_runs']} of "
+                f"{len(chart['runs'])} | {chart['behind_display_p99_ms_median']:.0f} ms "
+                f"| {chart['behind_display_p99_ms_max']:.0f} ms |"
+            )
+
+    if chart_rows:
+        lines.extend([
+            f"",
+            f"## Chart Following",
+            f"",
+            f"Runs whose chart charted every appended Log Line within the budget after the "
+            f"Text View displayed it; not compared with the baseline.",
+            f"",
+            f"| Benchmark | Budget | Kept Up | Behind p99, Median Run | Behind p99, Worst Run |",
+            f"|-----------|--------|---------|------------------------|-----------------------|",
+        ] + chart_rows)
 
     if not_measured:
         lines.extend([

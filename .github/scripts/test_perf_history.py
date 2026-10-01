@@ -199,6 +199,18 @@ def test_the_entry_keeps_the_frames_over_budget():
     assert stored["benchmarks"]["gui_scroll_text_frame_p99"]["frames_over_budget"] == frames
 
 
+def test_the_entry_keeps_whether_the_chart_kept_up():
+    # A follow case says whether its chart kept up in each run (#670).
+    suite_report = report({"gui_follow_10_per_s_chart_p99": 0.6})
+    chart = {"budget_ms": 1000, "kept_up_runs": 7, "runs": [True] * 7,
+             "behind_display_p99_ms_median": 251.0, "behind_display_p99_ms_max": 262.0}
+    suite_report["benchmarks"]["gui_follow_10_per_s_chart_p99"]["chart_following"] = chart
+    stored = ph.make_entry(suite_report, commit="a" * 40, ref="refs/heads/master", run_id="1",
+                           version="26.11.0", accept=False,
+                           recorded_at=datetime(2026, 10, 5, tzinfo=timezone.utc))
+    assert stored["benchmarks"]["gui_follow_10_per_s_chart_p99"]["chart_following"] == chart
+
+
 def test_a_regressing_run_is_recorded_and_fails(tmp_path):
     for i in range(6):
         assert run_record(tmp_path, {"grep": 1.0}, run_id=str(i))[0] == 0

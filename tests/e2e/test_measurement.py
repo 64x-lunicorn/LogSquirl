@@ -118,6 +118,34 @@ def test_the_frames_over_budget_are_summarized_over_the_runs():
                        "frame_count_median": 215.0}
 
 
+def test_the_markdown_report_says_whether_the_chart_kept_up(tmp_path, monkeypatch):
+    # A follow case reports whether the chart following the Log File kept up
+    # with the Text View in each run (#670): shown, never compared.
+    monkeypatch.setattr(conftest, "_REPORT_DIR", tmp_path)
+    result = summarize_runs([0.5, 0.6, 0.7])
+    result["chart_following"] = conftest.summarize_chart_following(
+        kept_up=[True, False, True], behind_p99_ms=[251.0, 1310.0, 249.0], budget_ms=1000
+    )
+
+    generate_benchmark_report({"gui_follow_10_per_s_chart_p99": result}, None, {},
+                              report_format="markdown")
+
+    markdown = (tmp_path / "benchmark_report.md").read_text(encoding="utf-8")
+    assert "## Chart Following" in markdown
+    assert "| gui_follow_10_per_s_chart_p99 | 1000 ms | 2 of 3 | 251 ms | 1310 ms |" in markdown
+
+
+def test_the_chart_following_is_summarized_over_the_runs():
+    summary = conftest.summarize_chart_following(
+        kept_up=[True, True, False, True], behind_p99_ms=[250.0, 260.0, 1200.0, 240.0],
+        budget_ms=1000,
+    )
+
+    assert summary == {"budget_ms": 1000, "kept_up_runs": 3, "runs": [True, True, False, True],
+                       "behind_display_p99_ms_median": 255.0,
+                       "behind_display_p99_ms_max": 1200.0}
+
+
 def _baseline(median_seconds: float, **meta) -> dict:
     return {"_meta": {"tolerance_percent": 5, **meta},
             "benchmarks": {"case": {"median_seconds": median_seconds}}}

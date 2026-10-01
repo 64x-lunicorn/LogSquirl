@@ -80,6 +80,26 @@ around a process and never with a fixed wait:
   and the Table View scroll the same Log Lines, with and without a Highlighter Set of five; the
   Text View also scrolls them with ANSI color sequences, hidden and shown as colors. Each run
   paints hundreds of frames, so a case takes at most 7 runs after one warmup run.
+- **Follow cases** (`gui_follow_*`, #670) run the `follow` scenario: it writes a Log File of its
+  own in the run's directory, opens and follows it with a chart of one series shown, then a
+  writer thread of the scenario appends Log Lines at a fixed rate for 5 s, 10 or 1000 a second,
+  reading the clock just before each append. A Log Line is displayed by the first paint of the
+  Text View that shows the Log File through it, and charted by the first paint of the chart
+  whose points reach it. `_display_p50` and `_display_p99` are a run's median and 99th
+  percentile append to display, `_chart_p99` its 99th percentile append to chart. `_chart_p99`
+  also says whether the chart kept up in each run -- charted every Log Line no more than 1 s
+  after the Text View displayed it -- which the report lists under *Chart Following* and never
+  compares. The writer lives in the application, not in the suite: its moments and the paints
+  are read from one clock, and a Python writer would add its own scheduling. Both latencies
+  contain the file watch's (the native one by default): on macOS that is most of them.
+- **Session restore cases** (`gui_session_restore_*`, #670) run the `session-restore` scenario:
+  it generates a Session of one tab per Log File, each with 10 Marks, in the run's own data
+  location (never the instance's, which `test_benchmark_mode.py` checks), and restores it as a
+  start does. `_current_tab_usable` is the restore to the end of the first paint of the tab in
+  front that shows Log Lines after its Index finished; the window being built is part of it.
+  `_all_tabs_indexed` is the restore to the last tab's Index finished; restored tabs load one
+  after another behind the tab in front (#300). The Session keeps no Kept Searches yet (#704),
+  so no Search runs.
 - **Grep cases** (`grep_*`) run `logsquirl_grep --benchmark-output <file>`, which writes a
   report of the same format for its Search (scenario `grep`): `index_finished`,
   `search_finished` and `matches_written`, timed from the open of the Log File. A case reports
@@ -197,11 +217,16 @@ pytest -v -m "performance and not slow"          # quick benchmarks only (1-1.5 
 | `gui_quickfind_log_1gb_keystroke_p50` / `_p99` | The same | 1 GB Log File, generated |
 | `gui_scroll_<view>_frame_p50` / `_p99` / `_max` | A frame, the paint of the view's Viewport, while scrolling by line, by page and to the end: median / 99th percentile / longest of a run; `_frame_p99` also the frames over 16.7 ms. Views `text`, `text_highlighters`, `table`, `table_highlighters` | 100 MB scroll Log File, generated |
 | `gui_scroll_text_ansi_hidden_frame_*` / `gui_scroll_text_ansi_colors_frame_*` | The same in the Text View, ANSI color sequences hidden / shown as colors | 20 MB scroll Log File with ANSI colors, generated |
+| `gui_follow_10_per_s_display_p50` / `_display_p99` / `_chart_p99` | A Log File growing by 10 Log Lines a second for 5 s, followed with a chart: append to displayed in the Text View, median / 99th percentile of a run; append to charted, 99th percentile; `_chart_p99` also whether the chart kept up | Written by the scenario |
+| `gui_follow_1000_per_s_*` | The same at 1000 Log Lines a second | Written by the scenario |
+| `gui_session_restore_small_current_tab_usable` / `_all_tabs_indexed` | A Session of 3 tabs restored: to the tab in front indexed and painted / to every tab indexed | 1 MB (in front), 1.5 MB and 512 KB random blocks |
+| `gui_session_restore_log_220mb_*` | The same | 20 MB scroll Log File with ANSI colors, 100 MB Log File (in front), 100 MB scroll Log File, generated |
 | `gui_startup_version` | Process start to exit of `logsquirl --version` | — |
 
 Every grep case is timed from the open of the Log File to its last match written, every
 `gui_open_*` case from the open, every Search case from its request, every QuickFind case
-from each keystroke and every scroll case is a paint; none contains the process startup.
+from each keystroke, every scroll case is a paint, every follow case is timed from an append
+and every session restore case from the restore; none contains the process startup.
 
 ### Renamed benchmarks (#667)
 
@@ -222,7 +247,8 @@ the test turns one run's report into `{benchmark name: seconds}` -- use
 them. Add the names to `all_benchmark_names()` and a slot in `baseline.json`. A scenario a
 binary may not have yet -- the before side of the Benchmarks workflow runs its own commit's --
 is run with `run_known_scenario()`, which raises `ScenarioUnknown` for the test to skip on.
-`SEARCH_CASES`, `QUICKFIND_CASES` and `SCROLL_CASES` are examples.
+`SEARCH_CASES`, `QUICKFIND_CASES`, `SCROLL_CASES`, `FOLLOW_CASES` and `SESSION_RESTORE_CASES`
+are examples.
 
 ## Test Structure
 

@@ -5,9 +5,11 @@ Every benchmark reports what a user waits for, timed by the application at the
 event itself (#667): the GUI cases run the benchmark mode (BUILD.md, "Benchmark
 mode") and report when the first Log Line was displayed and when the Index was
 finished, when the first Match of a Search was displayed and when it finished,
-how long each keystroke of a QuickFind took to be marked (#668), and how long
+how long each keystroke of a QuickFind took to be marked (#668), how long
 each frame of a scripted scroll took to paint in the Text View and the Table
-View (#669); the grep cases run logsquirl_grep with a benchmark report and time
+View (#669), how long a Log Line appended to a followed Log File took to be
+displayed and charted, and how long a Session of several tabs took to restore
+(#670); the grep cases run logsquirl_grep with a benchmark report and time
 its Search from the open of the Log File to the last match written. Neither
 contains the process startup or a fixed wait; the startup is a case of its own
 (gui_startup_version), the one case timed around a whole process.
@@ -58,6 +60,7 @@ from conftest import (
     measure_events,
     measure_execution,
     save_baseline,
+    summarize_chart_following,
     summarize_frames_over_budget,
 )
 from generate_test_data import SCROLL_ANSI_LOG_FILE, SCROLL_LOG_FILE
@@ -539,6 +542,162 @@ def test_perf_gui_scroll(
 
 
 # ---------------------------------------------------------------------------
+# GUI: the benchmark mode's follow scenario, a Log File growing while followed
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class FollowCase:
+    # The benchmarks are gui_follow_<label>_display_p50 and _display_p99, of one
+    # run's appended Log Lines the median and the 99th percentile time from the
+    # append to the Log Line displayed in the Text View, and _chart_p99, the
+    # 99th percentile time to the Log Line charted; _chart_p99 also says
+    # whether the chart kept up with the Text View in each run.
+    label: str
+    lines_per_second: int
+    description: str
+    duration_ms: int = 5000
+    timeout: float = 120
+
+    @property
+    def name(self) -> str:
+        return f"gui_follow_{self.label}"
+
+    @property
+    def generated(self) -> bool:
+        # The scenario writes its Log File itself; slow for its duration.
+        return True
+
+    def options(self) -> dict[str, str]:
+        return {"lines_per_second": str(self.lines_per_second),
+                "duration_ms": str(self.duration_ms)}
+
+    def benchmark_names(self) -> set[str]:
+        return {f"{self.name}_display_p50", f"{self.name}_display_p99", f"{self.name}_chart_p99"}
+
+
+# A Log File a service writes now and then, and one a busy service floods.
+FOLLOW_CASES = [
+    FollowCase("10_per_s", 10, "10 Log Lines a second"),
+    FollowCase("1000_per_s", 1000, "1000 Log Lines a second"),
+]
+
+
+@pytest.mark.performance
+@pytest.mark.parametrize("case", _cases(FOLLOW_CASES))
+def test_perf_gui_follow(
+    case: FollowCase, isolated_gui_module, tmp_path, baseline, collected_results, bench_config,
+    request,
+):
+    """The GUI follows a growing Log File: each appended Log Line until displayed and charted."""
+    report_path = tmp_path / "follow.json"
+    p50, p99, chart = (f"{case.name}_display_p50", f"{case.name}_display_p99",
+                       f"{case.name}_chart_p99")
+    kept_up, behind_p99, budget_ms = [], [], []
+
+    def follow() -> dict[str, float]:
+        try:
+            run = run_known_scenario(isolated_gui_module, "follow", [], report_path,
+                                     options=case.options(), timeout=case.timeout)
+        except ScenarioUnknown:
+            pytest.skip("this logsquirl has no follow scenario (#670)")
+        assert run.process.returncode == EXIT_PASSED and run.report is not None, (
+            run.process.stdout + run.process.stderr
+        )
+        results = run.report["results"]
+        expected = case.lines_per_second * case.duration_ms // 1000
+        assert results["appended_count"] == expected
+        assert results["display_latency"]["count"] == expected
+        kept_up.append(results["chart_kept_up"])
+        behind_p99.append(results["chart_behind_display"]["p99_ms"])
+        budget_ms.append(results["chart_budget_ms"])
+        return {p50: results["display_latency"]["p50_ms"] / 1000.0,
+                p99: results["display_latency"]["p99_ms"] / 1000.0,
+                chart: results["chart_latency"]["p99_ms"] / 1000.0}
+
+    # Each run takes its duration and times every Log Line appended in it.
+    results = measure_events(follow, **_runs(bench_config, large=True))
+    measured_runs = len(results[p50]["runs"])
+    what = (f"A Log File growing by {case.description} for {case.duration_ms / 1000:g} s, "
+            f"followed, with a chart: from the append of a Log Line")
+    results[p50]["measures"] = f"{what} to its display in the Text View; median of a run"
+    results[p99]["measures"] = f"{what} to its display in the Text View; 99th percentile of a run"
+    results[chart]["measures"] = f"{what} to the chart showing it; 99th percentile of a run"
+    # The warmup runs counted too: only the measured ones are reported.
+    results[chart]["chart_following"] = summarize_chart_following(
+        kept_up[-measured_runs:], behind_p99[-measured_runs:], budget_ms[-1]
+    )
+    _record(results, collected_results, baseline, request)
+
+
+# ---------------------------------------------------------------------------
+# GUI: the benchmark mode's session-restore scenario
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SessionRestoreCase:
+    # The benchmarks are gui_session_restore_<label>_current_tab_usable, the
+    # restore to the tab in front usable, and _all_tabs_indexed, to the Index
+    # of the last tab finished.
+    label: str
+    log_files: tuple[str, ...]  # in test_data/, a tab each, in order
+    current: int
+    description: str
+    generated: bool = False
+    timeout: float = 300
+
+    @property
+    def name(self) -> str:
+        return f"gui_session_restore_{self.label}"
+
+    def benchmark_names(self) -> set[str]:
+        return {f"{self.name}_current_tab_usable", f"{self.name}_all_tabs_indexed"}
+
+
+SESSION_RESTORE_CASES = [
+    SessionRestoreCase("small", ("random_block_1Mb.txt", "random_block_1.5Mb.txt",
+                                 "random_block_512k.txt"), 0,
+                       "3 tabs of 0.5 to 1.5 MB, the 1 MB one in front"),
+    SessionRestoreCase("log_220mb", (SCROLL_ANSI_LOG_FILE, "generated_100Mb.log", SCROLL_LOG_FILE), 1,
+                       "3 tabs of 20 to 100 MB, a 100 MB Log File in front", generated=True,
+                       timeout=600),
+]
+
+
+@pytest.mark.performance
+@pytest.mark.parametrize("case", _cases(SESSION_RESTORE_CASES))
+def test_perf_gui_session_restore(
+    case: SessionRestoreCase, isolated_gui_module, test_data_dir, tmp_path, baseline,
+    collected_results, bench_config, request,
+):
+    """The GUI restores a Session of several tabs: the tab in front usable, every tab indexed."""
+    log_files = [_log_file(test_data_dir, name, case.generated) for name in case.log_files]
+    report_path = tmp_path / "session-restore.json"
+    usable, indexed = f"{case.name}_current_tab_usable", f"{case.name}_all_tabs_indexed"
+
+    def restore() -> dict[str, float]:
+        try:
+            run = run_known_scenario(isolated_gui_module, "session-restore", log_files,
+                                     report_path, options={"current": str(case.current)},
+                                     timeout=case.timeout)
+        except ScenarioUnknown:
+            pytest.skip("this logsquirl has no session-restore scenario (#670)")
+        assert run.process.returncode == EXIT_PASSED and run.report is not None, (
+            run.process.stdout + run.process.stderr
+        )
+        assert run.report["results"]["tab_count"] == len(log_files)
+        return {usable: seconds_since_scenario_start(run.report, "current_tab_usable"),
+                indexed: seconds_since_scenario_start(run.report, "all_tabs_indexed")}
+
+    results = measure_events(restore, **_runs(bench_config, large=case.generated))
+    what = f"A Session of {case.description}, restored"
+    results[usable]["measures"] = f"{what}: to the tab in front indexed and painted"
+    results[indexed]["measures"] = f"{what}: to the Index of every tab finished"
+    _record(results, collected_results, baseline, request)
+
+
+# ---------------------------------------------------------------------------
 # Startup: the one case timed around a whole process
 # ---------------------------------------------------------------------------
 
@@ -565,7 +724,8 @@ def all_benchmark_names() -> set[str]:
     names = {case.name for case in GREP_CASES}
     for case in GUI_OPEN_CASES:
         names |= {f"{case.name}_first_line", f"{case.name}_indexed"}
-    for case in [*SEARCH_CASES, *QUICKFIND_CASES, *SCROLL_CASES]:
+    for case in [*SEARCH_CASES, *QUICKFIND_CASES, *SCROLL_CASES, *FOLLOW_CASES,
+                 *SESSION_RESTORE_CASES]:
         names |= case.benchmark_names()
     names.add("gui_startup_version")
     return names

@@ -57,12 +57,14 @@ MIN_DELTA_SECONDS = 0.010
 SCHEMA = 1
 
 # What a recorded benchmark keeps of the suite's report: the statistics and
-# what the benchmark times (#667), and for a scroll case the frames over budget
-# (#669), not the raw runs, which the Actions artifact of the run still holds.
+# what the benchmark times (#667), for a scroll case the frames over budget
+# (#669) and for a follow case whether its chart kept up (#670), not the raw
+# runs, which the Actions artifact of the run still holds.
 KEPT_FIELDS = (
     "median_seconds", "mean_seconds", "std_seconds", "cv_percent",
     "p5_seconds", "p95_seconds", "min_seconds", "max_seconds",
     "filtered_count", "total_count", "throughput", "measures", "frames_over_budget",
+    "chart_following",
 )
 
 
