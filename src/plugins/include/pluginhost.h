@@ -30,8 +30,10 @@
 #include <QStringList>
 
 #include <functional>
+#include <list>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <utility>
 
@@ -118,6 +120,11 @@ public:
     /**
      * Shut down and unload a plugin by its ID. What the plugin still
      * contributes to the user interface is removed through the port.
+     *
+     * Asked for while the host's call into that plugin is still running -- a
+     * menu action of the plugin's that shows a modal dialog, say -- the
+     * plugin counts as unloaded at once, and nothing calls into it any more;
+     * it is shut down once that call has returned (#691).
      */
     void unloadPlugin( const QString& pluginId );
 
@@ -220,6 +227,19 @@ private:
     /** Build a LogSquirlHostApi struct for a specific plugin instance. */
     LogSquirlHostApi buildHostApi();
 
+    struct PluginContext;
+
+    /**
+     * A menu action's callback as the plugin registered it. The host hands
+     * the Plugin UI Port its own callback with this as the user data, so that
+     * the plugin's runs as a call into the plugin (#691).
+     */
+    struct MenuActionCall {
+        PluginContext* context = nullptr;
+        PluginCallbackFn callback = nullptr;
+        void* userData = nullptr;
+    };
+
     // Per-plugin context stored alongside the handle
     struct PluginContext {
         PluginHandle handle;
@@ -241,7 +261,34 @@ private:
         // Cached UTF-8 so the get_selected_log_lines text stays valid until
         // the plugin's next call of it (#663).
         QByteArray selectedLogLinesUtf8{};
+        // The host's calls into the plugin running on the UI thread, nested
+        // ones included: one of them may run an event loop -- a modal dialog
+        // -- in which the user unloads the plugin. Its unload then waits until
+        // the outermost one has returned (#691). UI thread only.
+        int callsRunning = 0;
+        bool unloadPending = false;
+        // The menu actions the plugin registered, from any thread; their
+        // addresses are the user data of the host's callbacks, so they stay
+        // until the context goes, after the actions are removed.
+        std::mutex menuActionCallsMutex{};
+        std::list<MenuActionCall> menuActionCalls{};
     };
+
+    /** The loaded plugin's context, or nullptr when it is not loaded or is being unloaded. */
+    PluginContext* loadedContext( const QString& pluginId ) const;
+
+    /**
+     * Runs call as a call into the plugin, unless the plugin is being
+     * unloaded: then it returns false and runs nothing. An unload asked for
+     * meanwhile is finished once the outermost such call has returned.
+     */
+    bool callIntoPlugin( PluginContext& context, const std::function<void()>& call );
+
+    /** Shuts the plugin down and lets its context go. */
+    void unloadNow( const QString& pluginId );
+
+    /** The callback the host hands the Plugin UI Port for a plugin's menu action. */
+    static void runMenuAction( void* menuActionCall );
 
     /** Extract a PluginContext from the opaque handle passed through host API. */
     static PluginContext* contextFromHandle( void* handle );

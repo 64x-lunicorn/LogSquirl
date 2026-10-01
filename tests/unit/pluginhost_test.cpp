@@ -24,7 +24,9 @@
 #include "pluginhost.h"
 #include "pluginuiport.h"
 
+#include <QCoreApplication>
 #include <QDir>
+#include <QEvent>
 #include <QFile>
 #include <QLibrary>
 #include <QPointer>
@@ -285,7 +287,32 @@ void installManifest( const QString& root, const QString& id, const QString& lib
                         .toUtf8() );
 }
 
-void menuCallback( void* ) {}
+void menuCallback( void* userData )
+{
+    ++*static_cast<int*>( userData );
+}
+
+/// What a menu action that unloads its own plugin while it runs saw (#691).
+struct UnloadingMenuAction {
+    PluginHost* host = nullptr;
+    const std::vector<PortCall>* portCalls = nullptr;
+    bool loadedAgain = false;
+    std::optional<size_t> portCallsWhileRunning{};
+    std::optional<bool> loadedWhileRunning{};
+};
+
+// Stands for a plugin's menu action whose modal dialog the user leaves open
+// to disable the plugin: the unload comes from below the running call.
+void unloadingMenuCallback( void* userData )
+{
+    auto* action = static_cast<UnloadingMenuAction*>( userData );
+    action->host->unloadPlugin( ProbeId );
+    if ( action->loadedAgain ) {
+        REQUIRE( action->host->loadPlugin( ProbeId ).isEmpty() );
+    }
+    action->portCallsWhileRunning = action->portCalls->size();
+    action->loadedWhileRunning = action->host->isLoaded( ProbeId );
+}
 
 /// What the active-file callback a test registers through the probe received.
 struct ActiveFileCalls {
@@ -422,7 +449,8 @@ SCENARIO( "A plugin's host callbacks reach the Plugin UI Port",
             api->register_menu_action( handle, "Plugins", "Probe action", &menuCallback,
                                        &menuUserData );
 
-            THEN( "The port adds the action with its path, label, callback and user data" )
+            THEN( "The port adds the action with its path and label, and triggering it runs "
+                  "the plugin's callback with its user data" )
             {
                 REQUIRE( port.calls.size() == 1 );
                 const auto& call = port.calls[ 0 ];
@@ -430,8 +458,78 @@ SCENARIO( "A plugin's host callbacks reach the Plugin UI Port",
                 REQUIRE( call.pluginId == ProbeId );
                 REQUIRE( call.menuPath == "Plugins" );
                 REQUIRE( call.label == "Probe action" );
-                REQUIRE( call.callback == &menuCallback );
-                REQUIRE( call.userData == &menuUserData );
+                REQUIRE( call.callback != nullptr );
+
+                call.callback( call.userData );
+                REQUIRE( menuUserData == 1 );
+            }
+        }
+
+        WHEN( "The plugin registers a menu action without a callback" )
+        {
+            api->register_menu_action( handle, "Plugins", "Probe action", nullptr, &menuUserData );
+
+            THEN( "The port adds the action without one" )
+            {
+                REQUIRE( port.calls.size() == 1 );
+                REQUIRE( port.calls[ 0 ].callback == nullptr );
+            }
+        }
+
+        WHEN( "The plugin's menu action unloads the plugin while it runs" )
+        {
+            UnloadingMenuAction action{ .host = &host, .portCalls = &port.calls };
+            api->register_menu_action( handle, "Plugins", "Probe action", &unloadingMenuCallback,
+                                       &action );
+            const auto added = port.calls.back();
+            const auto callsBefore = port.calls.size();
+
+            added.callback( added.userData );
+
+            THEN( "The plugin counts as unloaded at once, but is shut down only after its "
+                  "call has returned, from the event loop" )
+            {
+                REQUIRE( action.loadedWhileRunning == false );
+                REQUIRE( action.portCallsWhileRunning == callsBefore );
+                REQUIRE( port.calls.size() == callsBefore );
+                REQUIRE_FALSE( host.isLoaded( ProbeId ) );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
+
+                QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+                REQUIRE( port.calls.size() == callsBefore + 2 );
+                REQUIRE( port.calls[ callsBefore ].kind == PortCall::Kind::RemoveFooterWidget );
+                REQUIRE( port.calls[ callsBefore + 1 ].kind
+                         == PortCall::Kind::RemoveContributions );
+            }
+
+            AND_THEN( "Triggering the action again meanwhile does not call into the plugin" )
+            {
+                action.portCallsWhileRunning.reset();
+                added.callback( added.userData );
+                REQUIRE_FALSE( action.portCallsWhileRunning.has_value() );
+            }
+        }
+
+        WHEN( "The plugin's menu action unloads the plugin and it is loaded again before the "
+              "call returns" )
+        {
+            UnloadingMenuAction action{ .host = &host,
+                                        .portCalls = &port.calls,
+                                        .loadedAgain = true };
+            api->register_menu_action( handle, "Plugins", "Probe action", &unloadingMenuCallback,
+                                       &action );
+            const auto added = port.calls.back();
+            const auto callsBefore = port.calls.size();
+
+            added.callback( added.userData );
+            QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+            THEN( "The plugin stays loaded and is never shut down" )
+            {
+                REQUIRE( action.loadedWhileRunning == true );
+                REQUIRE( host.isLoaded( ProbeId ) );
+                REQUIRE( port.calls.size() == callsBefore );
             }
         }
 

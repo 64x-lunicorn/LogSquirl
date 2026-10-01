@@ -135,6 +135,14 @@
 
 ## Bug fixes
 
+- **A plugin disabled while one of its dialogs is open no longer crashes
+  LogSquirl**: a plugin whose menu action, configuration, converter, Regex Lab
+  answer or active-file callback shows a modal dialog could be disabled in
+  *Plugins* meanwhile, and was shut down under its own running code. It now
+  counts as disabled at once, gets no further calls, and is shut down once
+  that callback has returned. Enabled again before that, it simply stays
+  loaded. (#691)
+
 - **An exported Team group imported again is a group of your own**: a filter
   group or highlighter set exported from the Team groups and imported into
   your own kept the Team group's id, so checking or activating one did the same
