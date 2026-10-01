@@ -465,6 +465,27 @@ left out. The generated Log Files are
 smaller than in a timed run (4 MiB, also per Session Log File), so the counts are not
 comparable with Catch2's times.
 
+The same run also counts each benchmark's **allocations and peak heap** (#673), which the job
+summary and the comment show before, after and as a change, in a table of their own: the heap
+blocks one run of the measured code allocated, all threads together, and the most heap it held
+at once above what was held when it started, in bytes as the allocators round them up. They are
+reported only; the gate judges instructions alone. Callgrind keeps the program's own allocator,
+and Valgrind's heap tools (DHAT, Massif) only report a whole process, not the stretch between two
+points of it, so the counting happens in the benchmark binary itself: configured with
+`LOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON`, as `instruction-counts.sh` does (Linux with glibc only, no
+sanitizer), each benchmark binary links `tests/benchmarks/heap_count.c`, which replaces glibc's
+malloc and its family for the whole process (operator new, Qt and the libraries allocate
+through it) and hands every call on to glibc, and the link wraps mimalloc's `mi_new_n` and
+`mi_free`, through which `logsquirl::vector` allocates (`--wrap`, in
+`tests/benchmarks/CMakeLists.txt`). `instruction_count.h` opens the count where Callgrind starts
+and closes it where Callgrind stops, and `heap_count.c` appends a line per benchmark to
+`<binary>/heap.tsv`. That costs no second run; the counting adds a few instructions to each
+allocation, which the instruction counts include on both sides. Allocation counts count work, as
+instruction counts do, and repeat with it, so there is no noise threshold and the table lists
+every difference; the benchmarks that wait for other threads can vary as their instruction
+counts do, since how often a thread's loop runs while it waits, and when blocks are freed, then
+depend on how the threads took turns.
+
 The comment comes from a second workflow, **Instruction Counts Comment**
 (`instruction-counts-comment.yml`), which starts when a CI Build run has completed: a pull request from a
 fork has a read-only token and cannot comment, and the workflow that can runs only master's code
@@ -481,7 +502,10 @@ Docker does it):
 .github/scripts/instruction-counts.py collect counts --json counts.json
 
 # Or one benchmark binary by hand, after building it with Valgrind's headers installed
+# (and configured with -DLOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON for its heap counts, which
+# LOGSQUIRL_BENCHMARK_HEAP_FILE then names the file of)
 LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1 QT_HASH_SEED=0 QT_QPA_PLATFORM=offscreen \
+LOGSQUIRL_BENCHMARK_HEAP_FILE="$PWD/counts/heap.tsv" \
 LOGSQUIRL_BENCHMARK_LOG_FILE_MB=4 LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB=4 \
   valgrind --tool=callgrind --instr-atstart=no --trace-children=yes \
     --main-stacksize=67108864 --fair-sched=yes --callgrind-out-file=counts/callgrind.out.%p \
@@ -914,7 +938,7 @@ before anything is downloaded, because its signing job could not enter the
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
-| `instruction-counts.yml` | called by CI Build for a push/PR to master it builds | Count the instructions of every Catch2 benchmark under Callgrind: before and after a pull request, reported in the job summary and the artifact, and judged by CI Build's gate; a push to master keeps its counts for the pull requests based on it (see *Instruction counts*) |
+| `instruction-counts.yml` | called by CI Build for a push/PR to master it builds | Count the instructions of every Catch2 benchmark under Callgrind, with its allocations and peak heap: before and after a pull request, reported in the job summary and the artifact, and judged by CI Build's gate; a push to master keeps its counts for the pull requests based on it (see *Instruction counts*) |
 | `instruction-counts-comment.yml` | `workflow_run` of CI Build | Post the report and the gate's verdict as one pull request comment, updated on every run, with master's code only |
 | `instruction-counts-label.yml` | `perf-accepted` added to or removed from a PR | Re-run CI Build's instruction counts gate and update the comment (see *Instruction counts*) |
 | `performance.yml` | weekly schedule (Mondays 03:41 UTC), dispatch | Measure master's e2e performance suite in an optimized build, compare it with the last runs and record it on the `perf-data` branch (see *Weekly performance*) |

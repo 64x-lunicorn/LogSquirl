@@ -223,6 +223,9 @@ benchmarks cost more and why. Adding or removing the label runs the gate again (
 request from a fork, re-run the failed jobs of the CI Build run), and the comment then lists
 the accepted benchmarks. The label never accepts a missing benchmark: a benchmark that is
 removed on purpose leaves both sides, since both build the pull request's benchmark sources.
+The comment also shows each benchmark's allocations and peak heap before and after (#673).
+They are reported only and never turn **CI passed** red; a change in them is worth a sentence
+in the pull request description, a per-Log-Line allocation above all.
 A change of a threshold goes in its own commit, with the measurement that justifies it.
 
 ## Commit message format

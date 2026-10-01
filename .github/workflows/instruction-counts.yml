@@ -4,7 +4,10 @@ name: "Instruction Counts"
 # pull request and on its base, and reports the counts before and after and
 # the change in percent (#671): in the job summary here, and as a comment on
 # the pull request, which the Instruction Counts Comment workflow
-# (instruction-counts-comment.yml) posts from this run's artifact.
+# (instruction-counts-comment.yml) posts from this run's artifact. The same run
+# also counts each benchmark's allocations and peak heap (#673,
+# tests/benchmarks/heap_count.c), which the report shows next to the
+# instructions; they are reported only, the gate does not judge them.
 #
 # A job of CI Build calls it (ci-build.yml, InstructionCounts), so that CI
 # Build's "Instruction counts gate" job can judge the counts and the required
@@ -248,9 +251,9 @@ jobs:
           {
             echo "### Instruction counts of $GITHUB_SHA"
             echo
-            echo '| Instructions | Benchmark |'
-            echo '|---:|---|'
-            jq -r '.benchmarks[] | "| \(.instructions) | \(.binary): \(.name | gsub("\\|"; "\\\\|")) |"' "$report/after.json"
+            echo '| Instructions | Allocations | Peak heap (bytes) | Benchmark |'
+            echo '|---:|---:|---:|---|'
+            jq -r '.benchmarks[] | "| \(.instructions) | \(.allocations // "") | \(.peak_heap_bytes // "") | \(.binary): \(.name | gsub("\\|"; "\\\\|")) |"' "$report/after.json"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save master's counts
