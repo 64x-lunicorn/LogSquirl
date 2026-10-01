@@ -75,9 +75,21 @@ QString ValueNamesCollection::ruleCheckKey( const QString& groupId, const QStrin
 
 bool ValueNamesCollection::setGroups( QList<NamingGroup> groups )
 {
+    // A group with rules is checked through its rules: its own check is only
+    // that of a group without any. An empty group unchecked, then given
+    // rules, is checked, as everything new is.
+    for ( auto& group : groups ) {
+        if ( !group.rules().isEmpty() ) {
+            group.setEnabled( true );
+        }
+    }
+
     // The checks of the groups replaced, and of those removed, are the ones
-    // handed over now.
-    const auto replaced = idsOf( ownGroups_ ) + idsOf( groups );
+    // handed over now. A Team group's are not the user's to replace here.
+    // (The keys of a Team group that leaves the Team Folder stay stored: a
+    // few, and it may come back.)
+    auto replaced = idsOf( ownGroups_ ) + idsOf( groups );
+    replaced.subtract( idsOf( teamGroups_ ) );
     QSet<QString> keys;
     for ( const auto& key : std::as_const( uncheckedKeys_ ) ) {
         if ( !replaced.contains( groupIdOfKey( key ) ) ) {
@@ -211,10 +223,12 @@ void ValueNamesCollection::saveChecksToStorage( QSettings& settings ) const
     settings.setValue( "version", ValueNamesChecks_VERSION );
     settings.remove( "unchecked" );
     settings.beginWriteArray( "unchecked" );
-    int index = 0;
-    for ( const auto& key : uncheckedKeys_ ) {
-        settings.setArrayIndex( index++ );
-        settings.setValue( "key", key );
+    // Sorted, so that the settings file does not change with the hash order.
+    auto keys = uncheckedKeys_.values();
+    keys.sort();
+    for ( int index = 0; index < keys.size(); ++index ) {
+        settings.setArrayIndex( index );
+        settings.setValue( "key", keys[ index ] );
     }
     settings.endArray();
     settings.endGroup();

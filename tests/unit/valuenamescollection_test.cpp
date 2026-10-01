@@ -147,3 +147,99 @@ SCENARIO( "The checks of a Team group outlive the time it is not held",
         }
     }
 }
+
+SCENARIO( "The user's groups do not replace the checks of a Team group",
+          "[valuenames][valuenamescollection]" )
+{
+    GIVEN( "a Team group with an unchecked rule, and an own group of the same id" )
+    {
+        ValueNamesCollection collection;
+        const auto team = exampleGroup();
+        collection.setTeamGroups( { team } );
+        const auto key = ValueNamesCollection::ruleCheckKey( team.id(), QStringLiteral( "Id" ) );
+        collection.setUncheckedKeys( { key } );
+
+        WHEN( "the own groups are set, all checked" )
+        {
+            collection.setGroups( { team } );
+
+            THEN( "the Team group's check is kept" )
+            {
+                REQUIRE( collection.uncheckedKeys().contains( key ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "An unchecked group without rules is checked once it has rules",
+          "[valuenames][valuenamescollection]" )
+{
+    GIVEN( "an empty group, unchecked" )
+    {
+        ValueNamesCollection collection;
+        auto group = NamingGroup::createNewGroup( QStringLiteral( "Empty" ) );
+        group.setEnabled( false );
+        collection.setGroups( { group } );
+        REQUIRE( collection.uncheckedKeys().contains(
+            ValueNamesCollection::groupCheckKey( group.id() ) ) );
+
+        WHEN( "it is given rules, as the dialog does" )
+        {
+            group.setRules( exampleGroup().rules() );
+            group.setTables( exampleGroup().tables() );
+            collection.setGroups( { group } );
+
+            THEN( "it is checked, and names" )
+            {
+                REQUIRE( collection.uncheckedKeys().isEmpty() );
+                REQUIRE( collection.groups()[ 0 ].isEnabled() );
+                REQUIRE( collection.namer().namedValues( QStringLiteral( "id=7" ) ).size() == 1 );
+            }
+        }
+    }
+}
+
+SCENARIO( "The checks are stored in a fixed order", "[valuenames][valuenamescollection]" )
+{
+    QTemporaryDir dir;
+    REQUIRE( dir.isValid() );
+    const auto file = dir.filePath( QStringLiteral( "settings.conf" ) );
+
+    GIVEN( "a collection with three unchecked rules" )
+    {
+        auto group = exampleGroup();
+        auto rules = group.rules();
+        rules.append( rules[ 0 ] );
+        rules[ 2 ].name = QStringLiteral( "A" );
+        for ( auto& namingRule : rules ) {
+            namingRule.enabled = false;
+        }
+        group.setRules( rules );
+        ValueNamesCollection collection;
+        collection.setGroups( { group } );
+
+        WHEN( "it is saved" )
+        {
+            {
+                QSettings settings( file, QSettings::IniFormat );
+                collection.saveToStorage( settings );
+            }
+            QSettings settings( file, QSettings::IniFormat );
+
+            THEN( "the keys are sorted" )
+            {
+                QStringList keys;
+                const int size = settings.beginReadArray( "ValueNamesChecks/unchecked" );
+                for ( int i = 0; i < size; ++i ) {
+                    settings.setArrayIndex( i );
+                    keys.append( settings.value( "key" ).toString() );
+                }
+                settings.endArray();
+                REQUIRE( keys.size() == 3 );
+                auto sorted = keys;
+                sorted.sort();
+                REQUIRE( keys == sorted );
+            }
+        }
+    }
+}
