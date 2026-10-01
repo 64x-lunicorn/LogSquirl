@@ -27,6 +27,7 @@
 #include "configuration.h"
 #include "highlighterset.h"
 #include "isolated_settings.h"
+#include "tbbworkersjoinedatexit.h"
 #include <datalocation.h>
 
 const bool DataLocation::ForcePortable = true;
@@ -40,6 +41,8 @@ int main( int argc, char* argv[] )
         return *launcherExitCode;
     }
 
+    // Destroyed last: oneTBB's workers have ended before exit() runs (#665).
+    const TbbWorkersJoinedAtExit tbbWorkers;
     QApplication a( argc, argv );
 
     logging::enableLogging();
