@@ -92,6 +92,32 @@ def test_the_markdown_report_says_what_each_benchmark_measures(tmp_path, monkeyp
     assert "| grep_1mb_simple | 1.0 MB | 0.1000s | 10.0 MB/s |" in markdown
 
 
+def test_the_markdown_report_counts_the_frames_over_budget(tmp_path, monkeypatch):
+    # A scroll case reports how many of a run's frames were late (#669): a
+    # count, not a time, so it is shown and not compared.
+    monkeypatch.setattr(conftest, "_REPORT_DIR", tmp_path)
+    result = summarize_runs([0.004, 0.005, 0.006])
+    result["frames_over_budget"] = conftest.summarize_frames_over_budget(
+        over_budget=[3, 1, 2], frame_counts=[241, 241, 242], budget_ms=1000 / 60
+    )
+
+    generate_benchmark_report({"gui_scroll_text_frame_p99": result}, None, {},
+                              report_format="markdown")
+
+    markdown = (tmp_path / "benchmark_report.md").read_text(encoding="utf-8")
+    assert "## Frames Over Budget" in markdown
+    assert "| gui_scroll_text_frame_p99 | 16.7 ms | 2 | 3 | 241 |" in markdown
+
+
+def test_the_frames_over_budget_are_summarized_over_the_runs():
+    summary = conftest.summarize_frames_over_budget(
+        over_budget=[0, 4, 1, 1], frame_counts=[200, 210, 220, 230], budget_ms=16.7
+    )
+
+    assert summary == {"budget_ms": 16.7, "median": 1.0, "max": 4, "runs": [0, 4, 1, 1],
+                       "frame_count_median": 215.0}
+
+
 def _baseline(median_seconds: float, **meta) -> dict:
     return {"_meta": {"tolerance_percent": 5, **meta},
             "benchmarks": {"case": {"median_seconds": median_seconds}}}

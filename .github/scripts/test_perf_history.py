@@ -187,6 +187,18 @@ def test_the_entry_keeps_what_each_benchmark_measures():
     assert stored["benchmarks"]["grep_1mb_simple"]["measures"] == "open to last match written"
 
 
+def test_the_entry_keeps_the_frames_over_budget():
+    # A scroll case counts the late frames of its runs (#669); the budgets
+    # are set from that history (#676).
+    suite_report = report({"gui_scroll_text_frame_p99": 0.004})
+    frames = {"budget_ms": 16.7, "median": 2.0, "max": 3, "frame_count_median": 241.0}
+    suite_report["benchmarks"]["gui_scroll_text_frame_p99"]["frames_over_budget"] = frames
+    stored = ph.make_entry(suite_report, commit="a" * 40, ref="refs/heads/master", run_id="1",
+                           version="26.11.0", accept=False,
+                           recorded_at=datetime(2026, 10, 5, tzinfo=timezone.utc))
+    assert stored["benchmarks"]["gui_scroll_text_frame_p99"]["frames_over_budget"] == frames
+
+
 def test_a_regressing_run_is_recorded_and_fails(tmp_path):
     for i in range(6):
         assert run_record(tmp_path, {"grep": 1.0}, run_id=str(i))[0] == 0

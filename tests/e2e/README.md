@@ -70,6 +70,16 @@ around a process and never with a fixed wait:
   second; each keystroke is timed until the first paint of the Text View after it, the one that
   marks the Matches on screen. `_keystroke_p50` and `_keystroke_p99` are a run's median and
   99th percentile keystroke.
+- **Scroll cases** (`gui_scroll_*`, #669) run the `scroll` scenario: on the loaded Log File, the
+  view's vertical scroll bar steps 200 lines down, then 40 pages, then jumps to the end, each
+  step once the one before was painted. Every paint of the view's Viewport meanwhile is a frame,
+  timed from the paint event reaching the Viewport to its handler's return; `_frame_p50`,
+  `_frame_p99` and `_frame_max` are a run's median, 99th percentile and longest frame, and
+  `_frame_p99` carries the frames over budget (longer than 16.7 ms, one frame at 60 Hz) of
+  each run, which the report lists under *Frames Over Budget* and never compares. The Text View
+  and the Table View scroll the same Log Lines, with and without a Highlighter Set of five; the
+  Text View also scrolls them with ANSI color sequences, hidden and shown as colors. Each run
+  paints hundreds of frames, so a case takes at most 7 runs after one warmup run.
 - **Grep cases** (`grep_*`) run `logsquirl_grep --benchmark-output <file>`, which writes a
   report of the same format for its Search (scenario `grep`): `index_finished`,
   `search_finished` and `matches_written`, timed from the open of the Log File. A case reports
@@ -137,8 +147,12 @@ It includes:
 ### Large File Benchmarks
 
 Some benchmarks use generated files that must be written before first use: 10, 50 and 100 MB
-of the 1 MB random block (a single Log Line of 1 MB, repeated) and 100 MB and 1 GB Log Files of
-ordinary Log Lines of about 80 bytes, one in 101 an `ERROR`:
+of the 1 MB random block (a single Log Line of 1 MB, repeated), 100 MB and 1 GB Log Files of
+ordinary Log Lines of about 80 bytes, one in 101 an `ERROR`, and the Log Files the scroll cases
+scroll through: `generated_scroll_100Mb.log`, the same Log Lines with the class that logged them,
+as a Java logger writes them, which a built-in Log Format recognizes (so they have a Table
+View), and `generated_scroll_ansi_20Mb.log`, those Log Lines with ANSI color sequences around
+the level, the thread and the class:
 
 ```bash
 python tests/e2e/generate_test_data.py              # everything, as CI does
@@ -181,11 +195,13 @@ pytest -v -m "performance and not slow"          # quick benchmarks only (1-1.5 
 | `gui_search_log_1gb_<variant>_first_match` / `_finished` | The same | 1 GB Log File, generated |
 | `gui_quickfind_log_100mb_keystroke_p50` / `_p99` | QuickFind typed character by character: keystroke to Matches on screen marked, median / 99th percentile of a run | 100 MB Log File, generated |
 | `gui_quickfind_log_1gb_keystroke_p50` / `_p99` | The same | 1 GB Log File, generated |
+| `gui_scroll_<view>_frame_p50` / `_p99` / `_max` | A frame, the paint of the view's Viewport, while scrolling by line, by page and to the end: median / 99th percentile / longest of a run; `_frame_p99` also the frames over 16.7 ms. Views `text`, `text_highlighters`, `table`, `table_highlighters` | 100 MB scroll Log File, generated |
+| `gui_scroll_text_ansi_hidden_frame_*` / `gui_scroll_text_ansi_colors_frame_*` | The same in the Text View, ANSI color sequences hidden / shown as colors | 20 MB scroll Log File with ANSI colors, generated |
 | `gui_startup_version` | Process start to exit of `logsquirl --version` | — |
 
 Every grep case is timed from the open of the Log File to its last match written, every
-`gui_open_*` case from the open, every Search case from its request and every QuickFind case
-from each keystroke; none contains the process startup.
+`gui_open_*` case from the open, every Search case from its request, every QuickFind case
+from each keystroke and every scroll case is a paint; none contains the process startup.
 
 ### Renamed benchmarks (#667)
 
@@ -206,7 +222,7 @@ the test turns one run's report into `{benchmark name: seconds}` -- use
 them. Add the names to `all_benchmark_names()` and a slot in `baseline.json`. A scenario a
 binary may not have yet -- the before side of the Benchmarks workflow runs its own commit's --
 is run with `run_known_scenario()`, which raises `ScenarioUnknown` for the test to skip on.
-`SEARCH_CASES` and `QUICKFIND_CASES` are examples.
+`SEARCH_CASES`, `QUICKFIND_CASES` and `SCROLL_CASES` are examples.
 
 ## Test Structure
 
@@ -214,7 +230,7 @@ is run with `run_known_scenario()`, which raises `ScenarioUnknown` for the test 
 tests/e2e/
 ├── conftest.py              # Fixtures, helpers, statistics, CLI options, report generation
 ├── baseline.json            # Performance baseline data (schema v2)
-├── generate_test_data.py    # Large test file generator (10/50/100 MB, 100 MB and 1 GB Log Files)
+├── generate_test_data.py    # Large test file generator (10/50/100 MB, 100 MB and 1 GB Log Files, scroll Log Files)
 ├── pyproject.toml           # Python project config
 ├── README.md                # This file
 ├── test_grep_search.py      # Basic search functionality (7 tests)

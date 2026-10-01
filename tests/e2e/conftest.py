@@ -451,6 +451,22 @@ def summarize_runs(times: list[float]) -> dict:
     }
 
 
+def summarize_frames_over_budget(over_budget: list[int], frame_counts: list[int],
+                                 budget_ms: float) -> dict:
+    """How many frames of each run were longer than the budget (#669).
+
+    A count, not a time: it is reported beside the frame times of a scroll
+    case, and never compared with a baseline.
+    """
+    return {
+        "budget_ms": budget_ms,
+        "median": float(median(over_budget)),
+        "max": max(over_budget),
+        "runs": list(over_budget),
+        "frame_count_median": float(median(frame_counts)),
+    }
+
+
 def _welch_t_test(sample_a: list[float], sample_b: list[float]) -> float:
     """
     Perform Welch's t-test and return the approximate two-tailed p-value.
@@ -843,6 +859,27 @@ def _generate_markdown_report(
             f"| Benchmark | File Size | Median | MB/s | Lines/s |",
             f"|-----------|-----------|--------|------|---------|",
         ] + throughput_rows)
+
+    # The frames of a scroll case longer than one frame at 60 Hz (#669)
+    frame_rows = []
+    for name, r in sorted(results.items()):
+        frames = r.get("frames_over_budget")
+        if frames:
+            frame_rows.append(
+                f"| {name} | {frames['budget_ms']:.1f} ms | {frames['median']:g} "
+                f"| {frames['max']:g} | {frames['frame_count_median']:g} |"
+            )
+
+    if frame_rows:
+        lines.extend([
+            f"",
+            f"## Frames Over Budget",
+            f"",
+            f"Frames of a run longer than the budget, a count; not compared with the baseline.",
+            f"",
+            f"| Benchmark | Budget | Median per Run | Max per Run | Frames per Run |",
+            f"|-----------|--------|----------------|-------------|----------------|",
+        ] + frame_rows)
 
     if not_measured:
         lines.extend([

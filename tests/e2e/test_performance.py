@@ -5,7 +5,9 @@ Every benchmark reports what a user waits for, timed by the application at the
 event itself (#667): the GUI cases run the benchmark mode (BUILD.md, "Benchmark
 mode") and report when the first Log Line was displayed and when the Index was
 finished, when the first Match of a Search was displayed and when it finished,
-and how long each keystroke of a QuickFind took to be marked (#668); the grep cases run logsquirl_grep with a benchmark report and time
+how long each keystroke of a QuickFind took to be marked (#668), and how long
+each frame of a scripted scroll took to paint in the Text View and the Table
+View (#669); the grep cases run logsquirl_grep with a benchmark report and time
 its Search from the open of the Log File to the last match written. Neither
 contains the process startup or a fixed wait; the startup is a case of its own
 (gui_startup_version), the one case timed around a whole process.
@@ -56,7 +58,9 @@ from conftest import (
     measure_events,
     measure_execution,
     save_baseline,
+    summarize_frames_over_budget,
 )
+from generate_test_data import SCROLL_ANSI_LOG_FILE, SCROLL_LOG_FILE
 
 # The most runs a case on a 1 GB Log File takes, after a single warmup run: a
 # run takes seconds there, and its noise is small against them.
@@ -434,6 +438,107 @@ def test_perf_gui_quickfind(
 
 
 # ---------------------------------------------------------------------------
+# GUI: the benchmark mode's scroll scenario, the frames of a scripted scroll
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ScrollCase:
+    # The benchmarks are gui_scroll_<label>_frame_p50, _frame_p99 and
+    # _frame_max: of one run's frames -- every paint of the view's Viewport
+    # while the script scrolls -- the median, the 99th percentile and the
+    # longest. _frame_p99 also carries the frames over budget of each run.
+    label: str
+    log_file: str  # in test_data/, generated
+    view: str  # text or table
+    description: str
+    highlighters: bool = False
+    # The setting "ANSI color sequences": text, hide or colors.
+    ansi: str = "text"
+    timeout: float = 600
+
+    @property
+    def name(self) -> str:
+        return f"gui_scroll_{self.label}"
+
+    @property
+    def generated(self) -> bool:
+        return True
+
+    def options(self) -> dict[str, str]:
+        """The --benchmark-option values of the scroll scenario; its script is the default one."""
+        return {"view": self.view, "highlighters": "true" if self.highlighters else "false",
+                "ansi": self.ansi}
+
+    def benchmark_names(self) -> set[str]:
+        return {f"{self.name}_frame_p50", f"{self.name}_frame_p99", f"{self.name}_frame_max"}
+
+
+# The Text View and the Table View on the same Log Lines, with and without a
+# Highlighter Set; ANSI colors hidden and shown on the same Log Lines with ANSI
+# color sequences (only the Text View paints ANSI colors).
+SCROLL_CASES = [
+    ScrollCase("text", SCROLL_LOG_FILE, "text", "The Text View"),
+    ScrollCase("text_highlighters", SCROLL_LOG_FILE, "text",
+               "The Text View with a Highlighter Set of 5", highlighters=True),
+    ScrollCase("text_ansi_hidden", SCROLL_ANSI_LOG_FILE, "text",
+               "The Text View, ANSI color sequences hidden", ansi="hide"),
+    ScrollCase("text_ansi_colors", SCROLL_ANSI_LOG_FILE, "text",
+               "The Text View, ANSI colors shown", ansi="colors"),
+    ScrollCase("table", SCROLL_LOG_FILE, "table", "The Table View"),
+    ScrollCase("table_highlighters", SCROLL_LOG_FILE, "table",
+               "The Table View with a Highlighter Set of 5", highlighters=True),
+]
+
+
+@pytest.mark.performance
+@pytest.mark.parametrize("case", _cases(SCROLL_CASES))
+def test_perf_gui_scroll(
+    case: ScrollCase, isolated_gui_module, test_data_dir, tmp_path, baseline,
+    collected_results, bench_config, request,
+):
+    """The GUI scrolls a loaded Log File by line, by page and to the end: every frame's paint."""
+    filepath = _log_file(test_data_dir, case.log_file, case.generated)
+    report_path = tmp_path / "scroll.json"
+    p50, p99, longest = (f"{case.name}_frame_p50", f"{case.name}_frame_p99",
+                         f"{case.name}_frame_max")
+    over_budget, frame_counts, budget_ms = [], [], []
+
+    def scroll() -> dict[str, float]:
+        try:
+            run = run_known_scenario(isolated_gui_module, "scroll", [filepath], report_path,
+                                     options=case.options(), timeout=case.timeout)
+        except ScenarioUnknown:
+            pytest.skip("this logsquirl has no scroll scenario (#669)")
+        assert run.process.returncode == EXIT_PASSED and run.report is not None, (
+            run.process.stdout + run.process.stderr
+        )
+        results = run.report["results"]
+        assert results["view"] == case.view and results["unmoved_step_count"] == 0
+        frames = results["frame_time"]
+        assert frames["count"] >= results["step_count"]
+        over_budget.append(frames["over_budget_count"])
+        frame_counts.append(frames["count"])
+        budget_ms.append(frames["budget_ms"])
+        return {p50: frames["p50_ms"] / 1000.0, p99: frames["p99_ms"] / 1000.0,
+                longest: frames["max_ms"] / 1000.0}
+
+    # Each run paints hundreds of frames: as few runs as a 1 GB case.
+    results = measure_events(scroll, **_runs(bench_config, large=True))
+    measured_runs = len(results[p50]["runs"])
+    what = (f"{case.description} ({case.log_file}): a paint of its Viewport while scrolling "
+            f"by line, by page and to the end, Log File loaded before")
+    results[p50]["measures"] = f"{what}; the median frame of a run"
+    results[p99]["measures"] = f"{what}; the 99th percentile frame of a run"
+    results[longest]["measures"] = f"{what}; the longest frame of a run"
+    # The warmup runs counted too: only the measured ones are reported.
+    results[p99]["frames_over_budget"] = summarize_frames_over_budget(
+        over_budget[-measured_runs:], frame_counts[-measured_runs:], budget_ms[-1]
+    )
+    _record(results, collected_results, baseline, request)
+
+
+# ---------------------------------------------------------------------------
 # Startup: the one case timed around a whole process
 # ---------------------------------------------------------------------------
 
@@ -460,7 +565,7 @@ def all_benchmark_names() -> set[str]:
     names = {case.name for case in GREP_CASES}
     for case in GUI_OPEN_CASES:
         names |= {f"{case.name}_first_line", f"{case.name}_indexed"}
-    for case in [*SEARCH_CASES, *QUICKFIND_CASES]:
+    for case in [*SEARCH_CASES, *QUICKFIND_CASES, *SCROLL_CASES]:
         names |= case.benchmark_names()
     names.add("gui_startup_version")
     return names
