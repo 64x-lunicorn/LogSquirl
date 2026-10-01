@@ -14,8 +14,13 @@
   new setting *Show Value Names on file open*. *Copy* copies the raw text --
   a whole value, never half of one --, the new *Copy as Shown* copies what is
   shown, and *Save to file* can save *With Value Names*. With them hidden or
-  no rule enabled, nothing is looked up. The sidebar tab and the dialog that
-  edit Naming Rules and Name Tables follow. (#647)
+  no rule enabled, nothing is looked up. The new sidebar tab *Value Names*
+  checks Naming Rules and Naming Groups for every tab, like the Filters tab,
+  and keeps the checks across restarts; its *Edit...* dialog edits the rules,
+  which Name Table each capture group uses, and the Name Tables, which can be
+  imported from and exported to CSV or pasted from a spreadsheet, with a
+  preview line that shows a sample Log Line named and warns of what is wrong.
+  (#647)
 - **The Regex Lab tests a pattern on Log Lines**: *Tools → Regex Lab…* opens a
   window beside the main window where a pattern, with the search line's
   options, is matched live against the selected Log Lines of the tab in front,

@@ -708,6 +708,52 @@ the check *With Value Names*: checked, the Log Lines are saved as shown. It is
 off at first, and can only be checked while the tab shows Value Names. *Export
 as CSV...* always writes the raw values.
 
+**The Value Names tab.** The sidebar's third tab, after *Filters* and
+*Scratchpad*, lists the Naming Groups with a check for each Naming Rule; a
+group's check checks or unchecks all its rules. The checks hold for every tab
+and are kept across restarts. A search box narrows the list to the groups and
+rules whose name or regex contains the text; *Select All* and *Deselect All*
+check or uncheck what it shows. A double-click on a rule checks only that rule,
+on a group only that group's rules. When two rules name the same text, the one
+higher in the list wins.
+
+**Editing Naming Groups.** *Edit...* in the tab opens the *Value Names*
+dialog. On the left are the Naming Groups, which can be added, removed and
+moved up or down. On the right, for the selected group:
+
+- **Naming Rules**, each with a *Name*, a *Regex* and a *Template*. The
+  template says how a named value is shown: `{name}` is the name and `{value}`
+  the raw value; `{name}({value})` unless changed. Beside the rules, every
+  capture group of the selected rule's regex gets its Name Table, or *(none)*
+  to leave it as it is: unnamed groups by their number, named groups such as
+  `(?<ecu>...)` by their name. A regex without capture groups looks up its
+  whole match. A rule's name is unique in its group.
+- **Name Tables**, with the rows of the selected one: a *Key regex*, which has
+  to match the whole value, and the *Name* it gives. The first row that matches
+  wins; keys ignore case unless *Keys are case-sensitive* is checked. The name
+  can use the key's capture groups as `{1}`, `{2}`, ...: the key `0x2([0-9A-F])`
+  with the name `Door{1}` shows `0x23` as `Door3(0x23)`. A table is renamed with
+  a double-click, and the rules using it follow. A rule only uses the tables of
+  its own group.
+- **Preview**: paste a sample Log Line and see it as the group shows it, with
+  all its rules. Below it the dialog warns of what is wrong: a regex or key
+  that is not valid, a key already in an earlier row (that row is never used),
+  a name using a key group the key does not have, a capture group given a
+  table its regex or its group does not have, a line break in a template or a
+  name.
+
+*OK* and *Apply* take the changes over for every tab, *Cancel* drops them.
+
+**Name Tables from CSV.** *Import CSV...* reads a CSV file into the selected
+Name Table, replacing its rows, or into a new table named after the file when
+none is selected. The separator -- comma, semicolon or tab -- is detected and
+shown; the key and the name columns are chosen (the first and the second
+unless changed), and the first line can be marked as a header. Lines starting
+with `#` are skipped. When a key is there twice the first wins, and the
+warnings name the line. *Export CSV...* writes the selected table's rows,
+key first. *Paste* adds the rows copied from a spreadsheet, key then name, to
+the selected table.
+
 ### Auto Log Format Detection (Table View)
 
 *logsquirl* can automatically detect the format of a log file and display it
@@ -1080,12 +1126,14 @@ and both are in the Command Palette.
 ### Filters Panel
 
 The Filters Panel is a right sidebar dock that provides quick access to filters
-and the Scratchpad. It contains two tabs:
+and the Scratchpad. It contains three tabs:
 
 *   **Filters tab** -- allows pinning frequently used search filters that persist
     across sessions. Toggling a pinned filter automatically triggers a search.
 *   **Scratchpad tab** -- the same Scratchpad tool described below, accessible
     from the sidebar for convenience.
+*   **Value Names tab** -- checks the Naming Rules and Naming Groups of Value
+    Names for every tab; see [Value Names](#value-names).
 
 The Filters Panel can be toggled using the filter icon in the toolbar.
 
