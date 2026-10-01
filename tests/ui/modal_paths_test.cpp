@@ -704,9 +704,9 @@ TEST_CASE( "A window closed right after opening a followed Log File leaves its t
     REQUIRE( waitUiState( [ & ] { return window.plugins->isLoaded(); }, 5000 ) );
     REQUIRE( window.session->watchPolicy().anyWatchEnabled() );
 
-    // Opening a followed Log File queues "follow" for its tab; the window, and
-    // with it the tab, goes before the event loop runs that. The sanitizer jobs
-    // report the queued call if it still reaches the freed tab (#607).
+    // Opening a followed Log File follows its tab; the window, and with it the
+    // tab, goes before the event loop runs again. The sanitizer jobs report a
+    // call still queued for the tab if it reaches the freed tab (#607).
     window.mainWindow->loadInitialFile( path, true );
     REQUIRE_FALSE( window.mainWindow->findChildren<CrawlerWidget*>().isEmpty() );
     window.mainWindow.reset();

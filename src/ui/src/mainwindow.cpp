@@ -132,12 +132,13 @@
 
 namespace {
 
-// Queued on the Crawler Widget itself, so Qt drops the call when the widget is
-// destroyed before the event loop runs it, as when its window closes right
-// after opening the Log File (#607).
-void signalCrawlerToFollowFile( CrawlerWidget* crawler_widget )
+// Followed as it opens, not one event loop turn later: a follow queued for
+// then would overrule what came in between -- the user turning it off, or a
+// tab shown unfollowed for a moment to a command that ends at once (#635).
+// The window's follow action follows from the View Set.
+void followOnOpen( CrawlerWidget* crawler_widget )
 {
-    dispatchToObject( [ crawler_widget ]() { crawler_widget->followSet( true ); }, crawler_widget );
+    crawler_widget->followSet( true );
 }
 
 static constexpr auto ClipboardMaxTry = 5;
@@ -468,7 +469,7 @@ std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
                                    archiveMembers_.value( fileName ).key() );
 
         if ( followFileOnLoad ) {
-            signalCrawlerToFollowFile( crawlerWidget );
+            followOnOpen( crawlerWidget );
         }
     }
     restoringSession_ = false;
@@ -552,7 +553,7 @@ void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& m
 
     const auto& config = Configuration::get();
     if ( config.followFileOnLoad() && session_.watchPolicy().anyWatchEnabled() ) {
-        signalCrawlerToFollowFile( crawlerWidget );
+        followOnOpen( crawlerWidget );
     }
 
     mainTabWidget_.refreshAllTabGroupAppearances();
@@ -3433,7 +3434,7 @@ bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFil
             const auto& config = Configuration::get();
             if ( session_.watchPolicy().anyWatchEnabled()
                  && ( followFile || config.followFileOnLoad() ) ) {
-                signalCrawlerToFollowFile( crawlerWidget );
+                followOnOpen( crawlerWidget );
             }
             // A command or standard input that ended before its tab opened.
             if ( const auto source = commandSources_.find( fileName );

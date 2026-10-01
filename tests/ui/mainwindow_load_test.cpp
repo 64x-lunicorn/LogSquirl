@@ -49,6 +49,7 @@
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "filterspanel.h"
+#include "logfileprovenance.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
 #include "logmainview.h"
@@ -1310,6 +1311,34 @@ SCENARIO( "A Log File opened to be followed shows followed in the window", "[ui]
         THEN( "its tab is followed and the follow action checked" )
         {
             REQUIRE( waitUiState( frontFollowed, 10000 ) );
+        }
+    }
+
+    GIVEN( "a Log File opened to be followed" )
+    {
+        // What the tab is as it opens, before the event loop turns: a
+        // command that ends at once must find its tab followed already, or
+        // a follow arriving later would outlast the command's end.
+        std::optional<bool> followedAsOpened;
+        auto provenance = LogFileProvenance::ordinary();
+        provenance.whenOpened = [ & ]( CrawlerWidget* crawler ) {
+            REQUIRE( crawler != nullptr );
+            followedAsOpened = crawler->isFollowEnabled() && followAction->isChecked();
+            crawler->followSet( false );
+        };
+        REQUIRE( mainWindow->openLogFile( QFileInfo( firstFile ).absoluteFilePath(),
+                                          std::move( provenance ), true ) );
+        REQUIRE( waitUiState( [ & ] { return followedAsOpened.has_value(); }, 10000 ) );
+
+        THEN( "its tab is followed the moment it opens, and a follow turned off then stays "
+              "off" )
+        {
+            REQUIRE( *followedAsOpened );
+            QTest::qWait( 50 );
+            auto* front = qobject_cast<CrawlerWidget*>( tabArea->currentWidget() );
+            REQUIRE( front != nullptr );
+            REQUIRE_FALSE( front->isFollowEnabled() );
+            REQUIRE_FALSE( followAction->isChecked() );
         }
     }
 
