@@ -24,6 +24,7 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -32,21 +33,29 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QRegularExpression>
 #include <QSpinBox>
 #include <QSplitter>
+#include <QStringDecoder>
 #include <QTableWidget>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
 
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
+
 #include "groupexchange.h"
 #include "iconloader.h"
+#include "textencoding.h"
 #include "theme.h"
 #include "valuenamer.h"
 #include "valuenamescollection.h"
@@ -77,6 +86,8 @@ QString separatorName( QChar separator )
 }
 
 // What is wrong with a group, told to the user. Rows are counted from 1.
+// Every message takes its arguments in one arg() call: a key or a name may
+// hold "%2" itself (a URL-encoded value), which a second call would replace.
 QString problemMessage( const Problem& problem )
 {
     switch ( problem.kind ) {
@@ -85,23 +96,17 @@ QString problemMessage( const Problem& problem )
             .arg( problem.rule, problem.detail );
     case Problem::Kind::InvalidKeyRegex:
         return ValueNamesDialog::tr( "Table \"%1\", row %2: the key is not a valid regex: %3" )
-            .arg( problem.table )
-            .arg( problem.row + 1 )
-            .arg( problem.detail );
+            .arg( problem.table, QString::number( problem.row + 1 ), problem.detail );
     case Problem::Kind::DuplicateKey:
         return ValueNamesDialog::tr(
                    "Table \"%1\", row %2: the key \"%3\" is already in row %4, so this row "
                    "is never used" )
-            .arg( problem.table )
-            .arg( problem.row + 1 )
-            .arg( problem.detail )
-            .arg( problem.firstRow + 1 );
+            .arg( problem.table, QString::number( problem.row + 1 ), problem.detail,
+                  QString::number( problem.firstRow + 1 ) );
     case Problem::Kind::MissingKeyGroup:
         return ValueNamesDialog::tr(
                    "Table \"%1\", row %2: the name uses %3, but the key has no such group" )
-            .arg( problem.table )
-            .arg( problem.row + 1 )
-            .arg( problem.detail );
+            .arg( problem.table, QString::number( problem.row + 1 ), problem.detail );
     case Problem::Kind::UnknownTable:
         return ValueNamesDialog::tr( "Rule \"%1\": this group has no Name Table \"%2\"" )
             .arg( problem.rule, problem.detail );
@@ -122,8 +127,7 @@ QString problemMessage( const Problem& problem )
     case Problem::Kind::ControlCharacterInName:
         return ValueNamesDialog::tr( "Table \"%1\", row %2: the name holds a line break or "
                                      "control character, which is shown as a space" )
-            .arg( problem.table )
-            .arg( problem.row + 1 );
+            .arg( problem.table, QString::number( problem.row + 1 ) );
     }
     return {};
 }
@@ -134,23 +138,79 @@ QString csvWarningMessage( const CsvImportWarning& warning )
     case CsvImportWarning::Kind::DuplicateKey:
         return ValueNamesDialog::tr(
                    "CSV line %1: the key \"%2\" was already read on line %3; the first wins" )
-            .arg( warning.line )
-            .arg( warning.key )
-            .arg( warning.firstLine );
+            .arg( QString::number( warning.line ), warning.key,
+                  QString::number( warning.firstLine ) );
     case CsvImportWarning::Kind::MissingColumn:
         return ValueNamesDialog::tr( "CSV line %1: no key or no name; the line is skipped" )
             .arg( warning.line );
     case CsvImportWarning::Kind::EmptyName:
         return ValueNamesDialog::tr( "CSV line %1: the name of \"%2\" is empty" )
-            .arg( warning.line )
-            .arg( warning.key );
+            .arg( QString::number( warning.line ), warning.key );
     case CsvImportWarning::Kind::ControlCharacterInName:
         return ValueNamesDialog::tr( "CSV line %1: the name of \"%2\" holds a line break or "
                                      "control character, which is shown as a space" )
-            .arg( warning.line )
-            .arg( warning.key );
+            .arg( QString::number( warning.line ), warning.key );
     }
     return {};
+}
+
+// The Name Tables of a rule's capture groups once its regex changed from
+// oldPattern to newPattern. A table stays with its capture group: a named
+// group renamed keeps it under its new name, the whole match's goes to group
+// 1 when the first capture group appears, and that of a group gone goes too.
+// While the new regex is not valid nothing is changed.
+QList<GroupTable> adaptedGroupTables( const QList<GroupTable>& groupTables,
+                                      const QString& oldPattern, const QString& newPattern )
+{
+    const QRegularExpression newRegex( newPattern );
+    if ( !newRegex.isValid() ) {
+        return groupTables;
+    }
+    const auto count = newRegex.captureCount();
+    const auto newNames = newRegex.namedCaptureGroups();
+    const QRegularExpression oldRegex( oldPattern );
+    const auto oldNames = oldRegex.isValid() ? oldRegex.namedCaptureGroups() : QStringList{};
+
+    // What a capture group of the new regex is assigned by.
+    const auto keyOf = [ &newNames ]( qsizetype number ) {
+        const auto name = newNames.value( number );
+        return name.isEmpty() ? QString::number( number ) : name;
+    };
+
+    QList<GroupTable> adapted;
+    QList<qsizetype> taken;
+    for ( const auto& groupTable : groupTables ) {
+        qsizetype number = -1;
+        QString key;
+        bool isNumber = false;
+        const auto given = groupTable.group.toLongLong( &isNumber );
+        if ( isNumber && given == 0 ) {
+            number = count == 0 ? 0 : 1;
+            key = count == 0 ? QStringLiteral( "0" ) : keyOf( 1 );
+        }
+        else if ( isNumber ) {
+            if ( given >= 1 && given <= count ) {
+                number = given;
+                key = groupTable.group;
+            }
+        }
+        else if ( const auto now = newNames.indexOf( groupTable.group ); now > 0 ) {
+            number = now;
+            key = groupTable.group;
+        }
+        else if ( const auto before = oldNames.indexOf( groupTable.group );
+                  before > 0 && before <= count ) {
+            number = before;
+            key = keyOf( before );
+        }
+
+        if ( number < 0 || taken.contains( number ) ) {
+            continue;
+        }
+        taken.append( number );
+        adapted.append( GroupTable{ key, groupTable.table } );
+    }
+    return adapted;
 }
 
 QStringList ruleNames( const QList<NamingRule>& rules, int except )
@@ -193,10 +253,37 @@ QToolButton* textButton( const QString& text, QWidget* parent )
 
 } // namespace
 
+QString decodeCsvFile( const QByteArray& bytes )
+{
+    // A byte order mark says what it is.
+    if ( const auto marked = QStringConverter::encodingForData( bytes ) ) {
+        QStringDecoder decoder( *marked );
+        return decoder.decode( bytes );
+    }
+
+    QStringDecoder utf8( QStringDecoder::Utf8 );
+    QString text = utf8.decode( bytes );
+    if ( !utf8.hasError() ) {
+        return text;
+    }
+
+    // Not UTF-8: what a spreadsheet saves as "CSV" is in the ANSI code page.
+#ifdef Q_OS_WIN
+    const auto codePage = static_cast<int>( ::GetACP() );
+#else
+    constexpr int codePage = 1252;
+#endif
+    const auto* ansi = TextEncoding::forWindowsCodePage( codePage );
+    if ( ansi == nullptr ) {
+        ansi = TextEncoding::forMib( TextEncoding::Latin1Mib );
+    }
+    return ansi->toUnicode( bytes );
+}
+
 // --- NameTableCsvImportDialog ---
 
 NameTableCsvImportDialog::NameTableCsvImportDialog( const QString& text, bool caseSensitive,
-                                                    QWidget* parent )
+                                                    const QString& selectedTable, QWidget* parent )
     : QDialog( parent )
     , separator_( logsquirl::valuenames::detectCsvSeparator( text ) )
     , caseSensitive_( caseSensitive )
@@ -222,7 +309,20 @@ NameTableCsvImportDialog::NameTableCsvImportDialog( const QString& text, bool ca
     nameColumn_->setValue( 2 );
     form->addRow( tr( "Key column:" ), keyColumn_ );
     form->addRow( tr( "Name column:" ), nameColumn_ );
+    target_ = new QComboBox( this );
+    target_->addItem( tr( "New table (named after the file)" ),
+                      static_cast<int>( CsvImportTarget::NewTable ) );
+    if ( !selectedTable.isEmpty() ) {
+        target_->addItem( tr( "Replace the rows of \"%1\"" ).arg( selectedTable ),
+                          static_cast<int>( CsvImportTarget::ReplaceRows ) );
+        target_->addItem( tr( "Append to \"%1\"" ).arg( selectedTable ),
+                          static_cast<int>( CsvImportTarget::AppendRows ) );
+    }
+    form->addRow( tr( "Import into:" ), target_ );
     layout->addLayout( form );
+
+    sameColumns_ = new QLabel( tr( "The key and the name need different columns." ), this );
+    layout->addWidget( sameColumns_ );
 
     hasHeader_ = new QCheckBox( tr( "The first line is a header" ), this );
     layout->addWidget( hasHeader_ );
@@ -241,10 +341,28 @@ NameTableCsvImportDialog::NameTableCsvImportDialog( const QString& text, bool ca
     }
     layout->addWidget( preview );
 
-    auto* buttons = new QDialogButtonBox( QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this );
-    connect( buttons, &QDialogButtonBox::accepted, this, &QDialog::accept );
-    connect( buttons, &QDialogButtonBox::rejected, this, &QDialog::reject );
-    layout->addWidget( buttons );
+    buttons_ = new QDialogButtonBox( QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this );
+    connect( buttons_, &QDialogButtonBox::accepted, this, &QDialog::accept );
+    connect( buttons_, &QDialogButtonBox::rejected, this, &QDialog::reject );
+    layout->addWidget( buttons_ );
+
+    connect( keyColumn_, &QSpinBox::valueChanged, this,
+             &NameTableCsvImportDialog::updateAcceptable );
+    connect( nameColumn_, &QSpinBox::valueChanged, this,
+             &NameTableCsvImportDialog::updateAcceptable );
+    updateAcceptable();
+}
+
+void NameTableCsvImportDialog::updateAcceptable()
+{
+    const bool same = keyColumn_->value() == nameColumn_->value();
+    sameColumns_->setVisible( same );
+    buttons_->button( QDialogButtonBox::Ok )->setEnabled( !same );
+}
+
+CsvImportTarget NameTableCsvImportDialog::target() const
+{
+    return static_cast<CsvImportTarget>( target_->currentData().toInt() );
 }
 
 CsvImportOptions NameTableCsvImportDialog::options() const
@@ -395,7 +513,9 @@ ValueNamesDialog::ValueNamesDialog( QWidget* parent )
     auto* previewLayout = new QVBoxLayout( previewBox );
     previewInput_ = new QLineEdit( previewBox );
     previewInput_->setObjectName( QStringLiteral( "previewInput" ) );
-    previewInput_->setPlaceholderText( tr( "Paste a sample Log Line here" ) );
+    previewInput_->setPlaceholderText(
+        tr( "Paste a sample Log Line here: all rules of the group run on it, "
+            "checked or not" ) );
     previewLayout->addWidget( previewInput_ );
     previewResult_ = new QLabel( previewBox );
     previewResult_->setObjectName( QStringLiteral( "previewResult" ) );
@@ -423,6 +543,7 @@ ValueNamesDialog::ValueNamesDialog( QWidget* parent )
     connect( downGroupButton_, &QToolButton::clicked, this, &ValueNamesDialog::moveGroupDown );
     connect( groupList_, &QListWidget::currentRowChanged, this, &ValueNamesDialog::groupSelected );
     connect( groupName_, &QLineEdit::textEdited, this, &ValueNamesDialog::groupRenamed );
+    connect( groupName_, &QLineEdit::editingFinished, this, &ValueNamesDialog::groupNameFinished );
 
     connect( addRuleButton_, &QToolButton::clicked, this, &ValueNamesDialog::addRule );
     connect( removeRuleButton_, &QToolButton::clicked, this, &ValueNamesDialog::removeRule );
@@ -444,7 +565,8 @@ ValueNamesDialog::ValueNamesDialog( QWidget* parent )
     connect( exportCsvButton_, &QToolButton::clicked, this, &ValueNamesDialog::exportCsv );
     connect( pasteButton_, &QToolButton::clicked, this, &ValueNamesDialog::paste );
 
-    connect( previewInput_, &QLineEdit::textChanged, this, &ValueNamesDialog::updatePreview );
+    connect( previewInput_, &QLineEdit::textChanged, this, &ValueNamesDialog::showPreviewLine );
+    previewInput_->installEventFilter( this );
     connect( buttonBox_, &QDialogButtonBox::clicked, this, &ValueNamesDialog::resolveDialog );
 
     // A copy: OK and Apply hand it back, Cancel drops it.
@@ -550,6 +672,33 @@ void ValueNamesDialog::groupRenamed( const QString& name )
     groupList_->item( groupRow_ )->setText( name );
 }
 
+void ValueNamesDialog::groupNameFinished()
+{
+    makeGroupNamesUnique();
+    if ( const auto* group = currentGroup();
+         group != nullptr && groupName_->text() != group->name() ) {
+        groupName_->setText( group->name() );
+    }
+}
+
+void ValueNamesDialog::makeGroupNamesUnique()
+{
+    QStringList taken;
+    for ( int row = 0; row < groups_.size(); ++row ) {
+        auto& group = groups_[ row ];
+        auto name = group.name().trimmed();
+        if ( name.isEmpty() ) {
+            name = tr( "New Naming Group" );
+        }
+        name = logsquirl::groupexchange::firstFreeName( name, taken );
+        taken.append( name );
+        if ( name != group.name() ) {
+            group.setName( name );
+            groupList_->item( row )->setText( name );
+        }
+    }
+}
+
 void ValueNamesDialog::addGroup()
 {
     QStringList taken;
@@ -653,6 +802,7 @@ void ValueNamesDialog::ruleEdited( QTableWidgetItem* item )
             break;
         case RuleRegex:
             patternChanged = rule.pattern != text;
+            rule.groupTables = adaptedGroupTables( rule.groupTables, rule.pattern, text );
             rule.pattern = text;
             break;
         case RuleTemplate:
@@ -916,7 +1066,16 @@ void ValueNamesDialog::removeTable()
         return;
     }
     const auto row = tableRow_;
+    const auto removedName = currentTable()->name;
     changeTables( [ row ]( QList<NameTable>& tables ) { tables.removeAt( row ); } );
+    // The rules that used it use no table there any more, as a rename
+    // follows into them.
+    changeRules( [ & ]( QList<NamingRule>& rules ) {
+        for ( auto& rule : rules ) {
+            rule.groupTables.removeIf(
+                [ & ]( const GroupTable& groupTable ) { return groupTable.table == removedName; } );
+        }
+    } );
     populateTables( std::min( row, static_cast<int>( group->tables().size() ) - 1 ) );
     populateCaptureGroups();
     updatePreview();
@@ -1010,7 +1169,7 @@ void ValueNamesDialog::removeRows()
 }
 
 void ValueNamesDialog::importCsvText( const QString& text, const CsvImportOptions& options,
-                                      const QString& newTableName )
+                                      CsvImportTarget target, const QString& newTableName )
 {
     const auto* group = currentGroup();
     if ( group == nullptr ) {
@@ -1018,7 +1177,7 @@ void ValueNamesDialog::importCsvText( const QString& text, const CsvImportOption
     }
     const auto imported = logsquirl::valuenames::importCsv( text, options );
 
-    if ( currentTable() == nullptr ) {
+    if ( target == CsvImportTarget::NewTable || currentTable() == nullptr ) {
         changeTables( [ & ]( QList<NameTable>& tables ) {
             NameTable table;
             table.name = logsquirl::groupexchange::firstFreeName(
@@ -1032,8 +1191,14 @@ void ValueNamesDialog::importCsvText( const QString& text, const CsvImportOption
     }
     else {
         const auto tableRow = tableRow_;
-        changeTables(
-            [ & ]( QList<NameTable>& tables ) { tables[ tableRow ].rows = imported.rows; } );
+        const bool append = target == CsvImportTarget::AppendRows;
+        changeTables( [ & ]( QList<NameTable>& tables ) {
+            auto& rows = tables[ tableRow ].rows;
+            if ( !append ) {
+                rows.clear();
+            }
+            rows.append( imported.rows );
+        } );
         populateRows();
     }
     showCsvWarnings( imported.warnings );
@@ -1090,14 +1255,16 @@ void ValueNamesDialog::importCsv()
                               tr( "The file %1 could not be read." ).arg( file ) );
         return;
     }
-    const auto text = QString::fromUtf8( input.readAll() );
+    const auto text = decodeCsvFile( input.readAll() );
 
     const auto* table = currentTable();
-    NameTableCsvImportDialog options( text, table != nullptr && table->caseSensitive, this );
+    NameTableCsvImportDialog options( text, table != nullptr && table->caseSensitive,
+                                      table != nullptr ? table->name : QString{}, this );
     if ( options.exec() != QDialog::Accepted ) {
         return;
     }
-    importCsvText( text, options.options(), QFileInfo( file ).completeBaseName() );
+    importCsvText( text, options.options(), options.target(),
+                   QFileInfo( file ).completeBaseName() );
 }
 
 void ValueNamesDialog::exportCsv()
@@ -1140,8 +1307,8 @@ void ValueNamesDialog::updatePreview()
     warnings_->clear();
     const auto* group = currentGroup();
     if ( group == nullptr ) {
-        shownPreview_.clear();
-        previewResult_->clear();
+        previewNamer_ = {};
+        showPreviewLine();
         return;
     }
 
@@ -1159,10 +1326,21 @@ void ValueNamesDialog::updatePreview()
         rule.enabled = true;
     }
     previewed.setRules( rules );
+    previewNamer_ = logsquirl::valuenames::ValueNamer( { previewed } );
 
+    showPreviewLine();
+}
+
+void ValueNamesDialog::showPreviewLine()
+{
     const auto sample = previewInput_->text();
-    const logsquirl::valuenames::ValueNamer namer( { previewed } );
-    const auto namedValues = namer.namedValues( sample );
+    if ( sample.isEmpty() || currentGroup() == nullptr ) {
+        shownPreview_ = sample;
+        previewResult_->clear();
+        return;
+    }
+
+    const auto namedValues = previewNamer_.namedValues( sample );
     shownPreview_ = logsquirl::valuenames::shownLine( sample, namedValues );
 
     // The Named Values underlined, as the views mark them.
@@ -1175,7 +1353,19 @@ void ValueNamesDialog::updatePreview()
         position = namedValue.end();
     }
     html += sample.mid( position ).toHtmlEscaped() + QStringLiteral( "</span>" );
-    previewResult_->setText( sample.isEmpty() ? QString{} : html );
+    previewResult_->setText( html );
+}
+
+bool ValueNamesDialog::eventFilter( QObject* watched, QEvent* event )
+{
+    // Enter in the sample Log Line is no OK.
+    if ( watched == previewInput_ && event->type() == QEvent::KeyPress ) {
+        const auto key = static_cast<QKeyEvent*>( event )->key();
+        if ( key == Qt::Key_Return || key == Qt::Key_Enter ) {
+            return true;
+        }
+    }
+    return QDialog::eventFilter( watched, event );
 }
 
 void ValueNamesDialog::updateButtons()
@@ -1212,6 +1402,7 @@ void ValueNamesDialog::resolveDialog( QAbstractButton* button )
         return;
     }
 
+    groupNameFinished();
     auto& collection = ValueNamesCollection::get();
     const bool changed = collection.setGroups( groups_ );
     collection.save();

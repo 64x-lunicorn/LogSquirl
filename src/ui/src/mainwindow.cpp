@@ -127,6 +127,7 @@
 #include "tabbedcrawlerwidget.h"
 #include "teamfolder.h"
 #include "theme.h"
+#include "valuenamescollection.h"
 #include "valuenamesdialog.h"
 
 namespace {
@@ -831,6 +832,8 @@ void MainWindow::reTranslateUI()
 
     showFiltersPanelAction->setText( transAction( action::showFiltersPanelText ) );
     showFiltersPanelAction->setStatusTip( transAction( action::showFiltersPanelStatusTip ) );
+    showValueNamesPanelAction->setText( transAction( action::showValueNamesPanelText ) );
+    showValueNamesPanelAction->setStatusTip( transAction( action::showValueNamesPanelStatusTip ) );
 
     toggleSidebarAction->setText( transAction( action::toggleSidebarText ) );
     toggleSidebarAction->setStatusTip( transAction( action::toggleSidebarStatusTip ) );
@@ -858,6 +861,8 @@ void MainWindow::reTranslateUI()
     predefinedFiltersDialogAction->setText( transAction( action::predefinedFiltersDialogText ) );
     predefinedFiltersDialogAction->setStatusTip(
         transAction( action::predefinedFiltersDialogStatusTip ) );
+    valueNamesDialogAction->setText( transAction( action::valueNamesDialogText ) );
+    valueNamesDialogAction->setStatusTip( transAction( action::valueNamesDialogStatusTip ) );
 
     regexLabAction->setText( transAction( action::regexLabText ) );
     regexLabAction->setStatusTip( transAction( action::regexLabStatusTip ) );
@@ -1112,6 +1117,11 @@ void MainWindow::createActions()
     connect( showFiltersPanelAction, &QAction::triggered, this,
              [ this ]( auto ) { this->showFiltersPanel(); } );
 
+    showValueNamesPanelAction = new QAction( tr( action::showValueNamesPanelText ), this );
+    showValueNamesPanelAction->setStatusTip( tr( action::showValueNamesPanelStatusTip ) );
+    connect( showValueNamesPanelAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->showValueNamesPanel(); } );
+
     toggleSidebarAction = new QAction( tr( action::toggleSidebarText ), this );
     toggleSidebarAction->setStatusTip( tr( action::toggleSidebarStatusTip ) );
     connect( toggleSidebarAction, &QAction::triggered, this,
@@ -1170,6 +1180,11 @@ void MainWindow::createActions()
     predefinedFiltersDialogAction->setStatusTip( tr( action::predefinedFiltersDialogStatusTip ) );
     connect( predefinedFiltersDialogAction, &QAction::triggered, this,
              [ this ]( auto ) { this->editPredefinedFilters(); } );
+
+    valueNamesDialogAction = new QAction( tr( action::valueNamesDialogText ), this );
+    valueNamesDialogAction->setStatusTip( tr( action::valueNamesDialogStatusTip ) );
+    connect( valueNamesDialogAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->editValueNames(); } );
 
     regexLabAction = new QAction( tr( action::regexLabText ), this );
     regexLabAction->setStatusTip( tr( action::regexLabStatusTip ) );
@@ -1379,6 +1394,7 @@ void MainWindow::createMenus()
         [ this ]() { session_.applyChange( Changed::HighlighterSets ); } );
 
     toolsMenu->addAction( predefinedFiltersDialogAction );
+    toolsMenu->addAction( valueNamesDialogAction );
     toolsMenu->addAction( importChipmunkFiltersAction );
     toolsMenu->addAction( regexLabAction );
     toolsMenu->addSeparator();
@@ -1387,6 +1403,7 @@ void MainWindow::createMenus()
     toolsMenu->addSeparator();
     toolsMenu->addAction( showScratchPadAction );
     toolsMenu->addAction( showFiltersPanelAction );
+    toolsMenu->addAction( showValueNamesPanelAction );
     toolsMenu->addSeparator();
     toolsMenu->addAction( commandPaletteAction );
 
@@ -1940,10 +1957,20 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
 // Collection, which every open Log File and every window is told of (#647).
 void MainWindow::editValueNames()
 {
+    // The dialog reads the groups again from the settings store, which may
+    // hold what another instance saved: that is a change too, OK or Cancel.
+    const auto& collection = ValueNamesCollection::get();
+    auto applied = collection.generation();
     ValueNamesDialog dialog( this );
-    connect( &dialog, &ValueNamesDialog::valueNamesChanged, this,
-             [ this ]() { session_.applyChange( Changed::ValueNames ); } );
+    const auto applyIfChanged = [ this, &collection, &applied ] {
+        if ( collection.generation() != applied ) {
+            applied = collection.generation();
+            session_.applyChange( Changed::ValueNames );
+        }
+    };
+    connect( &dialog, &ValueNamesDialog::valueNamesChanged, this, applyIfChanged );
     dialog.exec();
+    applyIfChanged();
 }
 
 void MainWindow::applyValueNamesChange()
@@ -2273,6 +2300,11 @@ void MainWindow::documentation()
 void MainWindow::showScratchPad()
 {
     showSidebar( SidebarScratchPadTab );
+}
+
+void MainWindow::showValueNamesPanel()
+{
+    showSidebar( SidebarValueNamesTab );
 }
 
 void MainWindow::sendToScratchpad( QString newData )

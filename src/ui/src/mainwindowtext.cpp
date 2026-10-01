@@ -125,6 +125,12 @@ const char* action::regexLabStatusTip
     = QT_TR_NOOP( "Test a pattern on Log Lines of the current tab before searching with it" );
 const char* action::showFiltersPanelText = QT_TR_NOOP( "Filters panel" );
 const char* action::showFiltersPanelStatusTip = QT_TR_NOOP( "Show the filters panel" );
+const char* action::showValueNamesPanelText = QT_TR_NOOP( "Value Names tab" );
+const char* action::showValueNamesPanelStatusTip
+    = QT_TR_NOOP( "Show the Value Names tab of the sidebar" );
+const char* action::valueNamesDialogText = QT_TR_NOOP( "Value Names..." );
+const char* action::valueNamesDialogStatusTip
+    = QT_TR_NOOP( "Show dialog to edit the Naming Groups of Value Names" );
 const char* action::toggleSidebarText = QT_TR_NOOP( "Sidebar" );
 const char* action::toggleSidebarStatusTip = QT_TR_NOOP( "Toggle the sidebar panel" );
 const char* action::toggleChartPanelText = QT_TR_NOOP( "Chart Panel" );

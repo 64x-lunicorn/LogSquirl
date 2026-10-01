@@ -253,6 +253,7 @@ private Q_SLOTS:
     void documentation();
     void showScratchPad();
     void showFiltersPanel();
+    void showValueNamesPanel();
     void clearIndexCache();
     void manageTabGroups();
     void showCommandPalette();
@@ -517,6 +518,7 @@ private:
     QAction* showScratchPadAction;
     QAction* commandPaletteAction;
     QAction* showFiltersPanelAction;
+    QAction* showValueNamesPanelAction;
     QAction* toggleSidebarAction;
     QAction* toggleChartPanelAction;
     QAction* showFilterFrequencyAction;
@@ -525,6 +527,7 @@ private:
     QAction* aboutAction;
     QAction* aboutQtAction;
     QAction* predefinedFiltersDialogAction;
+    QAction* valueNamesDialogAction;
     QAction* regexLabAction;
     QAction* manageTabGroupsAction;
     QAction* reportIssueAction;

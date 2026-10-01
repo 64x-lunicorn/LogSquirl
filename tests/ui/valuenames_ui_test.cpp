@@ -23,7 +23,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFile>
@@ -33,6 +35,7 @@
 #include <QMetaObject>
 #include <QPushButton>
 #include <QSignalSpy>
+#include <QSpinBox>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTest>
@@ -473,12 +476,13 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
             }
         }
 
-        WHEN( "CSV with a header and a key twice is imported into the table Ids" )
+        WHEN( "CSV with a header and a key twice replaces the rows of the table Ids" )
         {
             tables->setCurrentRow( 2 );
             logsquirl::valuenames::CsvImportOptions options;
             options.hasHeader = true;
-            dialog.importCsvText( QStringLiteral( "key;name\n1;one\n1;uno\n2;two\n" ), options );
+            dialog.importCsvText( QStringLiteral( "key;name\n1;one\n1;uno\n2;two\n" ), options,
+                                  CsvImportTarget::ReplaceRows );
 
             THEN( "it replaces the rows, the first key wins, and the warning names the line" )
             {
@@ -505,13 +509,140 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
         WHEN( "CSV is imported while no table is selected" )
         {
             toolButtonOf( dialog, QStringLiteral( "Add a Naming Group" ) )->click();
-            dialog.importCsvText( QStringLiteral( "a,b\n" ), {}, QStringLiteral( "Codes" ) );
+            dialog.importCsvText( QStringLiteral( "a,b\n" ), {}, CsvImportTarget::ReplaceRows,
+                                  QStringLiteral( "Codes" ) );
 
             THEN( "it becomes a new table, named after the file" )
             {
                 REQUIRE( dialog.groups().size() == 2 );
                 REQUIRE( dialog.groups()[ 1 ].tables().size() == 1 );
                 REQUIRE( dialog.groups()[ 1 ].tables()[ 0 ].name == QStringLiteral( "Codes" ) );
+            }
+        }
+
+        WHEN( "CSV is imported into a new table and appended to the table Ids" )
+        {
+            tables->setCurrentRow( 2 );
+            dialog.importCsvText( QStringLiteral( "8,eight\n" ), {}, CsvImportTarget::NewTable,
+                                  QStringLiteral( "Ids" ) );
+            const auto newTable = dialog.groups()[ 0 ].tables().last();
+            tables->setCurrentRow( 2 );
+            dialog.importCsvText( QStringLiteral( "9,nine\n" ), {}, CsvImportTarget::AppendRows );
+
+            THEN( "the new table has a name of its own, and Ids keeps its row before the new one" )
+            {
+                REQUIRE( dialog.groups()[ 0 ].tables().size() == 4 );
+                REQUIRE( newTable.name == QStringLiteral( "Ids (2)" ) );
+                REQUIRE(
+                    newTable.rows
+                    == QList<NameRow>{ { QStringLiteral( "8" ), QStringLiteral( "eight" ) } } );
+                REQUIRE( dialog.groups()[ 0 ].tables()[ 2 ].rows
+                         == QList<NameRow>{ { QStringLiteral( "7" ), QStringLiteral( "seven" ) },
+                                            { QStringLiteral( "9" ), QStringLiteral( "nine" ) } } );
+            }
+        }
+
+        WHEN( "a key holding %2 is there twice" )
+        {
+            tables->setCurrentRow( 2 );
+            dialog.pasteRows( QStringLiteral( "a%2Fb\tone\na%2Fb\ttwo\n" ) );
+            const auto pasted = warningTexts();
+            dialog.pasteRows( QStringLiteral( "a%2Fb\tthree\n" ) );
+
+            THEN( "the warnings show the key as it is, with the right rows and CSV line" )
+            {
+                REQUIRE( pasted.contains( QStringLiteral(
+                    "CSV line 2: the key \"a%2Fb\" was already read on line 1" ) ) );
+                REQUIRE( warningTexts().contains( QStringLiteral(
+                    "Table \"Ids\", row 3: the key \"a%2Fb\" is already in row 2" ) ) );
+            }
+        }
+
+        WHEN( "the regex of the rule BAP ECU loses its second capture group" )
+        {
+            rules->item( 0, 1 )->setText( QStringLiteral( "BAP << ECU (0x[0-9A-F]{2})" ) );
+
+            THEN( "the table of the group gone goes, that of group 1 stays" )
+            {
+                REQUIRE(
+                    dialog.groups()[ 0 ].rules()[ 0 ].groupTables
+                    == QList<GroupTable>{ { QStringLiteral( "1" ), QStringLiteral( "ECU" ) } } );
+                REQUIRE( captureGroups->rowCount() == 1 );
+                REQUIRE( warnings->count() == 0 );
+            }
+        }
+
+        WHEN( "a rule looking up its whole match gets a capture group, then it is renamed" )
+        {
+            rules->selectRow( 1 );
+            rules->item( 1, 1 )->setText( QStringLiteral( "id=\\d+" ) );
+            auto* combo = qobject_cast<QComboBox*>( captureGroups->cellWidget( 0, 1 ) );
+            REQUIRE( combo != nullptr );
+            REQUIRE( captureGroups->item( 0, 0 )->text() == QStringLiteral( "whole match" ) );
+            combo->setCurrentIndex( combo->findText( QStringLiteral( "Ids" ) ) );
+            REQUIRE( dialog.groups()[ 0 ].rules()[ 1 ].groupTables
+                     == QList<GroupTable>{ { QStringLiteral( "0" ), QStringLiteral( "Ids" ) } } );
+
+            rules->item( 1, 1 )->setText( QStringLiteral( "id=(?<id>\\d+)" ) );
+            const auto withGroup = dialog.groups()[ 0 ].rules()[ 1 ].groupTables;
+            rules->item( 1, 1 )->setText( QStringLiteral( "id=(?<number>\\d+)" ) );
+
+            THEN( "the whole match's table goes to the group, and follows it under its new name" )
+            {
+                REQUIRE(
+                    withGroup
+                    == QList<GroupTable>{ { QStringLiteral( "id" ), QStringLiteral( "Ids" ) } } );
+                REQUIRE( dialog.groups()[ 0 ].rules()[ 1 ].groupTables
+                         == QList<GroupTable>{
+                             { QStringLiteral( "number" ), QStringLiteral( "Ids" ) } } );
+                REQUIRE( warnings->count() == 0 );
+            }
+        }
+
+        WHEN( "the table Function is removed" )
+        {
+            tables->setCurrentRow( 1 );
+            toolButtonOf( dialog, QStringLiteral( "Remove the Name Table" ) )->click();
+
+            THEN( "the rule that used it uses no table for that capture group" )
+            {
+                REQUIRE(
+                    dialog.groups()[ 0 ].rules()[ 0 ].tableFor( QStringLiteral( "2" ) ).isEmpty() );
+                REQUIRE( warnings->count() == 0 );
+            }
+        }
+
+        WHEN( "a second group is named like the first, and another emptied" )
+        {
+            auto* name = dialog.findChild<QLineEdit*>( QStringLiteral( "groupName" ) );
+            toolButtonOf( dialog, QStringLiteral( "Add a Naming Group" ) )->click();
+            name->setText( QStringLiteral( "BAP" ) );
+            Q_EMIT name->textEdited( name->text() );
+            Q_EMIT name->editingFinished();
+            toolButtonOf( dialog, QStringLiteral( "Add a Naming Group" ) )->click();
+            name->setText( QString{} );
+            Q_EMIT name->textEdited( name->text() );
+            Q_EMIT name->editingFinished();
+
+            THEN( "each gets a name of its own" )
+            {
+                REQUIRE( dialog.groups()[ 1 ].name() == QStringLiteral( "BAP (2)" ) );
+                REQUIRE( dialog.groups()[ 2 ].name() == QStringLiteral( "New Naming Group" ) );
+                REQUIRE( name->text() == QStringLiteral( "New Naming Group" ) );
+            }
+        }
+
+        WHEN( "Enter is pressed in the preview" )
+        {
+            dialog.show();
+            preview->setFocus();
+            QTest::keyClick( preview, Qt::Key_Return );
+
+            THEN( "the dialog stays open and nothing is applied" )
+            {
+                REQUIRE( dialog.isVisible() );
+                REQUIRE( dialog.result() == 0 );
+                REQUIRE( changed.count() == 0 );
             }
         }
 
@@ -549,11 +680,13 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
 SCENARIO( "The CSV import of a Name Table shows the separator and asks for the columns",
           "[ui][valuenames][valuenamesdialog]" )
 {
-    GIVEN( "CSV separated by semicolons" )
+    GIVEN( "CSV separated by semicolons, with no table selected" )
     {
-        const NameTableCsvImportDialog dialog( QStringLiteral( "a;b;c\n1;2;3\n" ), true );
+        NameTableCsvImportDialog dialog( QStringLiteral( "a;b;c\n1;2;3\n" ), true );
+        auto* target = dialog.findChild<QComboBox*>();
+        REQUIRE( target != nullptr );
 
-        THEN( "the separator shown is the semicolon, and the columns are 1 and 2" )
+        THEN( "the separator shown is the semicolon, the columns are 1 and 2, into a new table" )
         {
             REQUIRE( dialog.separatorShown() == QStringLiteral( "semicolon" ) );
             const auto options = dialog.options();
@@ -561,9 +694,151 @@ SCENARIO( "The CSV import of a Name Table shows the separator and asks for the c
             REQUIRE( options.nameColumn == 1 );
             REQUIRE_FALSE( options.hasHeader );
             REQUIRE( options.caseSensitive );
+            REQUIRE( target->count() == 1 );
+            REQUIRE( dialog.target() == CsvImportTarget::NewTable );
+        }
+
+        WHEN( "the key and the name are given the same column" )
+        {
+            auto spins = dialog.findChildren<QSpinBox*>();
+            REQUIRE( spins.size() == 2 );
+            spins[ 1 ]->setValue( spins[ 0 ]->value() );
+
+            THEN( "OK cannot be clicked" )
+            {
+                REQUIRE_FALSE( dialog.findChild<QDialogButtonBox*>()
+                                   ->button( QDialogButtonBox::Ok )
+                                   ->isEnabled() );
+            }
+        }
+    }
+
+    GIVEN( "a table selected" )
+    {
+        NameTableCsvImportDialog dialog( QStringLiteral( "a,b\n" ), false,
+                                         QStringLiteral( "ECU" ) );
+        auto* target = dialog.findChild<QComboBox*>();
+
+        THEN( "the rows can also replace those of the table or be appended to them" )
+        {
+            REQUIRE( target->count() == 3 );
+            REQUIRE( dialog.target() == CsvImportTarget::NewTable );
+            target->setCurrentIndex( 1 );
+            REQUIRE( dialog.target() == CsvImportTarget::ReplaceRows );
+            target->setCurrentIndex( 2 );
+            REQUIRE( dialog.target() == CsvImportTarget::AppendRows );
         }
     }
 }
+
+SCENARIO( "A CSV file is read in the encoding a spreadsheet saves it in",
+          "[ui][valuenames][valuenamesdialog]" )
+{
+    const auto expected = QStringLiteral( "Tür,Öl\n" );
+
+    WHEN( "it is UTF-16LE with a byte order mark" )
+    {
+        QByteArray bytes( "\xFF\xFE", 2 );
+        bytes
+            += QByteArray( reinterpret_cast<const char*>( expected.utf16() ), expected.size() * 2 );
+        REQUIRE( decodeCsvFile( bytes ) == expected );
+    }
+
+    WHEN( "it is UTF-8 with or without a byte order mark" )
+    {
+        REQUIRE( decodeCsvFile( expected.toUtf8() ) == expected );
+        REQUIRE( decodeCsvFile( QByteArray( "\xEF\xBB\xBF" ) + expected.toUtf8() ) == expected );
+    }
+
+    WHEN( "it is windows-1252, which is not valid UTF-8" )
+    {
+        // T \xFC r , \xD6 l, and the euro sign 0x80 only windows-1252 has.
+        REQUIRE( decodeCsvFile( QByteArray( "T\xFCr,\xD6l \x80\n" ) )
+                 == QStringLiteral( "Tür,Öl €\n" ) );
+    }
+}
+
+namespace {
+
+// A window over the Session showing a Log File with Named Values, in a tab
+// that shows Value Names.
+struct ValueNamesWindow {
+    ValueNamesWindow( const std::shared_ptr<Session>& session, const QString& path,
+                      const QString& name )
+        : window( std::make_unique<MainWindow>(
+              WindowSession{ session, name, 0 },
+              std::make_shared<logsquirl::plugins::ApplicationPlugins>() ) )
+    {
+        window->show();
+        window->loadFileNonInteractive( path );
+        CrawlerWidget* crawler = nullptr;
+        REQUIRE( waitUiState( [ & ] {
+            crawler = window->findChild<CrawlerWidget*>();
+            return crawler != nullptr;
+        } ) );
+        view = crawler->findChild<AbstractLogView*>();
+        REQUIRE( view != nullptr );
+        REQUIRE( waitUiState( [ this ] { return view->showsValueNames(); } ) );
+        panel = window->findChild<ValueNamesPanel*>();
+        REQUIRE( panel != nullptr );
+        tree = treeOf( *panel );
+    }
+
+    ~ValueNamesWindow()
+    {
+        window.reset();
+        QTest::qWait( 50 );
+    }
+
+    ValueNamesWindow( const ValueNamesWindow& ) = delete;
+    ValueNamesWindow& operator=( const ValueNamesWindow& ) = delete;
+
+    QAction* action( const QString& text ) const
+    {
+        for ( auto* candidate : window->findChildren<QAction*>() ) {
+            if ( candidate->text() == text ) {
+                return candidate;
+            }
+        }
+        FAIL( "no action " << text.toStdString() );
+        return nullptr;
+    }
+
+    std::unique_ptr<MainWindow> window;
+    AbstractLogView* view = nullptr;
+    ValueNamesPanel* panel = nullptr;
+    QTreeWidget* tree = nullptr;
+};
+
+QString writeLogFile( const QTemporaryDir& dir, const QString& name )
+{
+    const auto path = dir.filePath( name );
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::WriteOnly ) );
+    file.write( "BAP << ECU 0x15 0x14 sonstiges\nid=7\n" );
+    return path;
+}
+
+std::shared_ptr<Session> valueNamesSession()
+{
+    auto policies = testSettingsPolicies();
+    policies.presentation.showValueNames = true;
+    return std::make_shared<Session>( policies, std::make_shared<LogFormatCatalog>() );
+}
+
+// Removes the selected group in the Value Names dialog about to open, and
+// clicks OK.
+void removeGroupInDialog()
+{
+    QTimer::singleShot( 0, [] {
+        auto* dialog = qobject_cast<ValueNamesDialog*>( QApplication::activeModalWidget() );
+        REQUIRE( dialog != nullptr );
+        toolButtonOf( *dialog, QStringLiteral( "Remove the Naming Group" ) )->click();
+        dialog->findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Ok )->click();
+    } );
+}
+
+} // namespace
 
 SCENARIO( "What the Value Names dialog and tab change reaches the views of a window",
           "[ui][valuenames][valuenamesdialog][valuenamespanel]" )
@@ -573,35 +848,12 @@ SCENARIO( "What the Value Names dialog and tab change reaches the views of a win
 
     QTemporaryDir dir;
     REQUIRE( dir.isValid() );
-    const auto path = dir.filePath( QStringLiteral( "value-names.log" ) );
-    {
-        QFile file( path );
-        REQUIRE( file.open( QIODevice::WriteOnly ) );
-        file.write( "BAP << ECU 0x15 0x14 sonstiges\nid=7\n" );
-    }
-
-    auto policies = testSettingsPolicies();
-    policies.presentation.showValueNames = true;
-    const auto session
-        = std::make_shared<Session>( policies, std::make_shared<LogFormatCatalog>() );
-    auto mainWindow = std::make_unique<MainWindow>(
-        WindowSession{ session, "Main", 0 },
-        std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
-    mainWindow->show();
-    mainWindow->loadFileNonInteractive( path );
-
-    CrawlerWidget* crawler = nullptr;
-    REQUIRE( waitUiState( [ & ] {
-        crawler = mainWindow->findChild<CrawlerWidget*>();
-        return crawler != nullptr;
-    } ) );
-    auto* view = crawler->findChild<AbstractLogView*>();
-    REQUIRE( view != nullptr );
-    REQUIRE( waitUiState( [ view ] { return view->showsValueNames(); } ) );
-
-    auto* panel = mainWindow->findChild<ValueNamesPanel*>();
-    REQUIRE( panel != nullptr );
-    auto* tree = treeOf( *panel );
+    const auto session = valueNamesSession();
+    ValueNamesWindow shown( session, writeLogFile( dir, QStringLiteral( "value-names.log" ) ),
+                            QStringLiteral( "Main" ) );
+    auto* panel = shown.panel;
+    auto* tree = shown.tree;
+    auto* view = shown.view;
 
     GIVEN( "the window's Value Names tab, third after Filters and Scratchpad" )
     {
@@ -609,6 +861,18 @@ SCENARIO( "What the Value Names dialog and tab change reaches the views of a win
         REQUIRE( tabs != nullptr );
         REQUIRE( tabs->indexOf( panel ) == 2 );
         REQUIRE( tabs->tabText( 2 ) == QStringLiteral( "Value Names" ) );
+
+        WHEN( "Tools -> Value Names tab is chosen" )
+        {
+            tabs->setCurrentIndex( 0 );
+            shown.action( QStringLiteral( "Value Names tab" ) )->trigger();
+
+            THEN( "the sidebar shows the tab" )
+            {
+                REQUIRE( tabs->currentIndex() == 2 );
+                REQUIRE( panel->isVisible() );
+            }
+        }
 
         WHEN( "its group is unchecked" )
         {
@@ -622,12 +886,7 @@ SCENARIO( "What the Value Names dialog and tab change reaches the views of a win
 
         WHEN( "the group is removed in the dialog opened by Edit..." )
         {
-            QTimer::singleShot( 0, [] {
-                auto* dialog = qobject_cast<ValueNamesDialog*>( QApplication::activeModalWidget() );
-                REQUIRE( dialog != nullptr );
-                toolButtonOf( *dialog, QStringLiteral( "Remove the Naming Group" ) )->click();
-                dialog->findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Ok )->click();
-            } );
+            removeGroupInDialog();
             buttonOf( *panel, QStringLiteral( "Edit..." ) )->click();
 
             THEN( "the view no longer names values, and the tab lists no group" )
@@ -637,8 +896,58 @@ SCENARIO( "What the Value Names dialog and tab change reaches the views of a win
                 REQUIRE( tree->topLevelItemCount() == 0 );
             }
         }
-    }
 
-    mainWindow.reset();
-    QTest::qWait( 50 );
+        WHEN( "the dialog, opened by Tools -> Value Names..., reads other groups from the "
+              "settings, and is cancelled" )
+        {
+            // What another instance saved: the settings hold another group
+            // than this one does.
+            auto stored = exampleGroup();
+            stored.setName( QStringLiteral( "Stored" ) );
+            storeGroups( { stored } );
+            ValueNamesCollection::get().setGroups( { exampleGroup() } );
+            session->applyChange( Changed::ValueNames );
+            REQUIRE( tree->topLevelItem( 0 )->text( 0 ) == QStringLiteral( "BAP" ) );
+
+            QTimer::singleShot( 0, [] {
+                auto* dialog = qobject_cast<ValueNamesDialog*>( QApplication::activeModalWidget() );
+                REQUIRE( dialog != nullptr );
+                dialog->findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Cancel )->click();
+            } );
+            shown.action( QStringLiteral( "Value Names..." ) )->trigger();
+
+            THEN( "the tab shows the groups read" )
+            {
+                REQUIRE( tree->topLevelItem( 0 )->text( 0 ) == QStringLiteral( "Stored" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "What the Value Names dialog of one window changes reaches the other window",
+          "[ui][valuenames][valuenamesdialog][valuenamespanel]" )
+{
+    const StoredValueNamesGuard guard;
+    storeGroups( { exampleGroup() } );
+
+    QTemporaryDir dir;
+    REQUIRE( dir.isValid() );
+    const auto session = valueNamesSession();
+    ValueNamesWindow first( session, writeLogFile( dir, QStringLiteral( "first.log" ) ),
+                            QStringLiteral( "First" ) );
+    ValueNamesWindow second( session, writeLogFile( dir, QStringLiteral( "second.log" ) ),
+                             QStringLiteral( "Second" ) );
+    REQUIRE( second.tree->topLevelItemCount() == 1 );
+
+    WHEN( "the group is removed in the first window's dialog" )
+    {
+        removeGroupInDialog();
+        buttonOf( *first.panel, QStringLiteral( "Edit..." ) )->click();
+
+        THEN( "the second window's tab lists no group, and its view names nothing" )
+        {
+            REQUIRE( second.tree->topLevelItemCount() == 0 );
+            REQUIRE_FALSE( second.view->showsValueNames() );
+        }
+    }
 }

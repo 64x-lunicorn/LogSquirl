@@ -28,9 +28,11 @@
 
 #include "nametablecsv.h"
 #include "naminggroup.h"
+#include "valuenamer.h"
 
 class QAbstractButton;
 class QCheckBox;
+class QComboBox;
 class QDialogButtonBox;
 class QLabel;
 class QLineEdit;
@@ -42,28 +44,54 @@ class QTableWidgetItem;
 class QToolButton;
 class QVBoxLayout;
 
+// The text of a CSV file: UTF-8 or UTF-16 with its byte order mark, UTF-8
+// without one if it reads as UTF-8, else the ANSI code page a spreadsheet
+// writes -- the system's on Windows, windows-1252 elsewhere.
+QString decodeCsvFile( const QByteArray& bytes );
+
+// Where a CSV import puts the rows it reads.
+enum class CsvImportTarget {
+    // A new Name Table, named after the file.
+    NewTable,
+    // The selected table, its rows replaced.
+    ReplaceRows,
+    // The selected table, after its rows.
+    AppendRows,
+};
+
 // Asks how a CSV text is read into a Name Table: which column holds the key
-// and which the name (1 and 2 unless chosen otherwise), and whether the first
-// record is a header. Shows the separator detected and the first records.
+// and which the name (1 and 2 unless chosen otherwise), whether the first
+// record is a header, and where the rows go. Shows the separator detected and
+// the first records.
 class NameTableCsvImportDialog : public QDialog {
     Q_OBJECT
 
 public:
-    NameTableCsvImportDialog( const QString& text, bool caseSensitive, QWidget* parent = nullptr );
+    // selectedTable is the Name Table selected in the Value Names dialog,
+    // empty when none is: only then can the rows go into it.
+    NameTableCsvImportDialog( const QString& text, bool caseSensitive,
+                              const QString& selectedTable = {}, QWidget* parent = nullptr );
 
     // What was chosen, columns 0-based.
     logsquirl::valuenames::CsvImportOptions options() const;
+
+    CsvImportTarget target() const;
 
     // The separator detected, as shown: "comma", "semicolon" or "tab".
     QString separatorShown() const;
 
 private:
+    void updateAcceptable();
+
     QChar separator_;
     bool caseSensitive_ = false;
     QLabel* separatorLabel_ = nullptr;
     QSpinBox* keyColumn_ = nullptr;
     QSpinBox* nameColumn_ = nullptr;
+    QLabel* sameColumns_ = nullptr;
     QCheckBox* hasHeader_ = nullptr;
+    QComboBox* target_ = nullptr;
+    QDialogButtonBox* buttons_ = nullptr;
 };
 
 // The Value Names dialog (#647), built like the Predefined Filters Dialog:
@@ -88,11 +116,11 @@ public:
         return groups_;
     }
 
-    // Reads the CSV text into the selected Name Table, replacing its rows; to
-    // a new table of that name when none is selected. Import CSV... after its
-    // file and options were chosen.
+    // Reads the CSV text into a new Name Table of that name, or into the
+    // selected one, replacing or after its rows; into a new table when none is
+    // selected. Import CSV... after its file and options were chosen.
     void importCsvText( const QString& text, const logsquirl::valuenames::CsvImportOptions& options,
-                        const QString& newTableName = {} );
+                        CsvImportTarget target, const QString& newTableName = {} );
 
     // The rows of the selected Name Table as CSV: what Export CSV... writes.
     QString exportCsvText() const;
@@ -138,7 +166,11 @@ private Q_SLOTS:
     void exportCsv();
     void paste();
 
+    // The group was edited: its namer and warnings are made again.
     void updatePreview();
+    // The sample Log Line changed: only it is named again.
+    void showPreviewLine();
+    void groupNameFinished();
     void resolveDialog( QAbstractButton* button );
 
 private:
@@ -164,6 +196,10 @@ private:
     // Shows the warnings of a CSV import or a paste with the group's.
     void showCsvWarnings( const QList<logsquirl::valuenames::CsvImportWarning>& warnings );
     void loadIcons();
+    // Every group named, and no two alike: an exported group's file is
+    // named after it.
+    void makeGroupNamesUnique();
+    bool eventFilter( QObject* watched, QEvent* event ) override;
 
     QList<logsquirl::valuenames::NamingGroup> groups_;
     int groupRow_ = -1;
@@ -171,6 +207,8 @@ private:
     int tableRow_ = -1;
     bool updating_ = false;
     QString shownPreview_;
+    // Built from the group as last edited, all its rules checked.
+    logsquirl::valuenames::ValueNamer previewNamer_;
     QStringList csvWarnings_;
 
     // Left: the groups. Stage 4 adds Export, Import and the Team groups to
