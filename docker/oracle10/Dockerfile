@@ -1,4 +1,4 @@
-FROM oraclelinux:10@sha256:1628d6e6586862766a2d5925f0fab6c6e1a468bc33874ae68046c7ca57406baf
+FROM oraclelinux:10@sha256:5532d0ebb1d340b4ea6120d0fe05bf0a7b25c1a5e244995d85b4252e2c719a08
 
 COPY oracle10/epel.repo /etc/yum.repos.d/
 
