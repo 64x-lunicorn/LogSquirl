@@ -1401,7 +1401,7 @@ SCENARIO( "A Decoration moves to the columns of another text", "[linedecorator][
         WHEN( "columns 4 to 8 are shown as 12 columns" )
         {
             const auto moved = std::move( decoration ).inColumns( []( int column ) {
-                return column <= 4 ? column : column <= 8 ? column + 8 : column + 8;
+                return column <= 4 ? column : column + 8;
             } );
 
             THEN( "each span stretches with its text" )
