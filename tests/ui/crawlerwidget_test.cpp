@@ -43,6 +43,7 @@
 #include "stored_session.h"
 #include "test_policies.h"
 #include "test_utils.h"
+#include "valuenames_fixture.h"
 
 #include "logdata.h"
 #include "logfiltereddata.h"
@@ -1101,6 +1102,48 @@ SCENARIO( "The Crawler Widget shows and searches under the Policies it was hande
         {
             REQUIRE( !crawlerVisitor.crawler->isTextWrapEnabled() );
             REQUIRE( !crawlerVisitor.filteredView()->isTextWrapEnabled() );
+        }
+    }
+}
+
+// Value Names start as the Presentation Policy says, in the Text View and
+// every Filtered View of the tab, and are switched for the tab as a whole
+// (#647).
+SCENARIO( "The Crawler Widget shows Value Names as its Policy and its switch say",
+          "[ui][settings][valuenames]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    const valuenamesfixture::ScopedValueNames valueNames;
+
+    for ( const bool shown : { true, false } ) {
+        GIVEN( "a Policy that " << ( shown ? "shows" : "does not show" ) << " Value Names" )
+        {
+            auto policies = testSettingsPolicies();
+            policies.presentation.showValueNames = shown;
+
+            Session session{ policies, std::make_shared<LogFormatCatalog>() };
+            CrawlerWidgetVisitor crawlerVisitor;
+            openCrawler( session, file, crawlerVisitor );
+            auto& crawler = *crawlerVisitor.crawler;
+
+            THEN( "the Text View and the Filtered View show them as it says" )
+            {
+                REQUIRE( crawler.isValueNamesShownSet() == shown );
+                REQUIRE( crawler.state().valueNamesShown == shown );
+                REQUIRE( crawlerVisitor.filteredView()->isValueNamesShownSet() == shown );
+                REQUIRE( crawlerVisitor.filteredView()->showsValueNames() == shown );
+            }
+
+            WHEN( "the tab's switch is turned the other way" )
+            {
+                Q_EMIT crawler.valueNamesShownSet( !shown );
+
+                THEN( "both views follow it" )
+                {
+                    REQUIRE( crawler.isValueNamesShownSet() == !shown );
+                    REQUIRE( crawlerVisitor.filteredView()->isValueNamesShownSet() == !shown );
+                }
+            }
         }
     }
 }

@@ -731,6 +731,8 @@ void MainWindow::reTranslateUI()
 
     copyAction->setText( transAction( action::copyText ) );
     copyAction->setStatusTip( transAction( action::copyStatusTip ) );
+    copyAsShownAction->setText( transAction( action::copyAsShownText ) );
+    copyAsShownAction->setStatusTip( transAction( action::copyAsShownStatusTip ) );
 
     selectAllAction->setText( transAction( action::selectAllText ) );
     selectAllAction->setStatusTip( transAction( action::selectAllStatusTip ) );
@@ -786,6 +788,8 @@ void MainWindow::reTranslateUI()
 
     followAction->setText( transAction( action::followText ) );
     textWrapAction->setText( transAction( action::wrapText ) );
+    showValueNamesAction->setText( transAction( action::showValueNamesText ) );
+    showValueNamesAction->setStatusTip( transAction( action::showValueNamesStatusTip ) );
     reloadAction->setText( transAction( action::reloadText ) );
     stopAction->setText( transAction( action::stopText ) );
 
@@ -942,6 +946,11 @@ void MainWindow::createActions()
     copyAction->setStatusTip( tr( action::copyStatusTip ) );
     connect( copyAction, &QAction::triggered, this, [ this ]( auto ) { this->copy(); } );
 
+    copyAsShownAction = new QAction( tr( action::copyAsShownText ), this );
+    copyAsShownAction->setStatusTip( tr( action::copyAsShownStatusTip ) );
+    connect( copyAsShownAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->copyAsShown(); } );
+
     selectAllAction = new QAction( tr( action::selectAllText ), this );
     selectAllAction->setStatusTip( tr( action::selectAllStatusTip ) );
     connect( selectAllAction, &QAction::triggered, this, [ this ]( auto ) { this->selectAll(); } );
@@ -1034,6 +1043,11 @@ void MainWindow::createActions()
     textWrapAction->setCheckable( true );
     textWrapAction->setEnabled( true );
     connect( textWrapAction, &QAction::toggled, this, &MainWindow::textWrapSet );
+
+    showValueNamesAction = new QAction( tr( action::showValueNamesText ), this );
+    showValueNamesAction->setStatusTip( tr( action::showValueNamesStatusTip ) );
+    showValueNamesAction->setCheckable( true );
+    connect( showValueNamesAction, &QAction::toggled, this, &MainWindow::valueNamesShownSet );
 
     reloadAction = new QAction( tr( action::reloadText ), this );
 
@@ -1220,6 +1234,7 @@ void MainWindow::updateShortcuts()
     setShortcuts( openCommandOutputAction, ShortcutAction::MainWindowOpenCommandOutput );
     setShortcuts( followAction, ShortcutAction::MainWindowFollowFile );
     setShortcuts( textWrapAction, ShortcutAction::MainWindowTextWrap );
+    setShortcuts( showValueNamesAction, ShortcutAction::MainWindowShowValueNames );
     setShortcuts( reloadAction, ShortcutAction::MainWindowReload );
     setShortcuts( stopAction, ShortcutAction::MainWindowStop );
     setShortcuts( showScratchPadAction, ShortcutAction::MainWindowScratchpad );
@@ -1309,6 +1324,7 @@ void MainWindow::createMenus()
 
     editMenu = menuBar()->addMenu( tr( menu::editTitle ) );
     editMenu->addAction( copyAction );
+    editMenu->addAction( copyAsShownAction );
     editMenu->addAction( selectAllAction );
     editMenu->addSeparator();
     editMenu->addAction( findAction );
@@ -1335,6 +1351,7 @@ void MainWindow::createMenus()
     viewMenu->addAction( lineNumbersVisibleInFilteredAction );
     viewMenu->addSeparator();
     viewMenu->addAction( textWrapAction );
+    viewMenu->addAction( showValueNamesAction );
     viewMenu->addSeparator();
     viewMenu->addAction( followAction );
     viewMenu->addSeparator();
@@ -1678,6 +1695,21 @@ void MainWindow::copy()
 
         if ( auto current = currentCrawlerWidget(); current != nullptr ) {
             auto text = current->getSelectedText();
+            text.replace( QChar::Null, QChar::Space );
+
+            sendTextToClipboard( text, true );
+        }
+    } catch ( std::exception& err ) {
+        LOG_ERROR << "failed to copy data to clipboard " << err.what();
+    }
+}
+
+// Copy the selection as the view shows it into the clipboard
+void MainWindow::copyAsShown()
+{
+    try {
+        if ( auto current = currentCrawlerWidget(); current != nullptr ) {
+            auto text = current->getSelectedTextAsShown();
             text.replace( QChar::Null, QChar::Space );
 
             sendTextToClipboard( text, true );
@@ -2833,6 +2865,8 @@ void MainWindow::connectFrontTab( CrawlerWidget* crawler )
         // What the window asks of the Log File in front
         connect( this, &MainWindow::followSet, crawler, &CrawlerWidget::followSet ),
         connect( this, &MainWindow::textWrapSet, crawler, &CrawlerWidget::textWrapSet ),
+        connect( this, &MainWindow::valueNamesShownSet, crawler,
+                 &CrawlerWidget::valueNamesShownSet ),
         connect( this, &MainWindow::enteringQuickFind, crawler, &CrawlerWidget::enteringQuickFind ),
         connect( &quickFindWidget_, &QuickFindWidget::close, crawler,
                  &CrawlerWidget::exitingQuickFind ),
@@ -3456,6 +3490,7 @@ void MainWindow::updateMenuBarFromDocument( const CrawlerWidget::State& state )
 
     changeFollowMode( state.follows );
     textWrapAction->setChecked( state.textWrap );
+    showValueNamesAction->setChecked( state.valueNamesShown );
     updateGoToTimestampAction( state );
 }
 

@@ -1615,3 +1615,55 @@ SCENARIO( "Open Command Output asks for a command and remembers it", "[ui][tabs]
     REQUIRE_FALSE( recent.empty() );
     REQUIRE( recent.front() == RecentCommand{ commandLine, {}, false } );
 }
+
+// View -> Show Value Names switches them for the tab in front, as Wrap text
+// does: each tab keeps its own, and the action shows the front tab's (#647).
+SCENARIO( "Show Value Names is switched per tab", "[ui][tabs][valuenames]" )
+{
+    TabsWindow window( false );
+    const ThreeLogFiles files;
+    window.open( files.paths.mid( 0, 2 ) );
+
+    auto* showValueNames
+        = fileMenuAction( *window.mainWindow, logsquirl::mainwindow::action::showValueNamesText );
+    REQUIRE( showValueNames != nullptr );
+    REQUIRE( showValueNames->isCheckable() );
+
+    const auto crawlerAt = [ &window ]( int tab ) {
+        auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( tab ) );
+        REQUIRE( crawler != nullptr );
+        return crawler;
+    };
+
+    GIVEN( "both tabs opened without Value Names, as the Policy says" )
+    {
+        window.tabArea->setCurrentIndex( 0 );
+        REQUIRE_FALSE( showValueNames->isChecked() );
+
+        WHEN( "the action is turned on in the first tab" )
+        {
+            showValueNames->trigger();
+
+            THEN( "the first tab shows Value Names and the second does not" )
+            {
+                REQUIRE( crawlerAt( 0 )->isValueNamesShownSet() );
+                REQUIRE_FALSE( crawlerAt( 1 )->isValueNamesShownSet() );
+            }
+
+            AND_WHEN( "the second tab comes to the front, and then the first again" )
+            {
+                window.tabArea->setCurrentIndex( 1 );
+                const bool checkedForSecond = showValueNames->isChecked();
+                window.tabArea->setCurrentIndex( 0 );
+
+                THEN( "the action shows each tab's own" )
+                {
+                    REQUIRE_FALSE( checkedForSecond );
+                    REQUIRE( showValueNames->isChecked() );
+                    REQUIRE( crawlerAt( 0 )->isValueNamesShownSet() );
+                    REQUIRE_FALSE( crawlerAt( 1 )->isValueNamesShownSet() );
+                }
+            }
+        }
+    }
+}

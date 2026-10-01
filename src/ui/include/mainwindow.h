@@ -225,6 +225,8 @@ private Q_SLOTS:
     void closeAll( ActionInitiator initiator );
     void selectAll();
     void copy();
+    // Copy the selection as the view shows it, with its Value Names.
+    void copyAsShown();
     void find();
     void clearLog();
     void copyFullPath();
@@ -319,6 +321,8 @@ Q_SIGNALS:
     void followSet( bool checked );
     // Is emitted when the 'text wrap' option is enabled/disabled
     void textWrapSet( bool checked );
+    // Is emitted when Show Value Names is switched for the tab in front.
+    void valueNamesShownSet( bool shown );
     // Is emitted before the QuickFind box is activated,
     // to allow crawlers to get search in the right view.
     void enteringQuickFind();
@@ -498,6 +502,8 @@ private:
     QAction* lineNumbersVisibleInFilteredAction;
     QAction* followAction;
     QAction* textWrapAction;
+    QAction* showValueNamesAction;
+    QAction* copyAsShownAction;
     QAction* reloadAction;
     QAction* stopAction;
     QAction* editHighlightersAction;

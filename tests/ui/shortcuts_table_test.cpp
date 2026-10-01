@@ -344,3 +344,23 @@ TEST_CASE( "The select-lines commands are named after their direction", "[ui][op
     CHECK( down->second.name == "Select lines down" );
     CHECK( down->second.keySequence == QStringList{ "Shift+Down" } );
 }
+
+// Show Value Names switches them per tab, like Wrap text (#647). Its key is
+// one no other command has by default.
+TEST_CASE( "Show Value Names has a default key of its own", "[ui][options][shortcuts]" )
+{
+    const auto& shortcuts = ShortcutAction::defaultShortcutList();
+    const auto showValueNames = shortcuts.find( ShortcutAction::MainWindowShowValueNames );
+    REQUIRE( showValueNames != shortcuts.end() );
+    REQUIRE( showValueNames->second.keySequence == QStringList{ "Ctrl+Shift+N" } );
+
+    for ( const auto& [ action, shortcut ] : shortcuts ) {
+        if ( action == ShortcutAction::MainWindowShowValueNames ) {
+            continue;
+        }
+        INFO( action );
+        for ( const auto& key : showValueNames->second.keySequence ) {
+            CHECK_FALSE( shortcut.keySequence.contains( key ) );
+        }
+    }
+}

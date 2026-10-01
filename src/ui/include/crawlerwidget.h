@@ -183,6 +183,10 @@ public:
     QString searchLimitsByTimeUnavailableReason() const;
 
     bool isTextWrapEnabled() const;
+    // Whether the View menu's Show Value Names is on for this tab (#647).
+    bool isValueNamesShownSet() const;
+    // The selection's text as the view shows it: Copy as Shown.
+    QString getSelectedTextAsShown() const;
 
     // What the window shows of this tab's Log File. The window hears only the
     // tab in front, so it reads this once when the tab comes to the front,
@@ -199,6 +203,8 @@ public:
         // Whether the Log File is followed, as its View Set holds it (#558).
         bool follows = false;
         bool textWrap = false;
+        // Whether the tab shows Value Names (#647).
+        bool valueNamesShown = false;
         // The Encoding chosen for the Log File, none when it is detected.
         std::optional<int> encodingMib;
         // Why Go to timestamp and the Search Limits given as a time are not
@@ -298,6 +304,9 @@ Q_SIGNALS:
     void loadingFinished( LoadingStatus status, QString failure );
     // Sent when text wrap mode is enabled/disabled
     void textWrapSet( bool checked );
+    // Sent when the View menu's Show Value Names switched for this tab: the
+    // Text View and every Filtered View show them or not (#647).
+    void valueNamesShownSet( bool shown );
     // Sent up when the Log File is now followed or not, as the View Set
     // holds it; the window's action mirrors it (#558).
     void followModeChanged( bool follow );

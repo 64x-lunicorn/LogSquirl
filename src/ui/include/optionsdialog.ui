@@ -356,6 +356,13 @@
               </property>
              </widget>
             </item>
+            <item>
+             <widget class="QCheckBox" name="showValueNamesCheckBox">
+              <property name="text">
+               <string>Show Value Names on file open</string>
+              </property>
+             </widget>
+            </item>
            </layout>
           </item>
          </layout>

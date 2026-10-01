@@ -597,6 +597,7 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
     visit( { "view.ansiColorSequences", "view.hideAnsiColorSequences" }, config.ansiColorSequences_,
            AnsiColorSequences::ShowAsText, knownAnsiColorSequences );
     visit( "view.textWrap", config.useTextWrap_, false );
+    visit( "view.showValueNames", config.showValueNames_, true );
     visit( "view.style", config.style_, QString{}, availableStyle );
     visit( "view.showSplashScreen", config.showSplashScreen_, false );
     visit( "view.showDashboard", config.showDashboard_, true );

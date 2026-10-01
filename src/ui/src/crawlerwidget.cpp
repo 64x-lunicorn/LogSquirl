@@ -300,6 +300,23 @@ bool CrawlerWidget::isTextWrapEnabled() const
     return logMainView_->isTextWrapEnabled();
 }
 
+bool CrawlerWidget::isValueNamesShownSet() const
+{
+    return logMainView_->isValueNamesShownSet();
+}
+
+QString CrawlerWidget::getSelectedTextAsShown() const
+{
+    if ( currentFilteredView()->hasFocus() ) {
+        return currentFilteredView()->getSelectedTextAsShown();
+    }
+    // The Table View shows no Value Names.
+    if ( shownPresentation() == logMainView_ ) {
+        return logMainView_->getSelectedTextAsShown();
+    }
+    return presentation_->selectedText();
+}
+
 QString CrawlerWidget::encodingText() const
 {
     return encodingText_;
@@ -334,6 +351,7 @@ CrawlerWidget::State CrawlerWidget::state() const
     state.selectedLine = currentLineNumber_;
     state.follows = isFollowEnabled();
     state.textWrap = isTextWrapEnabled();
+    state.valueNamesShown = isValueNamesShownSet();
     state.encodingMib = encodingMib();
     state.goToTimestampUnavailable = goToTimestampUnavailableReason();
     state.searchLimitsByTimeUnavailable = searchLimitsByTimeUnavailableReason();
@@ -1257,6 +1275,10 @@ void CrawlerWidget::setup()
         = new LogMainView( openLogFile_->logData().get(), quickFindPattern_.get(), &overview_,
                            overviewWidget_, viewSet_.presentationPolicy().useTextWrap );
     logMainView_->setContentsMargins( 2, 0, 2, 0 );
+    // A tab starts showing Value Names as the Presentation Policy says, and
+    // then as the View menu switches them for it (#647); its Filtered Views
+    // show them as its Text View does.
+    logMainView_->valueNamesShownSet( viewSet_.presentationPolicy().showValueNames );
 
     // The Log File's first Search, current in every view: the Presentations
     // and the Overview start with it once they are in the View Set.
@@ -1447,6 +1469,8 @@ void CrawlerWidget::setup()
     connect( logMainView_, &LogMainView::changeFontSize, this, &CrawlerWidget::changeFontSize );
 
     connect( this, &CrawlerWidget::textWrapSet, logMainView_, &LogMainView::textWrapSet );
+    connect( this, &CrawlerWidget::valueNamesShownSet, logMainView_,
+             &LogMainView::valueNamesShownSet );
 
     connect( tabbedFilteredView_, &QTabWidget::currentChanged, this,
              &CrawlerWidget::changeFilteredView );
@@ -1846,6 +1870,9 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
     connect( view, &FilteredView::followModeChanged, this, &CrawlerWidget::followSet );
 
     connect( this, &CrawlerWidget::textWrapSet, view, &FilteredView::textWrapSet );
+    // A new Filtered View shows Value Names as the tab does.
+    view->valueNamesShownSet( logMainView_->isValueNamesShownSet() );
+    connect( this, &CrawlerWidget::valueNamesShownSet, view, &FilteredView::valueNamesShownSet );
 
     connect( view, &FilteredView::changeFontSize, this, &CrawlerWidget::changeFontSize );
 

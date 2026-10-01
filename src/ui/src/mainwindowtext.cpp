@@ -39,6 +39,9 @@ const char* action::exitText = QT_TR_NOOP( "E&xit" );
 const char* action::exitStatusTip = QT_TR_NOOP( "Exit the application" );
 const char* action::copyText = QT_TR_NOOP( "&Copy" );
 const char* action::copyStatusTip = QT_TR_NOOP( "Copy the selection" );
+const char* action::copyAsShownText = QT_TR_NOOP( "Copy as &Shown" );
+const char* action::copyAsShownStatusTip
+    = QT_TR_NOOP( "Copy the selection as shown, with its Value Names" );
 const char* action::selectAllText = QT_TR_NOOP( "Select &All" );
 const char* action::selectAllStatusTip = QT_TR_NOOP( "Select all the text" );
 const char* action::goToLineText = QT_TR_NOOP( "Go to line..." );
@@ -85,6 +88,9 @@ const char* action::lineNumbersVisibleInFilteredText
     = QT_TR_NOOP( "Line &numbers in filtered view" );
 const char* action::followText = QT_TR_NOOP( "&Follow File" );
 const char* action::wrapText = QT_TR_NOOP( "&Wrap text" );
+const char* action::showValueNamesText = QT_TR_NOOP( "Show &Value Names" );
+const char* action::showValueNamesStatusTip
+    = QT_TR_NOOP( "Show values of the Log Lines with their names from the Name Tables" );
 const char* action::reloadText = QT_TR_NOOP( "&Reload" );
 const char* action::stopText = QT_TR_NOOP( "&Stop" );
 const char* action::optionsText = QT_TR_NOOP( "&Preferences..." );

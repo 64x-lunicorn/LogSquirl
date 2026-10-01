@@ -397,6 +397,7 @@ void OptionsDialog::updateDialogFromConfig()
     fontSmoothCheckBox->setChecked( config.forceFontAntialiasing() );
     boldFontCheckBox->setChecked( config.useBoldFont() );
     wrapTextCheckBox->setChecked( config.useTextWrap() );
+    showValueNamesCheckBox->setChecked( config.showValueNames() );
     enableQtHiDpiCheckBox->setChecked( config.enableQtHighDpi() );
     scaleRoundingComboBox->setCurrentIndex( config.scaleFactorRounding() - 1 );
 
@@ -624,6 +625,7 @@ void OptionsDialog::updateConfigFromDialog()
     config.setForceFontAntialiasing( fontSmoothCheckBox->isChecked() );
     config.setUseBoldFont( boldFontCheckBox->isChecked() );
     config.setUseTextWrap( wrapTextCheckBox->isChecked() );
+    config.setShowValueNames( showValueNamesCheckBox->isChecked() );
     config.setEnableQtHighDpi( enableQtHiDpiCheckBox->isChecked() );
     config.setScaleFactorRounding( scaleRoundingComboBox->currentIndex() + 1 );
 

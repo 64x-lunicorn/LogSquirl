@@ -288,6 +288,13 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
             },
         },
         {
+            MainWindowShowValueNames,
+            {
+                QApplication::tr( "Toggle Value Names" ),
+                QStringList{ QKeySequence( Qt::CTRL | Qt::SHIFT | Qt::Key_N ).toString() },
+            },
+        },
+        {
             MainWindowReload,
             {
                 QApplication::tr( "Reload file" ),

@@ -151,6 +151,11 @@ SCENARIO( "Configuration default values", "[configuration]" )
             REQUIRE_FALSE( config.useTextWrap() );
         }
 
+        THEN( "a tab starts showing Value Names" )
+        {
+            REQUIRE( config.showValueNames() );
+        }
+
         THEN( "ANSI color sequences are shown as text" )
         {
             REQUIRE( config.ansiColorSequences() == AnsiColorSequences::ShowAsText );
@@ -301,6 +306,7 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
         config.setLoggingLevel( 2 );
         config.setAnsiColorSequences( AnsiColorSequences::Hide );
         config.setUseTextWrap( true );
+        config.setShowValueNames( false );
         config.setContextLinesCount( 10 );
         config.setCsvSeparator( '\t' );
         config.setCsvHeader( false );
@@ -373,6 +379,7 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
             {
                 REQUIRE( restored.ansiColorSequences() == AnsiColorSequences::Hide );
                 REQUIRE( restored.useTextWrap() );
+                REQUIRE_FALSE( restored.showValueNames() );
                 REQUIRE( restored.contextLinesCount() == 10 );
             }
 
@@ -614,6 +621,7 @@ const QStringList StoredSettingNames = {
     "view.scaleFactorRounding",
     "view.showDashboard",
     "view.showSplashScreen",
+    "view.showValueNames",
     "view.style",
     "view.textWrap",
     "view.toolbarIconSize",
@@ -684,6 +692,7 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.contextLinesCount() == expected.contextLinesCount() );
     CHECK( actual.ansiColorSequences() == expected.ansiColorSequences() );
     CHECK( actual.useTextWrap() == expected.useTextWrap() );
+    CHECK( actual.showValueNames() == expected.showValueNames() );
     CHECK( actual.style() == expected.style() );
 
     CHECK( actual.isSearchAutoRefreshDefault() == expected.isSearchAutoRefreshDefault() );
@@ -938,7 +947,7 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                 for ( const auto* added :
                       { "defaultView.searchWindowMinutes", "teamFolder.enabled", "teamFolder.url",
                         "teamFolder.subfolder", "export.csvSeparator", "export.csvHeader",
-                        "commandSource.recentCommands/size" } ) {
+                        "commandSource.recentCommands/size", "view.showValueNames" } ) {
                     stored.remove( added );
                 }
                 CHECK( stored.keys() == releaseValues.keys() );
