@@ -316,6 +316,7 @@ add_executable(logsquirl_benchmark_tests
     benchmarkscenario_test.cpp
     frametimes_test.cpp
     inputlatency_test.cpp
+    processwork_test.cpp
 )
 
 target_link_libraries(logsquirl_benchmark_tests logsquirl_benchmark Catch2::Catch2)

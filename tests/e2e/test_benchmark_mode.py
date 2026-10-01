@@ -32,6 +32,10 @@ reports the time from each append to its Log Line displayed, and whether a
 chart following it kept up (#670). The session-restore scenario generates a
 Session of several tabs in the run's own data location, never the instance's,
 restores it and reports when the tab in front was usable and every tab indexed.
+
+The read-while-indexing scenario reads a Log File from the UI thread at a fixed
+rate while it is indexed and reports each read, and the wall time, CPU time and
+parallelism of the indexing (#686).
 """
 
 from __future__ import annotations
@@ -583,3 +587,77 @@ def test_session_restore_needs_several_log_files(isolated_gui, session_logs, tmp
     assert run.process.returncode == EXIT_FAILED
     assert run.report is not None
     assert "at least two Log Files" in run.report["failure"]
+
+
+# Log Lines of the Log File read while it is indexed: about 20 MB, many blocks
+# of the Index, so that it is read many times before its Index is done.
+INDEXING_LOG_LINES = 250_000
+
+
+@pytest.fixture(scope="module")
+def indexing_log(tmp_path_factory) -> Path:
+    """A Log File as generate_test_data.py writes the performance suite's, of 20 MB."""
+    path = tmp_path_factory.mktemp("benchmark") / "generated_indexing.log"
+    with path.open("wb") as log:
+        for first in range(0, INDEXING_LOG_LINES, 50_000):
+            log.write(log_lines(first, 50_000).encode("utf-8"))
+    return path
+
+
+def test_read_while_indexing_reports_each_read_and_the_indexing_parallelism(
+    isolated_gui, indexing_log, tmp_path
+):
+    run = run_benchmark(isolated_gui, "read-while-indexing", [indexing_log],
+                        tmp_path / "report.json", options={"read_interval_ms": "1"})
+
+    assert run.process.returncode == EXIT_PASSED, run.process.stdout + run.process.stderr
+    report = run.report
+    assert report is not None and report["scenario"] == "read-while-indexing"
+    results = report["results"]
+
+    opened = event(report, "log_file_opened")
+    indexed = event(report, "index_finished")
+    assert 0 <= opened["since_scenario_start_ms"] < indexed["since_scenario_start_ms"]
+    assert indexed["data"]["log_line_count"] == INDEXING_LOG_LINES
+    assert indexed["data"]["read_count"] == results["read_count"]
+
+    # One getNbLine every read; getLineString and getExpandedLines only once
+    # Log Lines were indexed, one of each per read then.
+    count = results["nb_line_latency"]
+    line = results["line_string_latency"]
+    screen = results["expanded_lines_latency"]
+    assert count["count"] == results["read_count"] >= line["count"] > 0
+    assert screen["count"] == line["count"]
+    for latency in (count, line, screen):
+        assert 0 <= latency["min_ms"] <= latency["p50_ms"] <= latency["p99_ms"] <= latency["max_ms"]
+
+    # The stretch of indexing is from the request to open the Log File, the
+    # scenario's start, to the Index finished.
+    indexing = results["indexing"]
+    assert indexing["wall_ms"] == pytest.approx(indexed["since_scenario_start_ms"], abs=0.01)
+    assert indexing["cpu_ms"] > 0
+    assert indexing["parallelism"] == pytest.approx(indexing["cpu_ms"] / indexing["wall_ms"])
+    assert results["index_mb_per_s"] > 0
+    assert results["log_line_count"] == INDEXING_LOG_LINES
+    assert results["log_file_bytes"] == indexing_log.stat().st_size
+
+
+@pytest.mark.parametrize("option, value", [("read_interval_ms", "0"), ("lines", "many")])
+def test_read_while_indexing_with_a_wrong_option_reports_why(
+    isolated_gui, generated_log, tmp_path, option, value
+):
+    run = run_benchmark(isolated_gui, "read-while-indexing", [generated_log],
+                        tmp_path / "report.json", options={option: value})
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert option in run.report["failure"]
+    assert run.report["events"] == []
+
+
+def test_read_while_indexing_opens_exactly_one_log_file(isolated_gui, tmp_path):
+    run = run_benchmark(isolated_gui, "read-while-indexing", [], tmp_path / "report.json")
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert "exactly one Log File" in run.report["failure"]
