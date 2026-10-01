@@ -1790,6 +1790,9 @@ TEST_CASE( "Team Naming Groups arrive next to the other kinds, each file read by
     team.pushGroupByHand( "alice", makeGroup( "Network" ) );
     // A file naming a kind this version does not know is no group of it.
     team.pushByHand( "alice", "future.conf", "kind=charts\n[PredefinedFiltersCollection]\n" );
+    // Nor is a Naming Group of a newer version.
+    team.pushByHand( "alice", "newer_valuenames.conf",
+                     "kind=valuenames\n[NamingGroup]\nversion=99\nid=x\nname=Newer\n" );
 
     const auto bob = team.member( "bob" );
     CHECK( namesOf( bob->valueNameGroups() ) == QStringList{ "BAP", "zeta" } );
@@ -1800,8 +1803,11 @@ TEST_CASE( "Team Naming Groups arrive next to the other kinds, each file read by
     CHECK( bob->valueNameGroups()[ 0 ].sameAs( bap ) );
     CHECK_FALSE( bob->valueNameGroupRevision( bap.id() ).isEmpty() );
     const auto skipped = bob->skippedFiles();
-    REQUIRE( skipped.size() == 1 );
+    REQUIRE( skipped.size() == 2 );
     CHECK( skipped[ 0 ].file == "future.conf" );
+    CHECK( skipped[ 0 ].reason.contains( "kind of group this version does not know" ) );
+    CHECK( skipped[ 1 ].file == "newer_valuenames.conf" );
+    CHECK( skipped[ 1 ].reason.contains( "newer version" ) );
 
     // A change shows at the next sync, as a change of the Naming Groups only.
     QSignalSpy valueNamesChanged( bob.get(), &TeamFolder::valueNameGroupsChanged );

@@ -135,6 +135,13 @@
 
 ## Bug fixes
 
+- **An exported Team group imported again is a group of your own**: a filter
+  group or highlighter set exported from the Team groups and imported into
+  your own kept the Team group's id, so checking or activating one did the same
+  to the other. It now arrives under an id of its own. An import of a file of
+  another kind of group, or of one written by a newer version, now says so
+  instead of reporting no group. (#647)
+
 - **A tab brought to the front shows its selected Log Line**: switching to a
   tab whose Log File had loaded showed `Ln:1` beside the info line instead of
   the Log Line selected in it. (#692)

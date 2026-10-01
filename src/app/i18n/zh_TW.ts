@@ -1286,14 +1286,24 @@ Do you want to replace it?</source>
         <translation>套用至所有剩餘的衝突</translation>
     </message>
     <message>
-        <location filename="../../ui/src/groupimportprompt.cpp" line="92"/>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="90"/>
         <source>The file %1 could not be read.</source>
         <translation>無法讀取檔案 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/groupimportprompt.cpp" line="96"/>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="92"/>
         <source>The file %1 holds no group.</source>
         <translation>檔案 %1 不含任何群組。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="94"/>
+        <source>The file %1 holds another kind of group than this dialog imports.</source>
+        <translation>檔案 %1 包含的群組類型與此對話方塊匯入的類型不同。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="98"/>
+        <source>The file %1 was written by a newer version of LogSquirl and cannot be imported.</source>
+        <translation>檔案 %1 由較新版本的 LogSquirl 寫入，無法匯入。</translation>
     </message>
 </context>
 <context>
@@ -1590,47 +1600,47 @@ Do you want to replace it?</source>
         <translation>匯入醒目提示規則設定</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="453"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="454"/>
         <source>Team highlighter sets</source>
         <translation>團隊醒目提示規則集</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="456"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="457"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
         <translation>透過團隊資料夾共用：團隊變更時它們也會隨之變更。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="464"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="465"/>
         <source>New Team highlighter set</source>
         <translation>新增團隊醒目提示規則集</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="466"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="467"/>
         <source>Share with team</source>
         <translation>與團隊共用</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="467"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="468"/>
         <source>Adds a Team copy of the selected group of your own.</source>
         <translation>為您自己所選的群組新增一份團隊副本。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="470"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="471"/>
         <source>Copy to my groups</source>
         <translation>複製到我的群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="473"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="474"/>
         <source>Delete for the team</source>
         <translation>為團隊刪除</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="567"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="568"/>
         <source>Delete Team highlighter set</source>
         <translation>刪除團隊醒目提示規則集</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="568"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="569"/>
         <source>This deletes the group for the whole team.</source>
         <translation>這會為整個團隊刪除此群組。</translation>
     </message>
@@ -3334,47 +3344,47 @@ Restart LogSquirl to try again.</source>
         <translation>匯入預先定義的篩選器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="377"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="378"/>
         <source>Team groups</source>
         <translation>團隊群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="380"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="381"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
         <translation>透過團隊資料夾共用：團隊變更時它們也會隨之變更。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="388"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="389"/>
         <source>New Team group</source>
         <translation>新增團隊群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="391"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="392"/>
         <source>Share with team</source>
         <translation>與團隊共用</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="392"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="393"/>
         <source>Adds a Team copy of the selected group of your own.</source>
         <translation>為您自己所選的群組新增一份團隊副本。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="395"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="396"/>
         <source>Copy to my groups</source>
         <translation>複製到我的群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="398"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="399"/>
         <source>Delete for the team</source>
         <translation>為團隊刪除</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="475"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="476"/>
         <source>Delete Team group</source>
         <translation>刪除團隊群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="475"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="476"/>
         <source>This deletes the group for the whole team.</source>
         <translation>這會為整個團隊刪除此群組。</translation>
     </message>
@@ -4496,72 +4506,82 @@ Restart LogSquirl to try again.</source>
 <context>
     <name>TeamFolder</name>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="121"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="122"/>
         <source>Another file holds the group %1 already.</source>
         <translation>另一個檔案已含有群組 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="183"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="188"/>
         <source>The file cannot be read.</source>
         <translation>無法讀取該檔案。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="184"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="190"/>
+        <source>The file holds a kind of group this version does not know.</source>
+        <translation>該檔案包含此版本不認識的群組類型。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamfolder.cpp" line="192"/>
+        <source>The file was written by a newer version of LogSquirl.</source>
+        <translation>該檔案由較新版本的 LogSquirl 寫入。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamfolder.cpp" line="197"/>
         <source>The file holds no Filter Group, Highlighter Set or Naming Group.</source>
         <translation>該檔案不含任何篩選器群組、醒目提示規則集或命名群組。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="605"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="641"/>
         <source>The group could not be written to %1.</source>
         <translation>無法將群組寫入 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="856"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="883"/>
         <source>The subfolder %1 does not lie inside the repository.</source>
         <translation>子資料夾 %1 不在儲存庫內。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1227"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1254"/>
         <source>The Team Folder is off.</source>
         <translation>團隊資料夾已關閉。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1445"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1472"/>
         <source>Team Folder syncing…</source>
         <translation>團隊資料夾同步中…</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1449"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1476"/>
         <source>Team Folder off</source>
         <translation>團隊資料夾已關閉</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1451"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1478"/>
         <source>Team Folder not synced</source>
         <translation>團隊資料夾未同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1453"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1480"/>
         <source>Team Folder synced</source>
         <translation>團隊資料夾已同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1455"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1482"/>
         <source>Team Folder error</source>
         <translation>團隊資料夾錯誤</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1467"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1494"/>
         <source>Not published: %1</source>
         <translation>未發佈：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1470"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1497"/>
         <source>The Team groups are read-only: %1</source>
         <translation>團隊群組為唯讀：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1473"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1500"/>
         <source>Skipped %1: %2</source>
         <translation>已略過 %1：%2</translation>
     </message>
@@ -5076,7 +5096,7 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="738"/>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="761"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1672"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1674"/>
         <source>New Naming Group</source>
         <translation>新命名群組</translation>
     </message>
@@ -5145,63 +5165,63 @@ Without a date, %1 is used.</source>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="1515"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1551"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1553"/>
         <source>Value Names (*.conf)</source>
         <translation>值名稱 (*.conf)</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="1534"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1556"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1558"/>
         <source>Import Naming Groups</source>
         <translation>匯入命名群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1551"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1553"/>
         <source>Select one or more files to open</source>
         <translation>選擇一個或多個檔案開啟</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1571"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1573"/>
         <source>Team groups</source>
         <translation>團隊群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1574"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1576"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
         <translation>透過團隊資料夾共用：團隊變更時它們也會隨之變更。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1582"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1584"/>
         <source>New Team group</source>
         <translation>新增團隊群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1585"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1587"/>
         <source>Share with team</source>
         <translation>與團隊共用</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1587"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1589"/>
         <source>Adds a Team copy of the selected group of your own.</source>
         <translation>為您自己所選的群組新增一份團隊副本。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1590"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1592"/>
         <source>Copy to my groups</source>
         <translation>複製到我的群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1594"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1596"/>
         <source>Delete for the team</source>
         <translation>為團隊刪除</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1724"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1726"/>
         <source>Delete Team group</source>
         <translation>刪除團隊群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1724"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1726"/>
         <source>This deletes the group for the whole team.</source>
         <translation>這會為整個團隊刪除此群組。</translation>
     </message>

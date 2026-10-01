@@ -28,6 +28,7 @@
 #include <memory>
 
 #include "groupexchange.h"
+#include "groupimportprompt.h"
 #include "naminggroup.h"
 
 using namespace logsquirl::groupexchange;
@@ -663,15 +664,15 @@ TEST_CASE( "A Naming Group file is never read as a Filter Group or Highlighter S
     const auto file = dir.filePath( "BAP_valuenames.conf" );
     REQUIRE( writeGroup( file, makeNamingGroup( "BAP" ) ) );
 
-    CHECK( readFilterGroups( file ).error == ReadError::NoGroups );
-    CHECK( readHighlighterGroups( file ).error == ReadError::NoGroups );
+    CHECK( readFilterGroups( file ).error == ReadError::OtherKind );
+    CHECK( readHighlighterGroups( file ).error == ReadError::OtherKind );
 
     QList<PredefinedFilterSet> filters{ filterGroup( "a", "A", "1" ) };
     QList<HighlighterSet> highlighters{ makeHighlighterSet( "H" ) };
     FixedAnswer fixed{ ConflictAnswer::KeepBoth };
     ImportSession session( fixed.resolver() );
-    CHECK( importFile( file, filters, session ).error == ReadError::NoGroups );
-    CHECK( importFile( file, highlighters, session ).error == ReadError::NoGroups );
+    CHECK( importFile( file, filters, session ).error == ReadError::OtherKind );
+    CHECK( importFile( file, highlighters, session ).error == ReadError::OtherKind );
     CHECK( filters.size() == 1 );
     CHECK( highlighters.size() == 1 );
 
@@ -683,8 +684,8 @@ TEST_CASE( "A Naming Group file is never read as a Filter Group or Highlighter S
             QSettings settings{ mixed, QSettings::IniFormat };
             settings.setValue( "kind", "somethingelse" );
         }
-        CHECK( readFilterGroups( mixed ).error == ReadError::NoGroups );
-        CHECK( readValueNameGroups( mixed ).error == ReadError::NoGroups );
+        CHECK( readFilterGroups( mixed ).error == ReadError::OtherKind );
+        CHECK( readValueNameGroups( mixed ).error == ReadError::OtherKind );
     }
 }
 
@@ -698,13 +699,13 @@ TEST_CASE( "A Filter Group or Highlighter Set file is never read as a Naming Gro
     REQUIRE( writeGroup( filterFile, makeFilterSet( "Network" ) ) );
     REQUIRE( writeGroup( highlighterFile, makeHighlighterSet( "Levels" ) ) );
 
-    CHECK( readValueNameGroups( filterFile ).error == ReadError::NoGroups );
-    CHECK( readValueNameGroups( highlighterFile ).error == ReadError::NoGroups );
+    CHECK( readValueNameGroups( filterFile ).error == ReadError::OtherKind );
+    CHECK( readValueNameGroups( highlighterFile ).error == ReadError::OtherKind );
 
     QList<NamingGroup> groups;
     FixedAnswer fixed{ ConflictAnswer::KeepBoth };
     ImportSession session( fixed.resolver() );
-    CHECK( importFile( filterFile, groups, session ).error == ReadError::NoGroups );
+    CHECK( importFile( filterFile, groups, session ).error == ReadError::OtherKind );
     CHECK( groups.isEmpty() );
 
     SECTION( "nor a file holding a Naming Group without the kind entry: the kind is not guessed" )
@@ -752,9 +753,9 @@ TEST_CASE( "Filter Group and Highlighter Set files as written so far still load"
     CHECK( highlighters.groups.front().name() == "Levels" );
 
     // Neither is anything else.
-    CHECK( readHighlighterGroups( filterFile ).error == ReadError::NoGroups );
-    CHECK( readValueNameGroups( filterFile ).error == ReadError::NoGroups );
-    CHECK( readValueNameGroups( highlighterFile ).error == ReadError::NoGroups );
+    CHECK( readHighlighterGroups( filterFile ).error == ReadError::OtherKind );
+    CHECK( readValueNameGroups( filterFile ).error == ReadError::OtherKind );
+    CHECK( readValueNameGroups( highlighterFile ).error == ReadError::OtherKind );
 
     // And they import as before.
     QList<PredefinedFilterSet> groups{ filterGroup( defaultFilterSetId(), "Default", "own" ) };
@@ -834,5 +835,83 @@ TEST_CASE( "A Naming Group round-trips through Export and Import with each answe
         CHECK( fixed.asked->front().kind == ConflictKind::SameName );
         CHECK( fixed.asked->front().preselected == ConflictAnswer::KeepBoth );
         CHECK( names( named ) == QStringList{ "BAP", "BAP (2)" } );
+    }
+}
+
+TEST_CASE( "A Naming Group of a newer version is not read, and says so",
+           "[groupexchange][valuenames]" )
+{
+    const QTemporaryDir dir;
+    REQUIRE( dir.isValid() );
+    const auto file = dir.filePath( "BAP_valuenames.conf" );
+    REQUIRE( writeGroup( file, makeNamingGroup( "BAP" ) ) );
+    {
+        QSettings settings{ file, QSettings::IniFormat };
+        settings.setValue( "NamingGroup/version", NamingGroup::newestStorageVersion() + 1 );
+    }
+
+    CHECK( readValueNameGroups( file ).error == ReadError::NewerVersion );
+    QList<NamingGroup> groups;
+    FixedAnswer fixed{ ConflictAnswer::KeepBoth };
+    ImportSession session( fixed.resolver() );
+    CHECK( importFile( file, groups, session ).error == ReadError::NewerVersion );
+    CHECK( groups.isEmpty() );
+}
+
+TEST_CASE( "An imported group with the id of a Team group arrives under a fresh id",
+           "[groupexchange]" )
+{
+    FixedAnswer fixed{ ConflictAnswer::Replace };
+
+    SECTION( "a Filter Group" )
+    {
+        const auto team = makeFilterSet( "Team" );
+        QList<PredefinedFilterSet> groups{ filterGroup( "a", "A", "1" ) };
+        ImportSession session( fixed.resolver(), idsOf( QList<PredefinedFilterSet>{ team } ) );
+        CHECK( mergeGroups( groups, { team }, session ).added == 1 );
+        REQUIRE( groups.size() == 2 );
+        CHECK( groups[ 1 ].name() == "Team" );
+        CHECK( groups[ 1 ].id() != team.id() );
+    }
+    SECTION( "a Highlighter Set" )
+    {
+        const auto team = makeHighlighterSet( "Team" );
+        QList<HighlighterSet> groups;
+        ImportSession session( fixed.resolver(), idsOf( QList<HighlighterSet>{ team } ) );
+        CHECK( mergeGroups( groups, { team }, session ).added == 1 );
+        REQUIRE( groups.size() == 1 );
+        CHECK( groups[ 0 ].id() != team.id() );
+    }
+    SECTION( "a Naming Group" )
+    {
+        const auto team = makeNamingGroup( "Team" );
+        QList<NamingGroup> groups;
+        ImportSession session( fixed.resolver(), idsOf( QList<NamingGroup>{ team } ) );
+        CHECK( mergeGroups( groups, { team }, session ).added == 1 );
+        REQUIRE( groups.size() == 1 );
+        CHECK( groups[ 0 ].id() != team.id() );
+        CHECK( groups[ 0 ].sameAs( team ) );
+    }
+    SECTION( "and still meets an own group of the same name as a name conflict" )
+    {
+        const auto team = makeNamingGroup( "Team" );
+        QList<NamingGroup> groups{ makeNamingGroup( "Team" ) };
+        ImportSession session( fixed.resolver(), idsOf( QList<NamingGroup>{ team } ) );
+        mergeGroups( groups, { team }, session );
+        REQUIRE( fixed.asked->size() == 1 );
+        CHECK( fixed.asked->front().kind == ConflictKind::SameName );
+    }
+}
+
+TEST_CASE( "Every read error has a message of its own", "[groupexchange]" )
+{
+    CHECK( importErrorMessage( "f.conf", ReadError::None ).isEmpty() );
+    QStringList messages;
+    for ( const auto error : { ReadError::Unreadable, ReadError::NoGroups, ReadError::OtherKind,
+                               ReadError::NewerVersion } ) {
+        const auto message = importErrorMessage( "f.conf", error );
+        CHECK( message.contains( "f.conf" ) );
+        CHECK_FALSE( messages.contains( message ) );
+        messages.append( message );
     }
 }

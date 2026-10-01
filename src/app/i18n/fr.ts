@@ -1286,14 +1286,24 @@ Voulez-vous le remplacer ?</translation>
         <translation>Appliquer à tous les conflits restants</translation>
     </message>
     <message>
-        <location filename="../../ui/src/groupimportprompt.cpp" line="92"/>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="90"/>
         <source>The file %1 could not be read.</source>
         <translation>Le fichier %1 n&apos;a pas pu être lu.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/groupimportprompt.cpp" line="96"/>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="92"/>
         <source>The file %1 holds no group.</source>
         <translation>Le fichier %1 ne contient aucun groupe.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="94"/>
+        <source>The file %1 holds another kind of group than this dialog imports.</source>
+        <translation>Le fichier %1 contient un autre type de groupe que celui que cette boîte de dialogue importe.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="98"/>
+        <source>The file %1 was written by a newer version of LogSquirl and cannot be imported.</source>
+        <translation>Le fichier %1 a été écrit par une version plus récente de LogSquirl et ne peut pas être importé.</translation>
     </message>
 </context>
 <context>
@@ -1590,47 +1600,47 @@ Voulez-vous le remplacer ?</translation>
         <translation>Importer la configuration des surligneurs</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="453"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="454"/>
         <source>Team highlighter sets</source>
         <translation>Jeux de surligneurs d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="456"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="457"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
         <translation>Partagés via le dossier d&apos;équipe : ils changent quand l&apos;équipe les modifie.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="464"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="465"/>
         <source>New Team highlighter set</source>
         <translation>Nouveau jeu de surligneurs d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="466"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="467"/>
         <source>Share with team</source>
         <translation>Partager avec l&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="467"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="468"/>
         <source>Adds a Team copy of the selected group of your own.</source>
         <translation>Ajoute une copie d&apos;équipe du groupe personnel sélectionné.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="470"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="471"/>
         <source>Copy to my groups</source>
         <translation>Copier dans mes groupes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="473"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="474"/>
         <source>Delete for the team</source>
         <translation>Supprimer pour l&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="567"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="568"/>
         <source>Delete Team highlighter set</source>
         <translation>Supprimer le jeu de surligneurs d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="568"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="569"/>
         <source>This deletes the group for the whole team.</source>
         <translation>Cela supprime le groupe pour toute l&apos;équipe.</translation>
     </message>
@@ -3335,47 +3345,47 @@ Redémarrez LogSquirl pour réessayer.</translation>
         <translation>Importer des filtres prédéfinis</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="377"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="378"/>
         <source>Team groups</source>
         <translation>Groupes d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="380"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="381"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
         <translation>Partagés via le dossier d&apos;équipe : ils changent quand l&apos;équipe les modifie.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="388"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="389"/>
         <source>New Team group</source>
         <translation>Nouveau groupe d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="391"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="392"/>
         <source>Share with team</source>
         <translation>Partager avec l&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="392"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="393"/>
         <source>Adds a Team copy of the selected group of your own.</source>
         <translation>Ajoute une copie d&apos;équipe du groupe personnel sélectionné.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="395"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="396"/>
         <source>Copy to my groups</source>
         <translation>Copier dans mes groupes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="398"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="399"/>
         <source>Delete for the team</source>
         <translation>Supprimer pour l&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="475"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="476"/>
         <source>Delete Team group</source>
         <translation>Supprimer le groupe d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="475"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="476"/>
         <source>This deletes the group for the whole team.</source>
         <translation>Cela supprime le groupe pour toute l&apos;équipe.</translation>
     </message>
@@ -4497,72 +4507,82 @@ Redémarrez LogSquirl pour réessayer.</translation>
 <context>
     <name>TeamFolder</name>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="121"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="122"/>
         <source>Another file holds the group %1 already.</source>
         <translation>Un autre fichier contient déjà le groupe %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="183"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="188"/>
         <source>The file cannot be read.</source>
         <translation>Le fichier ne peut pas être lu.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="184"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="190"/>
+        <source>The file holds a kind of group this version does not know.</source>
+        <translation>Le fichier contient un type de groupe que cette version ne connaît pas.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamfolder.cpp" line="192"/>
+        <source>The file was written by a newer version of LogSquirl.</source>
+        <translation>Le fichier a été écrit par une version plus récente de LogSquirl.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamfolder.cpp" line="197"/>
         <source>The file holds no Filter Group, Highlighter Set or Naming Group.</source>
         <translation>Le fichier ne contient ni groupe de filtres, ni jeu de surligneurs, ni groupe de nommage.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="605"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="641"/>
         <source>The group could not be written to %1.</source>
         <translation>Le groupe n&apos;a pas pu être écrit dans %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="856"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="883"/>
         <source>The subfolder %1 does not lie inside the repository.</source>
         <translation>Le sous-dossier %1 ne se trouve pas dans le dépôt.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1227"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1254"/>
         <source>The Team Folder is off.</source>
         <translation>Le dossier d&apos;équipe est désactivé.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1445"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1472"/>
         <source>Team Folder syncing…</source>
         <translation>Synchronisation du dossier d&apos;équipe…</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1449"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1476"/>
         <source>Team Folder off</source>
         <translation>Dossier d&apos;équipe désactivé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1451"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1478"/>
         <source>Team Folder not synced</source>
         <translation>Dossier d&apos;équipe non synchronisé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1453"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1480"/>
         <source>Team Folder synced</source>
         <translation>Dossier d&apos;équipe synchronisé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1455"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1482"/>
         <source>Team Folder error</source>
         <translation>Erreur du dossier d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1467"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1494"/>
         <source>Not published: %1</source>
         <translation>Non publié : %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1470"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1497"/>
         <source>The Team groups are read-only: %1</source>
         <translation>Les groupes d&apos;équipe sont en lecture seule : %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1473"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1500"/>
         <source>Skipped %1: %2</source>
         <translation>%1 ignoré : %2</translation>
     </message>
@@ -5078,7 +5098,7 @@ Sans date, %1 est utilisé.</translation>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="738"/>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="761"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1672"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1674"/>
         <source>New Naming Group</source>
         <translation>Nouveau groupe de nommage</translation>
     </message>
@@ -5147,63 +5167,63 @@ Sans date, %1 est utilisé.</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="1515"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1551"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1553"/>
         <source>Value Names (*.conf)</source>
         <translation>Noms de valeurs (*.conf)</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="1534"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1556"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1558"/>
         <source>Import Naming Groups</source>
         <translation>Importer des groupes de nommage</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1551"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1553"/>
         <source>Select one or more files to open</source>
         <translation>Sélectionner un ou plusieurs fichiers à ouvrir</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1571"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1573"/>
         <source>Team groups</source>
         <translation>Groupes d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1574"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1576"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
         <translation>Partagés via le dossier d&apos;équipe : ils changent quand l&apos;équipe les modifie.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1582"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1584"/>
         <source>New Team group</source>
         <translation>Nouveau groupe d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1585"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1587"/>
         <source>Share with team</source>
         <translation>Partager avec l&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1587"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1589"/>
         <source>Adds a Team copy of the selected group of your own.</source>
         <translation>Ajoute une copie d&apos;équipe du groupe personnel sélectionné.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1590"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1592"/>
         <source>Copy to my groups</source>
         <translation>Copier dans mes groupes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1594"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1596"/>
         <source>Delete for the team</source>
         <translation>Supprimer pour l&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1724"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1726"/>
         <source>Delete Team group</source>
         <translation>Supprimer le groupe d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1724"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1726"/>
         <source>This deletes the group for the whole team.</source>
         <translation>Cela supprime le groupe pour toute l&apos;équipe.</translation>
     </message>

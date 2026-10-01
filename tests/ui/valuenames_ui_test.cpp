@@ -743,6 +743,48 @@ SCENARIO( "The Value Names dialog exports and imports a Naming Group",
     QCoreApplication::processEvents();
 }
 
+SCENARIO( "A Team Naming Group exported and imported again is a group of the user's own",
+          "[ui][valuenames][valuenamesdialog][teamfolder]" )
+{
+    using namespace logsquirl::groupexchange;
+    const StoredValueNamesGuard guard;
+    storeGroups( { exampleGroup() } );
+    auto team = exampleGroup();
+    team.setName( QStringLiteral( "Shared" ) );
+    auto& collection = ValueNamesCollection::get();
+    collection.setTeamGroups( { team } );
+    const QTemporaryDir dir;
+    REQUIRE( dir.isValid() );
+    const auto file = dir.filePath( QStringLiteral( "Shared_valuenames.conf" ) );
+
+    ValueNamesDialog dialog;
+    dialog.showTeamGroups( { team }, false );
+    dialog.findChild<QListWidget*>( QStringLiteral( "teamGroupList" ) )->setCurrentRow( 0 );
+    REQUIRE( dialog.exportShownGroup( file ) );
+    int asked = 0;
+    dialog.importGroupFiles( { file }, [ &asked ]( const ConflictQuestion& ) {
+        ++asked;
+        return ConflictDecision{ ConflictAnswer::Skip, false };
+    } );
+    dialog.findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Ok )->click();
+
+    THEN( "it has an id of its own, and its checks are its own" )
+    {
+        REQUIRE( asked == 0 );
+        REQUIRE( collection.ownGroups().size() == 2 );
+        const auto imported = collection.ownGroups()[ 1 ];
+        REQUIRE( imported.name() == QStringLiteral( "Shared" ) );
+        REQUIRE( imported.id() != team.id() );
+
+        collection.setUncheckedKeys( { ValueNamesCollection::groupCheckKey( team.id() ) } );
+        REQUIRE_FALSE( collection.groups().back().isEnabled() );
+        REQUIRE( collection.groups()[ 1 ].id() == imported.id() );
+        REQUIRE( collection.groups()[ 1 ].isEnabled() );
+    }
+    collection.setUncheckedKeys( {} );
+    QCoreApplication::processEvents();
+}
+
 SCENARIO( "The Value Names dialog shows the Team groups below the user's own",
           "[ui][valuenames][valuenamesdialog][teamfolder]" )
 {

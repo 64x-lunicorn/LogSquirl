@@ -27,6 +27,7 @@
 #include <QHash>
 #include <QMap>
 #include <QSet>
+#include <QSettings>
 #include <QTemporaryFile>
 #include <QUuid>
 #include <QtConcurrent/QtConcurrentRun>
@@ -140,51 +141,86 @@ void addGroupsOfFile( const QList<Group>& groups, const QFileInfo& info, QSet<QS
     }
 }
 
-// Reads one file of the folder into the outcome. `ids` holds the groups known
-// already: a group whose id is taken is skipped, the first file by name wins.
-// What kind of group a file holds is the Group Exchange's to say: a Naming
-// Group file by its kind entry, and a file with one is no Filter Group or
-// Highlighter Set.
-void readGroupFile( const QFileInfo& info, QSet<QString>& ids, SyncOutcome& outcome )
+// The groups of one file, of whichever kind it holds, and what is wrong when
+// it holds none.
+struct GroupsOfFile {
+    groupexchange::ReadError error = groupexchange::ReadError::None;
+    QList<PredefinedFilterSet> filterGroups;
+    QList<HighlighterSet> highlighterSets;
+    QList<NamingGroup> namingGroups;
+};
+
+// Opens the file once and reads it as what its kind entry says: a Naming
+// Group file by that entry alone, a file without one as a Filter Group or,
+// failing that, a Highlighter Set file.
+GroupsOfFile readGroupsOfFile( const QString& path )
 {
     using namespace logsquirl::groupexchange;
 
+    QSettings settings{ path, QSettings::IniFormat };
+    GroupsOfFile read;
+    if ( declaresKind( settings ) ) {
+        auto valueNames = readValueNameGroups( settings );
+        read.error = valueNames.error;
+        read.namingGroups = std::move( valueNames.groups );
+        return read;
+    }
+
+    auto filters = readFilterGroups( settings );
+    if ( filters.error == ReadError::None || filters.error == ReadError::Unreadable ) {
+        read.error = filters.error;
+        read.filterGroups = std::move( filters.groups );
+        return read;
+    }
+    auto highlighters = readHighlighterGroups( settings );
+    // A file that is neither holds no group of any kind.
+    read.error = highlighters.error == ReadError::None ? ReadError::None : ReadError::NoGroups;
+    read.highlighterSets = std::move( highlighters.groups );
+    return read;
+}
+
+// Why a file of the folder is skipped.
+QString skipReason( groupexchange::ReadError error )
+{
+    using groupexchange::ReadError;
+    switch ( error ) {
+    case ReadError::Unreadable:
+        return TeamFolder::tr( "The file cannot be read." );
+    case ReadError::OtherKind:
+        return TeamFolder::tr( "The file holds a kind of group this version does not know." );
+    case ReadError::NewerVersion:
+        return TeamFolder::tr( "The file was written by a newer version of LogSquirl." );
+    case ReadError::None:
+    case ReadError::NoGroups:
+        break;
+    }
+    return TeamFolder::tr( "The file holds no Filter Group, Highlighter Set or Naming Group." );
+}
+
+// Reads one file of the folder into the outcome. `ids` holds the groups known
+// already: a group whose id is taken is skipped, the first file by name wins.
+void readGroupFile( const QFileInfo& info, QSet<QString>& ids, SyncOutcome& outcome )
+{
     groupFileReads().fetch_add( 1, std::memory_order_relaxed );
     const auto file = info.fileName();
-    const auto path = info.absoluteFilePath();
-
-    const auto valueNames = readValueNameGroups( path );
-    if ( valueNames.error == ReadError::None ) {
-        addGroupsOfFile( valueNames.groups, info, ids, outcome, outcome.valueNameGroups );
+    const auto read = readGroupsOfFile( info.absoluteFilePath() );
+    if ( read.error != groupexchange::ReadError::None ) {
+        const auto reason = skipReason( read.error );
+        outcome.skippedFiles.append( { file, reason } );
+        LOG_WARNING << "Team Folder skips " << file << ": " << reason;
         return;
     }
 
-    const auto filters = readFilterGroups( path );
-    if ( filters.error == ReadError::None ) {
-        QList<PredefinedFilterSet> filterGroups;
-        for ( auto group : filters.groups ) {
-            if ( group.id() == defaultFilterSetId() ) {
-                group = group.withId( idForDefaultGroupIn( file ) );
-            }
-            filterGroups.append( group );
+    QList<PredefinedFilterSet> filterGroups;
+    for ( auto group : read.filterGroups ) {
+        if ( group.id() == defaultFilterSetId() ) {
+            group = group.withId( idForDefaultGroupIn( file ) );
         }
-        addGroupsOfFile( filterGroups, info, ids, outcome, outcome.filterGroups );
-        return;
+        filterGroups.append( group );
     }
-
-    const auto highlighters = readHighlighterGroups( path );
-    if ( highlighters.error == ReadError::None ) {
-        addGroupsOfFile( highlighters.groups, info, ids, outcome, outcome.highlighterGroups );
-        return;
-    }
-
-    const auto reason
-        = filters.error == ReadError::Unreadable
-              ? TeamFolder::tr( "The file cannot be read." )
-              : TeamFolder::tr(
-                    "The file holds no Filter Group, Highlighter Set or Naming Group." );
-    outcome.skippedFiles.append( { file, reason } );
-    LOG_WARNING << "Team Folder skips " << file << ": " << reason;
+    addGroupsOfFile( filterGroups, info, ids, outcome, outcome.filterGroups );
+    addGroupsOfFile( read.highlighterSets, info, ids, outcome, outcome.highlighterGroups );
+    addGroupsOfFile( read.namingGroups, info, ids, outcome, outcome.valueNameGroups );
 }
 
 void readGroups( const QString& folder, SyncOutcome& outcome )
@@ -709,29 +745,20 @@ std::optional<PublishRequest> requestFromRevision( const Git& git, const QString
     file.write( shown.output.toUtf8() );
     file.flush();
 
-    const auto valueNames = groupexchange::readValueNameGroups( file.fileName() );
-    if ( valueNames.error == groupexchange::ReadError::None && !valueNames.groups.isEmpty() ) {
-        const auto& group = valueNames.groups.first();
+    const auto read = readGroupsOfFile( file.fileName() );
+    const auto requestFor = [ action ]( groupexchange::GroupKind kind, const auto& group ) {
         return action == GroupAction::Delete
-                   ? PublishRequest::forDeletion( groupexchange::GroupKind::ValueNames, group.id(),
-                                                  group.name() )
+                   ? PublishRequest::forDeletion( kind, group.id(), group.name() )
                    : PublishRequest::forGroup( group, action );
+    };
+    if ( !read.filterGroups.isEmpty() ) {
+        return requestFor( groupexchange::GroupKind::Filter, read.filterGroups.first() );
     }
-    const auto filters = groupexchange::readFilterGroups( file.fileName() );
-    if ( filters.error == groupexchange::ReadError::None && !filters.groups.isEmpty() ) {
-        const auto& group = filters.groups.first();
-        return action == GroupAction::Delete
-                   ? PublishRequest::forDeletion( groupexchange::GroupKind::Filter, group.id(),
-                                                  group.name() )
-                   : PublishRequest::forGroup( group, action );
+    if ( !read.highlighterSets.isEmpty() ) {
+        return requestFor( groupexchange::GroupKind::Highlighter, read.highlighterSets.first() );
     }
-    const auto highlighters = groupexchange::readHighlighterGroups( file.fileName() );
-    if ( highlighters.error == groupexchange::ReadError::None && !highlighters.groups.isEmpty() ) {
-        const auto& group = highlighters.groups.first();
-        return action == GroupAction::Delete
-                   ? PublishRequest::forDeletion( groupexchange::GroupKind::Highlighter, group.id(),
-                                                  group.name() )
-                   : PublishRequest::forGroup( group, action );
+    if ( !read.namingGroups.isEmpty() ) {
+        return requestFor( groupexchange::GroupKind::ValueNames, read.namingGroups.first() );
     }
     return std::nullopt;
 }

@@ -1532,7 +1532,9 @@ void ValueNamesDialog::importGroupFiles(
     using namespace logsquirl::groupexchange;
     groupNameFinished();
     const auto title = tr( "Import Naming Groups" );
-    ImportSession session( resolver );
+    // A group of a Team group's id -- one exported from the Team groups --
+    // is a copy of it: its checks are its own.
+    ImportSession session( resolver, idsOf( teamGroups_ ) );
 
     // The imported groups are only in this dialog's copy: OK / Apply take
     // them over, Cancel discards them.

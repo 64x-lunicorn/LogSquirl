@@ -228,7 +228,8 @@ void PredefinedFiltersDialog::importFilters()
 
     using namespace logsquirl::groupexchange;
     const auto title = tr( "Import predefined filters" );
-    ImportSession session( askUser( this, title ) );
+    // A group of a Team group's id is a copy of it, not that group.
+    ImportSession session( askUser( this, title ), idsOf( teamGroups_ ) );
 
     // The imported groups are only in this dialog's copy: OK / Apply take
     // them over, Cancel discards them.

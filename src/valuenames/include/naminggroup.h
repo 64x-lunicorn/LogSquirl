@@ -153,6 +153,13 @@ public:
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
 
+    // The newest version of the storage this one reads: a group stored by a
+    // later one is not read.
+    static constexpr int newestStorageVersion()
+    {
+        return NamingGroup_VERSION;
+    }
+
 private:
     static constexpr int NamingGroup_VERSION = 1;
 

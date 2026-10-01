@@ -20,6 +20,7 @@
 #pragma once
 
 #include <QList>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
@@ -29,6 +30,8 @@
 #include "highlighterset.h"
 #include "naminggroup.h"
 #include "predefinedfilters.h"
+
+class QSettings;
 
 // The Group Exchange: what the Predefined Filters Dialog, the Highlighters
 // Dialog and the Value Names Dialog share about handing one Filter Group, one
@@ -113,23 +116,53 @@ QString firstFreeName( const QString& name, const QStringList& takenNames );
 
 // One import, possibly of several files. It remembers an "Apply to all
 // remaining conflicts" answer, so that it holds across the files.
+//
+// reservedIds are the ids of groups the imported ones must not take, though
+// they are not among the groups imported into: the Team groups beside the
+// user's own. An imported group with one of them arrives under a fresh id,
+// as one with the Default Filter Group's id does, so that the user's own
+// copy and the Team group are never checked or activated as one.
 class ImportSession {
 public:
-    explicit ImportSession( ConflictResolver resolver );
+    explicit ImportSession( ConflictResolver resolver, QSet<QString> reservedIds = {} );
 
     // The answer to a conflict: the remembered one, or the resolver's.
     ConflictAnswer decide( const ConflictQuestion& question );
 
+    bool isReserved( const QString& id ) const
+    {
+        return reservedIds_.contains( id );
+    }
+
 private:
     ConflictResolver resolver_;
     std::optional<ConflictAnswer> rememberedAnswer_;
+    QSet<QString> reservedIds_;
 };
+
+// The ids of the groups: what an import into the user's own groups reserves
+// of the Team groups.
+template <typename Group>
+QSet<QString> idsOf( const QList<Group>& groups )
+{
+    QSet<QString> ids;
+    for ( const auto& group : groups ) {
+        ids.insert( group.id() );
+    }
+    return ids;
+}
 
 enum class ReadError {
     None,
-    Unreadable, // the file cannot be opened or read as settings
-    NoGroups    // it holds no group of the kind read
+    Unreadable,   // the file cannot be opened or read as settings
+    NoGroups,     // it holds no group
+    OtherKind,    // it holds a group of another kind, or names a kind not known
+    NewerVersion, // it holds a group written by a newer version, which is not read
 };
+
+// Whether the settings name the kind of group they hold (KindKey). Filter
+// Group and Highlighter Set files never do.
+bool declaresKind( const QSettings& settings );
 
 struct ImportResult {
     ReadError error = ReadError::None;
@@ -139,12 +172,12 @@ struct ImportResult {
 };
 
 // The groups a file holds, in file order; error says what is wrong when it
-// holds none. A Filter Group file read through the collection carries an
-// empty Default group the file did not hold: that one is not a group of the
-// file. Color Labels and active sets of a Highlighter Set file are ignored.
-// A file with a kind entry holds no Filter Group or Highlighter Set, and only
-// a file whose kind entry says valuenames holds a Naming Group: the kind is
-// never guessed from what a file holds. A Naming Group arrives checked.
+// holds none: OtherKind for a file of a group of another kind, NewerVersion
+// for a Naming Group stored by a newer version. A Filter Group file read through the collection
+// carries an empty Default group the file did not hold: that one is not a group of the file. Color
+// Labels and active sets of a Highlighter Set file are ignored. A file with a kind entry holds no
+// Filter Group or Highlighter Set, and only a file whose kind entry says valuenames holds a Naming
+// Group: the kind is never guessed from what a file holds. A Naming Group arrives checked.
 template <typename Group>
 struct ReadGroups {
     ReadError error = ReadError::None;
@@ -153,6 +186,11 @@ struct ReadGroups {
 ReadGroups<PredefinedFilterSet> readFilterGroups( const QString& file );
 ReadGroups<HighlighterSet> readHighlighterGroups( const QString& file );
 ReadGroups<logsquirl::valuenames::NamingGroup> readValueNameGroups( const QString& file );
+// The same, of a file opened already as settings: one opening serves every
+// reader the Team Folder tries.
+ReadGroups<PredefinedFilterSet> readFilterGroups( QSettings& settings );
+ReadGroups<HighlighterSet> readHighlighterGroups( QSettings& settings );
+ReadGroups<logsquirl::valuenames::NamingGroup> readValueNameGroups( QSettings& settings );
 
 // Brings each of the imported groups into groups by these rules: a group of
 // the same id (failing that, of the same name) is a conflict the session
@@ -161,6 +199,8 @@ ReadGroups<logsquirl::valuenames::NamingGroup> readValueNameGroups( const QStrin
 // the list alone. A group with the Default Filter Group's id never counts as
 // a same-id conflict: it arrives with a fresh id and follows the name rule,
 // and the Default group is never replaced (Replace against it keeps both).
+// Nor does a group with an id the session reserves: it arrives under a fresh
+// id as well.
 ImportResult mergeGroups( QList<PredefinedFilterSet>& groups,
                           const QList<PredefinedFilterSet>& imported, ImportSession& session );
 ImportResult mergeGroups( QList<HighlighterSet>& groups, const QList<HighlighterSet>& imported,
