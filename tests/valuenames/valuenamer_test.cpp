@@ -630,3 +630,25 @@ TEST_CASE( "Naming Groups compare with and without their checks", "[valuenames]"
     renamed.setName( "Other" );
     CHECK_FALSE( renamed.sameAs( original ) );
 }
+
+TEST_CASE( "A Naming Group checked all over is the same group, every check set", "[valuenames]" )
+{
+    auto unchecked = bapGroup();
+    auto rules = unchecked.rules();
+    rules.append( rule( "Id", "id=(\\d+)", {} ) );
+    for ( auto& rule : rules ) {
+        rule.enabled = false;
+    }
+    unchecked.setRules( rules );
+    unchecked.setEnabled( false );
+
+    const auto checked = unchecked.withEverythingChecked();
+
+    CHECK( checked.isEnabled() );
+    for ( const auto& rule : checked.rules() ) {
+        CHECK( rule.enabled );
+    }
+    CHECK( checked.sameAs( unchecked ) );
+    CHECK( checked.id() == unchecked.id() );
+    CHECK( checked.withEverythingChecked() == checked );
+}

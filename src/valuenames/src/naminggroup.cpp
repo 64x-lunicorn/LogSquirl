@@ -62,6 +62,16 @@ NamingGroup NamingGroup::withId( const QString& id ) const
     return copy;
 }
 
+NamingGroup NamingGroup::withEverythingChecked() const
+{
+    auto copy = *this;
+    copy.enabled_ = true;
+    for ( auto& rule : copy.rules_ ) {
+        rule.enabled = true;
+    }
+    return copy;
+}
+
 bool NamingGroup::sameAs( const NamingGroup& other ) const
 {
     const auto unchecked = []( QList<NamingRule> rules ) {

@@ -1703,14 +1703,8 @@ void ValueNamesDialog::copySelectedTeamGroup()
         taken.append( group.name() );
     }
     // A copy of the user's own is checked, as everything new is.
-    auto copy = logsquirl::teamfolder::copyOfGroup( teamGroups_.at( teamRow_ ), taken );
-    copy.setEnabled( true );
-    auto rules = copy.rules();
-    for ( auto& rule : rules ) {
-        rule.enabled = true;
-    }
-    copy.setRules( rules );
-    groups_.append( copy );
+    groups_.append( logsquirl::teamfolder::copyOfGroup( teamGroups_.at( teamRow_ ), taken )
+                        .withEverythingChecked() );
     teamRow_ = -1;
     updating_ = true;
     teamGroupList_->setCurrentRow( -1 );

@@ -101,6 +101,10 @@ public:
     // elsewhere takes the id of the one it replaces, or a fresh one.
     NamingGroup withId( const QString& id ) const;
 
+    // A copy of this group with the group and every rule checked, as
+    // everything new is.
+    NamingGroup withEverythingChecked() const;
+
     QString name() const
     {
         return name_;
