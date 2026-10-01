@@ -10,6 +10,11 @@ not from a sleep -- with the peak RSS, and the run must exit with 0.
 A Benchmark Run reads and writes nothing of the user's: the tests also check
 that it leaves the settings, Session and data of the instance it runs in as
 they were, and nothing behind in the temporary directory.
+
+logsquirl_grep writes a report of the same format for its Search (#667): the
+times of indexing, searching and writing the matches, counted from the open of
+the Log File, so the e2e performance suite can tell the Search from the
+process startup.
 """
 
 from __future__ import annotations
@@ -19,7 +24,14 @@ from pathlib import Path
 
 import pytest
 
-from benchmark_mode import EXIT_FAILED, EXIT_PASSED, EXIT_USAGE, event, run_benchmark
+from benchmark_mode import (
+    EXIT_FAILED,
+    EXIT_PASSED,
+    EXIT_USAGE,
+    event,
+    run_benchmark,
+    run_grep_benchmark,
+)
 
 pytestmark = pytest.mark.slow
 
@@ -137,3 +149,50 @@ def test_a_scenario_that_cannot_run_reports_why(isolated_gui, tmp_path):
     assert run.report["outcome"] == "failed"
     assert "exactly one Log File" in run.report["failure"]
     assert run.report["events"] == []
+
+
+def test_grep_reports_its_search_timed_from_the_open(logsquirl_grep_binary, generated_log, tmp_path):
+    # Log Lines 3, 11, 19, ...: one in eight.
+    run = run_grep_benchmark(logsquirl_grep_binary, "worker-3 ", generated_log, tmp_path / "grep.json")
+
+    assert run.process.returncode == 0, run.process.stderr
+    # The matches are written as without a report.
+    matches = run.process.stdout.splitlines()
+    assert len(matches) == LOG_LINES // 8
+    assert all("worker-3 " in line for line in matches)
+
+    report = run.report
+    assert report is not None
+    assert report["scenario"] == "grep"
+    assert report["outcome"] == "passed"
+
+    indexed = event(report, "index_finished")
+    searched = event(report, "search_finished")
+    written = event(report, "matches_written")
+    assert 0 < indexed["since_scenario_start_ms"]
+    assert indexed["since_scenario_start_ms"] <= searched["since_scenario_start_ms"]
+    assert searched["since_scenario_start_ms"] <= written["since_scenario_start_ms"]
+    assert indexed["data"]["log_line_count"] == LOG_LINES
+    assert searched["data"]["match_count"] == LOG_LINES // 8
+
+    # The startup came before the measured part and is not in it.
+    assert report["scenario_started_ms"] >= report["process"]["main_entered_ms"] >= 0
+    assert written["since_process_start_ms"] == pytest.approx(
+        report["scenario_started_ms"] + written["since_scenario_start_ms"], abs=0.01
+    )
+
+    assert report["results"]["match_count"] == LOG_LINES // 8
+    assert report["results"]["log_file_bytes"] == generated_log.stat().st_size
+    assert [log_file["size_bytes"] for log_file in report["log_files"]] == [
+        generated_log.stat().st_size
+    ]
+
+
+def test_grep_reports_why_its_search_failed(logsquirl_grep_binary, generated_log, tmp_path):
+    run = run_grep_benchmark(logsquirl_grep_binary, "(unclosed", generated_log, tmp_path / "grep.json")
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert run.report["outcome"] == "failed"
+    assert run.report["failure"]
+    assert not any(e["name"] == "matches_written" for e in run.report["events"])

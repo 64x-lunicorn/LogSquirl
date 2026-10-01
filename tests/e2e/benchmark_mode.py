@@ -1,6 +1,9 @@
 """
 Runs the application's benchmark mode and reads its report (#666).
 
+``logsquirl_grep --benchmark-output <file>`` writes a report of the same format
+for its one Search (scenario ``grep``, #667): run_grep_benchmark() runs it.
+
 ``logsquirl --benchmark <scenario> <Log File>...`` runs one scenario and
 writes what happened as one JSON object; BUILD.md, "Benchmark mode", documents
 the command line and every field. This module is what the e2e suites use to
@@ -80,6 +83,11 @@ def check_report(report: dict) -> dict:
     return report
 
 
+def seconds_since_scenario_start(report: dict, name: str) -> float:
+    """When the first event of that name happened, in seconds since the scenario started."""
+    return event(report, name)["since_scenario_start_ms"] / 1000.0
+
+
 def event(report: dict, name: str) -> dict:
     """The first event of that name; raises KeyError when there is none."""
     for candidate in report["events"]:
@@ -117,6 +125,35 @@ def run_benchmark(
     if report_path.exists():
         report_path.unlink()
     process = instance.run(*args, timeout=timeout + 60)
+    report = None
+    if report_path.exists():
+        report = check_report(json.loads(report_path.read_text(encoding="utf-8")))
+    return BenchmarkRun(process, report)
+
+
+def run_grep_benchmark(
+    binary: Path,
+    pattern: str,
+    log_file: Path,
+    report_path: Path,
+    timeout: float = 300.0,
+) -> BenchmarkRun:
+    """Runs logsquirl_grep on one Log File with a benchmark report (#667).
+
+    The tool searches as it always does and writes the matched Log Lines to
+    stdout; with --benchmark-output it also writes a report of scenario
+    ``grep`` whose events are timed from the moment the Log File is opened, so
+    the process startup is not part of them. The report is None when the run
+    wrote none: a logsquirl_grep older than the option rejects it.
+    """
+    if report_path.exists():
+        report_path.unlink()
+    process = subprocess.run(
+        [str(binary), "--benchmark-output", str(report_path), "-e", pattern, str(log_file)],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
     report = None
     if report_path.exists():
         report = check_report(json.loads(report_path.read_text(encoding="utf-8")))
