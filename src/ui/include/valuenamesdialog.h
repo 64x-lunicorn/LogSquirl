@@ -236,6 +236,10 @@ private:
     changeRules( const std::function<void( QList<logsquirl::valuenames::NamingRule>& )>& change );
     void
     changeTables( const std::function<void( QList<logsquirl::valuenames::NameTable>& )>& change );
+    // Moves the selected group, or the selected rule, by offset rows, if it
+    // stays in the list.
+    void moveGroup( int offset );
+    void moveRule( int offset );
 
     // Whether the group shown may be changed: not a Team group while the
     // Team groups are read-only.

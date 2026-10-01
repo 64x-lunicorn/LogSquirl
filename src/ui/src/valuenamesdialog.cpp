@@ -774,22 +774,23 @@ void ValueNamesDialog::removeGroup()
 
 void ValueNamesDialog::moveGroupUp()
 {
-    if ( groupRow_ <= 0 ) {
-        return;
-    }
-    const auto row = groupRow_;
-    groups_.move( row, row - 1 );
-    populateGroups( row - 1 );
+    moveGroup( -1 );
 }
 
 void ValueNamesDialog::moveGroupDown()
 {
-    if ( groupRow_ < 0 || groupRow_ >= groups_.size() - 1 ) {
+    moveGroup( 1 );
+}
+
+void ValueNamesDialog::moveGroup( int offset )
+{
+    const auto from = groupRow_;
+    const auto to = from + offset;
+    if ( from < 0 || to < 0 || to >= groups_.size() ) {
         return;
     }
-    const auto row = groupRow_;
-    groups_.move( row, row + 1 );
-    populateGroups( row + 1 );
+    groups_.move( from, to );
+    populateGroups( to );
 }
 
 // --- Naming Rules ---
@@ -910,24 +911,24 @@ void ValueNamesDialog::removeRule()
 
 void ValueNamesDialog::moveRuleUp()
 {
-    if ( ruleRow_ <= 0 ) {
-        return;
-    }
-    const auto row = ruleRow_;
-    changeRules( [ row ]( QList<NamingRule>& rules ) { rules.move( row, row - 1 ); } );
-    populateRules( row - 1 );
-    updatePreview();
+    moveRule( -1 );
 }
 
 void ValueNamesDialog::moveRuleDown()
 {
+    moveRule( 1 );
+}
+
+void ValueNamesDialog::moveRule( int offset )
+{
     const auto* group = currentGroup();
-    if ( group == nullptr || ruleRow_ < 0 || ruleRow_ >= group->rules().size() - 1 ) {
+    const auto from = ruleRow_;
+    const auto to = from + offset;
+    if ( group == nullptr || from < 0 || to < 0 || to >= group->rules().size() ) {
         return;
     }
-    const auto row = ruleRow_;
-    changeRules( [ row ]( QList<NamingRule>& rules ) { rules.move( row, row + 1 ); } );
-    populateRules( row + 1 );
+    changeRules( [ from, to ]( QList<NamingRule>& rules ) { rules.move( from, to ); } );
+    populateRules( to );
     updatePreview();
 }
 

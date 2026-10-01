@@ -638,6 +638,54 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
             }
         }
 
+        WHEN( "the selected rule and a group added are moved, past the ends too" )
+        {
+            // Index 0: the group's buttons, 1: the rules', beside the rules table.
+            QList<QToolButton*> up{ nullptr, nullptr };
+            QList<QToolButton*> down{ nullptr, nullptr };
+            for ( auto* button : dialog.findChildren<QToolButton*>() ) {
+                const auto index = rules->parentWidget()->isAncestorOf( button ) ? 1 : 0;
+                if ( button->toolTip() == QStringLiteral( "Move up" ) ) {
+                    up[ index ] = button;
+                }
+                else if ( button->toolTip() == QStringLiteral( "Move down" ) ) {
+                    down[ index ] = button;
+                }
+            }
+            REQUIRE( !up.contains( nullptr ) );
+            REQUIRE( !down.contains( nullptr ) );
+            const auto firstRule = dialog.groups()[ 0 ].rules()[ 0 ].name;
+            const auto secondRule = dialog.groups()[ 0 ].rules()[ 1 ].name;
+
+            THEN( "a rule moves down to the end and up to the start, no further" )
+            {
+                down[ 1 ]->click();
+                REQUIRE( dialog.groups()[ 0 ].rules()[ 1 ].name == firstRule );
+                down[ 1 ]->click();
+                REQUIRE( dialog.groups()[ 0 ].rules()[ 1 ].name == firstRule );
+                REQUIRE( rules->currentRow() == 1 );
+                up[ 1 ]->click();
+                up[ 1 ]->click();
+                REQUIRE( dialog.groups()[ 0 ].rules()[ 0 ].name == firstRule );
+                REQUIRE( dialog.groups()[ 0 ].rules()[ 1 ].name == secondRule );
+                REQUIRE( rules->currentRow() == 0 );
+            }
+
+            THEN( "a group added moves up to the start, no further, and down again" )
+            {
+                toolButtonOf( dialog, QStringLiteral( "Add a Naming Group" ) )->click();
+                auto* groupList = dialog.findChild<QListWidget*>( QStringLiteral( "groupList" ) );
+                up[ 0 ]->click();
+                up[ 0 ]->click();
+                REQUIRE( dialog.groups()[ 0 ].name() == QStringLiteral( "New Naming Group" ) );
+                REQUIRE( groupList->currentRow() == 0 );
+                down[ 0 ]->click();
+                down[ 0 ]->click();
+                REQUIRE( dialog.groups()[ 1 ].name() == QStringLiteral( "New Naming Group" ) );
+                REQUIRE( groupList->currentRow() == 1 );
+            }
+        }
+
         WHEN( "Enter is pressed in the preview" )
         {
             dialog.show();
