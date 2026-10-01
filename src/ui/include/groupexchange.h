@@ -27,26 +27,41 @@
 #include <optional>
 
 #include "highlighterset.h"
+#include "naminggroup.h"
 #include "predefinedfilters.h"
 
-// The Group Exchange: what the Predefined Filters Dialog and the Highlighters
-// Dialog share about handing one Filter Group or one Highlighter Set to
-// someone else as a file. The dialogs open the file dialogs and call this.
+// The Group Exchange: what the Predefined Filters Dialog, the Highlighters
+// Dialog and the Value Names Dialog share about handing one Filter Group, one
+// Highlighter Set or one Naming Group to someone else as a file. The dialogs
+// open the file dialogs and call this.
+//
+// Which kind of group a file holds: a Naming Group file says so in an entry
+// of its own, kind=valuenames (KindKey, ValueNamesKind), and is read as
+// nothing else. A Filter Group or Highlighter Set file has no such entry, as
+// earlier versions wrote them; a file with a kind entry is never read as one.
 namespace logsquirl::groupexchange {
 
-enum class GroupKind { Filter, Highlighter };
+enum class GroupKind { Filter, Highlighter, ValueNames };
+
+// The entry naming the kind of group a file holds, and its value in a Naming
+// Group file.
+inline constexpr auto KindKey = "kind";
+inline constexpr auto ValueNamesKind = "valuenames";
 
 // The file name proposed for exporting a group: its name with every
 // character that is not allowed in a file name (/ \ : * ? " < > |) replaced
-// by '_', followed by "_filter.conf" or "_highlighter.conf".
+// by '_', followed by "_filter.conf", "_highlighter.conf" or
+// "_valuenames.conf".
 QString suggestedFileName( const QString& groupName, GroupKind kind );
 
-// Writes exactly this one group to file, replacing whatever the file held,
-// in the .conf layout earlier versions write, so that they import it. A
-// Highlighter Set file holds no Color Labels and no list of active sets.
-// Whether the file was written.
+// Writes exactly this one group to file, replacing whatever the file held.
+// A Filter Group or Highlighter Set in the .conf layout earlier versions
+// write, so that they import it; a Highlighter Set file holds no Color Labels
+// and no list of active sets. A Naming Group with the kind entry, and without
+// its checks. Whether the file was written.
 bool writeGroup( const QString& file, const PredefinedFilterSet& group );
 bool writeGroup( const QString& file, const HighlighterSet& group );
+bool writeGroup( const QString& file, const logsquirl::valuenames::NamingGroup& group );
 
 // The folder the file dialog of an export opens in: the one last exported to
 // during this session, empty before the first export. Never stored.
@@ -113,7 +128,7 @@ private:
 enum class ReadError {
     None,
     Unreadable, // the file cannot be opened or read as settings
-    NoGroups    // it holds no group
+    NoGroups    // it holds no group of the kind read
 };
 
 struct ImportResult {
@@ -127,6 +142,9 @@ struct ImportResult {
 // holds none. A Filter Group file read through the collection carries an
 // empty Default group the file did not hold: that one is not a group of the
 // file. Color Labels and active sets of a Highlighter Set file are ignored.
+// A file with a kind entry holds no Filter Group or Highlighter Set, and only
+// a file whose kind entry says valuenames holds a Naming Group: the kind is
+// never guessed from what a file holds. A Naming Group arrives checked.
 template <typename Group>
 struct ReadGroups {
     ReadError error = ReadError::None;
@@ -134,6 +152,7 @@ struct ReadGroups {
 };
 ReadGroups<PredefinedFilterSet> readFilterGroups( const QString& file );
 ReadGroups<HighlighterSet> readHighlighterGroups( const QString& file );
+ReadGroups<logsquirl::valuenames::NamingGroup> readValueNameGroups( const QString& file );
 
 // Brings each of the imported groups into groups by these rules: a group of
 // the same id (failing that, of the same name) is a conflict the session
@@ -146,11 +165,16 @@ ImportResult mergeGroups( QList<PredefinedFilterSet>& groups,
                           const QList<PredefinedFilterSet>& imported, ImportSession& session );
 ImportResult mergeGroups( QList<HighlighterSet>& groups, const QList<HighlighterSet>& imported,
                           ImportSession& session );
+ImportResult mergeGroups( QList<logsquirl::valuenames::NamingGroup>& groups,
+                          const QList<logsquirl::valuenames::NamingGroup>& imported,
+                          ImportSession& session );
 
 // Reads the file and merges what it holds: the whole import of one file.
 ImportResult importFile( const QString& file, QList<PredefinedFilterSet>& groups,
                          ImportSession& session );
 ImportResult importFile( const QString& file, QList<HighlighterSet>& groups,
+                         ImportSession& session );
+ImportResult importFile( const QString& file, QList<logsquirl::valuenames::NamingGroup>& groups,
                          ImportSession& session );
 
 } // namespace logsquirl::groupexchange
