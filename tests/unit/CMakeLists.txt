@@ -313,6 +313,7 @@ add_executable(logsquirl_benchmark_tests
     benchmark_tests_main.cpp
     benchmarkreport_test.cpp
     benchmarkscenario_test.cpp
+    inputlatency_test.cpp
 )
 
 target_link_libraries(logsquirl_benchmark_tests logsquirl_benchmark Catch2::Catch2)

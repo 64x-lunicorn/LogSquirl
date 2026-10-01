@@ -1007,6 +1007,8 @@ void MainWindow::createActions()
 
     findAction = new QAction( tr( action::findText ), this );
     findAction->setStatusTip( tr( action::findStatusTip ) );
+    // Named for the benchmark mode, which opens QuickFind as the user does (#668).
+    findAction->setObjectName( "findAction" );
     connect( findAction, &QAction::triggered, this, [ this ]( auto ) { this->find(); } );
 
     clearLogAction = new QAction( tr( action::clearLogText ), this );

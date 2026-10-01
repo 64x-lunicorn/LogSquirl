@@ -853,6 +853,8 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
         // the Open Log File's; only the redraw handing them over did is left.
         currentFilteredView()->updateDecorations();
     }
+
+    Q_EMIT searchProgressed( state );
 }
 
 void CrawlerWidget::jumpToMatchingLine( LineNumber logLine, LinesCount nLines, LineColumn startCol,

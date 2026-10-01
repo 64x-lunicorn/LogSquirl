@@ -54,6 +54,8 @@ file(GLOB BENCHMARK_SCENARIO_SOURCES CONFIGURE_DEPENDS
 set(BENCHMARK_MODE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/benchmarkmode.h
     ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/benchmarkmode.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/loadedlogfile.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/loadedlogfile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/paintprobe.h
     ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/paintprobe.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/scenariorun.h
