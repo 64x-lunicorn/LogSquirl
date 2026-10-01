@@ -10,14 +10,21 @@ labelled "<test case> / <benchmark>", with the instructions of exactly one run
 of its measured code, all threads together:
 
     <dumps>/<binary>/callgrind.out.<pid>.<part>   one per benchmark
+    <dumps>/<binary>/heap.tsv                     the same runs' heap counts (#673)
     <dumps>/<binary>/exit_code                    written when the binary ended
+
+heap.tsv has a line "<allocations>\t<peak heap bytes>\t<label>" per run of a
+benchmark's measured code, written by tests/benchmarks/heap_count.c in the
+same Callgrind run: the heap blocks the run allocated, all threads together,
+and the most heap it held at once above what was held when it started.
 
 Subcommands:
 
   collect DUMPS --json FILE
-      Reads one side's dumps into a side file: every benchmark's count, and the
-      binaries that failed (their counts are left out, since a binary that
-      stopped early did not run all of its benchmarks).
+      Reads one side's dumps into a side file: every benchmark's count and heap
+      counts (null when the binary wrote none), and the binaries that failed
+      (their counts are left out, since a binary that stopped early did not run
+      all of its benchmarks).
 
   compare --before FILE --after FILE --before-sha SHA --after-sha SHA
           --head-sha SHA --pull-request N [--json FILE] [--markdown FILE]
@@ -30,10 +37,14 @@ Subcommands:
          "benchmarks": [{"binary": "...", "name": "...",
                          "metrics": {"instructions": {"before": int|null,
                                                       "after": int|null,
-                                                      "change_percent": float|null}}}]}
+                                                      "change_percent": float|null},
+                                     "allocations": {...},
+                                     "peak_heap_bytes": {...}}}]}
 
-      A metric is null on the side a benchmark does not exist on; further
-      metrics (#673) go next to "instructions" in the same shape.
+      A metric is null on the side a benchmark does not exist on, or was not
+      counted on. allocations and peak_heap_bytes (#673) have the shape of
+      instructions; they are reported only, never judged by the gate, and an
+      artifact without them reads as not counted.
 
   gate --comparison FILE --labels FILE [--json FILE] [--markdown FILE]
       The gate of #672 (CI Build's "Instruction counts / gate" job): exits 1
@@ -122,6 +133,11 @@ BINARY = re.compile(r"[A-Za-z0-9_]{1,100}")
 
 CLIENT_REQUEST = "Client Request: "
 
+# The heap counts of #673, next to the instructions in the comparison and
+# reported only: the gate judges instructions alone.
+HEAP_FILE = "heap.tsv"
+HEAP_METRICS = ("allocations", "peak_heap_bytes")
+
 
 # ---------------------------------------------------------------------------
 # Reading the dumps
@@ -172,9 +188,32 @@ def collect(dumps: Path) -> dict[str, Any]:
                 order.append(label)
                 counts[label] = 0
             counts[label] += instructions
-        benchmarks.extend({"binary": binary, "name": label, "instructions": counts[label]}
-                          for label in order)
+        heap = read_heap(directory / HEAP_FILE)
+        for label in order:
+            allocations, peak = heap.get(label, (None, None))
+            benchmarks.append({"binary": binary, "name": label, "instructions": counts[label],
+                               "allocations": allocations, "peak_heap_bytes": peak})
     return {"schema_version": SCHEMA_VERSION, "benchmarks": benchmarks, "failed_binaries": failed}
+
+
+def read_heap(path: Path) -> dict[str, tuple[int, int]]:
+    """A binary's heap counts by label: the allocations added up and the highest peak.
+
+    Like the instructions of a label that dumps more than once, a benchmark
+    that runs its measured code more than once allocates in each run; its peak
+    is the highest of them. A line that is not a record is left out.
+    """
+    if not path.is_file():
+        return {}
+    heap: dict[str, tuple[int, int]] = {}
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        fields = line.split("\t", 2)
+        if len(fields) != 3 or not fields[0].isdigit() or not fields[1].isdigit() or not fields[2]:
+            continue
+        allocations, peak = int(fields[0]), int(fields[1])
+        before = heap.get(fields[2], (0, 0))
+        heap[fields[2]] = (before[0] + allocations, max(before[1], peak))
+    return heap
 
 
 def _dump_order(path: Path) -> tuple[int, ...]:
@@ -192,18 +231,22 @@ def change_percent(before: int | None, after: int | None) -> float | None:
     return (after - before) / before * 100.0
 
 
+def metric(before: int | None, after: int | None) -> dict[str, Any]:
+    return {"before": before, "after": after, "change_percent": change_percent(before, after)}
+
+
 def compare(before: dict[str, Any], after: dict[str, Any], *, before_sha: str, after_sha: str,
             head_sha: str, pull_request: int) -> dict[str, Any]:
-    def counts(data: dict[str, Any]) -> dict[tuple[str, str], int]:
-        return {(b["binary"], b["name"]): b["instructions"] for b in data["benchmarks"]}
+    def entries(data: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+        return {(b["binary"], b["name"]): b for b in data["benchmarks"]}
 
-    before_counts, after_counts = counts(before), counts(after)
+    before_entries, after_entries = entries(before), entries(after)
     benchmarks = []
-    for binary, name in sorted(before_counts.keys() | after_counts.keys()):
-        b = before_counts.get((binary, name))
-        a = after_counts.get((binary, name))
-        benchmarks.append({"binary": binary, "name": name, "metrics": {"instructions": {
-            "before": b, "after": a, "change_percent": change_percent(b, a)}}})
+    for binary, name in sorted(before_entries.keys() | after_entries.keys()):
+        b = before_entries.get((binary, name), {})
+        a = after_entries.get((binary, name), {})
+        metrics = {key: metric(b.get(key), a.get(key)) for key in ("instructions", *HEAP_METRICS)}
+        benchmarks.append({"binary": binary, "name": name, "metrics": metrics})
     return {
         "schema_version": SCHEMA_VERSION,
         "pull_request": pull_request,
@@ -312,12 +355,14 @@ def validate(data: Any) -> dict[str, Any]:
         metrics = entry.get("metrics")
         _require(isinstance(metrics, dict) and isinstance(metrics.get("instructions"), dict),
                  "benchmark metrics")
-        instructions = metrics["instructions"]
-        _require(_is_count(instructions.get("before")) and _is_count(instructions.get("after")),
-                 "instruction counts")
-        b, a = instructions.get("before"), instructions.get("after")
-        benchmarks.append({"binary": entry["binary"], "name": entry["name"], "metrics": {
-            "instructions": {"before": b, "after": a, "change_percent": change_percent(b, a)}}})
+        clean = {}
+        for key in ("instructions", *HEAP_METRICS):
+            # Heap counts may be absent: an artifact from before #673.
+            m = metrics.get(key, {} if key in HEAP_METRICS else None)
+            _require(isinstance(m, dict) and _is_count(m.get("before")) and _is_count(m.get("after")),
+                     f"{key} counts")
+            clean[key] = metric(m.get("before"), m.get("after"))
+        benchmarks.append({"binary": entry["binary"], "name": entry["name"], "metrics": clean})
     return {"schema_version": SCHEMA_VERSION, "pull_request": pull_request, "head_sha": data["head_sha"],
             "before": sides["before"], "after": sides["after"], "benchmarks": benchmarks}
 
@@ -413,6 +458,68 @@ def _table(benchmarks: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def has_heap_counts(data: dict[str, Any]) -> bool:
+    return any(b["metrics"][key][side] is not None
+               for b in data["benchmarks"] for key in HEAP_METRICS for side in ("before", "after"))
+
+
+def is_heap_change(entry: dict[str, Any]) -> bool:
+    """Whether a benchmark counted on both sides allocates differently or holds another peak.
+
+    No noise threshold: an allocation count repeats exactly when the work does.
+    """
+    return any(m["before"] is not None and m["after"] is not None and m["before"] != m["after"]
+               for m in (entry["metrics"][key] for key in HEAP_METRICS))
+
+
+def _heap_change(before: int | None, after: int | None) -> str:
+    if before is None or after is None:
+        return ""
+    if before == 0:
+        return "" if after == 0 else f"+{after:,}"
+    return _change(before, after)
+
+
+def _heap_table(benchmarks: list[dict[str, Any]]) -> list[str]:
+    lines = ["| Benchmark | Allocations before | Allocations after | Change "
+             "| Peak heap before | Peak heap after | Change |",
+             "|---|---:|---:|---:|---:|---:|---:|"]
+    for entry in benchmarks:
+        name = escape(f"{short_binary(entry['binary'])}: {entry['name']}")
+        cells = []
+        for key in HEAP_METRICS:
+            m = entry["metrics"][key]
+            cells += [_count(m["before"]), _count(m["after"]), _heap_change(m["before"], m["after"])]
+        lines.append(f"| {name} | " + " | ".join(cells) + " |")
+    return lines
+
+
+def render_heap(data: dict[str, Any]) -> list[str]:
+    """The allocations and peak heap of each benchmark (#673), as Markdown lines."""
+    benchmarks = data["benchmarks"]
+    changed = [b for b in benchmarks if is_heap_change(b)]
+    total = len(benchmarks)
+    lines = [
+        "#### Allocations and peak heap",
+        "",
+        "Reported only, not judged by the gate. Counted in the same run as the instructions, all "
+        "threads together: the heap blocks the measured code allocated (malloc, calloc, realloc and "
+        "the aligned ones, operator new through them, and mimalloc's for `logsquirl::vector`), and the "
+        "most heap it held at once above what was held when it started, in bytes as the allocators "
+        "round them up.",
+        "",
+    ]
+    summary = f"{total} benchmark{'' if total == 1 else 's'}, "
+    summary += f"{len(changed) if changed else 'none'} with other allocations or peak heap"
+    lines += [f"**{summary}**", ""]
+    if changed:
+        lines += _heap_table(changed) + [""]
+    lines += ["<details><summary>All benchmarks</summary>", ""]
+    lines += _heap_table(benchmarks)
+    lines += ["", "</details>", ""]
+    return lines
+
+
 def _percent(value: float) -> str:
     return f"+{value:.1f} %"
 
@@ -493,6 +600,8 @@ def render_markdown(data: dict[str, Any], *, comment: bool = False, gate: dict[s
     lines += ["<details><summary>All benchmarks</summary>", ""]
     lines += _table(benchmarks)
     lines += ["", "</details>", ""]
+    if has_heap_counts(data):
+        lines += render_heap(data)
     return "\n".join(lines)
 
 
