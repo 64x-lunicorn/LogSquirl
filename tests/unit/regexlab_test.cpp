@@ -511,6 +511,10 @@ SCENARIO( "A Regex Lab evaluation keeps to its bounds and says where it stopped"
         const logsquirl::vector<QString> sample( 20, line );
         regexlab::Bounds bounds;
         bounds.timeLimit = std::chrono::milliseconds{ 100 };
+        // Running into PCRE's match limit takes the JIT some 10 to 40 ms per
+        // line, depending on the machine: far above this, and far below the
+        // default.
+        bounds.slowLine = std::chrono::milliseconds{ 1 };
         const auto started = std::chrono::steady_clock::now();
         const auto result
             = evaluate( regexp( "(a|aa)+$" ), sample, RegexpEngine::QRegularExpression, bounds );
