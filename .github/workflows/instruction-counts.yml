@@ -1,0 +1,285 @@
+name: "Instruction Counts"
+
+# Counts the instructions of every Catch2 benchmark in tests/benchmarks on a
+# pull request and on its base, and reports the counts before and after and
+# the change in percent (#671): in the job summary here, and as a comment on
+# the pull request, which the Instruction Counts Comment workflow
+# (instruction-counts-comment.yml) posts from this run's artifact.
+#
+# Instruction counts, not times: Callgrind counts the same instructions for the
+# same work to within a fraction of a percent on a shared runner, where a time
+# varies by 5-20 %. Each benchmark runs its measured code exactly once, in the
+# benchmarks' fixed-work mode (tests/benchmarks/instruction_count.h); the
+# scripts are .github/scripts/instruction-counts.sh (build and count, in the
+# container), instruction-counts-side.sh (one side, on the runner) and
+# instruction-counts.py (read, compare, report). This reports only; nothing
+# turns red on a count yet (#672).
+#
+# Before is the merge commit's first parent, the tip of master the pull
+# request is merged onto, and after is the merge commit: the difference is
+# exactly what merging the pull request changes. Both sides build the after
+# side's tests/benchmarks, so both run the same benchmark code (a benchmark
+# that does not build on before is reported as new).
+#
+# A push to master counts the pushed commit and keeps its counts in the Actions
+# cache, under the commit, the benchmark sources and the counting script, and
+# the runner's CPU model (glibc picks its string functions by CPU, so counts
+# compare only between runners of one model). A pull request whose before side
+# is such a commit takes the before counts from there instead of building and
+# counting its base: the side that is left takes about 17 minutes with a warm
+# sccache, both sides about 35 (most of a side is the link time optimization of
+# some twenty benchmark executables and Vectorscan's runtime, which is never
+# cached). Only master's runs save; a pull request's run only restores.
+#
+# Pull requests from forks run here too: `pull_request` gives their code a
+# read-only token and no secrets, and this workflow writes nothing but its
+# artifacts. The comment needs a token that can write to the pull request, so
+# it is posted by a workflow_run workflow that runs master's code only and
+# treats the artifact as untrusted data. The build caches are only restored
+# here, never saved (see the cache-poisoning note in benchmarks.yml).
+#
+# One job, in the Ubuntu 24.04 container of the CI Build noble job, with that
+# job's build options, so it restores its sccache and CPM caches and only
+# compiles what differs: RelWithDebInfo with LTO, as released. Valgrind is
+# added to the container here when the image does not have it yet
+# (docker/ubuntu24.04 installs it from #671 on, but a changed image is only
+# published once it is on master, so the change could not be counted with
+# before it is merged).
+on:
+  pull_request:
+    branches: [master]
+    # The files a push to master leaves CI Build alone for (ci-build.yml).
+    paths-ignore: &unbuilt
+      - 'website/**'
+      - BUILD.md
+      - CODE_OF_CONDUCT.md
+      - CONTRIBUTING.md
+      - README.md
+      - latest.json
+      - .gitignore
+  push:
+    branches: [master]
+    paths-ignore: *unbuilt
+
+concurrency:
+  group: instruction-counts-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  counts:
+    name: Instruction counts
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    # Single-entry matrix so the shared composite actions (which read
+    # matrix.config.*) work unchanged; artifacts_id is the noble job's.
+    strategy:
+      matrix:
+        config:
+          - arch: x64
+            artifacts_id: noble
+            container_root: docker/ubuntu24.04
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            cmake_opts:
+
+    runs-on: ubuntu-24.04
+    # Both sides take about 35 minutes with a warm sccache, and a cold one or
+    # a locally built image adds to that.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: read # pull the signed build container from GHCR
+    env:
+      # Everything this job adds to the workspace lives here, untracked, so the
+      # checkouts of the two sides keep it.
+      RUN_DIR: instruction-counts-run
+    steps:
+      # A pull request's merge commit and its first parent, the base; the
+      # pushed commit on master.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      # The composite actions and scripts, and the benchmark sources both
+      # sides build, all from the after side. The key of the kept counts:
+      # what makes a count, apart from the commit.
+      - name: Keep the after side's tools and benchmarks
+        id: sides
+        env:
+          COUNTED_WITH: ${{ hashFiles('tests/benchmarks/**', '.github/scripts/instruction-counts.sh') }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUN_DIR/tools" "$RUN_DIR/after-benchmarks" "$RUN_DIR/report" "$RUN_DIR/kept" \
+            "$RUN_DIR/dumps/before" "$RUN_DIR/dumps/after"
+          cp -R .github "$RUN_DIR/tools/"
+          cp -R tests/benchmarks "$RUN_DIR/after-benchmarks/"
+          cpu=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -n 1)
+          echo "CPU: $cpu"
+          cpu_key=$(printf '%s' "$cpu" | sha256sum | cut -c 1-16)
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            echo "before=$(git rev-parse HEAD^1)" >> "$GITHUB_OUTPUT"
+          fi
+          echo "after=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "key=$cpu_key-$COUNTED_WITH" >> "$GITHUB_OUTPUT"
+
+      # The before side's counts, when a push to master counted that commit on
+      # a runner of this CPU model with these benchmark sources.
+      - name: Restore the before side's counts
+        id: kept
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: instruction-counts-run/kept
+          key: instruction-counts-${{ steps.sides.outputs.before }}-${{ steps.sides.outputs.key }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The noble job's caches (#219). Only restored: nothing this job
+      # compiles or downloads is saved.
+      - name: Restore CPM cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cpm_cache
+          key: cpm-Linux-noble-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
+          restore-keys: |
+            cpm-Linux-noble-
+
+      - name: Restore sccache cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: sccache_cache
+          key: sccache-Linux-noble-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            sccache-Linux-noble-
+
+      - uses: ./instruction-counts-run/tools/.github/actions/logsquirl-version
+      - uses: ./instruction-counts-run/tools/.github/actions/prepare-workspace-env
+
+      # ---------------------------------------------------------------------
+      # Before, unless kept from master
+      # ---------------------------------------------------------------------
+      - name: Take the before side's counts from master's run
+        if: steps.kept.outputs.cache-hit == 'true'
+        run: |
+          set -euo pipefail
+          cp "$RUN_DIR/kept/counts.json" "$RUN_DIR/report/before.json"
+          echo "::notice::The before side's counts come from the run of its push to master"
+
+      - name: Check out the before side with the after side's benchmarks
+        id: before
+        if: github.event_name == 'pull_request' && steps.kept.outputs.cache-hit != 'true'
+        env:
+          BEFORE: ${{ steps.sides.outputs.before }}
+        run: |
+          set -euo pipefail
+          git checkout --quiet --detach "$BEFORE"
+          rm -rf tests/benchmarks
+          cp -R "$RUN_DIR/after-benchmarks/benchmarks" tests/benchmarks
+
+      - uses: ./instruction-counts-run/tools/.github/actions/docker-pull-or-build
+        if: steps.before.outcome == 'success'
+        with:
+          image: ${{ matrix.config.image }}
+          container_root: ${{ matrix.config.container_root }}
+
+      - name: Count the before side
+        if: steps.before.outcome == 'success'
+        run: '"$RUN_DIR/tools/.github/scripts/instruction-counts-side.sh" before'
+
+      # ---------------------------------------------------------------------
+      # After
+      # ---------------------------------------------------------------------
+      # --force puts back every tracked file, the benchmark sources copied over
+      # above included, and keeps the untracked build_root, caches and run
+      # directory.
+      - name: Check out the after side
+        if: steps.before.outcome == 'success'
+        env:
+          AFTER: ${{ steps.sides.outputs.after }}
+        run: git checkout --quiet --force --detach "$AFTER"
+
+      - uses: ./instruction-counts-run/tools/.github/actions/docker-pull-or-build
+        with:
+          image: ${{ matrix.config.image }}
+          container_root: ${{ matrix.config.container_root }}
+
+      - name: Count the after side
+        id: after
+        run: '"$RUN_DIR/tools/.github/scripts/instruction-counts-side.sh" after'
+
+      # ---------------------------------------------------------------------
+      # Report
+      # ---------------------------------------------------------------------
+      - name: Compare before and after
+        id: compare
+        if: always() && github.event_name == 'pull_request' && steps.sides.outcome == 'success'
+        env:
+          BEFORE_SHA: ${{ steps.sides.outputs.before }}
+          AFTER_SHA: ${{ steps.sides.outputs.after }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          report="$RUN_DIR/report"
+          python3 "$RUN_DIR/tools/.github/scripts/instruction-counts.py" compare \
+            --before "$report/before.json" --after "$report/after.json" \
+            --before-sha "$BEFORE_SHA" --after-sha "$AFTER_SHA" \
+            --head-sha "$HEAD_SHA" --pull-request "$PULL_REQUEST" \
+            --json "$report/comparison.json" --markdown "$report/comparison.md"
+          cat "$report/comparison.md" >> "$GITHUB_STEP_SUMMARY"
+          # A benchmark that fails on the after side is the pull request's.
+          if [ ! -f "$report/after.json" ] || jq -e '.failed_binaries | length > 0' "$report/after.json" > /dev/null; then
+            echo "::error::Not every benchmark could be counted on the after side"
+            exit 1
+          fi
+
+      # Kept only when every benchmark was counted.
+      - name: Keep master's counts
+        if: github.event_name == 'push' && steps.after.outcome == 'success'
+        run: |
+          set -euo pipefail
+          report="$RUN_DIR/report"
+          jq -e '.failed_binaries | length == 0' "$report/after.json" > /dev/null
+          cp "$report/after.json" "$RUN_DIR/kept/counts.json"
+          {
+            echo "### Instruction counts of $GITHUB_SHA"
+            echo
+            echo '| Instructions | Benchmark |'
+            echo '|---:|---|'
+            jq -r '.benchmarks[] | "| \(.instructions) | \(.binary): \(.name | gsub("\\|"; "\\\\|")) |"' "$report/after.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save master's counts
+        if: github.event_name == 'push' && steps.after.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: instruction-counts-run/kept
+          key: instruction-counts-${{ steps.sides.outputs.after }}-${{ steps.sides.outputs.key }}
+
+      # What the comment workflow reads: comparison.json, and the side files.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.sides.outcome == 'success'
+        with:
+          name: instruction-counts
+          path: instruction-counts-run/report
+          if-no-files-found: ignore
+
+      # The Callgrind dumps and each binary's output, to see where the
+      # instructions went: callgrind_annotate or KCachegrind open a dump.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.sides.outcome == 'success'
+        with:
+          name: instruction-counts-dumps
+          path: instruction-counts-run/dumps
+          if-no-files-found: ignore
+          retention-days: 7

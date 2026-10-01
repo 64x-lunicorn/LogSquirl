@@ -222,7 +222,7 @@ QTemporaryDir* directory = nullptr;
 } // namespace
 
 TEST_CASE( "loading, scrolling and searching a Log File with ANSI color sequences",
-           "[ansi-log-file-benchmark]" )
+           "[ansi-log-file-benchmark][wall-clock]" )
 {
     REQUIRE( directory != nullptr );
     REQUIRE( directory->isValid() );
