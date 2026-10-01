@@ -41,6 +41,7 @@
 #include "test_policies.h"
 #include "theme.h"
 #include "theme_lists.h"
+#include "valuenames_fixture.h"
 #include "viewportlayout.h"
 
 namespace {
@@ -267,6 +268,73 @@ SCENARIO( "The Viewport's margins follow a Theme switch", "[ui][theme][viewport]
                 QCoreApplication::processEvents();
 
                 requireMarginsInTokens( shown.grab(), margins, Theme::active() );
+            }
+        }
+
+        Theme::apply( Theme::defaultTheme() );
+    }
+}
+
+namespace {
+
+// How many pixels of the image are exactly in color.
+int pixelsIn( const QImage& image, const QColor& color )
+{
+    int pixels = 0;
+    for ( int y = 0; y < image.height(); ++y ) {
+        for ( int x = 0; x < image.width(); ++x ) {
+            if ( image.pixelColor( x, y ).rgb() == color.rgb() ) {
+                ++pixels;
+            }
+        }
+    }
+    return pixels;
+}
+
+} // namespace
+
+// The dotted underline of a Named Value is drawn in the text color of the
+// viewport's palette (#647). The view inherits the application's palette, so
+// a Theme switch reaches it without anybody setting it on the viewport.
+SCENARIO( "A Named Value's underline follows a Theme switch", "[ui][theme][viewport][valuenames]" )
+{
+    const valuenamesfixture::ScopedValueNames valueNames;
+
+    GIVEN( "a view showing Value Names under the Light Theme" )
+    {
+        Theme::apply( Theme::LightKey );
+        FakeLogData logData( QStringList{ "BAP << ECU 0x15 0x14 sonstiges" } );
+        QuickFindPattern quickFindPattern;
+        MarginsLogView view( &logData, &quickFindPattern );
+        view.setFrameShape( QFrame::NoFrame );
+        view.resize( 400, 120 );
+        view.show();
+        QCoreApplication::processEvents();
+        view.setPresentationPolicy( testSettingsPolicies().presentation );
+        view.updateData();
+        view.valueNamesShownSet( true );
+        REQUIRE( view.showsValueNames() );
+        QCoreApplication::processEvents();
+
+        const auto lightText = view.viewport()->palette().color( QPalette::Text );
+        REQUIRE( lightText.rgb() == Theme::active().palette().color( QPalette::Text ).rgb() );
+        REQUIRE( pixelsIn( view.viewport()->grab().toImage(), lightText ) > 0 );
+
+        WHEN( "the Dark Theme is applied" )
+        {
+            Theme::apply( Theme::DarkKey );
+            QCoreApplication::processEvents();
+            const auto darkText = Theme::active().palette().color( QPalette::Text );
+            REQUIRE( darkText.rgb() != lightText.rgb() );
+            const auto painted
+                = view.viewport()->grab().toImage().convertToFormat( QImage::Format_RGB32 );
+
+            THEN( "the viewport has the Theme's text color and paints in it, not the old one" )
+            {
+                REQUIRE( view.viewport()->palette().color( QPalette::Text ).rgb()
+                         == darkText.rgb() );
+                REQUIRE( pixelsIn( painted, darkText ) > 0 );
+                REQUIRE( pixelsIn( painted, lightText ) == 0 );
             }
         }
 
