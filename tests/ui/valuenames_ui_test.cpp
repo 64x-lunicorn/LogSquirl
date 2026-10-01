@@ -58,6 +58,10 @@
 #include "valuenamesdialog.h"
 #include "valuenamespanel.h"
 
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
+
 using valuenamesfixture::exampleGroup;
 using valuenamesfixture::GroupTable;
 using valuenamesfixture::NameRow;
@@ -752,6 +756,13 @@ SCENARIO( "A CSV file is read in the encoding a spreadsheet saves it in",
 
     WHEN( "it is windows-1252, which is not valid UTF-8" )
     {
+#ifdef Q_OS_WIN
+        // Windows reads it in the system's ANSI code page, which is
+        // windows-1252 only on a western system.
+        if ( ::GetACP() != 1252 ) {
+            SKIP( "The ANSI code page of this system is " << ::GetACP() << ", not 1252" );
+        }
+#endif
         // T \xFC r , \xD6 l, and the euro sign 0x80 only windows-1252 has.
         REQUIRE( decodeCsvFile( QByteArray( "T\xFCr,\xD6l \x80\n" ) )
                  == QStringLiteral( "Tür,Öl €\n" ) );
