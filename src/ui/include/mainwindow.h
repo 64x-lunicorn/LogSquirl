@@ -434,6 +434,8 @@ private:
     // Hands the Team Highlighter Sets to the Highlighter Set collection.
     // dropUnknownActivations false: the first sync has not delivered groups.
     void applyTeamHighlighterSets( bool dropUnknownActivations = true );
+    // Hands the Team Naming Groups to the Value Names Collection (#647).
+    void applyTeamValueNames();
     // Asks what to do with a Team group somebody else changed while the user
     // was changing it too: keep mine, take theirs, or save mine as a copy.
     void askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome );

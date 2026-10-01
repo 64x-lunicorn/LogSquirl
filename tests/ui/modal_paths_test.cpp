@@ -42,6 +42,7 @@
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
+#include <QTreeWidget>
 #include <QUrl>
 
 #include <algorithm>
@@ -81,6 +82,8 @@
 #include "teamfolder.h"
 #include "test_policies.h"
 #include "test_utils.h"
+#include "valuenamescollection.h"
+#include "valuenamespanel.h"
 
 using namespace logsquirl::teamfolder;
 
@@ -561,6 +564,87 @@ TEST_CASE( "A publish that meets a colleague's change asks the user and carries 
 }
 
 // --- The tab of standard input ---
+
+TEST_CASE( "Team Naming Groups reach the Value Names, and a conflict on one is asked",
+           "[ui][modal][teamfolder][valuenames]" )
+{
+    using logsquirl::valuenames::NamingGroup;
+    using logsquirl::valuenames::NamingRule;
+
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        SKIP( "Git is not installed" );
+    }
+    // The Team groups are the process's own: none are left for other cases.
+    struct NoTeamGroupsAfter {
+        ~NoTeamGroupsAfter()
+        {
+            ValueNamesCollection::get().setTeamGroups( {} );
+        }
+    } noTeamGroupsAfter;
+
+    Team team;
+    const auto alice = team.member( "alice" );
+    auto shared = NamingGroup::createNewGroup( "Shared" );
+    NamingRule rule;
+    rule.name = "Mine";
+    rule.pattern = "id=(\\d+)";
+    shared.setRules( { rule } );
+    REQUIRE( publishAndWait( *alice, { PublishRequest::forGroup( shared, GroupAction::Add ) } )
+                 .results[ 0 ]
+                 .status
+             == PublishStatus::Published );
+    REQUIRE( settled( *alice ) );
+
+    const auto bob = team.member( "bob" );
+    WindowFixture window( bob, team.policy() );
+    ModalAnswers modals;
+
+    // The window hands the Team group to the Value Names, last, and its tab
+    // shows it as the team's.
+    const auto& collection = ValueNamesCollection::get();
+    REQUIRE( waitUiState( [ & ] { return collection.teamGroupCount() == 1; } ) );
+    REQUIRE( collection.groups().back().id() == shared.id() );
+    auto* panel = window.mainWindow->findChild<ValueNamesPanel*>();
+    REQUIRE( panel != nullptr );
+    auto* tree = panel->findChild<QTreeWidget*>();
+    REQUIRE( tree != nullptr );
+    REQUIRE( waitUiState( [ & ] {
+        return tree->topLevelItemCount() > 0
+               && tree->topLevelItem( tree->topLevelItemCount() - 1 )->text( 0 )
+                      == QStringLiteral( "Shared (Team)" );
+    } ) );
+
+    // Bob's edit, made against the group as he loaded it; Alice's meanwhile.
+    auto mine = shared;
+    rule.pattern = "bob=(\\d+)";
+    mine.setRules( { rule } );
+    auto request = PublishRequest::forGroup( mine, GroupAction::Change );
+    request.baseRevision = bob->valueNameGroupRevision( shared.id() );
+    REQUIRE_FALSE( request.baseRevision.value_or( QString{} ).isEmpty() );
+    auto theirs = shared;
+    rule.pattern = "alice=(\\d+)";
+    theirs.setRules( { rule } );
+    REQUIRE( publishAndWait( *alice, { PublishRequest::forGroup( theirs, GroupAction::Change ) } )
+                 .results[ 0 ]
+                 .status
+             == PublishStatus::Published );
+
+    modals.clickButton( "Save mine as a copy" );
+    bob->publish( { request } );
+    REQUIRE( waitUiState( [ & ] { return modals.unanswered() == 0; }, 60'000 ) );
+    REQUIRE( modals.messages().size() == 1 );
+    CHECK( modals.messages()[ 0 ].contains( "Somebody else changed the Team group \"Shared\"" ) );
+    REQUIRE( waitUiState( [ & ] { return team.serverFiles().size() == 2; }, 30'000 ) );
+    REQUIRE( settled( *bob ) );
+
+    // Both versions are Team groups now, theirs and the copy of bob's.
+    REQUIRE( waitUiState( [ & ] { return collection.teamGroupCount() == 2; }, 30'000 ) );
+    CHECK( collection.groups()[ collection.groups().size() - 2 ].rules()[ 0 ].pattern
+           == "alice=(\\d+)" );
+    CHECK( collection.groups().back().name() == "Shared (2)" );
+    CHECK( collection.groups().back().rules()[ 0 ].pattern == "bob=(\\d+)" );
+}
 
 TEST_CASE( "The tab of standard input is named stdin and takes no other tab's name",
            "[ui][modal][stdin]" )

@@ -21,13 +21,17 @@
 
 #include <functional>
 
+#include <QAbstractItemView>
 #include <QDialog>
+#include <QHash>
 #include <QList>
 #include <QString>
 #include <QStringList>
 
+#include "groupexchange.h"
 #include "nametablecsv.h"
 #include "naminggroup.h"
+#include "teamfolder.h"
 #include "valuenamer.h"
 
 class QAbstractButton;
@@ -38,6 +42,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
+class QPushButton;
 class QSpinBox;
 class QTableWidget;
 class QTableWidgetItem;
@@ -104,6 +109,11 @@ private:
 // It edits a copy of the groups, checks included (a rule renamed keeps its
 // check). OK and Apply hand them to the Value Names Collection, save it and,
 // if anything changed, say valueNamesChanged().
+//
+// The selected group is exported to a file and groups are imported from
+// files through the Group Exchange. The Team groups, when the Team Folder
+// shows them, are listed below the user's own, as the Predefined Filters
+// Dialog lists its Team groups.
 class ValueNamesDialog : public QDialog {
     Q_OBJECT
 
@@ -135,9 +145,43 @@ public:
         return shownPreview_;
     }
 
+    // Shows the Team groups in a section of their own below the user's own
+    // groups, in the order given (alphabetical, as the Team Folder hands them
+    // over). Read-only when editable is false; otherwise they are edited like
+    // the user's own groups, a new one can be added, and OK or Apply publishes
+    // what changed through publishRequested. Without a call there is no
+    // section.
+    void showTeamGroups( const QList<logsquirl::valuenames::NamingGroup>& groups,
+                         bool editable = false, const QHash<QString, QString>& revisions = {} );
+
+    // The revisions of the files of the groups with these ids are now those
+    // given: what a publish of them made. The next publish of them is based
+    // on these.
+    void updateTeamRevisions( const QStringList& ids, const QHash<QString, QString>& revisions );
+
+    // The Team groups as edited here.
+    const QList<logsquirl::valuenames::NamingGroup>& teamGroups() const
+    {
+        return teamGroups_;
+    }
+
+    // Writes the group shown, one of the user's own or a Team group, to the
+    // file: what Export... does once the file is chosen. Whether it was
+    // written.
+    bool exportShownGroup( const QString& file );
+
+    // Imports the Naming Groups of the files into the user's own groups,
+    // asking the resolver about each conflict: what Import... does once the
+    // files are chosen. OK or Apply keep them, Cancel drops them.
+    void importGroupFiles( const QStringList& files,
+                           const logsquirl::groupexchange::ConflictResolver& resolver );
+
 Q_SIGNALS:
     // OK or Apply changed the Value Names Collection.
     void valueNamesChanged();
+    // Team groups were added, renamed, changed or deleted, and OK or Apply
+    // asks for them to be published.
+    void publishRequested( const QList<logsquirl::teamfolder::PublishRequest>& requests );
 
 private Q_SLOTS:
     void addGroup();
@@ -146,6 +190,15 @@ private Q_SLOTS:
     void moveGroupDown();
     void groupSelected();
     void groupRenamed( const QString& name );
+    void exportGroup();
+    void importGroups();
+
+    // A Team group was selected.
+    void teamGroupSelected();
+    void addTeamGroup();
+    void shareSelectedGroup();
+    void copySelectedTeamGroup();
+    void deleteSelectedTeamGroup();
 
     void addRule();
     void removeRule();
@@ -184,12 +237,18 @@ private:
     void
     changeTables( const std::function<void( QList<logsquirl::valuenames::NameTable>& )>& change );
 
+    // Whether the group shown may be changed: not a Team group while the
+    // Team groups are read-only.
+    bool editable() const;
+    // Shows the selected group, of the user's own or of the team.
+    void showGroup();
     void populateGroups( int selectRow );
     void populateRules( int selectRow );
     void populateCaptureGroups();
     void populateTables( int selectRow );
     void populateRows();
     void updateButtons();
+    void updateTeamButtons();
     // The table of the selected rule's capture group, chosen in its row.
     void captureGroupTableChosen( const QString& group, const QString& numbered,
                                   const QString& table );
@@ -211,14 +270,32 @@ private:
     logsquirl::valuenames::ValueNamer previewNamer_;
     QStringList csvWarnings_;
 
-    // Left: the groups. Stage 4 adds Export, Import and the Team groups to
-    // this layout, as the Predefined Filters Dialog has them.
+    // Left: the groups, Export and Import, and the Team groups.
     QVBoxLayout* leftLayout_ = nullptr;
     QListWidget* groupList_ = nullptr;
     QToolButton* addGroupButton_ = nullptr;
     QToolButton* removeGroupButton_ = nullptr;
     QToolButton* upGroupButton_ = nullptr;
     QToolButton* downGroupButton_ = nullptr;
+    QPushButton* exportButton_ = nullptr;
+    QPushButton* importButton_ = nullptr;
+
+    QListWidget* teamGroupList_ = nullptr;
+    QPushButton* teamAddButton_ = nullptr;
+    QPushButton* teamShareButton_ = nullptr;
+    QPushButton* teamCopyButton_ = nullptr;
+    QPushButton* teamDeleteButton_ = nullptr;
+    QList<logsquirl::valuenames::NamingGroup> teamGroups_;
+    // The Team groups as they were given, to tell what OK or Apply publishes.
+    QList<logsquirl::valuenames::NamingGroup> teamGroupsAsGiven_;
+    bool teamEditable_ = false;
+    // The revision of each Team group's file when it was loaded, by id.
+    QHash<QString, QString> teamRevisions_;
+    // The row of the Team group shown, -1 when none is. One group is shown
+    // at a time: groupRow_ or teamRow_ is -1.
+    int teamRow_ = -1;
+    // How the tables of a group that may be changed start editing.
+    QAbstractItemView::EditTriggers editTriggers_;
 
     QWidget* groupEditor_ = nullptr;
     QLineEdit* groupName_ = nullptr;

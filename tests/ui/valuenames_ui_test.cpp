@@ -22,6 +22,7 @@
 // dialog edits the groups, and what either changes reaches the views.
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <QAction>
 #include <QApplication>
@@ -48,6 +49,7 @@
 #include "abstractlogview.h"
 #include "applicationplugins.h"
 #include "crawlerwidget.h"
+#include "groupexchange.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
 #include "session.h"
@@ -679,6 +681,195 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
             }
         }
     }
+}
+
+SCENARIO( "The Value Names dialog exports and imports a Naming Group",
+          "[ui][valuenames][valuenamesdialog][groupexchange]" )
+{
+    using namespace logsquirl::groupexchange;
+    const StoredValueNamesGuard guard;
+    storeGroups( { exampleGroup() } );
+    const QTemporaryDir dir;
+    REQUIRE( dir.isValid() );
+
+    ValueNamesDialog dialog;
+    auto* exportButton = dialog.findChild<QPushButton*>( QStringLiteral( "exportGroup" ) );
+    REQUIRE( exportButton != nullptr );
+    REQUIRE( dialog.findChild<QPushButton*>( QStringLiteral( "importGroups" ) ) != nullptr );
+    REQUIRE( exportButton->isEnabled() );
+
+    // Exported, then changed here, then imported again.
+    const auto file = dir.filePath( suggestedFileName( "BAP", GroupKind::ValueNames ) );
+    REQUIRE( dialog.exportShownGroup( file ) );
+    const auto exported = readValueNameGroups( file );
+    REQUIRE( exported.groups.size() == 1 );
+    REQUIRE(
+        exported.groups.front().sameAs( exampleGroup().withId( exported.groups.front().id() ) ) );
+
+    auto* name = dialog.findChild<QLineEdit*>( QStringLiteral( "groupName" ) );
+    QTest::keyClicks( name, QStringLiteral( " mine" ) );
+    REQUIRE( dialog.groups().front().name() == QStringLiteral( "BAP mine" ) );
+
+    const auto answer
+        = GENERATE( ConflictAnswer::Replace, ConflictAnswer::KeepBoth, ConflictAnswer::Skip );
+    int asked = 0;
+    dialog.importGroupFiles( { file }, [ &asked, answer ]( const ConflictQuestion& question ) {
+        ++asked;
+        REQUIRE( question.kind == ConflictKind::SameId );
+        return ConflictDecision{ answer, false };
+    } );
+    REQUIRE( asked == 1 );
+
+    QStringList names;
+    for ( const auto& group : dialog.groups() ) {
+        names.append( group.name() );
+    }
+    switch ( answer ) {
+    case ConflictAnswer::Replace:
+        REQUIRE( names == QStringList{ "BAP" } );
+        break;
+    case ConflictAnswer::KeepBoth:
+        REQUIRE( names == QStringList{ "BAP mine", "BAP" } );
+        REQUIRE( dialog.groups()[ 1 ].id() != dialog.groups()[ 0 ].id() );
+        break;
+    case ConflictAnswer::Skip:
+        REQUIRE( names == QStringList{ "BAP mine" } );
+        break;
+    }
+
+    // OK keeps what was imported.
+    dialog.findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Ok )->click();
+    REQUIRE( ValueNamesCollection::get().ownGroups().size() == names.size() );
+    QCoreApplication::processEvents();
+}
+
+SCENARIO( "The Value Names dialog shows the Team groups below the user's own",
+          "[ui][valuenames][valuenamesdialog][teamfolder]" )
+{
+    using logsquirl::teamfolder::GroupAction;
+    using logsquirl::teamfolder::PublishRequest;
+    const StoredValueNamesGuard guard;
+    storeGroups( { exampleGroup() } );
+    auto team = exampleGroup();
+    team = team.withId( NamingGroup::createNewGroup( QStringLiteral( "x" ) ).id() );
+    team.setName( QStringLiteral( "Shared" ) );
+
+    ValueNamesDialog dialog;
+    QList<PublishRequest> requests;
+    QObject::connect( &dialog, &ValueNamesDialog::publishRequested, &dialog,
+                      [ &requests ]( const auto& published ) { requests = published; } );
+    auto* own = dialog.findChild<QListWidget*>( QStringLiteral( "groupList" ) );
+    auto* name = dialog.findChild<QLineEdit*>( QStringLiteral( "groupName" ) );
+    auto* rules = dialog.findChild<QTableWidget*>( QStringLiteral( "rulesTable" ) );
+    auto* caseSensitive = dialog.findChild<QCheckBox*>( QStringLiteral( "caseSensitive" ) );
+    auto* preview = dialog.findChild<QLineEdit*>( QStringLiteral( "previewInput" ) );
+    auto* apply = dialog.findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Apply );
+    REQUIRE( dialog.findChild<QListWidget*>( QStringLiteral( "teamGroupList" ) ) == nullptr );
+
+    WHEN( "the Team groups are read-only" )
+    {
+        dialog.showTeamGroups( { team }, false );
+        auto* teamList = dialog.findChild<QListWidget*>( QStringLiteral( "teamGroupList" ) );
+        REQUIRE( teamList != nullptr );
+        REQUIRE( teamList->count() == 1 );
+        REQUIRE( dialog.findChild<QPushButton*>( QStringLiteral( "teamAdd" ) )->isHidden() );
+        REQUIRE( dialog.findChild<QPushButton*>( QStringLiteral( "teamShare" ) )->isHidden() );
+        REQUIRE( dialog.findChild<QPushButton*>( QStringLiteral( "teamDelete" ) )->isHidden() );
+
+        teamList->setCurrentRow( 0 );
+
+        THEN( "the Team group is shown and tried, but not changed" )
+        {
+            REQUIRE( own->currentRow() == -1 );
+            REQUIRE( name->text() == QStringLiteral( "Shared" ) );
+            REQUIRE( name->isReadOnly() );
+            REQUIRE( rules->editTriggers() == QAbstractItemView::NoEditTriggers );
+            REQUIRE_FALSE(
+                toolButtonOf( dialog, QStringLiteral( "Add a Naming Rule" ) )->isEnabled() );
+            REQUIRE_FALSE(
+                toolButtonOf( dialog, QStringLiteral( "Add a Name Table" ) )->isEnabled() );
+            REQUIRE_FALSE( caseSensitive->isEnabled() );
+            auto* captureGroups
+                = dialog.findChild<QTableWidget*>( QStringLiteral( "captureGroups" ) );
+            REQUIRE( captureGroups->rowCount() == 2 );
+            for ( int row = 0; row < captureGroups->rowCount(); ++row ) {
+                REQUIRE_FALSE( captureGroups->cellWidget( row, 1 )->isEnabled() );
+            }
+            REQUIRE(
+                dialog.findChild<QPushButton*>( QStringLiteral( "exportGroup" ) )->isEnabled() );
+
+            preview->setText( QStringLiteral( "BAP << ECU 0x15 0x14" ) );
+            REQUIRE( dialog.shownPreview()
+                     == QStringLiteral( "BAP << ECU Beispiel(0x15) Sample(0x14)" ) );
+
+            apply->click();
+            REQUIRE( requests.isEmpty() );
+        }
+
+        AND_WHEN( "it is copied to the user's own groups" )
+        {
+            dialog.findChild<QPushButton*>( QStringLiteral( "teamCopy" ) )->click();
+
+            THEN( "the copy is one of the user's own, and can be changed" )
+            {
+                REQUIRE( dialog.groups().size() == 2 );
+                REQUIRE( dialog.groups()[ 1 ].name() == QStringLiteral( "Shared" ) );
+                REQUIRE( dialog.groups()[ 1 ].id() != team.id() );
+                REQUIRE( own->currentRow() == 1 );
+                REQUIRE( teamList->currentRow() == -1 );
+                REQUIRE_FALSE( name->isReadOnly() );
+                REQUIRE(
+                    toolButtonOf( dialog, QStringLiteral( "Add a Naming Rule" ) )->isEnabled() );
+            }
+        }
+    }
+
+    WHEN( "the Team groups can be changed" )
+    {
+        dialog.showTeamGroups( { team }, true, { { team.id(), QStringLiteral( "R1" ) } } );
+        auto* teamList = dialog.findChild<QListWidget*>( QStringLiteral( "teamGroupList" ) );
+        REQUIRE( teamList != nullptr );
+
+        AND_WHEN( "one is renamed and Apply is clicked" )
+        {
+            teamList->setCurrentRow( 0 );
+            REQUIRE_FALSE( name->isReadOnly() );
+            QTest::keyClicks( name, QStringLiteral( " now" ) );
+            apply->click();
+
+            THEN( "the rename is published on the revision loaded, and the own groups stay" )
+            {
+                REQUIRE( requests.size() == 1 );
+                REQUIRE( requests[ 0 ].kind == logsquirl::groupexchange::GroupKind::ValueNames );
+                REQUIRE( requests[ 0 ].action == GroupAction::Rename );
+                REQUIRE( requests[ 0 ].name == QStringLiteral( "Shared now" ) );
+                REQUIRE( requests[ 0 ].baseRevision == QString( "R1" ) );
+                REQUIRE( ValueNamesCollection::get().ownGroups().size() == 1 );
+                REQUIRE( ValueNamesCollection::get().ownGroups()[ 0 ].name()
+                         == QStringLiteral( "BAP" ) );
+            }
+        }
+
+        AND_WHEN( "a group of the user's own is shared and a new Team group added" )
+        {
+            own->setCurrentRow( 0 );
+            dialog.findChild<QPushButton*>( QStringLiteral( "teamShare" ) )->click();
+            dialog.findChild<QPushButton*>( QStringLiteral( "teamAdd" ) )->click();
+            apply->click();
+
+            THEN( "both are published as new Team groups" )
+            {
+                REQUIRE( teamList->count() == 3 );
+                REQUIRE( requests.size() == 2 );
+                REQUIRE( requests[ 0 ].action == GroupAction::Add );
+                REQUIRE( requests[ 0 ].namingGroup.has_value() );
+                REQUIRE( requests[ 0 ].namingGroup->id() != dialog.groups()[ 0 ].id() );
+                REQUIRE( requests[ 0 ].namingGroup->rules() == dialog.groups()[ 0 ].rules() );
+                REQUIRE( requests[ 1 ].action == GroupAction::Add );
+            }
+        }
+    }
+    QCoreApplication::processEvents();
 }
 
 SCENARIO( "The CSV import of a Name Table shows the separator and asks for the columns",

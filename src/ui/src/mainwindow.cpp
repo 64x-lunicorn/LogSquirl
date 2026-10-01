@@ -142,6 +142,29 @@ void signalCrawlerToFollowFile( CrawlerWidget* crawler_widget )
 
 static constexpr auto ClipboardMaxTry = 5;
 
+// Shows the Team groups of a kind in the dialog that edits that kind, and
+// publishes what OK or Apply change of them. What Apply published has new
+// revisions: the dialog is still open and edits on them.
+template <typename Dialog, typename Group>
+void showTeamGroupsIn( Dialog& dialog, TeamFolder& folder, const QList<Group>& groups,
+                       QHash<QString, QString> ( TeamFolder::*revisions )() const )
+{
+    dialog.showTeamGroups( groups, folder.isWritable(), ( folder.*revisions )() );
+    QObject::connect( &dialog, &Dialog::publishRequested, &folder, &TeamFolder::publish );
+    QObject::connect( &folder, &TeamFolder::publishFinished, &dialog,
+                      [ &dialog, &folder, revisions ]( const auto& outcome ) {
+                          QStringList ids;
+                          for ( const auto& result : outcome.results ) {
+                              if ( result.status == logsquirl::teamfolder::PublishStatus::Published
+                                   || result.status
+                                          == logsquirl::teamfolder::PublishStatus::Pending ) {
+                                  ids.append( result.request.id );
+                              }
+                          }
+                          dialog.updateTeamRevisions( ids, ( folder.*revisions )() );
+                      } );
+}
+
 } // namespace
 
 QTranslator MainWindow::mTranslator;
@@ -1845,22 +1868,8 @@ void MainWindow::editHighlighters()
     dialog.setRegexLabAccess( regexLabAccess() );
     if ( const auto teamFolder = session_.teamFolder();
          teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
-        dialog.showTeamGroups( teamFolder->highlighterGroups(), teamFolder->isWritable(),
-                               teamFolder->highlighterGroupRevisions() );
-        connect( &dialog, &HighlightersDialog::publishRequested, teamFolder.get(),
-                 &TeamFolder::publish );
-        // What Apply published has new revisions: the dialog is still open.
-        connect( teamFolder.get(), &TeamFolder::publishFinished, &dialog,
-                 [ &dialog, folder = teamFolder.get() ]( const auto& outcome ) {
-                     QStringList ids;
-                     for ( const auto& result : outcome.results ) {
-                         if ( result.status == logsquirl::teamfolder::PublishStatus::Published
-                              || result.status == logsquirl::teamfolder::PublishStatus::Pending ) {
-                             ids.append( result.request.id );
-                         }
-                     }
-                     dialog.updateTeamRevisions( ids, folder->highlighterGroupRevisions() );
-                 } );
+        showTeamGroupsIn( dialog, *teamFolder, teamFolder->highlighterGroups(),
+                          &TeamFolder::highlighterGroupRevisions );
     }
 
     // Reaches every open Log File, in every window, not only the current tab.
@@ -1927,22 +1936,8 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
     dialog.setRegexLabAccess( regexLabAccess() );
     if ( const auto teamFolder = session_.teamFolder();
          teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
-        dialog.showTeamGroups( teamFolder->filterGroups(), teamFolder->isWritable(),
-                               teamFolder->filterGroupRevisions() );
-        connect( &dialog, &PredefinedFiltersDialog::publishRequested, teamFolder.get(),
-                 &TeamFolder::publish );
-        // What Apply published has new revisions: the dialog is still open.
-        connect( teamFolder.get(), &TeamFolder::publishFinished, &dialog,
-                 [ &dialog, folder = teamFolder.get() ]( const auto& outcome ) {
-                     QStringList ids;
-                     for ( const auto& result : outcome.results ) {
-                         if ( result.status == logsquirl::teamfolder::PublishStatus::Published
-                              || result.status == logsquirl::teamfolder::PublishStatus::Pending ) {
-                             ids.append( result.request.id );
-                         }
-                     }
-                     dialog.updateTeamRevisions( ids, folder->filterGroupRevisions() );
-                 } );
+        showTeamGroupsIn( dialog, *teamFolder, teamFolder->filterGroups(),
+                          &TeamFolder::filterGroupRevisions );
     }
 
     // The Predefined Filters are no setting a Log File shows: only the filters
@@ -1962,6 +1957,11 @@ void MainWindow::editValueNames()
     const auto& collection = ValueNamesCollection::get();
     auto applied = collection.generation();
     ValueNamesDialog dialog( this );
+    if ( const auto teamFolder = session_.teamFolder();
+         teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
+        showTeamGroupsIn( dialog, *teamFolder, teamFolder->valueNameGroups(),
+                          &TeamFolder::valueNameGroupRevisions );
+    }
     const auto applyIfChanged = [ this, &collection, &applied ] {
         if ( collection.generation() != applied ) {
             applied = collection.generation();
@@ -2011,6 +2011,10 @@ void MainWindow::connectTeamFolder()
     // at once, and a removed one is no longer active.
     connect( teamFolder.get(), &TeamFolder::highlighterGroupsChanged, this,
              [ this ] { applyTeamHighlighterSets( true ); } );
+    // A changed or removed Team Naming Group names values anew in every open
+    // Log File, and shows in the Value Names tab.
+    connect( teamFolder.get(), &TeamFolder::valueNameGroupsChanged, this,
+             &MainWindow::applyTeamValueNames );
     // A sync that reached the repository knows the groups, however few: only
     // then is an activation of a Team set that is not there dropped.
     connect( teamFolder.get(), &TeamFolder::syncFinished, this, [ this ] {
@@ -2026,6 +2030,7 @@ void MainWindow::connectTeamFolder()
     filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
     // Before the first sync no group is known yet: nothing is dropped.
     applyTeamHighlighterSets( teamFolder->state() == TeamFolder::State::Synced );
+    applyTeamValueNames();
     updateTeamFolderIndicator();
 }
 
@@ -2091,7 +2096,7 @@ void MainWindow::askAboutPendingConflicts()
                                   .arg( result.request.name ),
                               QMessageBox::NoButton, this );
         question.setInformativeText(
-            result.theirsFilterGroup || result.theirsHighlighterSet
+            result.hasTheirs()
                 ? tr( "Keep your version and replace theirs, take theirs and drop your change, or "
                       "save yours as a copy next to theirs?" )
                 : tr( "Somebody deleted it. Keep your version to publish it again, or take the "
@@ -2130,6 +2135,21 @@ void MainWindow::applyTeamHighlighterSets( bool dropUnknownActivations )
         session_.applyChange( Changed::HighlighterSets );
     }
     updateHighlightersMenu();
+}
+
+void MainWindow::applyTeamValueNames()
+{
+    const auto teamFolder = session_.teamFolder();
+    if ( !teamFolder ) {
+        return;
+    }
+
+    // Every window comes here for the same sync; the first one changes the
+    // collection, which tells every window. The Team groups are never saved:
+    // the Team Folder holds them.
+    if ( ValueNamesCollection::get().setTeamGroups( teamFolder->valueNameGroups() ) ) {
+        session_.applyChange( Changed::ValueNames );
+    }
 }
 
 void MainWindow::updateTeamFolderIndicator()
