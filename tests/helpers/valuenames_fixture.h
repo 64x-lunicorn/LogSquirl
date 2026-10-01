@@ -71,7 +71,7 @@ inline NamingGroup exampleGroup()
 class ScopedValueNames {
 public:
     explicit ScopedValueNames( QList<NamingGroup> groups = { exampleGroup() } )
-        : before_( ValueNamesCollection::get().groups() )
+        : before_( ValueNamesCollection::get().ownGroups() )
     {
         ValueNamesCollection::get().setGroups( std::move( groups ) );
     }

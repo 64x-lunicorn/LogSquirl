@@ -22,9 +22,14 @@
 #include <cstdint>
 
 #include <QList>
+#include <QSet>
+#include <QString>
 
 #include "naminggroup.h"
+#include "persistable.h"
 #include "valuenamer.h"
+
+class QSettings;
 
 // The Naming Groups of Value Names with their checks, held once per process
 // as the Highlighter Set Collection is, and the Value Namer built from them
@@ -35,25 +40,70 @@
 // the Predefined Filters' checks are. Only the enabled rules of the enabled
 // groups are in the namer.
 //
-// Whoever changes the groups tells the Session: Changed::ValueNames. The
-// views read the namer when they read a Log Line, and the generation tells
-// them whether what they named with an older one is stale.
-class ValueNamesCollection {
+// The groups are stored in the settings store under "ValueNamesCollection",
+// without their checks. The checks are stored apart, under
+// "ValueNamesChecks", as the Filters Panel's pinned filters are: as the keys
+// of what is unchecked, by group id and rule name. What is new -- a group
+// added, imported or shared by the team, a rule added -- is checked. A
+// check toggle writes the checks only, not every Name Table again.
+//
+// Whoever changes the groups or the checks tells the Session:
+// Changed::ValueNames. The views read the namer when they read a Log Line,
+// and the generation tells them whether what they named with an older one is
+// stale.
+class ValueNamesCollection final : public Persistable<ValueNamesCollection> {
 public:
-    // The one of this process.
-    static ValueNamesCollection& get();
+    static const char* persistableName()
+    {
+        return "ValueNamesCollection";
+    }
 
-    // The Naming Groups in the order the sidebar shows them, Team groups
-    // last, with their checks. An earlier rule wins where two overlap.
+    // The Naming Groups in the order the sidebar shows them -- the user's own,
+    // then the Team groups -- with their checks. An earlier rule wins where two
+    // overlap.
     const QList<logsquirl::valuenames::NamingGroup>& groups() const
     {
         return groups_;
     }
 
-    // Replaces the groups and builds the namer again. Returns whether they
-    // differ from those held, checks included; only then does the namer
-    // change and the generation grow.
+    // The user's own groups, first in groups().
+    const QList<logsquirl::valuenames::NamingGroup>& ownGroups() const
+    {
+        return ownGroups_;
+    }
+
+    // How many groups at the end of groups() are Team groups.
+    qsizetype teamGroupCount() const
+    {
+        return teamGroups_.size();
+    }
+
+    // Replaces the user's own groups, with the checks they carry, and builds
+    // the namer again. Returns whether groups() changed, checks included;
+    // only then does the namer change and the generation grow. Not saved:
+    // save() does that.
     bool setGroups( QList<logsquirl::valuenames::NamingGroup> groups );
+
+    // Replaces the Team groups, listed after the user's own. Their checks are
+    // the stored ones: a Team group's file holds none. Never saved here, the
+    // Team Folder holds them.
+    bool setTeamGroups( QList<logsquirl::valuenames::NamingGroup> groups );
+
+    // The keys of what is unchecked, of groupCheckKey() and ruleCheckKey().
+    const QSet<QString>& uncheckedKeys() const
+    {
+        return uncheckedKeys_;
+    }
+
+    // Unchecks what these keys name of the groups held and checks the rest of
+    // them; the stored checks of groups not held now (a Team group not
+    // synced yet) are kept. Returns whether groups() changed.
+    bool setUncheckedKeys( const QSet<QString>& keys );
+
+    // What a group's and a rule's checks are kept by: the group's id, and its
+    // id and the rule's name. Rule names are unique within their group.
+    static QString groupCheckKey( const QString& groupId );
+    static QString ruleCheckKey( const QString& groupId, const QString& ruleName );
 
     // Built from the groups. Never changed once built: a copy may be taken
     // to another thread, as a save of the Log Lines shown does.
@@ -69,8 +119,27 @@ public:
         return generation_;
     }
 
+    // Writes the checks alone to the settings store.
+    void saveChecks() const;
+
+    // The user's own groups and the checks; read keeps the Team groups.
+    void retrieveFromStorage( QSettings& settings );
+    void saveToStorage( QSettings& settings ) const;
+
 private:
+    static constexpr int ValueNamesCollection_VERSION = 1;
+    static constexpr int ValueNamesChecks_VERSION = 1;
+
+    void saveChecksToStorage( QSettings& settings ) const;
+    // Sets the checks of the groups from uncheckedKeys_.
+    void applyChecks( QList<logsquirl::valuenames::NamingGroup>& groups ) const;
+    // groups_ again from the own and the Team groups; whether it changed.
+    bool rebuild();
+
+    QList<logsquirl::valuenames::NamingGroup> ownGroups_;
+    QList<logsquirl::valuenames::NamingGroup> teamGroups_;
     QList<logsquirl::valuenames::NamingGroup> groups_;
+    QSet<QString> uncheckedKeys_;
     logsquirl::valuenames::ValueNamer namer_;
     uint64_t generation_ = 1;
 };
