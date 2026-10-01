@@ -428,8 +428,9 @@ jobs:
       # ---------------------------------------------------------------------
       # Measure both, on this runner, one benchmark binary at a time
       # ---------------------------------------------------------------------
-      # The performance suite's larger files are generated, not checked in;
-      # without them its `slow` benchmarks skip.
+      # The performance suite's larger files, the 100 MB and 1 GB Log Files
+      # among them (#667), are generated, not checked in; without them its
+      # `slow` benchmarks skip.
       - name: Generate the e2e test data
         run: python3 tests/e2e/generate_test_data.py
 

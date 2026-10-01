@@ -35,7 +35,7 @@ pytest -v --binary-dir=../../build/output -m performance
 # Skip performance tests
 pytest -v --binary-dir=../../build/output -m "not performance"
 
-# Skip slow tests (GUI startup tests with sleep)
+# Skip slow tests (generated large files, the benchmark mode tests)
 pytest -v --binary-dir=../../build/output -m "not slow"
 ```
 
@@ -44,8 +44,28 @@ the repository root.
 
 ## Performance Baselines
 
-Performance tests compare measured execution times against `baseline.json`. The "Safari Rule"
-applies: **LogSquirl must never get slower.** A 5% tolerance is allowed.
+Performance tests compare measured times against `baseline.json`. The "Safari Rule"
+applies: **LogSquirl must never get slower.** A 5% tolerance is allowed, and a benchmark must
+also be more than 1 ms slower (`_meta.min_delta_seconds`): a grep case on 1 MB takes about a
+millisecond, and 5 % of that is the scheduler.
+
+### What the numbers are
+
+Every number but one is timed by LogSquirl itself at the event a user waits for (#667), never
+around a process and never with a fixed wait:
+
+- **GUI cases** (`gui_open_*`) run the benchmark mode's `open-and-index` scenario
+  (`benchmark_mode.py`, BUILD.md "Benchmark mode") and report two benchmarks per Log File:
+  `_first_line`, the open to the first Log Line displayed, and `_indexed`, the open to the
+  Index finished. The process startup and the window come before the open and are not in them.
+- **Grep cases** (`grep_*`) run `logsquirl_grep --benchmark-output <file>`, which writes a
+  report of the same format for its Search (scenario `grep`): `index_finished`,
+  `search_finished` and `matches_written`, timed from the open of the Log File. A case reports
+  the open to `matches_written`, so its MB/s is the Search's, startup excluded.
+- **Startup** stays a case of its own: `gui_startup_version` is the wall-clock of
+  `logsquirl --version`, the only case timed around a whole process.
+
+The report's *What Is Measured* table says this per benchmark.
 
 ### First Run (Establishing Baselines)
 
@@ -104,14 +124,19 @@ It includes:
 
 ### Large File Benchmarks
 
-Some benchmarks use 10-100 MB files that must be generated before first use:
+Some benchmarks use generated files that must be written before first use: 10, 50 and 100 MB
+of the 1 MB random block (a single Log Line of 1 MB, repeated) and 100 MB and 1 GB Log Files of
+ordinary Log Lines of about 80 bytes, one in 101 an `ERROR`:
 
 ```bash
-python tests/e2e/generate_test_data.py
+python tests/e2e/generate_test_data.py              # everything, as CI does
+python tests/e2e/generate_test_data.py --max-mb 100 # without the 1 GB Log File
 ```
 
-These files are in `.gitignore` and not committed. Tests that need them will skip
-gracefully if the files are missing. To include large file benchmarks:
+These files are in `.gitignore` and never committed. Tests that need them skip if the files are
+missing, and the report lists them under *Not Measured in This Run*. The Benchmarks and
+Performance workflows generate all of them, so they measure every case; the 1 GB cases take at
+most 7 runs after one warmup run. To include large file benchmarks:
 
 ```bash
 pytest -v -m performance                        # all benchmarks (including large if available)
@@ -120,22 +145,48 @@ pytest -v -m "performance and not slow"          # quick benchmarks only (1-1.5 
 
 ### Benchmarks
 
-| Name                              | Description                                    | File Size |
-|-----------------------------------|------------------------------------------------|-----------|
-| `grep_search_1mb_simple`          | Simple pattern search                          | 1 MB      |
-| `grep_search_1mb_regex`           | Complex regex search                           | 1 MB      |
-| `grep_search_1_5mb_simple`        | Simple pattern search                          | 1.5 MB    |
-| `grep_search_utf16_1mb`           | UTF-16LE encoding overhead                     | 1 MB      |
-| `grep_search_1mb_no_match`        | No-match scan-only overhead                    | 1 MB      |
-| `grep_search_1mb_alternation`     | Regex alternation (ERROR\|WARNING\|CRITICAL)   | 1 MB      |
-| `grep_search_1mb_case_insensitive`| Case-insensitive regex                         | 1 MB      |
-| `grep_search_10mb_simple`         | Simple pattern (real throughput)                | 10 MB     |
-| `grep_search_10mb_regex`          | Complex regex at scale                         | 10 MB     |
-| `grep_search_50mb_simple`         | L2/L3 cache boundary test                      | 50 MB     |
-| `grep_search_100mb_simple`        | Stress test                                    | 100 MB    |
-| `grep_search_utf16_10mb`          | UTF-16LE encoding at scale                     | 10 MB     |
-| `gui_startup_version`             | GUI process startup (--version)                | —         |
-| `gui_load_1mb`                    | GUI load and display file                      | 1 MB      |
+| Name | Measures | Log File |
+|------|----------|----------|
+| `grep_1mb_simple` | Simple pattern search | 1 MB random block |
+| `grep_1mb_regex` | Complex regex search | 1 MB random block |
+| `grep_1_5mb_simple` | Simple pattern search | 1.5 MB random block |
+| `grep_utf16_1mb` | UTF-16LE encoding overhead | 1 MB UTF-16LE |
+| `grep_1mb_no_match` | No-match scan-only overhead | 1 MB random block |
+| `grep_1mb_alternation` | Regex alternation (ERROR\|WARNING\|CRITICAL) | 1 MB random block |
+| `grep_1mb_case_insensitive` | Case-insensitive regex | 1 MB random block |
+| `grep_10mb_simple` | Simple pattern, 1 MB Log Lines | 10 MB, generated |
+| `grep_10mb_regex` | Complex regex, 1 MB Log Lines | 10 MB, generated |
+| `grep_50mb_simple` | Simple pattern, 1 MB Log Lines | 50 MB, generated |
+| `grep_100mb_simple` | Simple pattern, 1 MB Log Lines | 100 MB, generated |
+| `grep_utf16_10mb` | UTF-16LE encoding at scale | 10 MB UTF-16LE, generated |
+| `grep_log_100mb_simple` | The `ERROR` Log Lines | 100 MB Log File, generated |
+| `grep_log_100mb_regex` | A regex over every Log Line | 100 MB Log File, generated |
+| `grep_log_1gb_simple` | The `ERROR` Log Lines | 1 GB Log File, generated |
+| `gui_open_1mb_first_line` / `_indexed` | Open to first Log Line displayed / Index finished | 1 MB random block |
+| `gui_open_log_100mb_first_line` / `_indexed` | Open to first Log Line displayed / Index finished | 100 MB Log File, generated |
+| `gui_open_log_1gb_first_line` / `_indexed` | Open to first Log Line displayed / Index finished | 1 GB Log File, generated |
+| `gui_startup_version` | Process start to exit of `logsquirl --version` | — |
+
+Every grep case is timed from the open of the Log File to its last match written, every GUI
+case from the open; neither contains the process startup.
+
+### Renamed benchmarks (#667)
+
+The suite used to time whole processes: the grep cases were `grep_search_*` and mostly
+measured the startup (a 1 MB case took 0.33 s, 0.27 s of it startup), and `gui_load_1mb` was
+a start, a 2 s sleep and a SIGTERM. Their numbers mean something else now, so they have new
+names. The Performance workflow treats a benchmark the previous run had and this run has not
+as a failure: the first run after the rename is dispatched with `accept_new_level`, which starts
+the history of the new names (BUILD.md, *Weekly performance*).
+
+### Adding a benchmark
+
+A case on another Log File is a row in `GREP_CASES` or `GUI_OPEN_CASES` in
+`test_performance.py`. A new scenario of the benchmark mode gets a table and a test of its own:
+the test turns one run's report into `{benchmark name: seconds}` -- use
+`seconds_since_scenario_start(report, event)` -- and hands that function to
+`measure_events()`, which keeps the statistics of each name; `_record()` compares and reports
+them. Add the names to `all_benchmark_names()` and a slot in `baseline.json`.
 
 ## Test Structure
 
@@ -143,7 +194,7 @@ pytest -v -m "performance and not slow"          # quick benchmarks only (1-1.5 
 tests/e2e/
 ├── conftest.py              # Fixtures, helpers, statistics, CLI options, report generation
 ├── baseline.json            # Performance baseline data (schema v2)
-├── generate_test_data.py    # Large test file generator (10/50/100 MB)
+├── generate_test_data.py    # Large test file generator (10/50/100 MB, 100 MB and 1 GB Log Files)
 ├── pyproject.toml           # Python project config
 ├── README.md                # This file
 ├── test_grep_search.py      # Basic search functionality (7 tests)
@@ -153,9 +204,10 @@ tests/e2e/
 ├── test_heavy_tabs.py       # Heavy tabs crash test
 ├── test_user_data_untouched.py # The suite leaves the user's own LogSquirl alone
 ├── isolated_instance.py     # Starts LogSquirl with its own settings, Session, cache and plugins
-├── benchmark_mode.py        # Runs the benchmark mode (`--benchmark`) and checks its report (BUILD.md)
-├── test_benchmark_mode.py   # The benchmark mode reports its events and keeps nothing
-└── test_performance.py      # Performance regression tests (14 benchmarks)
+├── benchmark_mode.py        # Runs the benchmark mode (`--benchmark`) and logsquirl_grep's report
+├── test_benchmark_mode.py   # The benchmark mode and logsquirl_grep report their events
+├── test_measurement.py      # How runs become the reported statistics (no binaries needed)
+└── test_performance.py      # Performance regression tests (see "Benchmarks")
 ```
 
 ## Starting the application
@@ -197,9 +249,9 @@ fixture skips there, and so do the tests that start the application.
 4. For GUI tests, take the `isolated_gui` fixture and use its `run()` for short-lived
    commands or `start_and_terminate()` for startup tests. Never start the binary
    directly: see "Starting the application" above.
-5. For performance tests, use `measure_execution()` and `assert_performance()`, add a slot in
-   `baseline.json`, and mark the test with `@pytest.mark.performance`.
-6. For large-file benchmarks, also add `@pytest.mark.slow` and use `_generated_file()` helper.
+5. For performance tests, see "Adding a benchmark" above: time events with `measure_events()`;
+   `measure_execution()` (wall-clock around a call) is for the startup case only.
+6. A case on a generated file is `slow`; `GREP_CASES` and `GUI_OPEN_CASES` mark it from `generated=True`.
 
 ## Developer Workflow
 

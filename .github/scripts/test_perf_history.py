@@ -176,6 +176,17 @@ def test_record_writes_the_entry_and_the_trend(tmp_path):
     assert trend[1][1:] == ["26.10.0", "a" * 12, "", "1.0"]
 
 
+def test_the_entry_keeps_what_each_benchmark_measures():
+    # The suite says what each number times (#667): an event the application
+    # reported, startup excluded, or the wall-clock of a process.
+    suite_report = report({"grep_1mb_simple": 0.002})
+    suite_report["benchmarks"]["grep_1mb_simple"]["measures"] = "open to last match written"
+    stored = ph.make_entry(suite_report, commit="a" * 40, ref="refs/heads/master", run_id="1",
+                           version="26.11.0", accept=False,
+                           recorded_at=datetime(2026, 10, 5, tzinfo=timezone.utc))
+    assert stored["benchmarks"]["grep_1mb_simple"]["measures"] == "open to last match written"
+
+
 def test_a_regressing_run_is_recorded_and_fails(tmp_path):
     for i in range(6):
         assert run_record(tmp_path, {"grep": 1.0}, run_id=str(i))[0] == 0
