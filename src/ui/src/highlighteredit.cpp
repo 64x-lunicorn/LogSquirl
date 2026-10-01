@@ -317,23 +317,24 @@ void HighlighterEdit::testPattern()
 {
     using Option = RegexLabWindow::Option;
 
-    auto* lab = new RegexLabWindow( RegexpEngine::QRegularExpression, this );
-    lab->setAttribute( Qt::WA_DeleteOnClose );
-    lab->setWindowModality( Qt::WindowModal );
-    lab->offerApply( true );
-    lab->setOptionsKept( Option::MatchCase | Option::UseRegexp );
-    lab->setLineDecision(
-        [ tested = highlighter_ ]( const RegularExpressionPattern& pattern ) {
-            return highlighterDecision( tested, pattern );
+    showRegexLab(
+        RegexLabOpening{ .engine = RegexpEngine::QRegularExpression,
+                         .parent = this,
+                         .modal = true,
+                         .offerApply = true,
+                         .sampleSource = regexLabAccess_.sampleSource },
+        [ this ]( RegexLabWindow& lab ) {
+            lab.setOptionsKept( Option::MatchCase | Option::UseRegexp );
+            lab.setLineDecision(
+                [ tested = highlighter_ ]( const RegularExpressionPattern& pattern ) {
+                    return highlighterDecision( tested, pattern );
+                },
+                RegexLabWindow::MarkColors{ highlighter_.foreColor(), highlighter_.backColor() } );
+            lab.setPattern( RegularExpressionPattern( highlighter_.pattern(),
+                                                      !highlighter_.ignoreCase(), false, false,
+                                                      !highlighter_.useRegex() ) );
         },
-        RegexLabWindow::MarkColors{ highlighter_.foreColor(), highlighter_.backColor() } );
-    lab->setPattern( RegularExpressionPattern( highlighter_.pattern(), !highlighter_.ignoreCase(),
-                                               false, false, !highlighter_.useRegex() ) );
-    if ( regexLabAccess_.sampleSource ) {
-        lab->setSampleSource( regexLabAccess_.sampleSource() );
-    }
-    connect( lab, &RegexLabWindow::applied, this, &HighlighterEdit::applyTestedPattern );
-    lab->show();
+        this, &HighlighterEdit::applyTestedPattern );
 }
 
 // Writes what the Lab applied into the fields as if it was entered there, so

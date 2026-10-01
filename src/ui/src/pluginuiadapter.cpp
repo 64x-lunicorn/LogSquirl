@@ -398,24 +398,27 @@ bool PluginUiAdapter::openRegexLab( const QString& pluginId, const PluginPattern
     // Plugins match their patterns themselves, with Qt's QRegularExpression
     // as a rule: the Lab matches as it does, whatever engine the Searches
     // run on. A window of its own over the main window, which it goes with.
-    auto* lab = new RegexLabWindow( RegexpEngine::QRegularExpression, &window_ );
-    lab->setAttribute( Qt::WA_DeleteOnClose );
-    lab->setPattern(
-        RegularExpressionPattern( pattern.pattern, pattern.matchesCase, false, false, false ) );
-    // Always a regular expression; the plugin keeps only whether it matches case.
-    lab->setOptionsKept( RegexLabWindow::Option::MatchCase, RegexLabWindow::Option::UseRegexp );
-    lab->offerApply( true );
-    if ( regexLabSampleSource_ ) {
-        lab->setSampleSource( regexLabSampleSource_() );
-    }
-
     // Connected with the plugin's answer context, never with this adapter:
     // along with the window, the Lab answers after the adapter is gone.
-    QObject::connect( lab, &RegexLabWindow::applied, context,
-                      [ answer ]( const RegularExpressionPattern& applied ) {
-                          answer( PluginPattern{ .pattern = applied.pattern,
-                                                 .matchesCase = applied.isCaseSensitive } );
-                      } );
+    auto* lab = showRegexLab(
+        RegexLabOpening{ .engine = RegexpEngine::QRegularExpression,
+                         .parent = &window_,
+                         .modal = false,
+                         .offerApply = true,
+                         .sampleSource = regexLabSampleSource_ },
+        [ &pattern ]( RegexLabWindow& opened ) {
+            opened.setPattern( RegularExpressionPattern( pattern.pattern, pattern.matchesCase,
+                                                         false, false, false ) );
+            // Always a regular expression; the plugin keeps only whether it
+            // matches case.
+            opened.setOptionsKept( RegexLabWindow::Option::MatchCase,
+                                   RegexLabWindow::Option::UseRegexp );
+        },
+        context,
+        [ answer ]( const RegularExpressionPattern& applied ) {
+            answer( PluginPattern{ .pattern = applied.pattern,
+                                   .matchesCase = applied.isCaseSensitive } );
+        } );
     QObject::connect( lab, &RegexLabWindow::cancelled, context,
                       [ answer ]() { answer( std::nullopt ); } );
 
@@ -424,7 +427,6 @@ bool PluginUiAdapter::openRegexLab( const QString& pluginId, const PluginPattern
     labs.emplace_back( lab );
 
     LOG_INFO << "Plugin " << pluginId << " opened the Regex Lab";
-    lab->show();
     lab->raise();
     lab->activateWindow();
     return true;

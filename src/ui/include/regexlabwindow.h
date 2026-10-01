@@ -24,6 +24,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include <QColor>
 #include <QFlags>
@@ -290,5 +291,38 @@ private:
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS( RegexLabWindow::Options )
+
+// How whoever tests a pattern of its own opens the Regex Lab: the engine it
+// matches with, the window it goes with, whether that window waits for the
+// Lab's answer (an editor does), whether Apply is offered, and where the
+// sample comes from -- none: only pasted text is a sample.
+struct RegexLabOpening {
+    RegexpEngine engine = RegexpEngine::QRegularExpression;
+    QWidget* parent = nullptr;
+    bool modal = false;
+    bool offerApply = true;
+    std::function<RegexLabSampleSource()> sampleSource;
+};
+
+// A Regex Lab, destroyed when closed, made as opening says; prepare gives it
+// the pattern and whatever else the caller keeps with it before it is shown.
+// Not shown yet.
+RegexLabWindow* makeRegexLab( const RegexLabOpening& opening,
+                              const std::function<void( RegexLabWindow& )>& prepare );
+
+// Opens the Regex Lab as makeRegexLab() makes it, with applied() connected to
+// onApplied, and shows it. The contract of RegexLabWindow holds: exactly one
+// of applied() or cancelled() is answered, and context must be an object the
+// Lab is not destroyed along with for whoever also listens for cancelled().
+template <typename Context, typename Slot>
+RegexLabWindow* showRegexLab( const RegexLabOpening& opening,
+                              const std::function<void( RegexLabWindow& )>& prepare,
+                              const Context* context, Slot&& onApplied )
+{
+    auto* lab = makeRegexLab( opening, prepare );
+    QObject::connect( lab, &RegexLabWindow::applied, context, std::forward<Slot>( onApplied ) );
+    lab->show();
+    return lab;
+}
 
 #endif

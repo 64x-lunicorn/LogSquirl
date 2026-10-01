@@ -327,27 +327,28 @@ void PredefinedFilterSetEdit::testFilter()
     const auto isRegexp = regex != nullptr && regex->isChecked();
     const auto searchUsesRegexp = regexLabAccess_.searchUsesRegexp;
 
-    auto* lab = new RegexLabWindow( regexLabAccess_.searchEngine, this );
-    lab->setAttribute( Qt::WA_DeleteOnClose );
-    lab->setWindowModality( Qt::WindowModal );
-    lab->offerApply( !readOnly_ );
-    if ( searchUsesRegexp ) {
-        lab->setOptionsKept( Option::UseRegexp, Option::MatchCase );
-    }
-    else {
-        lab->setOptionsKept( {}, Option::MatchCase | Option::UseRegexp );
-    }
-    lab->setPattern( RegularExpressionPattern( patternItem->text(),
-                                               regexLabAccess_.searchMatchesCase, false, false,
-                                               !( searchUsesRegexp && isRegexp ) ) );
-    if ( regexLabAccess_.sampleSource ) {
-        lab->setSampleSource( regexLabAccess_.sampleSource() );
-    }
-    connect( lab, &RegexLabWindow::applied, this,
-             [ this, row, searchUsesRegexp ]( const RegularExpressionPattern& pattern ) {
-                 applyTestedFilter( row, pattern, searchUsesRegexp );
-             } );
-    lab->show();
+    const auto tested
+        = RegularExpressionPattern( patternItem->text(), regexLabAccess_.searchMatchesCase, false,
+                                    false, !( searchUsesRegexp && isRegexp ) );
+    showRegexLab(
+        RegexLabOpening{ .engine = regexLabAccess_.searchEngine,
+                         .parent = this,
+                         .modal = true,
+                         .offerApply = !readOnly_,
+                         .sampleSource = regexLabAccess_.sampleSource },
+        [ searchUsesRegexp, &tested ]( RegexLabWindow& lab ) {
+            if ( searchUsesRegexp ) {
+                lab.setOptionsKept( Option::UseRegexp, Option::MatchCase );
+            }
+            else {
+                lab.setOptionsKept( {}, Option::MatchCase | Option::UseRegexp );
+            }
+            lab.setPattern( tested );
+        },
+        this,
+        [ this, row, searchUsesRegexp ]( const RegularExpressionPattern& pattern ) {
+            applyTestedFilter( row, pattern, searchUsesRegexp );
+        } );
 }
 
 // Writes what the Lab applied into the filter's cells as if it was entered

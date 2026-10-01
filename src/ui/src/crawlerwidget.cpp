@@ -750,31 +750,35 @@ void CrawlerWidget::openSearchInRegexLab()
         return;
     }
 
-    // A window of its own, destroyed with this tab: the Search Line it would
-    // write back into goes with it.
-    auto* lab = new RegexLabWindow( openLogFile_->searchPolicy().regexpEngine, this );
-    lab->setAttribute( Qt::WA_DeleteOnClose );
-    searchRegexLab_ = lab;
-
     // The pattern exactly as the Search Line requests a Search: a Wildcard
     // or Fixed String reading comes to the Lab as plain text.
     searchRegexLabOpenedWith_ = searchLine_->request();
-    lab->setPattern( searchRegexLabOpenedWith_ );
-    lab->offerApply( true );
-    lab->setSampleSource(
-        regexLabSampleSource( *this, QFileInfo( openLogFile_->fileName() ).fileName() ) );
+
+    // A window of its own, destroyed with this tab: the Search Line it would
+    // write back into goes with it. Cancel changes nothing: only applied() is
+    // listened for, which the Lab never sends while it is destroyed along
+    // with this widget.
+    auto* lab = showRegexLab(
+        RegexLabOpening{ .engine = openLogFile_->searchPolicy().regexpEngine,
+                         .parent = this,
+                         .modal = false,
+                         .offerApply = true,
+                         .sampleSource =
+                             [ this ]() {
+                                 return regexLabSampleSource(
+                                     *this, QFileInfo( openLogFile_->fileName() ).fileName() );
+                             } },
+        [ this ]( RegexLabWindow& opened ) { opened.setPattern( searchRegexLabOpenedWith_ ); },
+        this,
+        [ this ]( const RegularExpressionPattern& pattern ) {
+            runEditedPattern( searchLine_->apply( pattern ) );
+        } );
+    searchRegexLab_ = lab;
 
     // The Lab matches with the engine the Searches of this Log File run on.
     connect( openLogFile_.get(), &OpenLogFile::searchPolicyChanged, lab,
              [ this, lab ]() { lab->setEngine( openLogFile_->searchPolicy().regexpEngine ); } );
-    // Cancel changes nothing: only applied() is listened for, which the Lab
-    // never sends while it is destroyed along with this widget.
-    connect( lab, &RegexLabWindow::applied, this,
-             [ this ]( const RegularExpressionPattern& pattern ) {
-                 runEditedPattern( searchLine_->apply( pattern ) );
-             } );
 
-    lab->show();
     lab->raise();
     lab->activateWindow();
 }

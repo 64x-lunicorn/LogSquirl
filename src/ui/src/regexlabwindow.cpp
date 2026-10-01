@@ -945,3 +945,21 @@ void RegexLabWindow::apply()
     Q_EMIT applied( pattern() );
     close();
 }
+
+RegexLabWindow* makeRegexLab( const RegexLabOpening& opening,
+                              const std::function<void( RegexLabWindow& )>& prepare )
+{
+    auto* lab = new RegexLabWindow( opening.engine, opening.parent );
+    lab->setAttribute( Qt::WA_DeleteOnClose );
+    if ( opening.modal ) {
+        lab->setWindowModality( Qt::WindowModal );
+    }
+    lab->offerApply( opening.offerApply );
+    if ( prepare ) {
+        prepare( *lab );
+    }
+    if ( opening.sampleSource ) {
+        lab->setSampleSource( opening.sampleSource() );
+    }
+    return lab;
+}
