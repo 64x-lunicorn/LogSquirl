@@ -212,6 +212,19 @@
   over, such as one of another version, is reported instead. Before, the input
   was lost. (#623)
 
+## Build and packaging
+
+- **LogSquirl has a document icon**: a sheet with log lines, one of them
+  highlighted, a folded corner in the mane's purple and yellow, and the
+  squirrel in an orange ring. From 48 px down the sheet carries no squirrel,
+  so it stays recognisable at 16 px on light and dark backgrounds. The master
+  is `src/app/images/hicolor/scalable/logsquirl-document.svg`, the small sizes
+  have their own SVGs in `src/app/images/document-icon/`, and
+  `scripts/make_document_icon.py` derives `Resources/logsquirl-document.ico`
+  (16 to 256 px), `Resources/logsquirl-document.icns` (16 to 1024 px, with
+  @2x) and the hicolor PNGs (16 to 512 px) from them. File types use it once
+  each platform declares them (#717, #718, #719). (#726)
+
 ## Internal
 
 - **A pull request that touches a hot path gets the benchmark comparison by
