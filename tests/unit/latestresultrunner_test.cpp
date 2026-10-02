@@ -19,7 +19,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "lookuprunner.h"
+#include "latestresultrunner.h"
 #include "timelookup.h"
 
 #include <QCoreApplication>
@@ -61,10 +61,10 @@ bool waitFor( const std::function<bool()>& condition, int milliseconds = 10'000 
 
 } // namespace
 
-TEST_CASE( "A time lookup runs while the event loop keeps going", "[ui][lookuprunner]" )
+TEST_CASE( "A time lookup runs while the event loop keeps going", "[ui][latestresultrunner]" )
 {
     SlowLog log;
-    LookupRunner runner;
+    LatestResultRunner runner;
     std::optional<timelookup::Result> found;
     bool done = false;
 
@@ -93,10 +93,10 @@ TEST_CASE( "A time lookup runs while the event loop keeps going", "[ui][lookupru
     CHECK( !runner.isRunning() );
 }
 
-TEST_CASE( "A cancelled time lookup leaves no result behind", "[ui][lookuprunner]" )
+TEST_CASE( "A cancelled time lookup leaves no result behind", "[ui][latestresultrunner]" )
 {
     SlowLog log;
-    LookupRunner runner;
+    LatestResultRunner runner;
     bool reported = false;
 
     runner.start<std::optional<timelookup::Result>>(
@@ -119,9 +119,9 @@ TEST_CASE( "A cancelled time lookup leaves no result behind", "[ui][lookuprunner
     CHECK( log.reads.load() - reads < 50 );
 }
 
-TEST_CASE( "Starting a lookup cancels the one running", "[ui][lookuprunner]" )
+TEST_CASE( "Starting a lookup cancels the one running", "[ui][latestresultrunner]" )
 {
-    LookupRunner runner;
+    LatestResultRunner runner;
     std::atomic<bool> firstStopped{ false };
     int reported = 0;
     int value = 0;

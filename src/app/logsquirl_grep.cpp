@@ -32,6 +32,7 @@
 #include "logger.h"
 #include "openlogfile.h"
 #include "settingspolicies.h"
+#include "tbbworkersjoinedatexit.h"
 
 #include "cli.h"
 
@@ -75,6 +76,8 @@ int main( int argc, char* argv[] )
 #ifdef LOGSQUIRL_USE_MIMALLOC
     mi_stats_reset();
 #endif
+    // Destroyed last: oneTBB's workers have ended before exit() runs (#665).
+    const TbbWorkersJoinedAtExit tbbWorkers;
     QCoreApplication app( argc, argv );
     CliParameters parameters( app, true );
 

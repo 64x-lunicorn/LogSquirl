@@ -32,6 +32,7 @@
 #include <logger.h>
 
 #include "isolated_settings.h"
+#include "tbbworkersjoinedatexit.h"
 
 const bool DataLocation::ForcePortable = true;
 
@@ -78,6 +79,8 @@ int main( int argc, char* argv[] )
         return *launcherExitCode;
     }
 
+    // Destroyed last: oneTBB's workers have ended before exit() runs (#665).
+    const TbbWorkersJoinedAtExit tbbWorkers;
     QApplication a( argc, argv );
     // Before a test case starts the File Watcher's poll thread (#698).
     createGestureManager();

@@ -749,7 +749,7 @@ SCENARIO( "The Value Names dialog exports and imports a Naming Group",
     // Exported, then changed here, then imported again.
     const auto file = dir.filePath( suggestedFileName( "BAP", GroupKind::ValueNames ) );
     REQUIRE( dialog.exportShownGroup( file ) );
-    const auto exported = readNamingGroups( file );
+    const auto exported = readGroups<NamingGroup>( file );
     REQUIRE( exported.groups.size() == 1 );
     REQUIRE(
         exported.groups.front().sameAs( exampleGroup().withId( exported.groups.front().id() ) ) );
@@ -952,9 +952,11 @@ SCENARIO( "The Value Names dialog shows the Team groups below the user's own",
                 REQUIRE( teamList->count() == 3 );
                 REQUIRE( requests.size() == 2 );
                 REQUIRE( requests[ 0 ].action == GroupAction::Add );
-                REQUIRE( requests[ 0 ].namingGroup.has_value() );
-                REQUIRE( requests[ 0 ].namingGroup->id() != dialog.groups()[ 0 ].id() );
-                REQUIRE( requests[ 0 ].namingGroup->rules() == dialog.groups()[ 0 ].rules() );
+                const auto* shared
+                    = logsquirl::teamfolder::groupOfKind<NamingGroup>( requests[ 0 ].group );
+                REQUIRE( shared != nullptr );
+                REQUIRE( shared->id() != dialog.groups()[ 0 ].id() );
+                REQUIRE( shared->rules() == dialog.groups()[ 0 ].rules() );
                 REQUIRE( requests[ 1 ].action == GroupAction::Add );
             }
         }

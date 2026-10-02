@@ -36,8 +36,8 @@
 #include <QWidget>
 
 #include "containers.h"
+#include "latestresultrunner.h"
 #include "linetypes.h"
-#include "lookuprunner.h"
 #include "regexlab.h"
 #include "regexpengine.h"
 #include "regularexpressionpattern.h"
@@ -286,8 +286,8 @@ private:
     // Reads a sample from the tab, and evaluates, off the UI thread, one at
     // a time each: a newer one lets go of the older, whose result is never
     // shown, and closing the window stops both.
-    LookupRunner sampleReader_;
-    LookupRunner runner_;
+    LatestResultRunner sampleReader_;
+    LatestResultRunner runner_;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS( RegexLabWindow::Options )

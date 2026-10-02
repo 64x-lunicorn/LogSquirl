@@ -31,6 +31,8 @@
 #include <chrono>
 #include <memory>
 #include <optional>
+#include <type_traits>
+#include <variant>
 
 #include "groupexchange.h"
 #include "highlighterset.h"
@@ -76,6 +78,17 @@ struct TeamGroupChanges {
 
 enum class GroupAction { Add, Change, Rename, Delete };
 
+// A group of any kind the Team Folder holds.
+using AnyGroup
+    = std::variant<PredefinedFilterSet, HighlighterSet, logsquirl::valuenames::NamingGroup>;
+
+// The group, when it is of this kind.
+template <typename Group>
+const Group* groupOfKind( const std::optional<AnyGroup>& group )
+{
+    return group ? std::get_if<Group>( &*group ) : nullptr;
+}
+
 // A change to one Team group, to be published: written into its file, committed
 // on its own and pushed. The Team Folder finds the group's file by its id;
 // a group it does not know yet gets a file of its own.
@@ -86,11 +99,8 @@ struct PublishRequest {
     // The group's name to publish, and for a Rename the name it had.
     QString name;
     QString previousName;
-    // The group to publish: a Filter Group, a Highlighter Set or a Naming
-    // Group, as kind says.
-    std::optional<PredefinedFilterSet> filterGroup;
-    std::optional<HighlighterSet> highlighterSet;
-    std::optional<logsquirl::valuenames::NamingGroup> namingGroup;
+    // The group to publish, of the kind kind says; none for a Delete.
+    std::optional<AnyGroup> group;
     // The revision of the group's file when the user started editing it. When
     // the file has another one after the sync, someone else changed the group
     // meanwhile, and the user is asked. Empty for a group that is new, and for
@@ -108,12 +118,19 @@ struct PublishRequest {
     static PublishRequest forDeletion( groupexchange::GroupKind kind, const QString& id,
                                        const QString& name );
 
-    static PublishRequest forGroup( const PredefinedFilterSet& group, GroupAction action,
-                                    const QString& previousName = {} );
-    static PublishRequest forGroup( const HighlighterSet& group, GroupAction action,
-                                    const QString& previousName = {} );
-    static PublishRequest forGroup( const logsquirl::valuenames::NamingGroup& group,
-                                    GroupAction action, const QString& previousName = {} );
+    template <typename Group>
+    static PublishRequest forGroup( const Group& group, GroupAction action,
+                                    const QString& previousName = {} )
+    {
+        PublishRequest request;
+        request.kind = groupexchange::GroupTraits<Group>::kind;
+        request.action = action;
+        request.id = group.id();
+        request.name = group.name();
+        request.previousName = previousName;
+        request.group = group;
+        return request;
+    }
 };
 
 enum class PublishStatus {
@@ -143,14 +160,12 @@ struct PublishResult {
     PublishRequest request;
     // For a Conflict: their version of the group, when the group is still
     // there and nobody deleted it.
-    std::optional<PredefinedFilterSet> theirsFilterGroup;
-    std::optional<HighlighterSet> theirsHighlighterSet;
-    std::optional<logsquirl::valuenames::NamingGroup> theirsNamingGroup;
+    std::optional<AnyGroup> theirs;
 
     // Whether their version is there: false when someone deleted the group.
     bool hasTheirs() const
     {
-        return theirsFilterGroup || theirsHighlighterSet || theirsNamingGroup;
+        return theirs.has_value();
     }
 };
 
@@ -163,24 +178,16 @@ struct PublishOutcome {
 // A copy of a group under a fresh id and the first free name -- its own when
 // no group in takenNames has it, else "<name> (n)". Sharing a personal group
 // with the team, and copying a Team group into the personal ones, are copies.
-PredefinedFilterSet copyOfGroup( const PredefinedFilterSet& group, const QStringList& takenNames );
-HighlighterSet copyOfGroup( const HighlighterSet& group, const QStringList& takenNames );
-logsquirl::valuenames::NamingGroup copyOfGroup( const logsquirl::valuenames::NamingGroup& group,
-                                                const QStringList& takenNames );
+template <typename Group>
+Group copyOfGroup( const Group& group, const QStringList& takenNames );
 
 // What a dialog's edited copy of the Team groups asks to publish, against the
 // groups it was given: a group it added, one it renamed, one it changed, and
 // one that is no longer in the copy, to be deleted.
 // revisions holds the revision of each group's file when the dialog loaded it,
 // by group id; a changed or renamed group carries its revision.
-QList<PublishRequest> requestsForChanges( const QList<PredefinedFilterSet>& before,
-                                          const QList<PredefinedFilterSet>& after,
-                                          const QHash<QString, QString>& revisions = {} );
-QList<PublishRequest> requestsForChanges( const QList<HighlighterSet>& before,
-                                          const QList<HighlighterSet>& after,
-                                          const QHash<QString, QString>& revisions = {} );
-QList<PublishRequest> requestsForChanges( const QList<logsquirl::valuenames::NamingGroup>& before,
-                                          const QList<logsquirl::valuenames::NamingGroup>& after,
+template <typename Group>
+QList<PublishRequest> requestsForChanges( const QList<Group>& before, const QList<Group>& after,
                                           const QHash<QString, QString>& revisions = {} );
 
 // What one sync found: the result of the worker thread, taken over on the
@@ -330,6 +337,20 @@ private:
         QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups,
         QList<logsquirl::teamfolder::TeamGroup<logsquirl::valuenames::NamingGroup>> namingGroups );
     void setState( State state, const QString& message );
+    // The Team groups of one kind.
+    template <typename Group>
+    const QList<logsquirl::teamfolder::TeamGroup<Group>>& teamGroupsOf() const
+    {
+        if constexpr ( std::is_same_v<Group, PredefinedFilterSet> ) {
+            return filterGroups_;
+        }
+        else if constexpr ( std::is_same_v<Group, HighlighterSet> ) {
+            return highlighterGroups_;
+        }
+        else {
+            return namingGroups_;
+        }
+    }
 
     QString cloneDirectory_;
     QString gitProgram_;

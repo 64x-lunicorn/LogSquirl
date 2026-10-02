@@ -28,8 +28,12 @@
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include "tbbworkersjoinedatexit.h"
+
 int main( int argc, char* argv[] )
 {
+    // Destroyed last: oneTBB's workers have ended before exit() runs (#665).
+    const TbbWorkersJoinedAtExit tbbWorkers;
     QCoreApplication app( argc, argv );
 
     return Catch::Session().run( argc, argv );
