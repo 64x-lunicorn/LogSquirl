@@ -751,10 +751,10 @@ SCENARIO( "The dashboard lists a plugin installed while it is shown",
 
         QTemporaryDir pluginRoot;
         REQUIRE( pluginRoot.isValid() );
-        auto plugins = std::make_shared<ApplicationPlugins>(
-            [ & ]( PluginCatalog& catalog, PluginHost& ) {
-                catalog.discoverPlugins( { pluginRoot.path() } );
-            } );
+        auto plugins
+            = std::make_shared<ApplicationPlugins>( [ & ]( PluginCatalog& catalog, PluginHost& ) {
+                  catalog.discoverPlugins( { pluginRoot.path() } );
+              } );
         auto window = std::make_unique<MainWindow>(
             WindowSession{ newSession(), QStringLiteral( "applicationplugins_window_test_dash" ),
                            0 },
