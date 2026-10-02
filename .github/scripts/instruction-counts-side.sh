@@ -16,7 +16,12 @@
 # commit are kept for later runs (instruction-counts.yml), and a version
 # string of another length could change a count.
 #
+# recount counts the given benchmark targets of the after side once more,
+# from the after side's build, without building (#708), into
+# <RUN_DIR>/report/recount.json.
+#
 # Usage: instruction-counts-side.sh before|after   (from the workspace root)
+#        instruction-counts-side.sh recount <target>...
 # Environment: RUN_DIR, LOGSQUIRL_CONTAINER, LOGSQUIRL_WORKSPACE,
 # LOGSQUIRL_BUILD_ROOT, LOGSQUIRL_CMAKE_OPTS and LOGSQUIRL_VERSION, as the
 # composite actions set them; LOGSQUIRL_BENCHMARK_LOG_FILE_MB and
@@ -24,13 +29,21 @@
 # (the nightly Performance run counts larger Log Files than a pull request).
 set -euo pipefail
 
-side=${1:?usage: instruction-counts-side.sh before|after}
+usage="usage: instruction-counts-side.sh before|after, or recount <target>..."
+side=${1:?$usage}
+shift
+recount_targets=""
 case "$side" in
-    before | after) ;;
-    *) echo "usage: instruction-counts-side.sh before|after" >&2; exit 2 ;;
+    before | after) [ "$#" = 0 ] || { echo "$usage" >&2; exit 2; } ;;
+    recount)
+        [ "$#" -gt 0 ] || { echo "$usage" >&2; exit 2; }
+        recount_targets="$*"
+        ;;
+    *) echo "$usage" >&2; exit 2 ;;
 esac
 
-image="logsquirl-instruction-counts:$side"
+# The recount runs in the after side's container.
+image="logsquirl-instruction-counts:${side/recount/after}"
 echo "::group::Valgrind in $LOGSQUIRL_CONTAINER"
 docker build --tag "$image" - <<EOF
 FROM $LOGSQUIRL_CONTAINER
@@ -47,6 +60,7 @@ status=0
 docker run --rm \
     --env LOGSQUIRL_VERSION="${LOGSQUIRL_VERSION%.*}.0" \
     --env BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
+    --env RECOUNT_TARGETS="$recount_targets" \
     --env CMAKE_OPTS="$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache" \
     --env SCCACHE_DIR=/usr/local/sccache_cache \
     --env SCCACHE_CACHE_SIZE=2G \

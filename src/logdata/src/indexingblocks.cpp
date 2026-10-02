@@ -20,6 +20,7 @@
 #include "indexingblocks.h"
 
 #include <algorithm>
+#include <cassert>
 
 namespace indexing_blocks {
 
@@ -80,6 +81,7 @@ void parseBlock( IndexingBlock& block )
     block.maxLength = 0;
     block.lastLineStart = 0;
     block.lastLineWidening = 0;
+    block.firstBeyondAscii.reset();
 
     const auto& encoding = block.encoding;
     const auto beforeCr = encoding.getBeforeCrOffset();
@@ -116,6 +118,19 @@ void parseBlock( IndexingBlock& block )
 
     block.lastLineStart = lineStart;
     block.lastLineWidening = widening;
+
+    // Only a block that has a byte beyond ASCII is read again, up to the
+    // first one. The scan has seen one, so there is one before the end; were
+    // there none, firstByteBeyondAscii would return the size, which is no
+    // byte of the block.
+    if ( block.findBeyondAscii && scanner.sawByteBeyondAscii() ) {
+        const auto size = static_cast<std::size_t>( block.size );
+        const auto first = EncodingDetector::firstByteBeyondAscii( block.bytes(), size );
+        assert( first < size );
+        if ( first < size ) {
+            block.firstBeyondAscii = static_cast<std::int64_t>( first );
+        }
+    }
 }
 
 std::optional<std::int64_t> stitchBlock( const IndexingBlock& block, OpenLogLine& line )

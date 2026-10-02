@@ -188,6 +188,40 @@ add_executable(logsquirl_textview_ansi_benchmark
 
 target_link_libraries(logsquirl_textview_ansi_benchmark logsquirl_ui Catch2::Catch2 test_utils)
 
+# In the fixed-work mode a benchmark binary that runs oneTBB's flow graphs
+# runs them on the thread that waits for them alone (instruction_count.h,
+# #708), which takes TBB's headers. These are the binaries that link oneTBB:
+# through the log data library, which links it privately, or a library that
+# links that. Only the regex matcher benchmark does not. A new benchmark that
+# links oneTBB belongs here. TBB's library comes with the log data library
+# already; naming it again would put it on the link line twice (#450), so
+# logsquirl_tbb_headers brings the headers alone.
+foreach(
+  _target IN
+  ITEMS logsquirl_ansi_log_file_benchmark
+        logsquirl_ansicolorsequences_benchmark
+        logsquirl_chart_follow_benchmark
+        logsquirl_chart_paint_benchmark
+        logsquirl_decoration_benchmark
+        logsquirl_displayedlines_benchmark
+        logsquirl_filteredview_read_benchmark
+        logsquirl_linepositionarray_benchmark
+        logsquirl_logdata_benchmark
+        logsquirl_logdata_read_benchmark
+        logsquirl_overview_selection_benchmark
+        logsquirl_quickfind_benchmark
+        logsquirl_session_restore_benchmark
+        logsquirl_tableview_paint_benchmark
+        logsquirl_tableview_scroll_benchmark
+        logsquirl_textview_ansi_benchmark
+        logsquirl_textview_scroll_benchmark
+        logsquirl_textviewscrolling_benchmark
+        logsquirl_timelookup_benchmark
+)
+  target_link_libraries(${_target} logsquirl_tbb_headers)
+  target_compile_definitions(${_target} PRIVATE LOGSQUIRL_BENCHMARK_LIMITS_TBB)
+endforeach()
+
 # The heap counts of the fixed-work mode (#673; heap_count.c): every benchmark
 # binary above also counts the allocations and the peak heap of each
 # benchmark's measured code. Off unless asked for: it replaces glibc's malloc

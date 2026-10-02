@@ -215,7 +215,11 @@ them in one comment (BUILD.md, *Instruction counts*). The **CI passed** check tu
 - a benchmark costs more than its threshold more instructions than on the base: **+2 %** by
   default, more for the few benchmarks whose counts vary more between runs of the same code;
   all thresholds live in `THRESHOLD_PERCENT` in `.github/scripts/instruction-counts.py`, each
-  twice the widest spread measured, rounded up to a whole percent, or
+  twice the widest spread measured, rounded up to a whole percent. A benchmark over its
+  threshold is counted once more on the pull request's side, and fails only when both counts
+  are over it (#708). Judging the lower of two counts against the base's one count lets a real
+  regression smaller than a benchmark's spread pass; that is accepted, since the gate must never
+  be falsely red (#672), and the thresholds are to be lowered once measured again (#727), or
 - a benchmark that was counted on the base is not counted on the pull request (it was removed,
   fails or no longer runs).
 
