@@ -371,6 +371,9 @@ private:
         QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups,
         QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups,
         QList<logsquirl::teamfolder::TeamGroup<logsquirl::valuenames::NamingGroup>> namingGroups );
+    // Whether the status is the refused push: the Team groups are read-only,
+    // and no step failed since.
+    bool showsRefusedPush() const;
     // Sets the state, the step that failed, and what that step said: Git's
     // output, or LogSquirl's own reason for a step that is not Git's.
     void setState( State state, logsquirl::teamfolder::SyncStep failedStep = {},

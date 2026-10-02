@@ -1509,20 +1509,19 @@ TeamFolder::State TeamFolder::state() const
     return state_;
 }
 
+bool TeamFolder::showsRefusedPush() const
+{
+    return failedStep_ == SyncStep::None && !writable_;
+}
+
 SyncStep TeamFolder::failedStep() const
 {
-    if ( failedStep_ == SyncStep::None && !writable_ ) {
-        return SyncStep::PushRefused;
-    }
-    return failedStep_;
+    return showsRefusedPush() ? SyncStep::PushRefused : failedStep_;
 }
 
 QString TeamFolder::gitOutput() const
 {
-    if ( failedStep_ == SyncStep::None && !writable_ ) {
-        return readOnlyReason_;
-    }
-    return gitOutput_;
+    return showsRefusedPush() ? readOnlyReason_ : gitOutput_;
 }
 
 bool TeamFolder::isSyncing() const
