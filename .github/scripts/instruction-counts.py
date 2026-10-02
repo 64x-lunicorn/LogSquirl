@@ -254,8 +254,8 @@ def metric(before: int | None, after: int | None) -> dict[str, Any]:
     return {"before": before, "after": after, "change_percent": change_percent(before, after)}
 
 
-def compare(before: dict[str, Any], after: dict[str, Any], *, before_sha: str, after_sha: str,
-            head_sha: str, pull_request: int) -> dict[str, Any]:
+def compared_benchmarks(before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, Any]]:
+    """The benchmarks of two side files, each with its metrics on both sides, as compare() lists them."""
     def entries(data: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
         return {(b["binary"], b["name"]): b for b in data["benchmarks"]}
 
@@ -268,6 +268,12 @@ def compare(before: dict[str, Any], after: dict[str, Any], *, before_sha: str, a
         if a.get("instruction_counts"):
             metrics["instructions"]["after_counts"] = list(a["instruction_counts"])
         benchmarks.append({"binary": binary, "name": name, "metrics": metrics})
+    return benchmarks
+
+
+def compare(before: dict[str, Any], after: dict[str, Any], *, before_sha: str, after_sha: str,
+            head_sha: str, pull_request: int) -> dict[str, Any]:
+    benchmarks = compared_benchmarks(before, after)
     return {
         "schema_version": SCHEMA_VERSION,
         "pull_request": pull_request,
@@ -291,6 +297,22 @@ def threshold_percent(binary: str, name: str, thresholds: Thresholds | None = No
     return table.get((binary, name), DEFAULT_THRESHOLD_PERCENT)
 
 
+def over_threshold(benchmarks: list[dict[str, Any]],
+                   thresholds: Thresholds | None = None) -> list[dict[str, Any]]:
+    """The benchmarks, as compare() lists them, that cost more than their threshold more instructions than on the base.
+
+    A benchmark not counted on one side has no change and is not over.
+    """
+    over = []
+    for entry in benchmarks:
+        i = entry["metrics"]["instructions"]
+        change = change_percent(i["before"], i["after"])
+        threshold = threshold_percent(entry["binary"], entry["name"], thresholds)
+        if change is not None and change > threshold:
+            over.append({"binary": entry["binary"], "name": entry["name"], "threshold_percent": threshold})
+    return over
+
+
 def evaluate_gate(data: dict[str, Any], *, labels: list[str],
                   thresholds: Thresholds | None = None) -> dict[str, Any]:
     """The gate's verdict on a comparison.
@@ -302,17 +324,10 @@ def evaluate_gate(data: dict[str, Any], *, labels: list[str],
     request's side, and when nothing was counted at all. A new benchmark, or one
     that does not build on the base, has nothing to be compared with and passes.
     """
-    over: list[dict[str, Any]] = []
-    missing: list[dict[str, str]] = []
-    for entry in data["benchmarks"]:
-        i = entry["metrics"]["instructions"]
-        if i["before"] is not None and i["after"] is None:
-            missing.append({"binary": entry["binary"], "name": entry["name"]})
-            continue
-        change = change_percent(i["before"], i["after"])
-        threshold = threshold_percent(entry["binary"], entry["name"], thresholds)
-        if change is not None and change > threshold:
-            over.append({"binary": entry["binary"], "name": entry["name"], "threshold_percent": threshold})
+    over = over_threshold(data["benchmarks"], thresholds)
+    missing = [{"binary": entry["binary"], "name": entry["name"]} for entry in data["benchmarks"]
+               if entry["metrics"]["instructions"]["before"] is not None
+               and entry["metrics"]["instructions"]["after"] is None]
     failed = list(data["after"]["failed_binaries"])
     counted = any(b["metrics"]["instructions"]["after"] is not None for b in data["benchmarks"])
     accepted = ACCEPT_LABEL in labels and bool(over)
@@ -324,14 +339,13 @@ def evaluate_gate(data: dict[str, Any], *, labels: list[str],
 
 def binaries_to_recount(before: dict[str, Any], after: dict[str, Any], *,
                         thresholds: Thresholds | None = None) -> list[str]:
-    """The binaries with a benchmark the gate would fail on as over its threshold, labels aside (#708).
+    """The binaries with a benchmark over its threshold, as the gate judges it, labels aside (#708).
 
     Each is counted once more on the after side, and merge_recount() keeps the
     lower count: a thread's turns can add to a count, never take from the
     work, so a cost over the threshold is judged only when both counts agree.
     """
-    data = compare(before, after, before_sha="0" * 40, after_sha="0" * 40, head_sha="0" * 40, pull_request=1)
-    return sorted({o["binary"] for o in evaluate_gate(data, labels=[], thresholds=thresholds)["over_threshold"]})
+    return sorted({o["binary"] for o in over_threshold(compared_benchmarks(before, after), thresholds)})
 
 
 def merge_recount(first: dict[str, Any], recount: dict[str, Any]) -> dict[str, Any]:

@@ -231,21 +231,38 @@ jobs:
           set -euo pipefail
           report="$RUN_DIR/report"
           tools="$RUN_DIR/tools/.github/scripts"
-          binaries=$(python3 "$tools/instruction-counts.py" over-threshold \
-            --before "$report/before.json" --after "$report/after.json")
-          if [ -z "$binaries" ]; then
+          if ! list=$(python3 "$tools/instruction-counts.py" over-threshold \
+            --before "$report/before.json" --after "$report/after.json"); then
+            echo "::warning::What is over its threshold could not be found; the first counts are judged"
+            exit 0
+          fi
+          # One binary per line, read into an array and never split by the shell.
+          binaries=()
+          while IFS= read -r binary; do
+            if [ -n "$binary" ]; then
+              binaries+=("$binary")
+            fi
+          done <<< "$list"
+          if [ "${#binaries[@]}" = 0 ]; then
             echo "No benchmark is over its threshold"
             exit 0
           fi
           status=0
-          # shellcheck disable=SC2086 # one word per binary
-          "$tools/instruction-counts-side.sh" recount $binaries || status=$?
+          "$tools/instruction-counts-side.sh" recount "${binaries[@]}" || status=$?
           if [ "$status" != 0 ]; then
             echo "::warning::Not every binary could be recounted; those that failed keep their first counts"
           fi
+          # Merged into a file of its own and moved over after.json only when
+          # the merge succeeded: a merge that fails leaves the first counts.
           if [ -f "$report/recount.json" ]; then
-            python3 "$tools/instruction-counts.py" merge-recount \
-              --side "$report/after.json" --recount "$report/recount.json" --json "$report/after.json"
+            if python3 "$tools/instruction-counts.py" merge-recount \
+              --side "$report/after.json" --recount "$report/recount.json" \
+              --json "$report/after-merged.json"; then
+              mv "$report/after-merged.json" "$report/after.json"
+            else
+              rm -f "$report/after-merged.json"
+              echo "::warning::The recount could not be merged; the first counts are judged"
+            fi
           fi
 
       # ---------------------------------------------------------------------

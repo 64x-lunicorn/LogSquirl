@@ -81,7 +81,13 @@
 
 // Set by tests/benchmarks/CMakeLists.txt for a binary that links oneTBB.
 #ifdef LOGSQUIRL_BENCHMARK_LIMITS_TBB
+#include <catch2/catch_test_run_info.hpp>
+#include <catch2/reporters/catch_reporter_event_listener.hpp>
+#include <catch2/reporters/catch_reporter_registrars.hpp>
+
 #include <tbb/global_control.h>
+
+#include <optional>
 #endif
 
 namespace logsquirl_benchmark {
@@ -92,18 +98,6 @@ inline bool countsInstructions()
     static const bool counts
         = qEnvironmentVariableIntValue( "LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS" ) == 1;
     return counts;
-}
-
-// From the first counted benchmark on, until the process ends, oneTBB runs
-// its work on the thread that waits for it and starts no worker; workers the
-// setup before it started fall asleep in the pause before each count.
-inline void runTbbOnTheWaitingThreadOnly()
-{
-#ifdef LOGSQUIRL_BENCHMARK_LIMITS_TBB
-    static const tbb::global_control waitingThreadOnly{
-        tbb::global_control::max_allowed_parallelism, 1
-    };
-#endif
 }
 
 // Stands where Catch2's clock stands: Chronometer::measure calls start()
@@ -167,7 +161,6 @@ public:
             return *this;
         }
         checkCanCount();
-        runTbbOnTheWaitingThreadOnly();
 
         InstructionCounter counter{ Catch::getResultCapture().getCurrentTestName() + " / "
                                     + name_ };
@@ -198,7 +191,41 @@ private:
     std::string name_;
 };
 
+#ifdef LOGSQUIRL_BENCHMARK_LIMITS_TBB
+// In the fixed-work mode, for the whole test run, oneTBB runs its work on the
+// thread that waits for it and starts no worker. The control is made when the
+// run starts, before the first benchmark's setup, and is gone when the run
+// ends, inside Catch::Session::run and so inside main(): like the
+// tbb::global_control of LogSquirl's own main(), it does not outlive main()
+// while oneTBB's workers end (#665). A listener rather than a static, which
+// would be destroyed after main() returned; every benchmark binary is one
+// source file, so it is registered once.
+class TbbOnTheWaitingThreadOnly final : public Catch::EventListenerBase {
+public:
+    using Catch::EventListenerBase::EventListenerBase;
+
+    void testRunStarting( const Catch::TestRunInfo& /*testRunInfo*/ ) override
+    {
+        if ( countsInstructions() ) {
+            waitingThreadOnly_.emplace( tbb::global_control::max_allowed_parallelism, 1 );
+        }
+    }
+
+    void testRunEnded( const Catch::TestRunStats& /*testRunStats*/ ) override
+    {
+        waitingThreadOnly_.reset();
+    }
+
+private:
+    std::optional<tbb::global_control> waitingThreadOnly_;
+};
+#endif
+
 } // namespace logsquirl_benchmark
+
+#ifdef LOGSQUIRL_BENCHMARK_LIMITS_TBB
+CATCH_REGISTER_LISTENER( logsquirl_benchmark::TbbOnTheWaitingThreadOnly )
+#endif
 
 // The same shape as Catch2's own macros (catch_benchmark.hpp), with the
 // Benchmark above in place of Catch::Benchmark::Benchmark.

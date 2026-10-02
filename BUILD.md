@@ -553,7 +553,11 @@ the work, a benchmark that is over its threshold has its binary counted once mor
 side, from the same build, and the lower of the two counts is the one compared and judged: the
 gate fails only when both counts are over. The comment lists both counts of every recounted
 benchmark. The before side is not recounted (its build is gone by then, or its counts came from
-master's run): a count too high there can hide a cost, but not fail a pull request. To count the
+master's run): a count too high there can hide a cost, but not fail a pull request. That has a
+known cost: the after side is judged by the lower of two counts while the before side has one, so
+a real regression smaller than a benchmark's spread can pass. It is accepted, because the gate
+must never be falsely red (#672); the thresholds, measured while TBB's workers still spun, are to
+be measured again and lowered (#727). To count the
 same work every time, each benchmark runs its measured code exactly once, in the benchmarks' **fixed-work mode**
 (`tests/benchmarks/instruction_count.h`), instead of as often as Catch2's clock asks for:
 with `LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1`, `BENCHMARK` and `BENCHMARK_ADVANCED` start

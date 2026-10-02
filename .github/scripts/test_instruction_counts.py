@@ -767,6 +767,16 @@ def test_the_binaries_to_recount_are_those_with_a_benchmark_over_its_threshold()
     assert ic.binaries_to_recount(before, after, thresholds={("b3", "case / x"): 20.0}) == ["b1"]
 
 
+def test_the_binaries_to_recount_are_the_binaries_the_gate_finds_over_their_thresholds():
+    before = side({("b1", "case / x"): 1000, ("b2", "case / x"): 1000, ("b2", "case / y"): 1000,
+                   ("b3", "case / gone"): 1000})
+    after = side({("b1", "case / x"): 1010, ("b2", "case / x"): 1000, ("b2", "case / y"): 1500,
+                  ("b4", "case / new"): 1000})
+    gate = ic.evaluate_gate(comparison(before, after), labels=[], thresholds={})
+    assert ic.binaries_to_recount(before, after, thresholds={}) == sorted(
+        {o["binary"] for o in gate["over_threshold"]}) == ["b2"]
+
+
 def test_nothing_is_recounted_without_a_before_side():
     assert ic.binaries_to_recount(side({}), side({("b", "case / x"): 1000}), thresholds={}) == []
 
