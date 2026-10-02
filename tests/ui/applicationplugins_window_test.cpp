@@ -20,6 +20,7 @@
 // The plugins load once per application, after the first window shows (#303).
 
 #include "applicationplugins.h"
+#include "configuration.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
 #include "recentfiles.h"
@@ -28,6 +29,7 @@
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
+#include "welcomedashboard.h"
 
 #include <QDir>
 #include <QElapsedTimer>
@@ -152,6 +154,18 @@ void forgetRecentFiles()
     auto& recent = RecentFiles::getSynced();
     recent.removeAll();
     recent.save();
+}
+
+/// Whether one of the labels of the window's dashboard mentions the text.
+bool dashboardMentions( const MainWindow& window, const QString& text )
+{
+    const auto* dashboard = window.findChild<WelcomeDashboard*>();
+    if ( !dashboard ) {
+        return false;
+    }
+    const auto labels = dashboard->findChildren<QLabel*>();
+    return std::ranges::any_of(
+        labels, [ &text ]( const QLabel* label ) { return label->text().contains( text ); } );
 }
 
 int pluginActionTriggers = 0;
@@ -718,5 +732,59 @@ SCENARIO( "What plugins contribute shows in every window", "[ui][plugins][applic
         first.reset();
         plugins.reset();
         delete sidebarWidget.data();
+    }
+}
+
+// A plugin installed while the dashboard is shown, from the Plugins dialog of
+// this window or of another, is listed on the dashboard at once, not only
+// once the dashboard is shown again (#710).
+SCENARIO( "The dashboard lists a plugin installed while it is shown",
+          "[ui][plugins][applicationplugins][dashboard]" )
+{
+    GIVEN( "A window that shows the dashboard, with no plugin installed" )
+    {
+        const StandardPathsInTestMode testPaths;
+        qunsetenv( "LOGSQUIRL_TEST_PLUGIN_INIT_DELAY_MS" );
+        auto& config = Configuration::get();
+        const auto previousShowDashboard = config.showDashboard();
+        config.setShowDashboard( true );
+
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        auto plugins = std::make_shared<ApplicationPlugins>(
+            [ & ]( PluginCatalog& catalog, PluginHost& ) {
+                catalog.discoverPlugins( { pluginRoot.path() } );
+            } );
+        auto window = std::make_unique<MainWindow>(
+            WindowSession{ newSession(), QStringLiteral( "applicationplugins_window_test_dash" ),
+                           0 },
+            plugins );
+        window->show();
+        REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); }, 5000 ) );
+        REQUIRE( dashboardMentions( *window, QStringLiteral( "No plugins installed" ) ) );
+
+        WHEN( "a plugin is installed and loaded, as the Plugins dialog does" )
+        {
+            installSlowConverter( pluginRoot.path() );
+            plugins->catalog().discoverPlugins( { pluginRoot.path() } );
+            REQUIRE( plugins->host().loadPlugin( SlowConverterId ).isEmpty() );
+
+            THEN( "the dashboard lists it" )
+            {
+                REQUIRE( dashboardMentions( *window, QStringLiteral( "Slow Converter" ) ) );
+                // The rows it replaced go once the event loop runs.
+                REQUIRE( waitUiState(
+                    [ & ] {
+                        return !dashboardMentions( *window,
+                                                   QStringLiteral( "No plugins installed" ) );
+                    },
+                    5000 ) );
+            }
+        }
+
+        window.reset();
+        plugins.reset();
+        config.setShowDashboard( previousShowDashboard );
+        config.save();
     }
 }
