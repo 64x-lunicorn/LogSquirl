@@ -235,7 +235,7 @@
   over, such as one of another version, is reported instead. Before, the input
   was lost. (#623)
 
-## Internal
+## Build and packaging
 
 - **Release builds can use profile-guided optimization, and BOLT on Linux,
   per platform once the numbers show a gain**: `-DLOGSQUIRL_PGO=GENERATE`
@@ -250,6 +250,9 @@
   with the build time each took. No profile is checked in. Every release build
   keeps building as before: its platform's switch in CI Build stays off until
   those numbers show a clear gain there. (#682)
+
+## Internal
+
 - **A pull request that touches a hot path gets the benchmark comparison by
   itself**: a pull request that changes reading and indexing, Search,
   QuickFind, the Line Decorator or the paint path of the Text View or Table
