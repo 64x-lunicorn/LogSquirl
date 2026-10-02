@@ -188,6 +188,55 @@ add_executable(logsquirl_textview_ansi_benchmark
 
 target_link_libraries(logsquirl_textview_ansi_benchmark logsquirl_ui Catch2::Catch2 test_utils)
 
+# Whether a target links oneTBB, itself or through the libraries it links:
+# sets <out> to TRUE or FALSE. TBB is the target tbb, which the log data
+# library links privately (its users get $<LINK_ONLY:tbb>), or TBB::tbb when
+# it was found on the build host.
+function(_logsquirl_links_tbb target out)
+  set(_pending ${target})
+  set(_seen "")
+  while(_pending)
+    list(POP_FRONT _pending _current)
+    if(_current IN_LIST _seen)
+      continue()
+    endif()
+    list(APPEND _seen ${_current})
+    foreach(_property IN ITEMS LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
+      get_target_property(_libraries ${_current} ${_property})
+      if(NOT _libraries)
+        continue()
+      endif()
+      foreach(_library IN LISTS _libraries)
+        string(REGEX REPLACE "^\\$<LINK_ONLY:(.*)>$" "\\1" _library "${_library}")
+        if(_library STREQUAL "tbb" OR _library STREQUAL "TBB::tbb")
+          set(${out} TRUE PARENT_SCOPE)
+          return()
+        endif()
+        if(TARGET ${_library})
+          list(APPEND _pending ${_library})
+        endif()
+      endforeach()
+    endforeach()
+  endwhile()
+  set(${out} FALSE PARENT_SCOPE)
+endfunction()
+
+# In the fixed-work mode a benchmark binary that runs oneTBB's flow graphs
+# runs them on the thread that waits for them alone (instruction_count.h,
+# #708), which takes TBB's headers. TBB's library comes with the log data
+# library already; naming it again would put it on the link line twice (#450).
+get_directory_property(_logsquirl_benchmark_executables BUILDSYSTEM_TARGETS)
+foreach(_target IN LISTS _logsquirl_benchmark_executables)
+  get_target_property(_type ${_target} TYPE)
+  if(_type STREQUAL "EXECUTABLE")
+    _logsquirl_links_tbb(${_target} _links_tbb)
+    if(_links_tbb)
+      target_link_libraries(${_target} logsquirl_tbb_headers)
+      target_compile_definitions(${_target} PRIVATE LOGSQUIRL_BENCHMARK_LIMITS_TBB)
+    endif()
+  endif()
+endforeach()
+
 # The heap counts of the fixed-work mode (#673; heap_count.c): every benchmark
 # binary above also counts the allocations and the peak heap of each
 # benchmark's measured code. Off unless asked for: it replaces glibc's malloc

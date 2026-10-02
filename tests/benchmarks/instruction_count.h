@@ -34,6 +34,16 @@
 // where it would stop it. The setup of a BENCHMARK_ADVANCED (everything outside
 // meter.measure) is not counted, just as Catch2 does not time it.
 //
+// oneTBB runs the flow graphs of indexing and Search on the thread that waits
+// for them and on its worker threads. A worker that runs out of work spins
+// before it sleeps, for as long as the threads' turns under Valgrind happen to
+// let it, and Callgrind counts that with everything else: it added 1.2 M
+// instructions (9 %) to a 20-tab Session restore in one run and nothing in the
+// next, and made the widest spreads of #671 (#708). So in the fixed-work mode
+// the waiting thread runs every graph alone, as the graphs allow (#142, #146),
+// and no worker thread runs or spins in a count. In timed runs TBB keeps its
+// workers.
+//
 // In a build with LOGSQUIRL_BENCHMARK_HEAP_COUNTS (heap_count.h, #673), the
 // same run also counts the allocations and the peak heap of the measured code:
 // the heap window opens right before Callgrind starts and closes right after
@@ -69,6 +79,11 @@
 #include "heap_count.h"
 #endif
 
+// Set by tests/benchmarks/CMakeLists.txt for a binary that links oneTBB.
+#ifdef LOGSQUIRL_BENCHMARK_LIMITS_TBB
+#include <tbb/global_control.h>
+#endif
+
 namespace logsquirl_benchmark {
 
 // Whether this run counts instructions instead of timing.
@@ -77,6 +92,18 @@ inline bool countsInstructions()
     static const bool counts
         = qEnvironmentVariableIntValue( "LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS" ) == 1;
     return counts;
+}
+
+// From the first counted benchmark on, until the process ends, oneTBB runs
+// its work on the thread that waits for it and starts no worker; workers the
+// setup before it started fall asleep in the pause before each count.
+inline void runTbbOnTheWaitingThreadOnly()
+{
+#ifdef LOGSQUIRL_BENCHMARK_LIMITS_TBB
+    static const tbb::global_control waitingThreadOnly{
+        tbb::global_control::max_allowed_parallelism, 1
+    };
+#endif
 }
 
 // Stands where Catch2's clock stands: Chronometer::measure calls start()
@@ -140,6 +167,7 @@ public:
             return *this;
         }
         checkCanCount();
+        runTbbOnTheWaitingThreadOnly();
 
         InstructionCounter counter{ Catch::getResultCapture().getCurrentTestName() + " / "
                                     + name_ };
