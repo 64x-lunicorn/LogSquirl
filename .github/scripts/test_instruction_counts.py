@@ -753,3 +753,127 @@ def test_a_gate_file_that_is_not_usable_leaves_the_gate_out_of_the_comment(tmp_p
                     "--gate", str(tmp_path / "gate.json"), "--repo", "o/r", "--head-sha", HEAD_SHA]) == 0
     [(_, _, body)] = github.writes
     assert "Gate" not in body["body"]
+
+
+# ---------------------------------------------------------------------------
+# Recounting what is over its threshold (#708)
+# ---------------------------------------------------------------------------
+
+def test_the_binaries_to_recount_are_those_with_a_benchmark_over_its_threshold():
+    before = side({("b1", "case / x"): 1000, ("b1", "case / y"): 1000, ("b2", "case / x"): 1000,
+                   ("b3", "case / x"): 1000, ("b4", "case / gone"): 1000})
+    after = side({("b1", "case / x"): 1100, ("b1", "case / y"): 1100, ("b2", "case / x"): 1010,
+                  ("b3", "case / x"): 1100, ("b5", "case / new"): 1000})
+    assert ic.binaries_to_recount(before, after, thresholds={("b3", "case / x"): 20.0}) == ["b1"]
+
+
+def test_nothing_is_recounted_without_a_before_side():
+    assert ic.binaries_to_recount(side({}), side({("b", "case / x"): 1000}), thresholds={}) == []
+
+
+def test_a_recount_keeps_the_lower_count_and_both_counts():
+    first = side({("b", "case / x"): 1100, ("b", "case / y"): 500})
+    recount = side({("b", "case / x"): 1000, ("b", "case / y"): 510})
+    merged = ic.merge_recount(first, recount)
+    by_name = {e["name"]: e for e in merged["benchmarks"]}
+    assert by_name["case / x"]["instructions"] == 1000
+    assert by_name["case / x"]["instruction_counts"] == [1100, 1000]
+    assert by_name["case / y"]["instructions"] == 500
+    assert by_name["case / y"]["instruction_counts"] == [500, 510]
+
+
+def test_a_recount_leaves_other_binaries_their_heap_counts_and_the_failed_ones_alone():
+    first = side({("b", "case / x"): 1100, ("other", "case / x"): 7},
+                 failed=["broken"], heap={("b", "case / x"): (10, 640)})
+    recount = side({("b", "case / x"): 1000}, heap={("b", "case / x"): (11, 700)})
+    merged = ic.merge_recount(first, recount)
+    by_key = {(e["binary"], e["name"]): e for e in merged["benchmarks"]}
+    assert by_key[("other", "case / x")] == first["benchmarks"][1]
+    assert (by_key[("b", "case / x")]["allocations"], by_key[("b", "case / x")]["peak_heap_bytes"]) == (10, 640)
+    assert merged["failed_binaries"] == ["broken"]
+
+
+def test_a_binary_that_failed_on_the_recount_keeps_its_first_counts():
+    first = side({("b", "case / x"): 1100})
+    merged = ic.merge_recount(first, side({}, failed=["b"]))
+    assert merged["benchmarks"] == first["benchmarks"]
+
+
+def test_a_count_too_high_once_passes_the_gate_once_recounted():
+    before = side({("b", "case / x"): 13_540_224})
+    first = side({("b", "case / x"): 14_743_988})
+    after = ic.merge_recount(first, side({("b", "case / x"): 13_585_568}))
+    assert gate(before, first)["passed"] is False
+    assert gate(before, after)["passed"] is True
+
+
+def test_a_cost_both_counts_agree_on_fails_the_gate():
+    before = side({("b", "case / x"): 1000})
+    after = ic.merge_recount(side({("b", "case / x"): 1100}), side({("b", "case / x"): 1090}))
+    result = gate(before, after)
+    assert result["passed"] is False
+    assert comparison(before, after)["benchmarks"][0]["metrics"]["instructions"]["after"] == 1090
+
+
+def test_the_comparison_carries_the_after_sides_counts_of_a_recounted_benchmark():
+    after = ic.merge_recount(side({("b", "case / x"): 1100, ("b", "case / y"): 1}),
+                             side({("b", "case / x"): 1000, ("b", "case / y"): 1}))
+    data = comparison(side({("b", "case / x"): 1000}), side({("b", "case / z"): 1}))
+    assert "after_counts" not in data["benchmarks"][0]["metrics"]["instructions"]
+    data = comparison(side({("b", "case / x"): 1000}), after)
+    instructions = {e["name"]: e["metrics"]["instructions"] for e in data["benchmarks"]}
+    assert instructions["case / x"] == {"before": 1000, "after": 1000, "change_percent": 0.0,
+                                        "after_counts": [1100, 1000]}
+    assert ic.validate(json.loads(json.dumps(data))) == data
+
+
+@pytest.mark.parametrize("counts", [
+    [1100, 1001],      # the after count is not the lowest
+    [1100],            # one count is no recount
+    [1100, "1000"],
+    [1100, -1],
+    [1000] * 11,
+    {"first": 1100},
+])
+def test_after_counts_that_do_not_match_the_count_are_rejected(counts):
+    data = json.loads(json.dumps(comparison(
+        side({("b", "case / x"): 1000}),
+        ic.merge_recount(side({("b", "case / x"): 1100}), side({("b", "case / x"): 1000})))))
+    data["benchmarks"][0]["metrics"]["instructions"]["after_counts"] = counts
+    with pytest.raises(ValueError):
+        ic.validate(data)
+
+
+def test_the_report_lists_the_recounted_benchmarks_with_each_count():
+    after = ic.merge_recount(side({("logsquirl_x_benchmark", "case / x"): 14_743_988}),
+                             side({("logsquirl_x_benchmark", "case / x"): 13_585_568}))
+    markdown = ic.render_markdown(comparison(side({("logsquirl_x_benchmark", "case / x"): 13_540_224}), after))
+    assert "Recounted" in markdown
+    assert "| x: case / x | 14,743,988 | 13,585,568 |" in markdown
+
+
+def test_without_a_recount_the_report_does_not_mention_one():
+    markdown = ic.render_markdown(comparison(side({("b", "case / x"): 1000}), side({("b", "case / x"): 1100})))
+    assert "Recounted" not in markdown
+
+
+def test_the_recount_command_lines(tmp_path, capsys):
+    before, after = tmp_path / "before.json", tmp_path / "after.json"
+    before.write_text(json.dumps(side({("b", "case / x"): 1000, ("c", "case / x"): 1000})), encoding="utf-8")
+    after.write_text(json.dumps(side({("b", "case / x"): 1100, ("c", "case / x"): 1000})), encoding="utf-8")
+    assert ic.main(["over-threshold", "--before", str(before), "--after", str(after)]) == 0
+    assert capsys.readouterr().out == "b\n"
+
+    recount = tmp_path / "recount.json"
+    recount.write_text(json.dumps(side({("b", "case / x"): 1000})), encoding="utf-8")
+    assert ic.main(["merge-recount", "--side", str(after), "--recount", str(recount),
+                    "--json", str(after)]) == 0
+    merged = json.loads(after.read_text(encoding="utf-8"))
+    assert merged["benchmarks"][0]["instruction_counts"] == [1100, 1000]
+
+
+def test_the_binaries_to_recount_of_a_missing_before_side_are_none(tmp_path, capsys):
+    after = tmp_path / "after.json"
+    after.write_text(json.dumps(side({("b", "case / x"): 1100})), encoding="utf-8")
+    assert ic.main(["over-threshold", "--before", str(tmp_path / "none.json"), "--after", str(after)]) == 0
+    assert capsys.readouterr().out == ""
