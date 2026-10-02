@@ -12,8 +12,9 @@ import perf_margin as pm
 
 # The e2e suite's numbers: 5 % tolerance, an absolute margin of at most 1 ms.
 SUITE = {"tolerance_percent": 5, "min_delta_cap_seconds": 0.001}
-# The Performance workflow's: 30 %, at most 10 ms.
-HISTORY = {"tolerance_percent": 30, "min_delta_cap_seconds": 0.010}
+# The nightly wall-clock series' (perf-history.py WALL_CLOCK, at a change
+# point): 10 %, at most 10 ms.
+HISTORY = {"tolerance_percent": 10, "min_delta_cap_seconds": 0.010}
 
 
 @pytest.mark.parametrize("rule", [SUITE, HISTORY], ids=["suite", "history"])
@@ -45,7 +46,7 @@ def test_the_absolute_margin_is_at_most_half_the_benchmark():
 
 def test_a_long_benchmark_is_judged_by_the_tolerance():
     assert pm.limit_seconds(1.0, **SUITE) == pytest.approx(1.05)
-    assert pm.limit_seconds(1.0, **HISTORY) == pytest.approx(1.30)
+    assert pm.limit_seconds(1.0, **HISTORY) == pytest.approx(1.10)
 
 
 def test_a_noisy_benchmark_gets_three_times_its_spread():
@@ -70,7 +71,7 @@ def test_a_margin_set_for_the_benchmark_replaces_the_absolute_margin():
 
 
 def test_a_margin_set_for_the_benchmark_does_not_switch_off_tolerance_or_spread():
-    assert pm.limit_seconds(1.0, min_delta_seconds=0.0, **HISTORY) == pytest.approx(1.30)
+    assert pm.limit_seconds(1.0, min_delta_seconds=0.0, **HISTORY) == pytest.approx(1.10)
     assert pm.limit_seconds(
         1e-3, min_delta_seconds=0.0, spread_seconds=1e-3, **SUITE
     ) == pytest.approx(4e-3)

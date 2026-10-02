@@ -19,7 +19,9 @@
 # Usage: instruction-counts-side.sh before|after   (from the workspace root)
 # Environment: RUN_DIR, LOGSQUIRL_CONTAINER, LOGSQUIRL_WORKSPACE,
 # LOGSQUIRL_BUILD_ROOT, LOGSQUIRL_CMAKE_OPTS and LOGSQUIRL_VERSION, as the
-# composite actions set them.
+# composite actions set them; LOGSQUIRL_BENCHMARK_LOG_FILE_MB and
+# LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB, when set, reach instruction-counts.sh
+# (the nightly Performance run counts larger Log Files than a pull request).
 set -euo pipefail
 
 side=${1:?usage: instruction-counts-side.sh before|after}
@@ -48,6 +50,8 @@ docker run --rm \
     --env CMAKE_OPTS="$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache" \
     --env SCCACHE_DIR=/usr/local/sccache_cache \
     --env SCCACHE_CACHE_SIZE=2G \
+    --env LOGSQUIRL_BENCHMARK_LOG_FILE_MB \
+    --env LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB \
     --workdir /usr/local \
     -v "$LOGSQUIRL_WORKSPACE":/usr/local "$image" /bin/bash -c '
         status=0

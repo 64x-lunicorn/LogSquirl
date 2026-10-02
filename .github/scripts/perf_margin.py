@@ -1,8 +1,9 @@
 """How much slower than its reference a benchmark's median may be (#705, ADR 0018).
 
 One rule for the e2e performance suite (tests/e2e/conftest.py, against
-baseline.json) and the Performance workflow (perf-history.py, against the
-median of the last recorded runs). Each passes its own tolerance and cap.
+baseline.json) and the nightly Performance workflow (perf-history.py and
+perf_changepoint.py, against the median of the runs before a change point,
+#677). Each passes its own tolerance and cap.
 
 A median is a regression when it is above
 

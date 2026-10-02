@@ -147,7 +147,7 @@ Review the diff in `baseline.json` before committing — values should only decr
 | `--bench-warmup`    | 3       | Number of warmup runs (discarded)                 |
 | `--bench-report`    | markdown| Report format: `markdown`, `json`, or `none`     |
 | `--update-baseline` | off     | Write measured values to baseline.json            |
-| `--no-baseline-compare` | off | Measure and report only; the weekly Performance workflow compares with its run history instead (BUILD.md, *Weekly performance*) |
+| `--no-baseline-compare` | off | Measure and report only; the nightly Performance workflow compares with its run history instead (BUILD.md, *Nightly performance*) |
 
 Example with custom run count:
 
@@ -255,7 +255,7 @@ measured the startup (a 1 MB case took 0.33 s, 0.27 s of it startup), and `gui_l
 a start, a 2 s sleep and a SIGTERM. Their numbers mean something else now, so they have new
 names. The Performance workflow treats a benchmark the previous run had and this run has not
 as a failure: the first run after the rename is dispatched with `accept_new_level`, which starts
-the history of the new names (BUILD.md, *Weekly performance*).
+the history of the new names (BUILD.md, *Nightly performance*).
 
 ### Adding a benchmark
 

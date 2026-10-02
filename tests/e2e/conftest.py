@@ -54,7 +54,7 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help=(
-            "Measure and report only, without comparing with baseline.json. The weekly "
+            "Measure and report only, without comparing with baseline.json. The nightly "
             "Performance workflow compares with its own run history instead (#441)"
         ),
     )
