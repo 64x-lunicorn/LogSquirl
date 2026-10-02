@@ -20,6 +20,7 @@
 #include "indexingblocks.h"
 
 #include <algorithm>
+#include <cassert>
 
 namespace indexing_blocks {
 
@@ -119,10 +120,16 @@ void parseBlock( IndexingBlock& block )
     block.lastLineWidening = widening;
 
     // Only a block that has a byte beyond ASCII is read again, up to the
-    // first one.
+    // first one. The scan has seen one, so there is one before the end; were
+    // there none, firstByteBeyondAscii would return the size, which is no
+    // byte of the block.
     if ( block.findBeyondAscii && scanner.sawByteBeyondAscii() ) {
-        block.firstBeyondAscii = static_cast<std::int64_t>( EncodingDetector::firstByteBeyondAscii(
-            block.bytes(), static_cast<std::size_t>( block.size ) ) );
+        const auto size = static_cast<std::size_t>( block.size );
+        const auto first = EncodingDetector::firstByteBeyondAscii( block.bytes(), size );
+        assert( first < size );
+        if ( first < size ) {
+            block.firstBeyondAscii = static_cast<std::int64_t>( first );
+        }
     }
 }
 

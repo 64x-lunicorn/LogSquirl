@@ -31,6 +31,7 @@
 
 #include <array>
 #include <bit>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -84,9 +85,11 @@ public:
     }
 
     // Whether any byte of the range, from where the scan started, is 0x80 or
-    // more: known once next() has returned the size of the range.
+    // more: known once next() has returned the size of the range. Asked
+    // before, it would not have seen the bytes not scanned yet.
     bool sawByteBeyondAscii() const
     {
+        assert( nextChunk_ >= size_ && "sawByteBeyondAscii() before next() returned the size" );
         if ( ( tailBytes_ & 0x80U ) != 0 ) {
             return true;
         }
