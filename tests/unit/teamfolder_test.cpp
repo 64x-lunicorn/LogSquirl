@@ -50,6 +50,7 @@
 #include "naminggroup.h"
 #include "teamfolder.h"
 #include "teamfoldergit.h"
+#include "teamfoldertesting.h"
 
 using logsquirl::teamfolder::Git;
 using logsquirl::teamfolder::groupOfKind;
@@ -61,80 +62,9 @@ using logsquirl::valuenames::NameTable;
 using logsquirl::valuenames::NamingGroup;
 using logsquirl::valuenames::NamingRule;
 using namespace logsquirl::groupexchange;
+using namespace teamfolder_testing;
 
 namespace {
-
-constexpr int SyncTimeoutMs = 60'000;
-
-// Sets the environment every Git of this process runs in for as long as it
-// lives, and puts back what was there.
-class IsolatedGitEnvironment {
-public:
-    IsolatedGitEnvironment()
-    {
-#ifdef Q_OS_WIN
-        const QByteArray nullDevice = "NUL";
-#else
-        const QByteArray nullDevice = "/dev/null";
-#endif
-        set( "GIT_CONFIG_GLOBAL", nullDevice );
-        set( "GIT_CONFIG_NOSYSTEM", "1" );
-        set( "GIT_TERMINAL_PROMPT", "0" );
-        set( "GIT_AUTHOR_NAME", "Team Folder Test" );
-        set( "GIT_AUTHOR_EMAIL", "team-folder-test@example.invalid" );
-        set( "GIT_COMMITTER_NAME", "Team Folder Test" );
-        set( "GIT_COMMITTER_EMAIL", "team-folder-test@example.invalid" );
-    }
-
-    ~IsolatedGitEnvironment()
-    {
-        for ( const auto& [ name, value ] : previous_ ) {
-            if ( value.has_value() ) {
-                qputenv( name.c_str(), *value );
-            }
-            else {
-                qunsetenv( name.c_str() );
-            }
-        }
-    }
-
-    IsolatedGitEnvironment( const IsolatedGitEnvironment& ) = delete;
-    IsolatedGitEnvironment& operator=( const IsolatedGitEnvironment& ) = delete;
-
-private:
-    void set( const char* name, const QByteArray& value )
-    {
-        previous_.emplace( name, qEnvironmentVariableIsSet( name )
-                                     ? std::optional<QByteArray>( qgetenv( name ) )
-                                     : std::nullopt );
-        qputenv( name, value );
-    }
-
-    std::map<std::string, std::optional<QByteArray>> previous_;
-};
-
-bool gitInstalled()
-{
-    return !QStandardPaths::findExecutable( QStringLiteral( "git" ) ).isEmpty();
-}
-
-// Whether the Team Folder is done syncing, waiting for it as long as needed.
-bool settled( const TeamFolder& folder )
-{
-    return QTest::qWaitFor( [ &folder ] { return !folder.isSyncing(); }, SyncTimeoutMs );
-}
-
-void syncNow( TeamFolder& folder )
-{
-    REQUIRE( settled( folder ) );
-    folder.sync();
-    REQUIRE( settled( folder ) );
-}
-
-TeamFolderPolicy policyFor( const QString& url, const QString& subfolder = {} )
-{
-    return TeamFolderPolicy{ .enabled = true, .repositoryUrl = url, .subfolder = subfolder };
-}
 
 PredefinedFilterSet makeGroup( const QString& name, const QString& pattern = "ERROR" )
 {

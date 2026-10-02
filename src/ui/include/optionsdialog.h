@@ -131,6 +131,7 @@ private:
     void setupArchives();
     void setupIndexCache();
     void setupTeamFolder();
+    void setupTeamFolderStatus();
     void updateTeamFolderStatus();
     void setupStyles();
     void setupEncodings();
