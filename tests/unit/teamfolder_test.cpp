@@ -461,8 +461,17 @@ TEST_CASE( "A subfolder outside the repository is refused", "[teamfolder]" )
     const auto bob = team.member( "bob", "../elsewhere" );
     CHECK( bob->state() == TeamFolder::State::Error );
     CHECK( bob->failedStep() == SyncStep::Subfolder );
-    // The subfolder is LogSquirl's to refuse: there is nothing from Git.
+    // The subfolder is LogSquirl's to refuse: there is nothing from Git, and
+    // a remark names the subfolder.
     CHECK( bob->gitOutput().isEmpty() );
+    CHECK( bob->remarks()
+           == QStringList{ "The subfolder ../elsewhere does not lie inside the repository." } );
+
+    // A subfolder inside it takes the remark away.
+    bob->setUp( policyFor( team.url(), "logsquirl" ) );
+    REQUIRE( settled( *bob ) );
+    CHECK( bob->failedStep() == SyncStep::None );
+    CHECK( bob->remarks().isEmpty() );
 }
 
 TEST_CASE( "A failed clone is reported with Git's message", "[teamfolder]" )

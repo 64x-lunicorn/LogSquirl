@@ -347,6 +347,22 @@ TEST_CASE( "The Team Folder tab shows the failed step and Git's output in collap
         CHECK( QGuiApplication::clipboard()->text() == folder.gitOutput() );
     }
 
+    SECTION( "a subfolder outside the repository, named under the heading" )
+    {
+        TeamFolder folder( root.filePath( "clone" ) );
+        folder.setUp( policyFor( missingServer, "../elsewhere" ) );
+        REQUIRE( settled( folder ) );
+        dialog.showTeamFolder( folder );
+
+        CHECK( dialog.teamFolderStatusHeadingLabel->text()
+               == "The subfolder lies outside the repository" );
+        CHECK( dialog.teamFolderRemarksLabel->isVisibleTo( dialog.teamFolderTab ) );
+        CHECK( dialog.teamFolderRemarksLabel->text()
+               == "The subfolder ../elsewhere does not lie inside the repository." );
+        // Nothing of Git's to show.
+        CHECK_FALSE( detailsButton->isVisibleTo( dialog.teamFolderTab ) );
+    }
+
     if ( !gitInstalled() ) {
         return;
     }

@@ -335,8 +335,9 @@ public:
     QString heading() const;
     // The heading for a step that failed: "Clone failed".
     static QString headingOf( logsquirl::teamfolder::SyncStep step );
-    // What else there is to know, one line each: a group that was not
-    // published, the Team groups being read-only, a file that was skipped.
+    // What else there is to know, one line each: why a step that is not
+    // Git's failed, a group that was not published, the Team groups being
+    // read-only, a file that was skipped.
     QStringList remarks() const;
     // Git's output and the remarks, one per line; empty when there is nothing
     // to say beyond the summary.
@@ -370,8 +371,10 @@ private:
         QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups,
         QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups,
         QList<logsquirl::teamfolder::TeamGroup<logsquirl::valuenames::NamingGroup>> namingGroups );
+    // Sets the state, the step that failed, and what that step said: Git's
+    // output, or LogSquirl's own reason for a step that is not Git's.
     void setState( State state, logsquirl::teamfolder::SyncStep failedStep = {},
-                   const QString& gitOutput = {} );
+                   const QString& message = {} );
     // The Team groups of one kind.
     template <typename Group>
     const QList<logsquirl::teamfolder::TeamGroup<Group>>& teamGroupsOf() const
@@ -394,6 +397,9 @@ private:
     State state_ = State::Off;
     logsquirl::teamfolder::SyncStep failedStep_ = logsquirl::teamfolder::SyncStep::None;
     QString gitOutput_;
+    // LogSquirl's own reason for a failed step that is not Git's: which
+    // subfolder lies outside the repository.
+    QString failureReason_;
     QList<logsquirl::teamfolder::SkippedFile> skippedFiles_;
     QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups_;
     QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups_;

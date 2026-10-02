@@ -1389,8 +1389,7 @@ void TeamFolder::takeOutcome()
             break;
         case SyncOutcome::Result::Failed:
             setGroups( outcome->filterGroups, outcome->highlighterGroups, outcome->namingGroups );
-            setState( State::Error, outcome->failedStep,
-                      outcome->failedStep == SyncStep::Subfolder ? QString{} : outcome->message );
+            setState( State::Error, outcome->failedStep, outcome->message );
             break;
         }
     }
@@ -1445,14 +1444,18 @@ void TeamFolder::setGroups( QList<TeamGroup<PredefinedFilterSet>> filterGroups,
     }
 }
 
-void TeamFolder::setState( State state, SyncStep failedStep, const QString& gitOutput )
+void TeamFolder::setState( State state, SyncStep failedStep, const QString& message )
 {
     if ( state == State::Error || failedStep != SyncStep::None ) {
-        LOG_WARNING << "Team Folder: " << headingOf( failedStep ) << ": " << gitOutput;
+        LOG_WARNING << "Team Folder: " << headingOf( failedStep ) << ": " << message;
     }
     state_ = state;
     failedStep_ = failedStep;
-    gitOutput_ = gitOutput;
+    // The subfolder is LogSquirl's own refusal: its reason is a remark, and
+    // there is no output of Git's.
+    const bool fromGit = failedStep != SyncStep::Subfolder;
+    gitOutput_ = fromGit ? message : QString{};
+    failureReason_ = fromGit ? QString{} : message;
     Q_EMIT stateChanged();
 }
 
@@ -1547,6 +1550,9 @@ QString TeamFolder::headingOf( SyncStep step )
 QStringList TeamFolder::remarks() const
 {
     QStringList lines;
+    if ( !failureReason_.isEmpty() ) {
+        lines.append( failureReason_ );
+    }
     if ( !publishError_.isEmpty() ) {
         lines.append( tr( "Not published: %1" ).arg( publishError_ ) );
     }
