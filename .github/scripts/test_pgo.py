@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -352,3 +354,62 @@ def test_sides_are_named_and_unique():
 def test_times_needs_a_timings_file():
     with pytest.raises(SystemExit):
         pgo.main(["times"])
+
+
+# --- the release path's actions ----------------------------------------------
+#
+# The PGO workflow runs pgo.py through its own steps; the release path's
+# composite actions (.github/actions/pgo-profile, .github/actions/bolt) run only
+# behind a release job's switch, and every switch is off. So nothing in CI runs
+# them (#732). What can drift without a run is checked here: that each of their pgo.py
+# calls is one pgo.py accepts, and that the files they name exist.
+
+REPO = Path(__file__).parents[2]
+RELEASE_ACTIONS = [REPO / ".github" / "actions" / name / "action.yml" for name in ("pgo-profile", "bolt")]
+# What the actions' shell expands, as the release jobs set it.
+EXPANSIONS = {'"${bolt[@]}"': "--bolt", '"$TOOLCHAIN"': "gcc"}
+PGO_CALL = re.compile(
+    r'(?:^|\s)(?:pgo|"\$python"\s+\.github/scripts/pgo\.py\s+--timings\s+\S+)\s+'
+    r"(build|train|merge|bolt-instrument|bolt-optimize|collect|measure|times)\b([^\n]*)",
+    flags=re.MULTILINE)
+
+
+def pgo_calls(text: str) -> list[list[str]]:
+    text = re.sub(r"\\\n\s*", " ", text)
+    for written, expanded in EXPANSIONS.items():
+        text = text.replace(written, expanded)
+    calls = []
+    for command, rest in PGO_CALL.findall(text):
+        arguments = []
+        for token in shlex.split(rest):
+            if token in (">", ">>", "|", "&&", ";"):
+                break
+            arguments.append(token)
+        calls.append([command, *arguments])
+    return calls
+
+
+@pytest.mark.parametrize("action", RELEASE_ACTIONS, ids=lambda path: path.parent.name)
+def test_the_release_actions_call_pgo_py_as_it_takes_its_arguments(action):
+    calls = pgo_calls(action.read_text())
+    assert calls, f"{action} calls pgo.py nowhere"
+    parser = pgo.build_parser()
+    for call in calls:
+        try:
+            parser.parse_args(["--timings", "t.json", *call])
+        except SystemExit:
+            pytest.fail(f"{action.parent.name}: pgo.py does not take {shlex.join(call)}")
+
+
+@pytest.mark.parametrize("action", RELEASE_ACTIONS, ids=lambda path: path.parent.name)
+def test_the_release_actions_name_files_that_exist(action):
+    named = set(re.findall(r"(?<![\w/.])((?:\.github|tests)/[\w./-]+\.(?:py|txt|sh))", action.read_text()))
+    assert named
+    assert sorted(path for path in named if not (REPO / path).is_file()) == []
+
+
+def test_the_action_check_sees_a_call_pgo_py_does_not_take():
+    assert pgo_calls('pgo() { x; }\npgo merge --toolchain "$TOOLCHAIN" \\\n  --profile-dir d\n') == [
+        ["merge", "--toolchain", "gcc", "--profile-dir", "d"]]
+    with pytest.raises(SystemExit):
+        pgo.build_parser().parse_args(["merge", "--toolchain", "gcc", "--profile-folder", "d"])

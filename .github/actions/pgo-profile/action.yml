@@ -6,7 +6,9 @@ description: >-
 # A release build of a platform uses this only behind its job's `pgo` switch
 # in ci-build.yml, which stays false until the A/B numbers of the PGO workflow
 # (pgo.yml) show a clear gain there. The profile is made by this run, from
-# this commit, and never kept: it cannot go stale.
+# this commit, and never kept: it cannot go stale. While every switch is
+# off nothing in CI runs this action; test_pgo.py checks its pgo.py calls and
+# the files it names (#732).
 #
 # The instrumented build is the build root itself: GCC names each object's
 # profile after the object's absolute path, so the optimized build has to

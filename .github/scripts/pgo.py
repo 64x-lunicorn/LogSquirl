@@ -591,7 +591,7 @@ def cmd_times(args) -> int:
 
 # ---------------------------------------------------------------------------
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--timings", type=Path, help="JSON file each step adds its wall time to")
     parser.add_argument("--source", type=Path, default=Path.cwd(), help="the source tree (default: .)")
@@ -660,7 +660,11 @@ def main(argv: list[str] | None = None) -> int:
     times.add_argument("--also", type=Path, action="append", default=[],
                        help="another timings file to count in, e.g. the plain build's from another job")
     times.set_defaults(func=cmd_times)
+    return parser
 
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "times" and args.timings is None:
         parser.error("times needs --timings")
