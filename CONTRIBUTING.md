@@ -202,9 +202,11 @@ Pull request CI does not run the performance suite. A pull request that changes 
 paint path) or carries the `performance` label gets a before/after comparison of the
 benchmarks and the performance suite as a comment instead, from the **Benchmarks** workflow;
 it reports and never fails the pull request (`tests/benchmarks/README.md`, *Before and after
-in CI*). The weekly **Performance** workflow
-measures master on a GitHub-hosted runner and turns red when a benchmark is more than
-30 % slower than the median of its last six runs (BUILD.md, *Weekly performance*).
+in CI*). The nightly **Performance** workflow measures master on GitHub-hosted runners,
+wall-clock and instruction counts, and checks the Budgets of ADR 0018; when the instruction
+counts of a benchmark step up from one run on, or a Budget breaks, it opens a `needs-triage`
+issue naming the scenario and the commit range it happened in (BUILD.md, *Nightly
+performance*).
 
 **Instruction count gate.** Every pull request that CI builds counts the instructions of each
 Catch2 benchmark (`tests/benchmarks`) before and after the change, under Callgrind, and shows

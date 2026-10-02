@@ -634,3 +634,20 @@ its settings, Session and data start empty and go when it ends; it takes nothing
 no plugins, checks for no new version, uses no Index Cache and has a single-instance lock of
 its own. It reads and writes nothing of the user's (#666).
 _Avoid_: benchmark build, test run
+
+**Benchmark Scenario**:
+What one Benchmark Run does, named by `--benchmark <scenario>`: `open-and-index`, `search`,
+`quickfind`, `scroll`, `follow`, `session-restore`, `read-while-indexing`; the command line
+tool's `grep` and the startup are measured the same way. A scenario times the events a user
+waits for and reports them; the e2e suite turns each into benchmarks, a median over runs.
+_Avoid_: test case, benchmark (a benchmark is one number a scenario reports)
+
+**Budget**:
+The slowest value a Benchmark Scenario's headline benchmark may have on one Log File size and
+one machine class, derived from measured runs with its headroom stated, and broken only
+beyond its noise margin. The Budgets are in `tests/e2e/budgets.json`, which ADR 0018 points
+to; changing one changes the ADR. A Budget is not a baseline: the baseline and the history
+ask whether LogSquirl got slower, a Budget whether it is still fast. The 16.7 ms a scroll
+frame is counted against (*Frames Over Budget*) and the chart's 1 s are bounds per frame or
+per Log Line inside one run, not Budgets.
+_Avoid_: threshold, limit, target

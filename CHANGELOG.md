@@ -260,6 +260,33 @@
   benchmark's heap allocations and peak heap, before and after, as a report.
   (#672, #673)
 
+- **Master's performance is measured every night, and a regression files an
+  issue**: the Performance workflow runs nightly instead of weekly, and next to
+  the e2e performance suite's wall-clock it counts the instructions of every
+  benchmark under Callgrind on larger generated Log Files. A regression is a
+  change point in a benchmark's series of runs, not one run against the median
+  of the last six: the reference is the level before it, so a lasting
+  regression no longer heals itself after a few weeks. A change point in the
+  instruction counts, a broken Budget of ADR 0018 (once the maintainer accepts
+  the Budgets; until then they are only reported) or a benchmark that went
+  missing opens a `needs-triage` issue per scenario that names the commit range
+  from the last good run to the first bad one, or updates the open one;
+  wall-clock change points are the trend for now. A run dispatched from a
+  branch files nothing and shows its findings in the job summary. (#677)
+
+- **The nightly wall-clock is compared within the runner's CPU model and
+  against the last release**: a median compares only with earlier runs on the
+  same CPU model, where medians vary by about 1.4 % instead of up to 24 %, and
+  the job summary names the model and how many runs of it came before. On the
+  same runner, the Performance workflow also builds the last release tag
+  (cached per release) and runs the same suite on it, and records each
+  benchmark's ratio to it, the trend line that does not depend on which
+  hardware a run gets; `trend.csv` has the ratio columns. A run whose median
+  within-run CV is above 20 % is recorded but not compared. `perf-history.py
+  spread` measures the spread of the medians within one CPU model, which is
+  posted on #675 after eight weeks of nightly runs to re-decide a dedicated
+  benchmark runner. (#685)
+
 - **Widgets built while the File Watcher polls do not race its poll thread**:
   the application creates Qt's gesture manager before the poll thread starts,
   instead of when the first scroll area of a window is built. That thread reads

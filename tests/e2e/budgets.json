@@ -1,0 +1,1076 @@
+{
+  "schema": 1,
+  "adr": "docs/adr/0018-fast-means-a-budget-per-benchmark-scenario-and-log-file-size.md",
+  "status": "proposed: awaits the maintainer's approval in the review of the pull request. While this starts with \"proposed\", the Budgets are checked and reported and nothing fails on them; the maintainer accepts them by changing this field to \"accepted\" (ADR 0018)",
+  "machine_class": {
+    "name": "GitHub-hosted ubuntu-24.04 x64 runner",
+    "cpus": [
+      "AMD EPYC 7763",
+      "AMD EPYC 9V74"
+    ],
+    "cpu_cores": 4,
+    "ram_gb": 16,
+    "build": "RelWithDebInfo with LTO, the CI Build noble job's container (performance.yml, benchmarks.yml)",
+    "display": "QT_QPA_PLATFORM=offscreen",
+    "runs": "21 measured runs after 3 warmup runs; 7 after 1 on the 1 GB Log File and other large cases"
+  },
+  "derivation": {
+    "budget": "the slowest median of the cited runs times 1.25, rounded up to two significant digits",
+    "noise_margin_percent": "three interquartile ranges of the runs of that slowest median, in percent of it, rounded up to 5, at least 5; 0 for a count that does not vary (memory)"
+  },
+  "sources": {
+    "perf-36962491329": {
+      "workflow": "Performance",
+      "run": 36962491329,
+      "event": "workflow_dispatch",
+      "commit": "ba28414b10aa47f9f985b04017b453ec3230c2a5",
+      "ref": "refs/heads/master",
+      "cpu": "AMD EPYC 7763",
+      "date": "2026-10-02",
+      "url": "https://github.com/64x-lunicorn/LogSquirl/actions/runs/36962491329"
+    },
+    "bench-36938651506": {
+      "workflow": "Benchmarks",
+      "run": 36938651506,
+      "event": "pull_request #703, after side",
+      "commit": "266ac7289169",
+      "ref": "#703 merged into master d0584fb093ad",
+      "cpu": "AMD EPYC 9V74",
+      "date": "2026-10-01",
+      "url": "https://github.com/64x-lunicorn/LogSquirl/actions/runs/36938651506"
+    },
+    "bench-36955768456": {
+      "workflow": "Benchmarks",
+      "run": 36955768456,
+      "event": "pull_request #703, after side",
+      "commit": "ad30606b101e",
+      "ref": "#703 merged into master c1e879428d85 (the tree of ba28414b)",
+      "cpu": "AMD EPYC 9V74",
+      "date": "2026-10-02",
+      "url": "https://github.com/64x-lunicorn/LogSquirl/actions/runs/36955768456"
+    },
+    "ic-36961939625": {
+      "workflow": "CI Build / Instruction counts",
+      "run": 36961939625,
+      "event": "push",
+      "commit": "ba28414b10aa47f9f985b04017b453ec3230c2a5",
+      "ref": "refs/heads/master",
+      "tool": "Valgrind (deterministic), artifact instruction-counts/after.json",
+      "date": "2026-10-02",
+      "url": "https://github.com/64x-lunicorn/LogSquirl/actions/runs/36961939625"
+    }
+  },
+  "budgets": {
+    "gui_startup_version": {
+      "scenario": "startup",
+      "file": "none",
+      "metric": "process start to exit of logsquirl --version (wall-clock), median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_startup_version",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.018,
+      "measured": {
+        "perf-36962491329": 0.014236,
+        "bench-36938651506": 0.014264,
+        "bench-36955768456": 0.013373
+      },
+      "worst": 0.014264,
+      "headroom_percent": 26.2,
+      "noise_margin_percent": 25,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_open_1mb_first_line": {
+      "scenario": "open-and-index",
+      "file": "1 MB, one Log Line (test_data/random_block_1Mb.txt)",
+      "metric": "open to the first Log Line displayed, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_open_1mb_first_line",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.053,
+      "measured": {
+        "perf-36962491329": 0.042178,
+        "bench-36938651506": 0.040024,
+        "bench-36955768456": 0.040485
+      },
+      "worst": 0.042178,
+      "headroom_percent": 25.7,
+      "noise_margin_percent": 20,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_open_1mb_indexed": {
+      "scenario": "open-and-index",
+      "file": "1 MB, one Log Line (test_data/random_block_1Mb.txt)",
+      "metric": "open to the Index finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_open_1mb_indexed",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.058,
+      "measured": {
+        "perf-36962491329": 0.045996,
+        "bench-36938651506": 0.044009,
+        "bench-36955768456": 0.04429
+      },
+      "worst": 0.045996,
+      "headroom_percent": 26.1,
+      "noise_margin_percent": 25,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_open_log_100mb_first_line": {
+      "scenario": "open-and-index",
+      "file": "100 MB Log File, generated",
+      "metric": "open to the first Log Line displayed, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_open_log_100mb_first_line",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.058,
+      "measured": {
+        "perf-36962491329": 0.046194,
+        "bench-36938651506": 0.041962,
+        "bench-36955768456": 0.04155
+      },
+      "worst": 0.046194,
+      "headroom_percent": 25.6,
+      "noise_margin_percent": 25,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_open_log_100mb_indexed": {
+      "scenario": "open-and-index",
+      "file": "100 MB Log File, generated",
+      "metric": "open to the Index finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_open_log_100mb_indexed",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.084,
+      "measured": {
+        "perf-36962491329": 0.066169,
+        "bench-36938651506": 0.064167,
+        "bench-36955768456": 0.066883
+      },
+      "worst": 0.066883,
+      "headroom_percent": 25.6,
+      "noise_margin_percent": 15,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_open_log_1gb_first_line": {
+      "scenario": "open-and-index",
+      "file": "1 GB Log File, generated",
+      "metric": "open to the first Log Line displayed, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_open_log_1gb_first_line",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.057,
+      "measured": {
+        "perf-36962491329": 0.045145,
+        "bench-36938651506": 0.042671,
+        "bench-36955768456": 0.042162
+      },
+      "worst": 0.045145,
+      "headroom_percent": 26.3,
+      "noise_margin_percent": 45,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_open_log_1gb_indexed": {
+      "scenario": "open-and-index",
+      "file": "1 GB Log File, generated",
+      "metric": "open to the Index finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_open_log_1gb_indexed",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.32,
+      "measured": {
+        "perf-36962491329": 0.238951,
+        "bench-36938651506": 0.245182,
+        "bench-36955768456": 0.249082
+      },
+      "worst": 0.249082,
+      "headroom_percent": 28.5,
+      "noise_margin_percent": 10,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_search_log_100mb_plain_first_match": {
+      "scenario": "search",
+      "file": "100 MB Log File, generated",
+      "metric": "plain-text Search requested to its first Match displayed, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_search_log_100mb_plain_first_match",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.075,
+      "measured": {
+        "perf-36962491329": 0.059794,
+        "bench-36938651506": 0.057679,
+        "bench-36955768456": 0.058595
+      },
+      "worst": 0.059794,
+      "headroom_percent": 25.4,
+      "noise_margin_percent": 10,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_search_log_100mb_plain_finished": {
+      "scenario": "search",
+      "file": "100 MB Log File, generated",
+      "metric": "plain-text Search requested to the Search finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_search_log_100mb_plain_finished",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.072,
+      "measured": {
+        "perf-36962491329": 0.057225,
+        "bench-36938651506": 0.055597,
+        "bench-36955768456": 0.056606
+      },
+      "worst": 0.057225,
+      "headroom_percent": 25.8,
+      "noise_margin_percent": 10,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_search_log_100mb_regex_finished": {
+      "scenario": "search",
+      "file": "100 MB Log File, generated",
+      "metric": "regular-expression Search requested to the Search finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_search_log_100mb_regex_finished",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.087,
+      "measured": {
+        "perf-36962491329": 0.069494,
+        "bench-36938651506": 0.065625,
+        "bench-36955768456": 0.066072
+      },
+      "worst": 0.069494,
+      "headroom_percent": 25.2,
+      "noise_margin_percent": 15,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "grep_log_100mb_simple": {
+      "scenario": "grep",
+      "file": "100 MB Log File, generated",
+      "metric": "logsquirl_grep: open to the last Match written, median of the runs",
+      "report": "e2e",
+      "benchmark": "grep_log_100mb_simple",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.18,
+      "measured": {
+        "perf-36962491329": 0.138328,
+        "bench-36938651506": 0.106378,
+        "bench-36955768456": 0.107856
+      },
+      "worst": 0.138328,
+      "headroom_percent": 30.1,
+      "noise_margin_percent": 10,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_search_log_1gb_plain_first_match": {
+      "scenario": "search",
+      "file": "1 GB Log File, generated",
+      "metric": "plain-text Search requested to its first Match displayed, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_search_log_1gb_plain_first_match",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.15,
+      "measured": {
+        "perf-36962491329": 0.114635,
+        "bench-36938651506": 0.117049,
+        "bench-36955768456": 0.11882
+      },
+      "worst": 0.11882,
+      "headroom_percent": 26.2,
+      "noise_margin_percent": 35,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_search_log_1gb_plain_finished": {
+      "scenario": "search",
+      "file": "1 GB Log File, generated",
+      "metric": "plain-text Search requested to the Search finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_search_log_1gb_plain_finished",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.52,
+      "measured": {
+        "perf-36962491329": 0.410573,
+        "bench-36938651506": 0.395209,
+        "bench-36955768456": 0.397146
+      },
+      "worst": 0.410573,
+      "headroom_percent": 26.7,
+      "noise_margin_percent": 20,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_search_log_1gb_regex_finished": {
+      "scenario": "search",
+      "file": "1 GB Log File, generated",
+      "metric": "regular-expression Search requested to the Search finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_search_log_1gb_regex_finished",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.61,
+      "measured": {
+        "perf-36962491329": 0.48539,
+        "bench-36938651506": 0.463323,
+        "bench-36955768456": 0.461276
+      },
+      "worst": 0.48539,
+      "headroom_percent": 25.7,
+      "noise_margin_percent": 5,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "grep_log_1gb_simple": {
+      "scenario": "grep",
+      "file": "1 GB Log File, generated",
+      "metric": "logsquirl_grep: open to the last Match written, median of the runs",
+      "report": "e2e",
+      "benchmark": "grep_log_1gb_simple",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 1.7,
+      "measured": {
+        "perf-36962491329": 1.359052,
+        "bench-36938651506": 0.795894,
+        "bench-36955768456": 0.811864
+      },
+      "worst": 1.359052,
+      "headroom_percent": 25.1,
+      "noise_margin_percent": 10,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_quickfind_log_100mb_keystroke_p50": {
+      "scenario": "quickfind",
+      "file": "100 MB Log File, generated",
+      "metric": "keystroke to the Matches on screen marked: median keystroke of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_quickfind_log_100mb_keystroke_p50",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.0038,
+      "measured": {
+        "perf-36962491329": 0.003038,
+        "bench-36938651506": 0.002204,
+        "bench-36955768456": 0.002276
+      },
+      "worst": 0.003038,
+      "headroom_percent": 25.1,
+      "noise_margin_percent": 10,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_quickfind_log_100mb_keystroke_p99": {
+      "scenario": "quickfind",
+      "file": "100 MB Log File, generated",
+      "metric": "keystroke to the Matches on screen marked: 99th percentile keystroke of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_quickfind_log_100mb_keystroke_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.0051,
+      "measured": {
+        "perf-36962491329": 0.004067,
+        "bench-36938651506": 0.003458,
+        "bench-36955768456": 0.003343
+      },
+      "worst": 0.004067,
+      "headroom_percent": 25.4,
+      "noise_margin_percent": 20,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_quickfind_log_1gb_keystroke_p50": {
+      "scenario": "quickfind",
+      "file": "1 GB Log File, generated",
+      "metric": "keystroke to the Matches on screen marked: median keystroke of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_quickfind_log_1gb_keystroke_p50",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.0038,
+      "measured": {
+        "perf-36962491329": 0.003016,
+        "bench-36938651506": 0.002217,
+        "bench-36955768456": 0.002231
+      },
+      "worst": 0.003016,
+      "headroom_percent": 26.0,
+      "noise_margin_percent": 10,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_quickfind_log_1gb_keystroke_p99": {
+      "scenario": "quickfind",
+      "file": "1 GB Log File, generated",
+      "metric": "keystroke to the Matches on screen marked: 99th percentile keystroke of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_quickfind_log_1gb_keystroke_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.0044,
+      "measured": {
+        "perf-36962491329": 0.003491,
+        "bench-36938651506": 0.00291,
+        "bench-36955768456": 0.002895
+      },
+      "worst": 0.003491,
+      "headroom_percent": 26.0,
+      "noise_margin_percent": 20,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_scroll_text_frame_p99": {
+      "scenario": "scroll",
+      "file": "100 MB scroll Log File, generated",
+      "metric": "a frame of the view (text) while scrolling: 99th percentile frame of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_scroll_text_frame_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.0019,
+      "measured": {
+        "perf-36962491329": 0.001513,
+        "bench-36938651506": 0.0015,
+        "bench-36955768456": 0.001513
+      },
+      "worst": 0.001513,
+      "headroom_percent": 25.6,
+      "noise_margin_percent": 5,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_scroll_text_highlighters_frame_p99": {
+      "scenario": "scroll",
+      "file": "100 MB scroll Log File, generated",
+      "metric": "a frame of the view (text highlighters) while scrolling: 99th percentile frame of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_scroll_text_highlighters_frame_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.0024,
+      "measured": {
+        "perf-36962491329": 0.001874,
+        "bench-36938651506": 0.001749,
+        "bench-36955768456": 0.001744
+      },
+      "worst": 0.001874,
+      "headroom_percent": 28.1,
+      "noise_margin_percent": 10,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_scroll_table_frame_p99": {
+      "scenario": "scroll",
+      "file": "100 MB scroll Log File, generated",
+      "metric": "a frame of the view (table) while scrolling: 99th percentile frame of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_scroll_table_frame_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.0035,
+      "measured": {
+        "perf-36962491329": 0.002786,
+        "bench-36938651506": 0.002445,
+        "bench-36955768456": 0.002368
+      },
+      "worst": 0.002786,
+      "headroom_percent": 25.6,
+      "noise_margin_percent": 15,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_scroll_table_highlighters_frame_p99": {
+      "scenario": "scroll",
+      "file": "100 MB scroll Log File, generated",
+      "metric": "a frame of the view (table highlighters) while scrolling: 99th percentile frame of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_scroll_table_highlighters_frame_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.0042,
+      "measured": {
+        "perf-36962491329": 0.003289,
+        "bench-36938651506": 0.002684,
+        "bench-36955768456": 0.002682
+      },
+      "worst": 0.003289,
+      "headroom_percent": 27.7,
+      "noise_margin_percent": 20,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_scroll_text_ansi_hidden_frame_p99": {
+      "scenario": "scroll",
+      "file": "20 MB scroll Log File with ANSI colors, generated",
+      "metric": "a frame of the view (text ansi hidden) while scrolling: 99th percentile frame of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_scroll_text_ansi_hidden_frame_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.002,
+      "measured": {
+        "perf-36962491329": 0.001542,
+        "bench-36938651506": 0.001514,
+        "bench-36955768456": 0.00151
+      },
+      "worst": 0.001542,
+      "headroom_percent": 29.7,
+      "noise_margin_percent": 10,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_scroll_text_ansi_colors_frame_p99": {
+      "scenario": "scroll",
+      "file": "20 MB scroll Log File with ANSI colors, generated",
+      "metric": "a frame of the view (text ansi colors) while scrolling: 99th percentile frame of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_scroll_text_ansi_colors_frame_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.0028,
+      "measured": {
+        "perf-36962491329": 0.002195,
+        "bench-36938651506": 0.002082,
+        "bench-36955768456": 0.002104
+      },
+      "worst": 0.002195,
+      "headroom_percent": 27.6,
+      "noise_margin_percent": 5,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_follow_10_per_s_display_p99": {
+      "scenario": "follow",
+      "file": "written by the scenario (1000 Log Lines, then 5 s of appends)",
+      "metric": "10 Log Lines a second appended to displayed: 99th percentile of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_follow_10_per_s_display_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.34,
+      "measured": {
+        "perf-36962491329": 0.265888,
+        "bench-36938651506": 0.26494,
+        "bench-36955768456": 0.265057
+      },
+      "worst": 0.265888,
+      "headroom_percent": 27.9,
+      "noise_margin_percent": 5,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_follow_10_per_s_chart_p99": {
+      "scenario": "follow",
+      "file": "written by the scenario (1000 Log Lines, then 5 s of appends)",
+      "metric": "10 Log Lines a second appended to charted: 99th percentile of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_follow_10_per_s_chart_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.67,
+      "measured": {
+        "perf-36962491329": 0.530832,
+        "bench-36938651506": 0.530327,
+        "bench-36955768456": 0.530473
+      },
+      "worst": 0.530832,
+      "headroom_percent": 26.2,
+      "noise_margin_percent": 5,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_follow_1000_per_s_display_p99": {
+      "scenario": "follow",
+      "file": "written by the scenario (1000 Log Lines, then 5 s of appends)",
+      "metric": "1000 Log Lines a second appended to displayed: 99th percentile of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_follow_1000_per_s_display_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.33,
+      "measured": {
+        "perf-36962491329": 0.256863,
+        "bench-36938651506": 0.256649,
+        "bench-36955768456": 0.256344
+      },
+      "worst": 0.256863,
+      "headroom_percent": 28.5,
+      "noise_margin_percent": 5,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_follow_1000_per_s_chart_p99": {
+      "scenario": "follow",
+      "file": "written by the scenario (1000 Log Lines, then 5 s of appends)",
+      "metric": "1000 Log Lines a second appended to charted: 99th percentile of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_follow_1000_per_s_chart_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.65,
+      "measured": {
+        "perf-36962491329": 0.513319,
+        "bench-36938651506": 0.514516,
+        "bench-36955768456": 0.514322
+      },
+      "worst": 0.514516,
+      "headroom_percent": 26.3,
+      "noise_margin_percent": 5,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_session_restore_small_current_tab_usable": {
+      "scenario": "session-restore",
+      "file": "3 tabs: 1 MB (in front), 1.5 MB and 512 KB random blocks",
+      "metric": "restore to the tab in front painted with its Index finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_session_restore_small_current_tab_usable",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.2,
+      "measured": {
+        "perf-36962491329": 0.153154,
+        "bench-36938651506": 0.136463,
+        "bench-36955768456": 0.139768
+      },
+      "worst": 0.153154,
+      "headroom_percent": 30.6,
+      "noise_margin_percent": 25,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_session_restore_small_all_tabs_indexed": {
+      "scenario": "session-restore",
+      "file": "3 tabs: 1 MB (in front), 1.5 MB and 512 KB random blocks",
+      "metric": "restore to every tab's Index finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_session_restore_small_all_tabs_indexed",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.21,
+      "measured": {
+        "perf-36962491329": 0.162828,
+        "bench-36938651506": 0.14478,
+        "bench-36955768456": 0.149887
+      },
+      "worst": 0.162828,
+      "headroom_percent": 29.0,
+      "noise_margin_percent": 25,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_session_restore_log_220mb_current_tab_usable": {
+      "scenario": "session-restore",
+      "file": "3 tabs: 100 MB Log File (in front), 100 MB scroll Log File, 20 MB scroll Log File with ANSI colors",
+      "metric": "restore to the tab in front painted with its Index finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_session_restore_log_220mb_current_tab_usable",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.21,
+      "measured": {
+        "perf-36962491329": 0.161296,
+        "bench-36938651506": 0.151575,
+        "bench-36955768456": 0.152293
+      },
+      "worst": 0.161296,
+      "headroom_percent": 30.2,
+      "noise_margin_percent": 10,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_session_restore_log_220mb_all_tabs_indexed": {
+      "scenario": "session-restore",
+      "file": "3 tabs: 100 MB Log File (in front), 100 MB scroll Log File, 20 MB scroll Log File with ANSI colors",
+      "metric": "restore to every tab's Index finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_session_restore_log_220mb_all_tabs_indexed",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.26,
+      "measured": {
+        "perf-36962491329": 0.201106,
+        "bench-36938651506": 0.191397,
+        "bench-36955768456": 0.190853
+      },
+      "worst": 0.201106,
+      "headroom_percent": 29.3,
+      "noise_margin_percent": 10,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_read_while_indexing_log_100mb_nb_line_p50": {
+      "scenario": "read-while-indexing",
+      "file": "100 MB Log File, generated",
+      "metric": "getNbLine on the UI thread while indexing: median read of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_read_while_indexing_log_100mb_nb_line_p50",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 5e-06,
+      "measured": {
+        "perf-36962491329": 0.0,
+        "bench-36938651506": 0.0,
+        "bench-36955768456": 0.0
+      },
+      "worst": 0.0,
+      "headroom_percent": null,
+      "noise_margin_percent": 0,
+      "note": "At the resolution of the reports in every run: they kept six decimals of a second until #705, so the read took under 1.5 µs (0.1 µs in the local A/B of #686). The Budget is 5 µs, above that bound; a read that waits for the index lock takes tens of µs and breaks it.",
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_read_while_indexing_log_100mb_line_string_p50": {
+      "scenario": "read-while-indexing",
+      "file": "100 MB Log File, generated",
+      "metric": "getLineString of one Log Line on the UI thread while indexing: median read of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_read_while_indexing_log_100mb_line_string_p50",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 2.5e-05,
+      "measured": {
+        "perf-36962491329": 2e-05,
+        "bench-36938651506": 1.8e-05,
+        "bench-36955768456": 1.9e-05
+      },
+      "worst": 2e-05,
+      "headroom_percent": 25.0,
+      "noise_margin_percent": 60,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_read_while_indexing_log_100mb_line_string_p99": {
+      "scenario": "read-while-indexing",
+      "file": "100 MB Log File, generated",
+      "metric": "getLineString of one Log Line on the UI thread while indexing: 99th percentile read of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_read_while_indexing_log_100mb_line_string_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 4.3e-05,
+      "measured": {
+        "perf-36962491329": 3.4e-05,
+        "bench-36938651506": 3.2e-05,
+        "bench-36955768456": 3e-05
+      },
+      "worst": 3.4e-05,
+      "headroom_percent": 26.5,
+      "noise_margin_percent": 90,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_read_while_indexing_log_100mb_expanded_lines_p50": {
+      "scenario": "read-while-indexing",
+      "file": "100 MB Log File, generated",
+      "metric": "getExpandedLines of 60 Log Lines on the UI thread while indexing: median read of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_read_while_indexing_log_100mb_expanded_lines_p50",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 2.5e-05,
+      "measured": {
+        "perf-36962491329": 2e-05,
+        "bench-36938651506": 2e-05,
+        "bench-36955768456": 2e-05
+      },
+      "worst": 2e-05,
+      "headroom_percent": 25.0,
+      "noise_margin_percent": 15,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_read_while_indexing_log_100mb_expanded_lines_p99": {
+      "scenario": "read-while-indexing",
+      "file": "100 MB Log File, generated",
+      "metric": "getExpandedLines of 60 Log Lines on the UI thread while indexing: 99th percentile read of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_read_while_indexing_log_100mb_expanded_lines_p99",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 2.9e-05,
+      "measured": {
+        "perf-36962491329": 2.3e-05,
+        "bench-36938651506": 2.2e-05,
+        "bench-36955768456": 2.3e-05
+      },
+      "worst": 2.3e-05,
+      "headroom_percent": 26.1,
+      "noise_margin_percent": 30,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_read_while_indexing_log_100mb_index_wall": {
+      "scenario": "read-while-indexing",
+      "file": "100 MB Log File, generated",
+      "metric": "the indexing while the UI thread reads, open to the Index finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_read_while_indexing_log_100mb_index_wall",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.064,
+      "measured": {
+        "perf-36962491329": 0.050524,
+        "bench-36938651506": 0.04949,
+        "bench-36955768456": 0.048696
+      },
+      "worst": 0.050524,
+      "headroom_percent": 26.7,
+      "noise_margin_percent": 20,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_read_while_indexing_log_1gb_nb_line_p50": {
+      "scenario": "read-while-indexing",
+      "file": "1 GB Log File, generated",
+      "metric": "getNbLine on the UI thread while indexing: median read of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_read_while_indexing_log_1gb_nb_line_p50",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 5e-06,
+      "measured": {
+        "perf-36962491329": 1e-06,
+        "bench-36938651506": 0.0,
+        "bench-36955768456": 0.0
+      },
+      "worst": 1e-06,
+      "headroom_percent": null,
+      "noise_margin_percent": 0,
+      "note": "At the resolution of the reports in every run: they kept six decimals of a second until #705, so the read took under 1.5 µs (0.1 µs in the local A/B of #686). The Budget is 5 µs, above that bound; a read that waits for the index lock takes tens of µs and breaks it.",
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_read_while_indexing_log_1gb_line_string_p50": {
+      "scenario": "read-while-indexing",
+      "file": "1 GB Log File, generated",
+      "metric": "getLineString of one Log Line on the UI thread while indexing: median read of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_read_while_indexing_log_1gb_line_string_p50",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 1.9e-05,
+      "measured": {
+        "perf-36962491329": 1.5e-05,
+        "bench-36938651506": 1.3e-05,
+        "bench-36955768456": 1.2e-05
+      },
+      "worst": 1.5e-05,
+      "headroom_percent": 26.7,
+      "noise_margin_percent": 100,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_read_while_indexing_log_1gb_expanded_lines_p50": {
+      "scenario": "read-while-indexing",
+      "file": "1 GB Log File, generated",
+      "metric": "getExpandedLines of 60 Log Lines on the UI thread while indexing: median read of a run, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_read_while_indexing_log_1gb_expanded_lines_p50",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 2.8e-05,
+      "measured": {
+        "perf-36962491329": 2.2e-05,
+        "bench-36938651506": 1.9e-05,
+        "bench-36955768456": 1.9e-05
+      },
+      "worst": 2.2e-05,
+      "headroom_percent": 27.3,
+      "noise_margin_percent": 30,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "gui_read_while_indexing_log_1gb_index_wall": {
+      "scenario": "read-while-indexing",
+      "file": "1 GB Log File, generated",
+      "metric": "the indexing while the UI thread reads, open to the Index finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_read_while_indexing_log_1gb_index_wall",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.29,
+      "measured": {
+        "perf-36962491329": 0.223646,
+        "bench-36938651506": 0.22686,
+        "bench-36955768456": 0.226005
+      },
+      "worst": 0.22686,
+      "headroom_percent": 27.8,
+      "noise_margin_percent": 10,
+      "source": [
+        "bench-36938651506",
+        "bench-36955768456",
+        "perf-36962491329"
+      ]
+    },
+    "index_memory_per_million_log_lines": {
+      "scenario": "memory",
+      "file": "2 million Log Lines' positions, in memory",
+      "metric": "peak heap of an Index's line positions, appended line by line, per million Log Lines",
+      "report": "instruction-counts",
+      "benchmark": "logsquirl_linepositionarray_benchmark / Line positions of an Index / append, line by line",
+      "field": "peak_heap_bytes",
+      "scale": 0.5,
+      "unit": "bytes per million Log Lines",
+      "budget": 4100000,
+      "measured": {
+        "ic-36961939625": 3244544.0
+      },
+      "worst": 3244544.0,
+      "headroom_percent": 26.4,
+      "noise_margin_percent": 0,
+      "source": [
+        "ic-36961939625"
+      ]
+    }
+  }
+}
