@@ -286,7 +286,7 @@
   spread` measures the spread of the medians within one CPU model, which is
   posted on #675 after eight weeks of nightly runs to re-decide a dedicated
   benchmark runner. (#685)
-||||||| parent of 4181ae7b (BUILD.md, CONTRIBUTING.md and the CHANGELOG tell how the gate keeps an inflated count from failing (#708))
+
 - **The instruction counts gate does not turn red on a count that a waiting
   thread inflated**: counted, the benchmarks run oneTBB's flow graphs on the
   thread that waits for them alone, so no idle TBB worker spins into a count,
