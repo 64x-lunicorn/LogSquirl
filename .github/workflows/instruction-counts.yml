@@ -4,7 +4,18 @@ name: "Instruction Counts"
 # pull request and on its base, and reports the counts before and after and
 # the change in percent (#671): in the job summary here, and as a comment on
 # the pull request, which the Instruction Counts Comment workflow
-# (instruction-counts-comment.yml) posts from this run's artifact.
+# (instruction-counts-comment.yml) posts from this run's artifact. The same run
+# also counts each benchmark's allocations and peak heap (#673,
+# tests/benchmarks/heap_count.c), which the report shows next to the
+# instructions; they are reported only, the gate does not judge them.
+#
+# A job of CI Build calls it (ci-build.yml, InstructionCounts), so that CI
+# Build's "Instruction counts gate" job can judge the counts and the required
+# "CI passed" check waits for it (#672): a benchmark that costs more than its
+# threshold more instructions than on the base fails the pull request unless
+# it carries the `perf-accepted` label (instruction-counts.py gate;
+# CONTRIBUTING.md, *Instruction count gate*). This workflow itself only fails when a
+# benchmark binary fails on the after side.
 #
 # Instruction counts, not times: Callgrind counts the same instructions for the
 # same work to within a fraction of a percent on a shared runner, where a time
@@ -12,8 +23,7 @@ name: "Instruction Counts"
 # benchmarks' fixed-work mode (tests/benchmarks/instruction_count.h); the
 # scripts are .github/scripts/instruction-counts.sh (build and count, in the
 # container), instruction-counts-side.sh (one side, on the runner) and
-# instruction-counts.py (read, compare, report). This reports only; nothing
-# turns red on a count yet (#672).
+# instruction-counts.py (read, compare, report, judge).
 #
 # Before is the merge commit's first parent, the tip of master the pull
 # request is merged onto, and after is the merge commit: the difference is
@@ -45,25 +55,12 @@ name: "Instruction Counts"
 # (docker/ubuntu24.04 installs it from #671 on, but a changed image is only
 # published once it is on master, so the change could not be counted with
 # before it is merged).
+#
+# CI Build calls it for a pull request and a push to master that it builds
+# (its Changes job), never for a dispatch; CI Build's concurrency group also
+# covers this run.
 on:
-  pull_request:
-    branches: [master]
-    # The files a push to master leaves CI Build alone for (ci-build.yml).
-    paths-ignore: &unbuilt
-      - 'website/**'
-      - BUILD.md
-      - CODE_OF_CONDUCT.md
-      - CONTRIBUTING.md
-      - README.md
-      - latest.json
-      - .gitignore
-  push:
-    branches: [master]
-    paths-ignore: *unbuilt
-
-concurrency:
-  group: instruction-counts-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  workflow_call:
 
 permissions: {}
 
@@ -72,7 +69,7 @@ env:
 
 jobs:
   counts:
-    name: Instruction counts
+    name: count
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     # Single-entry matrix so the shared composite actions (which read
     # matrix.config.*) work unchanged; artifacts_id is the noble job's.
@@ -254,9 +251,9 @@ jobs:
           {
             echo "### Instruction counts of $GITHUB_SHA"
             echo
-            echo '| Instructions | Benchmark |'
-            echo '|---:|---|'
-            jq -r '.benchmarks[] | "| \(.instructions) | \(.binary): \(.name | gsub("\\|"; "\\\\|")) |"' "$report/after.json"
+            echo '| Instructions | Allocations | Peak heap (bytes) | Benchmark |'
+            echo '|---:|---:|---:|---|'
+            jq -r '.benchmarks[] | "| \(.instructions) | \(.allocations // "") | \(.peak_heap_bytes // "") | \(.binary): \(.name | gsub("\\|"; "\\\\|")) |"' "$report/after.json"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save master's counts

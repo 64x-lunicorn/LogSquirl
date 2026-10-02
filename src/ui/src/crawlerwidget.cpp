@@ -853,6 +853,8 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
         // the Open Log File's; only the redraw handing them over did is left.
         currentFilteredView()->updateDecorations();
     }
+
+    Q_EMIT searchProgressed( state );
 }
 
 void CrawlerWidget::jumpToMatchingLine( LineNumber logLine, LinesCount nLines, LineColumn startCol,
@@ -1382,6 +1384,8 @@ void CrawlerWidget::setup()
 
     // Table view toggle button (hidden until a Log Format is recognized)
     tableViewToggle_ = new QToolButton();
+    // Named, so the benchmark mode shows the Table View as a user does (#669).
+    tableViewToggle_->setObjectName( "tableViewToggle" );
     tableViewToggle_->setToolTip( tr( "Toggle table/text view" ) );
     tableViewToggle_->setAccessibleName( tr( "Toggle table view" ) );
     tableViewToggle_->setCheckable( true );

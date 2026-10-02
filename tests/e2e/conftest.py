@@ -351,10 +351,11 @@ def save_baseline(data: dict):
 
 def measure_execution(func, warmup: int = 3, runs: int = 21) -> dict:
     """
-    Run func() multiple times and return comprehensive timing statistics.
+    Run func() multiple times and return the statistics of its wall-clock time.
 
-    Performs IQR-based outlier filtering and returns median, mean, std, CV%,
-    percentiles, and raw run data for statistical comparison.
+    For what only the whole process can show, such as its startup. A benchmark
+    of what the application does takes the times the application reports of
+    its own events instead: measure_events() (#667).
 
     Args:
         func: callable to benchmark (no arguments)
@@ -362,20 +363,52 @@ def measure_execution(func, warmup: int = 3, runs: int = 21) -> dict:
         runs: number of measured runs
 
     Returns:
-        dict with full statistical summary and raw timings
+        dict with full statistical summary and raw timings (summarize_runs())
     """
-    # Warmup
+    def timed():
+        start = time.perf_counter()
+        func()
+        return {"wall_clock": time.perf_counter() - start}
+
+    return measure_events(timed, warmup=warmup, runs=runs)["wall_clock"]
+
+
+def measure_events(func, warmup: int = 3, runs: int = 21) -> dict[str, dict]:
+    """
+    Run func() multiple times; it returns durations it measured, by name.
+
+    One run of a benchmark scenario reports several events -- the first Log
+    Line displayed and the Index finished -- each a benchmark of its own: func
+    returns them as {name: seconds}, and every name gets the statistics of its
+    runs (summarize_runs()). Nothing here times func itself, so neither the
+    process startup nor a wait around the run ends up in a number (#667).
+
+    Every run must return the same names.
+    """
     for _ in range(warmup):
         func()
 
-    times = []
-    for _ in range(runs):
-        start = time.perf_counter()
-        func()
-        elapsed = time.perf_counter() - start
-        times.append(elapsed)
+    durations: dict[str, list[float]] = {}
+    for run in range(runs):
+        measured = func()
+        if run == 0:
+            durations = {name: [] for name in measured}
+        missing = set(durations) - set(measured)
+        assert not missing, f"run {run + 1} did not measure {sorted(missing)}"
+        for name in durations:
+            durations[name].append(float(measured[name]))
+    return {name: summarize_runs(times) for name, times in durations.items()}
 
-    times.sort()
+
+def summarize_runs(times: list[float]) -> dict:
+    """
+    The statistics of a benchmark's measured runs, in seconds.
+
+    Performs IQR-based outlier filtering and returns median, mean, std, CV%,
+    percentiles, and the raw runs for statistical comparison. The field names
+    are what baseline.json, benchmark-compare.py and perf-history.py read.
+    """
+    times = sorted(times)
     n = len(times)
 
     # IQR-based outlier filtering
@@ -415,6 +448,58 @@ def measure_execution(func, warmup: int = 3, runs: int = 21) -> dict:
         "runs": [round(t, 6) for t in times],
         "filtered_count": len(filtered),
         "total_count": n,
+    }
+
+
+def summarize_frames_over_budget(over_budget: list[int], frame_counts: list[int],
+                                 budget_ms: float) -> dict:
+    """How many frames of each run were longer than the budget (#669).
+
+    A count, not a time: it is reported beside the frame times of a scroll
+    case, and never compared with a baseline.
+    """
+    return {
+        "budget_ms": budget_ms,
+        "median": float(median(over_budget)),
+        "max": max(over_budget),
+        "runs": list(over_budget),
+        "frame_count_median": float(median(frame_counts)),
+    }
+
+
+def summarize_chart_following(kept_up: list[bool], behind_p99_ms: list[float],
+                              budget_ms: float) -> dict:
+    """Whether the chart following a growing Log File kept up, run by run (#670).
+
+    A run's chart kept up when it charted every appended Log Line no more than
+    the budget after the Text View displayed it; behind_p99_ms is how far
+    behind it was, the 99th percentile of a run. Reported beside the follow
+    case's chart latency, never compared with a baseline.
+    """
+    return {
+        "budget_ms": budget_ms,
+        "kept_up_runs": sum(1 for kept in kept_up if kept),
+        "runs": list(kept_up),
+        "behind_display_p99_ms_median": float(median(behind_p99_ms)),
+        "behind_display_p99_ms_max": float(max(behind_p99_ms)),
+    }
+
+
+def summarize_indexing_parallelism(parallelism: list[float]) -> dict | None:
+    """How many cores the indexing of a read-while-indexing case kept busy, run by run (#686).
+
+    A run's parallelism is the process's CPU time over the wall time of its
+    indexing; near 1 is indexing on one thread. A ratio, not a time: reported
+    beside the indexing's wall time, never compared with a baseline. None when
+    no run knew its CPU time.
+    """
+    if not parallelism:
+        return None
+    return {
+        "median": float(median(parallelism)),
+        "min": float(min(parallelism)),
+        "max": float(max(parallelism)),
+        "runs": list(parallelism),
     }
 
 
@@ -520,12 +605,28 @@ def _betacf(a: float, b: float, x: float) -> float:
     return h
 
 
+# A benchmark is slower only by more than this as well as by more than the
+# tolerance: with the startup no longer in it (#667), a grep case on 1 MB takes
+# about a millisecond, and 5 % of that is the scheduler, not LogSquirl. The
+# baseline's _meta.min_delta_seconds overrides it.
+MIN_DELTA_SECONDS = 0.001
+
+
+def max_allowed_seconds(baseline_median: float, baseline: dict) -> float:
+    """The slowest median that still passes against a baseline median."""
+    meta = baseline.get("_meta", {})
+    tolerance = meta.get("tolerance_percent", 5) / 100
+    min_delta = meta.get("min_delta_seconds", MIN_DELTA_SECONDS)
+    return max(baseline_median * (1 + tolerance), baseline_median + min_delta)
+
+
 def assert_performance(benchmark_name: str, measured: dict, baseline: dict):
     """
     Assert that measured performance does not exceed baseline by more than tolerance.
 
     Uses two criteria:
-    1. Median must not exceed baseline median + tolerance (existing check)
+    1. Median must not exceed baseline median + tolerance, and must exceed it
+       by more than MIN_DELTA_SECONDS as well (max_allowed_seconds())
     2. If baseline has raw runs, Welch's t-test must show p < 0.05 for the
        regression to be statistically significant (both conditions required)
 
@@ -546,7 +647,7 @@ def assert_performance(benchmark_name: str, measured: dict, baseline: dict):
         )
 
     tolerance = baseline.get("_meta", {}).get("tolerance_percent", 5) / 100
-    max_allowed = entry["median_seconds"] * (1 + tolerance)
+    max_allowed = max_allowed_seconds(entry["median_seconds"], baseline)
     measured_median = measured["median_seconds"]
 
     # Stability warning
@@ -692,21 +793,30 @@ def generate_benchmark_report(
     report_format: str = "markdown",
     bench_runs: int = 21,
     bench_warmup: int = 3,
+    not_measured: list[str] | None = None,
 ):
-    """Generate a benchmark report after all performance tests complete."""
+    """Generate a benchmark report after all performance tests complete.
+
+    not_measured names the benchmarks the suite has and this run did not
+    measure -- a generated Log File missing, a case deselected -- so a report
+    of a partial run says so.
+    """
     if report_format == "none" or not collected_results:
         return
     baseline = baseline or {}  # None with --no-baseline-compare
+    not_measured = sorted(not_measured or [])
 
     if report_format == "json":
-        _generate_json_report(collected_results, baseline, system_info, bench_runs, bench_warmup)
+        _generate_json_report(collected_results, baseline, system_info, bench_runs, bench_warmup,
+                              not_measured)
     else:
-        _generate_markdown_report(collected_results, baseline, system_info, bench_runs, bench_warmup)
+        _generate_markdown_report(collected_results, baseline, system_info, bench_runs,
+                                  bench_warmup, not_measured)
 
 
 def _generate_markdown_report(
     results: dict, baseline: dict, system_info: dict,
-    bench_runs: int, bench_warmup: int,
+    bench_runs: int, bench_warmup: int, not_measured: list[str],
 ):
     """Generate a Markdown benchmark report."""
     today = date.today().isoformat()
@@ -729,8 +839,6 @@ def _generate_markdown_report(
         f"|-----------|--------|-----------|-----|----|----|-------------|--------|",
     ]
 
-    tolerance = baseline.get("_meta", {}).get("tolerance_percent", 5)
-
     for name, r in sorted(results.items()):
         med = r["median_seconds"]
         m = r.get("mean_seconds", med)
@@ -744,7 +852,7 @@ def _generate_markdown_report(
         if bl_med and bl_med > 0:
             delta_pct = ((med - bl_med) / bl_med) * 100
             delta_str = f"{delta_pct:+.1f}%"
-            status = "PASS" if med <= bl_med * (1 + tolerance / 100) else "FAIL"
+            status = "PASS" if med <= max_allowed_seconds(bl_med, baseline) else "FAIL"
         else:
             delta_str = "NEW"
             status = "NOT COMPARED"
@@ -753,6 +861,21 @@ def _generate_markdown_report(
             f"| {name} | {med:.4f}s | {m:.4f} ± {s:.4f} | {cv:.1f}% "
             f"| {p5:.4f} | {p95:.4f} | {delta_str} | {status} |"
         )
+
+    # What each benchmark times (#667): an event the application reported, or
+    # the wall-clock of a whole process.
+    measures_rows = [
+        f"| {name} | {r['measures']} |"
+        for name, r in sorted(results.items()) if r.get("measures")
+    ]
+    if measures_rows:
+        lines.extend([
+            f"",
+            f"## What Is Measured",
+            f"",
+            f"| Benchmark | Measures |",
+            f"|-----------|----------|",
+        ] + measures_rows)
 
     # Throughput section
     throughput_rows = []
@@ -772,6 +895,83 @@ def _generate_markdown_report(
             f"| Benchmark | File Size | Median | MB/s | Lines/s |",
             f"|-----------|-----------|--------|------|---------|",
         ] + throughput_rows)
+
+    # The frames of a scroll case longer than one frame at 60 Hz (#669)
+    frame_rows = []
+    for name, r in sorted(results.items()):
+        frames = r.get("frames_over_budget")
+        if frames:
+            frame_rows.append(
+                f"| {name} | {frames['budget_ms']:.1f} ms | {frames['median']:g} "
+                f"| {frames['max']:g} | {frames['frame_count_median']:g} |"
+            )
+
+    if frame_rows:
+        lines.extend([
+            f"",
+            f"## Frames Over Budget",
+            f"",
+            f"Frames of a run longer than the budget, a count; not compared with the baseline.",
+            f"",
+            f"| Benchmark | Budget | Median per Run | Max per Run | Frames per Run |",
+            f"|-----------|--------|----------------|-------------|----------------|",
+        ] + frame_rows)
+
+    # Whether the chart of a follow case kept up with the Text View (#670)
+    chart_rows = []
+    for name, r in sorted(results.items()):
+        chart = r.get("chart_following")
+        if chart:
+            chart_rows.append(
+                f"| {name} | {chart['budget_ms']:g} ms | {chart['kept_up_runs']} of "
+                f"{len(chart['runs'])} | {chart['behind_display_p99_ms_median']:.0f} ms "
+                f"| {chart['behind_display_p99_ms_max']:.0f} ms |"
+            )
+
+    if chart_rows:
+        lines.extend([
+            f"",
+            f"## Chart Following",
+            f"",
+            f"Runs whose chart charted every appended Log Line within the budget after the "
+            f"Text View displayed it; not compared with the baseline.",
+            f"",
+            f"| Benchmark | Budget | Kept Up | Behind p99, Median Run | Behind p99, Worst Run |",
+            f"|-----------|--------|---------|------------------------|-----------------------|",
+        ] + chart_rows)
+
+    # How many cores the indexing of a read-while-indexing case kept busy (#686)
+    parallelism_rows = []
+    for name, r in sorted(results.items()):
+        parallelism = r.get("indexing_parallelism")
+        if parallelism:
+            parallelism_rows.append(
+                f"| {name} | {parallelism['median']:.2f} | {parallelism['min']:.2f} "
+                f"| {parallelism['max']:.2f} |"
+            )
+
+    if parallelism_rows:
+        lines.extend([
+            f"",
+            f"## Indexing Parallelism",
+            f"",
+            f"The process's CPU time over the wall time of the indexing, every thread "
+            f"together; near 1 is indexing on one thread. Not compared with the baseline.",
+            f"",
+            f"| Benchmark | Median Run | Lowest Run | Highest Run |",
+            f"|-----------|------------|------------|-------------|",
+        ] + parallelism_rows)
+
+    if not_measured:
+        lines.extend([
+            f"",
+            f"## Not Measured in This Run",
+            f"",
+            f"Skipped or deselected. The generated Log Files come from "
+            f"`generate_test_data.py`; the Benchmarks and Performance workflows "
+            f"measure every case, the 1 GB ones included.",
+            f"",
+        ] + [f"- {name}" for name in not_measured])
 
     # Stability section
     lines.extend([
@@ -813,7 +1013,7 @@ def _generate_markdown_report(
 
 def _generate_json_report(
     results: dict, baseline: dict, system_info: dict,
-    bench_runs: int, bench_warmup: int,
+    bench_runs: int, bench_warmup: int, not_measured: list[str],
 ):
     """Generate a JSON benchmark report."""
     report = {
@@ -825,6 +1025,7 @@ def _generate_json_report(
             "outlier_method": "iqr_1.5",
         },
         "benchmarks": results,
+        "not_measured": not_measured,
     }
 
     report_path = _REPORT_DIR / "benchmark_report.json"

@@ -38,11 +38,6 @@ double percentile( const std::vector<double>& sorted, double percent )
     return sorted[ index ];
 }
 
-double milliseconds( Clock::duration duration )
-{
-    return std::chrono::duration<double, std::milli>( duration ).count();
-}
-
 } // namespace
 
 Distribution Distribution::of( std::vector<double> milliseconds )

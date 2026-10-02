@@ -176,6 +176,55 @@ def test_record_writes_the_entry_and_the_trend(tmp_path):
     assert trend[1][1:] == ["26.10.0", "a" * 12, "", "1.0"]
 
 
+def test_the_entry_keeps_what_each_benchmark_measures():
+    # The suite says what each number times (#667): an event the application
+    # reported, startup excluded, or the wall-clock of a process.
+    suite_report = report({"grep_1mb_simple": 0.002})
+    suite_report["benchmarks"]["grep_1mb_simple"]["measures"] = "open to last match written"
+    stored = ph.make_entry(suite_report, commit="a" * 40, ref="refs/heads/master", run_id="1",
+                           version="26.11.0", accept=False,
+                           recorded_at=datetime(2026, 10, 5, tzinfo=timezone.utc))
+    assert stored["benchmarks"]["grep_1mb_simple"]["measures"] == "open to last match written"
+
+
+def test_the_entry_keeps_the_frames_over_budget():
+    # A scroll case counts the late frames of its runs (#669); the budgets
+    # are set from that history (#676).
+    suite_report = report({"gui_scroll_text_frame_p99": 0.004})
+    frames = {"budget_ms": 16.7, "median": 2.0, "max": 3, "frame_count_median": 241.0}
+    suite_report["benchmarks"]["gui_scroll_text_frame_p99"]["frames_over_budget"] = frames
+    stored = ph.make_entry(suite_report, commit="a" * 40, ref="refs/heads/master", run_id="1",
+                           version="26.11.0", accept=False,
+                           recorded_at=datetime(2026, 10, 5, tzinfo=timezone.utc))
+    assert stored["benchmarks"]["gui_scroll_text_frame_p99"]["frames_over_budget"] == frames
+
+
+def test_the_entry_keeps_whether_the_chart_kept_up():
+    # A follow case says whether its chart kept up in each run (#670).
+    suite_report = report({"gui_follow_10_per_s_chart_p99": 0.6})
+    chart = {"budget_ms": 1000, "kept_up_runs": 7, "runs": [True] * 7,
+             "behind_display_p99_ms_median": 251.0, "behind_display_p99_ms_max": 262.0}
+    suite_report["benchmarks"]["gui_follow_10_per_s_chart_p99"]["chart_following"] = chart
+    stored = ph.make_entry(suite_report, commit="a" * 40, ref="refs/heads/master", run_id="1",
+                           version="26.11.0", accept=False,
+                           recorded_at=datetime(2026, 10, 5, tzinfo=timezone.utc))
+    assert stored["benchmarks"]["gui_follow_10_per_s_chart_p99"]["chart_following"] == chart
+
+
+def test_the_entry_keeps_the_indexing_parallelism():
+    # A read-while-indexing case says how many cores its indexing kept busy
+    # (#686): a fall back to one thread shows in the history as a ratio near 1.
+    suite_report = report({"gui_read_while_indexing_log_1gb_index_wall": 1.2})
+    parallelism = {"median": 3.1, "min": 2.9, "max": 3.4, "runs": [3.1, 2.9, 3.4]}
+    suite_report["benchmarks"]["gui_read_while_indexing_log_1gb_index_wall"][
+        "indexing_parallelism"] = parallelism
+    stored = ph.make_entry(suite_report, commit="a" * 40, ref="refs/heads/master", run_id="1",
+                           version="26.11.0", accept=False,
+                           recorded_at=datetime(2026, 10, 5, tzinfo=timezone.utc))
+    assert stored["benchmarks"]["gui_read_while_indexing_log_1gb_index_wall"][
+        "indexing_parallelism"] == parallelism
+
+
 def test_a_regressing_run_is_recorded_and_fails(tmp_path):
     for i in range(6):
         assert run_record(tmp_path, {"grep": 1.0}, run_id=str(i))[0] == 0

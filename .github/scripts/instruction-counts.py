@@ -10,14 +10,21 @@ labelled "<test case> / <benchmark>", with the instructions of exactly one run
 of its measured code, all threads together:
 
     <dumps>/<binary>/callgrind.out.<pid>.<part>   one per benchmark
+    <dumps>/<binary>/heap.tsv                     the same runs' heap counts (#673)
     <dumps>/<binary>/exit_code                    written when the binary ended
+
+heap.tsv has a line "<allocations>\t<peak heap bytes>\t<label>" per run of a
+benchmark's measured code, written by tests/benchmarks/heap_count.c in the
+same Callgrind run: the heap blocks the run allocated, all threads together,
+and the most heap it held at once above what was held when it started.
 
 Subcommands:
 
   collect DUMPS --json FILE
-      Reads one side's dumps into a side file: every benchmark's count, and the
-      binaries that failed (their counts are left out, since a binary that
-      stopped early did not run all of its benchmarks).
+      Reads one side's dumps into a side file: every benchmark's count and heap
+      counts (null when the binary wrote none), and the binaries that failed
+      (their counts are left out, since a binary that stopped early did not run
+      all of its benchmarks).
 
   compare --before FILE --after FILE --before-sha SHA --after-sha SHA
           --head-sha SHA --pull-request N [--json FILE] [--markdown FILE]
@@ -30,17 +37,35 @@ Subcommands:
          "benchmarks": [{"binary": "...", "name": "...",
                          "metrics": {"instructions": {"before": int|null,
                                                       "after": int|null,
-                                                      "change_percent": float|null}}}]}
+                                                      "change_percent": float|null},
+                                     "allocations": {...},
+                                     "peak_heap_bytes": {...}}}]}
 
-      A metric is null on the side a benchmark does not exist on; further
-      metrics (#673) go next to "instructions" in the same shape.
+      A metric is null on the side a benchmark does not exist on, or was not
+      counted on. allocations and peak_heap_bytes (#673) have the shape of
+      instructions; they are reported only, never judged by the gate, and an
+      artifact without them reads as not counted.
 
-  comment --comparison FILE --repo OWNER/REPO --head-sha SHA
+  gate --comparison FILE --labels FILE [--json FILE] [--markdown FILE]
+      The gate of #672 (CI Build's "Instruction counts / gate" job): exits 1
+      when a benchmark costs more than its threshold (THRESHOLD_PERCENT, else
+      DEFAULT_THRESHOLD_PERCENT) more instructions than on the base and the
+      pull request's labels (a JSON list of names) lack ACCEPT_LABEL, or when a
+      benchmark of the base was not counted on the pull request. The JSON is
+      the verdict the comment shows:
+
+        {"schema_version": 1, "pull_request": N, "head_sha": "...",
+         "passed": bool, "accepted": bool,
+         "over_threshold": [{"binary": "...", "name": "...", "threshold_percent": float}],
+         "missing": [{"binary": "...", "name": "..."}], "failed_binaries": [...]}
+
+  comment --comparison FILE [--gate FILE] --repo OWNER/REPO --head-sha SHA
       Posts the report as a pull request comment, or updates the one posted
       before (found by MARKER). Run by the comment workflow, which never runs
-      the pull request's code: the artifact is data from that code, so it is
-      validated against the schema above, only its numbers and escaped names
-      reach the comment, and the pull request it names must have head-sha,
+      the pull request's code: the artifacts are data from that code, so they
+      are validated against the schemas above (every benchmark the gate names
+      must be one of the comparison's), only their numbers and escaped names
+      reach the comment, and the pull request they name must have head-sha,
       the commit the measuring run was started for, as its head. Needs GH_TOKEN.
 """
 
@@ -62,6 +87,44 @@ COMMENT_AUTHOR = "github-actions[bot]"
 # it is noise.
 NOISE_PERCENT = 0.5
 
+# The gate (#672): a benchmark that costs more than its threshold more
+# instructions than on the base fails the pull request, unless a maintainer
+# accepts the cost with ACCEPT_LABEL.
+ACCEPT_LABEL = "perf-accepted"
+DEFAULT_THRESHOLD_PERCENT = 2.0
+
+# The benchmarks whose counts vary by more than 1 % between counts of the same
+# code, each with its own threshold: twice the widest spread measured, rounded
+# up to a whole percent. Measured as instruction-counts.sh counts (with
+# --fair-sched=yes, and the pause that lets idle workers fall asleep): four
+# counts of the same code in run 36785236485 (#671), and the later runs of #687,
+# #696 and #700 for the benchmarks their changes do not reach. Every other
+# benchmark repeats within 1 %, most within 0.5 %, so the default leaves them
+# twice that. The spread comes from threads taking turns differently (glibc's
+# malloc, oneTBB workers spinning). Keyed by binary and "<test case> /
+# <benchmark>", as the comparison names them; the gate warns about an entry
+# that names no benchmark any more.
+THRESHOLD_PERCENT: dict[tuple[str, str], float] = {
+    # widest spread 2.8 %
+    ("logsquirl_logdata_benchmark", "Indexing a Log File / tabs and long lines: whole Log File"): 6.0,
+    # 2.0 %
+    ("logsquirl_textview_scroll_benchmark",
+     "text view scroll benchmarks / scrollbar: dragged over 200 values"): 5.0,
+    # 1.7 %
+    ("logsquirl_textview_scroll_benchmark", "text view scroll benchmarks / data changed: a Log Line appended"): 4.0,
+    # 1.6 %
+    ("logsquirl_overview_selection_benchmark",
+     "Extending a selection of 100,000 Log Lines / Shift+Down 20 times and Shift+Up 20 times"): 4.0,
+    # 1.3 %
+    ("logsquirl_textview_scroll_benchmark", "text view scroll benchmarks / wheel: 20 notches down and 20 up"): 3.0,
+    # 1.2 %
+    ("logsquirl_session_restore_benchmark",
+     "Restoring a Session of several large Log Files / large Log Files: restore until every tab has loaded"): 3.0,
+    # 1.1 %
+    ("logsquirl_textview_scroll_benchmark", "text view scroll benchmarks / keys: 5 pages down and 5 up"): 3.0,
+}
+MAX_THRESHOLD_PERCENT = 1000.0
+
 # Limits for the artifact the comment workflow reads.
 MAX_BENCHMARKS = 2000
 MAX_NAME_LENGTH = 400
@@ -69,6 +132,11 @@ SHA = re.compile(r"[0-9a-f]{40}")
 BINARY = re.compile(r"[A-Za-z0-9_]{1,100}")
 
 CLIENT_REQUEST = "Client Request: "
+
+# The heap counts of #673, next to the instructions in the comparison and
+# reported only: the gate judges instructions alone.
+HEAP_FILE = "heap.tsv"
+HEAP_METRICS = ("allocations", "peak_heap_bytes")
 
 
 # ---------------------------------------------------------------------------
@@ -120,9 +188,32 @@ def collect(dumps: Path) -> dict[str, Any]:
                 order.append(label)
                 counts[label] = 0
             counts[label] += instructions
-        benchmarks.extend({"binary": binary, "name": label, "instructions": counts[label]}
-                          for label in order)
+        heap = read_heap(directory / HEAP_FILE)
+        for label in order:
+            allocations, peak = heap.get(label, (None, None))
+            benchmarks.append({"binary": binary, "name": label, "instructions": counts[label],
+                               "allocations": allocations, "peak_heap_bytes": peak})
     return {"schema_version": SCHEMA_VERSION, "benchmarks": benchmarks, "failed_binaries": failed}
+
+
+def read_heap(path: Path) -> dict[str, tuple[int, int]]:
+    """A binary's heap counts by label: the allocations added up and the highest peak.
+
+    Like the instructions of a label that dumps more than once, a benchmark
+    that runs its measured code more than once allocates in each run; its peak
+    is the highest of them. A line that is not a record is left out.
+    """
+    if not path.is_file():
+        return {}
+    heap: dict[str, tuple[int, int]] = {}
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        fields = line.split("\t", 2)
+        if len(fields) != 3 or not fields[0].isdigit() or not fields[1].isdigit() or not fields[2]:
+            continue
+        allocations, peak = int(fields[0]), int(fields[1])
+        before = heap.get(fields[2], (0, 0))
+        heap[fields[2]] = (before[0] + allocations, max(before[1], peak))
+    return heap
 
 
 def _dump_order(path: Path) -> tuple[int, ...]:
@@ -140,18 +231,22 @@ def change_percent(before: int | None, after: int | None) -> float | None:
     return (after - before) / before * 100.0
 
 
+def metric(before: int | None, after: int | None) -> dict[str, Any]:
+    return {"before": before, "after": after, "change_percent": change_percent(before, after)}
+
+
 def compare(before: dict[str, Any], after: dict[str, Any], *, before_sha: str, after_sha: str,
             head_sha: str, pull_request: int) -> dict[str, Any]:
-    def counts(data: dict[str, Any]) -> dict[tuple[str, str], int]:
-        return {(b["binary"], b["name"]): b["instructions"] for b in data["benchmarks"]}
+    def entries(data: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+        return {(b["binary"], b["name"]): b for b in data["benchmarks"]}
 
-    before_counts, after_counts = counts(before), counts(after)
+    before_entries, after_entries = entries(before), entries(after)
     benchmarks = []
-    for binary, name in sorted(before_counts.keys() | after_counts.keys()):
-        b = before_counts.get((binary, name))
-        a = after_counts.get((binary, name))
-        benchmarks.append({"binary": binary, "name": name, "metrics": {"instructions": {
-            "before": b, "after": a, "change_percent": change_percent(b, a)}}})
+    for binary, name in sorted(before_entries.keys() | after_entries.keys()):
+        b = before_entries.get((binary, name), {})
+        a = after_entries.get((binary, name), {})
+        metrics = {key: metric(b.get(key), a.get(key)) for key in ("instructions", *HEAP_METRICS)}
+        benchmarks.append({"binary": binary, "name": name, "metrics": metrics})
     return {
         "schema_version": SCHEMA_VERSION,
         "pull_request": pull_request,
@@ -160,6 +255,57 @@ def compare(before: dict[str, Any], after: dict[str, Any], *, before_sha: str, a
         "after": {"sha": after_sha, "failed_binaries": list(after["failed_binaries"])},
         "benchmarks": benchmarks,
     }
+
+
+# ---------------------------------------------------------------------------
+# The gate (#672)
+# ---------------------------------------------------------------------------
+
+Thresholds = dict[tuple[str, str], float]
+
+
+def threshold_percent(binary: str, name: str, thresholds: Thresholds | None = None) -> float:
+    """How many percent more instructions than on the base a benchmark may cost."""
+    table = THRESHOLD_PERCENT if thresholds is None else thresholds
+    return table.get((binary, name), DEFAULT_THRESHOLD_PERCENT)
+
+
+def evaluate_gate(data: dict[str, Any], *, labels: list[str],
+                  thresholds: Thresholds | None = None) -> dict[str, Any]:
+    """The gate's verdict on a comparison.
+
+    Fails on a benchmark that costs more than its threshold more instructions
+    than on the base, unless the pull request carries ACCEPT_LABEL; and, label
+    or not, on a benchmark counted on the base but not on the pull request (it
+    disappeared or no longer runs), on a binary that failed on the pull
+    request's side, and when nothing was counted at all. A new benchmark, or one
+    that does not build on the base, has nothing to be compared with and passes.
+    """
+    over: list[dict[str, Any]] = []
+    missing: list[dict[str, str]] = []
+    for entry in data["benchmarks"]:
+        i = entry["metrics"]["instructions"]
+        if i["before"] is not None and i["after"] is None:
+            missing.append({"binary": entry["binary"], "name": entry["name"]})
+            continue
+        change = change_percent(i["before"], i["after"])
+        threshold = threshold_percent(entry["binary"], entry["name"], thresholds)
+        if change is not None and change > threshold:
+            over.append({"binary": entry["binary"], "name": entry["name"], "threshold_percent": threshold})
+    failed = list(data["after"]["failed_binaries"])
+    counted = any(b["metrics"]["instructions"]["after"] is not None for b in data["benchmarks"])
+    accepted = ACCEPT_LABEL in labels and bool(over)
+    passed = counted and not missing and not failed and (not over or accepted)
+    return {"schema_version": SCHEMA_VERSION, "pull_request": data["pull_request"], "head_sha": data["head_sha"],
+            "passed": passed, "accepted": accepted, "over_threshold": over, "missing": missing,
+            "failed_binaries": failed}
+
+
+def unused_thresholds(data: dict[str, Any], thresholds: Thresholds | None = None) -> list[tuple[str, str]]:
+    """The threshold entries that name no benchmark of the comparison."""
+    table = THRESHOLD_PERCENT if thresholds is None else thresholds
+    names = {(b["binary"], b["name"]) for b in data["benchmarks"]}
+    return [key for key in table if key not in names]
 
 
 # ---------------------------------------------------------------------------
@@ -209,14 +355,56 @@ def validate(data: Any) -> dict[str, Any]:
         metrics = entry.get("metrics")
         _require(isinstance(metrics, dict) and isinstance(metrics.get("instructions"), dict),
                  "benchmark metrics")
-        instructions = metrics["instructions"]
-        _require(_is_count(instructions.get("before")) and _is_count(instructions.get("after")),
-                 "instruction counts")
-        b, a = instructions.get("before"), instructions.get("after")
-        benchmarks.append({"binary": entry["binary"], "name": entry["name"], "metrics": {
-            "instructions": {"before": b, "after": a, "change_percent": change_percent(b, a)}}})
+        clean = {}
+        for key in ("instructions", *HEAP_METRICS):
+            # Heap counts may be absent: an artifact from before #673.
+            m = metrics.get(key, {} if key in HEAP_METRICS else None)
+            _require(isinstance(m, dict) and _is_count(m.get("before")) and _is_count(m.get("after")),
+                     f"{key} counts")
+            clean[key] = metric(m.get("before"), m.get("after"))
+        benchmarks.append({"binary": entry["binary"], "name": entry["name"], "metrics": clean})
     return {"schema_version": SCHEMA_VERSION, "pull_request": pull_request, "head_sha": data["head_sha"],
             "before": sides["before"], "after": sides["after"], "benchmarks": benchmarks}
+
+
+def validate_gate(gate: Any, comparison: dict[str, Any]) -> dict[str, Any]:
+    """The gate's verdict, if it matches its schema and the validated comparison; ValueError otherwise.
+
+    Every benchmark it names must be one of the comparison's, so the comment
+    shows only counts that came through validate().
+    """
+    _require(isinstance(gate, dict), "gate: not an object")
+    _require(gate.get("schema_version") == SCHEMA_VERSION, "gate: schema_version")
+    _require(type(gate.get("pull_request")) is int and gate["pull_request"] == comparison["pull_request"],
+             "gate: pull_request")
+    _require(gate.get("head_sha") == comparison["head_sha"], "gate: head_sha")
+    _require(type(gate.get("passed")) is bool and type(gate.get("accepted")) is bool, "gate: verdict")
+    names = {(b["binary"], b["name"]) for b in comparison["benchmarks"]}
+
+    def benchmarks(key: str, with_threshold: bool) -> list[dict[str, Any]]:
+        raw = gate.get(key)
+        _require(isinstance(raw, list) and len(raw) <= MAX_BENCHMARKS, f"gate: {key}")
+        result = []
+        for entry in raw:
+            _require(isinstance(entry, dict) and (entry.get("binary"), entry.get("name")) in names,
+                     f"gate: {key} names a benchmark the comparison does not have")
+            clean = {"binary": entry["binary"], "name": entry["name"]}
+            if with_threshold:
+                threshold = entry.get("threshold_percent")
+                _require(type(threshold) in (int, float) and 0 < threshold <= MAX_THRESHOLD_PERCENT,
+                         f"gate: {key} threshold")
+                clean["threshold_percent"] = float(threshold)
+            result.append(clean)
+        return result
+
+    over = benchmarks("over_threshold", True)
+    missing = benchmarks("missing", False)
+    failed = gate.get("failed_binaries")
+    _require(isinstance(failed, list) and len(failed) <= MAX_BENCHMARKS
+             and all(isinstance(f, str) and BINARY.fullmatch(f) for f in failed), "gate: failed_binaries")
+    return {"schema_version": SCHEMA_VERSION, "pull_request": gate["pull_request"], "head_sha": gate["head_sha"],
+            "passed": gate["passed"], "accepted": gate["accepted"], "over_threshold": over, "missing": missing,
+            "failed_binaries": list(failed)}
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +458,118 @@ def _table(benchmarks: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
-def render_markdown(data: dict[str, Any], *, comment: bool = False) -> str:
+def has_heap_counts(data: dict[str, Any]) -> bool:
+    return any(b["metrics"][key][side] is not None
+               for b in data["benchmarks"] for key in HEAP_METRICS for side in ("before", "after"))
+
+
+def is_heap_change(entry: dict[str, Any]) -> bool:
+    """Whether a benchmark counted on both sides allocates differently or holds another peak.
+
+    No noise threshold: an allocation count repeats exactly when the work does.
+    """
+    return any(m["before"] is not None and m["after"] is not None and m["before"] != m["after"]
+               for m in (entry["metrics"][key] for key in HEAP_METRICS))
+
+
+def _heap_change(before: int | None, after: int | None) -> str:
+    if before is None or after is None:
+        return ""
+    if before == 0:
+        return "" if after == 0 else f"+{after:,}"
+    return _change(before, after)
+
+
+def _heap_table(benchmarks: list[dict[str, Any]]) -> list[str]:
+    lines = ["| Benchmark | Allocations before | Allocations after | Change "
+             "| Peak heap before | Peak heap after | Change |",
+             "|---|---:|---:|---:|---:|---:|---:|"]
+    for entry in benchmarks:
+        name = escape(f"{short_binary(entry['binary'])}: {entry['name']}")
+        cells = []
+        for key in HEAP_METRICS:
+            m = entry["metrics"][key]
+            cells += [_count(m["before"]), _count(m["after"]), _heap_change(m["before"], m["after"])]
+        lines.append(f"| {name} | " + " | ".join(cells) + " |")
+    return lines
+
+
+def render_heap(data: dict[str, Any]) -> list[str]:
+    """The allocations and peak heap of each benchmark (#673), as Markdown lines."""
+    benchmarks = data["benchmarks"]
+    changed = [b for b in benchmarks if is_heap_change(b)]
+    total = len(benchmarks)
+    lines = [
+        "#### Allocations and peak heap",
+        "",
+        "Reported only, not judged by the gate. Counted in the same run as the instructions, all "
+        "threads together: the heap blocks the measured code allocated (malloc, calloc, realloc and "
+        "the aligned ones, operator new through them, and mimalloc's for `logsquirl::vector`), and the "
+        "most heap it held at once above what was held when it started, in bytes as the allocators "
+        "round them up.",
+        "",
+    ]
+    summary = f"{total} benchmark{'' if total == 1 else 's'}, "
+    summary += f"{len(changed) if changed else 'none'} with other allocations or peak heap"
+    lines += [f"**{summary}**", ""]
+    if changed:
+        lines += _heap_table(changed) + [""]
+    lines += ["<details><summary>All benchmarks</summary>", ""]
+    lines += _heap_table(benchmarks)
+    lines += ["", "</details>", ""]
+    return lines
+
+
+def _percent(value: float) -> str:
+    return f"+{value:.1f} %"
+
+
+def render_gate(data: dict[str, Any], gate: dict[str, Any]) -> list[str]:
+    """The gate's verdict as Markdown lines: what it failed on, or what was accepted."""
+    entries = {(b["binary"], b["name"]): b for b in data["benchmarks"]}
+    if gate["passed"]:
+        headline = f"**Gate: accepted with `{ACCEPT_LABEL}`.**" if gate["accepted"] else "**Gate: passed.**"
+    else:
+        headline = "**Gate: failed.**"
+    lines = [headline]
+    if not gate["over_threshold"] and gate["passed"]:
+        lines[0] += (f" No benchmark costs more instructions than its threshold above the base: "
+                     f"{_percent(DEFAULT_THRESHOLD_PERCENT)}, or more for the few that vary more "
+                     "(`THRESHOLD_PERCENT` in `.github/scripts/instruction-counts.py`).")
+    lines.append("")
+    over = gate["over_threshold"]
+    if over:
+        count = f"{len(over)} benchmark{' costs' if len(over) == 1 else 's cost'}"
+        if gate["accepted"]:
+            lines += [f"{count} more instructions than {'its' if len(over) == 1 else 'their'} threshold above "
+                      f"the base, accepted with the label `{ACCEPT_LABEL}`; the pull request description "
+                      "says why:", ""]
+        else:
+            lines += [f"{count} more instructions than {'its' if len(over) == 1 else 'their'} threshold above "
+                      f"the base. If the cost is intended, a maintainer adds the label `{ACCEPT_LABEL}`, the "
+                      "pull request description says why, and the gate runs again (CONTRIBUTING.md, "
+                      "*Instruction count gate*):", ""]
+        lines += ["| Benchmark | Before | After | Change | Threshold |", "|---|---:|---:|---:|---:|"]
+        for o in over:
+            i = entries[(o["binary"], o["name"])]["metrics"]["instructions"]
+            name = escape(f"{short_binary(o['binary'])}: {o['name']}")
+            lines.append(f"| {name} | {_count(i['before'])} | {_count(i['after'])} | "
+                         f"{_change(i['before'], i['after'])} | {_percent(o['threshold_percent'])} |")
+        lines.append("")
+    if gate["missing"]:
+        lines += ["Counted on the base but not on this pull request: the benchmark was removed or no longer "
+                  f"runs, which `{ACCEPT_LABEL}` does not accept:", ""]
+        lines += [f"- {escape(short_binary(m['binary']) + ': ' + m['name'])}" for m in gate["missing"]]
+        lines.append("")
+    if gate["failed_binaries"]:
+        lines += ["A benchmark binary failed on the after side (named below), so its benchmarks are not "
+                  "counted.", ""]
+    if not gate["passed"] and not over and not gate["missing"] and not gate["failed_binaries"]:
+        lines += ["Nothing was counted on the after side.", ""]
+    return lines
+
+
+def render_markdown(data: dict[str, Any], *, comment: bool = False, gate: dict[str, Any] | None = None) -> str:
     benchmarks = data["benchmarks"]
     changed = [b for b in benchmarks if is_change(b["metrics"]["instructions"])]
     total = len(benchmarks)
@@ -285,6 +584,8 @@ def render_markdown(data: dict[str, Any], *, comment: bool = False) -> str:
         "up to about 3 %. BUILD.md, *Instruction counts*, shows how to count one locally.",
         "",
     ]
+    if gate is not None:
+        lines += render_gate(data, gate)
     for key in ("before", "after"):
         failed = data[key]["failed_binaries"]
         if failed:
@@ -299,6 +600,8 @@ def render_markdown(data: dict[str, Any], *, comment: bool = False) -> str:
     lines += ["<details><summary>All benchmarks</summary>", ""]
     lines += _table(benchmarks)
     lines += ["", "</details>", ""]
+    if has_heap_counts(data):
+        lines += render_heap(data)
     return "\n".join(lines)
 
 
@@ -326,15 +629,17 @@ def gh_api(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
     return data
 
 
-def post_comment(data: dict[str, Any], *, repo: str, head_sha: str, api: Api = gh_api) -> str:
+def post_comment(data: dict[str, Any], *, repo: str, head_sha: str, api: Api | None = None,
+                 gate: dict[str, Any] | None = None) -> str:
     """Creates or updates the report comment; returns what it did."""
+    api = api or gh_api
     number = data["pull_request"]
     pull = api("GET", f"repos/{repo}/pulls/{number}", None)
     if data["head_sha"] != head_sha or pull.get("head", {}).get("sha") != head_sha:
         print(f"::notice::Pull request #{number} is not at {head_sha[:12]} any more (or never was); "
               "not commenting")
         return "skipped"
-    body = {"body": render_markdown(data, comment=True)}
+    body = {"body": render_markdown(data, comment=True, gate=gate)}
     for existing in api("GET", f"repos/{repo}/issues/{number}/comments", None) or []:
         if (existing.get("user", {}).get("login") == COMMENT_AUTHOR
                 and str(existing.get("body", "")).startswith(MARKER)):
@@ -366,8 +671,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--json", type=Path)
     p.add_argument("--markdown", type=Path)
 
+    p = sub.add_parser("gate")
+    p.add_argument("--comparison", type=Path, required=True)
+    p.add_argument("--labels", type=Path, required=True)
+    p.add_argument("--json", type=Path)
+    p.add_argument("--markdown", type=Path)
+
     p = sub.add_parser("comment")
     p.add_argument("--comparison", type=Path, required=True)
+    p.add_argument("--gate", type=Path)
     p.add_argument("--repo", required=True)
     p.add_argument("--head-sha", required=True)
 
@@ -399,6 +711,9 @@ def main(argv: list[str] | None = None) -> int:
             sys.stdout.write(markdown)
         return 0
 
+    if args.command == "gate":
+        return run_gate(args)
+
     if not SHA.fullmatch(args.head_sha):
         print("::error::--head-sha is not a commit SHA", file=sys.stderr)
         return 1
@@ -407,8 +722,58 @@ def main(argv: list[str] | None = None) -> int:
     except (ValueError, OSError) as error:  # json.JSONDecodeError is a ValueError
         print(f"::error::The instruction counts artifact is not usable: {error}", file=sys.stderr)
         return 1
-    print(f"Comment on #{data['pull_request']}: {post_comment(data, repo=args.repo, head_sha=args.head_sha)}")
+    gate = None
+    if args.gate:
+        try:
+            gate = validate_gate(json.loads(args.gate.read_text(encoding="utf-8")), data)
+        except (ValueError, OSError) as error:
+            # The counts are still worth showing; the check shows the verdict.
+            print(f"::warning::The gate artifact is not usable, the comment leaves it out: {error}")
+    result = post_comment(data, repo=args.repo, head_sha=args.head_sha, gate=gate)
+    print(f"Comment on #{data['pull_request']}: {result}")
     return 0
+
+
+def run_gate(args: argparse.Namespace) -> int:
+    """The gate subcommand: 0 when the pull request passes, 1 when it fails."""
+    try:
+        data = validate(json.loads(args.comparison.read_text(encoding="utf-8")))
+    except (ValueError, OSError) as error:
+        print(f"::error::No usable instruction counts to judge: {error}")
+        return 1
+    try:
+        labels = json.loads(args.labels.read_text(encoding="utf-8"))
+    except (ValueError, OSError) as error:
+        print(f"::error::The pull request's labels are not readable: {error}")
+        return 1
+    if not isinstance(labels, list) or not all(isinstance(label, str) for label in labels):
+        print("::error::The pull request's labels are not a list of names")
+        return 1
+    for binary, name in unused_thresholds(data):
+        print(f"::warning::THRESHOLD_PERCENT names {binary}: {name}, which was not counted; "
+              "rename or remove its entry")
+    gate = evaluate_gate(data, labels=labels)
+    if args.json:
+        args.json.write_text(json.dumps(gate, indent=2) + "\n", encoding="utf-8")
+    markdown = "\n".join(["### Instruction counts gate", ""] + render_gate(data, gate))
+    if args.markdown:
+        args.markdown.write_text(markdown, encoding="utf-8")
+    else:
+        sys.stdout.write(markdown)
+    counts = {(b["binary"], b["name"]): b["metrics"]["instructions"] for b in data["benchmarks"]}
+    for o in gate["over_threshold"]:
+        level = "notice" if gate["accepted"] else "error"
+        i = counts[(o["binary"], o["name"])]
+        print(f"::{level}::{o['binary']}: {o['name']} costs {change_percent(i['before'], i['after']):+.2f} % "
+              "instructions, "
+              f"threshold {_percent(o['threshold_percent'])}"
+              + (f" (accepted with {ACCEPT_LABEL})" if gate["accepted"] else ""))
+    for m in gate["missing"]:
+        print(f"::error::{m['binary']}: {m['name']} was counted on the base but not on this pull request")
+    for binary in gate["failed_binaries"]:
+        print(f"::error::{binary} failed on the after side")
+    print("The gate " + ("passed" if gate["passed"] else "failed"))
+    return 0 if gate["passed"] else 1
 
 
 if __name__ == "__main__":

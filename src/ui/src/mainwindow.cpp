@@ -1007,6 +1007,8 @@ void MainWindow::createActions()
 
     findAction = new QAction( tr( action::findText ), this );
     findAction->setStatusTip( tr( action::findStatusTip ) );
+    // Named for the benchmark mode, which opens QuickFind as the user does (#668).
+    findAction->setObjectName( "findAction" );
     connect( findAction, &QAction::triggered, this, [ this ]( auto ) { this->find(); } );
 
     clearLogAction = new QAction( tr( action::clearLogText ), this );
@@ -1073,6 +1075,9 @@ void MainWindow::createActions()
              &MainWindow::toggleFilteredLineNumbersVisibility );
 
     followAction = new QAction( tr( action::followText ), this );
+    // Named for the benchmark mode, which follows a growing Log File as the
+    // user does (#670).
+    followAction->setObjectName( "followAction" );
     followAction->setCheckable( true );
     followAction->setEnabled( session_.watchPolicy().anyWatchEnabled() );
     connect( followAction, &QAction::toggled, this, &MainWindow::followSet );
@@ -1152,6 +1157,8 @@ void MainWindow::createActions()
              [ this ]( auto ) { this->toggleSidebar(); } );
 
     toggleChartPanelAction = new QAction( tr( action::toggleChartPanelText ), this );
+    // Named for the benchmark mode, which shows the chart as the user does (#670).
+    toggleChartPanelAction->setObjectName( "toggleChartPanelAction" );
     toggleChartPanelAction->setStatusTip( tr( action::toggleChartPanelStatusTip ) );
     connect( toggleChartPanelAction, &QAction::triggered, this, [ this ]( auto ) {
         auto* crawler = currentCrawlerWidget();

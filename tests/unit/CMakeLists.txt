@@ -311,8 +311,12 @@ logsquirl_add_catch_tests(logsquirl_documentation_tests
 # own, without the UI library or Qt Widgets (#666).
 add_executable(logsquirl_benchmark_tests
     benchmark_tests_main.cpp
+    appendlatency_test.cpp
     benchmarkreport_test.cpp
     benchmarkscenario_test.cpp
+    frametimes_test.cpp
+    inputlatency_test.cpp
+    processwork_test.cpp
 )
 
 target_link_libraries(logsquirl_benchmark_tests logsquirl_benchmark Catch2::Catch2)

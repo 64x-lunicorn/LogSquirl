@@ -44,6 +44,17 @@ class Scenario {
 public:
     virtual ~Scenario() = default;
 
+    // Called once the run is isolated and before the application reads a
+    // setting (#669): a scenario that measures under settings other than a
+    // Benchmark Run's own -- ANSI colors, Format Recognition -- writes them
+    // here into the run's own settings, never the user's; the Settings
+    // Policies are derived from them after this. Nothing else is set up yet:
+    // no window is open, the event loop does not run and the allocators of the
+    // regular expression engines are not set, so nothing is compiled here.
+    // A scenario reads its options here, and fails, if they are wrong, from
+    // start().
+    virtual void prepare( ScenarioRun& /*run*/ ) {}
+
     virtual void start( ScenarioRun& run ) = 0;
 };
 

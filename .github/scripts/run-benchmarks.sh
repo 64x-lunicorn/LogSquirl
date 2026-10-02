@@ -12,7 +12,9 @@
 # The e2e suite is the checked-out one (the after side's) for both sides, with
 # --update-baseline: its baseline.json was recorded on another machine, so the
 # comparison with it would fail for reasons unrelated to either side; the
-# before side is the baseline here.
+# before side is the baseline here. A case the before side's binaries cannot
+# measure skips there and shows as "only after" -- the grep cases on a
+# logsquirl_grep that writes no benchmark report yet (#667).
 #
 # A benchmark binary that runs longer than BENCHMARK_TIMEOUT_MINUTES (default
 # 30) is stopped and counts as failed, so one that hangs or has become far

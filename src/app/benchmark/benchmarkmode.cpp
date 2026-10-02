@@ -140,6 +140,13 @@ public:
         } );
     }
 
+    // Before the application reads a setting: the scenario writes those it
+    // measures under.
+    void prepare()
+    {
+        scenario_->prepare( *this );
+    }
+
     int exitCode() const
     {
         return exitCode_;
@@ -175,7 +182,11 @@ public:
 
     MainWindow* restoreSession() override
     {
-        return app_->reloadSession();
+        // At the size of the run, as a new window, whatever geometry the
+        // Session holds: runs paint the same number of Log Lines (#670).
+        auto* window = app_->reloadSession();
+        window->resize( windowSize_ );
+        return window;
     }
 
     QObject* context() override
@@ -305,6 +316,7 @@ std::unique_ptr<BenchmarkMode> BenchmarkMode::prepare( const CliParameters& para
         return nullptr;
     }
     writeSettings( DataLocation::current().portableSettingsPath() );
+    mode->run_->prepare();
     return mode;
 }
 

@@ -56,6 +56,8 @@ struct CliParameters {
     // --benchmark <scenario>: a Benchmark Run of that scenario (#666), with
     // its report written to benchmark_output (standard output when empty).
     // Each --benchmark-option is a "name=value" handed to the scenario as is.
+    // The grep tool takes --benchmark-output alone: a report of its Search,
+    // written to that file when it is not empty (#667).
     QString benchmark_scenario;
     QString benchmark_output;
     QStringList benchmark_options;
@@ -127,6 +129,13 @@ struct CliParameters {
             "benchmark-timeout", "fail the benchmark run after this many seconds", "seconds",
             "600" );
 
+        // The grep tool's own: its standard output carries the matches.
+        const QCommandLineOption grepBenchmarkOutputOption(
+            "benchmark-output",
+            "also write a benchmark report of the search to this file, timed from the open of "
+            "the Log File",
+            "file" );
+
         if ( !console ) {
             parser.addPositionalArgument( "files", "Log Files to open; \"-\" reads standard input",
                                           "[files|-]..." );
@@ -148,6 +157,7 @@ struct CliParameters {
         }
         else {
             parser.addOption( patternOption );
+            parser.addOption( grepBenchmarkOutputOption );
         }
 
         parser.process( app );
@@ -198,6 +208,7 @@ struct CliParameters {
             if ( parser.isSet( patternOption ) ) {
                 pattern = parser.value( patternOption );
             }
+            benchmark_output = parser.value( grepBenchmarkOutputOption );
         }
 
         // Only the desktop application reads standard input: for the grep

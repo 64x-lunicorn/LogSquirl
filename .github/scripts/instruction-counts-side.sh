@@ -62,5 +62,6 @@ echo "The $side side took $(( $(date +%s) - start )) s to build and count"
 
 python3 "$RUN_DIR/tools/.github/scripts/instruction-counts.py" collect "$RUN_DIR/dumps/$side" \
     --json "$RUN_DIR/report/$side.json"
-jq -r '.benchmarks[] | "\(.instructions)\t\(.binary): \(.name)"' "$RUN_DIR/report/$side.json"
+jq -r '.benchmarks[] | "\(.instructions)\t\(.allocations // "-")\t\(.peak_heap_bytes // "-")\t\(.binary): \(.name)"' \
+    "$RUN_DIR/report/$side.json"
 exit $status

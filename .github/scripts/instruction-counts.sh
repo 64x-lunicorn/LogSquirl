@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds the Catch2 benchmarks of the checked-out commit and counts the
-# instructions of each benchmark under Callgrind (#671).
+# instructions of each benchmark under Callgrind (#671), and in the same run
+# its allocations and peak heap (#673).
 #
 # Runs where the benchmarks run: in the Ubuntu 24.04 build container with
 # Valgrind, from the workspace root (/usr/local in the container), as the
@@ -9,7 +10,11 @@
 # counts"). Valgrind has no arm64 macOS port.
 #
 # Every benchmark target in tests/benchmarks/CMakeLists.txt is built in
-# BUILD_ROOT, configured with CMAKE_OPTS.
+# BUILD_ROOT, configured with CMAKE_OPTS and LOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON,
+# which links tests/benchmarks/heap_count.c into each: it replaces glibc's
+# malloc and wraps mimalloc's mi_new_n and mi_free to count the heap blocks the
+# measured code allocates and the most heap it holds at once. It adds no run
+# and no compiled object outside tests/benchmarks, so sccache's hits stay.
 # Then each binary runs once under Callgrind in the benchmarks' fixed-work mode
 # (tests/benchmarks/instruction_count.h): with instrumentation off until a
 # benchmark's measured code starts, which keeps the rest of the binary (writing
@@ -19,10 +24,10 @@
 # [wall-clock] say something only as a time (they time themselves, or their
 # work is another process's) and are left out.
 #
-# For each binary, <results>/<binary>/ gets the Callgrind dumps, the binary's
-# output (log.txt) and, once it has ended, its exit code (exit_code; "not
-# built" for a target that did not build). instruction-counts.py collect reads
-# that directory.
+# For each binary, <results>/<binary>/ gets the Callgrind dumps, the heap
+# counts (heap.tsv), the binary's output (log.txt) and, once it has ended, its
+# exit code (exit_code; "not built" for a target that did not build).
+# instruction-counts.py collect reads that directory.
 #
 # Usage: instruction-counts.sh <results directory>
 # Environment:
@@ -56,7 +61,7 @@ valgrind --version
 
 echo "::group::Configure"
 # shellcheck disable=SC2086 # the options are a list of words
-cmake -B "$build_root" $cmake_opts .
+cmake -B "$build_root" $cmake_opts -DLOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON .
 echo "::endgroup::"
 
 # A target that does not build must not be counted from an earlier build in
@@ -95,8 +100,10 @@ count() {
         return
     fi
     echo "::group::$target"
-    local start code=0
+    local start code=0 heap_file
     start=$(date +%s)
+    # Absolute: the binary relaunches itself, and writes it from the relaunch.
+    heap_file="$(cd "$out" && pwd)/heap.tsv"
     # --trace-children: a binary with a settings file of its own relaunches
     # itself (tests/helpers/isolated_settings.h), and the relaunched process is
     # the one that runs the benchmarks. A child a benchmark starts (the command
@@ -106,6 +113,7 @@ count() {
     # --fair-sched: the threads take their turns in a fixed order, which made
     # the counts of the benchmarks that wait for other threads repeat about
     # three times as closely in #671.
+    LOGSQUIRL_BENCHMARK_HEAP_FILE="$heap_file" \
     timeout "$binary_timeout" valgrind --tool=callgrind --instr-atstart=no --trace-children=yes \
         --main-stacksize=67108864 --fair-sched=yes \
         --callgrind-out-file="$out/callgrind.out.%p" \

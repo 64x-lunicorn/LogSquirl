@@ -4,7 +4,8 @@ name: "Performance"
 #
 # An optimized build (RelWithDebInfo with LTO, the options and container of the
 # CI Build noble job) runs the whole e2e performance suite, the 10, 50 and
-# 100 MB cases included, on a GitHub-hosted runner. Shared runners differ
+# 100 MB cases and the generated 100 MB and 1 GB Log Files included (#667), on
+# a GitHub-hosted runner. Shared runners differ
 # from week to week, so the result is not compared with a fixed baseline but
 # with the median of the last runs, which moves with the runners:
 # .github/scripts/perf-history.py holds the rule, BUILD.md ("Weekly
@@ -68,7 +69,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     # A build of about 20 minutes with a warm sccache, longer cold, and the
-    # performance suite of about ten minutes.
+    # performance suite of about a quarter of an hour with its 1 GB cases.
     timeout-minutes: 120
     permissions:
       contents: read
@@ -115,7 +116,9 @@ jobs:
       # build's numbers say nothing about performance.
       - uses: ./.github/actions/docker-build
 
-      # The 10, 50 and 100 MB files are generated, not checked in.
+      # The 10, 50 and 100 MB files, the 100 MB and 1 GB Log Files and the
+      # Log Files the scroll cases scroll through (#669) are generated, not
+      # checked in.
       - name: Generate the e2e test data
         run: python3 tests/e2e/generate_test_data.py
 

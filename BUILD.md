@@ -308,7 +308,7 @@ skipped with the measured value, never as passed. CI does not compare with it.
 The **Performance** workflow (`.github/workflows/performance.yml`) runs every Monday at
 03:41 UTC on a GitHub-hosted `ubuntu-24.04` runner. It builds master as CI ships it
 (RelWithDebInfo with LTO, in the noble build container), generates the 10, 50 and 100 MB
-test files and runs the whole e2e performance suite (`-m performance`, 21 measured runs per
+test files and the generated 100 MB and 1 GB Log Files and runs the whole e2e performance suite (`-m performance`, 21 measured runs per
 benchmark) with `--no-baseline-compare`. The application is started only through the suite's
 isolated instances, as in every e2e run. A benchmark that is skipped fails the run.
 
@@ -340,6 +340,11 @@ compares with, so a branch never moves master's reference.
 That run is recorded as the start of a new level, does not fail, and comparisons from then on use
 only it and the runs after it, so the check reports only until six such runs exist; dispatching
 a few more runs from master shortens that.
+
+The suite measures events, not sleeps (#667): the GUI cases run the benchmark mode's scenarios,
+the grep cases the grep tool's own report. The rename of its benchmarks (`grep_search_*` to
+`grep_*`, `gui_load_1mb` to `gui_open_1mb_*`) removes benchmarks the history knows, so the first
+Performance run after it is dispatched from master with `accept_new_level=true`.
 
 See [`tests/e2e/README.md`](tests/e2e/README.md) for full documentation.
 
@@ -382,6 +387,12 @@ one machine; numbers of a Debug build say nothing.
 | Scenario | Events | Results |
 |---|---|---|
 | `open-and-index` | `log_file_opened`: the tab opened and loading started (after the window is shown and the plugins are loaded, as for a Log File given on the command line); `first_log_line_displayed`: the first paint of the Text View's Viewport that shows a Log Line ended; `index_finished`: the Index is complete. Both of the last two carry `log_line_count`. | `log_line_count`, `log_file_bytes`, `index_mb_per_s` (10^6 bytes per second from the open to `index_finished`) |
+| `search` | On a loaded Log File (opened and loaded first, unmeasured), one Search as a user typing it into the Search Line and pressing Return runs it (#668). `first_match_displayed`: the first paint of the Filtered View's Viewport that shows a Match ended (none without a Match); `search_finished`: the Search is complete, with `match_count`. Options: `pattern` (required), `regex` (`true`: a regular expression), `match_case` (`false`: case is ignored). An invalid pattern, a failed or an interrupted Search fails the run. | `match_count`, `undecided_count`, `log_line_count`, `log_file_bytes`, `search_gb_per_s` |
+| `quickfind` | On a loaded and shown Log File, QuickFind is opened as *Edit → Find* opens it, then `pattern` is typed into it character by character (#668). Each keystroke is answered by the first paint of the Text View's Viewport that starts after it; the next comes once it is answered and at least `keystroke_interval_ms` (100) after the one before. `keystroke_marked` per keystroke, with `typed` and `latency_ms`. Fails when the bar does not hold the typed pattern at the end. | `keystroke_count`, `keystroke_latency` (a summary), `log_line_count`, `log_file_bytes` |
+| `scroll` | On a loaded Log File (with `view=table` the Table View is then shown as its toggle shows it), the view's vertical scroll bar steps `line_steps` (200) lines down, `page_steps` (40) pages down and jumps to the end (`QAbstractSlider::triggerAction`), each step once the first paint of the view's Viewport that starts after it has ended (#669). Every paint of that Viewport from the first step until the paint answering the jump has ended is a frame: from its paint event reaching the Viewport to the view's handler returning. The Overview, the Filtered View and compositing are not part of it. `scrolled_to_end`: that last paint ended, with `frame_count`. Options: `view` (`text`, `table`), `highlighters` (`true`: a Highlighter Set of five is made and activated in the run's own collection), `ansi` (`text`, `hide`, `colors`: the setting *ANSI color sequences*), `line_steps`, `page_steps`. For `view=table` Format Recognition is on, and the Log File needs a Log Format the Catalog knows. | `view`, `frame_time` (a summary of the frames, with `budget_ms`, 1000/60, and `over_budget_count`, the frames longer than it), `step_count`, `line_step_count`, `page_step_count`, `unmoved_step_count`, `highlighter_count`, `log_line_count`, `log_file_bytes` |
+| `follow` | Writes its own Log File (no Log File argument), follows it with a chart, and a writer thread appends `lines_per_second` (10) Log Lines a second for `duration_ms` (5000), reading the clock just before each write (#670). A Log Line is displayed at the first Text View paint that shows the file through it while following at the end, charted at the chart's first such paint. `writer_finished`, `last_log_line_displayed`, `last_log_line_charted`. Options: `initial_lines` (1000), `chart` (`true`), `chart_budget_ms` (1000), `settle_ms` (5000); a Log Line not displayed within `settle_ms` fails the run. | `display_latency` and `chart_latency` (append to displayed / charted), `chart_behind_display`, `chart_kept_up` (every Log Line charted within `chart_budget_ms` of being displayed), `writer_lateness` |
+| `session-restore` | Two or more Log Files. Generates a Session of one tab each, with `marks` (10) Marks and tab `current` (0) in front, in the run's own data location, and restores it (#670). `tab_indexed` per tab, `current_tab_usable` (the first paint of the front tab after its Index finished), `all_tabs_indexed`. No Kept Searches yet: the Session does not keep them (#704). | `tab_count`, `current_tab`, `marks_per_tab`, `log_line_count`, `log_file_bytes` |
+| `read-while-indexing` | A small Log File of the run's own is loaded first, unmeasured, so the scenario starts with the request to open the Log File (#686). While it is indexed, a timer on the UI thread reads every `read_interval_ms` (2) `getNbLine`, `getLineString` of one Log Line and `getExpandedLines` of `lines` (60) Log Lines, each timed apart. `log_file_opened`; `index_finished`, with `log_line_count` and `read_count`. Fails when the Index finished before a Log Line could be read. | `nb_line_latency`, `line_string_latency`, `expanded_lines_latency` (summaries), `read_count`, `indexing` (`wall_ms` from the open request to `index_finished`; `cpu_ms`, the process's CPU time in it, every thread together; `parallelism` = `cpu_ms` / `wall_ms`, the last two only where the platform reports CPU time), `index_mb_per_s`, `log_line_count`, `log_file_bytes` |
 
 **The report**, format version 1. Times are milliseconds as floating point numbers, sizes bytes.
 
@@ -416,18 +427,43 @@ and a `ScenarioRegistration` with its name. It is handed a `ScenarioRun`
 events and results in, new windows and the Session of the run's own directory, and ends the run
 with `finish()` or `fail()`. `PaintProbe` times the paints of a widget, `Distribution` summarizes
 many durations. Nothing in the report or its writer changes for a new scenario.
+`LoadedLogFile` opens, loads and shows a Log File before the measured part starts,
+`InputLatency` pairs each input with the first paint after it, `FrameTimes` summarizes the frames
+of a view, `AppendLatency` pairs appended Log Lines with the paints that show them and
+`ProcessWork` takes wall and CPU time. A scenario that measures under settings of its own
+overrides `prepare()`: it is called once the run is isolated and before the application reads a
+setting, and writes them into the run's settings. Nothing is set up there yet, so no regular
+expression is compiled in it.
+
+**The grep tool** takes `--benchmark-output <file>` too (#667): it then writes a report in the
+same format, scenario `grep`, timed from just before the Log File is opened, so a Search's
+throughput leaves out the process start. Events: `index_finished`, `search_finished`,
+`matches_written`; results: `match_count`, `log_file_bytes`, `mb_per_s`.
 
 ### Instruction counts
 
 Every pull request that CI Build builds also gets the **Instruction Counts** workflow
-(`.github/workflows/instruction-counts.yml`, #671): it builds the Catch2 benchmarks of
+(`.github/workflows/instruction-counts.yml`, #671), which CI Build calls as its job
+*Instruction counts*: it builds the Catch2 benchmarks of
 `tests/benchmarks` in the noble build container as CI ships them (RelWithDebInfo with LTO), once
 for the master commit the pull request is merged onto and once for the merge, and counts the
 instructions of each benchmark under Valgrind's Callgrind. The job summary and one pull request
 comment, updated on every push, show each benchmark's count before and after and the change in
 percent; the `instruction-counts` artifact holds the same as JSON, and `instruction-counts-dumps`
 the Callgrind dumps, to see in `callgrind_annotate` or KCachegrind where the instructions went.
-The report does not fail anything yet (#672).
+
+The job *Instruction counts gate* judges the counts (#672), and the required **CI passed** check
+waits for it: a benchmark that costs more than its threshold more instructions than on the base
+fails it, unless the pull request carries the `perf-accepted` label, and a benchmark counted on
+the base but not on the pull request fails it, label or not (CONTRIBUTING.md, *Instruction
+count gate*). The thresholds live in one place, `THRESHOLD_PERCENT` in
+`.github/scripts/instruction-counts.py`: +2 % by default, more for the few benchmarks that vary
+more (twice the widest spread measured between counts of the same code). The gate reads the
+labels when it runs, so a re-run after the label changed judges again; the **Instruction Counts
+Label** workflow (`instruction-counts-label.yml`) re-runs it by itself when `perf-accepted` is
+added or removed on a pull request from a branch of this repository, and updates the comment.
+The verdict is in the job summary, in the `instruction-counts-gate` artifact and in the comment,
+which lists the benchmarks that are over their threshold, failed or accepted.
 
 A push to master counts the pushed commit and keeps its counts in the Actions cache, under the
 commit, the benchmark sources, the counting script and the runner's CPU model (glibc picks its
@@ -452,8 +488,33 @@ left out. The generated Log Files are
 smaller than in a timed run (4 MiB, also per Session Log File), so the counts are not
 comparable with Catch2's times.
 
+The same run also counts each benchmark's **allocations and peak heap** (#673), which the job
+summary and the comment show before, after and as a change, in a table of their own: the heap
+blocks one run of the measured code allocated, all threads together, and the most heap it held
+at once above what was held when it started, in bytes as the allocators round them up. They are
+reported only; the gate judges instructions alone. The counting cannot tell a block allocated
+before the measured code from one it allocated: a `realloc` of an older block counts as an
+allocation, as every `realloc` does, and freeing an older block lowers the heap held at most to
+where it started, never below, so the peak is the most the measured code's own blocks held at
+once while it frees no older block, and can be less than that when it does. Callgrind keeps the program's own allocator,
+and Valgrind's heap tools (DHAT, Massif) only report a whole process, not the stretch between two
+points of it, so the counting happens in the benchmark binary itself: configured with
+`LOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON`, as `instruction-counts.sh` does (Linux with glibc only, no
+sanitizer), each benchmark binary links `tests/benchmarks/heap_count.c`, which replaces glibc's
+malloc and its family for the whole process (operator new, Qt and the libraries allocate
+through it) and hands every call on to glibc, and the link wraps mimalloc's `mi_new_n` and
+`mi_free`, through which `logsquirl::vector` allocates (`--wrap`, in
+`tests/benchmarks/CMakeLists.txt`). `instruction_count.h` opens the count where Callgrind starts
+and closes it where Callgrind stops, and `heap_count.c` appends a line per benchmark to
+`<binary>/heap.tsv`. That costs no second run; the counting adds a few instructions to each
+allocation, which the instruction counts include on both sides. Allocation counts count work, as
+instruction counts do, and repeat with it, so there is no noise threshold and the table lists
+every difference; the benchmarks that wait for other threads can vary as their instruction
+counts do, since how often a thread's loop runs while it waits, and when blocks are freed, then
+depend on how the threads took turns.
+
 The comment comes from a second workflow, **Instruction Counts Comment**
-(`instruction-counts-comment.yml`), which starts when a count has completed: a pull request from a
+(`instruction-counts-comment.yml`), which starts when a CI Build run has completed: a pull request from a
 fork has a read-only token and cannot comment, and the workflow that can runs only master's code
 and reads the artifact as untrusted data.
 
@@ -468,7 +529,10 @@ Docker does it):
 .github/scripts/instruction-counts.py collect counts --json counts.json
 
 # Or one benchmark binary by hand, after building it with Valgrind's headers installed
+# (and configured with -DLOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON for its heap counts, which
+# LOGSQUIRL_BENCHMARK_HEAP_FILE then names the file of)
 LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1 QT_HASH_SEED=0 QT_QPA_PLATFORM=offscreen \
+LOGSQUIRL_BENCHMARK_HEAP_FILE="$PWD/counts/heap.tsv" \
 LOGSQUIRL_BENCHMARK_LOG_FILE_MB=4 LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB=4 \
   valgrind --tool=callgrind --instr-atstart=no --trace-children=yes \
     --main-stacksize=67108864 --fair-sched=yes --callgrind-out-file=counts/callgrind.out.%p \
@@ -901,8 +965,9 @@ before anything is downloaded, because its signing job could not enter the
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
-| `instruction-counts.yml` | push/PR to master (the files CI Build builds for) | Count the instructions of every Catch2 benchmark under Callgrind: before and after a pull request, reported in the job summary and the artifact; a push to master keeps its counts for the pull requests based on it (see *Instruction counts*) |
-| `instruction-counts-comment.yml` | `workflow_run` of Instruction Counts | Post the report as one pull request comment, updated on every run, with master's code only |
+| `instruction-counts.yml` | called by CI Build for a push/PR to master it builds | Count the instructions of every Catch2 benchmark under Callgrind, with its allocations and peak heap: before and after a pull request, reported in the job summary and the artifact, and judged by CI Build's gate; a push to master keeps its counts for the pull requests based on it (see *Instruction counts*) |
+| `instruction-counts-comment.yml` | `workflow_run` of CI Build | Post the report and the gate's verdict as one pull request comment, updated on every run, with master's code only |
+| `instruction-counts-label.yml` | `perf-accepted` added to or removed from a PR | Re-run CI Build's instruction counts gate and update the comment (see *Instruction counts*) |
 | `performance.yml` | weekly schedule (Mondays 03:41 UTC), dispatch | Measure master's e2e performance suite in an optimized build, compare it with the last runs and record it on the `perf-data` branch (see *Weekly performance*) |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 

@@ -34,6 +34,12 @@
 // where it would stop it. The setup of a BENCHMARK_ADVANCED (everything outside
 // meter.measure) is not counted, just as Catch2 does not time it.
 //
+// In a build with LOGSQUIRL_BENCHMARK_HEAP_COUNTS (heap_count.h, #673), the
+// same run also counts the allocations and the peak heap of the measured code:
+// the heap window opens right before Callgrind starts and closes right after
+// it stops, so the two count the same code, and the window's own instructions
+// are not counted.
+//
 // .github/scripts/instruction-counts.sh runs every benchmark binary that way
 // and .github/scripts/instruction-counts.py reads the dumps; BUILD.md,
 // "Instruction counts", shows how to reproduce a count by hand.
@@ -57,6 +63,10 @@
 #include <valgrind/callgrind.h>
 #define LOGSQUIRL_BENCHMARK_HAS_CALLGRIND 1
 #endif
+#endif
+
+#ifdef LOGSQUIRL_BENCHMARK_HEAP_COUNTS
+#include "heap_count.h"
 #endif
 
 namespace logsquirl_benchmark {
@@ -85,6 +95,9 @@ public:
         // added up to 30 % to a small benchmark in some runs (#671). Uncounted,
         // they get the time to fall asleep first.
         std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
+#ifdef LOGSQUIRL_BENCHMARK_HEAP_COUNTS
+        logsquirl_benchmark_heap_start();
+#endif
 #ifdef LOGSQUIRL_BENCHMARK_HAS_CALLGRIND
         CALLGRIND_START_INSTRUMENTATION;
         CALLGRIND_ZERO_STATS;
@@ -96,6 +109,9 @@ public:
 #ifdef LOGSQUIRL_BENCHMARK_HAS_CALLGRIND
         CALLGRIND_DUMP_STATS_AT( label_.c_str() );
         CALLGRIND_STOP_INSTRUMENTATION;
+#endif
+#ifdef LOGSQUIRL_BENCHMARK_HEAP_COUNTS
+        logsquirl_benchmark_heap_finish( label_.c_str() );
 #endif
     }
 

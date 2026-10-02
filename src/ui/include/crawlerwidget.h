@@ -326,6 +326,11 @@ Q_SIGNALS:
     // Sent up when the current filtered view has been changed
     void filteredViewChanged();
 
+    // The current Search progressed, completed or failed, as the Search Line
+    // and the views were just told: for the benchmark mode, which times a
+    // Search (#668). Nothing in the application listens.
+    void searchProgressed( const SearchSession::State& state );
+
     // A short note for the status bar.
     void statusMessage( QString message );
 
