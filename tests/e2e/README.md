@@ -46,8 +46,17 @@ the repository root.
 
 Performance tests compare measured times against `baseline.json`. The "Safari Rule"
 applies: **LogSquirl must never get slower.** A 5% tolerance is allowed, and a benchmark must
-also be more than 1 ms slower (`_meta.min_delta_seconds`): a grep case on 1 MB takes about a
-millisecond, and 5 % of that is the scheduler.
+also be slower by more than its absolute margin: a grep case on 1 MB takes about a
+millisecond, and 5 % of that is the scheduler. The margin scales with the benchmark (#705,
+ADR 0018): half its baseline median, at most 1 ms (`_meta.min_delta_seconds`), at least 1 µs,
+or three interquartile ranges of its baseline runs when that is more. So a read of 0.1 µs
+that takes 60 µs fails, which a margin of 1 ms hid. A `min_delta_seconds` beside a benchmark's
+entry sets its own margin, and `--update-baseline` keeps it. The rule is
+`.github/scripts/perf_margin.py`, shared with the Performance workflow.
+
+How fast LogSquirl must be, not only that it is not slower, is the Budgets of ADR 0018 in
+`budgets.json`: one per Benchmark Scenario and Log File size, on the CI runners, checked with
+`.github/scripts/perf-budgets.py check --budgets budgets.json --e2e benchmark_report.json`.
 
 ### What the numbers are
 
@@ -149,8 +158,9 @@ pytest -v -m performance --bench-runs=21 --bench-warmup=3 --bench-report=markdow
 ### Statistical Methodology
 
 - **Outlier filtering:** IQR × 1.5 — runs outside [Q1 − 1.5×IQR, Q3 + 1.5×IQR] are discarded
-- **Regression detection:** Median must exceed baseline + tolerance (5%) AND Welch's t-test
-  must confirm statistical significance (p < 0.05). Both conditions are required.
+- **Regression detection:** Median must exceed baseline + tolerance (5%) and the absolute
+  margin above, AND Welch's t-test must confirm statistical significance (p < 0.05). Both
+  conditions are required.
 - **Stability monitoring:** Coefficient of variation (CV%) is computed for each benchmark.
   CV > 15% triggers a warning that the result may be unreliable.
 

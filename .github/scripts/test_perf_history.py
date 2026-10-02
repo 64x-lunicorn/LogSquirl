@@ -81,6 +81,47 @@ def test_a_tiny_benchmark_needs_the_absolute_margin_too():
     assert only(rows).status == "regression"
 
 
+def test_a_read_of_microseconds_is_not_inside_the_absolute_margin():
+    # #705: getNbLine's p50 went from 0.1 µs to 60 µs, getExpandedLines' p99
+    # from 10 µs to 90 µs, when the index lock was held while parsing.
+    rows = ph.compare(current(read=60e-6), history([0.1e-6] * 6, name="read"))
+    assert only(rows).status == "regression"
+    rows = ph.compare(current(read=90e-6), history([10e-6] * 6, name="read"))
+    assert only(rows).status == "regression"
+
+
+def test_the_absolute_margin_is_at_most_half_the_reference():
+    # A scroll frame of 0.3 ms: +50 % passes, +60 % does not.
+    assert only(ph.compare(current(f=0.00045), history([0.0003] * 6, name="f"))).status == "ok"
+    rows = ph.compare(current(f=0.00048), history([0.0003] * 6, name="f"))
+    assert only(rows).status == "regression"
+
+
+def test_a_benchmark_that_scatters_gets_room_for_its_spread():
+    # The longest read of a 1 GB indexing: 232 µs on one runner, 515 µs on
+    # another, with an IQR of its runs of about 0.5 ms (#676).
+    runs = [entry(i + 1, {"read": 232e-6}) for i in range(6)]
+    for e in runs:
+        e["benchmarks"]["read"]["iqr_seconds"] = 529e-6
+    assert only(ph.compare(current(read=515e-6), runs)).status == "ok"
+
+
+def test_a_margin_set_for_a_benchmark_replaces_the_absolute_margin():
+    # 20 ms -> 28 ms passes on the 10 ms margin; with 1 ms set for it, it does not.
+    rows = ph.compare(current(grep=0.028), history([0.020] * 6),
+                      min_delta_overrides={"grep": 0.001})
+    assert only(rows).status == "regression"
+
+
+def test_the_entry_keeps_the_spread_of_the_runs():
+    suite_report = report({"grep": 1.0})
+    suite_report["benchmarks"]["grep"]["iqr_seconds"] = 0.01
+    stored = ph.make_entry(suite_report, commit="a" * 40, ref="refs/heads/master", run_id="1",
+                           version="26.11.0", accept=False,
+                           recorded_at=datetime(2026, 10, 5, tzinfo=timezone.utc))
+    assert stored["benchmarks"]["grep"]["iqr_seconds"] == 0.01
+
+
 def test_much_faster_is_reported_not_failed():
     rows = ph.compare(current(grep=0.5), history([1.0] * 6))
     assert only(rows).status == "faster"
@@ -259,3 +300,12 @@ def test_the_entry_filename_sorts_by_time():
                       version="", accept=False,
                       recorded_at=datetime(2026, 10, 5, 4, 23, tzinfo=timezone.utc))
     assert ph.entry_filename(e) == "20261005T042300Z-bbbbbbbbbbbb-123-4.json"
+
+
+def test_the_table_tells_a_read_of_microseconds_apart():
+    # Four decimals of a second would show 0.1 µs and 60 µs both as 0.0000 s.
+    rows = ph.compare(current(read=60e-6), history([0.1e-6] * 6, name="read"))
+    table = ph.markdown(rows)
+    assert "60.0 µs" in table
+    assert "0.1 µs" in table
+    assert any("60.0 µs" in a for a in ph.annotations(rows))

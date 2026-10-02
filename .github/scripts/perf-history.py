@@ -9,10 +9,14 @@ WINDOW recorded runs instead: the reference moves with the runners, and one
 slow or fast week does not move the median.
 
 A benchmark is a regression when its median this run is more than
-THRESHOLD_PERCENT slower than that reference and also more than MIN_DELTA_SECONDS
-slower (so a benchmark of a few milliseconds does not turn red over a
-scheduling hiccup). Until WINDOW earlier runs of a benchmark exist, the run
-reports it but does not fail on it. A benchmark the previous run measured and
+THRESHOLD_PERCENT slower than that reference and also more than an absolute
+margin slower (so a benchmark of a few milliseconds does not turn red over a
+scheduling hiccup). The margin scales with the benchmark (#705, perf_margin.py,
+ADR 0018): half its reference, at most MIN_DELTA_SECONDS, at least a
+microsecond, or three times the interquartile range of its runs when that is
+more; a read of microseconds is no longer inside a margin of 10 ms. Until
+WINDOW earlier runs of a benchmark exist, the run reports it but does not fail
+on it. A benchmark the previous run measured and
 this run did not is a failure from the first run on: a benchmark that silently
 stops running would otherwise pass forever.
 
@@ -51,22 +55,36 @@ from datetime import datetime, timezone
 from pathlib import Path
 from statistics import median
 
+import perf_margin
+
 WINDOW = 6
 THRESHOLD_PERCENT = 30.0
+# The cap of the absolute margin; a benchmark below 20 ms gets half its
+# reference instead (perf_margin.py).
 MIN_DELTA_SECONDS = 0.010
 SCHEMA = 1
 
 # What a recorded benchmark keeps of the suite's report: the statistics and
 # what the benchmark times (#667), for a scroll case the frames over budget
 # (#669), for a follow case whether its chart kept up (#670) and for a
-# read-while-indexing case the parallelism of its indexing (#686), not the raw
-# runs, which the Actions artifact of the run still holds.
+# read-while-indexing case the parallelism of its indexing (#686), and the
+# interquartile range of the runs, which sets a scattering benchmark's margin
+# (#705); not the raw runs, which the Actions artifact of the run still holds.
 KEPT_FIELDS = (
     "median_seconds", "mean_seconds", "std_seconds", "cv_percent",
-    "p5_seconds", "p95_seconds", "min_seconds", "max_seconds",
+    "p5_seconds", "p95_seconds", "iqr_seconds", "min_seconds", "max_seconds",
     "filtered_count", "total_count", "throughput", "measures", "frames_over_budget",
     "chart_following", "indexing_parallelism",
 )
+
+
+def format_seconds(value: float | None) -> str:
+    """Seconds, or microseconds below a millisecond (a read takes 0.1 µs, #705)."""
+    if value is None:
+        return "–"
+    if abs(value) < 0.001:
+        return f"{value * 1e6:.1f} µs"
+    return f"{value:.4f} s"
 
 
 @dataclass
@@ -105,20 +123,31 @@ def comparison_window(entries: list[dict], window: int = WINDOW) -> list[dict]:
 def compare(current: dict[str, dict], history: list[dict], *, window: int = WINDOW,
             threshold_percent: float = THRESHOLD_PERCENT,
             min_delta_seconds: float = MIN_DELTA_SECONDS,
+            min_delta_overrides: dict[str, float] | None = None,
             accept: bool = False) -> list[Row]:
-    """One row per benchmark of this run or of the latest recorded run."""
+    """One row per benchmark of this run or of the latest recorded run.
+
+    min_delta_seconds caps the absolute margin; min_delta_overrides sets it
+    for a benchmark by name (a budget entry's min_delta_seconds, ADR 0018).
+    """
     runs = comparison_window(history, window)
+    overrides = min_delta_overrides or {}
     rows = []
     for name in sorted(current):
         measured = current[name]["median_seconds"]
-        values = [e["benchmarks"][name]["median_seconds"] for e in runs
-                  if name in e.get("benchmarks", {})]
+        recorded = [e["benchmarks"][name] for e in runs if name in e.get("benchmarks", {})]
+        values = [b["median_seconds"] for b in recorded]
         if not values:
             rows.append(Row(name, "new", measured, None, 0, None, None))
             continue
         reference = median(values)
+        spreads = [b["iqr_seconds"] for b in recorded if "iqr_seconds" in b]
         delta = (measured - reference) / reference * 100 if reference > 0 else 0.0
-        limit = max(reference * (1 + threshold_percent / 100), reference + min_delta_seconds)
+        limit = perf_margin.limit_seconds(
+            reference, tolerance_percent=threshold_percent,
+            min_delta_cap_seconds=min_delta_seconds,
+            spread_seconds=median(spreads) if spreads else 0.0,
+            min_delta_seconds=overrides.get(name))
         if len(values) < window:
             status = "warming-up"
         elif measured > limit:
@@ -197,14 +226,12 @@ def markdown(rows: list[Row], *, window: int = WINDOW,
              threshold_percent: float = THRESHOLD_PERCENT,
              min_delta_seconds: float = MIN_DELTA_SECONDS,
              title: str = "Weekly performance") -> str:
-    def seconds(value: float | None) -> str:
-        return "–" if value is None else f"{value:.4f} s"
-
     lines = [
         f"## {title}",
         "",
         f"Each benchmark's median against the median of its last {window} recorded runs. "
-        f"Red above +{threshold_percent:.0f} % and +{min_delta_seconds * 1000:.0f} ms; "
+        f"Red above +{threshold_percent:.0f} % and an absolute margin of half the reference, "
+        f"at most {min_delta_seconds * 1000:.0f} ms, or 3 IQR of its runs when larger; "
         f"report only while fewer than {window} runs are recorded.",
         "",
         "| Benchmark | This run | Reference | Runs | Delta | Limit | Status |",
@@ -216,8 +243,9 @@ def markdown(rows: list[Row], *, window: int = WINDOW,
         label = _LABELS[r.status]
         if r.status == "warming-up" and r.limit is not None and r.measured > r.limit:
             label = "report only, above the limit"
-        lines.append(f"| {r.name} | {seconds(r.measured)} | {seconds(r.reference)} | {runs} "
-                     f"| {delta} | {seconds(r.limit)} | {label} |")
+        lines.append(f"| {r.name} | {format_seconds(r.measured)} "
+                     f"| {format_seconds(r.reference)} | {runs} "
+                     f"| {delta} | {format_seconds(r.limit)} | {label} |")
     lines.append("")
     return "\n".join(lines)
 
@@ -227,8 +255,9 @@ def annotations(rows: list[Row], *, window: int = WINDOW) -> list[str]:
     out = []
     for r in rows:
         if r.status == "regression":
-            out.append(f"::error::{r.name} regressed: {r.measured:.4f} s against a median of "
-                       f"{r.reference:.4f} s over the last {window} runs ({r.delta_percent:+.1f} %)")
+            out.append(f"::error::{r.name} regressed: {format_seconds(r.measured)} against a "
+                       f"median of {format_seconds(r.reference)} over the last {window} runs "
+                       f"({r.delta_percent:+.1f} %)")
         elif r.status == "missing":
             out.append(f"::error::{r.name} was measured by the previous run but not by this one")
     warming = [r.name for r in rows if r.status in ("warming-up", "new")]

@@ -5,6 +5,7 @@ Provides binary paths, test data access, subprocess runners,
 and performance baseline comparison utilities with full statistical analysis.
 """
 
+import importlib.util
 import json
 import math
 import os
@@ -400,6 +401,11 @@ def measure_events(func, warmup: int = 3, runs: int = 21) -> dict[str, dict]:
     return {name: summarize_runs(times) for name, times in durations.items()}
 
 
+# A read while indexing takes a tenth of a microsecond: six decimals of a
+# second recorded it as 0 (#705). The application's clock counts nanoseconds.
+NANOSECOND_DIGITS = 9
+
+
 def summarize_runs(times: list[float]) -> dict:
     """
     The statistics of a benchmark's measured runs, in seconds.
@@ -436,16 +442,16 @@ def summarize_runs(times: list[float]) -> dict:
     p95_idx = min(fn - 1, int(fn * 0.95))
 
     return {
-        "median_seconds": round(f_median, 6),
-        "mean_seconds": round(f_mean, 6),
-        "std_seconds": round(f_std, 6),
+        "median_seconds": round(f_median, NANOSECOND_DIGITS),
+        "mean_seconds": round(f_mean, NANOSECOND_DIGITS),
+        "std_seconds": round(f_std, NANOSECOND_DIGITS),
         "cv_percent": round(f_cv, 2),
-        "p5_seconds": round(f_sorted[p5_idx], 6),
-        "p95_seconds": round(f_sorted[p95_idx], 6),
-        "iqr_seconds": round(iqr, 6),
-        "min_seconds": round(f_sorted[0], 6),
-        "max_seconds": round(f_sorted[-1], 6),
-        "runs": [round(t, 6) for t in times],
+        "p5_seconds": round(f_sorted[p5_idx], NANOSECOND_DIGITS),
+        "p95_seconds": round(f_sorted[p95_idx], NANOSECOND_DIGITS),
+        "iqr_seconds": round(iqr, NANOSECOND_DIGITS),
+        "min_seconds": round(f_sorted[0], NANOSECOND_DIGITS),
+        "max_seconds": round(f_sorted[-1], NANOSECOND_DIGITS),
+        "runs": [round(t, NANOSECOND_DIGITS) for t in times],
         "filtered_count": len(filtered),
         "total_count": n,
     }
@@ -605,19 +611,51 @@ def _betacf(a: float, b: float, x: float) -> float:
     return h
 
 
-# A benchmark is slower only by more than this as well as by more than the
-# tolerance: with the startup no longer in it (#667), a grep case on 1 MB takes
-# about a millisecond, and 5 % of that is the scheduler, not LogSquirl. The
-# baseline's _meta.min_delta_seconds overrides it.
+# The rule is the Performance workflow's too: one module beside its scripts
+# (#705, ADR 0018).
+_PERF_MARGIN_SPEC = importlib.util.spec_from_file_location(
+    "perf_margin",
+    Path(__file__).resolve().parents[2] / ".github" / "scripts" / "perf_margin.py",
+)
+perf_margin = importlib.util.module_from_spec(_PERF_MARGIN_SPEC)
+_PERF_MARGIN_SPEC.loader.exec_module(perf_margin)
+
+# A benchmark is slower only by more than an absolute margin as well as by more
+# than the tolerance: with the startup no longer in it (#667), a grep case on
+# 1 MB takes about a millisecond, and 5 % of that is the scheduler, not
+# LogSquirl. The margin is half the benchmark's baseline, at most this, so a
+# read of microseconds is not inside it (#705); the baseline's
+# _meta.min_delta_seconds changes the cap, a min_delta_seconds beside a
+# benchmark's entry sets that benchmark's margin.
 MIN_DELTA_SECONDS = 0.001
 
 
-def max_allowed_seconds(baseline_median: float, baseline: dict) -> float:
-    """The slowest median that still passes against a baseline median."""
+def max_allowed_seconds(entry: dict, baseline: dict) -> float:
+    """The slowest median that still passes against a benchmark's baseline entry.
+
+    perf_margin.limit_seconds(): the tolerance, the absolute margin, or three
+    times the interquartile range of the baseline's runs, whichever is largest.
+    """
     meta = baseline.get("_meta", {})
-    tolerance = meta.get("tolerance_percent", 5) / 100
-    min_delta = meta.get("min_delta_seconds", MIN_DELTA_SECONDS)
-    return max(baseline_median * (1 + tolerance), baseline_median + min_delta)
+    return perf_margin.limit_seconds(
+        entry["median_seconds"],
+        tolerance_percent=meta.get("tolerance_percent", 5),
+        min_delta_cap_seconds=meta.get("min_delta_seconds", MIN_DELTA_SECONDS),
+        spread_seconds=entry.get("iqr_seconds", 0.0),
+        min_delta_seconds=entry.get("min_delta_seconds"),
+    )
+
+
+def new_baseline_entry(old: dict | None, measured: dict) -> dict:
+    """A benchmark's baseline entry after --update-baseline.
+
+    The measured statistics replace the old ones; a min_delta_seconds set for
+    the benchmark by hand stays (#705).
+    """
+    entry = dict(measured)
+    if old and "min_delta_seconds" in old:
+        entry["min_delta_seconds"] = old["min_delta_seconds"]
+    return entry
 
 
 def assert_performance(benchmark_name: str, measured: dict, baseline: dict):
@@ -626,7 +664,8 @@ def assert_performance(benchmark_name: str, measured: dict, baseline: dict):
 
     Uses two criteria:
     1. Median must not exceed baseline median + tolerance, and must exceed it
-       by more than MIN_DELTA_SECONDS as well (max_allowed_seconds())
+       by more than the benchmark's absolute margin and three IQRs of its
+       baseline runs as well (max_allowed_seconds())
     2. If baseline has raw runs, Welch's t-test must show p < 0.05 for the
        regression to be statistically significant (both conditions required)
 
@@ -647,7 +686,7 @@ def assert_performance(benchmark_name: str, measured: dict, baseline: dict):
         )
 
     tolerance = baseline.get("_meta", {}).get("tolerance_percent", 5) / 100
-    max_allowed = max_allowed_seconds(entry["median_seconds"], baseline)
+    max_allowed = max_allowed_seconds(entry, baseline)
     measured_median = measured["median_seconds"]
 
     # Stability warning
@@ -852,7 +891,7 @@ def _generate_markdown_report(
         if bl_med and bl_med > 0:
             delta_pct = ((med - bl_med) / bl_med) * 100
             delta_str = f"{delta_pct:+.1f}%"
-            status = "PASS" if med <= max_allowed_seconds(bl_med, baseline) else "FAIL"
+            status = "PASS" if med <= max_allowed_seconds(bl, baseline) else "FAIL"
         else:
             delta_str = "NEW"
             status = "NOT COMPARED"

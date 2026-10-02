@@ -172,23 +172,68 @@ def test_no_indexing_parallelism_where_the_cpu_time_is_unknown():
     assert conftest.summarize_indexing_parallelism([]) is None
 
 
-def _baseline(median_seconds: float, **meta) -> dict:
-    return {"_meta": {"tolerance_percent": 5, **meta},
-            "benchmarks": {"case": {"median_seconds": median_seconds}}}
+def _baseline(median_seconds: float, *, iqr_seconds: float | None = None,
+              min_delta_seconds: float | None = None, **meta) -> dict:
+    entry = {"median_seconds": median_seconds}
+    if iqr_seconds is not None:
+        entry["iqr_seconds"] = iqr_seconds
+    if min_delta_seconds is not None:
+        entry["min_delta_seconds"] = min_delta_seconds
+    return {"_meta": {"tolerance_percent": 5, **meta}, "benchmarks": {"case": entry}}
+
+
+def _limit(baseline: dict) -> float:
+    return conftest.max_allowed_seconds(baseline["benchmarks"]["case"], baseline)
 
 
 def test_the_limit_is_the_tolerance_above_the_baseline():
-    assert conftest.max_allowed_seconds(1.0, _baseline(1.0)) == pytest.approx(1.05)
+    assert _limit(_baseline(1.0)) == pytest.approx(1.05)
 
 
 def test_a_benchmark_of_milliseconds_has_an_absolute_margin_too():
     # 5 % of 2 ms is a scheduling hiccup, not a regression.
-    assert conftest.max_allowed_seconds(0.002, _baseline(0.002)) == pytest.approx(
-        0.002 + conftest.MIN_DELTA_SECONDS
-    )
-    assert conftest.max_allowed_seconds(
-        0.002, _baseline(0.002, min_delta_seconds=0.0)
-    ) == pytest.approx(0.0021)
+    assert _limit(_baseline(0.002)) == pytest.approx(0.002 + conftest.MIN_DELTA_SECONDS)
+    assert _limit(_baseline(0.002, min_delta_seconds=0.0)) == pytest.approx(0.0021)
+
+
+def test_a_read_of_microseconds_is_not_inside_the_absolute_margin():
+    # #705: with the index lock held while parsing, getNbLine's p50 went from
+    # 0.1 µs to 60 µs and getExpandedLines' p99 from 10 µs to 90 µs.
+    assert _limit(_baseline(0.1e-6)) < 60e-6
+    assert _limit(_baseline(10e-6, iqr_seconds=3e-6)) < 90e-6
+
+
+def test_the_absolute_margin_is_at_most_half_the_baseline():
+    # A scroll frame of 0.3 ms may not take 1 ms more unnoticed.
+    assert _limit(_baseline(0.0003)) == pytest.approx(0.00045)
+
+
+def test_a_benchmark_that_scatters_gets_room_for_its_spread():
+    assert _limit(_baseline(0.003, iqr_seconds=0.001)) == pytest.approx(0.006)
+
+
+def test_the_meta_margin_caps_the_absolute_margin():
+    # _meta.min_delta_seconds caps it as MIN_DELTA_SECONDS does: 5 ms of 20 ms.
+    baseline = _baseline(0.02)
+    baseline["_meta"]["min_delta_seconds"] = 0.005
+    assert _limit(baseline) == pytest.approx(0.025)
+
+
+def test_a_microsecond_regression_beyond_the_margins_fails():
+    measured = summarize_runs([60e-6 + n * 1e-8 for n in range(21)])
+    entry = _baseline(0.1e-6)
+    entry["benchmarks"]["case"]["runs"] = [0.1e-6 + n * 1e-9 for n in range(21)]
+
+    with pytest.raises(AssertionError, match="regression"):
+        conftest.assert_performance("case", measured, entry)
+
+
+def test_the_runs_keep_a_tenth_of_a_microsecond():
+    # Six decimals of a second turned a read of 0.1 µs into 0 (#705).
+    result = summarize_runs([0.1e-6, 0.12e-6, 0.11e-6])
+
+    assert result["median_seconds"] == pytest.approx(0.11e-6)
+    assert result["runs"] == pytest.approx([0.1e-6, 0.11e-6, 0.12e-6])
 
 
 def test_a_slower_benchmark_within_the_absolute_margin_passes():
@@ -224,3 +269,15 @@ def test_the_reports_name_the_benchmarks_this_run_did_not_measure(tmp_path, monk
     report = json.loads((tmp_path / "benchmark_report.json").read_text(encoding="utf-8"))
     assert report["not_measured"] == ["grep_log_1gb_simple"]
     assert list(report["benchmarks"]) == ["grep_1mb_simple"]
+
+
+def test_a_new_baseline_keeps_the_margin_set_for_the_benchmark():
+    # --update-baseline replaces the statistics, not the judgement beside them.
+    old = {"median_seconds": 0.002, "iqr_seconds": 0.0001, "min_delta_seconds": 0.0005}
+    measured = summarize_runs([0.001, 0.001, 0.001])
+
+    entry = conftest.new_baseline_entry(old, measured)
+
+    assert entry["median_seconds"] == 0.001
+    assert entry["min_delta_seconds"] == 0.0005
+    assert "min_delta_seconds" not in conftest.new_baseline_entry(None, measured)

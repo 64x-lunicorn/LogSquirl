@@ -317,8 +317,11 @@ recorded runs** of master (`.github/scripts/perf-history.py`), not with a fixed 
 runners change from week to week, and the reference changes with them, while one odd week
 does not move a median of six.
 
-- **Red** when a benchmark is **more than 30 % and more than 10 ms slower** than that median,
-  or when a benchmark the previous run measured is missing.
+- **Red** when a benchmark is **more than 30 % slower** than that median **and more than its
+  absolute margin**: half the median, at most 10 ms, at least 1 µs, or three interquartile
+  ranges of its runs when that is more, or a `min_delta_seconds` set for the benchmark (#705,
+  ADR 0018; `.github/scripts/perf_margin.py`). A read of microseconds is not inside a margin
+  of 10 ms. Also red when a benchmark the previous run measured is missing.
 - **Report only** while fewer than 6 runs of a benchmark are recorded (the first six weeks,
   and after a new level is accepted); the job summary shows the table either way.
 - A run that is red is still recorded. If the slowdown stays, the median catches up after

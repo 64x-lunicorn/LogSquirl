@@ -62,6 +62,7 @@ from conftest import (
     load_baseline,
     measure_events,
     measure_execution,
+    new_baseline_entry,
     save_baseline,
     summarize_chart_following,
     summarize_frames_over_budget,
@@ -859,7 +860,7 @@ def update_baseline_on_finish(request, collected_results, baseline, bench_config
         bl["_meta"]["system"] = system_info
 
         for name, result in collected_results.items():
-            bl["benchmarks"][name] = result
+            bl["benchmarks"][name] = new_baseline_entry(bl["benchmarks"].get(name), result)
 
         from datetime import date
         bl["_meta"]["updated"] = date.today().isoformat()
