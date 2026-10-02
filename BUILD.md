@@ -382,6 +382,15 @@ benchmark median, per ratio (`ratio: <benchmark>`) and per count, for the trend 
 The ratio column is the one to read across CPU models; it steps when a new release becomes the
 reference.
 
+**The trend is on the website**, on the [Performance](https://logsquirl.lunicorn-lab.de/performance/) page
+(#678): one chart per benchmark, grouped by Benchmark Scenario, for the last 120 days of `history/`, with the
+releases marked and each Budget drawn as a line; wall-clock with one line per CPU model, instruction counts
+per benchmark binary. The website build draws it as SVG from the checkout of the branch that
+`LOGSQUIRL_PERF_DATA` names (`website/src/perf-trend.mjs`); without it the page says it has no runs. After
+recording a run of master, the *website* job dispatches **Deploy Website** with `performance_trend`, which
+rebuilds the last published release's site with the new run (*Release pages on the website*). To see it
+locally, with the worktree below: `cd website && LOGSQUIRL_PERF_DATA=/tmp/perf-data npm run dev`.
+
 **The spread within one CPU model** is what #675 re-decides a dedicated benchmark runner on (one
 pays off if same-model medians vary by more than 3 %):
 
@@ -912,6 +921,10 @@ the next release (a wrong download link, legal text), and a release whose deploy
 leaves the site on the previous release until someone dispatches it. Nothing retries that on its own, and the
 dispatch must be on `master`, because the `website` environment admits no other branch.
 
+The nightly **Performance** run dispatches it as well, with `performance_trend` (#678): that deploy builds the
+newest published release's tag instead of master, with the newest runs of the `perf-data` branch on its
+Performance page, so the trend is current every morning and no unreleased website change goes live with it.
+
 Manual releases, e.g. to re-run a release, are also supported via
 `workflow_dispatch`: dispatch it from the tag (*Use workflow from*, or
 `gh workflow run ci-release.yml --ref v26.04.0 -f tag=v26.04.0`) with that tag
@@ -1026,7 +1039,7 @@ before anything is downloaded, because its signing job could not enter the
 |----------|---------|---------|
 | `ci-build.yml` | push/PR to master | Build + test all platforms, check the update feed; on a pull request also check a release preparation and build the website with its link check |
 | `changelog.yml` | PR to master (also on label changes) | Require a CHANGELOG entry under `# Unreleased`, or the `no-changelog` label |
-| `deploy-website.yml` | dispatch only: by CI Release after a release is published, or by hand from the Actions tab | Build the website without the pages of unpublished releases and upload it |
+| `deploy-website.yml` | dispatch only: by CI Release after a release is published, by the nightly Performance run (`performance_trend`), or by hand from the Actions tab | Build the website without the pages of unpublished releases, with the performance trend of the `perf-data` branch, and upload it; `performance_trend` rebuilds the last published release's site |
 | `ci-release.yml` | tag push `v*` | Sign and publish the CI Build packages of the tagged commit as a GitHub Release |
 | `publish-packages.yml` | called by CI Release after a stable release; dispatch from a release tag | Build the signed APT and DNF repositories from the last three stable releases and deploy them with GitHub Pages |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |

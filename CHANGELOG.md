@@ -132,6 +132,18 @@
   them. Search, QuickFind, selection and copy work as under *Hide*, and the
   Table View shows no ANSI colors. A ticked checkbox from an earlier version
   opens as *Hide*. (#573)
+- **The performance trend is on the website**: the new *Performance* page
+  shows each Benchmark Scenario's benchmarks night by night from the
+  `perf-data` branch, the wall-clock medians with one line per runner CPU
+  model and the instruction counts per benchmark binary, for the last 120
+  days. Each Budget of ADR 0018 is drawn as a dashed line and each release is
+  marked; hovering a point shows its date, version, commit and runner. The
+  charts are SVG drawn when the site is built, with nothing loaded in the
+  browser. After each nightly run of master, the Performance workflow
+  dispatches Deploy Website, which rebuilds the last published release's site
+  with the new run, so no unreleased website change goes live with it.
+  Without the branch the page says it has no runs and the site still builds.
+  BUILD.md and the README link to it. (#678)
 
 ## Bug fixes
 
