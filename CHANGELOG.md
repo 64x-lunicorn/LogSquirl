@@ -301,6 +301,14 @@
   it for every timer event it receives, and the ThreadSanitizer job reported
   the race whenever a window was built while polling ran. (#698)
 
+- **Indexing a Log File that starts with ASCII reads its bytes once**: while
+  its Encoding is still taken for UTF-8 from ASCII alone (#657), the search
+  for line feeds and tabs also sees whether a block goes beyond ASCII, and
+  only a block that does is read again, up to its first byte beyond ASCII.
+  Before, every block was read a second time, which cost indexing up to
+  4.5 % more instructions. The search itself loops over whole 16-byte chunks
+  more tightly. (#701)
+
 # v26.10.0 (2026-09-29)
 
 The stable release of 26.10. It contains everything from

@@ -80,6 +80,7 @@ void parseBlock( IndexingBlock& block )
     block.maxLength = 0;
     block.lastLineStart = 0;
     block.lastLineWidening = 0;
+    block.firstBeyondAscii.reset();
 
     const auto& encoding = block.encoding;
     const auto beforeCr = encoding.getBeforeCrOffset();
@@ -116,6 +117,13 @@ void parseBlock( IndexingBlock& block )
 
     block.lastLineStart = lineStart;
     block.lastLineWidening = widening;
+
+    // Only a block that has a byte beyond ASCII is read again, up to the
+    // first one.
+    if ( block.findBeyondAscii && scanner.sawByteBeyondAscii() ) {
+        block.firstBeyondAscii = static_cast<std::int64_t>( EncodingDetector::firstByteBeyondAscii(
+            block.bytes(), static_cast<std::size_t>( block.size ) ) );
+    }
 }
 
 std::optional<std::int64_t> stitchBlock( const IndexingBlock& block, OpenLogLine& line )

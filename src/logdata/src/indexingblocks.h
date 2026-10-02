@@ -59,7 +59,9 @@ inline constexpr int MaxDelimiterNeighbours = 3;
 
 // Finds the line feed and tab bytes of a range of bytes, both in one pass,
 // 16 bytes at a time: with SSE2 or NEON, the baseline of every x86-64 and
-// arm64 target, and byte by byte on any other.
+// arm64 target, and byte by byte on any other. The same pass also sees
+// whether any of the bytes is beyond ASCII, so a Log File whose encoding
+// guess is provisional (#657) has its bytes read only once (#701).
 class LineFeedAndTabScanner {
 public:
     LineFeedAndTabScanner( const char* bytes, std::size_t size, std::size_t from = 0 )
@@ -73,16 +75,28 @@ public:
     // once there is none left.
     std::size_t next()
     {
-        while ( hits_ == 0 ) {
-            if ( nextChunk_ >= size_ ) {
-                return size_;
-            }
-            chunk_ = nextChunk_;
-            hits_ = hitsInChunk();
+        if ( hits_ == 0 && !findChunkWithHits() ) {
+            return size_;
         }
         const auto bit = static_cast<std::size_t>( std::countr_zero( hits_ ) );
         hits_ &= hits_ - 1;
         return chunk_ + bit / BitsPerByte;
+    }
+
+    // Whether any byte of the range, from where the scan started, is 0x80 or
+    // more: known once next() has returned the size of the range.
+    bool sawByteBeyondAscii() const
+    {
+        if ( ( tailBytes_ & 0x80U ) != 0 ) {
+            return true;
+        }
+#if defined( LOGSQUIRL_INDEXING_SCAN_SSE2 )
+        return _mm_movemask_epi8( chunkBytes_ ) != 0;
+#elif defined( LOGSQUIRL_INDEXING_SCAN_NEON )
+        return vmaxvq_u8( chunkBytes_ ) >= 0x80U;
+#else
+        return ( chunkBytes_ & 0x80U ) != 0;
+#endif
     }
 
 private:
@@ -95,28 +109,50 @@ private:
     static constexpr std::size_t BitsPerByte = 1;
 #endif
 
-    std::uint64_t hitsInChunk()
+    // Moves on to the next chunk with a line feed or tab in it. A tight loop
+    // over the whole chunks, where most of the bytes are; the bytes of the
+    // range after the last of them come last, one by one.
+    bool findChunkWithHits()
     {
-        const auto* chunk = bytes_ + chunk_;
-        if ( size_ - chunk_ < ChunkSize ) {
-            nextChunk_ = size_;
-            std::uint64_t hits = 0;
-            for ( std::size_t i = 0; i < size_ - chunk_; ++i ) {
-                if ( chunk[ i ] == '\n' || chunk[ i ] == '\t' ) {
-                    hits |= std::uint64_t{ 1 } << ( i * BitsPerByte );
+        if ( size_ >= ChunkSize ) {
+            const auto lastChunk = size_ - ChunkSize;
+            for ( ; nextChunk_ <= lastChunk; nextChunk_ += ChunkSize ) {
+                hits_ = hitsInChunk( bytes_ + nextChunk_ );
+                if ( hits_ != 0 ) {
+                    chunk_ = nextChunk_;
+                    nextChunk_ += ChunkSize;
+                    return true;
                 }
             }
-            return hits;
         }
-        nextChunk_ = chunk_ + ChunkSize;
+        if ( nextChunk_ >= size_ ) {
+            return false;
+        }
+        chunk_ = nextChunk_;
+        nextChunk_ = size_;
+        for ( std::size_t i = 0; i < size_ - chunk_; ++i ) {
+            const auto byte = bytes_[ chunk_ + i ];
+            tailBytes_ |= static_cast<unsigned char>( byte );
+            if ( byte == '\n' || byte == '\t' ) {
+                hits_ |= std::uint64_t{ 1 } << ( i * BitsPerByte );
+            }
+        }
+        return hits_ != 0;
+    }
 
+    // The line feeds and tabs of a whole chunk, its bytes OR-ed into those
+    // seen before.
+    std::uint64_t hitsInChunk( const char* chunk )
+    {
 #if defined( LOGSQUIRL_INDEXING_SCAN_SSE2 )
         const auto bytes = _mm_loadu_si128( reinterpret_cast<const __m128i*>( chunk ) );
+        chunkBytes_ = _mm_or_si128( chunkBytes_, bytes );
         const auto matches = _mm_or_si128( _mm_cmpeq_epi8( bytes, _mm_set1_epi8( '\n' ) ),
                                            _mm_cmpeq_epi8( bytes, _mm_set1_epi8( '\t' ) ) );
         return static_cast<std::uint32_t>( _mm_movemask_epi8( matches ) );
 #elif defined( LOGSQUIRL_INDEXING_SCAN_NEON )
         const auto bytes = vld1q_u8( reinterpret_cast<const std::uint8_t*>( chunk ) );
+        chunkBytes_ = vorrq_u8( chunkBytes_, bytes );
         const auto matches = vorrq_u8( vceqq_u8( bytes, vdupq_n_u8( '\n' ) ),
                                        vceqq_u8( bytes, vdupq_n_u8( '\t' ) ) );
         const auto nibbles = vget_lane_u64(
@@ -126,6 +162,7 @@ private:
 #else
         std::uint64_t hits = 0;
         for ( std::size_t i = 0; i < ChunkSize; ++i ) {
+            chunkBytes_ |= static_cast<unsigned char>( chunk[ i ] );
             if ( chunk[ i ] == '\n' || chunk[ i ] == '\t' ) {
                 hits |= std::uint64_t{ 1 } << i;
             }
@@ -139,6 +176,17 @@ private:
     std::size_t nextChunk_;
     std::size_t chunk_ = 0;
     std::uint64_t hits_ = 0;
+    // The bytes of the whole chunks scanned so far OR-ed together, and so are
+    // those after the last whole chunk: a byte beyond ASCII among them leaves
+    // its high bit set.
+#if defined( LOGSQUIRL_INDEXING_SCAN_SSE2 )
+    __m128i chunkBytes_ = _mm_setzero_si128();
+#elif defined( LOGSQUIRL_INDEXING_SCAN_NEON )
+    uint8x16_t chunkBytes_ = vdupq_n_u8( 0 );
+#else
+    unsigned char chunkBytes_ = 0;
+#endif
+    unsigned char tailBytes_ = 0;
 };
 
 // One block of a Log File as indexing reads it, and what parsing it on its own
@@ -175,7 +223,8 @@ struct IndexingBlock {
     EncodingParameters encoding;
     // Whether parsing is to look for the first byte beyond ASCII, while the
     // guessed encoding is provisional (#657), and the offset within the
-    // block where it found one.
+    // block where it found one: parsing sees whether there is one while it
+    // looks for the line feeds, and only then looks for where (#701).
     bool findBeyondAscii = false;
     std::optional<std::int64_t> firstBeyondAscii;
 

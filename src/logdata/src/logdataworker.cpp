@@ -491,7 +491,6 @@ IndexOperation::readNextBlock( QFile& file, indexing_blocks::BlockReading& readi
     }
     block->encoding = state.encodingParams;
     block->findBeyondAscii = state.scanBeyondAscii;
-    block->firstBeyondAscii.reset();
 
     LOG_DEBUG << "Read block " << block->beginning << " size " << block->size;
     return block;
@@ -770,16 +769,10 @@ bool IndexOperation::doIndex( OffsetInFile initialPosition )
 
     auto blockParser = tbb::flow::function_node<IndexingBlock*, IndexingBlock*>(
         indexingGraph, tbb::flow::unlimited, []( IndexingBlock* block ) {
+            // Blocks are parsed in parallel: parsing looks for a byte beyond
+            // ASCII too, which keeps it off the stitcher, which only ever runs
+            // one.
             indexing_blocks::parseBlock( *block );
-            // Blocks are parsed in parallel: looking for a byte beyond ASCII
-            // here keeps it off the stitcher, which only ever runs one.
-            if ( block->findBeyondAscii ) {
-                const auto size = static_cast<std::size_t>( block->size );
-                const auto first = EncodingDetector::firstByteBeyondAscii( block->bytes(), size );
-                if ( first < size ) {
-                    block->firstBeyondAscii = static_cast<std::int64_t>( first );
-                }
-            }
             return block;
         } );
 
