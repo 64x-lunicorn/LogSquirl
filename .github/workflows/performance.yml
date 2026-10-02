@@ -1,7 +1,7 @@
 name: "Performance"
 
 # Measures master every night, keeps every result and files an issue when a
-# benchmark regressed or a Budget broke (#441, #677).
+# benchmark regressed or a Budget broke (#441, #677, #685).
 #
 # Two jobs measure the same commit on GitHub-hosted runners, side by side:
 #
@@ -9,6 +9,10 @@ name: "Performance"
 #   container of the CI Build noble job) runs the whole e2e performance suite,
 #   the benchmark mode's scenarios on the 10, 50 and 100 MB files and the
 #   generated 100 MB and 1 GB Log Files (#667): wall-clock, 21 runs each.
+#   On the same runner it then runs the same suite on a reference build, the
+#   last release tag built in this commit's container (cached per release),
+#   so each benchmark has a ratio this commit / release that does not depend
+#   on the CPU model the runner has (#685; .github/scripts/perf-run-suite.sh).
 # - count: every Catch2 benchmark of tests/benchmarks runs once under
 #   Callgrind and is counted, as on a pull request (#671; the same scripts,
 #   instruction-counts-side.sh and instruction-counts.py), but with generated
@@ -20,10 +24,12 @@ name: "Performance"
 # (.github/scripts/perf-history.py and perf_changepoint.py; BUILD.md, "Nightly
 # performance", states the rule), checks each Budget of ADR 0018
 # (tests/e2e/budgets.json) and commits the run to the perf-data branch
-# (history/ and trend.csv). A change point in the instruction counts, a broken
-# Budget or a benchmark that went missing is a finding; wall-clock change
-# points are the trend and file nothing until #685 compares them within one
-# CPU model.
+# (history/ and trend.csv, with the ratios). Wall-clock medians compare only
+# with earlier runs on the same runner CPU model, and a run whose median
+# within-run CV is above 20 % is recorded but not compared (#685). A change
+# point in the instruction counts, a broken Budget or a benchmark that went
+# missing is a finding; wall-clock change points are the trend and file
+# nothing: instruction counts are the gate.
 #
 # For the findings of a run of the default branch, the issues job opens an
 # issue per scenario, labelled needs-triage and performance, that names the
@@ -33,7 +39,7 @@ name: "Performance"
 #
 # A dispatch from any other branch is compared with master's history the same
 # way but lands in trial/, which nothing compares with, so a branch can never
-# move master's reference, and files no issue: its findings are in the job
+# move master's series, and files no issue: its findings are in the job
 # summary and the run is red. That is how to check the detection with a test
 # commit (BUILD.md, "Nightly performance").
 #
@@ -42,7 +48,7 @@ name: "Performance"
 # Counts gate (#672) judges every pull request. This one watches master over
 # time.
 #
-# The build and the measurement run with a read-only token. Only the record
+# The builds and the measurement run with a read-only token. Only the record
 # job, which runs no code of the build and reads the results as JSON, may
 # push, and only to the data branch; only the issues job, which runs master's
 # scripts on the record job's findings, may write issues, and nothing else.
@@ -93,9 +99,11 @@ jobs:
             cmake_opts:
 
     runs-on: ubuntu-24.04
-    # A build of about 20 minutes with a warm sccache, longer cold, and the
-    # performance suite of about a quarter of an hour with its 1 GB cases.
-    timeout-minutes: 120
+    # A build of about 20 minutes with a warm sccache, longer cold; the
+    # reference build when it is not cached (once per release, about as long
+    # again); and the performance suite twice, about a quarter of an hour each
+    # with its 1 GB cases.
+    timeout-minutes: 180
     permissions:
       contents: read
       packages: read # pull the signed build container from GHCR
@@ -103,11 +111,36 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     env:
       RESULT_DIR: perf-result
+      # Everything else this job adds to the workspace: the binaries of both
+      # sides and the composite actions for the reference build. Untracked, so
+      # switching the checkout to the reference and back keeps it.
+      RUN_DIR: perf-run
       QT_QPA_PLATFORM: offscreen
     steps:
+      # The whole history without file contents, for the release tags.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+
+      # The reference (#685) is the last release tag (vX.Y.Z, no pre-release)
+      # in this commit's history, so it never brings in code from outside it.
+      # Its ratio is the trend across the runners' CPU models; a new release
+      # becomes the next reference, recorded with each run.
+      - name: Find the reference release
+        id: reference
+        run: |
+          set -euo pipefail
+          tag=$(git tag --merged HEAD --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
+          if [ -z "$tag" ]; then
+            echo "::warning::No release tag in this commit's history; no reference build, no ratios"
+            exit 0
+          fi
+          commit=$(git rev-parse --verify "refs/tags/$tag^{commit}")
+          echo "Reference: $tag ($commit)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -141,6 +174,100 @@ jobs:
       # build's numbers say nothing about performance.
       - uses: ./.github/actions/docker-build
 
+      # With Sentry, logsquirl starts its crash handler from its own
+      # directory, which is part of what its startup costs.
+      - name: Keep this commit's binaries
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUN_DIR/current/bin"
+          for binary in logsquirl logsquirl_grep logsquirl_crashpad_handler; do
+            cp "$LOGSQUIRL_BUILD_ROOT/output/$binary" "$RUN_DIR/current/bin/"
+          done
+
+      # -----------------------------------------------------------------
+      # The reference build (#685): the release's code in this commit's
+      # container and build options, so the ratio shows what the code
+      # changed, on whatever CPU model the runner has. Cached by tag,
+      # container and options: built once per release (or container change).
+      # -----------------------------------------------------------------
+      - name: Name the reference build
+        id: reference_key
+        if: steps.reference.outputs.tag != ''
+        env:
+          TAG: ${{ steps.reference.outputs.tag }}
+          COMMIT: ${{ steps.reference.outputs.commit }}
+        run: |
+          set -euo pipefail
+          key=$(printf '%s\n' "$TAG" "$COMMIT" "$LOGSQUIRL_CONTAINER" "$LOGSQUIRL_CMAKE_OPTS" | sha256sum | cut -d ' ' -f 1)
+          echo "key=perf-reference-$key" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the reference build
+        id: reference_cache
+        if: steps.reference.outputs.tag != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: perf-run/reference/bin
+          key: ${{ steps.reference_key.outputs.key }}
+
+      # The build of the reference runs in this commit's build_root, so it
+      # recompiles only what differs from the release and links just the two
+      # programs the suite starts. The composite actions come from this
+      # commit, not from the release, which may predate their inputs.
+      - name: Check out the reference
+        id: reference_checkout
+        if: steps.reference.outputs.tag != '' && steps.reference_cache.outputs.cache-hit != 'true'
+        env:
+          COMMIT: ${{ steps.reference.outputs.commit }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUN_DIR/tools"
+          git archive HEAD .github | tar -x -C "$RUN_DIR/tools"
+          git -c advice.detachedHead=false checkout --force --detach "$COMMIT"
+
+      # sccache-cache reuse: the cache this commit's build saved stays as it
+      # is; the release's objects never reach the noble job.
+      - name: Build the reference
+        id: reference_build
+        if: steps.reference_checkout.outcome == 'success'
+        continue-on-error: true
+        uses: ./perf-run/tools/.github/actions/docker-build
+        with:
+          targets: logsquirl logsquirl_grep
+          sccache-cache: reuse
+
+      - name: Keep the reference binaries
+        id: reference_binaries
+        if: steps.reference_build.outcome == 'success'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUN_DIR/reference/bin"
+          for binary in logsquirl logsquirl_grep logsquirl_crashpad_handler; do
+            cp "$LOGSQUIRL_BUILD_ROOT/output/$binary" "$RUN_DIR/reference/bin/"
+          done
+
+      # Like the sccache cache, only a run of the default branch saves.
+      - name: Save the reference build
+        if: >-
+          steps.reference_binaries.outcome == 'success'
+          && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: perf-run/reference/bin
+          key: ${{ steps.reference_key.outputs.key }}
+
+      - name: Return to this commit
+        if: always() && steps.reference_checkout.outcome != 'skipped'
+        run: git -c advice.detachedHead=false checkout --force --detach "$GITHUB_SHA"
+
+      - name: Warn about a missing reference build
+        if: steps.reference_build.outcome == 'failure'
+        env:
+          TAG: ${{ steps.reference.outputs.tag }}
+        run: echo "::warning::The reference $TAG did not build; this run has no ratios"
+
+      # -----------------------------------------------------------------
+      # Measure both, on this runner, one after the other
+      # -----------------------------------------------------------------
       # The 10, 50 and 100 MB files, the 100 MB and 1 GB Log Files and the
       # Log Files the scroll cases scroll through (#669) are generated, not
       # checked in.
@@ -157,23 +284,25 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RESULT_DIR"
-          # shellcheck disable=SC2016 # expanded by the shell in the container
-          docker run --rm \
-            --env QT_QPA_PLATFORM="$QT_QPA_PLATFORM" \
-            --env PYTHONDONTWRITEBYTECODE=1 \
-            --env PIP_ROOT_USER_ACTION=ignore \
-            --workdir /usr/local \
-            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c '
-              set -euo pipefail
-              python3 -m pip install --quiet --break-system-packages --require-hashes --only-binary :all: \
-                -r .github/requirements/e2e.txt
-              cd tests/e2e
-              rm -f benchmark_report.json
-              python3 -m pytest -v -rs -m performance -p no:cacheprovider --require-binaries \
-                --no-baseline-compare --binary-dir="/usr/local/$1/output" \
-                --bench-runs "$2" --bench-report json --junitxml="/usr/local/$3/junit.xml"
-              mv benchmark_report.json "/usr/local/$3/benchmark_report.json"
-            ' e2e "$LOGSQUIRL_BUILD_ROOT" "$E2E_RUNS" "$RESULT_DIR"
+          .github/scripts/perf-run-suite.sh "$RUN_DIR/current/bin" "$RESULT_DIR"
+
+      # This commit's suite on the release's binaries: a scenario the release
+      # does not have skips there, and a benchmark that fails is left out;
+      # perf-history.py takes the ratio of what both measured.
+      - name: Run the e2e performance suite on the reference
+        if: steps.reference_cache.outputs.cache-hit == 'true' || steps.reference_binaries.outcome == 'success'
+        env:
+          E2E_RUNS: ${{ inputs.e2e_runs || 21 }}
+          TAG: ${{ steps.reference.outputs.tag }}
+          COMMIT: ${{ steps.reference.outputs.commit }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RESULT_DIR/reference"
+          echo "$TAG" > "$RESULT_DIR/reference/tag.txt"
+          echo "$COMMIT" > "$RESULT_DIR/reference/commit.txt"
+          if ! .github/scripts/perf-run-suite.sh "$RUN_DIR/reference/bin" "$RESULT_DIR/reference"; then
+            echo "::warning::Not every benchmark ran on the reference $TAG; the ratios cover the others"
+          fi
 
       # A skipped benchmark (a missing test file, a missing tool) would leave
       # a hole in the history without failing anything.
@@ -393,11 +522,20 @@ jobs:
           else
             echo "::warning::No instruction counts in this run"
           fi
+          # The ratio to the reference build (#685), when it was measured.
+          reference=()
+          if [ -f perf-result/reference/benchmark_report.json ]; then
+            reference=(--reference-report perf-result/reference/benchmark_report.json
+                       --reference-tag "$(cat perf-result/reference/tag.txt)"
+                       --reference-commit "$(cat perf-result/reference/commit.txt)")
+          else
+            echo "::warning::No reference build was measured in this run; no ratios"
+          fi
           status=0
           python3 .github/scripts/perf-history.py record \
             --report perf-result/benchmark_report.json --data-dir perf-data --dest "$dest" \
             --commit "$GITHUB_SHA" --ref "$GITHUB_REF" --run-id "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
-            --version "$VERSION" --budgets tests/e2e/budgets.json "${counts[@]}" "${accept[@]}" \
+            --version "$VERSION" --budgets tests/e2e/budgets.json "${counts[@]}" "${reference[@]}" "${accept[@]}" \
             --markdown perf-result/comparison.md --json perf-result/comparison.json || status=$?
           # 2: the input was unusable and nothing was recorded.
           if [ "$status" -ge 2 ]; then

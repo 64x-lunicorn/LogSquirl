@@ -1,5 +1,19 @@
 name: "Build in container"
 description: "Generate the build files and build the code inside the matrix container, with sccache as the compiler launcher"
+inputs:
+  targets:
+    description: "The CMake targets to build, separated by spaces"
+    required: false
+    default: ci_build
+  sccache-cache:
+    description: >-
+      restore-and-save: restore the sccache cache and, on the default branch,
+      trim and save it. reuse: an earlier build of this job left it in the
+      workspace and saved it already; neither restore, trim nor save it, so a
+      second build of other code (the Performance workflow's reference build,
+      #685) does not replace what the first one saved
+    required: false
+    default: restore-and-save
 runs:
   using: "composite"
   steps:
@@ -10,6 +24,7 @@ runs:
     # cache"); pull requests restore master's newest entry, which the Actions
     # cache lets every branch read (#219).
     - name: Restore sccache cache
+      if: inputs.sccache-cache != 'reuse'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: sccache_cache
@@ -38,10 +53,13 @@ runs:
       run: |
         docker exec logsquirl_build /bin/bash -c "cmake -B /usr/local/$LOGSQUIRL_BUILD_ROOT $LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache /usr/local && sccache --zero-stats"
 
+    # TARGETS is split into words on purpose: one target per word.
     - name: build
       shell: sh
+      env:
+        TARGETS: ${{ inputs.targets }}
       run: |
-        docker exec logsquirl_build /bin/bash -c "cmake --build /usr/local/$LOGSQUIRL_BUILD_ROOT --target ci_build"
+        docker exec logsquirl_build /bin/bash -c "cmake --build /usr/local/$LOGSQUIRL_BUILD_ROOT --target $TARGETS"
 
     - name: sccache stats
       if: always()
@@ -101,7 +119,9 @@ runs:
     # (default) server-side mode; the guard skips the trim if a future mode
     # stops touching hit files, rather than throwing the hits away (#219).
     - name: Trim sccache cache
-      if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      if: >-
+        inputs.sccache-cache != 'reuse'
+        && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       shell: sh
       run: |
         set -eu
@@ -124,7 +144,7 @@ runs:
     # (#219).
     - name: Save sccache cache
       if: >-
-        always() && steps.sccache_readable.outcome == 'success'
+        always() && steps.sccache_readable.outcome == 'success' && inputs.sccache-cache != 'reuse'
         && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:

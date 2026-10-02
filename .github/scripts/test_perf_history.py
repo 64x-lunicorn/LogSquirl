@@ -95,15 +95,6 @@ def test_one_slow_night_is_pending():
     assert only(ph.compare(runs[-1], runs[:-1])).status == "pending"
 
 
-def test_wall_clock_is_the_trend_and_files_nothing_until_685():
-    # Wall-clock moves by up to 24 % between the runners' CPU models (#675);
-    # #685 compares it within one model before it may file an issue.
-    runs = series([1.0] * 8 + [1.5, 1.5])
-    rows = ph.compare(runs[-1], runs[:-1])
-    assert ph.WALL_CLOCK_FILES_ISSUES is False
-    assert ph.findings(rows, []) == []
-
-
 def test_a_budget_may_set_the_absolute_margin_of_its_benchmark():
     # 20 ms -> 28 ms is inside the cap of 10 ms; with 1 ms set beside its
     # Budget (ADR 0018), it is not.
@@ -384,9 +375,10 @@ def test_record_writes_the_entry_and_the_trend(tmp_path):
         "benchmarks": {KEY: {"instructions": 1000, "allocations": 3, "peak_heap_bytes": 4096}},
     }
     trend = list(csv.reader(io.StringIO((tmp_path / "data" / "trend.csv").read_text())))
-    assert trend[0] == ["recorded_at", "version", "commit", "accepted", "grep",
+    assert trend[0] == ["recorded_at", "version", "commit", "accepted", "cpu",
+                        "median_cv_percent", "unusable", "reference", "grep",
                         f"instructions: {KEY}"]
-    assert trend[1][1:] == ["26.11.0", sha(1)[:12], "", "1.0", "1000"]
+    assert trend[1][1:] == ["26.11.0", sha(1)[:12], "", CPU, "2.0", "", "", "1.0", "1000"]
 
 
 def test_record_checks_the_budgets(tmp_path):
@@ -494,3 +486,294 @@ def test_a_wall_clock_benchmark_that_scatters_within_its_runs_gets_room_for_it()
     for e in runs[:-2]:
         e["benchmarks"]["read"]["iqr_seconds"] = 529e-6
     assert only(ph.compare(runs[-1], runs[:-1])).status == "ok"
+
+
+# --- #685: wall-clock within one CPU model ----------------------------------
+
+OTHER_CPU = "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz"
+
+
+def test_wall_clock_compares_only_with_runs_of_the_same_cpu_model():
+    # Medians differ by up to 24 % between CPU models, by about 1.4 % on one
+    # (#675): a run compares only with earlier runs of its own model.
+    epyc = series([1.0] * 8)
+    xeon = [entry(20 + i, {"grep": 1.25}, cpu=OTHER_CPU) for i in range(3)]
+    row = only(ph.compare(entry(30, {"grep": 1.25}, cpu=OTHER_CPU), epyc + xeon))
+    assert row.status == "warming-up"
+    assert row.history_count == 3
+    row = only(ph.compare(entry(31, {"grep": 1.0}), epyc + xeon))
+    assert row.status == "ok"
+    assert row.history_count == 8
+
+
+def test_a_run_landing_on_another_cpu_model_is_no_change_point():
+    runs = series([1.0] * 8) + [entry(9 + i, {"grep": 1.25}, cpu=OTHER_CPU) for i in range(2)]
+    row = only(ph.compare(runs[-1], runs[:-1]))
+    assert row.status == "warming-up"
+    assert ph.findings([row], []) == []
+
+
+def test_the_summary_names_the_cpu_model_and_its_earlier_runs():
+    runs = series([1.0] * 5) + [entry(10, {"grep": 1.0}, cpu=OTHER_CPU)]
+    current = entry(11, {"grep": 1.0})
+    info = ph.run_info(current, runs)
+    assert info["cpu"] == CPU
+    assert info["earlier_runs_of_cpu"] == 5
+    text = ph.markdown(ph.compare(current, runs), [], info=info)
+    assert f"`{CPU}`" in text
+    assert "5 earlier runs of this CPU model" in text
+
+
+def test_wall_clock_still_files_nothing():
+    # Instruction counts stay the gate (#671, #672); the same-model spread
+    # that would make wall-clock trustworthy enough to file is measured over
+    # eight weeks of nightly runs first (#675).
+    runs = series([1.0] * 8 + [1.5, 1.5])
+    rows = ph.compare(runs[-1], runs[:-1])
+    assert only(rows).status == "regression"
+    assert ph.findings(rows, []) == []
+
+
+# --- #685: a run that scatters too much is recorded, not compared ------------
+
+def noisy(e: dict, cv: float = 61.0) -> dict:
+    e["median_cv_percent"] = cv
+    e["usable"] = False
+    return e
+
+
+def test_the_entry_records_the_runs_median_cv_and_whether_it_is_usable():
+    calm = report({"a": 1.0, "b": 2.0, "c": 3.0})
+    assert make(calm)["median_cv_percent"] == 2.0
+    assert make(calm)["usable"] is True
+    scattered = report({"a": 1.0, "b": 2.0, "c": 3.0})
+    for name, cv in (("a", 10.0), ("b", 61.0), ("c", 94.0)):
+        scattered["benchmarks"][name]["cv_percent"] = cv
+    stored = make(scattered)
+    assert stored["median_cv_percent"] == 61.0
+    assert stored["usable"] is False
+
+
+def test_a_cv_of_exactly_the_limit_is_still_usable():
+    suite_report = report({"a": 1.0})
+    suite_report["benchmarks"]["a"]["cv_percent"] = ph.MAX_USABLE_CV_PERCENT
+    assert make(suite_report)["usable"] is True
+
+
+def test_unusable_runs_are_left_out_of_the_series():
+    runs = series([1.0] * 6) + [noisy(e) for e in series([3.0] * 3, start=7)]
+    row = only(ph.compare(entry(10, {"grep": 1.0}), runs))
+    assert row.status == "ok"
+    assert row.history_count == 6
+    assert ph.run_info(entry(10, {"grep": 1.0}), runs)["earlier_runs_of_cpu"] == 6
+
+
+def test_an_unusable_run_is_not_compared_but_its_counts_are():
+    runs = [entry(i + 1, {"grep": 1.0}, counts=counts_block({KEY: 1_000_000}))
+            for i in range(8)]
+    current = noisy(entry(9, {"grep": 5.0}, counts=counts_block({KEY: 1_100_000})))
+    rows = ph.compare(current, runs)
+    assert only(rows_of(rows, "wall-clock")).status == "unusable"
+    assert only(rows_of(rows, "instructions")).status == "regression"
+    assert [f["metric"] for f in ph.findings(rows, [])] == ["instructions"]
+
+
+def test_an_unusable_run_checks_no_wall_clock_budget():
+    data = budgets_file(budget_entry("gui_open_log_1gb_indexed", 0.30))
+    current = noisy(entry(2, {"gui_open_log_1gb_indexed": 0.90}))
+    row = only(ph.check_budgets(data, current, []))
+    assert row.status == "not-measured"
+    assert ph.findings([], [row]) == []
+
+
+def test_a_broken_budget_looks_past_unusable_runs_for_the_last_good_one():
+    data = budgets_file(budget_entry("gui_open_log_1gb_indexed", 0.30))
+    # The unusable run cannot tell, so the range spans it.
+    runs = series([0.25] * 2 + [0.40] * 3, name="gui_open_log_1gb_indexed")
+    noisy(runs[2])
+    row = only(ph.check_budgets(data, runs[-1], runs[:-1]))
+    assert row.last_good["commit"] == sha(2)
+    assert row.first_bad["commit"] == sha(4)
+
+
+def test_the_summary_flags_an_unusable_run():
+    current = noisy(entry(2, {"grep": 1.0}))
+    info = ph.run_info(current, series([1.0]))
+    text = ph.markdown(ph.compare(current, series([1.0])), [], info=info)
+    assert "unusable" in text.lower()
+    assert "61.0 %" in text
+
+
+# --- #685: the ratio to a fixed reference build on the same runner -----------
+
+def reference_report(medians: dict[str, float], cv: float = 2.0) -> dict:
+    out = report(medians)
+    for result in out["benchmarks"].values():
+        result["cv_percent"] = cv
+    return out
+
+
+def test_the_entry_records_the_ratio_to_the_reference_build():
+    stored = ph.make_entry(report({"grep": 1.2, "open": 2.0, "new": 0.5}), commit="a" * 40,
+                           ref="refs/heads/master", run_id="1", version="", accept=False,
+                           recorded_at=datetime(2026, 10, 5, tzinfo=timezone.utc),
+                           reference=reference_report({"grep": 1.0, "open": 2.5, "gone": 3.0}),
+                           reference_tag="v26.10.0", reference_commit="b" * 40)
+    assert stored["reference"]["tag"] == "v26.10.0"
+    assert stored["reference"]["commit"] == "b" * 40
+    assert stored["reference"]["usable"] is True
+    assert stored["reference"]["benchmarks"]["grep"] == {"median_seconds": 1.0, "cv_percent": 2.0}
+    # Only a benchmark both sides measured has a ratio.
+    assert stored["ratios"] == {"grep": pytest.approx(1.2), "open": pytest.approx(0.8)}
+
+
+def test_a_reference_that_scatters_too_much_is_flagged():
+    stored = ph.make_entry(report({"grep": 1.2}), commit="a" * 40, ref="r", run_id="1",
+                           version="", accept=False,
+                           recorded_at=datetime(2026, 10, 5, tzinfo=timezone.utc),
+                           reference=reference_report({"grep": 1.0}, cv=40.0),
+                           reference_tag="v26.10.0")
+    assert stored["reference"]["usable"] is False
+    assert stored["ratios"] == {"grep": pytest.approx(1.2)}
+
+
+def test_the_wall_clock_rows_carry_the_ratio():
+    current = entry(2, {"grep": 1.2, "new": 0.5})
+    current["ratios"] = {"grep": 1.2}
+    rows = {r.name: r for r in ph.compare(current, series([1.0]))}
+    assert rows["grep"].ratio == 1.2
+    assert rows["new"].ratio is None
+
+
+def test_the_summary_shows_the_reference_and_what_only_one_side_measured():
+    current = entry(2, {"grep": 1.2, "new": 0.5})
+    current["reference"] = {"tag": "v26.10.0", "commit": "b" * 40, "usable": True,
+                            "median_cv_percent": 2.0,
+                            "benchmarks": {"grep": {"median_seconds": 1.0},
+                                           "gone": {"median_seconds": 3.0}}}
+    current["ratios"] = {"grep": 1.2}
+    info = ph.run_info(current, [])
+    text = ph.markdown(ph.compare(current, []), [], info=info)
+    assert "v26.10.0" in text
+    assert "1.200" in text
+    assert "only this commit: new" in text
+    assert "only the reference: gone" in text
+
+
+def run_record_with_reference(tmp_path: Path, medians: dict[str, float],
+                              reference: dict | str | None, day: int = 1,
+                              cv: float = 2.0) -> tuple[int, dict]:
+    extra = []
+    if reference is not None:
+        path = tmp_path / f"reference-{day}.json"
+        path.write_text(reference if isinstance(reference, str)
+                        else json.dumps(reference_report(reference, cv=cv)))
+        extra = ["--reference-report", str(path), "--reference-tag", "v26.10.0",
+                 "--reference-commit", "b" * 40]
+    return run_record(tmp_path, medians, day=day, extra=extra)
+
+
+def test_record_keeps_the_reference_and_writes_ratio_columns(tmp_path):
+    status, verdict = run_record_with_reference(tmp_path, {"grep": 1.2, "new": 0.5},
+                                                {"grep": 1.0})
+    assert status == 0
+    stored = json.loads(next((tmp_path / "data" / "history").glob("*.json")).read_text())
+    assert stored["ratios"] == {"grep": pytest.approx(1.2)}
+    assert verdict["run_info"]["reference"]["tag"] == "v26.10.0"
+    trend = list(csv.DictReader(io.StringIO((tmp_path / "data" / "trend.csv").read_text())))
+    assert trend[0]["reference"] == "v26.10.0"
+    assert float(trend[0]["ratio: grep"]) == pytest.approx(1.2)
+    assert "ratio: new" not in trend[0]  # a column only for what had a reference
+    assert trend[0]["cpu"] == CPU
+    assert trend[0]["median_cv_percent"] == "2.0"
+    assert trend[0]["unusable"] == ""
+
+
+def test_trend_flags_an_unusable_run_and_an_unusable_reference(tmp_path):
+    run_record_with_reference(tmp_path, {"grep": 1.2}, {"grep": 1.0}, cv=40.0)
+    trend = list(csv.DictReader(io.StringIO((tmp_path / "data" / "trend.csv").read_text())))
+    assert trend[0]["unusable"] == "reference"
+
+
+def test_an_unreadable_reference_report_records_the_run_without_ratios(tmp_path):
+    status, verdict = run_record_with_reference(tmp_path, {"grep": 1.0}, "{not json")
+    assert status == 0
+    stored = json.loads(next((tmp_path / "data" / "history").glob("*.json")).read_text())
+    assert "ratios" not in stored
+    assert "reference report" in (tmp_path / "summary.md").read_text()
+
+
+def test_record_without_a_reference_has_no_ratio_columns(tmp_path):
+    run_record(tmp_path, {"grep": 1.0})
+    header = (tmp_path / "data" / "trend.csv").read_text().splitlines()[0]
+    assert "ratio:" not in header
+
+
+# --- #685: the spread within one CPU model, for #675 -------------------------
+
+def with_reference(e: dict, medians: dict[str, float], tag: str = "v26.10.0") -> dict:
+    e["reference"] = {"tag": tag, "usable": True,
+                      "benchmarks": {n: {"median_seconds": m} for n, m in medians.items()}}
+    e["ratios"] = {n: e["benchmarks"][n]["median_seconds"] / m
+                   for n, m in medians.items() if n in e["benchmarks"]}
+    return e
+
+
+def test_spread_is_the_cv_of_the_medians_within_each_cpu_model():
+    epyc = [with_reference(entry(i + 1, {"grep": v}), {"grep": r})
+            for i, (v, r) in enumerate([(1.0, 2.0), (1.1, 2.2), (0.9, 1.8)])]
+    xeon = [with_reference(entry(10 + i, {"grep": 1.3}, cpu=OTHER_CPU), {"grep": 2.6})
+            for i in range(2)]
+    result = ph.spread(epyc + xeon)
+    models = {m["cpu"]: m for m in result["models"]}
+    assert models[CPU]["runs"] == 3
+    assert models[CPU]["medians"]["benchmarks"]["grep"]["cv_percent"] == pytest.approx(10.0)
+    assert models[CPU]["reference"]["v26.10.0"]["median_cv_percent"] == pytest.approx(10.0)
+    assert models[CPU]["ratios"]["median_cv_percent"] == pytest.approx(0.0)
+    # A model with fewer than two runs has no spread yet; the series of all
+    # models together is the comparison #675 made.
+    assert models[OTHER_CPU]["runs"] == 2
+    assert result["all_models"]["runs"] == 5
+    assert result["all_models"]["medians"]["median_cv_percent"] > 10.0
+
+
+def test_spread_leaves_out_unusable_runs_and_unusable_references():
+    runs = [with_reference(entry(i + 1, {"grep": 1.0}), {"grep": 2.0}) for i in range(3)]
+    runs.append(noisy(with_reference(entry(5, {"grep": 9.0}), {"grep": 9.0})))
+    late = with_reference(entry(6, {"grep": 1.0}), {"grep": 7.0})
+    late["reference"]["usable"] = False
+    model = only(ph.spread(runs + [late])["models"])
+    assert model["runs"] == 4
+    assert model["medians"]["benchmarks"]["grep"]["cv_percent"] == 0.0
+    assert model["reference"]["v26.10.0"]["runs"] == 3
+
+
+def test_spread_keeps_the_reference_tags_apart():
+    runs = [with_reference(entry(1, {"grep": 1.0}), {"grep": 2.0}),
+            with_reference(entry(2, {"grep": 1.0}), {"grep": 2.0}),
+            with_reference(entry(3, {"grep": 1.0}), {"grep": 1.0}, tag="v26.11.0")]
+    model = only(ph.spread(runs)["models"])
+    assert model["reference"]["v26.10.0"]["median_cv_percent"] == 0.0
+    assert model["reference"]["v26.11.0"]["runs"] == 1
+
+
+def test_the_spread_command_writes_markdown_and_json(tmp_path):
+    for day in range(1, 4):
+        run_record_with_reference(tmp_path, {"grep": 1.0 + day / 100}, {"grep": 2.0}, day=day)
+    out_md, out_json = tmp_path / "spread.md", tmp_path / "spread.json"
+    assert ph.main(["spread", "--data-dir", str(tmp_path / "data"),
+                    "--markdown", str(out_md), "--json", str(out_json)]) == 0
+    text = out_md.read_text()
+    assert CPU in text
+    assert "#675" in text
+    data = json.loads(out_json.read_text())
+    assert only(data["models"])["runs"] == 3
+
+
+def test_the_spread_command_can_start_at_a_date(tmp_path):
+    for day in range(1, 5):
+        run_record(tmp_path, {"grep": 1.0}, day=day)
+    out_json = tmp_path / "spread.json"
+    ph.main(["spread", "--data-dir", str(tmp_path / "data"), "--since", "2026-10-03",
+             "--json", str(out_json)])
+    assert only(json.loads(out_json.read_text())["models"])["runs"] == 2

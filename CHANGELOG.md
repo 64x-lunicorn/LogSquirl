@@ -268,6 +268,19 @@
   wall-clock change points are the trend for now. A run dispatched from a
   branch files nothing and shows its findings in the job summary. (#677)
 
+- **The nightly wall-clock is compared within the runner's CPU model and
+  against the last release**: a median compares only with earlier runs on the
+  same CPU model, where medians vary by about 1.4 % instead of up to 24 %, and
+  the job summary names the model and how many runs of it came before. On the
+  same runner, the Performance workflow also builds the last release tag
+  (cached per release) and runs the same suite on it, and records each
+  benchmark's ratio to it, the trend line that does not depend on which
+  hardware a run gets; `trend.csv` has the ratio columns. A run whose median
+  within-run CV is above 20 % is recorded but not compared. `perf-history.py
+  spread` measures the spread of the medians within one CPU model, which is
+  posted on #675 after eight weeks of nightly runs to re-decide a dedicated
+  benchmark runner. (#685)
+
 - **Widgets built while the File Watcher polls do not race its poll thread**:
   the application creates Qt's gesture manager before the poll thread starts,
   instead of when the first scroll area of a window is built. That thread reads

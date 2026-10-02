@@ -305,7 +305,7 @@ skipped with the measured value, never as passed. CI does not compare with it.
 
 #### Nightly performance
 
-The **Performance** workflow (`.github/workflows/performance.yml`, #441, #677) measures master every
+The **Performance** workflow (`.github/workflows/performance.yml`, #441, #677, #685) measures master every
 night at 02:41 UTC on GitHub-hosted `ubuntu-24.04` runners, two ways, side by side:
 
 - **Wall-clock** (job *measure*): it builds master as CI ships it (RelWithDebInfo with LTO, in the
@@ -313,7 +313,13 @@ night at 02:41 UTC on GitHub-hosted `ubuntu-24.04` runners, two ways, side by si
   1 GB Log Files and runs the whole e2e performance suite (`-m performance`, 21 measured runs per
   benchmark) with `--no-baseline-compare`: every scenario of the benchmark mode. The application
   is started only through the suite's isolated instances, as in every e2e run. A benchmark that
-  is skipped fails the run.
+  is skipped fails the run. On the same runner, it then runs the same suite on a **reference
+  build**: the last release tag (`vX.Y.Z`, no pre-release) in the commit's history, built in the
+  commit's container with the same options (only `logsquirl` and `logsquirl_grep`, in the same
+  build directory, so only what differs from the release is recompiled; the binaries are cached
+  per tag, container and options, so this happens once per release). A scenario the release does
+  not have skips there. Each benchmark measured on both gets the ratio *this commit ÷ reference*,
+  which does not depend on the CPU model the runner has.
 - **Instruction counts** (job *count*): every Catch2 benchmark of `tests/benchmarks` runs once
   under Callgrind with the scripts of the pull request counts (*Instruction counts* below), but
   on generated Log Files of 32 MiB instead of 4 (`count_log_file_mb`). A count repeats to within
@@ -321,8 +327,11 @@ night at 02:41 UTC on GitHub-hosted `ubuntu-24.04` runners, two ways, side by si
   runners' CPU models.
 
 The *record* job puts each benchmark's value next to its earlier values: the runs since the
-latest accepted one, on the same CPU model for counts (glibc picks its string functions by CPU)
-and with Log Files of the same size. A **regression is a change point in that series**
+latest accepted one, on the same runner CPU model (`system.cpu` of the suite's report; for counts
+the model they were taken on, since glibc picks its string functions by CPU) and, for counts,
+with Log Files of the same size. Wall-clock medians differ by up to 24 % between CPU models and
+by about 1.4 % on one (#675), so a run that lands on a model without enough history only reports;
+the job summary names the model and how many earlier runs of it the series has. A **regression is a change point in that series**
 (`.github/scripts/perf_changepoint.py`), not one run against a threshold: a run *c* from which on
 every run up to the latest is above
 
@@ -339,10 +348,14 @@ room for its own scatter.
 | Series | Tolerance | min_delta | Lasting | Runs before it | Files an issue |
 |---|---|---|---|---|---|
 | Instruction counts | the benchmark's threshold of the *Instruction count gate* (+2 % by default) | none | 1 run | 3 | yes |
-| Wall-clock medians | 10 % | half the reference, at most 10 ms, at least 1 µs, or the `min_delta_seconds` beside the benchmark's Budget | 2 runs | 6 | no, the trend only (#685) |
+| Wall-clock medians | 10 % | half the reference, at most 10 ms, at least 1 µs, or the `min_delta_seconds` beside the benchmark's Budget | 2 runs | 6 of the same CPU model | no, the trend only |
 
 With fewer runs before it, a benchmark is reported only. Wall-clock is shown in the job summary as
-the trend; it files issues once #685 compares it only within one CPU model. Each **Budget** of ADR
+the trend and files nothing: instruction counts are the gate, and the spread within one CPU model
+is known from a single pair of runs so far. **A run whose median within-run CV is above 20 %**
+(one run in four had 61 %, #675) is recorded but flagged unusable: its wall-clock is neither
+compared nor part of a later run's series, its e2e Budgets are not checked, and the summary says
+so; a reference run above 20 % flags only the ratios. Each **Budget** of ADR
 0018 (`tests/e2e/budgets.json`, the one place they live) is checked as well
 (`perf-budgets.py`): a broken Budget names the runs since it broke. A benchmark the previous run
 measured and this one did not is a finding too, and so are counts that were not taken at all.
@@ -360,8 +373,22 @@ as well while a finding stands.
 The results live on the **`perf-data`** branch, which the workflow creates on its first run and
 only ever appends to: `history/<time>-<commit>-<run>.json` per run of master (the statistics of
 every benchmark, the instruction counts with the CPU model they were taken on, the commit, the
-version and the runner's CPU), and `trend.csv` with one row per run and one column per benchmark
-median and per count, for the trend over releases. The raw runs stay in each run's `perf-result`
+version, the runner's CPU, the run's median CV and whether it is usable, and the reference
+build's tag, statistics and ratios), and `trend.csv` with one row per run: the CPU model, the
+median CV, what is unusable (`run` or `reference`), the reference tag, then one column per
+benchmark median, per ratio (`ratio: <benchmark>`) and per count, for the trend over releases.
+The ratio column is the one to read across CPU models; it steps when a new release becomes the
+reference.
+
+**The spread within one CPU model** is what #675 re-decides a dedicated benchmark runner on (one
+pays off if same-model medians vary by more than 3 %):
+
+    git fetch origin perf-data && git worktree add /tmp/perf-data origin/perf-data
+    python3 .github/scripts/perf-history.py spread --data-dir /tmp/perf-data [--since 2026-10-03] --markdown spread.md
+
+prints, per CPU model, the CV of each benchmark's medians over the usable runs: of the reference
+build (one tag, so fixed code: the runner's own spread), of master (with its own changes) and of
+the ratio. After eight weeks of nightly runs, post its table on #675. The raw runs stay in each run's `perf-result`
 artifact, the Callgrind dumps for a week in `perf-instruction-counts-dumps`. Only the *record* job
 may push, and only to that branch. Do not delete or rewrite the branch; it is the only copy.
 

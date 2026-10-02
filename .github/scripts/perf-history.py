@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Finds the change points of a nightly performance run, checks its Budgets and records it (#441, #677).
+"""Finds the change points of a nightly performance run, checks its Budgets and records it (#441, #677, #685).
 
 The Performance workflow (.github/workflows/performance.yml) measures master
 every night on a GitHub-hosted runner, two ways:
@@ -24,9 +24,20 @@ and the commits between the two are where it came from.
 - Wall-clock (WALL_CLOCK): the change point must last two runs, above 10 %
   and the absolute margin of perf_margin.py (half the reference, at most
   10 ms, or a Budget's min_delta_seconds) and three interquartile ranges of
-  the reference runs' medians, or of the runs within them when larger. It is the trend: it shows in the summary and files no
-  issue (WALL_CLOCK_FILES_ISSUES) until #685 compares it within one CPU
-  model.
+  the reference runs' medians, or of the runs within them when larger. A
+  median compares only with earlier runs on the same runner CPU model
+  (system.cpu): medians differ by up to 24 % between models and by about
+  1.4 % on one (#675), so a model without enough history only reports. It
+  is the trend: it shows in the summary and files no issue
+  (WALL_CLOCK_FILES_ISSUES); instruction counts are the gate.
+- A run whose median within-run CV is above MAX_USABLE_CV_PERCENT (one in
+  four runs had 61 %, #675) is recorded but unusable: its wall-clock is
+  neither compared nor part of any later run's series, and its e2e Budgets
+  are not checked.
+- The reference build (#685): the workflow builds the last release tag and
+  runs the same suite on it on the same runner; the run records each
+  benchmark's ratio this run / reference, which does not depend on the CPU
+  model the run landed on. It is recorded and shown, never a finding.
 - Budgets (ADR 0018, tests/e2e/budgets.json, perf-budgets.py): a Budget this
   run breaks is a finding, with the runs since it broke.
 - A benchmark the previous run measured and this one did not is a finding.
@@ -50,10 +61,18 @@ Usage:
   perf-history.py record --report benchmark_report.json --data-dir DIR \\
       --dest history|trial --commit SHA --ref REF --run-id ID [--version V] \\
       [--instruction-counts after.json --counts-cpu CPU [--counts-log-file-mb N]] \\
+      [--reference-report reference_report.json --reference-tag TAG [--reference-commit SHA]] \\
       [--budgets tests/e2e/budgets.json] [--accept] [--markdown OUT.md] [--json OUT.json]
+  perf-history.py spread --data-dir DIR [--since YYYY-MM-DD] [--markdown OUT.md] [--json OUT.json]
 
-Exit status: 0 without findings, 1 with one (the run is recorded all the
-same), 2 on unusable input (nothing is recorded).
+`spread` computes, per runner CPU model, how much the medians of the usable
+history/ runs vary (the CV of each benchmark's medians), for the reference
+build's medians (fixed code: the runner's own spread) and for the ratios; it
+is the number #675 re-decides a dedicated benchmark runner on.
+
+Exit status of record: 0 without findings, 1 with one (the run is recorded
+all the same), 2 on unusable input (nothing is recorded). An unreadable
+reference report only leaves the ratios out.
 """
 
 from __future__ import annotations
@@ -64,6 +83,7 @@ import importlib.util
 import io
 import json
 import re
+import statistics
 import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -92,9 +112,14 @@ WALL_CLOCK = cp.Rule(window=14, min_history=6, persistence=2, tolerance_percent=
                      min_delta_cap=0.010)
 INSTRUCTIONS = cp.Rule(window=14, min_history=3, persistence=1,
                        tolerance_percent=ic.DEFAULT_THRESHOLD_PERCENT, min_delta_cap=0.0)
-# Wall-clock of shared runners moves by up to 24 % between CPU models (#675);
-# #685 compares it within one model, and may then let it file issues.
+# Wall-clock is compared within one runner CPU model (#685), but the spread
+# of one model is known from a single pair of runs (1.4 %, #675). Instruction
+# counts stay the gate; whether wall-clock may file issues is re-decided with
+# the spread `spread` measures over eight weeks of nightly runs.
 WALL_CLOCK_FILES_ISSUES = False
+# A run whose median within-run CV is above this is recorded, not compared
+# (#685): run 36156375955 had 61 %, the others 4-7 % (#675).
+MAX_USABLE_CV_PERCENT = 20.0
 SCHEMA = 1
 COMPARISON_SCHEMA = 2
 COUNTS_MISSING = "instruction counts"
@@ -160,6 +185,7 @@ class Row:
     streak: int = 0
     last_good: dict | None = None
     first_bad: dict | None = None
+    ratio: float | None = None  # this run / the reference build (#685)
 
 
 @dataclass
@@ -208,12 +234,32 @@ def run_ref(entry: dict) -> dict:
 
 
 def wall_clock_group(entry: dict) -> Any:
-    """The runs a wall-clock median compares with: all of them, for now.
+    """The runs a wall-clock median compares with: those on the same runner
+    CPU model (#685), where medians vary by about 1.4 % instead of up to 24 %."""
+    return (entry.get("system") or {}).get("cpu")
 
-    #685 returns the runner's CPU model here (entry["system"]["cpu"]), so a
-    median compares only with medians of the same model.
-    """
-    return None
+
+def usable(entry: dict) -> bool:
+    """Whether the run's wall-clock may be compared: its median within-run CV
+    is at most MAX_USABLE_CV_PERCENT. A run recorded before #685 is."""
+    return entry.get("usable", True) is not False
+
+
+def median_cv_percent(benchmarks: dict) -> float | None:
+    """The median of the benchmarks' within-run CV, the run's own scatter."""
+    values = [r["cv_percent"] for r in benchmarks.values()
+              if isinstance(r.get("cv_percent"), (int, float))]
+    return statistics.median(values) if values else None
+
+
+def _usable_cv(cv: float | None) -> bool:
+    return cv is None or cv <= MAX_USABLE_CV_PERCENT
+
+
+def wall_clock_runs(current: dict, runs: list[dict]) -> list[dict]:
+    """The earlier runs current's wall-clock compares with."""
+    group = wall_clock_group(current)
+    return [e for e in runs if usable(e) and wall_clock_group(e) == group]
 
 
 def counts_group(entry: dict) -> Any:
@@ -308,13 +354,19 @@ def compare(current: dict, history: list[dict], *, budgets: dict | None = None,
     overrides = _min_delta_overrides(budgets)
     rows = []
 
-    group = wall_clock_group(current)
-    wall_runs = [e for e in runs if wall_clock_group(e) == group]
+    wall_runs = wall_clock_runs(current, runs)
+    ratios = current.get("ratios") or {}
     for name in sorted(current.get("benchmarks", {})):
-        rows.append(_series_row(name, "wall-clock", scenario_of(name, "wall-clock", budgets),
-                                current, wall_runs, wall_clock_value, WALL_CLOCK,
-                                min_delta=overrides.get(name), spread=wall_clock_spread,
-                                accept=accept))
+        scenario = scenario_of(name, "wall-clock", budgets)
+        if usable(current):
+            row = _series_row(name, "wall-clock", scenario, current, wall_runs,
+                              wall_clock_value, WALL_CLOCK, min_delta=overrides.get(name),
+                              spread=wall_clock_spread, accept=accept)
+        else:
+            row = Row(name, "wall-clock", scenario, "unusable", wall_clock_value(current, name),
+                      None, None, len(wall_runs))
+        row.ratio = ratios.get(name)
+        rows.append(row)
     if history:
         previous = history[-1]
         for name in sorted(set(previous.get("benchmarks", {})) - set(current.get("benchmarks", {}))):
@@ -352,15 +404,16 @@ def compare(current: dict, history: list[dict], *, budgets: dict | None = None,
 # ---------------------------------------------------------------------------
 
 def _reports(entry: dict) -> dict[str, dict | None]:
-    """An entry as the reports perf-budgets.py reads."""
+    """An entry as the reports perf-budgets.py reads; an unusable run has no
+    wall-clock to check."""
     counts = entry.get("instruction_counts")
     instruction_counts = None
     if counts is not None:
         instruction_counts = {"benchmarks": [
             {"binary": key.split(" / ", 1)[0], "name": key.split(" / ", 1)[1], **values}
             for key, values in counts.get("benchmarks", {}).items()]}
-    return {"e2e": {"benchmarks": entry.get("benchmarks", {})},
-            "instruction_counts": instruction_counts}
+    e2e = {"benchmarks": entry.get("benchmarks", {})} if usable(entry) else None
+    return {"e2e": e2e, "instruction_counts": instruction_counts}
 
 
 def check_budgets(budgets: dict, current: dict, history: list[dict]) -> list[BudgetRow]:
@@ -380,6 +433,8 @@ def check_budgets(budgets: dict, current: dict, history: list[dict]) -> list[Bud
         if r.status == "broken":
             first_bad = current
             for index in range(len(history) - 1, -1, -1):
+                if entry["report"] == "e2e" and not usable(history[index]):
+                    continue  # it cannot tell; the range spans it
                 status = status_in(index, r.key)
                 if status == "broken":
                     first_bad = history[index]
@@ -424,9 +479,17 @@ def findings(rows: list[Row], budget_rows: list[BudgetRow]) -> list[dict]:
 # Recording
 # ---------------------------------------------------------------------------
 
+def _kept(benchmarks: dict) -> dict:
+    return {name: {k: result[k] for k in KEPT_FIELDS if k in result}
+            for name, result in sorted(benchmarks.items())}
+
+
 def make_entry(report: dict, *, commit: str, ref: str, run_id: str, version: str,
                accept: bool, recorded_at: datetime, counts: dict | None = None,
-               counts_cpu: str = "", counts_log_file_mb: int | None = None) -> dict:
+               counts_cpu: str = "", counts_log_file_mb: int | None = None,
+               reference: dict | None = None, reference_tag: str = "",
+               reference_commit: str = "") -> dict:
+    cv = median_cv_percent(report["benchmarks"])
     entry = {
         "schema": SCHEMA,
         "recorded_at": recorded_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -437,11 +500,25 @@ def make_entry(report: dict, *, commit: str, ref: str, run_id: str, version: str
         "accepted": accept,
         "system": report.get("system", {}),
         "config": report.get("config", {}),
-        "benchmarks": {
-            name: {k: result[k] for k in KEPT_FIELDS if k in result}
-            for name, result in sorted(report["benchmarks"].items())
-        },
+        "median_cv_percent": cv,
+        "usable": _usable_cv(cv),
+        "benchmarks": _kept(report["benchmarks"]),
     }
+    if reference is not None:
+        reference_cv = median_cv_percent(reference["benchmarks"])
+        entry["reference"] = {
+            "tag": reference_tag,
+            "commit": reference_commit,
+            "median_cv_percent": reference_cv,
+            "usable": _usable_cv(reference_cv),
+            "benchmarks": _kept(reference["benchmarks"]),
+        }
+        entry["ratios"] = {
+            name: entry["benchmarks"][name]["median_seconds"] / result["median_seconds"]
+            for name, result in sorted(reference["benchmarks"].items())
+            if name in entry["benchmarks"] and isinstance(result.get("median_seconds"), (int, float))
+            and result["median_seconds"] > 0
+        }
     if counts is not None:
         entry["instruction_counts"] = {
             "cpu": counts_cpu,
@@ -461,20 +538,39 @@ def entry_filename(entry: dict) -> str:
     return f"{stamp}-{entry['commit'][:12]}-{safe_run}.json"
 
 
+def unusable_flag(entry: dict) -> str:
+    """What of a run is unusable: "run" (its wall-clock and its ratios),
+    "reference" (only its ratios) or nothing."""
+    if not usable(entry):
+        return "run"
+    if (entry.get("reference") or {}).get("usable") is False:
+        return "reference"
+    return ""
+
+
 def trend_csv(entries: list[dict]) -> str:
-    """One row per run: each benchmark's median in seconds, then each count."""
+    """One row per run: the runner's CPU model, the run's median CV and what
+    of it is unusable, the reference tag; each benchmark's median in seconds,
+    its ratio to the reference build, then each count."""
     names = sorted({name for e in entries for name in e.get("benchmarks", {})})
+    ratioed = sorted({name for e in entries for name in e.get("ratios") or {}})
     counted = sorted({name for e in entries
                       for name in (e.get("instruction_counts") or {}).get("benchmarks", {})})
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")
-    writer.writerow(["recorded_at", "version", "commit", "accepted", *names,
+    writer.writerow(["recorded_at", "version", "commit", "accepted", "cpu",
+                     "median_cv_percent", "unusable", "reference", *names,
+                     *[f"ratio: {n}" for n in ratioed],
                      *[f"instructions: {n}" for n in counted]])
     for e in entries:
-        values = [wall_clock_value(e, n) for n in names] + [count_value(e, n) for n in counted]
+        values = ([wall_clock_value(e, n) for n in names]
+                  + [(e.get("ratios") or {}).get(n) for n in ratioed]
+                  + [count_value(e, n) for n in counted])
+        cv = e.get("median_cv_percent")
         writer.writerow([
             e.get("recorded_at", ""), e.get("version", ""), e.get("commit", "")[:12],
-            "yes" if e.get("accepted") else "",
+            "yes" if e.get("accepted") else "", wall_clock_group(e) or "",
+            "" if cv is None else cv, unusable_flag(e), (e.get("reference") or {}).get("tag", ""),
             *["" if v is None else v for v in values],
         ])
     return out.getvalue()
@@ -493,6 +589,7 @@ _LABELS = {
     "warming-up": "report only",
     "new": "new, no history",
     "missing": "**MISSING**",
+    "unusable": "not compared, run unusable",
 }
 
 
@@ -505,35 +602,112 @@ def commit_range(last_good: dict | None, first_bad: dict | None) -> str:
 
 def _label(r: Row) -> str:
     if r.status == "regression" and r.metric == "wall-clock" and not WALL_CLOCK_FILES_ISSUES:
-        return "shifted (trend only, #685)"
+        return "shifted (trend only)"
     if r.status == "warming-up" and r.limit is not None and r.measured is not None \
             and r.measured > r.limit:
         return "report only, above the limit"
     return _LABELS[r.status]
 
 
-def _table(rows: list[Row]) -> list[str]:
+def _table(rows: list[Row], ratio: str = "") -> list[str]:
+    """The rows; with a ratio heading, a column with this run / the reference build."""
+    extra = f" {ratio} |" if ratio else ""
     lines = [
-        "| Benchmark | This run | Reference | Runs | Delta | Limit | Commits | Status |",
-        "|---|---:|---:|---:|---:|---:|---|---|",
+        "| Benchmark | This run | Reference | Runs | Delta | Limit | Commits | Status |" + extra,
+        "|---|---:|---:|---:|---:|---:|---|---|" + ("---:|" if ratio else ""),
     ]
     for r in rows:
         delta = "–" if r.delta_percent is None else f"{r.delta_percent:+.1f} %"
         name = r.name.replace("|", "\\|")
+        cell = (" –" if r.ratio is None else f" {r.ratio:.3f}") + " |" if ratio else ""
         lines.append(f"| {name} | {format_value(r.measured, r.metric)} "
                      f"| {format_value(r.reference, r.metric)} | {r.history_count} "
                      f"| {delta} | {format_value(r.limit, r.metric)} "
-                     f"| {commit_range(r.last_good, r.first_bad)} | {_label(r)} |")
+                     f"| {commit_range(r.last_good, r.first_bad)} | {_label(r)} |{cell}")
+    return lines
+
+
+def run_info(current: dict, history: list[dict], reference_error: str = "") -> dict:
+    """What the summary says about the run itself: the runner's CPU model and
+    how many earlier usable runs of it the series has, the run's scatter, and
+    the reference build."""
+    info = {
+        "cpu": wall_clock_group(current),
+        "earlier_runs_of_cpu": len(wall_clock_runs(current, level(history))),
+        "median_cv_percent": current.get("median_cv_percent"),
+        "usable": usable(current),
+        "max_usable_cv_percent": MAX_USABLE_CV_PERCENT,
+        "reference": None,
+        "reference_error": reference_error,
+    }
+    reference = current.get("reference")
+    if reference is not None:
+        measured = set(current.get("benchmarks", {}))
+        referenced = set(reference.get("benchmarks", {}))
+        info["reference"] = {
+            "tag": reference.get("tag", ""),
+            "commit": reference.get("commit", ""),
+            "median_cv_percent": reference.get("median_cv_percent"),
+            "usable": reference.get("usable", True),
+            "ratios": len(current.get("ratios") or {}),
+            "only_this_commit": sorted(measured - referenced),
+            "only_reference": sorted(referenced - measured),
+        }
+    return info
+
+
+def _cv_text(cv: float | None) -> str:
+    return "–" if cv is None else f"{cv:.1f} %"
+
+
+def _run_lines(info: dict) -> list[str]:
+    cpu = info["cpu"] or "unknown"
+    lines = [
+        f"Runner CPU: `{cpu}`, with {info['earlier_runs_of_cpu']} earlier runs of this CPU model "
+        f"in the wall-clock series (a median compares only with runs of its own model; report "
+        f"only below {WALL_CLOCK.min_history}). Median within-run CV: "
+        f"{_cv_text(info['median_cv_percent'])}.",
+        "",
+    ]
+    if not info["usable"]:
+        lines += [
+            f"**This run is unusable**: its median within-run CV of "
+            f"{_cv_text(info['median_cv_percent'])} is above {info['max_usable_cv_percent']:g} %. "
+            "It is recorded, but its wall-clock is not compared, not part of any later series, "
+            "and its e2e Budgets are not checked.",
+            "",
+        ]
+    reference = info.get("reference")
+    if reference:
+        commit = f" ({reference['commit'][:12]})" if reference.get("commit") else ""
+        lines.append(
+            f"Reference build: `{reference['tag']}`{commit}, built and measured on this runner "
+            f"with the same suite: this run ÷ reference for {reference['ratios']} of the "
+            f"benchmarks. Its median within-run CV: {_cv_text(reference['median_cv_percent'])}.")
+        if not reference["usable"]:
+            lines.append(f"**The reference run is unusable** (CV above "
+                         f"{info['max_usable_cv_percent']:g} %): its ratios are recorded but "
+                         "flagged.")
+        if reference["only_this_commit"]:
+            lines.append("Measured on only this commit: " + ", ".join(reference["only_this_commit"])
+                         + ".")
+        if reference["only_reference"]:
+            lines.append("Measured on only the reference: " + ", ".join(reference["only_reference"])
+                         + ".")
+        lines.append("")
+    elif info.get("reference_error"):
+        lines += [f"No ratios to the reference build: {info['reference_error']}.", ""]
     return lines
 
 
 def markdown(rows: list[Row], budget_rows: list[BudgetRow],
-             title: str = "Nightly performance") -> str:
+             title: str = "Nightly performance", info: dict | None = None) -> str:
     wall = [r for r in rows if r.metric == "wall-clock"]
     counts = [r for r in rows if r.metric == "instructions"]
-    lines = [
-        f"## {title}",
-        "",
+    lines = [f"## {title}", ""]
+    if info is not None:
+        lines += _run_lines(info)
+    lines += [
         "### Instruction counts",
         "",
         "A regression is a change point in a benchmark's series of counts "
@@ -552,12 +726,16 @@ def markdown(rows: list[Row], budget_rows: list[BudgetRow],
         f"A change point once {WALL_CLOCK.persistence} runs in a row are more than "
         f"+{WALL_CLOCK.tolerance_percent:g} %, the absolute margin (half the reference, at "
         f"most {WALL_CLOCK.min_delta_cap * 1000:g} ms, or a Budget's `min_delta_seconds`) and "
-        f"3 IQR above the median of the up to {WALL_CLOCK.window} runs before them; report only "
-        f"while fewer than {WALL_CLOCK.min_history} runs come before. Shown here, filed only "
-        "once #685 compares within one CPU model.",
+        f"3 IQR above the median of the up to {WALL_CLOCK.window} runs before them on the same "
+        f"runner CPU model; report only while fewer than {WALL_CLOCK.min_history} runs come "
+        "before. Shown here as the trend; instruction counts are the gate.",
         "",
     ]
-    lines += _table(wall)
+    reference = (info or {}).get("reference")
+    ratio = ""
+    if reference or any(r.ratio is not None for r in wall):
+        ratio = f"÷ `{reference['tag']}`" if reference and reference.get("tag") else "÷ reference"
+    lines += _table(wall, ratio=ratio)
     lines.append("")
     if budget_rows:
         lines.append(pb.markdown(budget_rows, title="Performance Budgets").replace("## ", "### ", 1))
@@ -622,6 +800,15 @@ def record(args: argparse.Namespace) -> int:
     except (OSError, ValueError, KeyError, AttributeError, TypeError) as error:
         print(f"::error::Unusable input: {error}")
         return 2
+    # The reference build is an addition: without it the run is still
+    # measured, only without ratios.
+    reference, reference_error = None, ""
+    if args.reference_report:
+        try:
+            reference = _read_report(args.reference_report)
+        except (OSError, ValueError, KeyError, AttributeError, TypeError) as error:
+            reference_error = f"the reference report is unusable ({error})"
+            print(f"::warning::{reference_error}")
 
     recorded_at = (datetime.strptime(args.recorded_at, "%Y-%m-%dT%H:%M:%SZ")
                    .replace(tzinfo=timezone.utc) if args.recorded_at
@@ -629,13 +816,15 @@ def record(args: argparse.Namespace) -> int:
     entry = make_entry(report, commit=args.commit, ref=args.ref, run_id=args.run_id,
                        version=args.version, accept=args.accept, recorded_at=recorded_at,
                        counts=counts, counts_cpu=args.counts_cpu,
-                       counts_log_file_mb=args.counts_log_file_mb)
+                       counts_log_file_mb=args.counts_log_file_mb, reference=reference,
+                       reference_tag=args.reference_tag, reference_commit=args.reference_commit)
 
     data_dir = Path(args.data_dir)
     history = load_entries(data_dir / "history")
     rows = compare(entry, history, budgets=budgets, accept=args.accept)
     budget_rows = check_budgets(budgets, entry, history) if budgets else []
     found = findings(rows, budget_rows)
+    info = run_info(entry, history, reference_error)
 
     dest = data_dir / args.dest
     dest.mkdir(parents=True, exist_ok=True)
@@ -644,7 +833,7 @@ def record(args: argparse.Namespace) -> int:
         (data_dir / "trend.csv").write_text(trend_csv(load_entries(data_dir / "history")),
                                             encoding="utf-8")
 
-    text = markdown(rows, budget_rows)
+    text = markdown(rows, budget_rows, info=info)
     if args.markdown:
         Path(args.markdown).write_text(text, encoding="utf-8")
     if args.json:
@@ -653,8 +842,10 @@ def record(args: argparse.Namespace) -> int:
             "failed": bool(found),
             "dest": args.dest,
             "run": run_ref(entry),
+            "run_info": info,
             "rules": {"wall_clock": asdict(WALL_CLOCK), "instructions": asdict(INSTRUCTIONS),
-                      "wall_clock_files_issues": WALL_CLOCK_FILES_ISSUES},
+                      "wall_clock_files_issues": WALL_CLOCK_FILES_ISSUES,
+                      "max_usable_cv_percent": MAX_USABLE_CV_PERCENT},
             "rows": [asdict(r) for r in rows],
             "budgets": [asdict(b) for b in budget_rows],
             "findings": found,
@@ -663,6 +854,141 @@ def record(args: argparse.Namespace) -> int:
     for line in annotations(rows, budget_rows):
         print(line)
     return 1 if found else 0
+
+
+# ---------------------------------------------------------------------------
+# The spread within one CPU model (#685, for #675)
+# ---------------------------------------------------------------------------
+
+def cv_percent(values: list[float]) -> float | None:
+    """The coefficient of variation (sample standard deviation / mean), in
+    percent, of at least two values."""
+    if len(values) < 2:
+        return None
+    mean = statistics.fmean(values)
+    return statistics.stdev(values) / mean * 100 if mean else None
+
+
+def _spread_of(series: dict[str, list[float]]) -> dict:
+    """Each benchmark's CV over the runs, and the median and maximum of them."""
+    benchmarks = {}
+    for name, values in sorted(series.items()):
+        benchmarks[name] = {"runs": len(values), "cv_percent": cv_percent(values),
+                            "min": min(values), "max": max(values)}
+    cvs = [b["cv_percent"] for b in benchmarks.values() if b["cv_percent"] is not None]
+    return {"median_cv_percent": statistics.median(cvs) if cvs else None,
+            "max_cv_percent": max(cvs) if cvs else None,
+            "benchmarks": benchmarks}
+
+
+def _series_of(entries: list[dict], values: Callable[[dict], dict[str, float]]) -> dict:
+    series: dict[str, list[float]] = {}
+    for e in entries:
+        for name, value in values(e).items():
+            if isinstance(value, (int, float)):
+                series.setdefault(name, []).append(value)
+    return series
+
+
+def _medians(e: dict) -> dict[str, float]:
+    return {n: r.get("median_seconds") for n, r in e.get("benchmarks", {}).items()}
+
+
+def _reference_medians(e: dict) -> dict[str, float]:
+    return {n: r.get("median_seconds")
+            for n, r in (e.get("reference") or {}).get("benchmarks", {}).items()}
+
+
+def _with_usable_reference(entries: list[dict]) -> list[dict]:
+    return [e for e in entries if e.get("reference") and e["reference"].get("usable", True)]
+
+
+def _model_spread(entries: list[dict]) -> dict:
+    referenced = _with_usable_reference(entries)
+    by_tag: dict[str, list[dict]] = {}
+    for e in referenced:
+        by_tag.setdefault(e["reference"].get("tag", ""), []).append(e)
+    return {
+        "runs": len(entries),
+        "first": entries[0].get("recorded_at", "") if entries else "",
+        "last": entries[-1].get("recorded_at", "") if entries else "",
+        "medians": _spread_of(_series_of(entries, _medians)),
+        "reference": {tag: {"runs": len(runs), **_spread_of(_series_of(runs, _reference_medians))}
+                      for tag, runs in sorted(by_tag.items())},
+        "ratios": _spread_of(_series_of(referenced, lambda e: e.get("ratios") or {})),
+    }
+
+
+def spread(entries: list[dict]) -> dict:
+    """How much the medians of the usable runs vary, per runner CPU model and
+    over all models together.
+
+    medians mixes the code's own changes into it; the reference build's
+    medians (per tag: fixed code) are the runner's own spread, which #675
+    re-decides a dedicated runner on; ratios is how steady the trend line
+    across models is.
+    """
+    runs = [e for e in entries if usable(e)]
+    models: dict[Any, list[dict]] = {}
+    for e in runs:
+        models.setdefault(wall_clock_group(e), []).append(e)
+    return {
+        "max_usable_cv_percent": MAX_USABLE_CV_PERCENT,
+        "unusable_runs": len(entries) - len(runs),
+        "models": [{"cpu": cpu, **_model_spread(model_runs)}
+                   for cpu, model_runs in sorted(models.items(), key=lambda kv: -len(kv[1]))],
+        "all_models": _model_spread(runs),
+    }
+
+
+def spread_markdown(result: dict) -> str:
+    def cv(value: float | None) -> str:
+        return "–" if value is None else f"{value:.1f} %"
+
+    lines = [
+        "## Spread of the nightly wall-clock medians within one CPU model",
+        "",
+        "For the re-decision on a dedicated benchmark runner (#675): a machine pays off if the "
+        "same-model medians vary by more than 3 %. *Reference build* is the CV of each "
+        "benchmark's medians of the fixed reference build (one release tag: no code change, the "
+        "runner's own spread); *this commit* includes master's own changes; *ratio* is the CV of "
+        "this commit ÷ reference. Each is the median (and maximum) over the benchmarks. Runs "
+        f"with a median within-run CV above {result['max_usable_cv_percent']:g} % are left out "
+        f"({result['unusable_runs']} of them).",
+        "",
+        "| CPU model | Runs | From | To | Reference build | This commit | Ratio |",
+        "|---|---:|---|---|---|---|---|",
+    ]
+
+    def row(name: str, m: dict) -> str:
+        reference = "; ".join(
+            f"`{tag}` ({r['runs']} runs): {cv(r['median_cv_percent'])} (max {cv(r['max_cv_percent'])})"
+            for tag, r in m["reference"].items()) or "–"
+        return (f"| {name} | {m['runs']} | {m['first'][:10]} | {m['last'][:10]} | {reference} "
+                f"| {cv(m['medians']['median_cv_percent'])} "
+                f"(max {cv(m['medians']['max_cv_percent'])}) "
+                f"| {cv(m['ratios']['median_cv_percent'])} "
+                f"(max {cv(m['ratios']['max_cv_percent'])}) |")
+
+    for m in result["models"]:
+        lines.append(row(f"`{m['cpu'] or 'unknown'}`", m))
+    lines.append(row("all models together", result["all_models"]))
+    lines.append("")
+    return "\n".join(lines)
+
+
+def spread_command(args: argparse.Namespace) -> int:
+    entries = load_entries(Path(args.data_dir) / "history")
+    if args.since:
+        entries = [e for e in entries if e.get("recorded_at", "") >= args.since]
+    result = spread(entries)
+    text = spread_markdown(result)
+    if args.markdown:
+        Path(args.markdown).write_text(text, encoding="utf-8")
+    if args.json:
+        Path(args.json).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    print(text)
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -680,13 +1006,24 @@ def main(argv: list[str] | None = None) -> int:
     rec.add_argument("--counts-cpu", default="", help="the CPU model the counts were taken on")
     rec.add_argument("--counts-log-file-mb", type=int,
                      help="LOGSQUIRL_BENCHMARK_LOG_FILE_MB of the counts")
+    rec.add_argument("--reference-report",
+                     help="the same suite's benchmark_report.json of the reference build (#685)")
+    rec.add_argument("--reference-tag", default="", help="the release tag the reference was built from")
+    rec.add_argument("--reference-commit", default="", help="the commit of that tag")
     rec.add_argument("--budgets", help="tests/e2e/budgets.json (ADR 0018)")
     rec.add_argument("--recorded-at", help="the time to record, %%Y-%%m-%%dT%%H:%%M:%%SZ (now)")
     rec.add_argument("--accept", action="store_true",
                      help="record this run as the start of a new level; it finds no regression")
     rec.add_argument("--markdown", help="write the summary here")
     rec.add_argument("--json", help="write the comparison and its findings as JSON here")
+    spr = sub.add_parser("spread", help="the spread of the medians within each CPU model (#675)")
+    spr.add_argument("--data-dir", required=True, help="a checkout of the perf-data branch")
+    spr.add_argument("--since", help="only runs recorded on or after this date, YYYY-MM-DD")
+    spr.add_argument("--markdown", help="write the table here")
+    spr.add_argument("--json", help="write the numbers as JSON here")
     args = parser.parse_args(argv)
+    if args.command == "spread":
+        return spread_command(args)
     return record(args)
 
 
