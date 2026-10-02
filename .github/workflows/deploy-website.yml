@@ -67,6 +67,7 @@ jobs:
           fi
           echo "Rebuilding the site of $tag with the newest performance runs"
           echo "ref=refs/tags/$tag" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -74,11 +75,33 @@ jobs:
           ref: ${{ steps.site.outputs.ref }}
           persist-credentials: false
 
+      # These steps are master's, the tree is the release's: a release made
+      # before a file they use existed cannot be rebuilt by them. A release
+      # without the Performance page has nothing for the nightly update to
+      # bring, either. The site stays as it is until the next release
+      # deploys (#731).
+      - name: Check that the release's site can be rebuilt
+        id: fit
+        if: inputs.performance_trend
+        env:
+          TAG: ${{ steps.site.outputs.tag }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for file in website/scripts/leave-out-unpublished.mjs website/src/perf-trend.mjs; do
+            [ -f "$file" ] || missing+=("$file")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::notice::The site of $TAG is left as it is: its tree lacks ${missing[*]}, which this deploy uses (#731)"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
       # The Performance page draws the runs of the perf-data branch (#678;
       # website/src/perf-trend.mjs). Without the branch the page says it has
       # no runs, and the site deploys all the same.
       - name: Check out the performance history
         id: perf_data
+        if: steps.fit.outputs.skip != 'true'
         run: |
           set -euo pipefail
           url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
@@ -91,6 +114,7 @@ jobs:
           fi
 
       - name: Setup Node.js
+        if: steps.fit.outputs.skip != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
@@ -98,12 +122,14 @@ jobs:
           cache-dependency-path: website/package-lock.json
 
       - name: Install dependencies
+        if: steps.fit.outputs.skip != 'true'
         run: cd website && npm ci
 
       # A release page goes live with its GitHub release: the page of a
       # release not published yet is left out of this build (#315). A failed
       # listing fails the deploy instead of leaving out every release.
       - name: Leave out the pages of unpublished releases
+        if: steps.fit.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -113,6 +139,7 @@ jobs:
           cd website && node scripts/leave-out-unpublished.mjs "$RUNNER_TEMP/published-releases.txt"
 
       - name: Build
+        if: steps.fit.outputs.skip != 'true'
         env:
           LOGSQUIRL_PERF_DATA: ${{ steps.perf_data.outputs.dir }}
         run: cd website && npm run build
@@ -121,6 +148,7 @@ jobs:
       # branch named v4.4.0 on another commit, which zizmor resolves instead
       # (#204).
       - name: Deploy via FTPS # zizmor: ignore[ref-version-mismatch]
+        if: steps.fit.outputs.skip != 'true'
         uses: SamKirkland/FTP-Deploy-Action@110f9186c050f71550953127052e77650219c287 # v4.4.0
         with:
           server: ${{ secrets.FTP_SERVER }}

@@ -965,6 +965,10 @@ The nightly **Performance** run dispatches it as well, from its *website* job af
 with `performance_trend` (#678): that deploy builds the
 newest published release's tag instead of master, with the newest runs of the `perf-data` branch on its
 Performance page, so the trend is current every morning and no unreleased website change goes live with it.
+The Budgets drawn are that tag's `tests/e2e/budgets.json`, so a Budget changed on master shows with the next release.
+The deploy runs master's steps on the tag's tree: a tag that lacks a file they use (`website/src/perf-trend.mjs`,
+`website/scripts/leave-out-unpublished.mjs`), such as a release from before #678, leaves the site as it is with a
+notice until the next release deploys (#731).
 
 Manual releases, e.g. to re-run a release, are also supported via
 `workflow_dispatch`: dispatch it from the tag (*Use workflow from*, or
