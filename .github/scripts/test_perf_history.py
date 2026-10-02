@@ -391,6 +391,41 @@ def test_record_checks_the_budgets(tmp_path):
     assert "Performance Budgets" in (tmp_path / "summary.md").read_text()
 
 
+def test_proposed_budgets_are_reported_but_are_no_findings(tmp_path):
+    # ADR 0018: while budgets.json's status is proposed, a broken Budget shows
+    # in the summary and files no issue, and the run is not red.
+    budgets = tmp_path / "budgets.json"
+    budgets.write_text(json.dumps({**budgets_file(budget_entry("grep", 0.5)),
+                                   "status": "proposed: awaits the maintainer's approval"}))
+    status, verdict = run_record(tmp_path, {"grep": 1.0}, extra=["--budgets", str(budgets)])
+    assert status == 0
+    assert verdict["failed"] is False
+    assert verdict["findings"] == []
+    row = only(verdict["budgets"])
+    assert row["status"] == "broken"
+    assert row["enforced"] is False
+    summary = (tmp_path / "summary.md").read_text()
+    assert "Performance Budgets" in summary
+    assert "proposed" in summary
+
+
+def test_accepted_budgets_are_findings(tmp_path):
+    budgets = tmp_path / "budgets.json"
+    budgets.write_text(json.dumps({**budgets_file(budget_entry("grep", 0.5)),
+                                   "status": "accepted"}))
+    status, verdict = run_record(tmp_path, {"grep": 1.0}, extra=["--budgets", str(budgets)])
+    assert status == 1
+    assert only(verdict["findings"])["kind"] == "budget"
+
+
+def test_a_proposed_budget_that_went_missing_is_no_finding():
+    data = {**budgets_file(budget_entry("gui_open_log_1gb_indexed", 0.30)), "status": "proposed"}
+    rows = ph.check_budgets(data, entry(1, {"grep": 1.0}), [])
+    assert only(rows).status == "missing"
+    assert ph.findings([], rows) == []
+    assert ph.annotations([], rows) == []
+
+
 def test_a_regressing_run_is_recorded_and_fails(tmp_path):
     for day in range(1, 5):
         assert run_record(tmp_path, {"grep": 1.0}, day=day, counts={KEY: 1000})[0] == 0

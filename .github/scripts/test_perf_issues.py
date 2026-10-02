@@ -236,3 +236,13 @@ def test_a_synthetic_regression_files_an_issue_naming_its_commit_range(tmp_path)
     assert f"{SERVER}/{REPO}/compare/{good}...{bad}" in body
     assert f"git log --oneline {good}..{bad}" in body
     assert "+3.0 %" in body
+
+
+def test_the_workflow_finds_the_issues_by_the_marker_they_carry():
+    # The issues job hands plan every issue, open or closed, whose body holds
+    # the marker, so a closed one with the same findings stays closed.
+    workflow = (Path(__file__).resolve().parents[1] / "workflows" / "performance.yml").read_text()
+    assert f"--search '\"{pi.MARKER}\" in:body'" in workflow
+    assert "--state all" in workflow
+    body = pi.render_body(BIN, [regression()], ref(BAD), server_url=SERVER, repo=REPO)
+    assert pi.MARKER in body

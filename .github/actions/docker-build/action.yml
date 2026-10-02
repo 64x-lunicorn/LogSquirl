@@ -61,6 +61,9 @@ runs:
       run: |
         docker exec logsquirl_build /bin/bash -c "cmake --build /usr/local/$LOGSQUIRL_BUILD_ROOT --target $TARGETS"
 
+    # The script beside this action, not the workspace's: the Performance
+    # workflow's reference build (#685) runs this action from a copy of the
+    # current .github while the workspace holds the release's tree.
     - name: sccache stats
       if: always()
       shell: bash
@@ -70,7 +73,7 @@ runs:
         set -euo pipefail
         docker exec logsquirl_build sccache --show-stats |
           tee "$RUNNER_TEMP/sccache-stats.txt" |
-          "$GITHUB_WORKSPACE/.github/scripts/sccache-stats-summary.sh" "$BUILD_NAME"
+          "$GITHUB_ACTION_PATH/../../scripts/sccache-stats-summary.sh" "$BUILD_NAME"
 
     # sccache runs as root in the container, so the cache it writes into the
     # bind-mounted workspace is root-owned and unreadable for the runner user;

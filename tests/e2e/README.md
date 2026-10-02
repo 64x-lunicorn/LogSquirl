@@ -57,6 +57,8 @@ entry sets its own margin, and `--update-baseline` keeps it. The rule is
 How fast LogSquirl must be, not only that it is not slower, is the Budgets of ADR 0018 in
 `budgets.json`: one per Benchmark Scenario and Log File size, on the CI runners, checked with
 `.github/scripts/perf-budgets.py check --budgets budgets.json --e2e benchmark_report.json`.
+While the file's `status` is `proposed`, a broken Budget is reported and fails nothing; the
+maintainer accepts the Budgets by setting it to `accepted`.
 
 ### What the numbers are
 

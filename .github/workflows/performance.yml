@@ -28,8 +28,9 @@ name: "Performance"
 # with earlier runs on the same runner CPU model, and a run whose median
 # within-run CV is above 20 % is recorded but not compared (#685). A change
 # point in the instruction counts, a broken Budget or a benchmark that went
-# missing is a finding; wall-clock change points are the trend and file
-# nothing: instruction counts are the gate.
+# missing is a finding (a Budget only once budgets.json's status is accepted,
+# ADR 0018); wall-clock change points are the trend and file nothing:
+# instruction counts are the gate.
 #
 # For the findings of a run of the default branch, the issues job opens an
 # issue per scenario, labelled needs-triage and performance, that names the
@@ -210,8 +211,9 @@ jobs:
           key: ${{ steps.reference_key.outputs.key }}
 
       # The build of the reference runs in this commit's build_root, so it
-      # recompiles only what differs from the release and links just the two
-      # programs the suite starts. The composite actions come from this
+      # recompiles only what differs from the release and links just the
+      # programs the suite starts: logsquirl, logsquirl_grep and the crash
+      # handler logsquirl starts. The composite actions come from this
       # commit, not from the release, which may predate their inputs.
       - name: Check out the reference
         id: reference_checkout
@@ -225,16 +227,20 @@ jobs:
           git -c advice.detachedHead=false checkout --force --detach "$COMMIT"
 
       # sccache-cache reuse: the cache this commit's build saved stays as it
-      # is; the release's objects never reach the noble job.
+      # is; the release's objects never reach the noble job. crashpad_handler
+      # is the target of logsquirl_crashpad_handler (3rdparty/CMakeLists.txt),
+      # built from the release's tree; logsquirl's post-build step copies it
+      # into output/ beside logsquirl, over this commit's copy.
       - name: Build the reference
         id: reference_build
         if: steps.reference_checkout.outcome == 'success'
         continue-on-error: true
         uses: ./perf-run/tools/.github/actions/docker-build
         with:
-          targets: logsquirl logsquirl_grep
+          targets: logsquirl logsquirl_grep crashpad_handler
           sccache-cache: reuse
 
+      # All three from the reference build, as for this commit above.
       - name: Keep the reference binaries
         id: reference_binaries
         if: steps.reference_build.outcome == 'success'
@@ -582,6 +588,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
+      contents: read # check out the scripts
       issues: write # open, edit and comment on the issues of a regression
     concurrency:
       group: performance-issues
@@ -601,11 +608,16 @@ jobs:
           path: perf-comparison
 
       # perf-issues.py decides per scenario whether to open an issue, update
-      # the open one or leave a closed one closed, and writes the texts.
+      # the open one or leave a closed one closed, and writes the texts. It
+      # gets every issue, open or closed, whose body holds the marker the
+      # workflow writes into each one (perf-issues.py MARKER), whatever its
+      # labels: a closed issue with the same findings keeps them from being
+      # filed again.
       - name: Plan the issues
         run: |
           set -euo pipefail
-          gh issue list --repo "$GITHUB_REPOSITORY" --label performance --state all --limit 1000 \
+          gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 1000 \
+            --search '"logsquirl-nightly-performance" in:body' \
             --json number,state,title,body > issues.json
           python3 .github/scripts/perf-issues.py plan --comparison perf-comparison/comparison.json \
             --issues issues.json --server-url "$GITHUB_SERVER_URL" --repo "$GITHUB_REPOSITORY" \
@@ -634,6 +646,10 @@ jobs:
                 ;;
               skip)
                 echo "::warning::Issue $number was closed for these findings; left closed"
+                ;;
+              *)
+                echo "::error::The plan holds an unknown action: $action"
+                exit 1
                 ;;
             esac
           done

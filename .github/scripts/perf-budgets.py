@@ -18,13 +18,18 @@ value is over its Budget only when it is above budget * (1 + margin / 100).
 A Budget whose report was not given is "not measured" and fails nothing; a
 budgeted benchmark the report does not hold is "missing" and fails.
 
+While the file's "status" starts with "proposed", the Budgets await the
+maintainer's approval (ADR 0018): every row is reported as above, and nothing
+fails on them. The maintainer accepts them by setting "status" to "accepted".
+
 Usage:
   perf-budgets.py check --budgets tests/e2e/budgets.json \\
       [--e2e benchmark_report.json] [--instruction-counts after.json] \\
       [--markdown OUT.md] [--json OUT.json]
 
-Exit status: 0 when every measured Budget holds, 1 when one is broken or
-missing, 2 on an unusable budgets file or report.
+Exit status: 0 when every measured Budget holds or the Budgets are proposed,
+1 when an accepted one is broken or missing, 2 on an unusable budgets file or
+report.
 """
 
 from __future__ import annotations
@@ -34,6 +39,8 @@ import json
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from perf_common import format_seconds
 
 SCHEMA = 1
 REPORTS = ("e2e", "instruction-counts")
@@ -85,6 +92,11 @@ def load(path: Path | str) -> dict:
     return data
 
 
+def enforced(budgets: dict) -> bool:
+    """Whether the Budgets fail a run: not while they are proposed (ADR 0018)."""
+    return not str(budgets.get("status", "accepted")).startswith("proposed")
+
+
 def _e2e_results(report: dict | None) -> dict[str, dict] | None:
     return None if report is None else report["benchmarks"]
 
@@ -127,22 +139,32 @@ _LABELS = {"ok": "ok", "broken": "**BROKEN**", "missing": "**MISSING**",
 
 
 def format_value(value: float | None, unit: str) -> str:
+    if unit == "s":
+        return format_seconds(value, lambda v: f"{v:g} s")
     if value is None:
         return "–"
-    if unit == "s" and abs(value) < 0.001:
-        return f"{value * 1e6:.1f} µs"
     if unit.startswith("bytes"):
         return f"{value / 1e6:.2f} MB{unit[len('bytes'):]}"
     return f"{value:g} {unit}"
 
 
-def markdown(rows: list[Row], title: str = "Performance Budgets") -> str:
+PROPOSED_NOTE = ("These Budgets are proposed and fail nothing yet: they are enforced once "
+                 "the maintainer sets `status` in `tests/e2e/budgets.json` to `accepted` "
+                 "(ADR 0018).")
+
+
+def markdown(rows: list[Row], title: str = "Performance Budgets", *,
+             enforce: bool = True) -> str:
     lines = [
         f"## {title}",
         "",
         "Each Budget of ADR 0018 (`tests/e2e/budgets.json`); broken above the Budget plus "
         "its noise margin.",
         "",
+    ]
+    if not enforce:
+        lines += [PROPOSED_NOTE, ""]
+    lines += [
         "| Scenario | Benchmark | Measured | Budget | Status |",
         "|---|---|---:|---:|---|",
     ]
@@ -153,15 +175,16 @@ def markdown(rows: list[Row], title: str = "Performance Budgets") -> str:
     return "\n".join(lines)
 
 
-def annotations(rows: list[Row]) -> list[str]:
+def annotations(rows: list[Row], *, enforce: bool = True) -> list[str]:
+    level = "error" if enforce else "warning"
     out = []
     for r in rows:
         if r.status == "broken":
-            out.append(f"::error::{r.key} broke its Budget: {format_value(r.measured, r.unit)} "
+            out.append(f"::{level}::{r.key} broke its Budget: {format_value(r.measured, r.unit)} "
                        f"against {format_value(r.budget, r.unit)} "
                        f"(limit {format_value(r.limit, r.unit)})")
         elif r.status == "missing":
-            out.append(f"::error::{r.key} has a Budget but was not in the report")
+            out.append(f"::{level}::{r.key} has a Budget but was not in the report")
     return out
 
 
@@ -185,17 +208,19 @@ def run_check(args: argparse.Namespace) -> int:
     except BudgetError as error:
         print(f"::error::{error}")
         return 2
-    text = markdown(rows)
+    enforce = enforced(data)
+    fails = enforce and failed(rows)
+    text = markdown(rows, enforce=enforce)
     if args.markdown:
         Path(args.markdown).write_text(text, encoding="utf-8")
     if args.json:
         Path(args.json).write_text(json.dumps({
-            "failed": failed(rows), "rows": [asdict(r) for r in rows],
+            "failed": fails, "enforced": enforce, "rows": [asdict(r) for r in rows],
         }, indent=2) + "\n", encoding="utf-8")
     print(text)
-    for line in annotations(rows):
+    for line in annotations(rows, enforce=enforce):
         print(line)
-    return 1 if failed(rows) else 0
+    return 1 if fails else 0
 
 
 def main(argv: list[str] | None = None) -> int:

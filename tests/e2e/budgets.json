@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "adr": "docs/adr/0018-fast-means-a-budget-per-benchmark-scenario-and-log-file-size.md",
-  "status": "proposed: awaits the maintainer's approval in the review of the pull request",
+  "status": "proposed: awaits the maintainer's approval in the review of the pull request. While this starts with \"proposed\", the Budgets are checked and reported and nothing fails on them; the maintainer accepts them by changing this field to \"accepted\" (ADR 0018)",
   "machine_class": {
     "name": "GitHub-hosted ubuntu-24.04 x64 runner",
     "cpus": [

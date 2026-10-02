@@ -262,7 +262,8 @@
   change point in a benchmark's series of runs, not one run against the median
   of the last six: the reference is the level before it, so a lasting
   regression no longer heals itself after a few weeks. A change point in the
-  instruction counts, a broken Budget of ADR 0018 or a benchmark that went
+  instruction counts, a broken Budget of ADR 0018 (once the maintainer accepts
+  the Budgets; until then they are only reported) or a benchmark that went
   missing opens a `needs-triage` issue per scenario that names the commit range
   from the last good run to the first bad one, or updates the open one;
   wall-clock change points are the trend for now. A run dispatched from a

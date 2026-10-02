@@ -30,8 +30,9 @@ Usage:
   perf-issues.py plan --comparison comparison.json --issues issues.json \\
       --server-url URL --repo OWNER/REPO --out DIR
 
-issues.json is `gh issue list --label performance --state all --json
-number,state,title,body`. DIR gets plan.json, a list of actions
+issues.json is `gh issue list --state all --search '"MARKER" in:body'
+--json number,state,title,body` (MARKER below): every issue, open or closed,
+the workflow ever filed, whatever its labels. DIR gets plan.json, a list of actions
 ({"action": "create"|"edit"|"comment"|"skip", "scenario", "number"?,
 "title"?, "labels"?, "body_file"?, "reason"?}), and the bodies they name.
 
@@ -43,28 +44,17 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.util
 import json
 import re
 import sys
 from pathlib import Path
-from types import ModuleType
+
+from perf_common import format_seconds, load_script
+
+perf_budgets = load_script("perf_budgets", "perf-budgets.py")
 
 MARKER = "logsquirl-nightly-performance"
 LABELS = ["needs-triage", "performance"]
-
-
-def _load(name: str, filename: str) -> ModuleType:
-    if name in sys.modules:
-        return sys.modules[name]
-    spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(filename))
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-pb = _load("perf_budgets", "perf-budgets.py")
 
 
 def scenario_marker(scenario: str) -> str:
@@ -137,10 +127,8 @@ def _value(value: float | None, f: dict) -> str:
     if f["metric"] == "instructions":
         return f"{value:,.0f} instructions"
     if f["metric"] == "budget":
-        return pb.format_value(value, f["unit"])
-    if abs(value) < 0.001:
-        return f"{value * 1e6:.1f} µs"
-    return f"{value * 1000:.1f} ms"
+        return perf_budgets.format_value(value, f["unit"])
+    return format_seconds(value, lambda v: f"{v * 1000:.1f} ms")
 
 
 def _what(f: dict) -> str:
@@ -155,7 +143,7 @@ def _what(f: dict) -> str:
 
 def _row(f: dict, server_url: str, repo: str) -> str:
     if f["kind"] == "budget":
-        before = f"Budget {pb.format_value(f['budget'], f['unit'])}"
+        before = f"Budget {perf_budgets.format_value(f['budget'], f['unit'])}"
         change = ("–" if f["measured"] is None
                   else f"{(f['measured'] - f['budget']) / f['budget'] * 100:+.1f} %")
     else:

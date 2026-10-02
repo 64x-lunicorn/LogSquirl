@@ -357,7 +357,9 @@ is known from a single pair of runs so far. **A run whose median within-run CV i
 compared nor part of a later run's series, its e2e Budgets are not checked, and the summary says
 so; a reference run above 20 % flags only the ratios. Each **Budget** of ADR
 0018 (`tests/e2e/budgets.json`, the one place they live) is checked as well
-(`perf-budgets.py`): a broken Budget names the runs since it broke. A benchmark the previous run
+(`perf-budgets.py`): a broken Budget names the runs since it broke. While `status` in
+`budgets.json` starts with `proposed`, the Budgets are only shown in the summary and are no
+finding; they become one once the maintainer sets it to `accepted` (ADR 0018). A benchmark the previous run
 measured and this one did not is a finding too, and so are counts that were not taken at all.
 
 **A finding files an issue.** For a run of master, the *issues* job opens one issue per scenario

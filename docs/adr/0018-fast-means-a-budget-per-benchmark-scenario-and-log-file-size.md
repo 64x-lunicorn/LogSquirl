@@ -1,7 +1,5 @@
 # Fast means a Budget per Benchmark Scenario and Log File size, derived from measurements
 
-**Proposed.** The Budgets below are a product decision. They wait for the maintainer's approval in the review of the pull request that adds them (#676), and until then nothing fails on them.
-
 LogSquirl's promise is to be fast, and the Safari Rule (CONTRIBUTING.md) says it must never get slower. Until #676 neither said how fast. The e2e performance suite compares a laptop's run with `baseline.json`, recorded on another laptop. The Performance workflow compares master with the median of master's last six runs. Both answer only "slower than before?". Neither can say whether opening a 1 GB Log File in 0.3 s is the product working or the product broken. The suite has measured the events a user waits for since #667–#670 and #686 (merged in ba28414b): the first Log Line displayed, the Index finished, the first Match, a QuickFind keystroke, a frame, a Log Line followed, a Session restored, a read while indexing. So the numbers to set a promise on now exist.
 
 A second question came with #686 (#705). Both comparisons call a benchmark slower only when it is slower by the tolerance **and** by an absolute margin: 1 ms in the suite, 10 ms in the Performance workflow. A read while indexing takes microseconds. Holding the index lock while parsing (the #289 regression) made `getNbLine`'s p50 go from 0.1 µs to 60 µs and `getExpandedLines`' p99 from 10 µs to 90 µs. That is several hundred times slower, and still inside both margins.
@@ -29,7 +27,11 @@ The Budgets live in **`tests/e2e/budgets.json`**, the file this ADR points to an
 | `source` | the measurements cited, keys of `sources` (workflow, run, commit, CPU, link) |
 | `min_delta_seconds` (optional) | the benchmark's own absolute margin for the comparison with the history (below) |
 
-`.github/scripts/perf-budgets.py check --budgets tests/e2e/budgets.json --e2e benchmark_report.json [--instruction-counts after.json]` checks a run against it. A Budget is `broken`, `missing` (a budgeted benchmark the report does not hold: a scenario that stops running must not keep its Budget), `not-measured` (its report was not given) or `ok`. The exit status is 1 on broken or missing. Its tests also check the file itself: every Budget cites a known source, is no lower than the slowest value it was derived from, and states its headroom correctly. **Changing a Budget means changing this ADR and the file in one pull request.**
+`.github/scripts/perf-budgets.py check --budgets tests/e2e/budgets.json --e2e benchmark_report.json [--instruction-counts after.json]` checks a run against it. A Budget is `broken`, `missing` (a budgeted benchmark the report does not hold: a scenario that stops running must not keep its Budget), `not-measured` (its report was not given) or `ok`. Once the Budgets are accepted (below), the exit status is 1 on broken or missing. Its tests also check the file itself: every Budget cites a known source, is no lower than the slowest value it was derived from, and states its headroom correctly. **Changing a Budget means changing this ADR and the file in one pull request.**
+
+### Proposed until the maintainer accepts them
+
+The Budgets are a product decision, and the maintainer approves them in the review of the pull request that adds them (#676). Until then nothing fails on them. `budgets.json` says so in its `status`: while it starts with `proposed`, `perf-budgets.py check` and the nightly run (`perf-history.py`) check every Budget and show it in the table, but a broken or missing Budget is no finding: it files no issue, it does not make the run red, and `perf-budgets.py` exits 0. The maintainer accepts the Budgets by changing `status` to `accepted`, in that pull request or a later one. From the next run on, a broken or missing Budget is a finding. Setting `status` back to `proposed` suspends them again.
 
 ### How a Budget is derived
 

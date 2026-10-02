@@ -39,7 +39,9 @@ and the commits between the two are where it came from.
   benchmark's ratio this run / reference, which does not depend on the CPU
   model the run landed on. It is recorded and shown, never a finding.
 - Budgets (ADR 0018, tests/e2e/budgets.json, perf-budgets.py): a Budget this
-  run breaks is a finding, with the runs since it broke.
+  run breaks is a finding, with the runs since it broke. While the file's
+  status is proposed, the Budgets are checked and shown in the summary and are
+  no finding: no issue, not red.
 - A benchmark the previous run measured and this one did not is a finding.
 
 The findings (in --json) are what the workflow files issues from
@@ -79,7 +81,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import importlib.util
 import io
 import json
 import re
@@ -88,30 +89,19 @@ import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from types import ModuleType
 from typing import Any, Callable
 
-import perf_changepoint as cp
+import perf_changepoint
+from perf_common import format_seconds, load_script
 
+perf_budgets = load_script("perf_budgets", "perf-budgets.py")
+instruction_counts = load_script("instruction_counts", "instruction-counts.py")
 
-def _load(name: str, filename: str) -> ModuleType:
-    """A sibling script whose file name is not a module name."""
-    if name in sys.modules:
-        return sys.modules[name]
-    spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(filename))
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-pb = _load("perf_budgets", "perf-budgets.py")
-ic = _load("instruction_counts", "instruction-counts.py")
-
-WALL_CLOCK = cp.Rule(window=14, min_history=6, persistence=2, tolerance_percent=10.0,
-                     min_delta_cap=0.010)
-INSTRUCTIONS = cp.Rule(window=14, min_history=3, persistence=1,
-                       tolerance_percent=ic.DEFAULT_THRESHOLD_PERCENT, min_delta_cap=0.0)
+WALL_CLOCK = perf_changepoint.Rule(window=14, min_history=6, persistence=2,
+                                   tolerance_percent=10.0, min_delta_cap=0.010)
+INSTRUCTIONS = perf_changepoint.Rule(
+    window=14, min_history=3, persistence=1,
+    tolerance_percent=instruction_counts.DEFAULT_THRESHOLD_PERCENT, min_delta_cap=0.0)
 # Wall-clock is compared within one runner CPU model (#685), but the spread
 # of one model is known from a single pair of runs (1.4 %, #675). Instruction
 # counts stay the gate; whether wall-clock may file issues is re-decided with
@@ -153,15 +143,6 @@ SCENARIO_PREFIXES = (
 )
 
 
-def format_seconds(value: float | None) -> str:
-    """Seconds, or microseconds below a millisecond (a read takes 0.1 µs, #705)."""
-    if value is None:
-        return "–"
-    if abs(value) < 0.001:
-        return f"{value * 1e6:.1f} µs"
-    return f"{value:.4f} s"
-
-
 def format_value(value: float | None, metric: str) -> str:
     if value is None:
         return "–"
@@ -200,6 +181,7 @@ class BudgetRow:
     unit: str
     last_good: dict | None = None
     first_bad: dict | None = None
+    enforced: bool = True  # false while the Budgets are proposed (ADR 0018)
 
 
 # ---------------------------------------------------------------------------
@@ -311,7 +293,7 @@ def _min_delta_overrides(budgets: dict | None) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 
 def _series_row(name: str, metric: str, scenario: str, current: dict, runs: list[dict],
-                value: Callable[[dict, str], float | None], rule: cp.Rule, *,
+                value: Callable[[dict, str], float | None], rule: perf_changepoint.Rule, *,
                 tolerance_percent: float | None = None, min_delta: float | None = None,
                 spread: Callable[[dict, str], float | None] | None = None,
                 accept: bool) -> Row:
@@ -319,8 +301,8 @@ def _series_row(name: str, metric: str, scenario: str, current: dict, runs: list
     points.append((current, value(current, name)))
     values = [v for _, v in points]
     spreads = [spread(e, name) for e, _ in points] if spread else None
-    d = cp.detect(values, rule, tolerance_percent=tolerance_percent, min_delta=min_delta,
-                  spreads=spreads)
+    d = perf_changepoint.detect(values, rule, tolerance_percent=tolerance_percent,
+                                min_delta=min_delta, spreads=spreads)
     measured = values[-1]
     delta = None
     if d.reference:
@@ -381,7 +363,8 @@ def compare(current: dict, history: list[dict], *, budgets: dict | None = None,
             binary, case = name.split(" / ", 1)
             rows.append(_series_row(name, "instructions", scenario_of(name, "instructions", None),
                                     current, count_runs, count_value, INSTRUCTIONS,
-                                    tolerance_percent=ic.threshold_percent(binary, case),
+                                    tolerance_percent=instruction_counts.threshold_percent(
+                                        binary, case),
                                     accept=accept))
     counted = [e for e in history if "instruction_counts" in e]
     if counted:
@@ -422,14 +405,16 @@ def check_budgets(budgets: dict, current: dict, history: list[dict]) -> list[Bud
 
     def status_in(index: int, key: str) -> str:
         if index not in statuses:
-            statuses[index] = {r.key: r.status for r in pb.check(budgets, **_reports(history[index]))}
+            statuses[index] = {r.key: r.status for r in
+                               perf_budgets.check(budgets, **_reports(history[index]))}
         return statuses[index].get(key, "missing")
 
+    enforce = perf_budgets.enforced(budgets)
     rows = []
-    for r in pb.check(budgets, **_reports(current)):
+    for r in perf_budgets.check(budgets, **_reports(current)):
         entry = budgets["budgets"][r.key]
         row = BudgetRow(r.key, entry["benchmark"], r.scenario, r.status, r.measured, r.budget,
-                        r.limit, r.unit)
+                        r.limit, r.unit, enforced=enforce)
         if r.status == "broken":
             first_bad = current
             for index in range(len(history) - 1, -1, -1):
@@ -465,7 +450,7 @@ def findings(rows: list[Row], budget_rows: list[BudgetRow]) -> list[dict]:
                 "last_good": r.last_good, "first_bad": r.first_bad,
             })
     for b in budget_rows:
-        if b.status in ("broken", "missing"):
+        if b.enforced and b.status in ("broken", "missing"):
             out.append({
                 "kind": "budget", "metric": "budget", "status": b.status,
                 "scenario": b.scenario, "benchmark": b.benchmark, "budget_key": b.key,
@@ -738,7 +723,9 @@ def markdown(rows: list[Row], budget_rows: list[BudgetRow],
     lines += _table(wall, ratio=ratio)
     lines.append("")
     if budget_rows:
-        lines.append(pb.markdown(budget_rows, title="Performance Budgets").replace("## ", "### ", 1))
+        enforce = all(b.enforced for b in budget_rows)
+        lines.append(perf_budgets.markdown(budget_rows, title="Performance Budgets",
+                                           enforce=enforce).replace("## ", "### ", 1))
     return "\n".join(lines)
 
 
@@ -757,8 +744,8 @@ def annotations(rows: list[Row], budget_rows: list[BudgetRow]) -> list[str]:
                        f"this one, commits {span}")
         elif f["status"] == "broken":
             out.append(f"::error::{f['budget_key']} broke its Budget: "
-                       f"{pb.format_value(f['measured'], f['unit'])} against "
-                       f"{pb.format_value(f['budget'], f['unit'])}, commits {span}")
+                       f"{perf_budgets.format_value(f['measured'], f['unit'])} against "
+                       f"{perf_budgets.format_value(f['budget'], f['unit'])}, commits {span}")
         else:
             out.append(f"::error::{f['budget_key']} has a Budget but was not measured")
     return out
@@ -796,7 +783,7 @@ def record(args: argparse.Namespace) -> int:
     try:
         report = _read_report(args.report)
         counts = _read_counts(args.instruction_counts) if args.instruction_counts else None
-        budgets = pb.load(args.budgets) if args.budgets else None
+        budgets = perf_budgets.load(args.budgets) if args.budgets else None
     except (OSError, ValueError, KeyError, AttributeError, TypeError) as error:
         print(f"::error::Unusable input: {error}")
         return 2
