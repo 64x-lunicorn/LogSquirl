@@ -427,9 +427,8 @@ reference.
 (#678): one chart per benchmark, grouped by Benchmark Scenario, for the last 120 days of `history/`, with the
 releases marked and each Budget drawn as a line; wall-clock with one line per CPU model, instruction counts
 per benchmark binary. The website build draws it as SVG from the checkout of the branch that
-`LOGSQUIRL_PERF_DATA` names (`website/src/perf-trend.mjs`); without it the page says it has no runs. After
-recording a run of master, the *website* job dispatches **Deploy Website** with `performance_trend`, which
-rebuilds the last published release's site with the new run (*Release pages on the website*). To see it
+`LOGSQUIRL_PERF_DATA` names (`website/src/perf-trend.mjs`); without it the page says it has no runs. The
+*website* job brings each recorded run of master to the site (*Release pages on the website*). To see it
 locally, with the worktree below: `cd website && LOGSQUIRL_PERF_DATA=/tmp/perf-data npm run dev`.
 
 **The spread within one CPU model** is what #675 re-decides a dedicated benchmark runner on (one
@@ -962,7 +961,8 @@ the next release (a wrong download link, legal text), and a release whose deploy
 leaves the site on the previous release until someone dispatches it. Nothing retries that on its own, and the
 dispatch must be on `master`, because the `website` environment admits no other branch.
 
-The nightly **Performance** run dispatches it as well, with `performance_trend` (#678): that deploy builds the
+The nightly **Performance** run dispatches it as well, from its *website* job after recording a run of master,
+with `performance_trend` (#678): that deploy builds the
 newest published release's tag instead of master, with the newest runs of the `perf-data` branch on its
 Performance page, so the trend is current every morning and no unreleased website change goes live with it.
 
