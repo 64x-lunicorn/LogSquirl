@@ -14,8 +14,10 @@ name: "Instruction Counts"
 # "CI passed" check waits for it (#672): a benchmark that costs more than its
 # threshold more instructions than on the base fails the pull request unless
 # it carries the `perf-accepted` label (instruction-counts.py gate;
-# CONTRIBUTING.md, *Instruction count gate*). This workflow itself only fails when a
-# benchmark binary fails on the after side.
+# CONTRIBUTING.md, *Instruction count gate*). A benchmark over its threshold
+# is counted once more on the after side, and the lower count is the one
+# judged (#708). This workflow itself only fails when a benchmark binary fails
+# on the after side.
 #
 # Instruction counts, not times: Callgrind counts the same instructions for the
 # same work to within a fraction of a percent on a shared runner, where a time
@@ -213,6 +215,55 @@ jobs:
       - name: Count the after side
         id: after
         run: '"$RUN_DIR/tools/.github/scripts/instruction-counts-side.sh" after'
+
+      # A benchmark over its threshold is counted once more, with the rest of
+      # its binary, from the after side's build, and the lower count is the
+      # one compared (#708): a thread spinning or polling while another works
+      # adds to a count as the threads happen to take turns, and takes
+      # nothing from the work, so a cost is judged only when both counts
+      # agree. The before side is not recounted: its build was replaced by
+      # the after side's (or was never made, when its counts come from
+      # master's run), and a count too high there can only hide a cost, never
+      # fail a pull request. A recount that fails leaves the first counts.
+      - name: Recount what is over its threshold
+        if: github.event_name == 'pull_request' && steps.after.outcome == 'success'
+        run: |
+          set -euo pipefail
+          report="$RUN_DIR/report"
+          tools="$RUN_DIR/tools/.github/scripts"
+          if ! list=$(python3 "$tools/instruction-counts.py" over-threshold \
+            --before "$report/before.json" --after "$report/after.json"); then
+            echo "::warning::What is over its threshold could not be found; the first counts are judged"
+            exit 0
+          fi
+          # One binary per line, read into an array and never split by the shell.
+          binaries=()
+          while IFS= read -r binary; do
+            if [ -n "$binary" ]; then
+              binaries+=("$binary")
+            fi
+          done <<< "$list"
+          if [ "${#binaries[@]}" = 0 ]; then
+            echo "No benchmark is over its threshold"
+            exit 0
+          fi
+          status=0
+          "$tools/instruction-counts-side.sh" recount "${binaries[@]}" || status=$?
+          if [ "$status" != 0 ]; then
+            echo "::warning::Not every binary could be recounted; those that failed keep their first counts"
+          fi
+          # Merged into a file of its own and moved over after.json only when
+          # the merge succeeded: a merge that fails leaves the first counts.
+          if [ -f "$report/recount.json" ]; then
+            if python3 "$tools/instruction-counts.py" merge-recount \
+              --side "$report/after.json" --recount "$report/recount.json" \
+              --json "$report/after-merged.json"; then
+              mv "$report/after-merged.json" "$report/after.json"
+            else
+              rm -f "$report/after-merged.json"
+              echo "::warning::The recount could not be merged; the first counts are judged"
+            fi
+          fi
 
       # ---------------------------------------------------------------------
       # Report

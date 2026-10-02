@@ -684,7 +684,9 @@ and after, from the **Instruction Counts** workflow (#671; BUILD.md,
 `BENCHMARK` and `BENCHMARK_ADVANCED` are Catch2's own, except with
 `LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1` under Callgrind, where they run the
 measured code exactly once and have Callgrind count only that run (the
-*fixed-work mode*). A new benchmark file includes it too, or its benchmarks are
+*fixed-work mode*). Counted, a binary that links oneTBB runs its flow graphs on
+the thread that waits for them alone, so that no idle TBB worker spins into a
+count (#708). A new benchmark file includes it too, or its benchmarks are
 timed there instead of counted. A test case that times itself without a
 `BENCHMARK` (the latency of reads while indexing, the Table View scroll, Go to
 timestamp, the ANSI Log File), or whose work happens in another process (the

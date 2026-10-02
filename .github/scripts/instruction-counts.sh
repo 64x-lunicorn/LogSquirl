@@ -29,12 +29,19 @@
 # exit code (exit_code; "not built" for a target that did not build).
 # instruction-counts.py collect reads that directory.
 #
+# With RECOUNT_TARGETS, it builds nothing and counts only those benchmark
+# targets once more, from the build the same build directory holds: the
+# Instruction Counts workflow recounts the after side's binaries that have a
+# benchmark over its threshold (#708).
+#
 # Usage: instruction-counts.sh <results directory>
 # Environment:
 #   BUILD_ROOT       build directory (default build_root)
 #   CMAKE_OPTS       configure options (default: RelWithDebInfo with Ninja, as
 #                    the release builds; the workflow passes the CI Build noble
 #                    job's options so the sccache cache fits)
+#   RECOUNT_TARGETS  benchmark targets to count again without building, by
+#                    name, separated by white space
 #   BINARY_TIMEOUT   seconds one binary may take under Callgrind (default 1800)
 #   LOGSQUIRL_BENCHMARK_LOG_FILE_MB, LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB:
 #                    the size of the generated Log Files (default 4 and 4 MiB)
@@ -59,27 +66,46 @@ fi
 grep -m 1 '^model name' /proc/cpuinfo || true
 valgrind --version
 
-echo "::group::Configure"
-# shellcheck disable=SC2086 # the options are a list of words
-cmake -B "$build_root" $cmake_opts -DLOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON .
-echo "::endgroup::"
+# configure_and_build: every target in $targets, in $build_root.
+configure_and_build() {
+    echo "::group::Configure"
+    # shellcheck disable=SC2086 # the options are a list of words
+    cmake -B "$build_root" $cmake_opts -DLOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON .
+    echo "::endgroup::"
 
-# A target that does not build must not be counted from an earlier build in
-# the same build directory (the workflow builds both sides in one).
-for target in $targets; do
-    rm -f "$build_root/output/$target"
-done
+    # A target that does not build must not be counted from an earlier build in
+    # the same build directory (the workflow builds both sides in one).
+    for target in $targets; do
+        rm -f "$build_root/output/$target"
+    done
 
-echo "::group::Build"
-build_start=$(date +%s)
-# shellcheck disable=SC2086 # one word per target
-if ! cmake --build "$build_root" --target $targets -- -k 0; then
-    echo "::warning::Not every benchmark built; the ones that did not are reported as failed"
-fi
-echo "::endgroup::"
-echo "Build: $(( $(date +%s) - build_start )) s"
-if [ -n "${SCCACHE_DIR:-}" ] && command -v sccache > /dev/null; then
-    sccache --show-stats || true
+    echo "::group::Build"
+    local build_start
+    build_start=$(date +%s)
+    # shellcheck disable=SC2086 # one word per target
+    if ! cmake --build "$build_root" --target $targets -- -k 0; then
+        echo "::warning::Not every benchmark built; the ones that did not are reported as failed"
+    fi
+    echo "::endgroup::"
+    echo "Build: $(( $(date +%s) - build_start )) s"
+    if [ -n "${SCCACHE_DIR:-}" ] && command -v sccache > /dev/null; then
+        sccache --show-stats || true
+    fi
+}
+
+if [ -n "${RECOUNT_TARGETS:-}" ]; then
+    recount=""
+    for target in $RECOUNT_TARGETS; do
+        if ! printf '%s\n' "$targets" | grep -qxF -- "$target"; then
+            echo "::error::$target is not a benchmark target"
+            exit 1
+        fi
+        recount="$recount $target"
+    done
+    targets=$recount
+    echo "Recounting, without building:$targets"
+else
+    configure_and_build
 fi
 
 export LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1

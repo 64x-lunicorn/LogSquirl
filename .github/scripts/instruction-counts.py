@@ -26,6 +26,20 @@ Subcommands:
       (their counts are left out, since a binary that stopped early did not run
       all of its benchmarks).
 
+  over-threshold --before FILE --after FILE
+      Prints the binaries, one per line, with a benchmark that costs more than
+      its threshold more instructions than on the before side, labels aside
+      (#708). The workflow counts them once more on the after side.
+
+  merge-recount --side FILE --recount FILE --json FILE
+      Adds a recount of some binaries (a side file) to a side file: each
+      benchmark it recounted gets the lowest of its counts as "instructions"
+      and every count, in order, as "instruction_counts". A thread spinning
+      or polling while another works adds to a count as the threads happen to
+      take turns, and takes nothing from the work, so the lower count is the
+      closer one, and a benchmark is over its threshold only when every count
+      is.
+
   compare --before FILE --after FILE --before-sha SHA --after-sha SHA
           --head-sha SHA --pull-request N [--json FILE] [--markdown FILE]
       Compares two side files. The JSON is the workflow's artifact, which the
@@ -37,14 +51,17 @@ Subcommands:
          "benchmarks": [{"binary": "...", "name": "...",
                          "metrics": {"instructions": {"before": int|null,
                                                       "after": int|null,
-                                                      "change_percent": float|null},
+                                                      "change_percent": float|null,
+                                                      "after_counts": [int, ...]},
                                      "allocations": {...},
                                      "peak_heap_bytes": {...}}}]}
 
       A metric is null on the side a benchmark does not exist on, or was not
-      counted on. allocations and peak_heap_bytes (#673) have the shape of
-      instructions; they are reported only, never judged by the gate, and an
-      artifact without them reads as not counted.
+      counted on. after_counts is there only for a benchmark recounted on the
+      after side (#708): every count, of which after is the lowest.
+      allocations and peak_heap_bytes (#673) have the shape of instructions;
+      they are reported only, never judged by the gate, and an artifact
+      without them reads as not counted.
 
   gate --comparison FILE --labels FILE [--json FILE] [--markdown FILE]
       The gate of #672 (CI Build's "Instruction counts / gate" job): exits 1
@@ -124,6 +141,8 @@ THRESHOLD_PERCENT: dict[tuple[str, str], float] = {
     ("logsquirl_textview_scroll_benchmark", "text view scroll benchmarks / keys: 5 pages down and 5 up"): 3.0,
 }
 MAX_THRESHOLD_PERCENT = 1000.0
+# The most counts of one benchmark on the after side: the first and its recounts.
+MAX_COUNTS = 10
 
 # Limits for the artifact the comment workflow reads.
 MAX_BENCHMARKS = 2000
@@ -235,8 +254,8 @@ def metric(before: int | None, after: int | None) -> dict[str, Any]:
     return {"before": before, "after": after, "change_percent": change_percent(before, after)}
 
 
-def compare(before: dict[str, Any], after: dict[str, Any], *, before_sha: str, after_sha: str,
-            head_sha: str, pull_request: int) -> dict[str, Any]:
+def compared_benchmarks(before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, Any]]:
+    """The benchmarks of two side files, each with its metrics on both sides, as compare() lists them."""
     def entries(data: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
         return {(b["binary"], b["name"]): b for b in data["benchmarks"]}
 
@@ -246,7 +265,15 @@ def compare(before: dict[str, Any], after: dict[str, Any], *, before_sha: str, a
         b = before_entries.get((binary, name), {})
         a = after_entries.get((binary, name), {})
         metrics = {key: metric(b.get(key), a.get(key)) for key in ("instructions", *HEAP_METRICS)}
+        if a.get("instruction_counts"):
+            metrics["instructions"]["after_counts"] = list(a["instruction_counts"])
         benchmarks.append({"binary": binary, "name": name, "metrics": metrics})
+    return benchmarks
+
+
+def compare(before: dict[str, Any], after: dict[str, Any], *, before_sha: str, after_sha: str,
+            head_sha: str, pull_request: int) -> dict[str, Any]:
+    benchmarks = compared_benchmarks(before, after)
     return {
         "schema_version": SCHEMA_VERSION,
         "pull_request": pull_request,
@@ -270,6 +297,22 @@ def threshold_percent(binary: str, name: str, thresholds: Thresholds | None = No
     return table.get((binary, name), DEFAULT_THRESHOLD_PERCENT)
 
 
+def over_threshold(benchmarks: list[dict[str, Any]],
+                   thresholds: Thresholds | None = None) -> list[dict[str, Any]]:
+    """The benchmarks, as compare() lists them, that cost more than their threshold more instructions than on the base.
+
+    A benchmark not counted on one side has no change and is not over.
+    """
+    over = []
+    for entry in benchmarks:
+        i = entry["metrics"]["instructions"]
+        change = change_percent(i["before"], i["after"])
+        threshold = threshold_percent(entry["binary"], entry["name"], thresholds)
+        if change is not None and change > threshold:
+            over.append({"binary": entry["binary"], "name": entry["name"], "threshold_percent": threshold})
+    return over
+
+
 def evaluate_gate(data: dict[str, Any], *, labels: list[str],
                   thresholds: Thresholds | None = None) -> dict[str, Any]:
     """The gate's verdict on a comparison.
@@ -281,17 +324,10 @@ def evaluate_gate(data: dict[str, Any], *, labels: list[str],
     request's side, and when nothing was counted at all. A new benchmark, or one
     that does not build on the base, has nothing to be compared with and passes.
     """
-    over: list[dict[str, Any]] = []
-    missing: list[dict[str, str]] = []
-    for entry in data["benchmarks"]:
-        i = entry["metrics"]["instructions"]
-        if i["before"] is not None and i["after"] is None:
-            missing.append({"binary": entry["binary"], "name": entry["name"]})
-            continue
-        change = change_percent(i["before"], i["after"])
-        threshold = threshold_percent(entry["binary"], entry["name"], thresholds)
-        if change is not None and change > threshold:
-            over.append({"binary": entry["binary"], "name": entry["name"], "threshold_percent": threshold})
+    over = over_threshold(data["benchmarks"], thresholds)
+    missing = [{"binary": entry["binary"], "name": entry["name"]} for entry in data["benchmarks"]
+               if entry["metrics"]["instructions"]["before"] is not None
+               and entry["metrics"]["instructions"]["after"] is None]
     failed = list(data["after"]["failed_binaries"])
     counted = any(b["metrics"]["instructions"]["after"] is not None for b in data["benchmarks"])
     accepted = ACCEPT_LABEL in labels and bool(over)
@@ -299,6 +335,37 @@ def evaluate_gate(data: dict[str, Any], *, labels: list[str],
     return {"schema_version": SCHEMA_VERSION, "pull_request": data["pull_request"], "head_sha": data["head_sha"],
             "passed": passed, "accepted": accepted, "over_threshold": over, "missing": missing,
             "failed_binaries": failed}
+
+
+def binaries_to_recount(before: dict[str, Any], after: dict[str, Any], *,
+                        thresholds: Thresholds | None = None) -> list[str]:
+    """The binaries with a benchmark over its threshold, as the gate judges it, labels aside (#708).
+
+    Each is counted once more on the after side, and merge_recount() keeps the
+    lower count: a thread's turns can add to a count, never take from the
+    work, so a cost over the threshold is judged only when both counts agree.
+    """
+    return sorted({o["binary"] for o in over_threshold(compared_benchmarks(before, after), thresholds)})
+
+
+def merge_recount(first: dict[str, Any], recount: dict[str, Any]) -> dict[str, Any]:
+    """A side file with the recount's counts added: the lowest of a benchmark's counts is its count.
+
+    A recounted benchmark keeps every count in instruction_counts, in order.
+    Its heap counts stay the first count's, and a benchmark the recount did not
+    count (its binary failed or was not recounted) stays as it was.
+    """
+    failed = set(recount["failed_binaries"])
+    recounted = {(b["binary"], b["name"]): b["instructions"]
+                 for b in recount["benchmarks"] if b["binary"] not in failed}
+    benchmarks = []
+    for entry in first["benchmarks"]:
+        count = recounted.get((entry["binary"], entry["name"]))
+        if count is not None:
+            counts = [*entry.get("instruction_counts", [entry["instructions"]]), count]
+            entry = {**entry, "instructions": min(counts), "instruction_counts": counts}
+        benchmarks.append(entry)
+    return {**first, "benchmarks": benchmarks}
 
 
 def unused_thresholds(data: dict[str, Any], thresholds: Thresholds | None = None) -> list[tuple[str, str]]:
@@ -362,6 +429,12 @@ def validate(data: Any) -> dict[str, Any]:
             _require(isinstance(m, dict) and _is_count(m.get("before")) and _is_count(m.get("after")),
                      f"{key} counts")
             clean[key] = metric(m.get("before"), m.get("after"))
+            if key == "instructions" and "after_counts" in m:
+                counts = m["after_counts"]
+                _require(isinstance(counts, list) and 2 <= len(counts) <= MAX_COUNTS
+                         and all(type(c) is int and _is_count(c) for c in counts)
+                         and m.get("after") == min(counts), "instructions after_counts")
+                clean[key]["after_counts"] = list(counts)
         benchmarks.append({"binary": entry["binary"], "name": entry["name"], "metrics": clean})
     return {"schema_version": SCHEMA_VERSION, "pull_request": pull_request, "head_sha": data["head_sha"],
             "before": sides["before"], "after": sides["after"], "benchmarks": benchmarks}
@@ -591,6 +664,21 @@ def render_markdown(data: dict[str, Any], *, comment: bool = False, gate: dict[s
         if failed:
             names = ", ".join(escape(f) for f in failed)
             lines += [f"**Not counted on the {key} side**, the binary failed: {names}", ""]
+    recounted = [b for b in benchmarks if b["metrics"]["instructions"].get("after_counts")]
+    if recounted:
+        lines += [
+            "**Recounted on the after side** (#708): these benchmarks were over their threshold in the first "
+            "count, so their binaries were counted once more. A thread's turns can add to a count but not "
+            "take from the work, so the lower count is the one shown and judged:",
+            "",
+            "| Benchmark | First count | Recount |",
+            "|---|---:|---:|",
+        ]
+        for entry in recounted:
+            first, *rest = entry["metrics"]["instructions"]["after_counts"]
+            name = escape(f"{short_binary(entry['binary'])}: {entry['name']}")
+            lines.append(f"| {name} | {_count(first)} | {', '.join(_count(c) for c in rest)} |")
+        lines.append("")
     summary = f"{total} benchmark{'' if total == 1 else 's'}, "
     summary += (f"{len(changed)} changed by more than {NOISE_PERCENT} %" if changed
                 else f"none changed by more than {NOISE_PERCENT} %")
@@ -671,6 +759,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--json", type=Path)
     p.add_argument("--markdown", type=Path)
 
+    p = sub.add_parser("over-threshold")
+    p.add_argument("--before", type=Path, required=True)
+    p.add_argument("--after", type=Path, required=True)
+
+    p = sub.add_parser("merge-recount")
+    p.add_argument("--side", type=Path, required=True)
+    p.add_argument("--recount", type=Path, required=True)
+    p.add_argument("--json", type=Path, required=True)
+
     p = sub.add_parser("gate")
     p.add_argument("--comparison", type=Path, required=True)
     p.add_argument("--labels", type=Path, required=True)
@@ -692,12 +789,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"::error::{binary} failed; its benchmarks are not counted")
         return 0
 
-    if args.command == "compare":
-        def load(path: Path) -> dict[str, Any]:
-            if not path.is_file():
-                return {"schema_version": SCHEMA_VERSION, "benchmarks": [], "failed_binaries": []}
-            return json.loads(path.read_text(encoding="utf-8"))
+    def load(path: Path) -> dict[str, Any]:
+        if not path.is_file():
+            return {"schema_version": SCHEMA_VERSION, "benchmarks": [], "failed_binaries": []}
+        return json.loads(path.read_text(encoding="utf-8"))
 
+    if args.command == "over-threshold":
+        for binary in binaries_to_recount(load(args.before), load(args.after)):
+            print(binary)
+        return 0
+
+    if args.command == "merge-recount":
+        result = merge_recount(load(args.side), load(args.recount))
+        args.json.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        return 0
+
+    if args.command == "compare":
         result = compare(load(args.before), load(args.after), before_sha=args.before_sha,
                          after_sha=args.after_sha, head_sha=args.head_sha,
                          pull_request=args.pull_request)

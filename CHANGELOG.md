@@ -326,11 +326,27 @@
   posted on #675 after eight weeks of nightly runs to re-decide a dedicated
   benchmark runner. (#685)
 
+- **The instruction counts gate does not turn red on a count that a waiting
+  thread inflated**: counted, the benchmarks run oneTBB's flow graphs on the
+  thread that waits for them alone, so no idle TBB worker spins into a count,
+  which once added 9 % to a 20-tab Session restore that cost nothing more. A
+  benchmark over its threshold is counted once more on the pull request's
+  side and fails the gate only when both counts are over; the comment lists
+  both counts. (#708)
+
 - **Widgets built while the File Watcher polls do not race its poll thread**:
   the application creates Qt's gesture manager before the poll thread starts,
   instead of when the first scroll area of a window is built. That thread reads
   it for every timer event it receives, and the ThreadSanitizer job reported
   the race whenever a window was built while polling ran. (#698)
+
+- **Indexing a Log File that starts with ASCII reads its bytes once**: while
+  its Encoding is still taken for UTF-8 from ASCII alone (#657), the search
+  for line feeds and tabs also sees whether a block goes beyond ASCII, and
+  only a block that does is read again, up to its first byte beyond ASCII.
+  Before, every block was read a second time, which cost indexing up to
+  4.5 % more instructions. The search itself loops over whole 16-byte chunks
+  more tightly. (#701)
 
 # v26.10.0 (2026-09-29)
 

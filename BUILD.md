@@ -593,8 +593,21 @@ A count is reproducible where a time is not: two runs of the same commit differ 
 0.5 % for most benchmarks, on a shared runner whose times vary by 5–20 %. The exceptions wait for
 other threads: which heap blocks glibc's allocator has free, and how long an idle worker thread
 spins, then depend on how the threads took turns, and their counts vary by up to about 3 %
-(Valgrind's `--fair-sched=yes` makes that about a third of what it is without). For that, each benchmark runs
-its measured code exactly once, in the benchmarks' **fixed-work mode**
+(Valgrind's `--fair-sched=yes` makes that about a third of what it is without). oneTBB's idle
+workers spun the most: in one run 1.2 M instructions (9 %) more of a 20-tab Session restore than
+in the next (#708). So, counted, a benchmark binary runs oneTBB's flow graphs (indexing, Search)
+on the thread that waits for them alone, with no TBB worker thread (`instruction_count.h`); a
+timed run keeps TBB's workers. And since a thread's turns can add to a count but never take from
+the work, a benchmark that is over its threshold has its binary counted once more on the after
+side, from the same build, and the lower of the two counts is the one compared and judged: the
+gate fails only when both counts are over. The comment lists both counts of every recounted
+benchmark. The before side is not recounted (its build is gone by then, or its counts came from
+master's run): a count too high there can hide a cost, but not fail a pull request. That has a
+known cost: the after side is judged by the lower of two counts while the before side has one, so
+a real regression smaller than a benchmark's spread can pass. It is accepted, because the gate
+must never be falsely red (#672); the thresholds, measured while TBB's workers still spun, are to
+be measured again and lowered (#727). To count the
+same work every time, each benchmark runs its measured code exactly once, in the benchmarks' **fixed-work mode**
 (`tests/benchmarks/instruction_count.h`), instead of as often as Catch2's clock asks for:
 with `LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1`, `BENCHMARK` and `BENCHMARK_ADVANCED` start
 Callgrind's counting where Catch2 would start its clock and write one dump, named
