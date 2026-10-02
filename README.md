@@ -130,6 +130,8 @@ The [user guide](https://logsquirl.lunicorn-lab.de/docs/) covers filters, charts
 Multi-threaded, SIMD-optimized search. Persistent index caching for reopening files.
 Automatic encoding detection. Direct support for `.gz`, `.bz2`, `.xz`, `.zst`, `.lz4`,
 and tarballs.
+Master is measured every night against its own history and Budgets; the
+[performance trend](https://logsquirl.lunicorn-lab.de/performance/) shows each scenario over time.
 
 ### Make the important parts stand out
 

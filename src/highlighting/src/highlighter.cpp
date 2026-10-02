@@ -290,6 +290,20 @@ bool Highlighter::matchLine( const QString& line,
     return ( !matches.empty() );
 }
 
+HighlighterMatchType Highlighter::colorLine( const QString& line,
+                                             logsquirl::vector<HighlightedMatch>& matches ) const
+{
+    matches.clear();
+    if ( line.size() > MaxHighlightLineLength || !matchLine( line, matches ) ) {
+        return HighlighterMatchType::NoMatch;
+    }
+    if ( !highlightOnlyMatch_ ) {
+        matches.clear();
+        return HighlighterMatchType::LineMatch;
+    }
+    return HighlighterMatchType::WordMatch;
+}
+
 HighlighterSet HighlighterSet::createNewSet( const QString& name )
 {
     return HighlighterSet{ name };
@@ -370,8 +384,7 @@ HighlighterMatchType HighlighterSet::matchLine( const QString& line,
     }
 
     // Skip expensive regex matching on extremely long lines to prevent UI hangs
-    constexpr int MaxHighlightLineLength = 1'000'000;
-    if ( line.size() > MaxHighlightLineLength ) {
+    if ( line.size() > Highlighter::MaxHighlightLineLength ) {
         return HighlighterMatchType::NoMatch;
     }
 
@@ -409,21 +422,21 @@ HighlighterMatchType HighlighterSet::matchLine( const QString& line,
         }
 
         logsquirl::vector<HighlightedMatch> thisMatches;
-        if ( !hl.matchLine( line, thisMatches ) ) {
-            continue;
-        }
-
-        if ( hl.highlightOnlyMatch() ) {
+        switch ( hl.colorLine( line, thisMatches ) ) {
+        case HighlighterMatchType::NoMatch:
+            break;
+        case HighlighterMatchType::WordMatch:
             if ( matchType != HighlighterMatchType::LineMatch ) {
                 matchType = HighlighterMatchType::WordMatch;
             }
             matches.addMatches( thisMatches );
-        }
-        else {
+            break;
+        case HighlighterMatchType::LineMatch:
             matchType = HighlighterMatchType::LineMatch;
             matches.clear();
             matches.addMatch(
                 { 0_lcol, LineLength{ line.size() }, hl.foreColor(), hl.backColor() } );
+            break;
         }
     }
 

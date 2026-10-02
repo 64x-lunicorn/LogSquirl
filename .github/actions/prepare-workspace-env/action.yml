@@ -1,5 +1,5 @@
 name: "Set common env vars"
-description: ""
+description: "Set the workspace paths and the common environment variables of a build job"
 runs:
   using: "composite"
   steps:

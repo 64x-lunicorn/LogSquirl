@@ -46,7 +46,7 @@ WARNING: ThreadSanitizer: data race (pid=162)
   Write of size 8 at 0x72100000c100 by main thread:
 ${_qt_delete}
     #1 QCoreApplicationPrivate::sendPostedEvents(QObject*, int, QThreadData*) <null> (libQt6Core.so.6+0x18d9fd) (BuildId: fcf7)
-    #2 CATCH2_INTERNAL_TEST_2 /usr/local/tests/unit/lookuprunner_test.cpp:117 (logsquirl_tests+0x86219a) (BuildId: 0fc3)
+    #2 CATCH2_INTERNAL_TEST_2 /usr/local/tests/unit/latestresultrunner_test.cpp:117 (logsquirl_tests+0x86219a) (BuildId: 0fc3)
 
   Previous write of size 8 at 0x72100000c100 by thread T1 (mutexes: write M0):
 ${_qt_new}
@@ -180,7 +180,7 @@ expect(own_atomic "==================
 WARNING: ThreadSanitizer: data race (pid=9)
   Atomic write of size 1 at 0x7200 by thread T2:
     #0 std::__atomic_base<bool>::store(bool, std::memory_order) /usr/include/c++/13/bits/atomic_base.h:481 (logsquirl_tests+0x1)
-    #1 LookupRunner::cancel() /usr/local/src/ui/src/lookuprunner.cpp:80 (logsquirl_tests+0x2)
+    #1 LatestResultRunner::cancel() /usr/local/src/ui/include/latestresultrunner.h:103 (logsquirl_tests+0x2)
 
   Previous write of size 8 at 0x7200 by main thread:
 ${_qt_delete}

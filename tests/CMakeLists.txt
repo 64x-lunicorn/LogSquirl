@@ -8,10 +8,11 @@ add_subdirectory(logdata)
 add_subdirectory(openlogfile)
 add_subdirectory(textviewscrolling)
 add_subdirectory(searchline)
+add_subdirectory(valuenames)
 add_subdirectory(ui)
 add_subdirectory(benchmarks)
 
-add_dependencies(ci_build logsquirl_grep logsquirl_tests logsquirl_compression_tests logsquirl_plugin_catalog_tests logsquirl_logdata_tests logsquirl_openlogfile_tests logsquirl_textviewscrolling_tests logsquirl_searchline_tests logsquirl_itests logsquirl_decoration_benchmark logsquirl_textviewscrolling_benchmark logsquirl_textview_scroll_benchmark logsquirl_logdata_benchmark logsquirl_logdata_read_benchmark logsquirl_session_restore_benchmark logsquirl_regex_matcher_benchmark logsquirl_tableview_paint_benchmark logsquirl_tableview_scroll_benchmark logsquirl_displayedlines_benchmark logsquirl_filteredview_read_benchmark logsquirl_chart_follow_benchmark logsquirl_chart_paint_benchmark logsquirl_overview_selection_benchmark logsquirl_timelookup_benchmark logsquirl_versioncheck_tests logsquirl_documentation_tests logsquirl_benchmark_tests)
+add_dependencies(ci_build logsquirl_grep logsquirl_tests logsquirl_compression_tests logsquirl_plugin_catalog_tests logsquirl_logdata_tests logsquirl_openlogfile_tests logsquirl_textviewscrolling_tests logsquirl_searchline_tests logsquirl_valuenames_tests logsquirl_itests logsquirl_decoration_benchmark logsquirl_textviewscrolling_benchmark logsquirl_textview_scroll_benchmark logsquirl_logdata_benchmark logsquirl_logdata_read_benchmark logsquirl_session_restore_benchmark logsquirl_regex_matcher_benchmark logsquirl_tableview_paint_benchmark logsquirl_tableview_scroll_benchmark logsquirl_displayedlines_benchmark logsquirl_filteredview_read_benchmark logsquirl_chart_follow_benchmark logsquirl_chart_paint_benchmark logsquirl_overview_selection_benchmark logsquirl_timelookup_benchmark logsquirl_versioncheck_tests logsquirl_documentation_tests logsquirl_benchmark_tests)
 
 # TBB is a private dependency of the log data library: no public header of
 # it may include a TBB header (#168).
@@ -184,6 +185,18 @@ add_test(
     COMMAND ${CMAKE_COMMAND}
             -DMODULE_DIR=${CMAKE_SOURCE_DIR}/cmake
             -P ${CMAKE_CURRENT_SOURCE_DIR}/full_optimization_flags.cmake
+)
+
+# Profile-guided optimization and BOLT get the options documented in
+# cmake/ProfileGuidedOptimization.cmake and relax no diagnostic but GCC's
+# missing profile, and a profile-use build without its profile stops at
+# configure time (#682).
+add_test(
+    NAME pgo_flags
+    COMMAND ${CMAKE_COMMAND}
+            -DMODULE_DIR=${CMAKE_SOURCE_DIR}/cmake
+            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/pgo_flags
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/pgo_flags.cmake
 )
 
 # Link time optimization covers every compiled target under src/ and tests/

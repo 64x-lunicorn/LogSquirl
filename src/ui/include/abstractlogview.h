@@ -63,6 +63,7 @@
 
 #include "abstractlogdata.h"
 #include "decorationsetup.h"
+#include "linedecorator.h"
 #include "linemapping.h"
 #include "linessaver.h"
 #include "linetypes.h"
@@ -73,6 +74,7 @@
 #include "regularexpressionpattern.h"
 #include "selection.h"
 #include "settingspolicies.h"
+#include "shownline.h"
 #include "textviewscrolling.h"
 #include "viewportlayout.h"
 #include "wrappedstring.h"
@@ -172,10 +174,25 @@ public:
     // Where the view stands: the Log Line at the top and which of its Visual
     // Lines is shown first.
     ScrollPosition scrollPosition() const;
-    // Return the text of the current selection.
+    // Return the text of the current selection, as the Log File holds it.
+    // Text selected within a Log Line that takes in part of a Named Value
+    // takes in all of its raw text (#647).
     QString getSelectedText() const;
+    // The text of the current selection as the view shows it: with the
+    // names of its Named Values while the view shows Value Names (Copy as
+    // Shown, #647).
+    QString getSelectedTextAsShown() const;
     // True for partial selection
     bool isPartialSelection() const;
+    // The selected Log Lines, in order (see Selection::getLines()).
+    logsquirl::vector<LineNumber> selectedLogLines() const;
+    // The first at most limit of them, without looking at the others (#663).
+    logsquirl::vector<LineNumber> selectedLogLines( LinesCount limit ) const;
+    // The Log Lines the view shows around its current position
+    // (getViewPosition()), in order: at most count of them, centered on it
+    // where the view shows enough before and after it. What the Regex Lab
+    // takes as its sample (#659).
+    logsquirl::vector<LineNumber> logLinesAroundViewPosition( LinesCount count ) const;
     // Instructs the widget to select the whole text.
     void selectAll();
     // Saves the lines from the first to the last selected one to filename,
@@ -192,6 +209,20 @@ public:
     {
         return scrolling_.textWrap();
     }
+
+    // Whether the View menu's Show Value Names is on for this view, as it was
+    // handed last (valueNamesShownSet()). Off until it is handed.
+    bool isValueNamesShownSet() const
+    {
+        return valueNamesShown_;
+    }
+    // Whether the view shows Value Names now: the switch is on and some
+    // checked Naming Rule can name a value (#647).
+    bool showsValueNames() const;
+
+    // What the tooltip over pos, in Viewport coordinates, tells: the Named
+    // Value there and where its name came from; empty where there is none.
+    QString valueNameToolTipAt( const QPoint& pos ) const;
 
     void allowFollowMode( bool allow ) override;
 
@@ -233,6 +264,10 @@ public:
 
     void registerShortcuts() override;
 
+    // The Naming Groups or their checks changed: the Log Lines are named
+    // again, if the view shows Value Names.
+    void applyValueNamesChange() override;
+
 protected:
     void mousePressEvent( QMouseEvent* mouseEvent ) override;
     void mouseMoveEvent( QMouseEvent* mouseEvent ) override;
@@ -246,15 +281,24 @@ protected:
     void keyPressEvent( QKeyEvent* keyEvent ) override;
     void wheelEvent( QWheelEvent* wheelEvent ) override;
     bool event( QEvent* e ) override;
+    bool viewportEvent( QEvent* e ) override;
 
     // Reads the lines a save from this view writes, by their position in the
     // view, off the UI thread (see LineMapping::linesToSave()).
     DisplayedLinesReader linesToSave() const;
 
+    // Whether Save to file and Save selected to file ask with the dialog that
+    // offers to save With Value Names (SaveLinesDialog): while the view shows
+    // them. Otherwise they ask with the platform's own dialog (#647).
+    bool offersSaveWithValueNames() const;
+
     // Saves the lines at positions [begin, end) to filename, behind an application
     // modal progress dialog. filename is replaced only when every line was
-    // written: a cancelled or failed save leaves it as it was.
-    void saveLinesTo( const QString& filename, LineNumber begin, LineNumber end );
+    // written: a cancelled or failed save leaves it as it was. withValueNames
+    // saves them as shown with the Value Names of this view (#647); without,
+    // or when the view shows none, as the Log File holds them.
+    void saveLinesTo( const QString& filename, LineNumber begin, LineNumber end,
+                      bool withValueNames = false );
 
     // Get the overview associated with this view, or NULL if there is none
     Overview* getOverview() const
@@ -279,9 +323,6 @@ protected:
     // offers no such entry, unless the view can split its Log Lines into the
     // fields of a Log Format.
     virtual std::function<void()> exportAsCsvAction();
-
-    // The selected Log Lines, in order (see Selection::getLines()).
-    logsquirl::vector<LineNumber> selectedLogLines() const;
 
     void registerShortcut( const std::string& action, std::function<void()> func );
 
@@ -362,6 +403,9 @@ public Q_SLOTS:
     // Signals the text wrap mode has been enabled.
     void textWrapSet( bool checked );
 
+    // The View menu's Show Value Names switched for this view's tab (#647).
+    void valueNamesShownSet( bool shown );
+
     // Signal the on/off status of the overview has been changed.
     void refreshOverview();
 
@@ -400,6 +444,7 @@ private Q_SLOTS:
     void findPreviousSelected();
     void copy();
     void copyWithLineNumbers();
+    void copyAsShown();
     void markSelected();
     void saveToFile();
     void saveSelectedToFile();
@@ -421,6 +466,8 @@ private:
     bool follow_ = false;
     // Whether to show line numbers or not
     bool lineNumbersVisible_ = false;
+    // Whether the View menu's Show Value Names is on for this view (#647).
+    bool valueNamesShown_ = false;
 
     // Pointer to the CrawlerWidget's data set, read by position
     const AbstractLogData* logData_;
@@ -506,6 +553,8 @@ private:
         bool selectedAsSingleLine = false;
         LineColumn selectionStart{ -1 };
         LineColumn selectionEnd{ -1 };
+        // The Value Names the Log Line was named with: 0 for none (#647).
+        uint64_t valueNames = 0;
 
         bool operator==( const DecorationKey& ) const = default;
     };
@@ -529,7 +578,13 @@ private:
         // Read only while the Decoration Policy shows ANSI colors, with the
         // text, once as the Log Line enters the Viewport (#573).
         logsquirl::vector<AnsiColorSpan> ansiColors;
-        // The text with its tabs expanded, split into the Visual Lines it is drawn as.
+        // The text as shown with its Named Values, while the view shows Value
+        // Names and the Log Line has any; empty otherwise (#647).
+        logsquirl::valuenames::ShownLine shown;
+        // The display columns each Named Value is drawn in, in order.
+        logsquirl::vector<WholeRun> namedValueColumns;
+        // The text shown, with its tabs expanded, split into the Visual Lines
+        // it is drawn as.
         WrappedString wrapped;
         // The first of its Visual Lines in the Viewport. Past 0 only for the Log
         // Line at the top, when the Scroll Position is partway through it.
@@ -568,6 +623,8 @@ private:
         // Displayed Lines need not follow.
         int lineNumberAreaWidth = 0;
         uint64_t generation = 0;
+        // The Value Names the Log Lines are named with: 0 for none (#647).
+        uint64_t valueNames = 0;
 
         bool operator==( const ViewportContentKey& ) const = default;
 
@@ -689,6 +746,35 @@ private:
 
     // What a Log Line's Decoration depends on now.
     DecorationKey decorationKey( LineNumber logLine ) const;
+
+    // The Value Namer the view names Log Lines with, or none: while the switch
+    // is off or no Naming Rule can name anything, no Log Line is looked at.
+    // Constant time (#647).
+    const logsquirl::valuenames::ValueNamer* shownValueNamer() const;
+    // Which Value Names the view shows, for the keys of what it caches: 0
+    // for none.
+    uint64_t valueNamesKey() const;
+    // The Log Line as shown, named by the namer the view shows; none while it
+    // shows none. Read from the Log File.
+    std::optional<logsquirl::valuenames::ShownLine> shownLineOf( LineNumber logLine ) const;
+    // Drops what was named with the Value Names shown before, and the widths
+    // scrolled to for them.
+    void renameLogLines();
+    // The selection with its portion grown to take in every Named Value it
+    // takes in part of; none while there is nothing to grow (#647).
+    std::optional<Selection> selectionCoveringNamedValues() const;
+    // The selected text, never half a raw value, with line numbers or not.
+    QString selectedText( bool lineNumbers ) const;
+    // The portion grown to take in every Named Value it takes in part of.
+    Portion coveringNamedValues( const Portion& portion ) const;
+    // The Log Line in the Viewport at a position of the view, if it is there.
+    const ViewportLogLine* viewportLogLineAt( LineNumber position ) const;
+    // The widest Log Line the Viewport has shown with Value Names, in display
+    // columns: the horizontal scrollbar reaches it as well as the widest raw
+    // one. Reset when the Value Names change.
+    mutable LineLength widestShownLine_{ 0 };
+    // The width the horizontal scrollbar was last given.
+    LineLength scrolledWidth_{ 0 };
 
     // Moves the text area pixmap by the Visual Lines the view scrolled since
     // it was painted, and paints only the rows that came into view. Only

@@ -89,14 +89,21 @@ public:
     bool exclude( const QString& word );
     bool replace( const QString& word );
     bool useFilters( const QList<PredefinedFilter>& filters );
+    // A pattern applied from the Regex Lab (#661), as the Search Line takes
+    // it: the buttons are set and the pattern shown as the user would set
+    // and type them, and a changed pattern tells patternEdited(). True when
+    // auto-refresh is on and the Search is to run now.
+    bool apply( const RegularExpressionPattern& pattern );
 
     // What the Search Session does, told as it happens; the buttons and the
     // info line show what the Search Line makes of it.
     void requested( const SearchSession::State& state );
     void progressed( const SearchSession::State& state, SearchAutoRefresh::State autoRefresh );
-    void stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount );
+    void stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                  LinesCount undecidedCount = 0_lcount );
     void cleared();
-    void settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount );
+    void settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                  LinesCount undecidedCount = 0_lcount );
 
     SearchLine::Display display() const;
 

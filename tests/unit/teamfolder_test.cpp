@@ -47,86 +47,24 @@
 #include <thread>
 
 #include "groupexchange.h"
+#include "naminggroup.h"
 #include "teamfolder.h"
 #include "teamfoldergit.h"
+#include "teamfoldertesting.h"
 
 using logsquirl::teamfolder::Git;
+using logsquirl::teamfolder::groupOfKind;
+using logsquirl::teamfolder::SyncStep;
 using logsquirl::teamfolder::TeamGroupChanges;
+using logsquirl::valuenames::GroupTable;
+using logsquirl::valuenames::NameRow;
+using logsquirl::valuenames::NameTable;
+using logsquirl::valuenames::NamingGroup;
+using logsquirl::valuenames::NamingRule;
 using namespace logsquirl::groupexchange;
+using namespace teamfolder_testing;
 
 namespace {
-
-constexpr int SyncTimeoutMs = 60'000;
-
-// Sets the environment every Git of this process runs in for as long as it
-// lives, and puts back what was there.
-class IsolatedGitEnvironment {
-public:
-    IsolatedGitEnvironment()
-    {
-#ifdef Q_OS_WIN
-        const QByteArray nullDevice = "NUL";
-#else
-        const QByteArray nullDevice = "/dev/null";
-#endif
-        set( "GIT_CONFIG_GLOBAL", nullDevice );
-        set( "GIT_CONFIG_NOSYSTEM", "1" );
-        set( "GIT_TERMINAL_PROMPT", "0" );
-        set( "GIT_AUTHOR_NAME", "Team Folder Test" );
-        set( "GIT_AUTHOR_EMAIL", "team-folder-test@example.invalid" );
-        set( "GIT_COMMITTER_NAME", "Team Folder Test" );
-        set( "GIT_COMMITTER_EMAIL", "team-folder-test@example.invalid" );
-    }
-
-    ~IsolatedGitEnvironment()
-    {
-        for ( const auto& [ name, value ] : previous_ ) {
-            if ( value.has_value() ) {
-                qputenv( name.c_str(), *value );
-            }
-            else {
-                qunsetenv( name.c_str() );
-            }
-        }
-    }
-
-    IsolatedGitEnvironment( const IsolatedGitEnvironment& ) = delete;
-    IsolatedGitEnvironment& operator=( const IsolatedGitEnvironment& ) = delete;
-
-private:
-    void set( const char* name, const QByteArray& value )
-    {
-        previous_.emplace( name, qEnvironmentVariableIsSet( name )
-                                     ? std::optional<QByteArray>( qgetenv( name ) )
-                                     : std::nullopt );
-        qputenv( name, value );
-    }
-
-    std::map<std::string, std::optional<QByteArray>> previous_;
-};
-
-bool gitInstalled()
-{
-    return !QStandardPaths::findExecutable( QStringLiteral( "git" ) ).isEmpty();
-}
-
-// Whether the Team Folder is done syncing, waiting for it as long as needed.
-bool settled( const TeamFolder& folder )
-{
-    return QTest::qWaitFor( [ &folder ] { return !folder.isSyncing(); }, SyncTimeoutMs );
-}
-
-void syncNow( TeamFolder& folder )
-{
-    REQUIRE( settled( folder ) );
-    folder.sync();
-    REQUIRE( settled( folder ) );
-}
-
-TeamFolderPolicy policyFor( const QString& url, const QString& subfolder = {} )
-{
-    return TeamFolderPolicy{ .enabled = true, .repositoryUrl = url, .subfolder = subfolder };
-}
 
 PredefinedFilterSet makeGroup( const QString& name, const QString& pattern = "ERROR" )
 {
@@ -140,6 +78,34 @@ HighlighterSet makeSet( const QString& name, const QString& pattern = "ERROR" )
     auto set = HighlighterSet::createNewSet( name );
     set.addHighlighter( Highlighter( pattern, false, true, Qt::red, Qt::white ) );
     return set;
+}
+
+NamingGroup makeNamingGroup( const QString& name, const QString& ecuName = "Beispiel" )
+{
+    auto group = NamingGroup::createNewGroup( name );
+    NamingRule rule;
+    rule.name = "ECU";
+    rule.pattern = "ECU (0x[0-9A-F]{2})";
+    rule.groupTables = { GroupTable{ "1", "ECU" } };
+    group.setRules( { rule } );
+    group.setTables( { NameTable{ "ECU", { NameRow{ "0x15", ecuName } } } } );
+    return group;
+}
+
+QString ecuNameOf( const NamingGroup& group )
+{
+    return group.tables().isEmpty() || group.tables().front().rows.isEmpty()
+               ? QString()
+               : group.tables().front().rows.front().name;
+}
+
+QStringList namesOf( const QList<NamingGroup>& groups )
+{
+    QStringList names;
+    for ( const auto& group : groups ) {
+        names.append( group.name() );
+    }
+    return names;
 }
 
 QStringList namesOf( const QList<HighlighterSet>& sets )
@@ -254,6 +220,14 @@ public:
         commitAndPush( member, { "add", "--", file }, "Share a set" );
     }
 
+    // The same for a Naming Group of Value Names.
+    void pushGroupByHand( const QString& member, const NamingGroup& group ) const
+    {
+        const auto file = suggestedFileName( group.name(), GroupKind::ValueNames );
+        REQUIRE( writeGroup( QDir( cloneOf( member ) ).filePath( file ), group ) );
+        commitAndPush( member, { "add", "--", file }, "Share a naming group" );
+    }
+
     void removeByHand( const QString& member, const QString& file ) const
     {
         commitAndPush( member, { "rm", "--quiet", "--", file }, "Remove a group" );
@@ -291,7 +265,8 @@ void checkMissingGitIsReported( const QString& gitProgram = QStringLiteral( "git
     REQUIRE( settled( folder ) );
 
     CHECK( folder.state() == TeamFolder::State::Error );
-    CHECK( folder.message().contains( "Git could not be started" ) );
+    CHECK( folder.failedStep() == SyncStep::StartGit );
+    CHECK( folder.gitOutput().contains( "Git could not be started" ) );
     CHECK( folder.filterGroups().isEmpty() );
 }
 
@@ -345,7 +320,9 @@ TEST_CASE( "A group file added on one side appears on the other after a sync", "
     syncNow( *bob );
 
     CHECK( bob->state() == TeamFolder::State::Synced );
-    CHECK( bob->message().isEmpty() );
+    CHECK( bob->failedStep() == SyncStep::None );
+    CHECK( bob->gitOutput().isEmpty() );
+    CHECK( bob->heading() == "Synced" );
     const auto groups = bob->filterGroups();
     REQUIRE( groups.size() == 1 );
     CHECK( groups[ 0 ].id() == network.id() );
@@ -444,6 +421,10 @@ TEST_CASE( "A malformed file in the Team Folder is skipped and reported", "[team
     REQUIRE( skipped.size() == 1 );
     CHECK( skipped[ 0 ].file == "broken_filter.conf" );
     CHECK_FALSE( skipped[ 0 ].reason.isEmpty() );
+    // Still shown beside the status.
+    CHECK( bob->remarks()
+           == QStringList{
+               QStringLiteral( "Skipped broken_filter.conf: %1" ).arg( skipped[ 0 ].reason ) } );
 }
 
 TEST_CASE( "Team groups are sorted by name and read from the subfolder", "[teamfolder]" )
@@ -479,7 +460,18 @@ TEST_CASE( "A subfolder outside the repository is refused", "[teamfolder]" )
     const Team team;
     const auto bob = team.member( "bob", "../elsewhere" );
     CHECK( bob->state() == TeamFolder::State::Error );
-    CHECK_FALSE( bob->message().isEmpty() );
+    CHECK( bob->failedStep() == SyncStep::Subfolder );
+    // The subfolder is LogSquirl's to refuse: there is nothing from Git, and
+    // a remark names the subfolder.
+    CHECK( bob->gitOutput().isEmpty() );
+    CHECK( bob->remarks()
+           == QStringList{ "The subfolder ../elsewhere does not lie inside the repository." } );
+
+    // A subfolder inside it takes the remark away.
+    bob->setUp( policyFor( team.url(), "logsquirl" ) );
+    REQUIRE( settled( *bob ) );
+    CHECK( bob->failedStep() == SyncStep::None );
+    CHECK( bob->remarks().isEmpty() );
 }
 
 TEST_CASE( "A failed clone is reported with Git's message", "[teamfolder]" )
@@ -497,8 +489,11 @@ TEST_CASE( "A failed clone is reported with Git's message", "[teamfolder]" )
     REQUIRE( settled( folder ) );
 
     CHECK( folder.state() == TeamFolder::State::Error );
-    CHECK_FALSE( folder.message().isEmpty() );
-    CHECK_FALSE( folder.message().contains( "Git could not be started" ) );
+    CHECK( folder.failedStep() == SyncStep::Clone );
+    CHECK( folder.heading() == "Clone failed" );
+    // Git's own output, and nothing but it: the heading is not joined to it.
+    CHECK( folder.gitOutput().startsWith( "fatal: " ) );
+    CHECK_FALSE( folder.gitOutput().contains( "Clone failed" ) );
     CHECK( folder.filterGroups().isEmpty() );
 }
 
@@ -521,14 +516,61 @@ TEST_CASE( "An unreachable repository keeps the groups of the last sync", "[team
     syncNow( *bob );
 
     CHECK( bob->state() == TeamFolder::State::NotSynced );
-    CHECK_FALSE( bob->message().isEmpty() );
+    CHECK( bob->failedStep() == SyncStep::Pull );
+    CHECK( bob->heading() == "Pull failed" );
+    CHECK( bob->gitOutput().startsWith( "fatal: " ) );
     CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Network" } );
 
     // And comes back.
     REQUIRE( QDir().rename( team.serverPath() + ".gone", team.serverPath() ) );
     syncNow( *bob );
     CHECK( bob->state() == TeamFolder::State::Synced );
-    CHECK( bob->message().isEmpty() );
+    CHECK( bob->failedStep() == SyncStep::None );
+    CHECK( bob->gitOutput().isEmpty() );
+    CHECK( bob->heading() == "Synced" );
+}
+
+TEST_CASE( "A clone that cannot take what was pulled reports the failed merge", "[teamfolder]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    team.pushGroupByHand( "alice", makeGroup( "Network" ) );
+    const auto bob = team.member( "bob" );
+    REQUIRE( bob->state() == TeamFolder::State::Synced );
+
+    // Alice shares a second group; Bob's clone holds a file of his own,
+    // untracked, where it would go. Git fetches it, and refuses to overwrite
+    // the file with it.
+    const auto file = suggestedFileName( "Second", GroupKind::Filter );
+    team.pushGroupByHand( "alice", makeGroup( "Second" ) );
+    {
+        QFile mine( QDir( team.cloneOf( "bob" ) ).filePath( file ) );
+        REQUIRE( mine.open( QIODevice::WriteOnly ) );
+        mine.write( "Bob's own file\n" );
+    }
+    syncNow( *bob );
+
+    CHECK( bob->state() == TeamFolder::State::Error );
+    CHECK( bob->failedStep() == SyncStep::Merge );
+    CHECK( bob->heading() == "Merge failed" );
+    // Git's own output, naming the file it would not overwrite.
+    CHECK( bob->gitOutput().contains( file ) );
+    CHECK_FALSE( bob->gitOutput().contains( "Merge failed" ) );
+    CHECK( namesOf( bob->filterGroups() ).contains( "Network" ) );
+
+    // With the file out of the way, the next sync merges.
+    REQUIRE( QFile::remove( QDir( team.cloneOf( "bob" ) ).filePath( file ) ) );
+    syncNow( *bob );
+    CHECK( bob->state() == TeamFolder::State::Synced );
+    CHECK( bob->failedStep() == SyncStep::None );
+    CHECK( bob->gitOutput().isEmpty() );
+    CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Network", "Second" } );
 }
 
 TEST_CASE( "Turning the Team Folder off or pointing it elsewhere replaces only Team groups",
@@ -1047,6 +1089,14 @@ TEST_CASE( "A push refused for missing rights makes the Team groups read-only",
     CHECK( outcome.results[ 0 ].message.contains( "you may not push here" ) );
     CHECK_FALSE( alice->isWritable() );
     CHECK( alice->readOnlyReason().contains( "you may not push here" ) );
+    // The step that failed and Git's output, apart; the Team groups stay
+    // current, and say they are read-only.
+    CHECK( alice->state() == TeamFolder::State::Synced );
+    CHECK( alice->failedStep() == SyncStep::PushRefused );
+    CHECK( alice->heading() == "Push refused" );
+    CHECK( alice->gitOutput().contains( "you may not push here" ) );
+    CHECK_FALSE( alice->gitOutput().contains( "read-only" ) );
+    CHECK( alice->remarks() == QStringList{ "The Team groups are read-only." } );
     // Nothing is left pending that could never be pushed.
     CHECK_FALSE( alice->hasPendingChanges() );
     CHECK( alice->filterGroups().isEmpty() );
@@ -1174,9 +1224,10 @@ TEST_CASE( "Publishing a group someone else changed meanwhile reports a conflict
     REQUIRE( outcome.results.size() == 1 );
     const auto& conflict = outcome.results[ 0 ];
     CHECK( conflict.status == PublishStatus::Conflict );
-    REQUIRE( conflict.theirsFilterGroup.has_value() );
-    REQUIRE( conflict.theirsFilterGroup->filters().size() == 1 );
-    CHECK( conflict.theirsFilterGroup->filters()[ 0 ].pattern == "alices pattern" );
+    const auto* theirsGroup = groupOfKind<PredefinedFilterSet>( conflict.theirs );
+    REQUIRE( theirsGroup != nullptr );
+    REQUIRE( theirsGroup->filters().size() == 1 );
+    CHECK( theirsGroup->filters()[ 0 ].pattern == "alices pattern" );
     // Nothing was pushed or committed.
     CHECK( team.lastCommit() == serverHead );
     CHECK_FALSE( bob->hasPendingChanges() );
@@ -1263,8 +1314,8 @@ TEST_CASE( "A dialog's requests carry the revisions of the groups it loaded",
     changed.setFilters( { { "Full", "disk full", false } } );
     const auto added = makeGroup( "Fresh" );
 
-    const auto requests
-        = requestsForChanges( { network }, { changed, added }, { { network.id(), "abc123" } } );
+    const auto requests = requestsForChanges<PredefinedFilterSet>( { network }, { changed, added },
+                                                                   { { network.id(), "abc123" } } );
     REQUIRE( requests.size() == 2 );
     CHECK( requests[ 0 ].baseRevision == std::optional<QString>( "abc123" ) );
     // A new group has no base: nobody else can have changed it.
@@ -1609,8 +1660,9 @@ TEST_CASE( "A change made offline does not silently overwrite what a colleague p
     for ( const auto& result : outcome.results ) {
         if ( result.status == PublishStatus::Conflict ) {
             ++conflicts;
-            REQUIRE( result.theirsFilterGroup.has_value() );
-            CHECK( result.theirsFilterGroup->filters()[ 0 ].pattern == "bobs pattern" );
+            const auto* theirsGroup = groupOfKind<PredefinedFilterSet>( result.theirs );
+            REQUIRE( theirsGroup != nullptr );
+            CHECK( theirsGroup->filters()[ 0 ].pattern == "bobs pattern" );
             CHECK( result.request.id == network.id() );
         }
     }
@@ -1726,4 +1778,305 @@ TEST_CASE( "An index.lock older than the stopped run is not the run's and stays"
 
     CHECK_FALSE( result.succeeded );
     CHECK( QFileInfo::exists( lockPath ) );
+}
+
+// --- Naming Groups of Value Names: the third kind (#647) ---
+
+TEST_CASE( "Team Naming Groups arrive next to the other kinds, each file read by its kind",
+           "[teamfolder][valuenames]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    const auto bap = makeNamingGroup( "BAP" );
+    team.pushGroupByHand( "alice", makeNamingGroup( "zeta" ) );
+    team.pushGroupByHand( "alice", bap );
+    team.pushGroupByHand( "alice", makeSet( "Levels" ) );
+    team.pushGroupByHand( "alice", makeGroup( "Network" ) );
+    // A file naming a kind this version does not know is no group of it.
+    team.pushByHand( "alice", "future.conf", "kind=charts\n[PredefinedFiltersCollection]\n" );
+    // Nor is a Naming Group of a newer version.
+    team.pushByHand( "alice", "newer_valuenames.conf",
+                     "kind=valuenames\n[NamingGroup]\nversion=99\nid=x\nname=Newer\n" );
+
+    const auto bob = team.member( "bob" );
+    CHECK( namesOf( bob->namingGroups() ) == QStringList{ "BAP", "zeta" } );
+    CHECK( namesOf( bob->highlighterGroups() ) == QStringList{ "Levels" } );
+    CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Network" } );
+    REQUIRE( bob->namingGroups().size() == 2 );
+    CHECK( bob->namingGroups()[ 0 ].id() == bap.id() );
+    CHECK( bob->namingGroups()[ 0 ].sameAs( bap ) );
+    CHECK_FALSE( bob->namingGroupRevision( bap.id() ).isEmpty() );
+    const auto skipped = bob->skippedFiles();
+    REQUIRE( skipped.size() == 2 );
+    CHECK( skipped[ 0 ].file == "future.conf" );
+    CHECK( skipped[ 0 ].reason.contains( "kind of group this version does not know" ) );
+    CHECK( skipped[ 1 ].file == "newer_valuenames.conf" );
+    CHECK( skipped[ 1 ].reason.contains( "newer version" ) );
+
+    // A change shows at the next sync, as a change of the Naming Groups only.
+    QSignalSpy valueNamesChanged( bob.get(), &TeamFolder::namingGroupsChanged );
+    QSignalSpy filtersChanged( bob.get(), &TeamFolder::groupsChanged );
+    team.pushGroupByHand( "alice", makeNamingGroup( "BAP", "Other" ).withId( bap.id() ) );
+    syncNow( *bob );
+    REQUIRE( valueNamesChanged.size() == 1 );
+    CHECK( valueNamesChanged.at( 0 ).at( 0 ).value<TeamGroupChanges>().changed
+           == QStringList{ bap.id() } );
+    CHECK( filtersChanged.isEmpty() );
+    CHECK( ecuNameOf( bob->namingGroups()[ 0 ] ) == "Other" );
+}
+
+TEST_CASE( "A Naming Group is published, changed and deleted for the whole team",
+           "[teamfolder][valuenames][publish]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    const auto bob = team.member( "bob" );
+
+    auto bap = makeNamingGroup( "BAP" );
+    const auto added
+        = publishAndWait( *alice, { PublishRequest::forGroup( bap, GroupAction::Add ) } );
+    REQUIRE( added.results.size() == 1 );
+    CHECK( added.results[ 0 ].status == PublishStatus::Published );
+    CHECK(
+        team.lastCommit()
+        == QStringList{ "Add naming group \"BAP\"", "Team Folder Test", "BAP_valuenames.conf" } );
+
+    syncNow( *bob );
+    REQUIRE( bob->namingGroups().size() == 1 );
+    CHECK( bob->namingGroups()[ 0 ].sameAs( bap ) );
+    CHECK( bob->filterGroups().isEmpty() );
+    CHECK( bob->highlighterGroups().isEmpty() );
+
+    SECTION( "a change and a rename keep the file" )
+    {
+        auto changed = makeNamingGroup( "BAP renamed", "Changed" ).withId( bap.id() );
+        publishAndWait( *alice,
+                        { PublishRequest::forGroup( changed, GroupAction::Rename, "BAP" ) } );
+        CHECK( team.lastCommit()
+               == QStringList{ "Rename naming group \"BAP\" to \"BAP renamed\"", "Team Folder Test",
+                               "BAP_valuenames.conf" } );
+        syncNow( *bob );
+        REQUIRE( bob->namingGroups().size() == 1 );
+        CHECK( bob->namingGroups()[ 0 ].name() == "BAP renamed" );
+        CHECK( ecuNameOf( bob->namingGroups()[ 0 ] ) == "Changed" );
+    }
+
+    SECTION( "a deletion" )
+    {
+        const auto deleted = publishAndWait(
+            *alice,
+            { PublishRequest::forDeletion( GroupKind::ValueNames, bap.id(), bap.name() ) } );
+        CHECK( deleted.results[ 0 ].status == PublishStatus::Published );
+        CHECK( team.serverFiles().isEmpty() );
+        syncNow( *bob );
+        CHECK( bob->namingGroups().isEmpty() );
+    }
+
+    SECTION( "a dialog's edits ask for what changed of the Naming Groups" )
+    {
+        auto renamed = bap;
+        renamed.setName( "Renamed" );
+        const auto fresh = makeNamingGroup( "Fresh" );
+        // Checks are no change: they are the user's own.
+        auto unchecked = bap;
+        unchecked.setEnabled( false );
+        CHECK( logsquirl::teamfolder::requestsForChanges<NamingGroup>( { bap }, { unchecked } )
+                   .isEmpty() );
+
+        const auto requests = logsquirl::teamfolder::requestsForChanges<NamingGroup>(
+            { bap }, { renamed, fresh }, alice->namingGroupRevisions() );
+        REQUIRE( requests.size() == 2 );
+        CHECK( requests[ 0 ].kind == GroupKind::ValueNames );
+        CHECK( requests[ 0 ].action == GroupAction::Rename );
+        CHECK( requests[ 0 ].baseRevision.value_or( QString{} )
+               == alice->namingGroupRevision( bap.id() ) );
+        CHECK( requests[ 1 ].action == GroupAction::Add );
+        CHECK( groupOfKind<NamingGroup>( requests[ 1 ].group ) != nullptr );
+        const auto deletions
+            = logsquirl::teamfolder::requestsForChanges<NamingGroup>( { bap }, {} );
+        REQUIRE( deletions.size() == 1 );
+        CHECK( deletions[ 0 ].kind == GroupKind::ValueNames );
+        CHECK( deletions[ 0 ].action == GroupAction::Delete );
+    }
+}
+
+TEST_CASE( "Publishing a Naming Group someone else changed meanwhile reports a conflict",
+           "[teamfolder][valuenames][conflict]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    const auto bap = makeNamingGroup( "BAP", "Original" );
+    team.pushGroupByHand( "alice", bap );
+    syncNow( *alice );
+    const auto bob = team.member( "bob" );
+
+    auto request = PublishRequest::forGroup( makeNamingGroup( "BAP", "Bobs" ).withId( bap.id() ),
+                                             GroupAction::Change );
+    request.baseRevision = bob->namingGroupRevision( bap.id() );
+    REQUIRE_FALSE( request.baseRevision.value_or( QString{} ).isEmpty() );
+
+    const auto theirs = makeNamingGroup( "BAP", "Alices" ).withId( bap.id() );
+    REQUIRE( publishAndWait( *alice, { PublishRequest::forGroup( theirs, GroupAction::Change ) } )
+                 .results[ 0 ]
+                 .status
+             == PublishStatus::Published );
+    const auto serverHead = team.lastCommit();
+
+    const auto outcome = publishAndWait( *bob, { request } );
+    REQUIRE( outcome.results.size() == 1 );
+    const auto& conflict = outcome.results[ 0 ];
+    CHECK( conflict.status == PublishStatus::Conflict );
+    CHECK( conflict.hasTheirs() );
+    const auto* theirsGroup = groupOfKind<NamingGroup>( conflict.theirs );
+    REQUIRE( theirsGroup != nullptr );
+    CHECK( ecuNameOf( *theirsGroup ) == "Alices" );
+    CHECK( groupOfKind<PredefinedFilterSet>( conflict.theirs ) == nullptr );
+    CHECK( team.lastCommit() == serverHead );
+
+    SECTION( "keep mine overwrites their version" )
+    {
+        QSignalSpy finished( bob.get(), &TeamFolder::publishFinished );
+        bob->resolveConflict( request, ConflictChoice::KeepMine );
+        REQUIRE( finished.wait( SyncTimeoutMs ) );
+        REQUIRE( settled( *bob ) );
+        syncNow( *alice );
+        REQUIRE( alice->namingGroups().size() == 1 );
+        CHECK( ecuNameOf( alice->namingGroups()[ 0 ] ) == "Bobs" );
+    }
+
+    SECTION( "save mine as a copy adds a Naming Group and leaves theirs" )
+    {
+        QSignalSpy finished( bob.get(), &TeamFolder::publishFinished );
+        bob->resolveConflict( request, ConflictChoice::SaveAsCopy );
+        REQUIRE( finished.wait( SyncTimeoutMs ) );
+        REQUIRE( settled( *bob ) );
+        syncNow( *alice );
+        const auto groups = alice->namingGroups();
+        CHECK( namesOf( groups ) == QStringList{ "BAP", "BAP (2)" } );
+        REQUIRE( groups.size() == 2 );
+        CHECK( ecuNameOf( groups[ 0 ] ) == "Alices" );
+        CHECK( groups[ 1 ].id() != bap.id() );
+        CHECK( ecuNameOf( groups[ 1 ] ) == "Bobs" );
+    }
+}
+
+// The step that failed and Git's output, reported apart (#711): the status
+// names the step, and Git's output is shown as Git wrote it.
+TEST_CASE( "A failed step is reported apart from Git's output, which is kept as Git wrote it",
+           "[teamfolder]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    // Git's output of several lines, one of them indented, as Git writes the
+    // message of a server.
+    const QString printed = "fatal: first line of the server's message\n"
+                            "    an indented second line, longer than a status label would "
+                            "show on one line of its own without wrapping it\n"
+                            "fatal: Could not read from remote repository.";
+    const auto failOn = [ & ]( const QString& command ) {
+        return wrapperGit( team.root(), "git-" + command + ".sh",
+                           QStringLiteral( "if [ \"$1\" = %1 ]; then\n"
+                                           "  printf '%s\\n' \"fatal: first line of the "
+                                           "server's message\" \"    an indented second line, "
+                                           "longer than a status label would show on one line "
+                                           "of its own without wrapping it\" \"fatal: Could not "
+                                           "read from remote repository.\" >&2\n"
+                                           "  exit 128\n"
+                                           "fi" )
+                               .arg( command ) );
+    };
+
+    SECTION( "a clone" )
+    {
+        TeamFolder folder( team.cloneOf( "alice" ), failOn( "clone" ) );
+        folder.setUp( policyFor( team.url() ) );
+        REQUIRE( settled( folder ) );
+
+        CHECK( folder.state() == TeamFolder::State::Error );
+        CHECK( folder.failedStep() == SyncStep::Clone );
+        CHECK( folder.heading() == "Clone failed" );
+        CHECK( folder.gitOutput() == printed );
+        CHECK( folder.remarks().isEmpty() );
+    }
+
+    SECTION( "a pull" )
+    {
+        // Alice's clone exists; only the syncs after it fail.
+        team.member( "alice" );
+        TeamFolder folder( team.cloneOf( "alice" ), failOn( "fetch" ) );
+        folder.setUp( policyFor( team.url() ) );
+        REQUIRE( settled( folder ) );
+
+        CHECK( folder.state() == TeamFolder::State::NotSynced );
+        CHECK( folder.failedStep() == SyncStep::Pull );
+        CHECK( folder.heading() == "Pull failed" );
+        CHECK( folder.gitOutput() == printed );
+    }
+
+    SECTION( "a push the server cannot be reached for" )
+    {
+        TeamFolder folder( team.cloneOf( "alice" ), failOn( "push" ) );
+        folder.setUp( policyFor( team.url() ) );
+        REQUIRE( settled( folder ) );
+        REQUIRE( folder.failedStep() == SyncStep::None );
+
+        const auto outcome = publishGroup( folder, makeGroup( "Network" ), GroupAction::Add );
+        REQUIRE( outcome.results.size() == 1 );
+        CHECK( outcome.results[ 0 ].status == PublishStatus::Pending );
+        CHECK( folder.state() == TeamFolder::State::NotSynced );
+        CHECK( folder.failedStep() == SyncStep::Push );
+        CHECK( folder.heading() == "Push failed" );
+        CHECK( folder.gitOutput() == printed );
+        CHECK( folder.isWritable() );
+    }
+}
+
+TEST_CASE( "A group that could not be published is still reported beside the status",
+           "[teamfolder][publish]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const Team team;
+    const auto wrapper = wrapperGit( team.root(), "git-commit.sh",
+                                     "if [ \"$1\" = commit ]; then\n"
+                                     "  echo 'fatal: no commit in this test' >&2\n"
+                                     "  exit 128\n"
+                                     "fi" );
+    TeamFolder alice( team.cloneOf( "alice" ), wrapper );
+    alice.setUp( policyFor( team.url() ) );
+    REQUIRE( settled( alice ) );
+
+    const auto outcome = publishGroup( alice, makeGroup( "Network" ), GroupAction::Add );
+    REQUIRE( outcome.results.size() == 1 );
+    CHECK( outcome.results[ 0 ].status == PublishStatus::Failed );
+    // The sync itself worked out.
+    CHECK( alice.state() == TeamFolder::State::Synced );
+    CHECK( alice.failedStep() == SyncStep::None );
+    CHECK( alice.remarks() == QStringList{ "Not published: fatal: no commit in this test" } );
 }

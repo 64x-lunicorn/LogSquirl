@@ -66,6 +66,9 @@ public:
     virtual void rereadLogLines() = 0;
     // Repaint after Marks, Matches, Highlighters or Color Labels changed.
     virtual void updateDecorations() = 0;
+    // The Naming Groups or their checks changed: a view showing Value
+    // Names reads the Log Lines it shows again; the Table View shows none (#647).
+    virtual void applyValueNamesChange() = 0;
     // Register the shortcuts anew, as the settings now say: they have no
     // Policy, so the view reads them itself.
     virtual void registerShortcuts() = 0;

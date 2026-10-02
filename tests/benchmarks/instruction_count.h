@@ -34,6 +34,22 @@
 // where it would stop it. The setup of a BENCHMARK_ADVANCED (everything outside
 // meter.measure) is not counted, just as Catch2 does not time it.
 //
+// oneTBB runs the flow graphs of indexing and Search on the thread that waits
+// for them and on its worker threads. A worker that runs out of work spins
+// before it sleeps, for as long as the threads' turns under Valgrind happen to
+// let it, and Callgrind counts that with everything else: it added 1.2 M
+// instructions (9 %) to a 20-tab Session restore in one run and nothing in the
+// next, and made the widest spreads of #671 (#708). So in the fixed-work mode
+// the waiting thread runs every graph alone, as the graphs allow (#142, #146),
+// and no worker thread runs or spins in a count. In timed runs TBB keeps its
+// workers.
+//
+// In a build with LOGSQUIRL_BENCHMARK_HEAP_COUNTS (heap_count.h, #673), the
+// same run also counts the allocations and the peak heap of the measured code:
+// the heap window opens right before Callgrind starts and closes right after
+// it stops, so the two count the same code, and the window's own instructions
+// are not counted.
+//
 // .github/scripts/instruction-counts.sh runs every benchmark binary that way
 // and .github/scripts/instruction-counts.py reads the dumps; BUILD.md,
 // "Instruction counts", shows how to reproduce a count by hand.
@@ -57,6 +73,21 @@
 #include <valgrind/callgrind.h>
 #define LOGSQUIRL_BENCHMARK_HAS_CALLGRIND 1
 #endif
+#endif
+
+#ifdef LOGSQUIRL_BENCHMARK_HEAP_COUNTS
+#include "heap_count.h"
+#endif
+
+// Set by tests/benchmarks/CMakeLists.txt for a binary that links oneTBB.
+#ifdef LOGSQUIRL_BENCHMARK_LIMITS_TBB
+#include <catch2/catch_test_run_info.hpp>
+#include <catch2/reporters/catch_reporter_event_listener.hpp>
+#include <catch2/reporters/catch_reporter_registrars.hpp>
+
+#include <tbb/global_control.h>
+
+#include <optional>
 #endif
 
 namespace logsquirl_benchmark {
@@ -85,6 +116,9 @@ public:
         // added up to 30 % to a small benchmark in some runs (#671). Uncounted,
         // they get the time to fall asleep first.
         std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
+#ifdef LOGSQUIRL_BENCHMARK_HEAP_COUNTS
+        logsquirl_benchmark_heap_start();
+#endif
 #ifdef LOGSQUIRL_BENCHMARK_HAS_CALLGRIND
         CALLGRIND_START_INSTRUMENTATION;
         CALLGRIND_ZERO_STATS;
@@ -96,6 +130,9 @@ public:
 #ifdef LOGSQUIRL_BENCHMARK_HAS_CALLGRIND
         CALLGRIND_DUMP_STATS_AT( label_.c_str() );
         CALLGRIND_STOP_INSTRUMENTATION;
+#endif
+#ifdef LOGSQUIRL_BENCHMARK_HEAP_COUNTS
+        logsquirl_benchmark_heap_finish( label_.c_str() );
 #endif
     }
 
@@ -154,7 +191,41 @@ private:
     std::string name_;
 };
 
+#ifdef LOGSQUIRL_BENCHMARK_LIMITS_TBB
+// In the fixed-work mode, for the whole test run, oneTBB runs its work on the
+// thread that waits for it and starts no worker. The control is made when the
+// run starts, before the first benchmark's setup, and is gone when the run
+// ends, inside Catch::Session::run and so inside main(): like the
+// tbb::global_control of LogSquirl's own main(), it does not outlive main()
+// while oneTBB's workers end (#665). A listener rather than a static, which
+// would be destroyed after main() returned; every benchmark binary is one
+// source file, so it is registered once.
+class TbbOnTheWaitingThreadOnly final : public Catch::EventListenerBase {
+public:
+    using Catch::EventListenerBase::EventListenerBase;
+
+    void testRunStarting( const Catch::TestRunInfo& /*testRunInfo*/ ) override
+    {
+        if ( countsInstructions() ) {
+            waitingThreadOnly_.emplace( tbb::global_control::max_allowed_parallelism, 1 );
+        }
+    }
+
+    void testRunEnded( const Catch::TestRunStats& /*testRunStats*/ ) override
+    {
+        waitingThreadOnly_.reset();
+    }
+
+private:
+    std::optional<tbb::global_control> waitingThreadOnly_;
+};
+#endif
+
 } // namespace logsquirl_benchmark
+
+#ifdef LOGSQUIRL_BENCHMARK_LIMITS_TBB
+CATCH_REGISTER_LISTENER( logsquirl_benchmark::TbbOnTheWaitingThreadOnly )
+#endif
 
 // The same shape as Catch2's own macros (catch_benchmark.hpp), with the
 // Benchmark above in place of Catch::Benchmark::Benchmark.

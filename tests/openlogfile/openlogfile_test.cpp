@@ -1478,6 +1478,76 @@ SCENARIO( "An Open Log File reads its Log File in the Encoding detected unless o
     }
 }
 
+namespace {
+
+const auto Groesse = QStringLiteral( "Gr\u00f6\u00dfe" );
+
+// German Log Lines ending in one that says "Größe", in ISO-8859-1: enough of
+// them for the detector to tell a Latin encoding.
+QByteArray latin1Lines()
+{
+    return QStringLiteral( "Die Gr\u00f6\u00dfe der \u00dcbertragung betr\u00e4gt 1024 Bytes\n"
+                           "Gr\u00fc\u00dfe aus M\u00fcnchen, sch\u00f6ne Gr\u00fc\u00dfe\n"
+                           "Der B\u00e4cker \u00f6ffnet um f\u00fcnf, die Stra\u00dfe ist "
+                           "gro\u00df\n"
+                           "Gr\u00f6\u00dfe\n" )
+        .toLatin1();
+}
+
+} // namespace
+
+SCENARIO( "An Open Log File of ASCII Log Lines reads what goes beyond ASCII as detected then",
+          "[openlogfile][encoding]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "ascii.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    EncodingObserver encoding( logFile.openLogFile );
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+    REQUIRE( logFile.openLogFile.encoding()->mibEnum() == mibOf( "UTF-8" ) );
+    const auto lastLine = [ &logFile ] {
+        return logFile.openLogFile.logData()->getLineString(
+            LineNumber( logFile.nbLines().get() - 1 ) );
+    };
+
+    WHEN( "Log Lines in ISO-8859-1 are added" )
+    {
+        REQUIRE( logFile.fileWatch->grow( path, latin1Lines() ) );
+        REQUIRE( logFile.observer.waitLoads( 2 ) );
+
+        THEN( "it reads them in the Encoding detected from them, and tells it changed" )
+        {
+            const auto* detected = logFile.openLogFile.encoding();
+            INFO( "detected " << detected->name().toStdString() );
+            REQUIRE( detected->mibEnum() != mibOf( "UTF-8" ) );
+            REQUIRE( detected->mibEnum()
+                     == logFile.openLogFile.logData()->getDetectedEncoding()->mibEnum() );
+            REQUIRE( logFile.openLogFile.logData()->getDisplayEncoding()->mibEnum()
+                     == detected->mibEnum() );
+            REQUIRE_FALSE( logFile.openLogFile.chosenEncoding().has_value() );
+            REQUIRE( lastLine() == Groesse );
+            REQUIRE( encoding.changes == 2 );
+        }
+    }
+
+    WHEN( "an Encoding is chosen, then a Log Line in UTF-8 is added" )
+    {
+        logFile.openLogFile.setEncoding( mibOf( "ISO-8859-1" ) );
+        REQUIRE( logFile.fileWatch->grow( path, Groesse.toUtf8() + "\n" ) );
+        REQUIRE( logFile.observer.waitLoads( 2 ) );
+
+        THEN( "it is still read in the Encoding chosen" )
+        {
+            REQUIRE( logFile.openLogFile.chosenEncoding() == mibOf( "ISO-8859-1" ) );
+            REQUIRE( logFile.openLogFile.encoding()->mibEnum() == mibOf( "ISO-8859-1" ) );
+            REQUIRE( lastLine() == QString::fromLatin1( Groesse.toUtf8() ) );
+        }
+    }
+}
+
 SCENARIO( "Choosing another Encoding while a Search is shown reads its Log Lines anew",
           "[openlogfile][encoding]" )
 {

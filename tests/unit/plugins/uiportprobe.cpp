@@ -25,6 +25,8 @@
 
 #include "logsquirl_plugin_api.h"
 
+#include <cstddef>
+
 namespace {
 
 const LogSquirlHostApi* hostApi = nullptr;
@@ -44,6 +46,30 @@ const LogSquirlPluginInfo probeInfo = {
     "GPL-3.0-or-later",
     LOGSQUIRL_PLUGIN_UI,
     LOGSQUIRL_PLUGIN_API_VERSION,
+};
+
+// Where each member of the table as LogSquirl 26.10 published it lies, in the
+// header this probe is built against (#662): built against that header and
+// against the current one, the probe must give the same offsets.
+const size_t firstMemberOffsets[] = {
+    offsetof( LogSquirlHostApi, api_version ),
+    offsetof( LogSquirlHostApi, push_line ),
+    offsetof( LogSquirlHostApi, push_lines ),
+    offsetof( LogSquirlHostApi, signal_eos ),
+    offsetof( LogSquirlHostApi, signal_error ),
+    offsetof( LogSquirlHostApi, log_message ),
+    offsetof( LogSquirlHostApi, get_config_dir ),
+    offsetof( LogSquirlHostApi, show_notification ),
+    offsetof( LogSquirlHostApi, open_file ),
+    offsetof( LogSquirlHostApi, register_status_widget ),
+    offsetof( LogSquirlHostApi, unregister_status_widget ),
+    offsetof( LogSquirlHostApi, register_menu_action ),
+    offsetof( LogSquirlHostApi, register_sidebar_tab ),
+    offsetof( LogSquirlHostApi, unregister_sidebar_tab ),
+    offsetof( LogSquirlHostApi, register_footer_widget ),
+    offsetof( LogSquirlHostApi, unregister_footer_widget ),
+    offsetof( LogSquirlHostApi, get_active_file_path ),
+    offsetof( LogSquirlHostApi, register_active_file_callback ),
 };
 
 } // namespace
@@ -105,6 +131,22 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_probe_configure_calls( void )
 LOGSQUIRL_PLUGIN_EXPORT void* logsquirl_probe_shutdown_footer_widget( void )
 {
     return &shutdownFooterWidget;
+}
+
+/** sizeof( LogSquirlHostApi ) in the header the probe is built against. */
+LOGSQUIRL_PLUGIN_EXPORT size_t logsquirl_probe_host_api_size( void )
+{
+    return sizeof( LogSquirlHostApi );
+}
+
+/**
+ * The offsets of the members of the 26.10 table, in the order declared, in the
+ * header the probe is built against; count receives how many there are.
+ */
+LOGSQUIRL_PLUGIN_EXPORT const size_t* logsquirl_probe_first_member_offsets( size_t* count )
+{
+    *count = sizeof( firstMemberOffsets ) / sizeof( firstMemberOffsets[ 0 ] );
+    return firstMemberOffsets;
 }
 
 } // extern "C"

@@ -52,6 +52,24 @@ public:
     // The value of --benchmark-option name=value, or fallback when not given.
     virtual QString option( const QString& name, const QString& fallback = {} ) const = 0;
 
+    // Reads the whole number of --benchmark-option name=<number> into value,
+    // fallback when not given. When it is not a whole number from least on,
+    // returns false and says so in failure, for the scenario to fail with.
+    bool numberOption( const QString& name, int fallback, int least, int& value,
+                       QString& failure ) const
+    {
+        bool isNumber = false;
+        value = option( name, QString::number( fallback ) ).toInt( &isNumber );
+        if ( !isNumber || value < least ) {
+            failure = QStringLiteral( "%1 takes a whole number from %2 on, not '%3'" )
+                          .arg( name )
+                          .arg( least )
+                          .arg( option( name ) );
+            return false;
+        }
+        return true;
+    }
+
     // The directory the run keeps its settings, Session and data in, which
     // goes when the run ends. A scenario that restores a Session writes it
     // here before it restores it.
@@ -59,7 +77,8 @@ public:
 
     // A new, empty main window, shown, at the size of the run.
     virtual MainWindow* newWindow() = 0;
-    // The windows of the Session in dataDirectory(), shown; the last of them.
+    // The windows of the Session in dataDirectory(), shown; the last of them,
+    // at the size of the run.
     virtual MainWindow* restoreSession() = 0;
 
     // Lives as long as the run: a parent for what the scenario creates, and a

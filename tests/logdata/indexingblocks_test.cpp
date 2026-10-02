@@ -21,8 +21,11 @@
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/generators/catch_generators_range.hpp>
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <random>
 #include <utility>
 #include <vector>
@@ -35,6 +38,7 @@
 #include "test_policies.h"
 
 #include "fake_run_control.h"
+#include "indexingblocks.h"
 #include "indexoperation.h"
 #include "linetypes.h"
 
@@ -365,6 +369,230 @@ SCENARIO( "The read buffer setting bounds the blocks read ahead, in MiB", "[inde
                 REQUIRE( run.blockBuffers == 1 );
                 requireIndexOfWholeScan( run, bytes, utf8 );
             }
+        }
+    }
+}
+
+// While the encoding guess is provisional, parsing a block also finds its
+// first byte beyond ASCII (#657), in the same pass that finds its line feeds
+// and tabs (#701). The scanner reads 16 bytes at a time and the rest of a
+// block byte by byte, so the bytes beyond ASCII are put at every offset of
+// blocks of every size around those.
+
+namespace {
+
+// ASCII Log Lines with tabs, size bytes of them.
+QByteArray asciiBytes( qint64 size )
+{
+    static constexpr char Text[] = "Ping\t42 ok\nlonger Log Line\tagain\n";
+    QByteArray bytes( size, Qt::Uninitialized );
+    for ( qint64 at = 0; at < size; ++at ) {
+        bytes[ at ] = Text[ static_cast<std::size_t>( at ) % ( sizeof( Text ) - 1 ) ];
+    }
+    return bytes;
+}
+
+std::unique_ptr<indexing_blocks::IndexingBlock> blockOf( const QByteArray& bytes,
+                                                         bool findBeyondAscii )
+{
+    const auto size = static_cast<std::int64_t>( bytes.size() );
+    auto block = std::make_unique<indexing_blocks::IndexingBlock>( std::max<qint64>( size, 1 ) );
+    std::copy( bytes.begin(), bytes.end(), block->bytes() );
+    block->size = size;
+    block->findBeyondAscii = findBeyondAscii;
+    return block;
+}
+
+std::optional<std::int64_t> firstBeyondAsciiParsed( const QByteArray& bytes )
+{
+    auto block = blockOf( bytes, true );
+    indexing_blocks::parseBlock( *block );
+    return block->firstBeyondAscii;
+}
+
+// The offsets of the line feeds and tabs the scanner finds, and whether it
+// saw a byte beyond ASCII, once it found all of them.
+struct Scanned {
+    std::vector<std::size_t> hits;
+    bool sawByteBeyondAscii = false;
+};
+
+Scanned scan( const QByteArray& bytes, std::size_t from = 0 )
+{
+    const auto size = static_cast<std::size_t>( bytes.size() );
+    indexing_blocks::LineFeedAndTabScanner scanner( bytes.data(), size, from );
+    Scanned scanned;
+    for ( auto hit = scanner.next(); hit < size; hit = scanner.next() ) {
+        scanned.hits.push_back( hit );
+    }
+    scanned.sawByteBeyondAscii = scanner.sawByteBeyondAscii();
+    return scanned;
+}
+
+std::vector<std::size_t> lineFeedsAndTabs( const QByteArray& bytes, std::size_t from = 0 )
+{
+    std::vector<std::size_t> hits;
+    for ( auto at = from; at < static_cast<std::size_t>( bytes.size() ); ++at ) {
+        if ( bytes[ static_cast<qsizetype>( at ) ] == '\n'
+             || bytes[ static_cast<qsizetype>( at ) ] == '\t' ) {
+            hits.push_back( at );
+        }
+    }
+    return hits;
+}
+
+constexpr qint64 LargestSmallBlock = 100;
+constexpr char BeyondAscii[] = { '\x80', '\xC3', '\xFF' };
+
+} // namespace
+
+SCENARIO( "Parsing a block finds its first byte beyond ASCII while asked to",
+          "[indexing][blocks][encoding]" )
+{
+    GIVEN( "blocks of ASCII alone" )
+    {
+        THEN( "none is found, whatever the size of the block" )
+        {
+            for ( qint64 size = 0; size <= LargestSmallBlock; ++size ) {
+                CAPTURE( size );
+                REQUIRE_FALSE( firstBeyondAsciiParsed( asciiBytes( size ) ) );
+            }
+            REQUIRE_FALSE( firstBeyondAsciiParsed( asciiBytes( 4099 ) ) );
+        }
+    }
+
+    GIVEN( "blocks with a byte beyond ASCII" )
+    {
+        const auto beyond
+            = GENERATE( from_range( std::begin( BeyondAscii ), std::end( BeyondAscii ) ) );
+        CAPTURE( static_cast<int>( static_cast<unsigned char>( beyond ) ) );
+
+        THEN( "it is found at every offset of blocks of every size" )
+        {
+            for ( qint64 size = 1; size <= LargestSmallBlock; ++size ) {
+                for ( qint64 offset = 0; offset < size; ++offset ) {
+                    CAPTURE( size, offset );
+                    auto bytes = asciiBytes( size );
+                    bytes[ offset ] = beyond;
+                    REQUIRE( firstBeyondAsciiParsed( bytes ) == offset );
+                }
+            }
+        }
+
+        THEN( "it is found anywhere in a large block" )
+        {
+            for ( const qint64 offset : { 0, 15, 16, 4000, 4079, 4080, 4095, 4096, 4098 } ) {
+                CAPTURE( offset );
+                auto bytes = asciiBytes( 4099 );
+                bytes[ offset ] = beyond;
+                REQUIRE( firstBeyondAsciiParsed( bytes ) == offset );
+            }
+        }
+
+        THEN( "only the first of several is found" )
+        {
+            auto bytes = asciiBytes( 300 );
+            for ( const qint64 offset : { 290, 40, 37, 200 } ) {
+                bytes[ offset ] = beyond;
+            }
+            REQUIRE( firstBeyondAsciiParsed( bytes ) == 37 );
+        }
+
+        WHEN( "parsing is not asked to look for it" )
+        {
+            auto bytes = asciiBytes( 64 );
+            bytes[ 20 ] = beyond;
+            auto block = blockOf( bytes, false );
+            indexing_blocks::parseBlock( *block );
+
+            THEN( "none is found" )
+            {
+                REQUIRE_FALSE( block->firstBeyondAscii );
+            }
+        }
+
+        WHEN( "the block is read and parsed again with ASCII alone" )
+        {
+            auto bytes = asciiBytes( 64 );
+            bytes[ 20 ] = beyond;
+            auto block = blockOf( bytes, true );
+            indexing_blocks::parseBlock( *block );
+            REQUIRE( block->firstBeyondAscii == 20 );
+
+            const auto ascii = asciiBytes( 64 );
+            std::copy( ascii.begin(), ascii.end(), block->bytes() );
+            indexing_blocks::parseBlock( *block );
+
+            THEN( "none is found any more" )
+            {
+                REQUIRE_FALSE( block->firstBeyondAscii );
+            }
+        }
+
+        THEN( "the Log Lines are found as in ASCII alone" )
+        {
+            auto bytes = asciiBytes( 300 );
+            bytes[ 40 ] = beyond;
+            auto withBeyond = blockOf( bytes, true );
+            auto ascii = blockOf( asciiBytes( 300 ), true );
+            indexing_blocks::parseBlock( *withBeyond );
+            indexing_blocks::parseBlock( *ascii );
+            REQUIRE( withBeyond->endOfLines.size() == ascii->endOfLines.size() );
+            REQUIRE( withBeyond->maxLength == ascii->maxLength );
+            REQUIRE( withBeyond->lastLineStart == ascii->lastLineStart );
+            REQUIRE( withBeyond->lastLineWidening == ascii->lastLineWidening );
+        }
+    }
+}
+
+SCENARIO( "The line feed and tab scanner sees whether the bytes go beyond ASCII",
+          "[indexing][blocks][encoding]" )
+{
+    GIVEN( "ASCII bytes of every size" )
+    {
+        THEN( "it finds their line feeds and tabs, and sees nothing beyond ASCII" )
+        {
+            for ( qint64 size = 0; size <= LargestSmallBlock; ++size ) {
+                CAPTURE( size );
+                const auto bytes = asciiBytes( size );
+                const auto scanned = scan( bytes );
+                REQUIRE( scanned.hits == lineFeedsAndTabs( bytes ) );
+                REQUIRE_FALSE( scanned.sawByteBeyondAscii );
+            }
+        }
+    }
+
+    GIVEN( "bytes with one beyond ASCII" )
+    {
+        const auto beyond
+            = GENERATE( from_range( std::begin( BeyondAscii ), std::end( BeyondAscii ) ) );
+
+        THEN( "it sees it at every offset, and finds the same line feeds and tabs" )
+        {
+            for ( qint64 size = 1; size <= LargestSmallBlock; ++size ) {
+                for ( qint64 offset = 0; offset < size; ++offset ) {
+                    CAPTURE( size, offset );
+                    auto bytes = asciiBytes( size );
+                    bytes[ offset ] = beyond;
+                    const auto scanned = scan( bytes );
+                    REQUIRE( scanned.hits == lineFeedsAndTabs( bytes ) );
+                    REQUIRE( scanned.sawByteBeyondAscii );
+                }
+            }
+        }
+
+        THEN( "it only sees the bytes from where it starts" )
+        {
+            auto bytes = asciiBytes( 70 );
+            bytes[ 5 ] = beyond;
+            for ( const std::size_t from :
+                  { std::size_t{ 6 }, std::size_t{ 17 }, std::size_t{ 69 }, std::size_t{ 70 } } ) {
+                CAPTURE( from );
+                const auto scanned = scan( bytes, from );
+                REQUIRE( scanned.hits == lineFeedsAndTabs( bytes, from ) );
+                REQUIRE_FALSE( scanned.sawByteBeyondAscii );
+            }
+            REQUIRE( scan( bytes, 5 ).sawByteBeyondAscii );
         }
     }
 }

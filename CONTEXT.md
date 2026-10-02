@@ -67,6 +67,8 @@ _Avoid_: file watcher singleton, watch service
 The character encoding a Log File is interpreted with, either detected or chosen by the user.
 The Open Log File settles it after every load and whenever one is chosen: the one chosen, else
 the one detected, else the locale's. An Encoding the settings force is chosen from the start.
+The one detected is UTF-8 for plain ASCII or an empty Log File, and provisional while every byte
+indexed is ASCII: the first bytes beyond ASCII detect it again from their Log Line, once (#657).
 The engine names one by a `TextEncoding`, an interned, immutable value found by name or IANA MIB enum;
 null means none chosen or unknown. It wraps Qt 6's `QStringConverter`; the engine has no
 `QTextCodec` and links no Qt5Compat.
@@ -159,6 +161,10 @@ _Avoid_: results pane, filter window
 The line above the Filtered View where a Search is typed: its pattern, the buttons that say how the pattern is read (case, regular expression, inverse, logical combination, auto-refresh), and what it says about the Search that runs — progress, the Matches found, an error in the pattern, a truncated Log File. Adding a word to the Search, excluding one or combining Predefined Filters edits its pattern. The search history offered while typing is not part of it.
 _Avoid_: search bar, search box
 
+**Regex Lab**:
+The window that shows what a pattern matches in sample Log Lines, with the Search's engine and options: which lines match, where, and the capture groups of a line. Its samples are the selected Log Lines of a tab, the Log Lines around the current line of the view last in focus, or pasted text. It never changes a Search, a Highlighter or a filter by itself; opened with Test… from the Highlighter or Predefined Filter editor, it reads the pattern as that one does, marks what a Highlighter colors — the whole Log Line or the matched text — and writes the pattern back only on Apply. Opened from the Search Line, it takes the pattern with all its options as the Search Line requests the Search, shows for a logical combination which sub-patterns match each Log Line, and on Apply writes both back; an auto-refreshed Search then runs. Opened by a plugin, it reads the pattern as a regular expression that may match case, and on Apply hands the pattern back to the plugin.
+_Avoid_: regex tester, pattern playground
+
 **QuickFind**:
 Interactive incremental search within the currently displayed lines. Distinct from Search:
 it navigates, it does not filter. The window's QuickFind bar searches the Filtered View when
@@ -183,7 +189,7 @@ Group's id never replaces the recipient's Default group: it arrives as a new gro
 _Avoid_: filter set, filter list, folder
 
 **Team Folder**:
-A Git repository a team shares its Filter Groups and Highlighter Sets through. LogSquirl clones
+A Git repository a team shares its Filter Groups, Highlighter Sets and Naming Groups through. LogSquirl clones
 it into its own data folder with the installed `git` and keeps it current: at startup, every
 five minutes and on "Sync now", never blocking the user interface. It is the only part of the
 application that runs Git, and Git's own authentication applies unchanged. Turning it off, or
@@ -191,9 +197,9 @@ pointing it at another repository, leaves the user's own groups alone.
 _Avoid_: shared folder, team repository, sync folder
 
 **Team group**:
-A Filter Group or Highlighter Set that lives in the Team Folder, one file each. Team groups
-show in their own section of the dialogs, sorted alphabetically, and are never written into the
-user's own settings. Changing a Team group and pressing OK or Apply publishes that one file
+A Filter Group, Highlighter Set or Naming Group that lives in the Team Folder, one file each.
+Team groups show in their own section of the dialogs, sorted alphabetically, and are never
+written into the user's own settings. Changing a Team group and pressing OK or Apply publishes that one file
 to the team; when someone else changed the same group meanwhile the user chooses keep mine,
 take theirs or save mine as a copy. Nothing is locked (ADR-0008). A personal group is shared
 as a Team copy, a Team group is copied back into the personal groups, each with a fresh id.
@@ -283,6 +289,41 @@ colors*. The lowest source of a Decoration. The sequences themselves are hidden 
 both; each Log Line starts in its own colors. The 16 basic colors are the Theme's.
 _Avoid_: terminal colors, escape codes (those are the sequences, not their colors)
 
+### Value Names
+
+**Value Names**:
+The feature that shows values captured in a Log Line as a name from a Name Table, in the Text
+View and the Filtered View. Display only: the Log File is never changed, and every Search,
+filter, QuickFind and Highlighter works on the raw text.
+_Avoid_: replace, rewrite, lookup (taken by the timestamp lookup of the Time Navigation)
+
+**Naming Rule**:
+A regex plus, per capture group, the Name Table it uses, plus a display template with the
+placeholders `{name}` and `{value}`. Only its capture groups are looked up, a rule without
+any looks up its whole match. Every Naming Rule sees the raw text; on overlap the earlier
+one wins, in the order shown in the sidebar.
+
+**Name Table**:
+Rows of key regex → name. A key matches the whole captured value, never part of it; the first
+row that matches wins, ignoring case unless the table is case-sensitive. The name may use the
+key's capture groups as `{1}`, `{2}`, … A value no row matches stays as it is.
+
+**Naming Group**:
+A named group of Naming Rules and the Name Tables they use; the unit that is enabled, exported
+and shared. A rule only uses the Name Tables of its own group. The Group Exchange hands it on
+as `<name>_valuenames.conf` with the same conflict answers as a Filter Group; the file names
+its kind (`kind=valuenames`), and only a file that does is read as a Naming Group, while a
+file with a kind entry is never read as a Filter Group or Highlighter Set. Its checks stay
+with the user.
+
+**Named Value**:
+One value of a Log Line that a Naming Rule captured and a Name Table named. The Text View and
+the Filtered View show the rule's template in its place, underlined, and treat it as a whole:
+a Search, a Highlighter or the selection over part of it covers all of it, a copy takes its
+whole raw text, a double-click selects it. *Copy as Shown* copies the text shown instead. Each
+tab shows Value Names or not, by its own switch (View → Show Value Names).
+_Avoid_: replacement, substitution (the Log File is never changed)
+
 ### Appearance
 
 **Theme**:
@@ -346,6 +387,16 @@ File's modification date (ADR-0010). Only what a Log Format declares or a common
 read; a Log File without a Log Format that has a timestamp field has no Timestamps.
 _Avoid_: date, time (both name only a part of it)
 
+**Time Navigation**:
+Go to timestamp and the Search Limits given as a time range or as minutes around the current
+Log Line, for one Log File. It finds the Log Line of a time through the Timestamps, and asks
+and tells the user through a prompt; after every prompt it reads the Log File and its Log
+Format anew, as either may have changed while the prompt was open. A reload, a load that did
+not only append, a truncation and a new or forgotten Log Format cancel a lookup under way,
+which then says nothing. What it finds is the Log Line shown, or the Search Limits of the
+Open Log File.
+_Avoid_: time search, time jump
+
 **Table View**:
 The Presentation of a Log File as one column per Log Format field, as an alternative to
 the Text View.
@@ -377,7 +428,10 @@ _Avoid_: plugin manager, plugin registry, plugin list
 **Plugin Host**:
 Loads and initialises the plugins the Plugin Catalog lists, shuts them down again, and
 answers what a loaded plugin calls back: its data-source stream, its converter, the active
-file, opening files and notifications. What a plugin shows goes through the Plugin UI Port.
+file, opening files, notifications, the Regex Lab, and the Log Lines of the tab in front:
+going to one and reading the selected ones. The host functions a plugin can call
+only grow, appended to one table whose size tells a plugin which the running LogSquirl
+offers (ADR 0017). What a plugin shows goes through the Plugin UI Port.
 A plugin is loaded when the host has initialised it, and enabled when the configuration
 says to load it.
 _Avoid_: plugin manager, plugin loader (the loader only opens one library)
@@ -391,11 +445,13 @@ _Avoid_: plugin registry, per-window plugins
 
 **Plugin UI Port**:
 Everything the plugin layer needs from the user interface to show what a plugin
-contributes — status widgets, sidebar tabs, footer widgets, menu actions and the parent
-of its configuration dialog. The plugin layer calls it and knows no widgets; every main
+contributes — status widgets, sidebar tabs, footer widgets, menu actions, the parent
+of its configuration dialog, a Regex Lab it opens, and the tab in front, where it goes to a
+Log Line and reads the selected Log Lines for a plugin. The plugin layer calls it and knows no widgets; every main
 window implements it. The Application Plugins hand each contribution on to every window: a
 menu action shows in all of them, a widget, which exists once, in the most recently active
-window, and it moves to another window when that one closes. Every contribution belongs to
+window, and it moves to another window when that one closes; a Regex Lab opens in the most
+recently active window too, whose tab in front is the one a plugin goes to a Log Line of. Every contribution belongs to
 one plugin, and all of them are taken away again when that plugin is unloaded.
 _Avoid_: plugin UI bridge, widget signals, UI host
 
@@ -578,3 +634,20 @@ its settings, Session and data start empty and go when it ends; it takes nothing
 no plugins, checks for no new version, uses no Index Cache and has a single-instance lock of
 its own. It reads and writes nothing of the user's (#666).
 _Avoid_: benchmark build, test run
+
+**Benchmark Scenario**:
+What one Benchmark Run does, named by `--benchmark <scenario>`: `open-and-index`, `search`,
+`quickfind`, `scroll`, `follow`, `session-restore`, `read-while-indexing`; the command line
+tool's `grep` and the startup are measured the same way. A scenario times the events a user
+waits for and reports them; the e2e suite turns each into benchmarks, a median over runs.
+_Avoid_: test case, benchmark (a benchmark is one number a scenario reports)
+
+**Budget**:
+The slowest value a Benchmark Scenario's headline benchmark may have on one Log File size and
+one machine class, derived from measured runs with its headroom stated, and broken only
+beyond its noise margin. The Budgets are in `tests/e2e/budgets.json`, which ADR 0018 points
+to; changing one changes the ADR. A Budget is not a baseline: the baseline and the history
+ask whether LogSquirl got slower, a Budget whether it is still fast. The 16.7 ms a scroll
+frame is counted against (*Frames Over Budget*) and the chart's 1 s are bounds per frame or
+per Log Line inside one run, not Budgets.
+_Avoid_: threshold, limit, target

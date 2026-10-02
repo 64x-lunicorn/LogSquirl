@@ -101,7 +101,8 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
                           .autoShowTableView = config.autoShowTableView(),
                           .mainLineNumbersVisible = config.mainLineNumbersVisible(),
                           .filteredLineNumbersVisible = config.filteredLineNumbersVisible(),
-                          .overviewVisible = config.isOverviewVisible() },
+                          .overviewVisible = config.isOverviewVisible(),
+                          .showValueNames = config.showValueNames() },
 
         .quickFind = { .quickFindRegexpType = config.quickfindRegexpType(),
                        .mainRegexpType = config.mainRegexpType(),

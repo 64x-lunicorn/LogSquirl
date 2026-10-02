@@ -20,8 +20,9 @@
 // The main window and the loads of its Log Files: what a tab brought to the
 // front says about its load (#540), a Filters-panel click that runs one
 // Search (#538), the tab a restored Session opens on (#542) and where its Log
-// Files stand (#559), a Log File restored from its archive (#596), and the
-// loading progress of the tab in front (#541).
+// Files stand (#559), a Log File restored from its archive (#596), the
+// loading progress of the tab in front (#541), its follow and the actions
+// reaching it alone (#635), and its selected Log Line (#692).
 // Unlike mainwindow_test.cpp these run on every platform.
 
 #include <catch2/catch_test_macros.hpp>
@@ -32,6 +33,7 @@
 #include <QComboBox>
 #include <QDir>
 #include <QFileInfo>
+#include <QLabel>
 #include <QMessageBox>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -44,8 +46,10 @@
 
 #include "applicationplugins.h"
 #include "archivemember.h"
+#include "configuration.h"
 #include "crawlerwidget.h"
 #include "filterspanel.h"
+#include "logfileprovenance.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
 #include "logmainview.h"
@@ -1229,4 +1233,271 @@ SCENARIO( "A Session File names and groups only the Log Files that open", "[ui][
     auto& left = SessionInfo::getSynced();
     left.remove( openedId );
     left.save();
+}
+
+namespace {
+
+// Opens the Log Files to be followed as the settings ask, for as long as it
+// lives.
+class FollowedOnLoad {
+public:
+    FollowedOnLoad()
+        : before_( Configuration::get().followFileOnLoad() )
+    {
+        Configuration::get().setFollowFileOnLoad( true );
+    }
+
+    ~FollowedOnLoad()
+    {
+        Configuration::get().setFollowFileOnLoad( before_ );
+    }
+
+    FollowedOnLoad( const FollowedOnLoad& ) = delete;
+    FollowedOnLoad& operator=( const FollowedOnLoad& ) = delete;
+    FollowedOnLoad( FollowedOnLoad&& ) = delete;
+    FollowedOnLoad& operator=( FollowedOnLoad&& ) = delete;
+
+private:
+    const bool before_;
+};
+
+} // namespace
+
+// The window's follow action mirrors the View Set of the Log File in front:
+// a Log File opened to be followed asks its View Set, and the action follows
+// from its answer, not from the window setting it beside (#635).
+SCENARIO( "A Log File opened to be followed shows followed in the window", "[ui][loading]" )
+{
+    const auto windowId = QStringLiteral( "mainwindow_load_test_window_635" );
+
+    QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_follow_first_XXXXXX" ) };
+    QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_follow_second_XXXXXX" ) };
+    for ( auto* file : { &firstFile, &secondFile } ) {
+        REQUIRE( file->open() );
+        file->write( "first Log Line\nsecond Log Line\n" );
+        file->flush();
+    }
+
+    const FollowedOnLoad followedOnLoad;
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    const StoredSessionWindow stored{ windowId,
+                                      { { QFileInfo( firstFile ).absoluteFilePath(), QString{} },
+                                        { QFileInfo( secondFile ).absoluteFilePath(), QString{} } },
+                                      1 };
+    WindowSession windowSession{ appSession, windowId, 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    auto* followAction = windowAction( *mainWindow, logsquirl::mainwindow::action::followText );
+    REQUIRE( followAction != nullptr );
+    const auto frontFollowed = [ & ] {
+        auto* front = qobject_cast<CrawlerWidget*>( tabArea->currentWidget() );
+        return front != nullptr && front->isFollowEnabled() && followAction->isChecked();
+    };
+
+    GIVEN( "a Log File opened" )
+    {
+        mainWindow->loadFileNonInteractive( firstFile.fileName() );
+
+        THEN( "its tab is followed and the follow action checked" )
+        {
+            REQUIRE( waitUiState( frontFollowed, 10000 ) );
+        }
+    }
+
+    GIVEN( "a Log File opened to be followed" )
+    {
+        // What the tab is as it opens, before the event loop turns: a
+        // command that ends at once must find its tab followed already, or
+        // a follow arriving later would outlast the command's end.
+        std::optional<bool> followedAsOpened;
+        auto provenance = LogFileProvenance::ordinary();
+        provenance.whenOpened = [ & ]( CrawlerWidget* crawler ) {
+            REQUIRE( crawler != nullptr );
+            followedAsOpened = crawler->isFollowEnabled() && followAction->isChecked();
+            crawler->followSet( false );
+        };
+        REQUIRE( mainWindow->openLogFile( QFileInfo( firstFile ).absoluteFilePath(),
+                                          std::move( provenance ), true ) );
+        REQUIRE( waitUiState( [ & ] { return followedAsOpened.has_value(); }, 10000 ) );
+
+        THEN( "its tab is followed the moment it opens, and a follow turned off then stays "
+              "off" )
+        {
+            REQUIRE( *followedAsOpened );
+            QTest::qWait( 50 );
+            auto* front = qobject_cast<CrawlerWidget*>( tabArea->currentWidget() );
+            REQUIRE( front != nullptr );
+            REQUIRE_FALSE( front->isFollowEnabled() );
+            REQUIRE_FALSE( followAction->isChecked() );
+        }
+    }
+
+    GIVEN( "a restored Session" )
+    {
+        mainWindow->reloadSession();
+        const auto logFileTabs = tabArea->logFileTabs();
+        REQUIRE( logFileTabs.size() == 2 );
+        REQUIRE( tabArea->currentIndex() == logFileTabs.back() );
+
+        THEN( "the tab in front is followed and the follow action checked" )
+        {
+            REQUIRE( waitUiState( frontFollowed, 10000 ) );
+        }
+    }
+
+    mainWindow.reset();
+}
+
+// The window's actions reach the tab in front, and it alone, once, however
+// often the tabs were switched (#635).
+SCENARIO( "The window's actions reach only the tab in front and only once", "[ui][loading]" )
+{
+    QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_actions_first_XXXXXX" ) };
+    QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_actions_second_XXXXXX" ) };
+    for ( auto* file : { &firstFile, &secondFile } ) {
+        REQUIRE( file->open() );
+        file->write( "first Log Line\nsecond Log Line\n" );
+        file->flush();
+    }
+
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    WindowSession windowSession{ appSession, "Main", 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    auto* reloadAction = windowAction( *mainWindow, logsquirl::mainwindow::action::reloadText );
+    REQUIRE( reloadAction != nullptr );
+
+    mainWindow->loadFileNonInteractive( firstFile.fileName() );
+    mainWindow->loadFileNonInteractive( secondFile.fileName() );
+    REQUIRE( waitUiState(
+        [ & ] { return tabArea->logFileTabs().size() == 2 && reloadAction->isEnabled(); },
+        10000 ) );
+    auto* first = qobject_cast<CrawlerWidget*>( tabArea->widget( tabArea->logFileTabs().front() ) );
+    auto* second = qobject_cast<CrawlerWidget*>( tabArea->widget( tabArea->logFileTabs().back() ) );
+    REQUIRE( first != nullptr );
+    REQUIRE( second != nullptr );
+    REQUIRE( waitUiState( [ & ] { return first->hasLoaded() && second->hasLoaded(); }, 10000 ) );
+    QTest::qWait( 100 );
+
+    GIVEN( "the tabs switched back and forth, the second in front" )
+    {
+        tabArea->setCurrentWidget( second );
+        tabArea->setCurrentWidget( first );
+        tabArea->setCurrentWidget( second );
+        tabArea->setCurrentWidget( first );
+        tabArea->setCurrentWidget( second );
+        REQUIRE( reloadAction->isEnabled() );
+
+        QSignalSpy firstFinished( first, &CrawlerWidget::loadingFinished );
+        QSignalSpy secondFinished( second, &CrawlerWidget::loadingFinished );
+
+        WHEN( "the reload action is triggered" )
+        {
+            reloadAction->trigger();
+
+            THEN( "the Log File in front is reloaded, once, and the other not" )
+            {
+                REQUIRE( waitUiState( [ & ] { return !secondFinished.isEmpty(); }, 10000 ) );
+                QTest::qWait( 300 );
+                REQUIRE( secondFinished.count() == 1 );
+                REQUIRE( secondFinished.first().at( 0 ).value<LoadingStatus>()
+                         == LoadingStatus::Successful );
+                REQUIRE( firstFinished.isEmpty() );
+            }
+        }
+    }
+
+    mainWindow.reset();
+}
+
+// A loaded Log File brought to the front shows beside the info line the Log
+// Line selected in it, not the first (#692).
+SCENARIO( "The window shows the selected Log Line of the tab brought to the front",
+          "[ui][loading]" )
+{
+    QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_selected_first_XXXXXX" ) };
+    QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_selected_second_XXXXXX" ) };
+    for ( auto* file : { &firstFile, &secondFile } ) {
+        REQUIRE( file->open() );
+        for ( int line = 0; line < 10; ++line ) {
+            file->write( QByteArray( "Log Line " ) + QByteArray::number( line ) + '\n' );
+        }
+        file->flush();
+    }
+
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    WindowSession windowSession{ appSession, "Main", 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    // The field beside the info line that says the selected Log Line.
+    const auto lineField = [ & ]() -> QString {
+        for ( const auto* label : mainWindow->findChildren<QLabel*>() ) {
+            if ( label->text().startsWith( "Ln:" ) ) {
+                return label->text();
+            }
+        }
+        return {};
+    };
+
+    mainWindow->loadFileNonInteractive( firstFile.fileName() );
+    mainWindow->loadFileNonInteractive( secondFile.fileName() );
+    REQUIRE( waitUiState( [ & ] { return tabArea->logFileTabs().size() == 2; }, 10000 ) );
+    auto* first = qobject_cast<CrawlerWidget*>( tabArea->widget( tabArea->logFileTabs().front() ) );
+    auto* second = qobject_cast<CrawlerWidget*>( tabArea->widget( tabArea->logFileTabs().back() ) );
+    REQUIRE( first != nullptr );
+    REQUIRE( second != nullptr );
+    REQUIRE( waitUiState( [ & ] { return first->hasLoaded() && second->hasLoaded(); }, 10000 ) );
+    QTest::qWait( 100 );
+
+    GIVEN( "a Log Line selected in the first Log File" )
+    {
+        tabArea->setCurrentWidget( first );
+        auto* textView = first->findChild<LogMainView*>();
+        REQUIRE( textView != nullptr );
+        textView->selectAndDisplayLine( 5_lnum );
+        REQUIRE( waitUiState( [ & ] { return lineField().startsWith( "Ln:6/10" ); }, 10000 ) );
+
+        WHEN( "the other tab is shown, and the first again" )
+        {
+            tabArea->setCurrentWidget( second );
+            tabArea->setCurrentWidget( first );
+
+            THEN( "the window shows the Log Line selected in it" )
+            {
+                REQUIRE( lineField().startsWith( "Ln:6/10" ) );
+            }
+        }
+    }
+
+    mainWindow.reset();
 }

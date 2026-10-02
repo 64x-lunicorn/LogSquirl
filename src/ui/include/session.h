@@ -166,6 +166,10 @@ public:
     // it, if the window has one; returns whether it has (#642).
     virtual bool showView( const ViewInterface* view ) = 0;
 
+    // The Naming Groups or their checks changed, in this window or another:
+    // show them again (#647).
+    virtual void applyValueNamesChange() {}
+
 protected:
     SessionWindow() = default;
     ~SessionWindow() = default;
@@ -341,6 +345,12 @@ public:
         return policies_.quickFind;
     }
 
+    // The Regex Lab matches with the engine a Search runs on (#659).
+    const SearchPolicy& searchPolicy() const
+    {
+        return policies_.search;
+    }
+
     // The one entry for every change of settings or coloring (#245). A writer
     // says what it changed, and nothing else, in whatever order it likes; the
     // Session works out what follows and who has to hear of it -- every open
@@ -358,6 +368,10 @@ public:
     // Changed::HighlighterSets tells every open Log File that the Highlighter
     // Set Collection changed. Each re-reads the colors of its Color Labels and
     // repaints; nothing is re-derived and no window is told.
+    //
+    // Changed::ValueNames tells every open Log File that the Value Names
+    // Collection changed. Each view showing Value Names reads its Log Lines
+    // again; nothing is re-derived and no window is told.
     void applyChange( Changed change );
 
     // The windows told of a settings change. A window adds itself when it is
@@ -425,6 +439,7 @@ private:
     void applySettingsChange();
     void applyFontChange();
     void applyHighlighterSetChange();
+    void applyValueNamesChange();
 
     // Applies the Policies as applyPolicies() does, and hands every open Log
     // File what changed together with `change`, in one call each -- nothing
@@ -619,6 +634,11 @@ public:
     const QuickFindPolicy& quickFindPolicy() const
     {
         return appSession_->quickFindPolicy();
+    }
+
+    const SearchPolicy& searchPolicy() const
+    {
+        return appSession_->searchPolicy();
     }
 
     // A change reaches every open Log File of the application, and every

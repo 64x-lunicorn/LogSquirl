@@ -24,17 +24,29 @@
 #include "pluginhost.h"
 #include "pluginuiport.h"
 
+#include <QCoreApplication>
 #include <QDir>
+#include <QEvent>
 #include <QFile>
 #include <QLibrary>
+#include <QPointer>
 #include <QTemporaryDir>
 
+#include <cstdint>
+#include <cstring>
+#include <optional>
+#include <string>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
 using logsquirl::plugins::PluginCallbackFn;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
+using logsquirl::plugins::PluginLogLineJump;
+using logsquirl::plugins::PluginPattern;
+using logsquirl::plugins::PluginRegexLabAnswer;
+using logsquirl::plugins::PluginSelectedLogLines;
 using logsquirl::plugins::PluginUiPort;
 using logsquirl::plugins::PluginWidgetHandle;
 
@@ -131,6 +143,57 @@ public:
     {
         return parent;
     }
+
+    /// A Regex Lab a plugin opened, and what answers it.
+    struct OpenedLab {
+        QString pluginId;
+        PluginPattern pattern;
+        QPointer<QObject> context;
+        PluginRegexLabAnswer answer;
+    };
+    std::vector<OpenedLab> labs;
+    bool opensLabs = true;
+
+    bool openRegexLab( const QString& pluginId, const PluginPattern& pattern, QObject* context,
+                       PluginRegexLabAnswer answer ) override
+    {
+        if ( !opensLabs ) {
+            return false;
+        }
+        labs.push_back( { pluginId, pattern, context, std::move( answer ) } );
+        return true;
+    }
+
+    /// The Log Lines (from 0) a plugin went to, and how it ends.
+    std::vector<std::uint64_t> wentTo;
+    PluginLogLineJump jump = PluginLogLineJump::Shown;
+
+    PluginLogLineJump goToLogLine( std::uint64_t logLine ) override
+    {
+        wentTo.push_back( logLine );
+        return jump;
+    }
+
+    /// The selected Log Lines of the tab in front; none without a Log File.
+    std::optional<QStringList> selected;
+    /// Whether the port cut the last Log Line, or left some unread, for the bytes.
+    bool lastCut = false;
+    bool more = false;
+    /// How many Log Lines, and bytes, a plugin asked for at most, at each call.
+    std::vector<std::pair<std::size_t, std::size_t>> askedForAtMost;
+
+    std::optional<PluginSelectedLogLines> selectedLogLines( std::size_t maxLines,
+                                                            std::size_t maxBytes ) override
+    {
+        askedForAtMost.emplace_back( maxLines, maxBytes );
+        if ( !selected ) {
+            return std::nullopt;
+        }
+        return PluginSelectedLogLines{ .lines
+                                       = selected->mid( 0, static_cast<qsizetype>( maxLines ) ),
+                                       .lastCut = lastCut,
+                                       .more = more };
+    }
 };
 
 /// The exported functions of the probe plugin the tests reach behind the host's back.
@@ -158,6 +221,21 @@ struct Probe {
         return reinterpret_cast<Fn>( library.resolve( "logsquirl_probe_configure_parent" ) )();
     }
 
+    size_t hostApiSize()
+    {
+        using Fn = size_t ( * )();
+        return reinterpret_cast<Fn>( library.resolve( "logsquirl_probe_host_api_size" ) )();
+    }
+
+    std::vector<size_t> firstMemberOffsets()
+    {
+        using Fn = const size_t* ( * )( size_t* );
+        size_t count = 0;
+        const auto* offsets = reinterpret_cast<Fn>(
+            library.resolve( "logsquirl_probe_first_member_offsets" ) )( &count );
+        return std::vector<size_t>( offsets, offsets + count );
+    }
+
     void* shutdownFooterWidget()
     {
         using Fn = void* ( * )();
@@ -169,7 +247,8 @@ struct Probe {
 };
 
 /// Writes a plugin.json for the probe plugin into its own subdirectory of root.
-void installProbe( const QString& root )
+void installProbe( const QString& root,
+                   const QString& library = QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) )
 {
     const auto pluginDir = QDir( root ).filePath( "ui-port-probe" );
     QDir().mkpath( pluginDir );
@@ -184,7 +263,7 @@ void installProbe( const QString& root )
         "library": "%2",
         "api_version": 1
     })" )
-                        .arg( ProbeId, QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) )
+                        .arg( ProbeId, library )
                         .toUtf8() );
 }
 
@@ -208,7 +287,32 @@ void installManifest( const QString& root, const QString& id, const QString& lib
                         .toUtf8() );
 }
 
-void menuCallback( void* ) {}
+void menuCallback( void* userData )
+{
+    ++*static_cast<int*>( userData );
+}
+
+/// What a menu action that unloads its own plugin while it runs saw (#691).
+struct UnloadingMenuAction {
+    PluginHost* host = nullptr;
+    const std::vector<PortCall>* portCalls = nullptr;
+    bool loadedAgain = false;
+    std::optional<size_t> portCallsWhileRunning{};
+    std::optional<bool> loadedWhileRunning{};
+};
+
+// Stands for a plugin's menu action whose modal dialog the user leaves open
+// to disable the plugin: the unload comes from below the running call.
+void unloadingMenuCallback( void* userData )
+{
+    auto* action = static_cast<UnloadingMenuAction*>( userData );
+    action->host->unloadPlugin( ProbeId );
+    if ( action->loadedAgain ) {
+        REQUIRE( action->host->loadPlugin( ProbeId ).isEmpty() );
+    }
+    action->portCallsWhileRunning = action->portCalls->size();
+    action->loadedWhileRunning = action->host->isLoaded( ProbeId );
+}
 
 /// What the active-file callback a test registers through the probe received.
 struct ActiveFileCalls {
@@ -218,6 +322,25 @@ struct ActiveFileCalls {
 void recordActiveFile( void* userData, const char* filePath )
 {
     static_cast<ActiveFileCalls*>( userData )->paths.append( QString::fromUtf8( filePath ) );
+}
+
+/// What the Regex Lab callback a test passes through the probe received.
+struct RegexLabAnswers {
+    struct Answer {
+        int result = -1;
+        std::optional<QString> pattern;
+        int flags = -1;
+    };
+    std::vector<Answer> answers;
+};
+
+void recordRegexLabAnswer( void* userData, int result, const char* pattern, int flags )
+{
+    static_cast<RegexLabAnswers*>( userData )
+        ->answers.push_back(
+            { result,
+              pattern ? std::optional<QString>( QString::fromUtf8( pattern ) ) : std::nullopt,
+              flags } );
 }
 
 } // namespace
@@ -326,7 +449,8 @@ SCENARIO( "A plugin's host callbacks reach the Plugin UI Port",
             api->register_menu_action( handle, "Plugins", "Probe action", &menuCallback,
                                        &menuUserData );
 
-            THEN( "The port adds the action with its path, label, callback and user data" )
+            THEN( "The port adds the action with its path and label, and triggering it runs "
+                  "the plugin's callback with its user data" )
             {
                 REQUIRE( port.calls.size() == 1 );
                 const auto& call = port.calls[ 0 ];
@@ -334,8 +458,78 @@ SCENARIO( "A plugin's host callbacks reach the Plugin UI Port",
                 REQUIRE( call.pluginId == ProbeId );
                 REQUIRE( call.menuPath == "Plugins" );
                 REQUIRE( call.label == "Probe action" );
-                REQUIRE( call.callback == &menuCallback );
-                REQUIRE( call.userData == &menuUserData );
+                REQUIRE( call.callback != nullptr );
+
+                call.callback( call.userData );
+                REQUIRE( menuUserData == 1 );
+            }
+        }
+
+        WHEN( "The plugin registers a menu action without a callback" )
+        {
+            api->register_menu_action( handle, "Plugins", "Probe action", nullptr, &menuUserData );
+
+            THEN( "The port adds the action without one" )
+            {
+                REQUIRE( port.calls.size() == 1 );
+                REQUIRE( port.calls[ 0 ].callback == nullptr );
+            }
+        }
+
+        WHEN( "The plugin's menu action unloads the plugin while it runs" )
+        {
+            UnloadingMenuAction action{ .host = &host, .portCalls = &port.calls };
+            api->register_menu_action( handle, "Plugins", "Probe action", &unloadingMenuCallback,
+                                       &action );
+            const auto added = port.calls.back();
+            const auto callsBefore = port.calls.size();
+
+            added.callback( added.userData );
+
+            THEN( "The plugin counts as unloaded at once, but is shut down only after its "
+                  "call has returned, from the event loop" )
+            {
+                REQUIRE( action.loadedWhileRunning == false );
+                REQUIRE( action.portCallsWhileRunning == callsBefore );
+                REQUIRE( port.calls.size() == callsBefore );
+                REQUIRE_FALSE( host.isLoaded( ProbeId ) );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
+
+                QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+                REQUIRE( port.calls.size() == callsBefore + 2 );
+                REQUIRE( port.calls[ callsBefore ].kind == PortCall::Kind::RemoveFooterWidget );
+                REQUIRE( port.calls[ callsBefore + 1 ].kind
+                         == PortCall::Kind::RemoveContributions );
+            }
+
+            AND_THEN( "Triggering the action again meanwhile does not call into the plugin" )
+            {
+                action.portCallsWhileRunning.reset();
+                added.callback( added.userData );
+                REQUIRE_FALSE( action.portCallsWhileRunning.has_value() );
+            }
+        }
+
+        WHEN( "The plugin's menu action unloads the plugin and it is loaded again before the "
+              "call returns" )
+        {
+            UnloadingMenuAction action{ .host = &host,
+                                        .portCalls = &port.calls,
+                                        .loadedAgain = true };
+            api->register_menu_action( handle, "Plugins", "Probe action", &unloadingMenuCallback,
+                                       &action );
+            const auto added = port.calls.back();
+            const auto callsBefore = port.calls.size();
+
+            added.callback( added.userData );
+            QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+            THEN( "The plugin stays loaded and is never shut down" )
+            {
+                REQUIRE( action.loadedWhileRunning == true );
+                REQUIRE( host.isLoaded( ProbeId ) );
+                REQUIRE( port.calls.size() == callsBefore );
             }
         }
 
@@ -668,5 +862,564 @@ SCENARIO( "The Plugin Host loads only plugins from its catalog", "[pluginhost][p
                 REQUIRE( host.loadedPluginIds().isEmpty() );
             }
         }
+    }
+}
+
+SCENARIO( "A plugin opens the Regex Lab through the Plugin Host",
+          "[pluginhost][pluginregexlab][plugins]" )
+{
+    GIVEN( "A Plugin Host with a fake Plugin UI Port and the probe plugin loaded" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        REQUIRE( api != nullptr );
+        REQUIRE( api->open_regex_lab != nullptr );
+
+        RegexLabAnswers received;
+
+        WHEN( "The plugin opens the Regex Lab with a pattern that matches case" )
+        {
+            const auto opened = api->open_regex_lab( handle, "ERROR \xc3\xa4 (\\d+)",
+                                                     LOGSQUIRL_REGEX_LAB_MATCH_CASE,
+                                                     &recordRegexLabAnswer, &received );
+
+            THEN( "The port opens a Lab for the plugin with that pattern" )
+            {
+                REQUIRE( opened == 0 );
+                REQUIRE( port.labs.size() == 1 );
+                REQUIRE( port.labs[ 0 ].pluginId == ProbeId );
+                REQUIRE( port.labs[ 0 ].pattern
+                         == PluginPattern{ .pattern = QStringLiteral( "ERROR \u00e4 (\\d+)" ),
+                                           .matchesCase = true } );
+                REQUIRE( received.answers.empty() );
+            }
+
+            AND_WHEN( "The user applies a pattern that ignores case" )
+            {
+                REQUIRE( port.labs.size() == 1 );
+                port.labs[ 0 ].answer( PluginPattern{ .pattern = QStringLiteral( "WARN \u00f6" ),
+                                                      .matchesCase = false } );
+
+                THEN( "The plugin gets the pattern in UTF-8, without the match case flag" )
+                {
+                    REQUIRE( received.answers.size() == 1 );
+                    REQUIRE( received.answers[ 0 ].result == LOGSQUIRL_REGEX_LAB_APPLIED );
+                    REQUIRE( received.answers[ 0 ].pattern == QStringLiteral( "WARN \u00f6" ) );
+                    REQUIRE( received.answers[ 0 ].flags == 0 );
+                }
+            }
+
+            AND_WHEN( "The user cancels" )
+            {
+                REQUIRE( port.labs.size() == 1 );
+                port.labs[ 0 ].answer( std::nullopt );
+
+                THEN( "The plugin hears it was cancelled, with no pattern" )
+                {
+                    REQUIRE( received.answers.size() == 1 );
+                    REQUIRE( received.answers[ 0 ].result == LOGSQUIRL_REGEX_LAB_CANCELLED );
+                    REQUIRE_FALSE( received.answers[ 0 ].pattern.has_value() );
+                    REQUIRE( received.answers[ 0 ].flags == 0 );
+                }
+            }
+
+            AND_WHEN( "The plugin is unloaded" )
+            {
+                host.unloadPlugin( ProbeId );
+
+                THEN( "The context the answer is connected with is gone" )
+                {
+                    REQUIRE( port.labs.size() == 1 );
+                    REQUIRE( port.labs[ 0 ].context.isNull() );
+                }
+            }
+        }
+
+        WHEN( "The plugin opens the Regex Lab with no pattern and ignoring case" )
+        {
+            const auto opened
+                = api->open_regex_lab( handle, nullptr, 0, &recordRegexLabAnswer, &received );
+
+            THEN( "The Lab opens with an empty pattern that ignores case" )
+            {
+                REQUIRE( opened == 0 );
+                REQUIRE( port.labs.size() == 1 );
+                REQUIRE( port.labs[ 0 ].pattern
+                         == PluginPattern{ .pattern = QString(), .matchesCase = false } );
+            }
+        }
+
+        WHEN( "The plugin opens the Regex Lab without a callback" )
+        {
+            const auto opened = api->open_regex_lab( handle, "ERROR", 0, nullptr, nullptr );
+
+            THEN( "No Lab opens" )
+            {
+                REQUIRE( opened != 0 );
+                REQUIRE( port.labs.empty() );
+            }
+        }
+
+        WHEN( "The plugin opens the Regex Lab off the UI thread" )
+        {
+            int opened = 0;
+            std::thread( [ & ] {
+                opened
+                    = api->open_regex_lab( handle, "ERROR", 0, &recordRegexLabAnswer, &received );
+            } ).join();
+
+            THEN( "No Lab opens" )
+            {
+                REQUIRE( opened != 0 );
+                REQUIRE( port.labs.empty() );
+            }
+        }
+
+        WHEN( "The port shows no Regex Lab, as without a window" )
+        {
+            port.opensLabs = false;
+            const auto opened
+                = api->open_regex_lab( handle, "ERROR", 0, &recordRegexLabAnswer, &received );
+
+            THEN( "The plugin is told no Lab opened" )
+            {
+                REQUIRE( opened != 0 );
+                REQUIRE( received.answers.empty() );
+            }
+        }
+
+        host.unloadAll();
+        probe.library.unload();
+    }
+}
+
+SCENARIO( "The host API table starts as the first plugin header declared it",
+          "[pluginhost][plugins]" )
+{
+    GIVEN( "The probe plugin built against the header of LogSquirl 26.10, and built against the "
+           "current one" )
+    {
+        Probe first( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API1_PATH ) );
+        Probe current( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( first.library.load() );
+        REQUIRE( current.library.load() );
+
+        THEN( "The table then ended where later functions start now" )
+        {
+            REQUIRE( first.hostApiSize() == LOGSQUIRL_HOST_API_BASE_SIZE );
+            REQUIRE( current.hostApiSize() == sizeof( LogSquirlHostApi ) );
+        }
+
+        THEN( "Each member of then lies where it lies now" )
+        {
+            const auto offsets = first.firstMemberOffsets();
+            REQUIRE( offsets.size() == 18 );
+            REQUIRE( offsets == current.firstMemberOffsets() );
+        }
+
+        current.library.unload();
+        first.library.unload();
+    }
+}
+
+SCENARIO( "A plugin built against the first plugin header loads and runs unchanged",
+          "[pluginhost][plugins]" )
+{
+    GIVEN( "The probe plugin built against the header of LogSquirl 26.10, which knows no later "
+           "host function" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path(), QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API1_PATH ) );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+
+        WHEN( "The Plugin Host loads it" )
+        {
+            const auto error = host.loadPlugin( ProbeId );
+
+            Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API1_PATH ) );
+            REQUIRE( probe.library.load() );
+            const auto* api = probe.hostApi();
+            auto* handle = probe.hostHandle();
+
+            THEN( "It is initialised with the table it knows, and its calls reach the host" )
+            {
+                REQUIRE( error.isEmpty() );
+                REQUIRE( host.isLoaded( ProbeId ) );
+                REQUIRE( api != nullptr );
+                REQUIRE( api->api_version == LOGSQUIRL_PLUGIN_API_VERSION );
+
+                int menuUserData = 0;
+                api->register_menu_action( handle, "Plugins", "Probe", &menuCallback,
+                                           &menuUserData );
+                REQUIRE( port.calls.size() == 1 );
+                REQUIRE( port.calls[ 0 ].kind == PortCall::Kind::AddMenuAction );
+                REQUIRE( port.calls[ 0 ].label == "Probe" );
+            }
+
+            AND_WHEN( "It is unloaded" )
+            {
+                host.unloadPlugin( ProbeId );
+
+                THEN( "Its shutdown ran and its contributions are removed" )
+                {
+                    REQUIRE_FALSE( host.isLoaded( ProbeId ) );
+                    REQUIRE( port.calls.size() == 2 );
+                    REQUIRE( port.calls[ 0 ].kind == PortCall::Kind::RemoveFooterWidget );
+                    REQUIRE( port.calls[ 1 ].kind == PortCall::Kind::RemoveContributions );
+                }
+            }
+
+            host.unloadAll();
+            probe.library.unload();
+        }
+    }
+}
+
+namespace {
+
+/// What get_selected_log_lines handed back.
+struct SelectedText {
+    int result = 0;
+    const char* text = nullptr;
+    size_t length = 0;
+    size_t lineCount = 0;
+};
+
+SelectedText readSelected( const LogSquirlHostApi& api, void* handle )
+{
+    SelectedText read;
+    read.result = api.get_selected_log_lines( handle, &read.text, &read.length, &read.lineCount );
+    return read;
+}
+
+} // namespace
+
+SCENARIO( "A plugin goes to a Log Line and reads the selected Log Lines through the Plugin Host",
+          "[pluginhost][pluginloglines][plugins]" )
+{
+    GIVEN( "A Plugin Host with a fake Plugin UI Port and the probe plugin loaded" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        REQUIRE( api != nullptr );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), go_to_log_line ) );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), get_selected_log_lines ) );
+
+        WHEN( "The plugin goes to line number 1" )
+        {
+            const auto result = api->go_to_log_line( handle, 1 );
+
+            THEN( "The port goes to the first Log Line, counted from 0" )
+            {
+                REQUIRE( result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( port.wentTo == std::vector<std::uint64_t>{ 0 } );
+            }
+        }
+
+        WHEN( "The plugin goes to line number 0" )
+        {
+            const auto result = api->go_to_log_line( handle, 0 );
+
+            THEN( "It is out of range, and the port is not asked" )
+            {
+                REQUIRE( result == LOGSQUIRL_LOG_LINES_OUT_OF_RANGE );
+                REQUIRE( port.wentTo.empty() );
+            }
+        }
+
+        WHEN( "The Log File has no such line" )
+        {
+            port.jump = PluginLogLineJump::OutOfRange;
+
+            THEN( "The plugin is told it is out of range" )
+            {
+                REQUIRE( api->go_to_log_line( handle, 5000 ) == LOGSQUIRL_LOG_LINES_OUT_OF_RANGE );
+            }
+        }
+
+        WHEN( "No Log File is open" )
+        {
+            port.jump = PluginLogLineJump::NoLogFile;
+            port.selected.reset();
+
+            THEN( "The plugin is told so by both functions, and gets no text" )
+            {
+                REQUIRE( api->go_to_log_line( handle, 1 ) == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                const auto read = readSelected( *api, handle );
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( read.text == nullptr );
+                REQUIRE( read.length == 0 );
+                REQUIRE( read.lineCount == 0 );
+            }
+        }
+
+        WHEN( "No Log Line is selected" )
+        {
+            port.selected = QStringList{};
+
+            THEN( "The plugin is told so, and gets no text" )
+            {
+                const auto read = readSelected( *api, handle );
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_NO_SELECTION );
+                REQUIRE( read.text == nullptr );
+            }
+        }
+
+        WHEN( "Log Lines are selected and the plugin reads them" )
+        {
+            port.selected = QStringList{ QStringLiteral( "first \u00e4" ), QString(),
+                                         QStringLiteral( "third" ) };
+            const auto read = readSelected( *api, handle );
+
+            THEN( "It gets them in UTF-8, joined by line feeds, with no line feed at the end" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( read.text != nullptr );
+                REQUIRE( std::string( read.text ) == "first \xc3\xa4\n\nthird" );
+                REQUIRE( read.length == std::strlen( read.text ) );
+                REQUIRE( read.lineCount == 3 );
+            }
+
+            THEN( "The port is asked for one Log Line more than a plugin gets, and no more "
+                  "bytes" )
+            {
+                REQUIRE( port.askedForAtMost
+                         == std::vector<std::pair<std::size_t, std::size_t>>{
+                             { LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 1,
+                               LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES } } );
+            }
+
+            AND_WHEN( "It reads them once more after the selection changed" )
+            {
+                const std::string before( read.text );
+                port.selected = QStringList{ QStringLiteral( "other" ) };
+                const auto again = readSelected( *api, handle );
+
+                THEN( "The text of the first call was valid until then, the new one is the "
+                      "new selection's" )
+                {
+                    REQUIRE( before == "first \xc3\xa4\n\nthird" );
+                    REQUIRE( std::string( again.text ) == "other" );
+                }
+            }
+        }
+
+        WHEN( "The plugin wants only the text" )
+        {
+            port.selected = QStringList{ QStringLiteral( "only" ) };
+            const char* text = nullptr;
+            const auto result = api->get_selected_log_lines( handle, &text, nullptr, nullptr );
+
+            THEN( "It gets it without the length and the count" )
+            {
+                REQUIRE( result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( std::string( text ) == "only" );
+            }
+        }
+
+        WHEN( "The plugin passes no place for the text" )
+        {
+            port.selected = QStringList{ QStringLiteral( "only" ) };
+            size_t length = 7;
+
+            THEN( "It is an invalid argument, and the port is not asked" )
+            {
+                REQUIRE( api->get_selected_log_lines( handle, nullptr, &length, nullptr )
+                         == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( length == 0 );
+                REQUIRE( port.askedForAtMost.empty() );
+            }
+        }
+
+        WHEN( "More Log Lines are selected than a plugin gets" )
+        {
+            QStringList lines;
+            for ( int i = 0; i < LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 5; ++i ) {
+                lines.append( QString::number( i ) );
+            }
+            port.selected = lines;
+            const auto read = readSelected( *api, handle );
+
+            THEN( "It gets the first ones and is told there are more" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( read.lineCount == LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+                const auto text = QString::fromUtf8( read.text );
+                REQUIRE( text.startsWith( QStringLiteral( "0\n1\n" ) ) );
+                REQUIRE( text.endsWith(
+                    QStringLiteral( "\n%1" ).arg( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES - 1 ) ) );
+            }
+        }
+
+        WHEN( "Exactly as many Log Lines are selected as a plugin gets" )
+        {
+            QStringList lines;
+            for ( int i = 0; i < LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES; ++i ) {
+                lines.append( QStringLiteral( "x" ) );
+            }
+            port.selected = lines;
+
+            THEN( "It gets all of them, not truncated" )
+            {
+                const auto read = readSelected( *api, handle );
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( read.lineCount == LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+            }
+        }
+
+        WHEN( "The selected Log Lines hold more bytes than a plugin gets" )
+        {
+            constexpr auto MaxBytes = qsizetype{ LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES };
+            // Two lines fit with their line feed, the third does not.
+            const auto half = QString( MaxBytes / 2 - 1, QChar( 'a' ) );
+            port.selected = QStringList{ half, half, QStringLiteral( "b" ) };
+            const auto read = readSelected( *api, handle );
+
+            THEN( "It gets the whole lines that fit, and is told there are more" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( read.lineCount == 2 );
+                REQUIRE( read.length == static_cast<size_t>( 2 * half.size() + 1 ) );
+                REQUIRE( read.length <= LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+            }
+        }
+
+        WHEN( "The first selected Log Line alone holds more bytes than a plugin gets" )
+        {
+            constexpr auto MaxBytes = qsizetype{ LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES };
+            // "a" and then two-byte characters: the bound falls inside one.
+            const auto line = QStringLiteral( "a" ) + QString( MaxBytes / 2, QChar( 0x00e4 ) );
+            port.selected = QStringList{ line, QStringLiteral( "next" ) };
+            const auto read = readSelected( *api, handle );
+
+            THEN( "It gets that Log Line cut at a character, within the bound" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( read.lineCount == 1 );
+                REQUIRE( read.length == static_cast<size_t>( MaxBytes - 1 ) );
+                const auto text
+                    = QString::fromUtf8( read.text, static_cast<qsizetype>( read.length ) );
+                REQUIRE( text == line.left( ( MaxBytes - 1 ) / 2 + 1 ) );
+                REQUIRE( text.toUtf8().size() == MaxBytes - 1 );
+            }
+        }
+
+        WHEN( "The port cut the first Log Line short, for the bytes" )
+        {
+            port.selected = QStringList{ QStringLiteral( "cut short" ) };
+            port.lastCut = true;
+            const auto read = readSelected( *api, handle );
+
+            THEN( "The plugin gets what was read and is told it is truncated" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( std::string( read.text ) == "cut short" );
+            }
+        }
+
+        WHEN( "The port cut a Log Line short after whole ones, for the bytes" )
+        {
+            port.selected = QStringList{ QStringLiteral( "whole" ), QStringLiteral( "cut" ) };
+            port.lastCut = true;
+            const auto read = readSelected( *api, handle );
+
+            THEN( "The plugin gets the whole ones only, and is told it is truncated" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( std::string( read.text ) == "whole" );
+                REQUIRE( read.lineCount == 1 );
+            }
+        }
+
+        WHEN( "The port left Log Lines unread, for the bytes" )
+        {
+            port.selected = QStringList{ QStringLiteral( "read" ) };
+            port.more = true;
+
+            THEN( "The plugin is told it is truncated" )
+            {
+                REQUIRE( readSelected( *api, handle ).result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+            }
+        }
+
+        WHEN( "The plugin goes to a Log Line with no handle" )
+        {
+            THEN( "It is an invalid argument, and the port is not asked" )
+            {
+                REQUIRE( api->go_to_log_line( nullptr, 1 )
+                         == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( port.wentTo.empty() );
+            }
+        }
+
+        WHEN( "The plugin calls both off the UI thread" )
+        {
+            port.selected = QStringList{ QStringLiteral( "only" ) };
+            int wentTo = 0;
+            SelectedText read;
+            std::thread( [ & ] {
+                wentTo = api->go_to_log_line( handle, 1 );
+                read = readSelected( *api, handle );
+            } ).join();
+
+            THEN( "Neither reaches the port, and both say why" )
+            {
+                REQUIRE( wentTo == LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD );
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD );
+                REQUIRE( read.text == nullptr );
+                REQUIRE( port.wentTo.empty() );
+                REQUIRE( port.askedForAtMost.empty() );
+            }
+        }
+
+        WHEN( "The host has no Plugin UI Port, as without a window" )
+        {
+            host.setUiPort( nullptr );
+
+            THEN( "There is no Log File" )
+            {
+                REQUIRE( api->go_to_log_line( handle, 1 ) == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( readSelected( *api, handle ).result == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+            }
+            host.setUiPort( &port );
+        }
+
+        host.unloadAll();
+        probe.library.unload();
     }
 }

@@ -10,6 +10,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/loadingstatus.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdatametatypes.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/tbbworkersjoinedatexit.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/indexjob.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/indexjobrunner.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdataoperation.h
@@ -41,6 +42,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdatametatypes.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdataoperation.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdataworker.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tbbworkersjoinedatexit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddataworker.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/loglinetext.cpp

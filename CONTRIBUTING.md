@@ -202,9 +202,37 @@ Pull request CI does not run the performance suite. A pull request that changes 
 paint path) or carries the `performance` label gets a before/after comparison of the
 benchmarks and the performance suite as a comment instead, from the **Benchmarks** workflow;
 it reports and never fails the pull request (`tests/benchmarks/README.md`, *Before and after
-in CI*). The weekly **Performance** workflow
-measures master on a GitHub-hosted runner and turns red when a benchmark is more than
-30 % slower than the median of its last six runs (BUILD.md, *Weekly performance*).
+in CI*). The nightly **Performance** workflow measures master on GitHub-hosted runners,
+wall-clock and instruction counts, and checks the Budgets of ADR 0018; when the instruction
+counts of a benchmark step up from one run on, or a Budget breaks, it opens a `needs-triage`
+issue naming the scenario and the commit range it happened in (BUILD.md, *Nightly
+performance*).
+
+**Instruction count gate.** Every pull request that CI builds counts the instructions of each
+Catch2 benchmark (`tests/benchmarks`) before and after the change, under Callgrind, and shows
+them in one comment (BUILD.md, *Instruction counts*). The **CI passed** check turns red when
+
+- a benchmark costs more than its threshold more instructions than on the base: **+2 %** by
+  default, more for the few benchmarks whose counts vary more between runs of the same code;
+  all thresholds live in `THRESHOLD_PERCENT` in `.github/scripts/instruction-counts.py`, each
+  twice the widest spread measured, rounded up to a whole percent. A benchmark over its
+  threshold is counted once more on the pull request's side, and fails only when both counts
+  are over it (#708). Judging the lower of two counts against the base's one count lets a real
+  regression smaller than a benchmark's spread pass; that is accepted, since the gate must never
+  be falsely red (#672), and the thresholds are to be lowered once measured again (#727), or
+- a benchmark that was counted on the base is not counted on the pull request (it was removed,
+  fails or no longer runs).
+
+A cost that is intended, the price of a feature or of correctness, is accepted with the label
+**`perf-accepted`**: a maintainer adds it, and the pull request description says which
+benchmarks cost more and why. Adding or removing the label runs the gate again (for a pull
+request from a fork, re-run the failed jobs of the CI Build run), and the comment then lists
+the accepted benchmarks. The label never accepts a missing benchmark: a benchmark that is
+removed on purpose leaves both sides, since both build the pull request's benchmark sources.
+The comment also shows each benchmark's allocations and peak heap before and after (#673).
+They are reported only and never turn **CI passed** red; a change in them is worth a sentence
+in the pull request description, a per-Log-Line allocation above all.
+A change of a threshold goes in its own commit, with the measurement that justifies it.
 
 ## Commit message format
 If possible commit message should be like `prefix: message`, where prefix is one of

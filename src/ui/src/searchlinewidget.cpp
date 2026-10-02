@@ -257,6 +257,17 @@ bool SearchLineWidget::useFilters( const QList<PredefinedFilter>& filters )
     return showEditedPattern( previous, searchLine_.useFilters( filters ) );
 }
 
+bool SearchLineWidget::apply( const RegularExpressionPattern& pattern )
+{
+    const auto previous = searchLine_.flags();
+    const auto previousPattern = searchLine_.pattern();
+    const auto runNow = showEditedPattern( previous, searchLine_.apply( pattern ) );
+    if ( searchLine_.pattern() != previousPattern ) {
+        Q_EMIT patternEdited();
+    }
+    return runNow;
+}
+
 void SearchLineWidget::requested( const SearchSession::State& state )
 {
     searchLine_.requested( state );
@@ -270,9 +281,10 @@ void SearchLineWidget::progressed( const SearchSession::State& state,
     showDisplay();
 }
 
-void SearchLineWidget::stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount )
+void SearchLineWidget::stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                                LinesCount undecidedCount )
 {
-    searchLine_.stopped( autoRefresh, matchCount );
+    searchLine_.stopped( autoRefresh, matchCount, undecidedCount );
     showDisplay();
 }
 
@@ -282,9 +294,10 @@ void SearchLineWidget::cleared()
     showDisplay();
 }
 
-void SearchLineWidget::settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount )
+void SearchLineWidget::settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                                LinesCount undecidedCount )
 {
-    searchLine_.settled( autoRefresh, matchCount );
+    searchLine_.settled( autoRefresh, matchCount, undecidedCount );
     showDisplay();
 }
 

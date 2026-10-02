@@ -23,7 +23,10 @@
 #include <QWidget>
 
 #include "predefinedfilters.h"
+#include "regexlabwindow.h"
 #include "ui_predefinedfiltersetedit.h"
+
+class QCheckBox;
 
 // Widget for editing a single PredefinedFilterSet (group name + filter table).
 // Mirrors HighlighterSetEdit but uses a table for filter editing.
@@ -45,6 +48,10 @@ public:
     // Shows the set without letting it be changed: a Team group. Applies to
     // the set shown next.
     void setReadOnly( bool readOnly );
+
+    // What Test... opens the Regex Lab with: the Search's engine, how the
+    // Search Line reads a pattern, and the tab's sample (#660).
+    void setRegexLabAccess( RegexLabAccess access );
 
 Q_SIGNALS:
     // Emitted whenever the set name or any filter changes.
@@ -68,9 +75,15 @@ private:
     void loadIcons();
     void syncTableToSet();
     void updateButtons( int currentRow );
+    void keepRegexChoice( QCheckBox* regex );
+    void testFilter();
+    // Writes the Lab's pattern into the filter, and whether it is a regular
+    // expression when the Lab offered that.
+    void applyTestedFilter( int row, const RegularExpressionPattern& pattern, bool isRegexpKept );
 
     PredefinedFilterSet filterSet_;
     bool updatingTable_{ false };
     bool readOnly_{ false };
     QAbstractItemView::EditTriggers editTriggers_;
+    RegexLabAccess regexLabAccess_;
 };

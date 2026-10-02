@@ -81,20 +81,31 @@ ConflictResolver askUser( QWidget* parent, const QString& title )
     };
 }
 
+QString importErrorMessage( const QString& file, ReadError error )
+{
+    switch ( error ) {
+    case ReadError::None:
+        break;
+    case ReadError::Unreadable:
+        return Prompt::tr( "The file %1 could not be read." ).arg( file );
+    case ReadError::NoGroups:
+        return Prompt::tr( "The file %1 holds no group." ).arg( file );
+    case ReadError::OtherKind:
+        return Prompt::tr( "The file %1 holds another kind of group than this dialog imports." )
+            .arg( file );
+    case ReadError::NewerVersion:
+        return Prompt::
+            tr( "The file %1 was written by a newer version of LogSquirl and cannot be imported." )
+                .arg( file );
+    }
+    return {};
+}
+
 void reportImportError( QWidget* parent, const QString& title, const QString& file,
                         const ImportResult& result )
 {
-    switch ( result.error ) {
-    case ReadError::None:
-        return;
-    case ReadError::Unreadable:
-        QMessageBox::warning( parent, title,
-                              Prompt::tr( "The file %1 could not be read." ).arg( file ) );
-        return;
-    case ReadError::NoGroups:
-        QMessageBox::warning( parent, title,
-                              Prompt::tr( "The file %1 holds no group." ).arg( file ) );
-        return;
+    if ( result.error != ReadError::None ) {
+        QMessageBox::warning( parent, title, importErrorMessage( file, result.error ) );
     }
 }
 

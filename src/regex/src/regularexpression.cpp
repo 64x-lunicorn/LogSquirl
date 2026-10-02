@@ -322,32 +322,25 @@ std::unique_ptr<PatternMatcher> RegularExpression::createMatcher() const
 
 namespace matching {
 
-bool hasSingleMatch( std::string_view line, const MatcherVariant& matcher,
-                     BooleanExpressionEvaluator* )
+bool hasSingleMatch( const MatchedPatterns& matched, BooleanExpressionEvaluator* )
 {
-    const auto result
-        = std::visit( [ &line ]( const auto& m ) { return m.match( line ); }, matcher );
-
-    return !result.empty() && result[ 0 ] > 0;
+    return !matched.empty() && matched[ 0 ] > 0;
 }
 
-bool hasCombinedMatch( std::string_view line, const MatcherVariant& matcher,
-                       BooleanExpressionEvaluator* evaluator )
+bool hasCombinedMatch( const MatchedPatterns& matched, BooleanExpressionEvaluator* evaluator )
 {
-    auto result = std::visit( [ &line ]( const auto& m ) { return m.match( line ); }, matcher );
-    return evaluator && evaluator->evaluate( result );
+    return evaluator && evaluator->evaluate( matched );
 }
 
-bool hasInverseSingleMatch( std::string_view line, const MatcherVariant& matcher,
-                            BooleanExpressionEvaluator* evaluator )
+bool hasInverseSingleMatch( const MatchedPatterns& matched, BooleanExpressionEvaluator* evaluator )
 {
-    return !hasSingleMatch( line, matcher, evaluator );
+    return !hasSingleMatch( matched, evaluator );
 }
 
-bool hasInverseCombinedMatch( std::string_view line, const MatcherVariant& matcher,
+bool hasInverseCombinedMatch( const MatchedPatterns& matched,
                               BooleanExpressionEvaluator* evaluator )
 {
-    return !hasCombinedMatch( line, matcher, evaluator );
+    return !hasCombinedMatch( matched, evaluator );
 }
 
 } // namespace matching
@@ -378,7 +371,31 @@ PatternMatcher::~PatternMatcher() = default;
 
 bool PatternMatcher::hasMatch( std::string_view line ) const
 {
-    return hasMatchImpl_( line, matcher_, evaluator_.get() );
+    return decide( line ).isMatch;
+}
+
+MatchVerdict PatternMatcher::decide( std::string_view line ) const
+{
+    return std::visit(
+        [ this, &line ]( const auto& matcher ) {
+            const auto matched = matcher.match( line );
+            return MatchVerdict{ .isMatch = hasMatchImpl_( matched, evaluator_.get() ),
+                                 .isUndecided = matcher.gaveUp() };
+        },
+        matcher_ );
+}
+
+logsquirl::vector<bool> PatternMatcher::subPatternMatches( std::string_view line ) const
+{
+    const auto matched
+        = std::visit( [ &line ]( const auto& m ) { return m.match( line ); }, matcher_ );
+
+    logsquirl::vector<bool> matches;
+    matches.reserve( matched.size() );
+    for ( const auto isMatch : matched ) {
+        matches.push_back( isMatch != 0 );
+    }
+    return matches;
 }
 
 MultiRegularExpression::MultiRegularExpression(

@@ -127,6 +127,8 @@ public:
     void updateDecorations() override;
     // Drops the Rows read so far; they are read again as they are shown.
     void rereadLogLines() override;
+    // The Table View shows no Value Names (#647): nothing to do.
+    void applyValueNamesChange() override {}
     void updateFont( const QFont& font ) override;
     void registerShortcuts() override;
     // Hand over the settings that color Log Lines, after a settings change:
@@ -164,6 +166,8 @@ public:
     TableViewSelection selection() const;
     // The Log Lines of the selected Rows.
     logsquirl::vector<LineNumber> selectedLogLines() const;
+    // The first at most limit of them (#663).
+    logsquirl::vector<LineNumber> selectedLogLines( LinesCount limit ) const;
 
 public Q_SLOTS:
     // The View Set, the owner of follow, turned it on or off. Turned on, the

@@ -2,6 +2,88 @@
 
 ## Changes
 
+- **Values in a Log Line are shown with names from Name Tables (Value
+  Names)**: a Naming Rule picks the values of a Log Line by the capture groups
+  of its regex and looks each up in a Name Table, and the main view and the
+  filtered view show `BAP << ECU 0x15` as `BAP << ECU Beispiel(0x15)`. The Log
+  File is never changed, the Table View shows the raw text, and search,
+  filters, QuickFind and highlighters match the raw text -- a match inside a
+  value covers its whole name. A named value is underlined with fine dots and
+  its tooltip tells the table, rule and group the name came from. *View → Show
+  Value Names* (`Ctrl+Shift+N`) shows or hides them per tab, starting from the
+  new setting *Show Value Names on file open*. *Copy* copies the raw text --
+  a whole value, never half of one --, the new *Copy as Shown* copies what is
+  shown, and *Save to file* can save *With Value Names*. With them hidden or
+  no rule enabled, nothing is looked up. The new sidebar tab *Value Names*
+  checks Naming Rules and Naming Groups for every tab, like the Filters tab,
+  and keeps the checks across restarts. Its *Edit...* dialog, also in *Tools →
+  Value Names...*, edits the rules and which Name Table each capture group
+  uses. It edits the Name Tables too: they can be imported from CSV, exported
+  to CSV and pasted from a spreadsheet. A preview line shows a sample Log Line
+  named and warns of what is wrong. A Naming Group is shared like a filter
+  group: *Export...* writes it to `<name>_valuenames.conf`, *Import...* asks
+  *Replace*, *Keep both* or *Skip* for a group already there, and the Team
+  Folder shares Naming Groups as Team groups, listed last in the tab. A Value
+  Names file says what it holds and is never read as a filter group or
+  highlighter set; their files load as before. (#647)
+- **The Regex Lab tests a pattern on Log Lines**: *Tools → Regex Lab…* opens a
+  window beside the main window where a pattern, with the search line's
+  options, is matched live against the selected Log Lines of the tab in front,
+  up to 1000 lines around its current line, or pasted text. It marks the
+  matching lines and the matched text, lists the numbered and named capture
+  groups of the line with the cursor, counts the matching lines -- exactly
+  those a search with the same pattern and options selects -- and shows a
+  pattern error with its position. The sample is read and evaluated in the
+  background within bounds of time, lines, line length and marks, the Lab
+  warns of a pattern that takes unusually long on the sample or on a line,
+  and *Copy pattern* puts the pattern on the clipboard. (#659)
+- **Highlighters and Predefined Filters are tested in the Regex Lab**: *Test…*
+  next to a highlighter's pattern, and next to the buttons of a filter group,
+  opens the Regex Lab over the editor with the pattern, on the Log Lines of the
+  tab in front. For a highlighter the Lab marks what it would color -- the
+  whole line, or only the matched text and its capture groups -- in its colors,
+  and offers *Match case* and *Use regex*; for a filter it matches exactly
+  as the search line of the tab in front would with the filter, and offers
+  *Use regex* where that search line reads it. *Apply* writes the pattern and
+  the options changed back into the editor, *Cancel* leaves it as it was.
+  (#660)
+- **The search line opens its pattern in the Regex Lab**: *Open in Regex
+  Lab...* in the search line's context menu opens the Lab with the pattern and
+  every option the search line reads it with -- *Match case*, *Use regex* (a
+  *Wildcard* or *Fixed String* search comes as plain text), *Inverse match*,
+  *Boolean combining* -- on the Log Lines of the tab and with the engine its
+  searches run on. *Apply* fills the search line with the pattern and sets its
+  options; it runs the search only when *Auto-refresh* is on. *Cancel* leaves
+  the search line as it was. For a logical combination the Lab lists
+  its sub-patterns and shows beside each line which of them match it, the
+  line's verdict being exactly the search's. (#661)
+- **Plugins open the Regex Lab (plugin API)**: a plugin calls the new host
+  function `open_regex_lab` with a pattern; the Regex Lab opens over the
+  window, on the Log Lines of the tab in front, and the plugin's callback gets
+  the pattern the user applied -- and whether it matches case -- or hears that
+  the user cancelled, once, on the UI thread. A plugin that is unloaded while
+  its Lab is open is never called back. The plugin API grows compatibly
+  (ADR 0017): new host functions are appended to `LogSquirlHostApi`, a plugin
+  exports `logsquirl_plugin_init_ex` to be told the size of the host's table
+  and checks a function with `LOGSQUIRL_HOST_API_HAS` before calling it, and
+  degrades on an older LogSquirl. `LOGSQUIRL_PLUGIN_API_VERSION` stays 1;
+  plugins built against the earlier header load and run unchanged. The plugin
+  developer guide and its example show both. (#662)
+- **Plugins go to a Log Line and read the selected Log Lines (plugin API)**:
+  two new host functions work on the tab in front of the most recently active
+  window, on the UI thread only. `go_to_log_line` selects the line of a
+  number -- counted from 1, as LogSquirl shows them -- and scrolls it into
+  view, as *Go to line* does; it returns `LOGSQUIRL_LOG_LINES_OUT_OF_RANGE`
+  for 0 or a number past the end. `get_selected_log_lines` returns the text
+  of the selected Log Lines in UTF-8, joined by line feeds, a selection within
+  a line counting as the whole line: at most 1000 lines and 1 MiB, whole lines
+  but a longer first one, with `LOGSQUIRL_LOG_LINES_TRUNCATED` when that is
+  fewer than are selected. The host keeps the text until the plugin's next
+  call. Both return `LOGSQUIRL_LOG_LINES_NO_LOG_FILE` without an open Log
+  File, `LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD` off the UI thread and
+  `LOGSQUIRL_LOG_LINES_NO_SELECTION` without a selection; a plugin checks for
+  them with `LOGSQUIRL_HOST_API_HAS`. The plugin developer guide and its
+  example show both. (#663)
 - **A session saves to and opens from a file**: *File → Save Session As…*
   writes the window's open files, their order, the tab in front, each tab's
   view state, tab names and groups to a `.logsquirl-session` file, and
@@ -50,9 +132,67 @@
   them. Search, QuickFind, selection and copy work as under *Hide*, and the
   Table View shows no ANSI colors. A ticked checkbox from an earlier version
   opens as *Hide*. (#573)
+- **The performance trend is on the website**: the new *Performance* page
+  shows each Benchmark Scenario's benchmarks night by night from the
+  `perf-data` branch, the wall-clock medians with one line per runner CPU
+  model and the instruction counts per benchmark binary, for the last 120
+  days. Each Budget of ADR 0018 is drawn as a dashed line and each release is
+  marked; hovering a point shows its date, version, commit and runner. The
+  charts are SVG drawn when the site is built, with nothing loaded in the
+  browser. After each nightly run of master, the Performance workflow
+  dispatches Deploy Website, which rebuilds the last published release's site
+  with the new run, so no unreleased website change goes live with it.
+  Without the branch the page says it has no runs and the site still builds.
+  BUILD.md and the README link to it. (#678)
+- **The Team Folder tab shows a structured status instead of a block of Git
+  output**: *Settings → Team Folder* has a *Repository* group and a *Status*
+  group. The status shows an icon for its state and a heading that names the
+  step that failed, such as *Clone failed*, *Pull failed* or *Push refused*,
+  followed by the groups not published, the Team groups being read-only and
+  the files skipped. Git's own output, untranslated, is in *Details from Git*:
+  collapsed at first, in a monospace font with Git's line breaks and no added
+  wrapping, selectable, and with a *Copy* button. *Sync Now* sits in the
+  *Status* group, the explanatory note is at the bottom of the tab, smaller
+  and subdued, and the check box names Filter Groups, Highlighter Sets and
+  Naming Groups. (#711)
 
 ## Bug fixes
 
+- **The dashboard lists a plugin installed while it is shown**: a plugin
+  installed, enabled or disabled in *Plugins* while the dashboard was open
+  did not show on its Plugins card, which kept saying *No plugins installed*
+  until the dashboard was shown again. The card now follows at once, in every
+  window. (#710)
+- **A plugin disabled while one of its dialogs is open no longer crashes
+  LogSquirl**: a plugin whose menu action, configuration, converter, Regex Lab
+  answer or active-file callback shows a modal dialog could be disabled in
+  *Plugins* meanwhile, and was shut down under its own running code. It now
+  counts as disabled at once, gets no further calls, and is shut down once
+  that callback has returned. Enabled again before that, it simply stays
+  loaded. (#691)
+- **A Search says when the regex engine gave up on Log Lines**: with the
+  QRegularExpression engine, a pattern that backtracks too much -- such as
+  `(a|aa)+$` on a long Log Line -- makes PCRE2 give up on that Log Line, and
+  the Search counted it as no Match without a word. The Search Line now adds
+  how many Log Lines the engine gave up on to the Matches found, for example
+  *3 matches found (the regex engine gave up on 2 Log Lines: they may match)*,
+  and `logsquirl_grep` says so on stderr. The Regex Lab marks such a Log Line
+  as slow however fast the engine gave up. Vectorscan never gives up on a Log
+  Line. (#689)
+
+- **An exported Team group imported again is a group of your own**: a filter
+  group or highlighter set exported from the Team groups and imported into
+  your own kept the Team group's id, so checking or activating one did the same
+  to the other. It now arrives under an id of its own. (#693) An import of a
+  file of another kind of group, or of one written by a newer version, now
+  says so instead of reporting no group. (#647)
+
+- **A tab brought to the front shows its selected Log Line**: switching to a
+  tab whose Log File had loaded showed `Ln:1` beside the info line instead of
+  the Log Line selected in it. (#692)
+- **A Predefined Filter's Regex box is kept**: checking or unchecking only the
+  *Regex* box of a filter in *Predefined Filters…* was lost on *OK* or *Apply*
+  unless another cell of the table was edited as well. (#660)
 - **A command's output on Windows shows its umlauts**: console programs such
   as `dir` or `ping` write in the OEM code page of the console, CP850 on a
   German Windows, and their output opened by *Open Command Output* showed `ä`
@@ -60,6 +200,14 @@
   otherwise in the OEM code page, as soon as the output holds more than ASCII.
   The Encoding menu still changes it, and offers IBM437, the OEM code page of
   a US Windows. (#655)
+- **A growing Log File that starts with ASCII shows its umlauts**: the
+  Encoding was detected from the first bytes only, so a followed Log File,
+  a standard input tab or a spool file whose first Log Lines were plain ASCII
+  showed later UTF-8 lines as `GrÃ¶Ãe`, while the same file opened afresh
+  read `Größe`. Plain ASCII is now taken for UTF-8, and the first bytes beyond
+  ASCII appended to such a Log File decide its Encoding, a Latin one included;
+  the status line and the *Auto* Encoding follow. An Encoding chosen in the
+  menu or forced by the settings stays as it is. (#657)
 - **Open Command Output runs commands in csh and tcsh**: with csh or tcsh as
   the login shell, every command ended at once with exit code 1 and the
   shell's `Unknown option: '-l'` in its tab. The command line now runs in
@@ -87,6 +235,22 @@
   over, such as one of another version, is reported instead. Before, the input
   was lost. (#623)
 
+## Build and packaging
+
+- **Release builds can use profile-guided optimization, and BOLT on Linux,
+  per platform once the numbers show a gain**: `-DLOGSQUIRL_PGO=GENERATE`
+  builds instrumented binaries, which the benchmark mode's scenarios train,
+  and `-DLOGSQUIRL_PGO=USE` builds optimized for that profile, with Clang,
+  AppleClang, GCC and MSVC; `-DLOGSQUIRL_BOLT=ON` links a Linux build for
+  `llvm-bolt`. A USE build without its profile stops at configure time and
+  says what to run, and its warnings still fail it, but for two diagnostics
+  of the profile itself that it reports as warnings. The PGO workflow
+  builds each platform without and with, from scratch, and measures the
+  micro-benchmarks and the e2e performance suite of all of them on one runner,
+  with the build time each took. No profile is checked in. Every release build
+  keeps building as before: its platform's switch in CI Build stays off until
+  those numbers show a clear gain there. (#682)
+
 ## Internal
 
 - **A pull request that touches a hot path gets the benchmark comparison by
@@ -106,6 +270,83 @@
   of its own, so it reads and writes nothing of yours. The report format is
   versioned and documented in BUILD.md, *Benchmark mode*; Search, QuickFind,
   scrolling, follow and Session restore follow as further scenarios. (#666)
+
+- **The benchmark mode times a Search, QuickFind, scrolling, following a Log
+  File, a Session restore and reading while indexing**: `search` reports when
+  the first Match is displayed and when the Search is finished, in GB/s;
+  `quickfind` the time from each keystroke until the Matches on screen are
+  marked; `scroll` every frame of a scripted scroll through the Text View and
+  the Table View, with and without Highlighters and ANSI colors, as p50, p99,
+  max and the frames over 16.7 ms; `follow` the time from an append to the Log
+  Line displayed and charted, at two append rates; `session-restore` when the
+  current tab is usable and when every tab is indexed; `read-while-indexing`
+  the latency of reads from the UI thread while a Log File is indexed, and the
+  indexing's wall and CPU time and their ratio. `logsquirl_grep
+  --benchmark-output` reports a Search's throughput without the process start.
+  (#668, #669, #670, #686, #667)
+
+- **The e2e performance suite measures events, not sleeps and process
+  startup**: its GUI cases run the benchmark mode's scenarios, its grep cases
+  report MB/s without the process start, and it measures generated 100 MB and
+  1 GB Log Files next to the small ones. (#667)
+
+- **A pull request that costs more instructions turns CI red**: a benchmark
+  that counts more than its threshold (+2 % unless a noisier one has its own)
+  more instructions than on the merge base, or that is missing on the pull
+  request's side, fails the *Instruction counts gate*, which *CI passed* needs.
+  A maintainer accepts an intended cost with the `perf-accepted` label; the
+  comment then lists what was accepted. The comment also shows each
+  benchmark's heap allocations and peak heap, before and after, as a report.
+  (#672, #673)
+
+- **Master's performance is measured every night, and a regression files an
+  issue**: the Performance workflow runs nightly instead of weekly, and next to
+  the e2e performance suite's wall-clock it counts the instructions of every
+  benchmark under Callgrind on larger generated Log Files. A regression is a
+  change point in a benchmark's series of runs, not one run against the median
+  of the last six: the reference is the level before it, so a lasting
+  regression no longer heals itself after a few weeks. A change point in the
+  instruction counts, a broken Budget of ADR 0018 (once the maintainer accepts
+  the Budgets; until then they are only reported) or a benchmark that went
+  missing opens a `needs-triage` issue per scenario that names the commit range
+  from the last good run to the first bad one, or updates the open one;
+  wall-clock change points are the trend for now. A run dispatched from a
+  branch files nothing and shows its findings in the job summary. (#677)
+
+- **The nightly wall-clock is compared within the runner's CPU model and
+  against the last release**: a median compares only with earlier runs on the
+  same CPU model, where medians vary by about 1.4 % instead of up to 24 %, and
+  the job summary names the model and how many runs of it came before. On the
+  same runner, the Performance workflow also builds the last release tag
+  (cached per release) and runs the same suite on it, and records each
+  benchmark's ratio to it, the trend line that does not depend on which
+  hardware a run gets; `trend.csv` has the ratio columns. A run whose median
+  within-run CV is above 20 % is recorded but not compared. `perf-history.py
+  spread` measures the spread of the medians within one CPU model, which is
+  posted on #675 after eight weeks of nightly runs to re-decide a dedicated
+  benchmark runner. (#685)
+
+- **The instruction counts gate does not turn red on a count that a waiting
+  thread inflated**: counted, the benchmarks run oneTBB's flow graphs on the
+  thread that waits for them alone, so no idle TBB worker spins into a count,
+  which once added 9 % to a 20-tab Session restore that cost nothing more. A
+  benchmark over its threshold is counted once more on the pull request's
+  side and fails the gate only when both counts are over; the comment lists
+  both counts. (#708)
+
+- **Widgets built while the File Watcher polls do not race its poll thread**:
+  the application creates Qt's gesture manager before the poll thread starts,
+  instead of when the first scroll area of a window is built. That thread reads
+  it for every timer event it receives, and the ThreadSanitizer job reported
+  the race whenever a window was built while polling ran. (#698)
+
+- **Indexing a Log File that starts with ASCII reads its bytes once**: while
+  its Encoding is still taken for UTF-8 from ASCII alone (#657), the search
+  for line feeds and tabs also sees whether a block goes beyond ASCII, and
+  only a block that does is read again, up to its first byte beyond ASCII.
+  Before, every block was read a second time, which cost indexing up to
+  4.5 % more instructions. The search itself loops over whole 16-byte chunks
+  more tightly. (#701)
 
 # v26.10.0 (2026-09-29)
 

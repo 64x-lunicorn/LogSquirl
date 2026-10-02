@@ -20,9 +20,15 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <QApplication>
+#include <QClipboard>
+#include <QDir>
+#include <QFile>
+#include <QFontDatabase>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QTemporaryDir>
 #include <QTimer>
+#include <QUrl>
 
 #include "configuration.h"
 #include "configurationfixture.h"
@@ -30,6 +36,9 @@
 #include "optionsdialog.h"
 #include "recentfiles.h"
 #include "savedsearches.h"
+#include "teamfolder.h"
+#include "teamfoldergit.h"
+#include "teamfoldertesting.h"
 
 using namespace configuration_fixture;
 
@@ -97,6 +106,7 @@ const QStringList DialogSettingNames = {
     "view.scaleFactorRounding",
     "view.showDashboard",
     "view.showSplashScreen",
+    "view.showValueNames",
     "view.style",
     "view.textWrap",
 };
@@ -251,5 +261,153 @@ SCENARIO( "The Options Dialog offers three ways to show ANSI color sequences",
                        == AnsiColorSequences::ShowColors );
             }
         }
+    }
+}
+
+TEST_CASE( "The Team Folder tab groups the repository and the status, and the note comes last",
+           "[optionsdialog][teamfolder]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+    OptionsDialog dialog( catalog );
+
+    CHECK( dialog.teamFolderRepositoryGroup->isAncestorOf( dialog.teamFolderUrlEdit ) );
+    CHECK( dialog.teamFolderRepositoryGroup->isAncestorOf( dialog.teamFolderSubfolderEdit ) );
+    CHECK( dialog.teamFolderStatusGroup->isAncestorOf( dialog.teamFolderSyncButton ) );
+
+    const auto checkBoxText = dialog.teamFolderCheckBox->text();
+    CHECK( checkBoxText.contains( "Filter Groups" ) );
+    CHECK( checkBoxText.contains( "Highlighter Sets" ) );
+    CHECK( checkBoxText.contains( "Naming Groups" ) );
+
+    // The note is the last thing on the tab, smaller and subdued.
+    auto* layout = dialog.teamFolderTab->layout();
+    CHECK( layout->indexOf( dialog.teamFolderNoteLabel ) == layout->count() - 1 );
+    CHECK( dialog.teamFolderNoteLabel->font().pointSizeF()
+           < dialog.teamFolderCheckBox->font().pointSizeF() );
+    CHECK( dialog.teamFolderNoteLabel->foregroundRole() == QPalette::PlaceholderText );
+
+    // Without a Team Folder to show, there is no status.
+    CHECK_FALSE( dialog.teamFolderStatusGroup->isVisibleTo( dialog.teamFolderTab ) );
+}
+
+TEST_CASE( "The Team Folder tab shows the failed step and Git's output in collapsed details",
+           "[optionsdialog][teamfolder]" )
+{
+    using namespace teamfolder_testing;
+    const IsolatedGitEnvironment environment;
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+    OptionsDialog dialog( catalog );
+
+    const QTemporaryDir root;
+    REQUIRE( root.isValid() );
+    const auto missingServer = QUrl::fromLocalFile( root.filePath( "missing.git" ) ).toString();
+
+    auto* const details = dialog.teamFolderDetailsEdit;
+    auto* const detailsButton = dialog.teamFolderDetailsButton;
+
+    SECTION( "Git that cannot be started" )
+    {
+        TeamFolder folder( root.filePath( "clone" ), root.filePath( "no-git-here" ) );
+        folder.setUp( policyFor( missingServer ) );
+        REQUIRE( settled( folder ) );
+        dialog.showTeamFolder( folder );
+
+        CHECK( dialog.teamFolderStatusGroup->isVisibleTo( dialog.teamFolderTab ) );
+        CHECK( dialog.teamFolderStatusHeadingLabel->text() == "Git could not be started" );
+        CHECK_FALSE( dialog.teamFolderStatusIconLabel->pixmap().isNull() );
+        CHECK( dialog.teamFolderSyncButton->isEnabled() );
+
+        // Collapsed by default, with Git's output as it is.
+        CHECK( detailsButton->isVisibleTo( dialog.teamFolderTab ) );
+        CHECK( detailsButton->text() == "Details from Git" );
+        CHECK_FALSE( detailsButton->isChecked() );
+        CHECK_FALSE( details->isVisibleTo( dialog.teamFolderTab ) );
+        CHECK( details->toPlainText() == folder.gitOutput() );
+        CHECK( details->isReadOnly() );
+        CHECK( details->textInteractionFlags().testFlag( Qt::TextSelectableByMouse ) );
+        CHECK( details->lineWrapMode() == QPlainTextEdit::NoWrap );
+        CHECK( details->font().family()
+               == QFontDatabase::systemFont( QFontDatabase::FixedFont ).family() );
+
+        detailsButton->click();
+        CHECK( details->isVisibleTo( dialog.teamFolderTab ) );
+        detailsButton->click();
+        CHECK_FALSE( details->isVisibleTo( dialog.teamFolderTab ) );
+
+        QGuiApplication::clipboard()->clear();
+        dialog.teamFolderCopyDetailsButton->click();
+        CHECK( QGuiApplication::clipboard()->text() == folder.gitOutput() );
+    }
+
+    SECTION( "a subfolder outside the repository, named under the heading" )
+    {
+        TeamFolder folder( root.filePath( "clone" ) );
+        folder.setUp( policyFor( missingServer, "../elsewhere" ) );
+        REQUIRE( settled( folder ) );
+        dialog.showTeamFolder( folder );
+
+        CHECK( dialog.teamFolderStatusHeadingLabel->text()
+               == "The subfolder lies outside the repository" );
+        CHECK( dialog.teamFolderRemarksLabel->isVisibleTo( dialog.teamFolderTab ) );
+        CHECK( dialog.teamFolderRemarksLabel->text()
+               == "The subfolder ../elsewhere does not lie inside the repository." );
+        // Nothing of Git's to show.
+        CHECK_FALSE( detailsButton->isVisibleTo( dialog.teamFolderTab ) );
+    }
+
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    SECTION( "a clone that failed, with Git's lines kept" )
+    {
+        TeamFolder folder( root.filePath( "clone" ) );
+        folder.setUp( policyFor( missingServer ) );
+        REQUIRE( settled( folder ) );
+        dialog.showTeamFolder( folder );
+
+        CHECK( dialog.teamFolderStatusHeadingLabel->text() == "Clone failed" );
+        const auto output = folder.gitOutput();
+        REQUIRE( output.contains( '\n' ) );
+        CHECK( details->toPlainText() == output );
+        CHECK( details->blockCount() == output.count( '\n' ) + 1 );
+        CHECK_FALSE( dialog.teamFolderRemarksLabel->isVisibleTo( dialog.teamFolderTab ) );
+    }
+
+    SECTION( "a sync that worked shows no details, and the files it skipped" )
+    {
+        const auto server = root.filePath( "server.git" );
+        const auto work = root.filePath( "work" );
+        const logsquirl::teamfolder::Git git( QStringLiteral( "git" ) );
+        REQUIRE( git.run( { "init", "--quiet", "--bare", server } ).succeeded );
+        REQUIRE( git.run( { "clone", "--quiet", server, work } ).succeeded );
+        {
+            QFile broken( QDir( work ).filePath( "broken_filter.conf" ) );
+            REQUIRE( broken.open( QIODevice::WriteOnly ) );
+            broken.write( "this is not a group\n" );
+        }
+        REQUIRE( git.run( { "add", "--", "broken_filter.conf" }, work ).succeeded );
+        REQUIRE( git.run( { "commit", "--quiet", "-m", "Add" }, work ).succeeded );
+        REQUIRE( git.run( { "push", "--quiet", "origin", "HEAD" }, work ).succeeded );
+
+        TeamFolder folder( root.filePath( "clone" ) );
+        folder.setUp( policyFor( QUrl::fromLocalFile( server ).toString() ) );
+        REQUIRE( settled( folder ) );
+        REQUIRE( folder.state() == TeamFolder::State::Synced );
+        dialog.showTeamFolder( folder );
+
+        CHECK( dialog.teamFolderStatusHeadingLabel->text() == "Synced" );
+        CHECK_FALSE( detailsButton->isVisibleTo( dialog.teamFolderTab ) );
+        CHECK_FALSE( details->isVisibleTo( dialog.teamFolderTab ) );
+        CHECK( dialog.teamFolderRemarksLabel->isVisibleTo( dialog.teamFolderTab ) );
+        CHECK( dialog.teamFolderRemarksLabel->text().startsWith( "Skipped broken_filter.conf: " ) );
     }
 }

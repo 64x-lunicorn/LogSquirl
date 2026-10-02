@@ -1,6 +1,13 @@
 """
 Runs the application's benchmark mode and reads its report (#666).
 
+``logsquirl_grep --benchmark-output <file>`` writes a report of the same format
+for its one Search (scenario ``grep``, #667): run_grep_benchmark() runs it.
+
+The ``search`` scenario runs one Search of a SearchVariant in the GUI (#668);
+SearchVariant.known_match_count() counts what it must find, independently of
+LogSquirl.
+
 ``logsquirl --benchmark <scenario> <Log File>...`` runs one scenario and
 writes what happened as one JSON object; BUILD.md, "Benchmark mode", documents
 the command line and every field. This module is what the e2e suites use to
@@ -13,7 +20,9 @@ through an isolated instance here, as every e2e test starts the application.
 
 from __future__ import annotations
 
+import functools
 import json
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -80,6 +89,11 @@ def check_report(report: dict) -> dict:
     return report
 
 
+def seconds_since_scenario_start(report: dict, name: str) -> float:
+    """When the first event of that name happened, in seconds since the scenario started."""
+    return event(report, name)["since_scenario_start_ms"] / 1000.0
+
+
 def event(report: dict, name: str) -> dict:
     """The first event of that name; raises KeyError when there is none."""
     for candidate in report["events"]:
@@ -121,3 +135,115 @@ def run_benchmark(
     if report_path.exists():
         report = check_report(json.loads(report_path.read_text(encoding="utf-8")))
     return BenchmarkRun(process, report)
+
+
+def run_grep_benchmark(
+    binary: Path,
+    pattern: str,
+    log_file: Path,
+    report_path: Path,
+    timeout: float = 300.0,
+) -> BenchmarkRun:
+    """Runs logsquirl_grep on one Log File with a benchmark report (#667).
+
+    The tool searches as it always does and writes the matched Log Lines to
+    stdout; with --benchmark-output it also writes a report of scenario
+    ``grep`` whose events are timed from the moment the Log File is opened, so
+    the process startup is not part of them. The report is None when the run
+    wrote none: a logsquirl_grep older than the option rejects it.
+    """
+    if report_path.exists():
+        report_path.unlink()
+    process = subprocess.run(
+        [str(binary), "--benchmark-output", str(report_path), "-e", pattern, str(log_file)],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    report = None
+    if report_path.exists():
+        report = check_report(json.loads(report_path.read_text(encoding="utf-8")))
+    return BenchmarkRun(process, report)
+
+
+class ScenarioUnknown(Exception):
+    """The logsquirl run knows no scenario of that name: a build older than it."""
+
+
+def run_known_scenario(
+    instance: IsolatedLogSquirl,
+    scenario: str,
+    log_files: list[Path],
+    report_path: Path,
+    options: dict[str, str] | None = None,
+    timeout: float = 300.0,
+) -> BenchmarkRun:
+    """run_benchmark(), raising ScenarioUnknown when the binary has no such scenario.
+
+    The before side of the Benchmarks workflow runs the suite on the binaries
+    of its own commit, which may predate a scenario.
+    """
+    run = run_benchmark(instance, scenario, log_files, report_path, options, timeout)
+    if (
+        run.process.returncode == EXIT_USAGE
+        and run.report is None
+        and f"no benchmark scenario '{scenario}'" in run.process.stderr
+    ):
+        raise ScenarioUnknown(scenario)
+    return run
+
+
+@dataclass(frozen=True)
+class SearchVariant:
+    """One way of searching a Log File, as the search scenario runs it (#668)."""
+
+    label: str
+    pattern: str
+    # The Search Line's regular expression and match case buttons.
+    regex: bool = False
+    match_case: bool = True
+    description: str = ""
+
+    def options(self) -> dict[str, str]:
+        """The --benchmark-option values of the search scenario."""
+        return {
+            "pattern": self.pattern,
+            "regex": "true" if self.regex else "false",
+            "match_case": "true" if self.match_case else "false",
+        }
+
+    def matches(self, line: str) -> bool:
+        """Whether a Log Line, without its line feed, is a Match: read by Python, not LogSquirl."""
+        if self.regex:
+            flags = 0 if self.match_case else re.IGNORECASE
+            return re.search(self.pattern, line, flags) is not None
+        if self.match_case:
+            return self.pattern in line
+        return self.pattern.casefold() in line.casefold()
+
+    def known_match_count(self, log_file: Path) -> int:
+        """How many Log Lines of the Log File are Matches, counted here."""
+        stat = log_file.stat()
+        return _known_match_count(self, str(log_file), stat.st_size, stat.st_mtime_ns)
+
+
+@functools.lru_cache(maxsize=None)
+def _known_match_count(variant: SearchVariant, path: str, size: int, mtime_ns: int) -> int:
+    # The size and modification time make a rewritten Log File counted anew.
+    with open(path, encoding="utf-8", newline="\n") as log:
+        return sum(1 for line in log if variant.matches(line.rstrip("\n")))
+
+
+# The Searches the search scenario is measured with, on the generated Log Files
+# of generate_test_data.py: one Log Line in 101 an ERROR, which times out after
+# a four-digit number of milliseconds, one in 13 (but not an ERROR) a WARN.
+SEARCH_VARIANTS = (
+    SearchVariant("plain", "ERROR", description="Plain text, the ERROR Log Lines"),
+    SearchVariant("regex", r"timed out after [0-9]{4} ms", regex=True,
+                  description="A regular expression, the ERROR Log Lines"),
+    SearchVariant("no_match", "ZZZZ_NEVER_MATCH_99999", description="Plain text without a Match"),
+    SearchVariant("case_insensitive", "error", match_case=False,
+                  description="Plain text, case ignored, the ERROR Log Lines"),
+    SearchVariant("alternation", "ERROR|WARN", regex=True,
+                  description="An alternation, the ERROR and WARN Log Lines"),
+)

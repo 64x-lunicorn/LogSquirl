@@ -233,6 +233,7 @@ inline Configuration nonDefaultConfiguration()
     config.setContextLinesCount( 10 );
     config.setAnsiColorSequences( AnsiColorSequences::ShowColors );
     config.setUseTextWrap( true );
+    config.setShowValueNames( false );
     config.setStyle( Theme::DarkKey );
 
     config.setSearchAutoRefreshDefault( true );

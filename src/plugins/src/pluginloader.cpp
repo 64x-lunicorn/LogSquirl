@@ -44,7 +44,7 @@ namespace logsquirl::plugins {
 
 PluginHandle::PluginHandle( PluginMetadata meta, std::unique_ptr<QLibrary> lib,
                             LogSquirlPluginGetInfoFn getInfoFn, LogSquirlPluginInitFn initFn,
-                            LogSquirlPluginShutdownFn shutdownFn,
+                            LogSquirlPluginInitExFn initExFn, LogSquirlPluginShutdownFn shutdownFn,
                             LogSquirlPluginConfigureFn configureFn,
                             LogSquirlConverterGetExtsFn converterGetExtsFn,
                             LogSquirlConverterConvertFn converterConvertFn )
@@ -52,6 +52,7 @@ PluginHandle::PluginHandle( PluginMetadata meta, std::unique_ptr<QLibrary> lib,
     , library_( std::move( lib ) )
     , getInfoFn_( getInfoFn )
     , initFn_( initFn )
+    , initExFn_( initExFn )
     , shutdownFn_( shutdownFn )
     , configureFn_( configureFn )
     , converterGetExtsFn_( converterGetExtsFn )
@@ -71,6 +72,7 @@ PluginHandle::PluginHandle( PluginHandle&& other ) noexcept
     , library_( std::move( other.library_ ) )
     , getInfoFn_( other.getInfoFn_ )
     , initFn_( other.initFn_ )
+    , initExFn_( other.initExFn_ )
     , shutdownFn_( other.shutdownFn_ )
     , configureFn_( other.configureFn_ )
     , converterGetExtsFn_( other.converterGetExtsFn_ )
@@ -80,6 +82,7 @@ PluginHandle::PluginHandle( PluginHandle&& other ) noexcept
     other.initialised_ = false;
     other.getInfoFn_ = nullptr;
     other.initFn_ = nullptr;
+    other.initExFn_ = nullptr;
     other.shutdownFn_ = nullptr;
     other.configureFn_ = nullptr;
     other.converterGetExtsFn_ = nullptr;
@@ -96,6 +99,7 @@ PluginHandle& PluginHandle::operator=( PluginHandle&& other ) noexcept
         library_ = std::move( other.library_ );
         getInfoFn_ = other.getInfoFn_;
         initFn_ = other.initFn_;
+        initExFn_ = other.initExFn_;
         shutdownFn_ = other.shutdownFn_;
         configureFn_ = other.configureFn_;
         converterGetExtsFn_ = other.converterGetExtsFn_;
@@ -105,6 +109,7 @@ PluginHandle& PluginHandle::operator=( PluginHandle&& other ) noexcept
         other.initialised_ = false;
         other.getInfoFn_ = nullptr;
         other.initFn_ = nullptr;
+        other.initExFn_ = nullptr;
         other.shutdownFn_ = nullptr;
         other.configureFn_ = nullptr;
         other.converterGetExtsFn_ = nullptr;
@@ -123,7 +128,10 @@ QString PluginHandle::init( const LogSquirlHostApi* api, void* handle )
     }
 
     LOG_INFO << "Initialising plugin: " << metadata_.id();
-    const int rc = initFn_( api, handle );
+    // A plugin that knows the table grows is told how far it goes here: the
+    // whole table of this host (docs/adr/0017).
+    const int rc
+        = initExFn_ ? initExFn_( api, handle, sizeof( LogSquirlHostApi ) ) : initFn_( api, handle );
     if ( rc != 0 ) {
         return QString( "Plugin init returned error code %1" ).arg( rc );
     }
@@ -282,6 +290,9 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
     }
 
     // Optional symbols
+    auto initExFn
+        = resolveSymbol<LogSquirlPluginInitExFn>( *library, LOGSQUIRL_PLUGIN_ENTRY_INIT_EX );
+
     auto configureFn
         = resolveSymbol<LogSquirlPluginConfigureFn>( *library, LOGSQUIRL_PLUGIN_ENTRY_CONFIGURE );
 
@@ -307,8 +318,8 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
 
     LOG_INFO << "Plugin loaded successfully: " << metadata.id() << " v" << metadata.version();
 
-    return PluginHandle( metadata, std::move( library ), getInfoFn, initFn, shutdownFn, configureFn,
-                         converterGetExtsFn, converterConvertFn );
+    return PluginHandle( metadata, std::move( library ), getInfoFn, initFn, initExFn, shutdownFn,
+                         configureFn, converterGetExtsFn, converterConvertFn );
 }
 
 } // namespace logsquirl::plugins

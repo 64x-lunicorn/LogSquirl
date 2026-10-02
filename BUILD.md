@@ -89,6 +89,47 @@ workflow do that on one runner, push a throwaway branch whose only commit turns 
 gh workflow run benchmarks.yml --ref <override-branch> -f base_ref=<branch without it>
 ```
 
+### Profile-guided optimization
+
+`-DLOGSQUIRL_PGO=GENERATE` builds instrumented binaries; every run of them records a profile into
+`LOGSQUIRL_PGO_DIR` (default `<build dir>/pgo-profile`). `-DLOGSQUIRL_PGO=USE` builds optimized for that profile
+(Clang and AppleClang, GCC, MSVC; `cmake/ProfileGuidedOptimization.cmake` says how per compiler). The training
+workload is the benchmark mode's scenarios, run by the e2e performance suite. `-DLOGSQUIRL_BOLT=ON` (Linux) links
+the executables so that `llvm-bolt` can rewrite them afterwards. All three are off by default, and a release build
+uses them only behind its job's `pgo` (and `bolt`) switch in `ci-build.yml`, false until the A/B numbers show a clear
+gain on that platform (#682). No profile is checked in: CI builds, trains and uses it in one run.
+
+`.github/scripts/pgo.py` runs each step and records its wall time. On a developer machine (here macOS):
+
+```bash
+pgo() { python3 .github/scripts/pgo.py --timings pgo/timings.json "$@"; }
+pgo build --build-dir pgo/plain --mode OFF --benchmarks          # the build to compare with
+python3 tests/e2e/generate_test_data.py --max-mb 100
+pgo build --build-dir pgo/build --mode GENERATE
+pgo train --binary-dir pgo/build/output                         # needs .github/requirements/e2e.txt
+pgo merge --toolchain clang --profile-dir pgo/build/pgo-profile # gcc: nothing to merge; msvc: pgomgr
+pgo build --build-dir pgo/build --mode USE --benchmarks         # GCC: the same build directory
+pgo measure --side plain=pgo/plain/output --side pgo=pgo/build/output --results pgo/results
+python3 .github/scripts/benchmark-compare.py --before pgo/results/plain --after pgo/results/pgo
+pgo times
+```
+
+A USE build without its profile stops at configure time and says what to run. A GENERATE build keeps `-Werror` on
+its compile and link lines (ADR 0009) like any other; a USE build keeps it for everything but two diagnostics, which
+it accepts as warnings: GCC's `-Wmissing-profile`, for code the training never ran, and Clang's `-Wbackend-plugin`
+hash mismatch, for an inline function whose copies differ between translation units (GCC's `-Wcoverage-mismatch`
+still fails the build). Clang has no group of its own for the hash mismatch, so `pgo.py build --mode USE` fails on
+any other `-Wbackend-plugin` diagnostic and logs how many of each accepted one the build printed (ADR 0019). The profile reaches the libraries and
+`logsquirl` and `logsquirl_grep`, the executables the training runs; the own sources of the other executables (tests,
+micro-benchmarks) compile without it, since Clang would match their `main()` to logsquirl's by name. A USE build does not use a compiler launcher
+(sccache): the cache keys an object on the command line, not on the profile it names.
+
+The **PGO** workflow (`.github/workflows/pgo.yml`) produces the numbers per platform, `gh workflow run pgo.yml --ref
+<branch>`: plain, PGO, and on Linux PGO and BOLT, each built from scratch on its own runner, then every Catch2
+micro-benchmark and the e2e performance suite run on all of them on one runner. The `pgo-report` artifact holds the
+A/B tables and the build time each variant took; the build time increase is the instrumented build, the training,
+the merge and the optimized build (and BOLT's three steps) against the one plain build they replace.
+
 ### Plugin SDK
 
 The plugin C ABI header (`logsquirl_plugin_api.h`) is installed alongside the
@@ -276,7 +317,7 @@ yet; the demo log is recognized as spdlog since #589, so its columns are right.
 End-to-end tests exercise the compiled `logsquirl_grep` and `logsquirl` binaries
 against the files in `test_data/`. They cover search correctness, encoding handling,
 edge cases, GUI smoke tests, and **performance regression detection** (5 % tolerance locally;
-CI checks performance weekly, see *Weekly performance* below).
+CI checks performance nightly, see *Nightly performance* below).
 
 **Prerequisites:** Python >= 3.10
 
@@ -303,43 +344,123 @@ before committing — values should only go down, never up. `baseline.json` is f
 measuring on your own machine; a benchmark it has no entry for is reported as
 skipped with the measured value, never as passed. CI does not compare with it.
 
-#### Weekly performance
+#### Nightly performance
 
-The **Performance** workflow (`.github/workflows/performance.yml`) runs every Monday at
-03:41 UTC on a GitHub-hosted `ubuntu-24.04` runner. It builds master as CI ships it
-(RelWithDebInfo with LTO, in the noble build container), generates the 10, 50 and 100 MB
-test files and runs the whole e2e performance suite (`-m performance`, 21 measured runs per
-benchmark) with `--no-baseline-compare`. The application is started only through the suite's
-isolated instances, as in every e2e run. A benchmark that is skipped fails the run.
+The **Performance** workflow (`.github/workflows/performance.yml`, #441, #677, #685) measures master every
+night at 02:41 UTC on GitHub-hosted `ubuntu-24.04` runners, two ways, side by side:
 
-Each benchmark's median is compared with the **median of the same benchmark over the last 6
-recorded runs** of master (`.github/scripts/perf-history.py`), not with a fixed baseline: the
-runners change from week to week, and the reference changes with them, while one odd week
-does not move a median of six.
+- **Wall-clock** (job *measure*): it builds master as CI ships it (RelWithDebInfo with LTO, in the
+  noble build container), generates the 10, 50 and 100 MB test files and the generated 100 MB and
+  1 GB Log Files and runs the whole e2e performance suite (`-m performance`, 21 measured runs per
+  benchmark) with `--no-baseline-compare`: every scenario of the benchmark mode. The application
+  is started only through the suite's isolated instances, as in every e2e run. A benchmark that
+  is skipped fails the run. On the same runner, it then runs the same suite on a **reference
+  build**: the last release tag (`vX.Y.Z`, no pre-release) in the commit's history, built in the
+  commit's container with the same options (only `logsquirl` and `logsquirl_grep`, in the same
+  build directory, so only what differs from the release is recompiled; the binaries are cached
+  per tag, container and options, so this happens once per release). A scenario the release does
+  not have skips there. Each benchmark measured on both gets the ratio *this commit ÷ reference*,
+  which does not depend on the CPU model the runner has.
+- **Instruction counts** (job *count*): every Catch2 benchmark of `tests/benchmarks` runs once
+  under Callgrind with the scripts of the pull request counts (*Instruction counts* below), but
+  on generated Log Files of 32 MiB instead of 4 (`count_log_file_mb`). A count repeats to within
+  a fraction of a percent on a shared runner, where a time varies by 5–20 % and more between the
+  runners' CPU models.
 
-- **Red** when a benchmark is **more than 30 % and more than 10 ms slower** than that median,
-  or when a benchmark the previous run measured is missing.
-- **Report only** while fewer than 6 runs of a benchmark are recorded (the first six weeks,
-  and after a new level is accepted); the job summary shows the table either way.
-- A run that is red is still recorded. If the slowdown stays, the median catches up after
-  three or four weeks and the run turns green again, so a red run is to be acted on when it
-  happens.
+The *record* job puts each benchmark's value next to its earlier values: the runs since the
+latest accepted one, on the same runner CPU model (`system.cpu` of the suite's report; for counts
+the model they were taken on, since glibc picks its string functions by CPU) and, for counts,
+with Log Files of the same size. Wall-clock medians differ by up to 24 % between CPU models and
+by about 1.4 % on one (#675), so a run that lands on a model without enough history only reports;
+the job summary names the model and how many earlier runs of it the series has. A **regression is a change point in that series**
+(`.github/scripts/perf_changepoint.py`), not one run against a threshold: a run *c* from which on
+every run up to the latest is above
+
+    limit(c) = reference + max(tolerance × reference, min_delta, 3 × IQR)
+
+where *reference* is the median and *IQR* the interquartile range of the up to 14 runs before *c*
+(for wall-clock, the median IQR within those runs when that is larger), and *min_delta* the
+absolute margin of `perf_margin.py` (ADR 0018). The earliest such run is the
+change point, the run before it the last good one: the commits between the two are where the
+change came from. The reference is the level before the change, so a regression that lasts does
+not pull it up and heal itself, and a series that scatters (runners of several CPU models) gets
+room for its own scatter.
+
+| Series | Tolerance | min_delta | Lasting | Runs before it | Files an issue |
+|---|---|---|---|---|---|
+| Instruction counts | the benchmark's threshold of the *Instruction count gate* (+2 % by default) | none | 1 run | 3 | yes |
+| Wall-clock medians | 10 % | half the reference, at most 10 ms, at least 1 µs, or the `min_delta_seconds` beside the benchmark's Budget | 2 runs | 6 of the same CPU model | no, the trend only |
+
+With fewer runs before it, a benchmark is reported only. Wall-clock is shown in the job summary as
+the trend and files nothing: instruction counts are the gate, and the spread within one CPU model
+is known from a single pair of runs so far. **A run whose median within-run CV is above 20 %**
+(one run in four had 61 %, #675) is recorded but flagged unusable: its wall-clock is neither
+compared nor part of a later run's series, its e2e Budgets are not checked, and the summary says
+so; a reference run above 20 % flags only the ratios. Each **Budget** of ADR
+0018 (`tests/e2e/budgets.json`, the one place they live) is checked as well
+(`perf-budgets.py`): a broken Budget names the runs since it broke. While `status` in
+`budgets.json` starts with `proposed`, the Budgets are only shown in the summary and are no
+finding; they become one once the maintainer sets it to `accepted` (ADR 0018). A benchmark the previous run
+measured and this one did not is a finding too, and so are counts that were not taken at all.
+
+**A finding files an issue.** For a run of master, the *issues* job opens one issue per scenario
+(the scenario of the Budget or the benchmark's name; for counts, the benchmark binary), labelled
+`needs-triage` and `performance`, with a table of the findings and, for each, the commit range
+from the last good run to the first bad one (a compare link and the `git log` to run). The issue
+is found again by a marker in its body: while it is open, each night updates its description and
+comments when a new finding joins it; closed, it stays closed for the same findings, and a new
+change point opens a new one. `.github/scripts/perf-issues.py` decides and writes the texts; the
+job only calls `gh issue create/edit/comment` and may write issues and nothing else. The run is red
+as well while a finding stands.
 
 The results live on the **`perf-data`** branch, which the workflow creates on its first run and
 only ever appends to: `history/<time>-<commit>-<run>.json` per run of master (the statistics of
-every benchmark, the commit, the version and the runner's CPU), and `trend.csv` with one row per
-run and one column per benchmark, for the trend over releases. The raw runs stay in each run's
-`perf-result` artifact. Do not delete or rewrite the branch; it is the only copy.
+every benchmark, the instruction counts with the CPU model they were taken on, the commit, the
+version, the runner's CPU, the run's median CV and whether it is usable, and the reference
+build's tag, statistics and ratios), and `trend.csv` with one row per run: the CPU model, the
+median CV, what is unusable (`run` or `reference`), the reference tag, then one column per
+benchmark median, per ratio (`ratio: <benchmark>`) and per count, for the trend over releases.
+The ratio column is the one to read across CPU models; it steps when a new release becomes the
+reference.
 
-Dispatched from another branch (`gh workflow run performance.yml --ref <branch>`), the run is
-compared with master's history the same way but recorded under `trial/`, which nothing
-compares with, so a branch never moves master's reference.
+**The trend is on the website**, on the [Performance](https://logsquirl.lunicorn-lab.de/performance/) page
+(#678): one chart per benchmark, grouped by Benchmark Scenario, for the last 120 days of `history/`, with the
+releases marked and each Budget drawn as a line; wall-clock with one line per CPU model, instruction counts
+per benchmark binary. The website build draws it as SVG from the checkout of the branch that
+`LOGSQUIRL_PERF_DATA` names (`website/src/perf-trend.mjs`); without it the page says it has no runs. The
+*website* job brings each recorded run of master to the site (*Release pages on the website*). To see it
+locally, with the worktree below: `cd website && LOGSQUIRL_PERF_DATA=/tmp/perf-data npm run dev`.
+
+**The spread within one CPU model** is what #675 re-decides a dedicated benchmark runner on (one
+pays off if same-model medians vary by more than 3 %):
+
+    git fetch origin perf-data && git worktree add /tmp/perf-data origin/perf-data
+    python3 .github/scripts/perf-history.py spread --data-dir /tmp/perf-data [--since 2026-10-03] --markdown spread.md
+
+prints, per CPU model, the CV of each benchmark's medians over the usable runs: of the reference
+build (one tag, so fixed code: the runner's own spread), of master (with its own changes) and of
+the ratio. After eight weeks of nightly runs, post its table on #675. The raw runs stay in each run's `perf-result`
+artifact, the Callgrind dumps for a week in `perf-instruction-counts-dumps`. Only the *record* job
+may push, and only to that branch. Do not delete or rewrite the branch; it is the only copy.
+
+**Dispatched from another branch** (`gh workflow run performance.yml --ref <branch>`), the run is
+compared with master's history the same way but recorded under `trial/`, which nothing compares
+with, so a branch never moves master's reference, and it files no issue: its findings are in the
+job summary of *compare and record*, and the run is red. To see the detection work, push a branch
+with a test commit that costs instructions in code a benchmark measures (for example a needless
+second pass over the Log Lines while indexing), dispatch the workflow on it and read the summary: the benchmarks it
+reaches are regressions, with master's last recorded commit as the last good one and the branch's
+commit as the first bad one. `perf-issues.py`'s tests check the issue that would be filed.
 
 **Accepting a slowdown** that is intended: dispatch the workflow from master with
 `accept_new_level` (`gh workflow run performance.yml --ref master -f accept_new_level=true`).
-That run is recorded as the start of a new level, does not fail, and comparisons from then on use
-only it and the runs after it, so the check reports only until six such runs exist; dispatching
-a few more runs from master shortens that.
+That run is recorded as the start of a new level, files no regression, and the series restart from
+it, so the check reports only until enough runs of the new level exist. Then close the issue.
+
+The suite measures events, not sleeps (#667): the GUI cases run the benchmark mode's scenarios,
+the grep cases the grep tool's own report. The rename of its benchmarks (`grep_search_*` to
+`grep_*`, `gui_load_1mb` to `gui_open_1mb_*`) removes benchmarks the history knows, so the first
+Performance run after it is dispatched from master with `accept_new_level=true`.
 
 See [`tests/e2e/README.md`](tests/e2e/README.md) for full documentation.
 
@@ -382,6 +503,12 @@ one machine; numbers of a Debug build say nothing.
 | Scenario | Events | Results |
 |---|---|---|
 | `open-and-index` | `log_file_opened`: the tab opened and loading started (after the window is shown and the plugins are loaded, as for a Log File given on the command line); `first_log_line_displayed`: the first paint of the Text View's Viewport that shows a Log Line ended; `index_finished`: the Index is complete. Both of the last two carry `log_line_count`. | `log_line_count`, `log_file_bytes`, `index_mb_per_s` (10^6 bytes per second from the open to `index_finished`) |
+| `search` | On a loaded Log File (opened and loaded first, unmeasured), one Search as a user typing it into the Search Line and pressing Return runs it (#668). `first_match_displayed`: the first paint of the Filtered View's Viewport that shows a Match ended (none without a Match); `search_finished`: the Search is complete, with `match_count`. Options: `pattern` (required), `regex` (`true`: a regular expression), `match_case` (`false`: case is ignored). An invalid pattern, a failed or an interrupted Search fails the run. | `match_count`, `undecided_count`, `log_line_count`, `log_file_bytes`, `search_gb_per_s` |
+| `quickfind` | On a loaded and shown Log File, QuickFind is opened as *Edit → Find* opens it, then `pattern` is typed into it character by character (#668). Each keystroke is answered by the first paint of the Text View's Viewport that starts after it; the next comes once it is answered and at least `keystroke_interval_ms` (100) after the one before. `keystroke_marked` per keystroke, with `typed` and `latency_ms`. Fails when the bar does not hold the typed pattern at the end. | `keystroke_count`, `keystroke_latency` (a summary), `log_line_count`, `log_file_bytes` |
+| `scroll` | On a loaded Log File (with `view=table` the Table View is then shown as its toggle shows it), the view's vertical scroll bar steps `line_steps` (200) lines down, `page_steps` (40) pages down and jumps to the end (`QAbstractSlider::triggerAction`), each step once the first paint of the view's Viewport that starts after it has ended (#669). Every paint of that Viewport from the first step until the paint answering the jump has ended is a frame: from its paint event reaching the Viewport to the view's handler returning. The Overview, the Filtered View and compositing are not part of it. `scrolled_to_end`: that last paint ended, with `frame_count`. Options: `view` (`text`, `table`), `highlighters` (`true`: a Highlighter Set of five is made and activated in the run's own collection), `ansi` (`text`, `hide`, `colors`: the setting *ANSI color sequences*), `line_steps`, `page_steps`. For `view=table` Format Recognition is on, and the Log File needs a Log Format the Catalog knows. | `view`, `frame_time` (a summary of the frames, with `budget_ms`, 1000/60, and `over_budget_count`, the frames longer than it), `step_count`, `line_step_count`, `page_step_count`, `unmoved_step_count`, `highlighter_count`, `log_line_count`, `log_file_bytes` |
+| `follow` | Writes its own Log File (no Log File argument), follows it with a chart, and a writer thread appends `lines_per_second` (10) Log Lines a second for `duration_ms` (5000), reading the clock just before each write (#670). A Log Line is displayed at the first Text View paint that shows the file through it while following at the end, charted at the chart's first such paint. `writer_finished`, `last_log_line_displayed`, `last_log_line_charted`. Options: `initial_lines` (1000), `chart` (`true`), `chart_budget_ms` (1000), `settle_ms` (5000); a Log Line not displayed within `settle_ms` fails the run. | `display_latency` and `chart_latency` (append to displayed / charted), `chart_behind_display`, `chart_kept_up` (every Log Line charted within `chart_budget_ms` of being displayed), `writer_lateness` |
+| `session-restore` | Two or more Log Files. Generates a Session of one tab each, with `marks` (10) Marks and tab `current` (0) in front, in the run's own data location, and restores it (#670). `tab_indexed` per tab, `current_tab_usable` (the first paint of the front tab after its Index finished), `all_tabs_indexed`. No Kept Searches yet: the Session does not keep them (#704). | `tab_count`, `current_tab`, `marks_per_tab`, `log_line_count`, `log_file_bytes` |
+| `read-while-indexing` | A small Log File of the run's own is loaded first, unmeasured, so the scenario starts with the request to open the Log File (#686). While it is indexed, a timer on the UI thread reads every `read_interval_ms` (2) `getNbLine`, `getLineString` of one Log Line and `getExpandedLines` of `lines` (60) Log Lines, each timed apart. `log_file_opened`; `index_finished`, with `log_line_count` and `read_count`. Fails when the Index finished before a Log Line could be read. | `nb_line_latency`, `line_string_latency`, `expanded_lines_latency` (summaries), `read_count`, `indexing` (`wall_ms` from the open request to `index_finished`; `cpu_ms`, the process's CPU time in it, every thread together; `parallelism` = `cpu_ms` / `wall_ms`, the last two only where the platform reports CPU time), `index_mb_per_s`, `log_line_count`, `log_file_bytes` |
 
 **The report**, format version 1. Times are milliseconds as floating point numbers, sizes bytes.
 
@@ -416,18 +543,43 @@ and a `ScenarioRegistration` with its name. It is handed a `ScenarioRun`
 events and results in, new windows and the Session of the run's own directory, and ends the run
 with `finish()` or `fail()`. `PaintProbe` times the paints of a widget, `Distribution` summarizes
 many durations. Nothing in the report or its writer changes for a new scenario.
+`LoadedLogFile` opens, loads and shows a Log File before the measured part starts,
+`InputLatency` pairs each input with the first paint after it, `FrameTimes` summarizes the frames
+of a view, `AppendLatency` pairs appended Log Lines with the paints that show them and
+`ProcessWork` takes wall and CPU time. A scenario that measures under settings of its own
+overrides `prepare()`: it is called once the run is isolated and before the application reads a
+setting, and writes them into the run's settings. Nothing is set up there yet, so no regular
+expression is compiled in it.
+
+**The grep tool** takes `--benchmark-output <file>` too (#667): it then writes a report in the
+same format, scenario `grep`, timed from just before the Log File is opened, so a Search's
+throughput leaves out the process start. Events: `index_finished`, `search_finished`,
+`matches_written`; results: `match_count`, `log_file_bytes`, `mb_per_s`.
 
 ### Instruction counts
 
 Every pull request that CI Build builds also gets the **Instruction Counts** workflow
-(`.github/workflows/instruction-counts.yml`, #671): it builds the Catch2 benchmarks of
+(`.github/workflows/instruction-counts.yml`, #671), which CI Build calls as its job
+*Instruction counts*: it builds the Catch2 benchmarks of
 `tests/benchmarks` in the noble build container as CI ships them (RelWithDebInfo with LTO), once
 for the master commit the pull request is merged onto and once for the merge, and counts the
 instructions of each benchmark under Valgrind's Callgrind. The job summary and one pull request
 comment, updated on every push, show each benchmark's count before and after and the change in
 percent; the `instruction-counts` artifact holds the same as JSON, and `instruction-counts-dumps`
 the Callgrind dumps, to see in `callgrind_annotate` or KCachegrind where the instructions went.
-The report does not fail anything yet (#672).
+
+The job *Instruction counts gate* judges the counts (#672), and the required **CI passed** check
+waits for it: a benchmark that costs more than its threshold more instructions than on the base
+fails it, unless the pull request carries the `perf-accepted` label, and a benchmark counted on
+the base but not on the pull request fails it, label or not (CONTRIBUTING.md, *Instruction
+count gate*). The thresholds live in one place, `THRESHOLD_PERCENT` in
+`.github/scripts/instruction-counts.py`: +2 % by default, more for the few benchmarks that vary
+more (twice the widest spread measured between counts of the same code). The gate reads the
+labels when it runs, so a re-run after the label changed judges again; the **Instruction Counts
+Label** workflow (`instruction-counts-label.yml`) re-runs it by itself when `perf-accepted` is
+added or removed on a pull request from a branch of this repository, and updates the comment.
+The verdict is in the job summary, in the `instruction-counts-gate` artifact and in the comment,
+which lists the benchmarks that are over their threshold, failed or accepted.
 
 A push to master counts the pushed commit and keeps its counts in the Actions cache, under the
 commit, the benchmark sources, the counting script and the runner's CPU model (glibc picks its
@@ -441,8 +593,21 @@ A count is reproducible where a time is not: two runs of the same commit differ 
 0.5 % for most benchmarks, on a shared runner whose times vary by 5–20 %. The exceptions wait for
 other threads: which heap blocks glibc's allocator has free, and how long an idle worker thread
 spins, then depend on how the threads took turns, and their counts vary by up to about 3 %
-(Valgrind's `--fair-sched=yes` makes that about a third of what it is without). For that, each benchmark runs
-its measured code exactly once, in the benchmarks' **fixed-work mode**
+(Valgrind's `--fair-sched=yes` makes that about a third of what it is without). oneTBB's idle
+workers spun the most: in one run 1.2 M instructions (9 %) more of a 20-tab Session restore than
+in the next (#708). So, counted, a benchmark binary runs oneTBB's flow graphs (indexing, Search)
+on the thread that waits for them alone, with no TBB worker thread (`instruction_count.h`); a
+timed run keeps TBB's workers. And since a thread's turns can add to a count but never take from
+the work, a benchmark that is over its threshold has its binary counted once more on the after
+side, from the same build, and the lower of the two counts is the one compared and judged: the
+gate fails only when both counts are over. The comment lists both counts of every recounted
+benchmark. The before side is not recounted (its build is gone by then, or its counts came from
+master's run): a count too high there can hide a cost, but not fail a pull request. That has a
+known cost: the after side is judged by the lower of two counts while the before side has one, so
+a real regression smaller than a benchmark's spread can pass. It is accepted, because the gate
+must never be falsely red (#672); the thresholds, measured while TBB's workers still spun, are to
+be measured again and lowered (#727). To count the
+same work every time, each benchmark runs its measured code exactly once, in the benchmarks' **fixed-work mode**
 (`tests/benchmarks/instruction_count.h`), instead of as often as Catch2's clock asks for:
 with `LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1`, `BENCHMARK` and `BENCHMARK_ADVANCED` start
 Callgrind's counting where Catch2 would start its clock and write one dump, named
@@ -452,8 +617,33 @@ left out. The generated Log Files are
 smaller than in a timed run (4 MiB, also per Session Log File), so the counts are not
 comparable with Catch2's times.
 
+The same run also counts each benchmark's **allocations and peak heap** (#673), which the job
+summary and the comment show before, after and as a change, in a table of their own: the heap
+blocks one run of the measured code allocated, all threads together, and the most heap it held
+at once above what was held when it started, in bytes as the allocators round them up. They are
+reported only; the gate judges instructions alone. The counting cannot tell a block allocated
+before the measured code from one it allocated: a `realloc` of an older block counts as an
+allocation, as every `realloc` does, and freeing an older block lowers the heap held at most to
+where it started, never below, so the peak is the most the measured code's own blocks held at
+once while it frees no older block, and can be less than that when it does. Callgrind keeps the program's own allocator,
+and Valgrind's heap tools (DHAT, Massif) only report a whole process, not the stretch between two
+points of it, so the counting happens in the benchmark binary itself: configured with
+`LOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON`, as `instruction-counts.sh` does (Linux with glibc only, no
+sanitizer), each benchmark binary links `tests/benchmarks/heap_count.c`, which replaces glibc's
+malloc and its family for the whole process (operator new, Qt and the libraries allocate
+through it) and hands every call on to glibc, and the link wraps mimalloc's `mi_new_n` and
+`mi_free`, through which `logsquirl::vector` allocates (`--wrap`, in
+`tests/benchmarks/CMakeLists.txt`). `instruction_count.h` opens the count where Callgrind starts
+and closes it where Callgrind stops, and `heap_count.c` appends a line per benchmark to
+`<binary>/heap.tsv`. That costs no second run; the counting adds a few instructions to each
+allocation, which the instruction counts include on both sides. Allocation counts count work, as
+instruction counts do, and repeat with it, so there is no noise threshold and the table lists
+every difference; the benchmarks that wait for other threads can vary as their instruction
+counts do, since how often a thread's loop runs while it waits, and when blocks are freed, then
+depend on how the threads took turns.
+
 The comment comes from a second workflow, **Instruction Counts Comment**
-(`instruction-counts-comment.yml`), which starts when a count has completed: a pull request from a
+(`instruction-counts-comment.yml`), which starts when a CI Build run has completed: a pull request from a
 fork has a read-only token and cannot comment, and the workflow that can runs only master's code
 and reads the artifact as untrusted data.
 
@@ -468,7 +658,10 @@ Docker does it):
 .github/scripts/instruction-counts.py collect counts --json counts.json
 
 # Or one benchmark binary by hand, after building it with Valgrind's headers installed
+# (and configured with -DLOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON for its heap counts, which
+# LOGSQUIRL_BENCHMARK_HEAP_FILE then names the file of)
 LOGSQUIRL_BENCHMARK_COUNT_INSTRUCTIONS=1 QT_HASH_SEED=0 QT_QPA_PLATFORM=offscreen \
+LOGSQUIRL_BENCHMARK_HEAP_FILE="$PWD/counts/heap.tsv" \
 LOGSQUIRL_BENCHMARK_LOG_FILE_MB=4 LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB=4 \
   valgrind --tool=callgrind --instr-atstart=no --trace-children=yes \
     --main-stacksize=67108864 --fair-sched=yes --callgrind-out-file=counts/callgrind.out.%p \
@@ -781,6 +974,15 @@ the next release (a wrong download link, legal text), and a release whose deploy
 leaves the site on the previous release until someone dispatches it. Nothing retries that on its own, and the
 dispatch must be on `master`, because the `website` environment admits no other branch.
 
+The nightly **Performance** run dispatches it as well, from its *website* job after recording a run of master,
+with `performance_trend` (#678): that deploy builds the
+newest published release's tag instead of master, with the newest runs of the `perf-data` branch on its
+Performance page, so the trend is current every morning and no unreleased website change goes live with it.
+The Budgets drawn are that tag's `tests/e2e/budgets.json`, so a Budget changed on master shows with the next release.
+The deploy runs master's steps on the tag's tree: a tag that lacks a file they use (`website/src/perf-trend.mjs`,
+`website/scripts/leave-out-unpublished.mjs`), such as a release from before #678, leaves the site as it is with a
+notice until the next release deploys (#731).
+
 Manual releases, e.g. to re-run a release, are also supported via
 `workflow_dispatch`: dispatch it from the tag (*Use workflow from*, or
 `gh workflow run ci-release.yml --ref v26.04.0 -f tag=v26.04.0`) with that tag
@@ -895,15 +1097,17 @@ before anything is downloaded, because its signing job could not enter the
 |----------|---------|---------|
 | `ci-build.yml` | push/PR to master | Build + test all platforms, check the update feed; on a pull request also check a release preparation and build the website with its link check |
 | `changelog.yml` | PR to master (also on label changes) | Require a CHANGELOG entry under `# Unreleased`, or the `no-changelog` label |
-| `deploy-website.yml` | dispatch only: by CI Release after a release is published, or by hand from the Actions tab | Build the website without the pages of unpublished releases and upload it |
+| `deploy-website.yml` | dispatch only: by CI Release after a release is published, by the nightly Performance run (`performance_trend`), or by hand from the Actions tab | Build the website without the pages of unpublished releases, with the performance trend of the `perf-data` branch, and upload it; `performance_trend` rebuilds the last published release's site |
 | `ci-release.yml` | tag push `v*` | Sign and publish the CI Build packages of the tagged commit as a GitHub Release |
 | `publish-packages.yml` | called by CI Release after a stable release; dispatch from a release tag | Build the signed APT and DNF repositories from the last three stable releases and deploy them with GitHub Pages |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
-| `instruction-counts.yml` | push/PR to master (the files CI Build builds for) | Count the instructions of every Catch2 benchmark under Callgrind: before and after a pull request, reported in the job summary and the artifact; a push to master keeps its counts for the pull requests based on it (see *Instruction counts*) |
-| `instruction-counts-comment.yml` | `workflow_run` of Instruction Counts | Post the report as one pull request comment, updated on every run, with master's code only |
-| `performance.yml` | weekly schedule (Mondays 03:41 UTC), dispatch | Measure master's e2e performance suite in an optimized build, compare it with the last runs and record it on the `perf-data` branch (see *Weekly performance*) |
+| `instruction-counts.yml` | called by CI Build for a push/PR to master it builds | Count the instructions of every Catch2 benchmark under Callgrind, with its allocations and peak heap: before and after a pull request, reported in the job summary and the artifact, and judged by CI Build's gate; a push to master keeps its counts for the pull requests based on it (see *Instruction counts*) |
+| `instruction-counts-comment.yml` | `workflow_run` of CI Build | Post the report and the gate's verdict as one pull request comment, updated on every run, with master's code only |
+| `instruction-counts-label.yml` | `perf-accepted` added to or removed from a PR | Re-run CI Build's instruction counts gate and update the comment (see *Instruction counts*) |
+| `performance.yml` | nightly schedule (02:41 UTC), dispatch | Measure master's e2e performance suite and the instruction counts of its benchmarks in an optimized build, find change points and broken Budgets, record the run on the `perf-data` branch and file an issue per scenario with a finding (see *Nightly performance*) |
+| `pgo.yml` | dispatch only | Build each platform without and with profile-guided optimization (and BOLT on Linux), measure the micro-benchmarks and the e2e performance suite of all of them on one runner, and report the A/B tables and the build times (see *Profile-guided optimization*) |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 
 

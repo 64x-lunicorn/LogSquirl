@@ -6,6 +6,7 @@
    - [Installing](#installing)
    - [The Dashboard](#the-dashboard)
 1. [Exploring log files](#Exploring-log-files)
+   - [Value Names](#value-names)
    - [Auto Log Format Detection (Table View)](#auto-log-format-detection-table-view)
    - [Chart Panel](#chart-panel)
    - [Tab groups](#tab-groups)
@@ -172,6 +173,10 @@ The buttons left of the search line switch, for the next search:
 results in a new tab of the filtered view, beside the kept ones, so several
 searches of one file can be compared. The keys are the defaults and can be
 changed in the shortcut settings.
+
+*Open in Regex Lab...* in the context menu of the search text box opens the
+pattern in the [Regex Lab](#regex-lab), to try it out on the Log Lines of the
+tab.
 
 *logsquirl* keeps track of used search patterns and provides autocomplete
 for them. This history can be edited or cleared from the search text box context menu.
@@ -474,11 +479,109 @@ same id or name exists (see [Using highlighters](#using-highlighters)). A group
 that carries the id of the Default group never replaces your Default group; it
 arrives as a group of its own.
 
+*Test…* next to the filter buttons opens the [Regex Lab](#regex-lab) with the
+pattern of the selected filter, on the Log Lines of the tab in front (or on
+pasted text while no file is open). The Lab reads the pattern exactly as the search
+line of the tab in front reads it once the filter is used there: with the
+search engine and that search line's *Match case*, as one pattern, not a
+logical combination. A search line with *Use regex* on reads the filter as a
+regular expression or as plain text, as the filter says; one with *Use regex*
+off reads every filter as plain text. So *Use regex* can be changed in the Lab
+only while the search line uses regular expressions; *Match case*, which a
+filter does not keep, is shown fixed. *Apply* writes the pattern, and the
+*Regex* setting where the Lab offered it, back into the filter, as if you had
+typed them in the table; *Cancel* or closing the Lab changes nothing. The
+dialog waits while the Lab is open. For a filter of a Team group that cannot be
+changed, the Lab only shows what the pattern matches, with *Close*.
+
 ### Importing filters from Chipmunk
 
 *logsquirl* can import filters and highlighters from Chipmunk JSON export files.
 This is available from the `Tools` menu. The imported filters are converted to
 *logsquirl* predefined filters and highlighter sets.
+
+### Regex Lab
+
+The *Regex Lab* (`Tools` → `Regex Lab...`) shows what a pattern does on real
+Log Lines before you use it in a search, a highlighter or a predefined filter.
+It is a window of its own that stays open beside the main window, tied to the
+tab that was in front when it was opened; choosing the menu entry again brings
+it to the front and ties it to the tab in front then. Once that tab is closed,
+only pasted text is a sample. When the search engine is changed in the
+settings, the Lab matches with the new one.
+
+The pattern is read with the same options as the search line: *Match case*,
+*Use regex* (a regular expression, or else plain text), *Inverse match* and
+*Boolean combining* (a logical combination such as `"error" and not("retry")`).
+It is matched by the same engine as a search, so the lines the Lab counts as
+matching are exactly the lines a search with the same pattern and options
+selects, decided on the whole line. With *Inverse match* the lines counted and
+shaded are those the pattern does not match, while the marks still show where
+the pattern matches. *Copy pattern* puts the pattern on the clipboard.
+
+The *Sample* is one of:
+
+- *Selected Log Lines*: the lines selected in the tab, in the main view or the
+  filtered view, whichever you were in last;
+- *Lines around the current line*: up to 1000 of the lines that view shows,
+  around its current line;
+- *Pasted text*: text you paste or type into the sample, one line per line (a
+  final line feed adds no empty line). It is the only sample while no file is
+  open.
+
+A sample from the file is taken when you choose it and when you click *Refresh
+sample*, not continuously, so a followed file does not move under you.
+
+While you type, the Lab shows after a short pause:
+
+- every line of the sample, the matching ones shaded and the matched text
+  marked; for a logical combination each sub-pattern's matches in a color of
+  their own. At most 100 matches of a line and 10000 in all are marked, and the
+  Lab says so when there are more;
+- for a logical combination, its sub-patterns, numbered in the order written
+  and in their colors, and beside each line the numbers of those that match
+  it -- a negated one included, since it is its match that `not(...)` turns
+  round. Whether the line matches is the combination's verdict, as a search
+  decides it. Hovering the numbers says them in words;
+- for the line with the cursor, the capture groups of its first match,
+  numbered and with their names (`(?<name>...)`); for a logical combination
+  they are numbered *sub-pattern.group*, as in `2.1`;
+- how many lines of the sample match;
+- an error in the pattern, with the character of the pattern where it is,
+  marked with a caret under the pattern;
+- a warning when evaluating the sample took unusually long, or a single line
+  took more than 20 ms, which hints at a pattern that backtracks excessively.
+  On such a line the engine may give up and report no match -- a search does
+  the same.
+
+The sample is read and the pattern evaluated in the background, and what the
+window shows is bounded, so it stays responsive. The Lab evaluates up to 1000
+lines and stops after two seconds, saying at which line it stopped. A line
+longer than 10000 characters is shown and marked only that far; whether it
+matches is still decided on the whole line. Typing starts a new evaluation that
+replaces the one running, and closing the window stops it. The Lab never
+changes a search, a highlighter or a filter by itself: opened with *Test…* from
+the editor of a [highlighter](#using-highlighters) or a [predefined
+filter](#predefined-filters), it writes the pattern back only on *Apply*.
+
+*Open in Regex Lab...* in the context menu of a tab's search line opens the
+Lab with the search line's pattern and every option it reads it with: *Match
+case*, *Use regex* -- a search line set to *Wildcard* or *Fixed String* reads
+the pattern as plain text, and so does the Lab --, *Inverse match* and
+*Boolean combining*. The Lab is tied to that tab and matches with the engine
+its searches run on, and it closes with the tab. Choosing the entry again
+brings it to the front; while you have not edited the pattern in the Lab, it
+takes the search line's pattern and options of then. *Apply* fills the search
+line with the pattern and sets its buttons. It runs the search only when
+*Auto-refresh* is on; otherwise the search runs when you start it. *Cancel*
+or closing the Lab changes nothing.
+
+A plugin can open the Lab as well, to have you test one of its patterns: the
+Lab then reads the pattern as a regular expression, lets you change it and
+*Match case*, and matches as Qt's regular expressions do, whatever engine your
+searches run on. *Apply* hands the pattern back to the plugin, *Cancel* or
+closing the Lab leaves the plugin's pattern as it was. When the plugin is
+disabled, its Lab closes.
 
 ### Using highlighters
 
@@ -504,6 +607,23 @@ parts of the matching line are highlighted.
 
 It is possible to set a color variance. In that case different strings
 that match the same regular expression will have slightly different color.
+
+*Test…* next to a highlighter's pattern opens the [Regex Lab](#regex-lab) with
+that pattern, on the Log Lines of the tab in front (or on pasted text while no
+file is open). The Lab marks what the highlighter would color, in its text and
+background colors: each whole matching line for a highlighter that colors the
+whole line, only the matched text -- or what its capture groups took --
+otherwise (the color variance is not shown). It decides as the highlighter
+does, too: a line where no capture group takes part in the match -- `(foo)?bar`
+on `bar` -- is not colored, and a line longer than 1,000,000 characters never
+is. It matches the way a highlighter
+does, with Qt's regular expressions whatever the search engine, and offers
+only the options a highlighter has: *Match case* (the opposite of *Ignore
+case*) and *Use regex* (*Extended Regexp* or *Fixed Strings*). *Apply* writes
+the pattern and these options back into the editor, as if you had entered them
+there; *Cancel* or closing the Lab changes nothing. The dialog waits while the
+Lab is open. A pattern that is no valid regular expression is reported in the
+Lab; the highlighter itself colors such a pattern as plain text.
 
 Any number of highlighters set can be applied to opened file using either 
 the context menu or the main menu.
@@ -542,6 +662,127 @@ will remove all color labels.
 
 The colors that are used for text highlight can be configured from the color labels
 tab of highlighters configuration dialog.
+
+### Value Names
+
+Value Names show the raw values of a Log Line -- an ECU address, an error
+code, an ID -- with a name from a table, while the Log File itself is never
+changed. A **Naming Rule** says which Log Lines and which values: a regex whose
+capture groups are looked up, each in the **Name Table** given for it; a Name
+Table lists key regexes with the name each gives a value. Rules and tables are
+kept in **Naming Groups**.
+
+```
+Naming Rule:  BAP << ECU (0x[0-9A-F]{2}) (0x[0-9A-F]{2})
+              group 1 -> Name Table "ECU", group 2 -> Name Table "Function"
+Name Table "ECU":  0x0*15 -> Beispiel
+
+BAP << ECU 0x15 0x14 sonstiges  is shown as  BAP << ECU Beispiel(0x15) Sample(0x14) sonstiges
+regenbogen 0x15                 is shown as it is: no Naming Rule matches it
+```
+
+The main view and the filtered view show Value Names; the Table View shows
+the Log Lines as they are. A named value is underlined with fine dots in the
+color of the text, and hovering over it tells where its name came from, as in
+`0x15 → Beispiel · table ECU · rule BAP ECU · group BAP`.
+
+**Showing and hiding them.** *View → Show Value Names* (`Ctrl+Shift+N`,
+`Cmd+Shift+N` on macOS) shows or hides them in the main view and every
+filtered view of the current tab, the way *Wrap text* does; every tab keeps its
+own. A tab starts as *Show Value Names on file open* says, in the *View* tab of
+*File → Preferences...* (see [View](#view) under [Settings](#settings)). With Value Names hidden, or no Naming Rule enabled,
+nothing is looked up, and the views are as fast as without them.
+
+**Search, filters and highlighters** work on the raw text. A match or a
+highlight that covers part of a named value covers the whole name shown in its
+place; a search for a name finds nothing.
+
+**Selecting and copying.** A double-click on a named value selects the whole
+value. *Copy* copies the raw text, and a selection that takes in part of a
+named value copies its whole raw value, never half of it. *Copy as shown*, in
+the context menu of the view and as *Copy as Shown* in the *Edit* menu,
+copies the text as it is shown, with the names.
+
+**Saving.** *Save to file* and *Save selected to file* ask for the file with
+the check *With Value Names*: checked, the Log Lines are saved as shown. It is
+off at first, and can only be checked while the tab shows Value Names. *Export
+as CSV...* always writes the raw values.
+
+**The Value Names tab.** The sidebar's third tab, after *Filters* and
+*Scratchpad*, lists the Naming Groups with a check for each Naming Rule; a
+group's check checks or unchecks all its rules. The checks hold for every tab
+and are kept across restarts. A search box narrows the list to the groups and
+rules whose name or regex contains the text; *Select All* and *Deselect All*
+check or uncheck what it shows. A double-click on a rule checks only that rule,
+on a group only that group's rules. When two rules name the same text, the one
+higher in the list wins.
+
+**Editing Naming Groups.** *Edit...* in the tab, or *Tools → Value
+Names...*, opens the *Value Names* dialog. On the left are the Naming Groups,
+which can be added, removed and moved up or down; every group needs a name of
+its own. *Tools → Value Names tab* shows the tab. On the right, for the selected group:
+
+- **Naming Rules**, each with a *Name*, a *Regex* and a *Template*. The
+  template says how a named value is shown: `{name}` is the name and `{value}`
+  the raw value; `{name}({value})` unless changed. Beside the rules, every
+  capture group of the selected rule's regex gets its Name Table, or *(none)*
+  to leave it as it is: unnamed groups by their number, named groups such as
+  `(?<ecu>...)` by their name. A regex without capture groups looks up its
+  whole match. When the regex changes, a table stays with its capture group:
+  a named group renamed keeps it, the whole match's moves to the first capture
+  group added, and that of a group removed goes. A rule's name is unique in
+  its group.
+- **Name Tables**, with the rows of the selected one: a *Key regex*, which has
+  to match the whole value, and the *Name* it gives. The first row that matches
+  wins; keys ignore case unless *Keys are case-sensitive* is checked. The name
+  can use the key's capture groups as `{1}`, `{2}`, ...: the key `0x2([0-9A-F])`
+  with the name `Door{1}` shows `0x23` as `Door3(0x23)`. A table is renamed with
+  a double-click, and the rules using it follow; removed, the rules use no
+  table where they used it. A rule only uses the tables of its own group.
+- **Preview**: paste a sample Log Line and see it as the group shows it, with
+  all its rules, checked or not. Below it the dialog warns of what is wrong: a regex or key
+  that is not valid, a key already in an earlier row (that row is never used),
+  a name using a key group the key does not have, a capture group given a
+  table its regex or its group does not have, a line break in a template or a
+  name.
+
+*OK* and *Apply* take the changes over for every tab, *Cancel* drops them.
+
+**Name Tables from CSV.** *Import CSV...* reads a CSV file into a new Name
+Table named after the file, or, when a table is selected and that is chosen,
+replaces the selected table's rows or appends to them. The separator --
+comma, semicolon or tab -- is detected and shown; the key and the name
+columns are chosen (the first and the second unless changed, never the same
+one), and the first line can be marked as a header. A file in UTF-8 or, with
+its byte order mark, UTF-16 is read as such; any other is read in the code
+page a spreadsheet saves CSV in (Windows' ANSI code page, windows-1252 on
+macOS and Linux). Lines starting
+with `#` are skipped. When a key is there twice the first wins, and the
+warnings name the line. *Export CSV...* writes the selected table's rows,
+key first. *Paste* adds the rows copied from a spreadsheet, key then name, to
+the selected table.
+
+**Sharing Naming Groups.** Naming Groups are exchanged the same way as filter
+groups and highlighter sets. *Export...*, below the groups in the dialog,
+writes the selected group with its Name Tables, and without its checks, to a
+file named `<name>_valuenames.conf` by default; *Import...* reads the Naming
+Groups of the selected files, asking *Replace*, *Keep both* or *Skip* when a
+group of the same id or name exists
+(see [Using highlighters](#using-highlighters)). An imported group arrives
+checked. A
+Value Names file says in itself that it holds a Naming Group: it is never
+imported as a filter group or highlighter set, and their files never as a
+Naming Group.
+
+With the Team Folder on, the team's Naming Groups are listed below your own in
+the dialog and last in the *Value Names* tab, marked *(Team)*; their checks are
+yours alone. *Share with team* publishes a copy of the selected group of your
+own, *New Team group* adds one, and changes to a Team group are published on
+*OK* or *Apply*; *Copy to my groups* copies a Team group into your own, and
+*Delete for the team* deletes it for everyone. When the Team Folder cannot
+publish, the Team groups are shown and previewed but not changed. When someone
+else changed the same group meanwhile, you choose *Keep mine*, *Take theirs*
+or *Save mine as a copy*, as for filter groups.
 
 ### Auto Log Format Detection (Table View)
 
@@ -915,12 +1156,14 @@ and both are in the Command Palette.
 ### Filters Panel
 
 The Filters Panel is a right sidebar dock that provides quick access to filters
-and the Scratchpad. It contains two tabs:
+and the Scratchpad. It contains three tabs:
 
 *   **Filters tab** -- allows pinning frequently used search filters that persist
     across sessions. Toggling a pinned filter automatically triggers a search.
 *   **Scratchpad tab** -- the same Scratchpad tool described below, accessible
     from the sidebar for convenience.
+*   **Value Names tab** -- checks the Naming Rules and Naming Groups of Value
+    Names for every tab; see [Value Names](#value-names).
 
 The Filters Panel can be toggled using the filter icon in the toolbar.
 
@@ -969,7 +1212,7 @@ whole list, with what the entries not explained elsewhere do.
   with `Clear List`, `Open Session...` and `Save Session As...` (see
   [Session files](#session-files)), `Close`, `Close All`, `Preferences...` and
   `Exit`.
-- **Edit**: `Copy`, `Select All`, `Find...` (the QuickFind bar), `Go to line...`
+- **Edit**: `Copy`, `Copy as Shown` (see [Value Names](#value-names)), `Select All`, `Find...` (the QuickFind bar), `Go to line...`
   and `Go to timestamp...`, then `Copy full path` (of the current file to the
   clipboard), `Open containing folder`, `Open in editor` (in the default
   editor of the system) and `Clear file...`. `Clear file...` asks first and then
@@ -977,12 +1220,14 @@ whole list, with what the entries not explained elsewhere do.
 - **View**: `Opened files` (see
   [Switching between opened files](#switching-between-opened-files)),
   `Matches overview`, `Line numbers in main view`,
-  `Line numbers in filtered view`, `Wrap text`, `Follow File`, `Reload`,
+  `Line numbers in filtered view`, `Wrap text`, `Show Value Names` (see
+  [Value Names](#value-names)), `Follow File`, `Reload`,
   `Chart Panel` and `Show Filter Frequency`, which charts how often the current
   search matched, one series for every alternative of the search pattern (it
   does nothing while the search line is empty).
-- **Tools**: `Predefined filters...`, `Import Chipmunk filters...`,
-  `Manage Tab Groups...`, `Scratchpad`, `Filters panel` and
+- **Tools**: `Predefined filters...`, `Value Names...` (see [Value Names](#value-names)),
+  `Import Chipmunk filters...`, `Regex Lab...` (see [Regex Lab](#regex-lab)),
+  `Manage Tab Groups...`, `Scratchpad`, `Filters panel`, `Value Names tab` and
   `Command Palette...` (`Ctrl+Shift+P`, `Cmd+Shift+P` on macOS), which lists
   every enabled menu command: type to filter, `Enter` runs the selected one.
   The key can be changed in the shortcut settings.
@@ -1024,7 +1269,10 @@ plugins on startup* the enabled plugins are loaded when *logsquirl* starts, and
 *Plugin Folder* opens the user plugin directory. The catalog
 is fetched when the dialog opens; if that fails, the error is shown in the
 status line at the bottom. Menu items that a UI extension plugin adds appear
-in the `Plugins` menu, above `Plugin Management...`.
+in the `Plugins` menu, above `Plugin Management...`. A UI extension plugin can
+also go to a line of the tab in front -- it is selected and scrolled into view
+as with *Go to line* -- and read the lines you selected there; a selection
+within a line counts as the whole line.
 
 The official plugins are [Android Logcat](https://github.com/64x-lunicorn/LogSquirl-Logcat),
 which streams logcat output from devices connected through ADB, and
@@ -1343,6 +1591,8 @@ The main commands are:
 |F5              |reload current file                                               |
 |Ctrl+S          |Set focus to search string edit box                               |
 |Ctrl+Shift+O    |Open dialog to switch to another file                             |
+|Ctrl+Shift+N    |show or hide Value Names in the current tab                       |
+|                |(see [Value Names](#value-names))                                 |
 
 Every key in this table is a default and can be changed in the shortcuts tab of
 the options dialog, where the commands without a default key, such as

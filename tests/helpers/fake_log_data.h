@@ -51,9 +51,10 @@ protected:
                    ? lines_[ static_cast<qsizetype>( line.get() ) ]
                    : QString{};
     }
+    // Tabs expanded, as a Log File expands them.
     QString doGetExpandedLineString( LineNumber line ) const override
     {
-        return doGetLineString( line );
+        return untabify( doGetLineString( line ) );
     }
     logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount count ) const override
     {
@@ -67,7 +68,11 @@ protected:
     logsquirl::vector<QString> doGetExpandedLines( LineNumber first,
                                                    LinesCount count ) const override
     {
-        return doGetLines( first, count );
+        auto lines = doGetLines( first, count );
+        for ( auto& line : lines ) {
+            line = untabify( std::move( line ) );
+        }
+        return lines;
     }
     LinesCount doGetNbLine() const override
     {

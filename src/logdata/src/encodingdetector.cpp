@@ -21,6 +21,8 @@
 
 #include "textencoding.h"
 
+#include <cstdint>
+#include <cstring>
 #include <string>
 #include <string_view>
 
@@ -118,6 +120,42 @@ std::size_t EncodingDetector::sampleSize( const char* bytes, std::size_t size )
     return end;
 }
 
+bool EncodingDetector::hasByteBeyondAscii( const char* bytes, std::size_t size )
+{
+    return firstByteBeyondAscii( bytes, size ) < size;
+}
+
+std::size_t EncodingDetector::firstByteBeyondAscii( const char* bytes, std::size_t size )
+{
+    // Eight bytes at a time, OR-ed together a chunk of eight words at a time
+    // and looked at after each chunk, so a byte early on ends the scan early.
+    // Only the chunk it is in is then looked at byte by byte.
+    using Word = std::uint64_t;
+    constexpr Word HighBits = 0x8080808080808080ULL;
+    constexpr std::size_t WordsPerChunk = 8;
+    constexpr std::size_t ChunkSize = WordsPerChunk * sizeof( Word );
+
+    std::size_t offset = 0;
+    for ( ; offset + ChunkSize <= size; offset += ChunkSize ) {
+        Word chunk = 0;
+        for ( std::size_t word = 0; word < WordsPerChunk; ++word ) {
+            Word bits = 0;
+            std::memcpy( &bits, bytes + offset + word * sizeof( Word ), sizeof( Word ) );
+            chunk |= bits;
+        }
+        if ( ( chunk & HighBits ) != 0 ) {
+            break;
+        }
+    }
+
+    for ( ; offset < size; ++offset ) {
+        if ( static_cast<unsigned char>( bytes[ offset ] ) >= 0x80 ) {
+            return offset;
+        }
+    }
+    return size;
+}
+
 const TextEncoding* EncodingDetector::detectEncoding( const char* bytes, std::size_t size ) const
 {
     size = sampleSize( bytes, size );
@@ -147,6 +185,16 @@ const TextEncoding* EncodingDetector::detectEncoding( const char* bytes, std::si
         else {
             LOG_DEBUG << "Uchardet codec not found for guess " << uchardetGuess;
         }
+    }
+
+    // Plain ASCII, which uchardet calls "ASCII" and some other platforms'
+    // fallback reads in their ANSI code page, is taken for UTF-8: it reads
+    // the same, and so do UTF-8 bytes that follow it (#657). Every byte
+    // order mark has a byte beyond ASCII.
+    if ( ( !uchardetCodec || uchardetCodec->mibEnum() == TextEncoding::UsAsciiMib )
+         && !hasByteBeyondAscii( bytes, size ) ) {
+        LOG_DEBUG << "Final encoding guess UTF-8, for ASCII";
+        return TextEncoding::forMib( TextEncoding::Utf8Mib );
     }
 
     QByteArray blockArray = QByteArray::fromRawData( bytes, static_cast<qsizetype>( size ) );

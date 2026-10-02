@@ -158,6 +158,16 @@ RegularExpressionPattern SearchLine::request() const
                                      flags_.booleanCombination, !flags_.useRegexp );
 }
 
+bool SearchLine::apply( const RegularExpressionPattern& pattern )
+{
+    pattern_ = pattern.pattern;
+    flags_.matchCase = pattern.isCaseSensitive;
+    flags_.useRegexp = !pattern.isPlainText;
+    flags_.inverse = pattern.isExclude;
+    flags_.booleanCombination = pattern.isBoolean;
+    return flags_.autoRefresh;
+}
+
 void SearchLine::requested( const SearchSessionState& state )
 {
     display_.offerIssueReport.clear();
@@ -211,7 +221,7 @@ void SearchLine::progressed( const SearchSessionState& state, SearchAutoRefresh:
         }
         break;
     case Phase::Complete:
-        settled( autoRefresh, state.matchCount );
+        settled( autoRefresh, state.matchCount, state.undecidedCount );
         showDone();
         break;
     case Phase::Failed:
@@ -229,11 +239,12 @@ void SearchLine::progressed( const SearchSessionState& state, SearchAutoRefresh:
     }
 }
 
-void SearchLine::stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount )
+void SearchLine::stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                          LinesCount undecidedCount )
 {
     // An interrupted Search tells no completion, so the gauge and the buttons
     // are put back here.
-    settled( autoRefresh, matchCount );
+    settled( autoRefresh, matchCount, undecidedCount );
     showDone();
 }
 
@@ -242,7 +253,8 @@ void SearchLine::cleared()
     settled( SearchAutoRefresh::State::NoSearch, 0_lcount );
 }
 
-void SearchLine::settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount )
+void SearchLine::settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                          LinesCount undecidedCount )
 {
     using State = SearchAutoRefresh::State;
 
@@ -259,6 +271,18 @@ void SearchLine::settled( SearchAutoRefresh::State autoRefresh, LinesCount match
                          .arg( matchCount.get() )
                    : QCoreApplication::translate( "CrawlerWidget", "%1 match found" )
                          .arg( matchCount.get() );
+        // A Log Line the engine gave up on counts as no Match, though it may
+        // be one: said, so that a missing Match is not taken for none (#689).
+        if ( undecidedCount.get() > 1 ) {
+            text += QCoreApplication::translate(
+                        "CrawlerWidget",
+                        " (the regex engine gave up on %1 Log Lines: they may match)" )
+                        .arg( undecidedCount.get() );
+        }
+        else if ( undecidedCount.get() == 1 ) {
+            text += QCoreApplication::translate(
+                "CrawlerWidget", " (the regex engine gave up on 1 Log Line: it may match)" );
+        }
         break;
     case State::FileTruncated:
     case State::TruncatedAutorefreshing:

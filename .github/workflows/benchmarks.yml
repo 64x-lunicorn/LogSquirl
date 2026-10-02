@@ -54,8 +54,8 @@ name: "Benchmarks"
 # inputs hash (#215) and the sccache summary script (#219) does not build.
 #
 # There is no nightly schedule: a scheduled run only knows master, which would
-# measure master against itself. Master over time is what the weekly
-# Performance workflow (performance.yml) watches (#441).
+# measure master against itself. Master over time is what the nightly
+# Performance workflow (performance.yml) watches (#441, #677).
 #
 # One Linux job (after a short one that resolves the before side) in the
 # Ubuntu 24.04 container of the CI Build noble job: those
@@ -428,8 +428,10 @@ jobs:
       # ---------------------------------------------------------------------
       # Measure both, on this runner, one benchmark binary at a time
       # ---------------------------------------------------------------------
-      # The performance suite's larger files are generated, not checked in;
-      # without them its `slow` benchmarks skip.
+      # The performance suite's larger files, the 100 MB and 1 GB Log Files
+      # (#667) and the Log Files the scroll cases scroll through (#669) among
+      # them, are generated, not checked in; without them its `slow`
+      # benchmarks skip.
       - name: Generate the e2e test data
         run: python3 tests/e2e/generate_test_data.py
 

@@ -80,7 +80,8 @@ inline SettingsPolicies testSettingsPolicies()
                           .autoShowTableView = false,
                           .mainLineNumbersVisible = false,
                           .filteredLineNumbersVisible = true,
-                          .overviewVisible = true },
+                          .overviewVisible = true,
+                          .showValueNames = false },
 
         .quickFind = { .quickFindRegexpType = SearchRegexpType::FixedString,
                        .mainRegexpType = SearchRegexpType::ExtendedRegexp,

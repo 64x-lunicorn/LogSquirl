@@ -58,6 +58,9 @@ public:
 
     void reset();
 
+    // What the Highlighter editor's Test... opens the Regex Lab with (#660).
+    void setRegexLabAccess( RegexLabAccess access );
+
 Q_SIGNALS:
     void changed();
 

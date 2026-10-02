@@ -25,6 +25,7 @@
 #include <QWidget>
 
 #include "highlighterset.h"
+#include "regexlabwindow.h"
 #include "ui_highlighteredit.h"
 
 class QToolButton;
@@ -38,6 +39,9 @@ public:
     Highlighter highlighter() const;
     void setHighlighter( Highlighter highlighter );
     void reset();
+
+    // What Test... opens the Regex Lab with: the tab's sample (#660).
+    void setRegexLabAccess( RegexLabAccess access );
 
     static bool showColorPicker( const QColor& in, QColor& out );
     static void updateIcon( QPushButton* button, const QColor& color );
@@ -59,11 +63,14 @@ private Q_SLOTS:
 private:
     void addColorPresetButtons();
     void setColorsEnabled( bool enabled );
+    void testPattern();
+    void applyTestedPattern( const RegularExpressionPattern& pattern );
 
     const Highlighter defaultHighlighter_;
 
     Highlighter highlighter_;
     std::vector<QToolButton*> colorPresetButtons_;
+    RegexLabAccess regexLabAccess_;
 };
 
 #endif // LOGSQUIRL_HIGHLIGHTEREDIT_H

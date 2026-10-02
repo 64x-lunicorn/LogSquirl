@@ -24,6 +24,7 @@
 // at any time.
 
 #include <algorithm>
+#include <limits>
 #include <numeric>
 
 #include "abstractlogdata.h"
@@ -137,7 +138,16 @@ OptionalLineNumber Selection::selectedLine() const
 
 logsquirl::vector<LineNumber> Selection::getLines( const LineMapping& lines ) const
 {
+    return getLines( lines, LinesCount( std::numeric_limits<LinesCount::UnderlyingType>::max() ) );
+}
+
+logsquirl::vector<LineNumber> Selection::getLines( const LineMapping& lines,
+                                                   LinesCount limit ) const
+{
     logsquirl::vector<LineNumber> selection;
+    if ( limit.get() == 0 ) {
+        return selection;
+    }
 
     if ( selectedLine_.has_value() ) {
         selection.push_back( *selectedLine_ );
@@ -146,7 +156,8 @@ logsquirl::vector<LineNumber> Selection::getLines( const LineMapping& lines ) co
         selection.push_back( *selectedPartial_.line );
     }
     else if ( selectedRange_.startLine.has_value() ) {
-        selection = lines.shownLogLinesFromTo( *selectedRange_.startLine, selectedRange_.endLine );
+        selection
+            = lines.shownLogLinesFromTo( *selectedRange_.startLine, selectedRange_.endLine, limit );
     }
 
     return selection;
@@ -175,9 +186,10 @@ Selection::getSelectedPositions( const LineMapping& lines ) const
 // The tab behaviour is a bit odd at the moment, full lines are not expanded
 // but partials (part of line) are, they probably should not ideally.
 QString Selection::getSelectedText( const LineMapping& lines, const AbstractLogData& shownLines,
-                                    bool lineNumbers ) const
+                                    bool lineNumbers,
+                                    const std::function<QString( const QString& )>& shownAs ) const
 {
-    const auto selectionData = getSelectionWithLineNumbers( lines, shownLines );
+    const auto selectionData = getSelectionWithLineNumbers( lines, shownLines, shownAs );
 
     QString text;
 
@@ -206,14 +218,17 @@ QString Selection::getSelectedText( const LineMapping& lines, const AbstractLogD
     return text;
 }
 
-std::map<LineNumber, QString>
-Selection::getSelectionWithLineNumbers( const LineMapping& lines,
-                                        const AbstractLogData& shownLines ) const
+std::map<LineNumber, QString> Selection::getSelectionWithLineNumbers(
+    const LineMapping& lines, const AbstractLogData& shownLines,
+    const std::function<QString( const QString& )>& shownAs ) const
 {
     std::map<LineNumber, QString> selectionData;
+    const auto asShown
+        = [ &shownAs ]( const QString& text ) { return shownAs ? shownAs( text ) : text; };
 
     if ( selectedLine_.has_value() ) {
-        selectionData.emplace( *selectedLine_, lines.logFile().getLineString( *selectedLine_ ) );
+        selectionData.emplace( *selectedLine_,
+                               asShown( lines.logFile().getLineString( *selectedLine_ ) ) );
     }
     else if ( selectedPartial_.line.has_value() ) {
         selectionData.emplace(
@@ -237,7 +252,7 @@ Selection::getSelectionWithLineNumbers( const LineMapping& lines,
         for ( const auto& line : text ) {
             const auto logLine = lines.logLineAt( position );
             if ( logLine.has_value() ) {
-                selectionData.emplace( *logLine, line );
+                selectionData.emplace( *logLine, asShown( line ) );
             }
             ++position;
         }

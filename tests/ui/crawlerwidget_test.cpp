@@ -43,6 +43,7 @@
 #include "stored_session.h"
 #include "test_policies.h"
 #include "test_utils.h"
+#include "valuenames_fixture.h"
 
 #include "logdata.h"
 #include "logfiltereddata.h"
@@ -172,6 +173,17 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     bool isLoadingFinished()
     {
         return crawler->lastLoadStatus_.has_value();
+    }
+
+    // Whether a time lookup of the Time Navigation is under way.
+    bool isLookingUpTime() const
+    {
+        return crawler->timeNavigation_.isLookingUp();
+    }
+
+    void resetLogFormat()
+    {
+        crawler->resetLogFormat();
     }
 
     // How the last load of the Log File ended, if one has.
@@ -1090,6 +1102,48 @@ SCENARIO( "The Crawler Widget shows and searches under the Policies it was hande
         {
             REQUIRE( !crawlerVisitor.crawler->isTextWrapEnabled() );
             REQUIRE( !crawlerVisitor.filteredView()->isTextWrapEnabled() );
+        }
+    }
+}
+
+// Value Names start as the Presentation Policy says, in the Text View and
+// every Filtered View of the tab, and are switched for the tab as a whole
+// (#647).
+SCENARIO( "The Crawler Widget shows Value Names as its Policy and its switch say",
+          "[ui][settings][valuenames]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    const valuenamesfixture::ScopedValueNames valueNames;
+
+    for ( const bool shown : { true, false } ) {
+        GIVEN( "a Policy that " << ( shown ? "shows" : "does not show" ) << " Value Names" )
+        {
+            auto policies = testSettingsPolicies();
+            policies.presentation.showValueNames = shown;
+
+            Session session{ policies, std::make_shared<LogFormatCatalog>() };
+            CrawlerWidgetVisitor crawlerVisitor;
+            openCrawler( session, file, crawlerVisitor );
+            auto& crawler = *crawlerVisitor.crawler;
+
+            THEN( "the Text View and the Filtered View show them as it says" )
+            {
+                REQUIRE( crawler.isValueNamesShownSet() == shown );
+                REQUIRE( crawler.state().valueNamesShown == shown );
+                REQUIRE( crawlerVisitor.filteredView()->isValueNamesShownSet() == shown );
+                REQUIRE( crawlerVisitor.filteredView()->showsValueNames() == shown );
+            }
+
+            WHEN( "the tab's switch is turned the other way" )
+            {
+                Q_EMIT crawler.valueNamesShownSet( !shown );
+
+                THEN( "both views follow it" )
+                {
+                    REQUIRE( crawler.isValueNamesShownSet() == !shown );
+                    REQUIRE( crawlerVisitor.filteredView()->isValueNamesShownSet() == !shown );
+                }
+            }
         }
     }
 }
@@ -3915,9 +3969,6 @@ SCENARIO( "QuickFind searches the Presentation shown, never the hidden one",
     }
 }
 
-// The window hears only the tab in front, so a tab replays the status of its
-// last load when it is brought to the front: a load still under way is
-// replayed as loading, never as loaded (#540).
 // A restored Log File stands on the Scroll Position it was saved with once
 // its first successful load is done. A load interrupted before that keeps the
 // Scroll Position: for the next load, and for a save in between (#559).
@@ -3925,14 +3976,22 @@ SCENARIO( "A restored Log File whose first load is interrupted stands where it s
           "[ui][session]" )
 {
     const auto windowId = QStringLiteral( "crawlerwidget_test_window_559" );
-    // Big enough that a load interrupted at once has not finished yet.
-    constexpr auto nbLines = 50000;
+    // Big enough that a load interrupted at once has not finished yet: some
+    // 60 MB, which a fast machine indexes in about 50 ms. 3 MB were indexed
+    // before the interrupt came on a macOS runner (#702).
+    constexpr auto nbLines = 1'000'000;
     QTemporaryFile big{ "crawler_test_interrupted_XXXXXX" };
     REQUIRE( big.open() );
+    QByteArray block;
     for ( auto line = 0; line < nbLines; ++line ) {
-        big.write( QByteArray( "Log Line of a Log File big enough to take a while, number " )
-                   + QByteArray::number( line ) + '\n' );
+        block += QByteArray( "Log Line of a Log File big enough to take a while, number " )
+                 + QByteArray::number( line ) + '\n';
+        if ( block.size() > 1024 * 1024 ) {
+            REQUIRE( big.write( block ) == block.size() );
+            block.clear();
+        }
     }
+    REQUIRE( big.write( block ) == block.size() );
     big.flush();
 
     QTemporaryFile current{ "crawler_test_current_XXXXXX" };
@@ -3980,10 +4039,17 @@ SCENARIO( "A restored Log File whose first load is interrupted stands where it s
     }
 }
 
-SCENARIO( "A Log File replays the status of its last load to the window", "[ui][loading]" )
+// The window hears only the tab in front, so it reads the state of a tab's
+// Log File once when the tab is brought to the front (#635): how its last load
+// ended, failed included, and a load still under way as loading, never as
+// loaded (#540); and what the window's menus show of it.
+SCENARIO( "A Log File tells the window its state in one value", "[ui][loading]" )
 {
-    QTemporaryFile file{ "crawler_replay_test_XXXXXX" };
+    QTemporaryFile file{ "crawler_state_test_XXXXXX" };
     REQUIRE( generateDataFiles( file ) );
+
+    // Outlives the Log File, which holds on to the Encoding it was reloaded with.
+    const TextEncoding unusableEncoding( -4242, "LogSquirl-Unusable-Encoding", std::nullopt );
 
     Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
 
@@ -3995,45 +4061,86 @@ SCENARIO( "A Log File replays the status of its last load to the window", "[ui][
     REQUIRE( waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); }, 10000 ) );
 
     QSignalSpy finished( &crawler, &CrawlerWidget::loadingFinished );
-    QSignalSpy progressed( &crawler, &CrawlerWidget::loadingProgressed );
 
     GIVEN( "a Log File that has loaded" )
     {
-        WHEN( "its state is replayed" )
-        {
-            crawler.sendAllStateSignals();
+        const auto state = crawler.state();
 
-            THEN( "it replays a successful load" )
+        THEN( "its state says the load was successful" )
+        {
+            REQUIRE( state.loadStatus == LoadingStatus::Successful );
+            REQUIRE( state.loadFailure.isEmpty() );
+        }
+
+        THEN( "its state says what the window's menus show of it" )
+        {
+            REQUIRE( state.selectedLine == 0_lnum );
+            REQUIRE_FALSE( state.follows );
+            REQUIRE( state.textWrap == crawler.isTextWrapEnabled() );
+            REQUIRE_FALSE( state.encodingMib.has_value() );
+            // No Log Format is recognized for it: no time navigation.
+            REQUIRE_FALSE( state.goToTimestampUnavailable.isEmpty() );
+            REQUIRE( state.goToTimestampUnavailable == crawler.goToTimestampUnavailableReason() );
+            REQUIRE( state.searchLimitsByTimeUnavailable
+                     == crawler.searchLimitsByTimeUnavailableReason() );
+            REQUIRE(
+                state.quickFindSearchable
+                == static_cast<const SearchableWidgetInterface*>( crawlerVisitor.textView() ) );
+        }
+
+        WHEN( "it is followed and an Encoding is chosen for it" )
+        {
+            crawler.followSet( true );
+            const auto mib = TextEncoding::forName( "ISO-8859-1" )->mibEnum();
+            crawler.setEncoding( mib );
+
+            THEN( "its state says so" )
             {
-                REQUIRE( finished.count() == 1 );
-                REQUIRE( finished.first().at( 0 ).value<LoadingStatus>()
-                         == LoadingStatus::Successful );
+                const auto followed = crawler.state();
+                REQUIRE( followed.follows );
+                REQUIRE( followed.encodingMib == mib );
             }
         }
 
-        WHEN( "it is reloaded and its state is replayed while the load is under way" )
+        WHEN( "it is reloaded" )
         {
             crawler.reload();
-            crawler.sendAllStateSignals();
 
-            THEN( "it replays loading, not loaded" )
+            THEN( "its state says it is loading, not loaded, while the load is under way" )
             {
-                REQUIRE( finished.isEmpty() );
-                REQUIRE( progressed.count() == 1 );
-            }
+                const auto loading = crawler.state();
+                REQUIRE_FALSE( loading.loadStatus.has_value() );
+                REQUIRE( loading.loadingProgress == 0 );
 
-            AND_WHEN( "the load has finished and its state is replayed" )
-            {
-                REQUIRE( finished.wait( 10000 ) );
-                finished.clear();
-                crawler.sendAllStateSignals();
-
-                THEN( "it replays a successful load" )
+                AND_WHEN( "the load has finished" )
                 {
-                    REQUIRE( finished.count() == 1 );
-                    REQUIRE( finished.first().at( 0 ).value<LoadingStatus>()
-                             == LoadingStatus::Successful );
+                    REQUIRE( finished.wait( 10000 ) );
+
+                    THEN( "its state says the load was successful" )
+                    {
+                        REQUIRE( crawler.state().loadStatus == LoadingStatus::Successful );
+                    }
                 }
+            }
+        }
+
+        WHEN( "it fails to load" )
+        {
+            crawlerVisitor.openLogFile().logData()->reload( &unusableEncoding );
+            REQUIRE( waitUiState(
+                [ & ] {
+                    return !finished.isEmpty()
+                           && finished.last().at( 0 ).value<LoadingStatus>()
+                                  == LoadingStatus::Failed;
+                },
+                10000 ) );
+
+            THEN( "its state says the load failed, and why" )
+            {
+                const auto failed = crawler.state();
+                REQUIRE( failed.loadStatus == LoadingStatus::Failed );
+                REQUIRE_FALSE( failed.loadFailure.isEmpty() );
+                REQUIRE( failed.loadFailure == finished.last().at( 1 ).toString() );
             }
         }
     }
@@ -4176,6 +4283,66 @@ SCENARIO( "A count typed after 0 moves the selection while a bare digit stays a 
             {
                 REQUIRE( viewPosition() == OptionalLineNumber{ 23_lnum } );
                 REQUIRE( crawlerVisitor.filteredView()->visibility() == VisibilityFlags::Marks );
+            }
+        }
+    }
+}
+
+// The Crawler Widget tells its Time Navigation what makes a time lookup stale
+// (#636); the Time Navigation's own tests cover what it does then.
+SCENARIO( "A reload or a forgotten Log Format cancels a time lookup under way",
+          "[ui][timenavigation]" )
+{
+    QTemporaryFile file{ "crawler_time_test_XXXXXX" };
+    REQUIRE( file.open() );
+    for ( int i = 0; i < 300; ++i ) {
+        const auto seconds = i * 10;
+        file.write( QStringLiteral( "[2026-01-01 12:%1:%2.000] [crawler] [info] line %3\n" )
+                        .arg( seconds / 60, 2, 10, QChar( '0' ) )
+                        .arg( seconds % 60, 2, 10, QChar( '0' ) )
+                        .arg( i )
+                        .toUtf8() );
+    }
+    file.close();
+
+    auto catalog = std::make_shared<LogFormatCatalog>();
+    catalog->rebuild();
+    auto policies = testSettingsPolicies();
+    policies.recognition.enabled = true;
+    Session session{ policies, catalog };
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    auto& crawler = *crawlerVisitor.crawler;
+    REQUIRE( waitUiState(
+        [ & ] {
+            return crawlerVisitor.isLoadingFinished()
+                   && crawler.goToTimestampUnavailableReason().isEmpty();
+        },
+        10000 ) );
+
+    GIVEN( "a lookup of the Timestamp near the current Log Line under way" )
+    {
+        // Its answer is reported through the event loop only, which does not
+        // run before the event: nothing can end it but a cancel.
+        crawler.goToTimestamp();
+        REQUIRE( crawlerVisitor.isLookingUpTime() );
+
+        WHEN( "the Log File is reloaded" )
+        {
+            crawler.reload();
+            THEN( "the lookup is cancelled" )
+            {
+                REQUIRE_FALSE( crawlerVisitor.isLookingUpTime() );
+            }
+        }
+
+        WHEN( "the Log Format is forgotten" )
+        {
+            crawlerVisitor.resetLogFormat();
+            THEN( "the lookup is cancelled" )
+            {
+                REQUIRE_FALSE( crawlerVisitor.isLookingUpTime() );
             }
         }
     }

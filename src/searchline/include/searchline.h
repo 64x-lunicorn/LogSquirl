@@ -106,19 +106,30 @@ public:
     // The Search the pattern and the buttons ask for.
     RegularExpressionPattern request() const;
 
+    // A pattern tried out in the Regex Lab, which took it from request()
+    // (#661): its text becomes the pattern, and its options set the buttons
+    // that read it -- Match case, regexp, Inverse match, logical combination.
+    // Auto-refresh stays as it is, and says whether the Search is to run now:
+    // an auto-refreshed Search follows the pattern applied.
+    bool apply( const RegularExpressionPattern& pattern );
+
     // A Search was requested: it runs, or its pattern is in error.
     void requested( const SearchSessionState& state );
     // The Search tells how far it came, or that it is done one way or
     // another.
     void progressed( const SearchSessionState& state, SearchAutoRefresh::State autoRefresh );
     // The user stopped the Search; the Filtered View holds the Matches it
-    // found until then.
-    void stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount );
+    // found until then. undecidedCount counts the Log Lines searched that the
+    // regex engine gave up on (#689).
+    void stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                  LinesCount undecidedCount = 0_lcount );
     // The Search was replaced by none: the pattern is empty.
     void cleared();
-    // Nothing runs; the line says what is known of the Search: its Matches,
-    // a Log File truncated under it, or nothing when there is none.
-    void settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount );
+    // Nothing runs; the line says what is known of the Search: its Matches
+    // and the Log Lines the regex engine gave up on, a Log File truncated
+    // under it, or nothing when there is none.
+    void settled( SearchAutoRefresh::State autoRefresh, LinesCount matchCount,
+                  LinesCount undecidedCount = 0_lcount );
 
     Display display() const;
 

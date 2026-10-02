@@ -83,6 +83,9 @@ struct SearchResults {
     SearchResultArray newMatches;
     LineLength maxLength;
     LinesCount processedLines;
+    // The Log Lines searched since the last results that the engine gave up
+    // on: a set, like the Matches (#689).
+    SearchResultArray newUndecided{};
 };
 
 // This class is a mutex protected set of search result data.
@@ -106,9 +109,10 @@ public:
     void searchFrom( LineNumber line );
 
     // Atomically add the Matches of the block of blockLines Log Lines from
-    // blockStart, which has been searched.
+    // blockStart, which has been searched, and the Log Lines of it the
+    // engine gave up on.
     void addAll( LineLength length, const SearchResultArray& matches, LineNumber blockStart,
-                 LinesCount blockLines );
+                 LinesCount blockLines, const SearchResultArray& undecided = {} );
 
     // The first Log Line not searched yet: every Log Line before it was.
     LineNumber getLastProcessedLine() const;
@@ -120,6 +124,7 @@ private:
     mutable SharedMutex dataMutex_;
 
     mutable SearchResultArray newMatches_;
+    mutable SearchResultArray newUndecided_;
     LineLength maxLength_{ 0 };
     LineNumber searchedUntil_{ 0 };
     // The blocks combined beyond searchedUntil_, by their first Log Line, with

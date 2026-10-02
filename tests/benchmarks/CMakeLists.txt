@@ -187,3 +187,79 @@ add_executable(logsquirl_textview_ansi_benchmark
 )
 
 target_link_libraries(logsquirl_textview_ansi_benchmark logsquirl_ui Catch2::Catch2 test_utils)
+
+# In the fixed-work mode a benchmark binary that runs oneTBB's flow graphs
+# runs them on the thread that waits for them alone (instruction_count.h,
+# #708), which takes TBB's headers. These are the binaries that link oneTBB:
+# through the log data library, which links it privately, or a library that
+# links that. Only the regex matcher benchmark does not. A new benchmark that
+# links oneTBB belongs here. TBB's library comes with the log data library
+# already; naming it again would put it on the link line twice (#450), so
+# logsquirl_tbb_headers brings the headers alone.
+foreach(
+  _target IN
+  ITEMS logsquirl_ansi_log_file_benchmark
+        logsquirl_ansicolorsequences_benchmark
+        logsquirl_chart_follow_benchmark
+        logsquirl_chart_paint_benchmark
+        logsquirl_decoration_benchmark
+        logsquirl_displayedlines_benchmark
+        logsquirl_filteredview_read_benchmark
+        logsquirl_linepositionarray_benchmark
+        logsquirl_logdata_benchmark
+        logsquirl_logdata_read_benchmark
+        logsquirl_overview_selection_benchmark
+        logsquirl_quickfind_benchmark
+        logsquirl_session_restore_benchmark
+        logsquirl_tableview_paint_benchmark
+        logsquirl_tableview_scroll_benchmark
+        logsquirl_textview_ansi_benchmark
+        logsquirl_textview_scroll_benchmark
+        logsquirl_textviewscrolling_benchmark
+        logsquirl_timelookup_benchmark
+)
+  target_link_libraries(${_target} logsquirl_tbb_headers)
+  target_compile_definitions(${_target} PRIVATE LOGSQUIRL_BENCHMARK_LIMITS_TBB)
+endforeach()
+
+# The heap counts of the fixed-work mode (#673; heap_count.c): every benchmark
+# binary above also counts the allocations and the peak heap of each
+# benchmark's measured code. Off unless asked for: it replaces glibc's malloc
+# for the whole process, so only .github/scripts/instruction-counts.sh turns it
+# on, in a build no sanitizer replaces malloc in.
+option(LOGSQUIRL_BENCHMARK_HEAP_COUNTS "Count the benchmarks' allocations and peak heap" OFF)
+if(LOGSQUIRL_BENCHMARK_HEAP_COUNTS)
+  if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(FATAL_ERROR "LOGSQUIRL_BENCHMARK_HEAP_COUNTS replaces glibc's malloc and needs Linux")
+  endif()
+  if(ENABLE_SANITIZER_ADDRESS
+     OR ENABLE_SANITIZER_MEMORY
+     OR ENABLE_SANITIZER_THREAD
+  )
+    message(FATAL_ERROR "LOGSQUIRL_BENCHMARK_HEAP_COUNTS and a sanitizer would both replace malloc")
+  endif()
+
+  # Its own object files, linked into each binary whole, compiled without link
+  # time optimization: what replaces malloc and wraps mimalloc stays out of the
+  # code it counts. -fno-builtin keeps the compiler from turning a call in it
+  # into a call of the function being defined; -fexceptions lets mi_new_n's
+  # std::bad_alloc pass through its wrapper.
+  add_library(logsquirl_benchmark_heap OBJECT heap_count.c)
+  set_target_properties(logsquirl_benchmark_heap PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
+  target_compile_options(logsquirl_benchmark_heap PRIVATE -fno-builtin -fexceptions)
+  target_compile_definitions(logsquirl_benchmark_heap INTERFACE LOGSQUIRL_BENCHMARK_HEAP_COUNTS)
+  target_include_directories(logsquirl_benchmark_heap INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
+  # logsquirl::vector allocates with mimalloc's mi_new_n and frees with mi_free
+  # (mi_stl_allocator), from the static mimalloc: the link sends both through
+  # heap_count.c, in every binary, which therefore links mimalloc too.
+  target_link_libraries(logsquirl_benchmark_heap INTERFACE logsquirl_mimalloc_wrapper)
+  target_link_options(logsquirl_benchmark_heap INTERFACE "LINKER:--wrap=mi_new_n" "LINKER:--wrap=mi_free")
+
+  get_directory_property(_logsquirl_benchmark_targets BUILDSYSTEM_TARGETS)
+  foreach(_target IN LISTS _logsquirl_benchmark_targets)
+    get_target_property(_type ${_target} TYPE)
+    if(_type STREQUAL "EXECUTABLE")
+      target_link_libraries(${_target} logsquirl_benchmark_heap)
+    endif()
+  endforeach()
+endif()

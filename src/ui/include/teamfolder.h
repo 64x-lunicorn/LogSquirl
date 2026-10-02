@@ -31,9 +31,12 @@
 #include <chrono>
 #include <memory>
 #include <optional>
+#include <type_traits>
+#include <variant>
 
 #include "groupexchange.h"
 #include "highlighterset.h"
+#include "naminggroup.h"
 #include "predefinedfilters.h"
 #include "settingspolicies.h"
 
@@ -75,6 +78,39 @@ struct TeamGroupChanges {
 
 enum class GroupAction { Add, Change, Rename, Delete };
 
+// The step a sync did not get past. The status names it; what Git said is
+// reported apart from it, as Git wrote it (ADR-0008).
+enum class SyncStep {
+    // Nothing failed.
+    None,
+    // Git could not be started: it is not installed, or not executable.
+    StartGit,
+    // The subfolder does not lie inside the repository: LogSquirl's own
+    // refusal, nothing Git said.
+    Subfolder,
+    // Cloning the repository.
+    Clone,
+    // Fetching what the repository holds: it could not be reached.
+    Pull,
+    // Bringing the clone up to date with what was fetched.
+    Merge,
+    // Pushing what was committed here: the server could not be reached.
+    Push,
+    // The server refused a push: the Team groups are read-only.
+    PushRefused
+};
+
+// A group of any kind the Team Folder holds.
+using AnyGroup
+    = std::variant<PredefinedFilterSet, HighlighterSet, logsquirl::valuenames::NamingGroup>;
+
+// The group, when it is of this kind.
+template <typename Group>
+const Group* groupOfKind( const std::optional<AnyGroup>& group )
+{
+    return group ? std::get_if<Group>( &*group ) : nullptr;
+}
+
 // A change to one Team group, to be published: written into its file, committed
 // on its own and pushed. The Team Folder finds the group's file by its id;
 // a group it does not know yet gets a file of its own.
@@ -85,9 +121,8 @@ struct PublishRequest {
     // The group's name to publish, and for a Rename the name it had.
     QString name;
     QString previousName;
-    // The group to publish: a Filter Group or a Highlighter Set, as kind says.
-    std::optional<PredefinedFilterSet> filterGroup;
-    std::optional<HighlighterSet> highlighterSet;
+    // The group to publish, of the kind kind says; none for a Delete.
+    std::optional<AnyGroup> group;
     // The revision of the group's file when the user started editing it. When
     // the file has another one after the sync, someone else changed the group
     // meanwhile, and the user is asked. Empty for a group that is new, and for
@@ -105,10 +140,19 @@ struct PublishRequest {
     static PublishRequest forDeletion( groupexchange::GroupKind kind, const QString& id,
                                        const QString& name );
 
-    static PublishRequest forGroup( const PredefinedFilterSet& group, GroupAction action,
-                                    const QString& previousName = {} );
-    static PublishRequest forGroup( const HighlighterSet& group, GroupAction action,
-                                    const QString& previousName = {} );
+    template <typename Group>
+    static PublishRequest forGroup( const Group& group, GroupAction action,
+                                    const QString& previousName = {} )
+    {
+        PublishRequest request;
+        request.kind = groupexchange::GroupTraits<Group>::kind;
+        request.action = action;
+        request.id = group.id();
+        request.name = group.name();
+        request.previousName = previousName;
+        request.group = group;
+        return request;
+    }
 };
 
 enum class PublishStatus {
@@ -138,8 +182,13 @@ struct PublishResult {
     PublishRequest request;
     // For a Conflict: their version of the group, when the group is still
     // there and nobody deleted it.
-    std::optional<PredefinedFilterSet> theirsFilterGroup;
-    std::optional<HighlighterSet> theirsHighlighterSet;
+    std::optional<AnyGroup> theirs;
+
+    // Whether their version is there: false when someone deleted the group.
+    bool hasTheirs() const
+    {
+        return theirs.has_value();
+    }
 };
 
 // The results of one publish, one for each request, in the order of the
@@ -151,19 +200,16 @@ struct PublishOutcome {
 // A copy of a group under a fresh id and the first free name -- its own when
 // no group in takenNames has it, else "<name> (n)". Sharing a personal group
 // with the team, and copying a Team group into the personal ones, are copies.
-PredefinedFilterSet copyOfGroup( const PredefinedFilterSet& group, const QStringList& takenNames );
-HighlighterSet copyOfGroup( const HighlighterSet& group, const QStringList& takenNames );
+template <typename Group>
+Group copyOfGroup( const Group& group, const QStringList& takenNames );
 
 // What a dialog's edited copy of the Team groups asks to publish, against the
 // groups it was given: a group it added, one it renamed, one it changed, and
 // one that is no longer in the copy, to be deleted.
 // revisions holds the revision of each group's file when the dialog loaded it,
 // by group id; a changed or renamed group carries its revision.
-QList<PublishRequest> requestsForChanges( const QList<PredefinedFilterSet>& before,
-                                          const QList<PredefinedFilterSet>& after,
-                                          const QHash<QString, QString>& revisions = {} );
-QList<PublishRequest> requestsForChanges( const QList<HighlighterSet>& before,
-                                          const QList<HighlighterSet>& after,
+template <typename Group>
+QList<PublishRequest> requestsForChanges( const QList<Group>& before, const QList<Group>& after,
                                           const QHash<QString, QString>& revisions = {} );
 
 // What one sync found: the result of the worker thread, taken over on the
@@ -177,8 +223,11 @@ struct SyncOutcome;
 // LogSquirl that runs Git, and it runs the installed `git` program.
 //
 // Its groups -- one file each, in the Group Exchange's one-group format --
-// are Team groups: they join the user's own groups in the dialogs and the
-// Filters panel, and are never written into the user's settings. Turning the
+// are Team groups: they join the user's own groups in the dialogs, the
+// Filters panel and the Value Names tab, and are never written into the
+// user's settings. A file holds a Filter Group, a Highlighter Set or a Naming
+// Group, as the Group Exchange reads it: a Naming Group file by its kind
+// entry alone. Turning the
 // Team Folder off, or pointing it at another repository, leaves the user's
 // own groups alone.
 //
@@ -234,9 +283,13 @@ public:
     void sync();
 
     State state() const;
-    // Why the state is what it is: Git's own message for a failure, empty
-    // otherwise.
-    QString message() const;
+    // The step the last sync did not get past; PushRefused while the Team
+    // groups are read-only and nothing else failed since.
+    logsquirl::teamfolder::SyncStep failedStep() const;
+    // What Git wrote when that step failed, unchanged and untranslated, line
+    // breaks and all; or what kept Git from running. Empty when nothing failed,
+    // and for a failure that is not Git's.
+    QString gitOutput() const;
     bool isSyncing() const;
 
     // The files the last sync could not read as a group, and why. The other
@@ -262,8 +315,10 @@ public:
     // Team group; empty for a group that is not there.
     QString filterGroupRevision( const QString& id ) const;
     QString highlighterGroupRevision( const QString& id ) const;
+    QString namingGroupRevision( const QString& id ) const;
     QHash<QString, QString> filterGroupRevisions() const;
     QHash<QString, QString> highlighterGroupRevisions() const;
+    QHash<QString, QString> namingGroupRevisions() const;
 
     // Whether Team groups can be changed: not when the server refused a push,
     // until the Team Folder is set up again.
@@ -275,14 +330,25 @@ public:
 
     // The state in a few words, for where it is shown: "Team Folder synced".
     QString summary() const;
-    // Git's message and the files skipped, one per line; empty when there is
-    // nothing to say beyond the summary.
+    // The state as the heading of a status: "Synced", or the step that
+    // failed, "Clone failed".
+    QString heading() const;
+    // The heading for a step that failed: "Clone failed".
+    static QString headingOf( logsquirl::teamfolder::SyncStep step );
+    // What else there is to know, one line each: why a step that is not
+    // Git's failed, a group that was not published, the Team groups being
+    // read-only, a file that was skipped.
+    QStringList remarks() const;
+    // Git's output and the remarks, one per line; empty when there is nothing
+    // to say beyond the summary.
     QString details() const;
 
     // The Team Filter Groups, sorted alphabetically by name.
     QList<PredefinedFilterSet> filterGroups() const;
     // The Team Highlighter Sets, sorted alphabetically by name.
     QList<HighlighterSet> highlighterGroups() const;
+    // The Team Naming Groups of Value Names, sorted alphabetically by name.
+    QList<logsquirl::valuenames::NamingGroup> namingGroups() const;
 
 Q_SIGNALS:
     void stateChanged();
@@ -291,6 +357,8 @@ Q_SIGNALS:
     void groupsChanged( const logsquirl::teamfolder::TeamGroupChanges& changes );
     // The same for the Team Highlighter Sets.
     void highlighterGroupsChanged( const logsquirl::teamfolder::TeamGroupChanges& changes );
+    // The same for the Team Naming Groups.
+    void namingGroupsChanged( const logsquirl::teamfolder::TeamGroupChanges& changes );
     // A publish ended.
     void publishFinished( const logsquirl::teamfolder::PublishOutcome& outcome );
     // A sync ended, whatever it brought.
@@ -299,19 +367,46 @@ Q_SIGNALS:
 private:
     void startSync();
     void takeOutcome();
-    void setGroups( QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups,
-                    QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups );
-    void setState( State state, const QString& message );
+    void setGroups(
+        QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups,
+        QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups,
+        QList<logsquirl::teamfolder::TeamGroup<logsquirl::valuenames::NamingGroup>> namingGroups );
+    // Whether the status is the refused push: the Team groups are read-only,
+    // and no step failed since.
+    bool showsRefusedPush() const;
+    // Sets the state, the step that failed, and what that step said: Git's
+    // output, or LogSquirl's own reason for a step that is not Git's.
+    void setState( State state, logsquirl::teamfolder::SyncStep failedStep = {},
+                   const QString& message = {} );
+    // The Team groups of one kind.
+    template <typename Group>
+    const QList<logsquirl::teamfolder::TeamGroup<Group>>& teamGroupsOf() const
+    {
+        if constexpr ( std::is_same_v<Group, PredefinedFilterSet> ) {
+            return filterGroups_;
+        }
+        else if constexpr ( std::is_same_v<Group, HighlighterSet> ) {
+            return highlighterGroups_;
+        }
+        else {
+            return namingGroups_;
+        }
+    }
 
     QString cloneDirectory_;
     QString gitProgram_;
     TeamFolderPolicy policy_;
 
     State state_ = State::Off;
-    QString message_;
+    logsquirl::teamfolder::SyncStep failedStep_ = logsquirl::teamfolder::SyncStep::None;
+    QString gitOutput_;
+    // LogSquirl's own reason for a failed step that is not Git's: which
+    // subfolder lies outside the repository.
+    QString failureReason_;
     QList<logsquirl::teamfolder::SkippedFile> skippedFiles_;
     QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups_;
     QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups_;
+    QList<logsquirl::teamfolder::TeamGroup<logsquirl::valuenames::NamingGroup>> namingGroups_;
 
     QTimer syncTimer_;
     QFutureWatcher<std::shared_ptr<logsquirl::teamfolder::SyncOutcome>> running_;

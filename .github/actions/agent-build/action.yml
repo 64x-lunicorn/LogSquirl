@@ -50,7 +50,9 @@ runs:
             LAUNCHER_OPTS="$LAUNCHER_OPTS -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DCMAKE_POLICY_DEFAULT_CMP0141=NEW"
           fi
         fi
-        mkdir $LOGSQUIRL_BUILD_ROOT
+        # -p: the pgo-profile action may have built the instrumented binaries
+        # there already (#682).
+        mkdir -p $LOGSQUIRL_BUILD_ROOT
         cd $LOGSQUIRL_BUILD_ROOT
         cmake $LOGSQUIRL_CMAKE_OPTS $LAUNCHER_OPTS -DCPM_SOURCE_CACHE=$LOGSQUIRL_WORKSPACE/cpm_cache $LOGSQUIRL_WORKSPACE
 

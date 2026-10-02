@@ -20,6 +20,7 @@
 #ifndef LOGSQUIRL_LINEDECORATOR_H
 #define LOGSQUIRL_LINEDECORATOR_H
 
+#include <functional>
 #include <optional>
 
 #include <QColor>
@@ -176,9 +177,28 @@ public:
     // raw text, and the Text View moves the finished Decoration once.
     Decoration inDisplayColumns( QStringView rawText, LineLength displayLength ) &&;
 
+    // This Decoration moved to the columns of another text: column( c ) is
+    // where column c of the text it was decorated from is in the other one,
+    // in the same order. The Text View moves the Decoration of a raw Log Line
+    // to the text it shows with its Value Names (#647); every span must then
+    // start and end where the two texts correspond, as the Whole Runs it was
+    // decorated with make them.
+    Decoration inColumns( const std::function<int( int )>& column ) &&;
+
 private:
     logsquirl::vector<HighlightedMatch> spans_;
     HighlightColor lineColors_;
+};
+
+// A run of text [start, end) that a source colors all of or none of: a
+// Named Value, which the Text View shows as a name (#647). A Search, a
+// Highlighter or the selection over part of its raw text colors the whole
+// name shown in its place.
+struct WholeRun {
+    int start = 0;
+    int end = 0;
+
+    bool operator==( const WholeRun& ) const = default;
 };
 
 // A span given in the display columns of rawText's tab expansion, moved to
@@ -290,9 +310,13 @@ public:
     // ansiColors are the colors the Log Line's ANSI color sequences ask for,
     // resolved by the Decoration Setup (DecorationSetup::ansiColorsFor()) in
     // the columns of text; empty where the Presentation shows none.
+    //
+    // wholeRuns, ordered and apart, are runs of text every source colors all
+    // of or none of: one that colors part of a run is grown to cover it.
     Decoration decorate( const QString& text, const LineVerdict& verdict,
                          const std::optional<HighlightedMatch>& selection = std::nullopt,
-                         const logsquirl::vector<HighlightedMatch>& ansiColors = {} ) const;
+                         const logsquirl::vector<HighlightedMatch>& ansiColors = {},
+                         const logsquirl::vector<WholeRun>& wholeRuns = {} ) const;
 
 private:
     Context context_;
