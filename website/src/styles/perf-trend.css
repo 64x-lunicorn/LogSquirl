@@ -1,0 +1,190 @@
+/* The performance trend page (#678): the charts PerformanceTrend.astro draws
+   with src/perf-trend.mjs. The four line colors are categorical slots in a
+   fixed order, one per runner CPU model, validated for color vision
+   deficiencies against the site's dark (#1b1b1b) and light (#ffffff)
+   backgrounds; a fifth model is drawn in the neutral "other" slot. */
+
+:root {
+  --perf-slot-0: #2f9fd0;
+  --perf-slot-1: #b38d1c;
+  --perf-slot-2: #a46cc0;
+  --perf-slot-3: #6c9526;
+  --perf-slot-other: var(--sl-color-gray-3);
+  --perf-budget: var(--sl-color-red-high);
+}
+
+:root[data-theme='light'] {
+  --perf-slot-0: #1a82a8;
+  --perf-slot-1: #b8860b;
+  --perf-slot-2: #9b59b6;
+  --perf-slot-3: #5f8a1c;
+  --perf-budget: var(--sl-color-red);
+}
+
+.perf-summary,
+.perf-empty {
+  margin-top: 1rem;
+}
+
+.perf-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+  color: var(--sl-color-gray-2);
+  font-size: var(--sl-text-sm);
+}
+
+.perf-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.perf-swatch {
+  display: inline-block;
+  width: 1.2rem;
+  height: 0;
+  border-top: 2px solid currentColor;
+}
+
+.perf-swatch-budget {
+  border-top: 2px dashed var(--perf-budget);
+}
+
+.perf-swatch-release {
+  width: 0;
+  height: 0.9rem;
+  border-top: 0;
+  border-left: 1px dotted var(--sl-color-gray-3);
+}
+
+.perf-swatch-unusable {
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1.5px solid var(--sl-color-gray-3);
+  border-radius: 50%;
+}
+
+.perf-section h2 {
+  margin-top: 2.5rem;
+}
+
+.perf-scenario h3 {
+  margin-top: 1.75rem;
+}
+
+.perf-grid-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 1.25rem;
+  margin: 0.75rem 0;
+}
+
+.perf-scenario details {
+  margin-top: 0.75rem;
+}
+
+.perf-scenario summary {
+  cursor: pointer;
+  color: var(--sl-color-gray-2);
+  font-size: var(--sl-text-sm);
+}
+
+.perf-figure {
+  margin: 0;
+  min-width: 0;
+}
+
+.perf-figure figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.35rem;
+  font-size: var(--sl-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.perf-description {
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-xs);
+}
+
+.perf-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.perf-chart text {
+  font-family: var(--sl-font-system);
+  font-size: 11px;
+}
+
+.perf-grid {
+  stroke: var(--sl-color-gray-5);
+  stroke-width: 1;
+}
+
+.perf-axis {
+  fill: var(--sl-color-gray-3);
+}
+
+.perf-release {
+  stroke: var(--sl-color-gray-3);
+  stroke-width: 1;
+  stroke-dasharray: 1 3;
+}
+
+.perf-release-label {
+  fill: var(--sl-color-gray-2);
+}
+
+.perf-budget {
+  stroke: var(--perf-budget);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 3;
+}
+
+.perf-budget-label {
+  fill: var(--sl-color-gray-2);
+}
+
+.perf-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.perf-point {
+  stroke: var(--sl-color-black);
+  stroke-width: 1.5;
+}
+
+.perf-point.perf-unusable {
+  fill: var(--sl-color-black);
+  stroke-width: 1.5;
+}
+
+.perf-slot-0 { color: var(--perf-slot-0); --perf-color: var(--perf-slot-0); }
+.perf-slot-1 { color: var(--perf-slot-1); --perf-color: var(--perf-slot-1); }
+.perf-slot-2 { color: var(--perf-slot-2); --perf-color: var(--perf-slot-2); }
+.perf-slot-3 { color: var(--perf-slot-3); --perf-color: var(--perf-slot-3); }
+.perf-slot-other { color: var(--perf-slot-other); --perf-color: var(--perf-slot-other); }
+
+.perf-line[class*='perf-slot-'] {
+  stroke: var(--perf-color);
+}
+
+.perf-point[class*='perf-slot-'] {
+  fill: var(--perf-color);
+}
+
+.perf-point.perf-unusable[class*='perf-slot-'] {
+  fill: var(--sl-color-black);
+  stroke: var(--perf-color);
+}

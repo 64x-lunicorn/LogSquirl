@@ -1,0 +1,23 @@
+---
+title: Performance
+description: How fast LogSquirl's master is, night by night - each Benchmark Scenario over time, with its Budget and the releases marked.
+---
+
+import PerformanceTrend from '../../components/PerformanceTrend.astro';
+
+Every night the Performance workflow builds master and measures it on a GitHub-hosted runner: each
+Benchmark Scenario of the performance suite on large generated Log Files as wall-clock, and the
+benchmarks as instruction counts. Every run is kept on the
+[perf-data branch](https://github.com/64x-lunicorn/LogSquirl/tree/perf-data). These charts show
+that history; the website is rebuilt with it after each nightly run. LogSquirl is compared only
+with itself: earlier runs of master and its own releases.
+
+A **Budget** is the slowest value a scenario's headline benchmark may have on one Log File size
+and one machine class, the GitHub-hosted runner. The Budgets and how they were derived are in
+[ADR 0018](https://github.com/64x-lunicorn/LogSquirl/blob/master/docs/adr/0018-fast-means-a-budget-per-benchmark-scenario-and-log-file-size.md).
+A change point in the instruction counts or a broken Budget opens an issue labelled
+[performance](https://github.com/64x-lunicorn/LogSquirl/labels/performance);
+[BUILD.md](https://github.com/64x-lunicorn/LogSquirl/blob/master/BUILD.md#nightly-performance)
+explains the comparison. Hover a point for its date, version, commit and runner.
+
+<PerformanceTrend />

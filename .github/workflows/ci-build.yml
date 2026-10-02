@@ -922,7 +922,7 @@ jobs:
       - name: Install dependencies
         run: cd website && npm ci
 
-      - name: Test the release pages
+      - name: Test the website's scripts
         run: cd website && npm test
 
       - name: Build and check links
