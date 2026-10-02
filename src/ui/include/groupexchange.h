@@ -46,6 +46,27 @@ namespace logsquirl::groupexchange {
 
 enum class GroupKind { Filter, Highlighter, ValueNames };
 
+// The kind of a group type: what every function below that takes a group
+// knows of it. A fourth kind of group needs a specialization here, and one of
+// readGroups and writeGroup.
+template <typename Group>
+struct GroupTraits;
+
+template <>
+struct GroupTraits<PredefinedFilterSet> {
+    static constexpr GroupKind kind = GroupKind::Filter;
+};
+
+template <>
+struct GroupTraits<HighlighterSet> {
+    static constexpr GroupKind kind = GroupKind::Highlighter;
+};
+
+template <>
+struct GroupTraits<logsquirl::valuenames::NamingGroup> {
+    static constexpr GroupKind kind = GroupKind::ValueNames;
+};
+
 // The entry naming the kind of group a file holds, and its value in a Naming
 // Group file.
 inline constexpr auto KindKey = "kind";
@@ -62,8 +83,13 @@ QString suggestedFileName( const QString& groupName, GroupKind kind );
 // write, so that they import it; a Highlighter Set file holds no Color Labels
 // and no list of active sets. A Naming Group with the kind entry, and without
 // its checks. Whether the file was written.
+template <typename Group>
+bool writeGroup( const QString& file, const Group& group );
+template <>
 bool writeGroup( const QString& file, const PredefinedFilterSet& group );
+template <>
 bool writeGroup( const QString& file, const HighlighterSet& group );
+template <>
 bool writeGroup( const QString& file, const logsquirl::valuenames::NamingGroup& group );
 
 // The folder the file dialog of an export opens in: the one last exported to
@@ -183,14 +209,18 @@ struct ReadGroups {
     ReadError error = ReadError::None;
     QList<Group> groups;
 };
-ReadGroups<PredefinedFilterSet> readFilterGroups( const QString& file );
-ReadGroups<HighlighterSet> readHighlighterGroups( const QString& file );
-ReadGroups<logsquirl::valuenames::NamingGroup> readNamingGroups( const QString& file );
+template <typename Group>
+ReadGroups<Group> readGroups( const QString& file );
 // The same, of a file opened already as settings: one opening serves every
 // reader the Team Folder tries.
-ReadGroups<PredefinedFilterSet> readFilterGroups( QSettings& settings );
-ReadGroups<HighlighterSet> readHighlighterGroups( QSettings& settings );
-ReadGroups<logsquirl::valuenames::NamingGroup> readNamingGroups( QSettings& settings );
+template <typename Group>
+ReadGroups<Group> readGroups( QSettings& settings );
+template <>
+ReadGroups<PredefinedFilterSet> readGroups( QSettings& settings );
+template <>
+ReadGroups<HighlighterSet> readGroups( QSettings& settings );
+template <>
+ReadGroups<logsquirl::valuenames::NamingGroup> readGroups( QSettings& settings );
 
 // Brings each of the imported groups into groups by these rules: a group of
 // the same id (failing that, of the same name) is a conflict the session
@@ -201,20 +231,12 @@ ReadGroups<logsquirl::valuenames::NamingGroup> readNamingGroups( QSettings& sett
 // and the Default group is never replaced (Replace against it keeps both).
 // Nor does a group with an id the session reserves: it arrives under a fresh
 // id as well.
-ImportResult mergeGroups( QList<PredefinedFilterSet>& groups,
-                          const QList<PredefinedFilterSet>& imported, ImportSession& session );
-ImportResult mergeGroups( QList<HighlighterSet>& groups, const QList<HighlighterSet>& imported,
-                          ImportSession& session );
-ImportResult mergeGroups( QList<logsquirl::valuenames::NamingGroup>& groups,
-                          const QList<logsquirl::valuenames::NamingGroup>& imported,
+template <typename Group>
+ImportResult mergeGroups( QList<Group>& groups, const QList<Group>& imported,
                           ImportSession& session );
 
 // Reads the file and merges what it holds: the whole import of one file.
-ImportResult importFile( const QString& file, QList<PredefinedFilterSet>& groups,
-                         ImportSession& session );
-ImportResult importFile( const QString& file, QList<HighlighterSet>& groups,
-                         ImportSession& session );
-ImportResult importFile( const QString& file, QList<logsquirl::valuenames::NamingGroup>& groups,
-                         ImportSession& session );
+template <typename Group>
+ImportResult importFile( const QString& file, QList<Group>& groups, ImportSession& session );
 
 } // namespace logsquirl::groupexchange

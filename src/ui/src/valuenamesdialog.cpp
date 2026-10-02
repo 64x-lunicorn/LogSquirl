@@ -608,23 +608,23 @@ void ValueNamesDialog::loadIcons()
 
 NamingGroup* ValueNamesDialog::currentGroup()
 {
-    if ( teamRow_ >= 0 && teamRow_ < teamGroups_.size() ) {
-        return &teamGroups_[ teamRow_ ];
+    if ( teamRow_ >= 0 && teamRow_ < teamEdits_.groups().size() ) {
+        return &teamEdits_.groups()[ teamRow_ ];
     }
     return groupRow_ >= 0 && groupRow_ < groups_.size() ? &groups_[ groupRow_ ] : nullptr;
 }
 
 const NamingGroup* ValueNamesDialog::currentGroup() const
 {
-    if ( teamRow_ >= 0 && teamRow_ < teamGroups_.size() ) {
-        return &teamGroups_[ teamRow_ ];
+    if ( teamRow_ >= 0 && teamRow_ < teamEdits_.groups().size() ) {
+        return &teamEdits_.groups()[ teamRow_ ];
     }
     return groupRow_ >= 0 && groupRow_ < groups_.size() ? &groups_[ groupRow_ ] : nullptr;
 }
 
 bool ValueNamesDialog::editable() const
 {
-    return teamRow_ < 0 || teamEditable_;
+    return teamRow_ < 0 || teamEdits_.isEditable();
 }
 
 const NameTable* ValueNamesDialog::currentTable() const
@@ -683,7 +683,7 @@ void ValueNamesDialog::groupSelected()
         // dialog's copy until OK, Apply or Cancel.
         teamRow_ = -1;
         updating_ = true;
-        teamGroupList_->setCurrentRow( -1 );
+        team_->list()->setCurrentRow( -1 );
         updating_ = false;
     }
     showGroup();
@@ -713,7 +713,7 @@ void ValueNamesDialog::groupRenamed( const QString& name )
         return;
     }
     group->setName( name );
-    auto* list = teamRow_ >= 0 ? teamGroupList_ : groupList_;
+    auto* list = teamRow_ >= 0 ? team_->list() : groupList_;
     list->item( teamRow_ >= 0 ? teamRow_ : groupRow_ )->setText( name );
 }
 
@@ -746,8 +746,8 @@ void ValueNamesDialog::makeGroupNamesUnique()
         }
     };
     makeUnique( groups_, groupList_ );
-    if ( teamEditable_ ) {
-        makeUnique( teamGroups_, teamGroupList_ );
+    if ( teamEdits_.isEditable() ) {
+        makeUnique( teamEdits_.groups(), team_->list() );
     }
 }
 
@@ -1477,10 +1477,8 @@ void ValueNamesDialog::resolveDialog( QAbstractButton* button )
 
     // What was done to the Team groups goes to the team. They come back
     // through the Team Folder's sync, not from here.
-    if ( teamEditable_ ) {
-        const auto requests = logsquirl::teamfolder::requestsForChanges(
-            teamGroupsAsGiven_, teamGroups_, teamRevisions_ );
-        teamGroupsAsGiven_ = teamGroups_;
+    if ( teamEdits_.isEditable() ) {
+        const auto requests = teamEdits_.takeRequests();
         if ( !requests.isEmpty() ) {
             Q_EMIT publishRequested( requests );
         }
@@ -1535,7 +1533,7 @@ void ValueNamesDialog::importGroupFiles(
     const auto title = tr( "Import Naming Groups" );
     // A group of a Team group's id -- one exported from the Team groups --
     // is a copy of it: its checks are its own.
-    ImportSession session( resolver, idsOf( teamGroups_ ) );
+    ImportSession session( resolver, idsOf( teamEdits_.groups() ) );
 
     // The imported groups are only in this dialog's copy: OK / Apply take
     // them over, Cancel discards them.
@@ -1564,58 +1562,27 @@ void ValueNamesDialog::importGroups()
 void ValueNamesDialog::showTeamGroups( const QList<NamingGroup>& groups, bool editable,
                                        const QHash<QString, QString>& revisions )
 {
-    teamGroups_ = groups;
-    teamGroupsAsGiven_ = groups;
-    teamEditable_ = editable;
-    teamRevisions_ = revisions;
+    teamEdits_.reset( groups, editable, revisions );
 
-    if ( teamGroupList_ == nullptr ) {
-        auto* parent = leftLayout_->parentWidget();
-        auto* label = new QLabel( tr( "Team groups" ), parent );
-        label->setAlignment( Qt::AlignCenter );
-        label->setToolTip(
-            tr( "Shared through the Team Folder: they change when the team changes them." ) );
-        teamGroupList_ = new QListWidget( parent );
-        teamGroupList_->setObjectName( QStringLiteral( "teamGroupList" ) );
-        leftLayout_->addWidget( label );
-        leftLayout_->addWidget( teamGroupList_ );
-        connect( teamGroupList_, &QListWidget::currentRowChanged, this,
+    if ( team_ == nullptr ) {
+        team_ = new TeamGroupsSection( leftLayout_->parentWidget(), leftLayout_,
+                                       tr( "Team groups" ), tr( "New Team group" ) );
+        connect( team_->list(), &QListWidget::currentRowChanged, this,
                  &ValueNamesDialog::teamGroupSelected );
-
-        teamAddButton_ = new QPushButton( tr( "New Team group" ), parent );
-        teamAddButton_->setObjectName( QStringLiteral( "teamAdd" ) );
-        connect( teamAddButton_, &QPushButton::clicked, this, &ValueNamesDialog::addTeamGroup );
-        teamShareButton_ = new QPushButton( tr( "Share with team" ), parent );
-        teamShareButton_->setObjectName( QStringLiteral( "teamShare" ) );
-        teamShareButton_->setToolTip( tr( "Adds a Team copy of the selected group of your own." ) );
-        connect( teamShareButton_, &QPushButton::clicked, this,
+        connect( team_->addButton(), &QPushButton::clicked, this, &ValueNamesDialog::addTeamGroup );
+        connect( team_->shareButton(), &QPushButton::clicked, this,
                  &ValueNamesDialog::shareSelectedGroup );
-        teamCopyButton_ = new QPushButton( tr( "Copy to my groups" ), parent );
-        teamCopyButton_->setObjectName( QStringLiteral( "teamCopy" ) );
-        connect( teamCopyButton_, &QPushButton::clicked, this,
+        connect( team_->copyButton(), &QPushButton::clicked, this,
                  &ValueNamesDialog::copySelectedTeamGroup );
-        teamDeleteButton_ = new QPushButton( tr( "Delete for the team" ), parent );
-        teamDeleteButton_->setObjectName( QStringLiteral( "teamDelete" ) );
-        connect( teamDeleteButton_, &QPushButton::clicked, this,
+        connect( team_->deleteButton(), &QPushButton::clicked, this,
                  &ValueNamesDialog::deleteSelectedTeamGroup );
-        auto* buttons = new QGridLayout;
-        buttons->addWidget( teamAddButton_, 0, 0 );
-        buttons->addWidget( teamShareButton_, 0, 1 );
-        buttons->addWidget( teamCopyButton_, 1, 0 );
-        buttons->addWidget( teamDeleteButton_, 1, 1 );
-        leftLayout_->addLayout( buttons );
     }
-    teamAddButton_->setVisible( teamEditable_ );
-    teamShareButton_->setVisible( teamEditable_ );
-    teamDeleteButton_->setVisible( teamEditable_ );
+    team_->setEditable( editable );
 
     const bool teamShown = teamRow_ >= 0;
     teamRow_ = -1;
     updating_ = true;
-    teamGroupList_->clear();
-    for ( const auto& group : teamGroups_ ) {
-        teamGroupList_->addItem( group.name() );
-    }
+    team_->setNames( teamEdits_.names() );
     updating_ = false;
     if ( teamShown ) {
         showGroup();
@@ -1626,23 +1593,14 @@ void ValueNamesDialog::showTeamGroups( const QList<NamingGroup>& groups, bool ed
 void ValueNamesDialog::updateTeamRevisions( const QStringList& ids,
                                             const QHash<QString, QString>& revisions )
 {
-    // A published group's file has a new revision: the next edit of it is
-    // based on that one, not on the one it was loaded with.
-    for ( const auto& id : ids ) {
-        if ( const auto found = revisions.constFind( id ); found != revisions.constEnd() ) {
-            teamRevisions_.insert( id, *found );
-        }
-    }
+    teamEdits_.updateRevisions( ids, revisions );
 }
 
 void ValueNamesDialog::updateTeamButtons()
 {
-    if ( teamGroupList_ == nullptr ) {
-        return;
+    if ( team_ != nullptr ) {
+        team_->updateButtons( teamEdits_.isEditable(), groupRow_ >= 0, teamRow_ >= 0 );
     }
-    teamShareButton_->setEnabled( teamEditable_ && groupRow_ >= 0 );
-    teamCopyButton_->setEnabled( teamRow_ >= 0 );
-    teamDeleteButton_->setEnabled( teamEditable_ && teamRow_ >= 0 );
 }
 
 void ValueNamesDialog::teamGroupSelected()
@@ -1650,7 +1608,7 @@ void ValueNamesDialog::teamGroupSelected()
     if ( updating_ ) {
         return;
     }
-    teamRow_ = teamGroupList_->currentRow();
+    teamRow_ = team_->list()->currentRow();
     if ( teamRow_ >= 0 && groupRow_ >= 0 ) {
         // Leaves the user's own group; what was changed in it stays in this
         // dialog's copy until OK, Apply or Cancel.
@@ -1664,72 +1622,54 @@ void ValueNamesDialog::teamGroupSelected()
 
 void ValueNamesDialog::addTeamGroup()
 {
-    if ( !teamEditable_ ) {
+    if ( !teamEdits_.isEditable() ) {
         return;
     }
-    QStringList taken;
-    for ( const auto& group : std::as_const( teamGroups_ ) ) {
-        taken.append( group.name() );
-    }
-    teamGroups_.append( NamingGroup::createNewGroup(
-        logsquirl::groupexchange::firstFreeName( tr( "New Naming Group" ), taken ) ) );
-    teamGroupList_->addItem( teamGroups_.back().name() );
-    teamGroupList_->setCurrentRow( teamGroupList_->count() - 1 );
+    auto& teamGroups = teamEdits_.groups();
+    teamGroups.append( NamingGroup::createNewGroup(
+        logsquirl::groupexchange::firstFreeName( tr( "New Naming Group" ), teamEdits_.names() ) ) );
+    team_->list()->addItem( teamGroups.back().name() );
+    team_->list()->setCurrentRow( team_->list()->count() - 1 );
 }
 
 void ValueNamesDialog::shareSelectedGroup()
 {
-    if ( !teamEditable_ || groupRow_ < 0 || groupRow_ >= groups_.size() ) {
+    if ( !teamEdits_.isEditable() || groupRow_ < 0 || groupRow_ >= groups_.size() ) {
         return;
     }
-    QStringList taken;
-    for ( const auto& group : std::as_const( teamGroups_ ) ) {
-        taken.append( group.name() );
-    }
-    const auto copy = logsquirl::teamfolder::copyOfGroup( groups_.at( groupRow_ ), taken );
-    teamGroups_.append( copy );
-    teamGroupList_->addItem( copy.name() );
+    const auto& copy = teamEdits_.share( groups_.at( groupRow_ ) );
+    team_->list()->addItem( copy.name() );
     // The Team copy is shown; the group of the user's own stays as it is.
-    teamGroupList_->setCurrentRow( teamGroupList_->count() - 1 );
+    team_->list()->setCurrentRow( team_->list()->count() - 1 );
 }
 
 void ValueNamesDialog::copySelectedTeamGroup()
 {
-    if ( teamRow_ < 0 || teamRow_ >= teamGroups_.size() ) {
+    if ( teamRow_ < 0 || teamRow_ >= teamEdits_.groups().size() ) {
         return;
     }
-    QStringList taken;
-    for ( const auto& group : std::as_const( groups_ ) ) {
-        taken.append( group.name() );
-    }
     // A copy of the user's own is checked, as everything new is.
-    groups_.append( logsquirl::teamfolder::copyOfGroup( teamGroups_.at( teamRow_ ), taken )
-                        .withEverythingChecked() );
+    groups_.append( teamEdits_.copyFor( teamRow_, groups_ ).withEverythingChecked() );
     teamRow_ = -1;
     updating_ = true;
-    teamGroupList_->setCurrentRow( -1 );
+    team_->list()->setCurrentRow( -1 );
     updating_ = false;
     populateGroups( static_cast<int>( groups_.size() ) - 1 );
 }
 
 void ValueNamesDialog::deleteSelectedTeamGroup()
 {
-    if ( teamRow_ < 0 || !teamEditable_ ) {
-        return;
-    }
-    const auto answer = QMessageBox::question(
-        this, tr( "Delete Team group" ), tr( "This deletes the group for the whole team." ),
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
-    if ( answer != QMessageBox::Yes ) {
+    if ( teamRow_ < 0 || !teamEdits_.isEditable()
+         || !team_->confirmDeletion( tr( "Delete Team group" ) ) ) {
         return;
     }
 
     const auto row = teamRow_;
     teamRow_ = -1;
-    teamGroups_.removeAt( row );
+    teamEdits_.groups().removeAt( row );
     updating_ = true;
-    delete teamGroupList_->takeItem( row );
-    teamGroupList_->setCurrentRow( -1 );
+    delete team_->list()->takeItem( row );
+    team_->list()->setCurrentRow( -1 );
     updating_ = false;
     showGroup();
 }

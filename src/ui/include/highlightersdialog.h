@@ -53,6 +53,7 @@ class QPushButton;
 #include "highlighterset.h"
 #include "highlightersetedit.h"
 #include "teamfolder.h"
+#include "teamgroupssection.h"
 #include "ui_highlightersdialog.h"
 
 class HighlightersDialog : public QDialog, public Ui::HighlightersDialog {
@@ -133,20 +134,12 @@ private:
     // Index of the row currently selected or -1 if none.
     int selectedRow_;
 
-    QLabel* teamGroupsLabel_ = nullptr;
-    QListWidget* teamGroupsList_ = nullptr;
-    QList<HighlighterSet> teamGroups_;
-    // The Team sets as they were given, to tell what OK or Apply publishes.
-    QList<HighlighterSet> teamGroupsAsGiven_;
-    QPushButton* teamAddButton_ = nullptr;
-    QPushButton* teamShareButton_ = nullptr;
-    QPushButton* teamCopyButton_ = nullptr;
-    QPushButton* teamDeleteButton_ = nullptr;
+    // The Team sets, below the user's own: built when the dialog is first
+    // given them.
+    TeamGroupsSection* team_ = nullptr;
+    TeamGroupEdits<HighlighterSet> teamEdits_;
     // What can be done with the selected group depends on which one it is.
     void updateTeamButtons();
-    bool teamEditable_ = false;
-    // The revision of each Team group's file when it was loaded, by id.
-    QHash<QString, QString> teamRevisions_;
     // The row of the Team set shown, -1 when none is.
     int selectedTeamRow_ = -1;
 

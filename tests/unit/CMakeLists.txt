@@ -93,7 +93,7 @@ add_executable(logsquirl_tests
     tableviewselection_test.cpp
     theme_test.cpp
     keptsearches_test.cpp
-    lookuprunner_test.cpp
+    latestresultrunner_test.cpp
     timelookup_test.cpp
     timenavigation_test.cpp
     timestampreader_test.cpp

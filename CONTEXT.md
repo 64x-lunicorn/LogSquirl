@@ -295,7 +295,7 @@ _Avoid_: terminal colors, escape codes (those are the sequences, not their color
 The feature that shows values captured in a Log Line as a name from a Name Table, in the Text
 View and the Filtered View. Display only: the Log File is never changed, and every Search,
 filter, QuickFind and Highlighter works on the raw text.
-_Avoid_: replace, rewrite, lookup (taken by the timestamp lookup, `LookupRunner`)
+_Avoid_: replace, rewrite, lookup (taken by the timestamp lookup of the Time Navigation)
 
 **Naming Rule**:
 A regex plus, per capture group, the Name Table it uses, plus a display template with the

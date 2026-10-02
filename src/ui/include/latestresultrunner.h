@@ -30,21 +30,23 @@
 #include <utility>
 #include <vector>
 
-// Runs one lookup at a time on a worker thread and hands its result back on
-// the thread this object lives in, like the Value Count's worker: an atomic
-// flag cancels it, and a cancelled lookup leaves no result behind, however far
-// it had come. Starting another lookup cancels the running one.
+// Runs a piece of work on a worker thread and hands its result back on the
+// thread this object lives in, like the Value Count's worker: an atomic flag
+// cancels it, and cancelled work leaves no result behind, however far it had
+// come. Starting other work cancels the running one, so only the newest
+// result is ever reported. The Time Navigation runs its timestamp lookups on
+// it, the Regex Lab its sample reads and evaluations.
 //
 // The work gets the flag to look at; it returns the result. The result is
-// given to the callback only if the lookup was not cancelled meanwhile.
-class LookupRunner : public QObject {
+// given to the callback only if the work was not cancelled meanwhile.
+class LatestResultRunner : public QObject {
 public:
-    explicit LookupRunner( QObject* parent = nullptr )
+    explicit LatestResultRunner( QObject* parent = nullptr )
         : QObject( parent )
     {
     }
 
-    ~LookupRunner() override
+    ~LatestResultRunner() override
     {
         for ( const auto& job : jobs_ ) {
             job->cancelled.store( true );
@@ -94,7 +96,7 @@ public:
         watcher->setFuture( future );
     }
 
-    // Drops the running lookup: it stops, and its result is never reported.
+    // Drops the running work: it stops, and its result is never reported.
     void cancel()
     {
         if ( running_ ) {

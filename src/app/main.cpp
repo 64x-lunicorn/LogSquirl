@@ -67,6 +67,7 @@
 #include "highlighterset.h"
 #include "logger.h"
 #include "mainwindow.h"
+#include "tbbworkersjoinedatexit.h"
 #include "theme.h"
 
 #include "benchmarkmode.h"
@@ -131,6 +132,8 @@ int main( int argc, char* argv[] )
 #ifdef LOGSQUIRL_USE_MIMALLOC
     mi_process_init();
 #endif
+    // Destroyed last: oneTBB's workers have ended before exit() runs (#665).
+    const TbbWorkersJoinedAtExit tbbWorkers;
 
     setApplicationAttributes();
 
