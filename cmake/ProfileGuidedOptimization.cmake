@@ -26,10 +26,11 @@
 # the third-party libraries included: Vectorscan's and oneTBB's hot loops are
 # as much part of a Search as LogSquirl's own code.
 #
-# None of this touches the project's warnings: a GENERATE or USE build is held
-# to -Werror on its compile and link lines exactly like any other
-# (docs/adr/0009-lto-link-diagnostics-fail-the-build.md). A USE build accepts
-# two diagnostics as warnings, each with -Wno-error= so it stays in the log:
+# A GENERATE build is held to -Werror on its compile and link lines like any
+# other (docs/adr/0009-lto-link-diagnostics-fail-the-build.md). A USE build is
+# too, with two exceptions: it accepts two diagnostics of the profile as
+# warnings, each with -Wno-error= so it stays in the log, and only on the
+# targets that get the profile:
 # - GCC's -Wmissing-profile: "this object never ran during training", true of
 #   every object of code the scenarios do not reach. GCC's -Wcoverage-mismatch,
 #   an object whose profile no longer fits it, still fails the build.

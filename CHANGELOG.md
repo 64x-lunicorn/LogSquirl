@@ -243,7 +243,8 @@
   and `-DLOGSQUIRL_PGO=USE` builds optimized for that profile, with Clang,
   AppleClang, GCC and MSVC; `-DLOGSQUIRL_BOLT=ON` links a Linux build for
   `llvm-bolt`. A USE build without its profile stops at configure time and
-  says what to run, and its warnings still fail it. The PGO workflow
+  says what to run, and its warnings still fail it, but for two diagnostics
+  of the profile itself that it reports as warnings. The PGO workflow
   builds each platform without and with, from scratch, and measures the
   micro-benchmarks and the e2e performance suite of all of them on one runner,
   with the build time each took. No profile is checked in. Every release build
