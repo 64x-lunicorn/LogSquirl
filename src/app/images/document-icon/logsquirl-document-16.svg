@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" shape-rendering="crispEdges">
+  <!-- outline -->
+  <path fill="#5a4433" d="M2 0 H10 V1 H11 V2 H12 V3 H13 V4 H14 V16 H2 Z"/>
+  <!-- paper -->
+  <path fill="#fffaf3" d="M3 1 H9 V5 H13 V15 H3 Z"/>
+  <!-- fold in the mane colours -->
+  <rect x="10" y="2" width="1" height="3" fill="#9b4fd6"/>
+  <rect x="11" y="3" width="1" height="2" fill="#c46ee8"/>
+  <rect x="12" y="4" width="1" height="1" fill="#ffd23f"/>
+  <rect x="9" y="1" width="1" height="4" fill="#9b4fd6"/>
+  <!-- log lines -->
+  <rect x="4" y="3" width="4" height="1" fill="#a89a8b"/>
+  <rect x="3" y="6" width="10" height="3" fill="#f08a24"/>
+  <rect x="4" y="10" width="7" height="1" fill="#a89a8b"/>
+  <rect x="4" y="12" width="5" height="1" fill="#a89a8b"/>
+</svg>
