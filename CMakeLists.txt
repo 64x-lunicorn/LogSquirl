@@ -33,6 +33,21 @@ option(LOGSQUIRL_BUILD_TESTS "Build tests" ON)
 option(LOGSQUIRL_BUILD_FUZZERS "Build the libFuzzer targets (needs Clang)" OFF)
 option(LOGSQUIRL_USE_LTO "Use link time optimization" ON)
 option(LOGSQUIRL_USE_SENTRY "Use Sentry" OFF)
+# Profile-guided optimization (#682): GENERATE builds instrumented binaries
+# whose runs record a profile into LOGSQUIRL_PGO_DIR, USE builds optimized for
+# that profile. cmake/ProfileGuidedOptimization.cmake says how per compiler,
+# BUILD.md "Profile-guided optimization" how to produce the profile.
+set(LOGSQUIRL_PGO
+    OFF
+    CACHE STRING "Profile-guided optimization: OFF, GENERATE (instrumented) or USE (optimized for the profile)"
+)
+set_property(CACHE LOGSQUIRL_PGO PROPERTY STRINGS OFF GENERATE USE)
+set(LOGSQUIRL_PGO_DIR
+    "${CMAKE_BINARY_DIR}/pgo-profile"
+    CACHE PATH "Where a GENERATE build's binaries write their profile, and where a USE build reads it"
+)
+# Linux only: keep what BOLT needs to rewrite the executables after the build.
+option(LOGSQUIRL_BOLT "Link the executables so that llvm-bolt can optimize them" OFF)
 option(LOGSQUIRL_GENERIC_CPU "Build for generic CPU" OFF)
 option(LOGSQUIRL_OSX_DEPLOYMENT_TARGET "Override target MacOS version" "")
 # Off: only LogSquirl's own containers, roaring and Vectorscan allocate through
@@ -266,6 +281,54 @@ set(CMAKE_INCLUDE_CURRENT_DIR OFF)
 set(BUILD_SHARED_LIBS OFF)
 
 add_custom_target(ci_build)
+
+# Before the third-party libraries, so their code is trained and optimized
+# with LogSquirl's own (#682).
+include(ProfileGuidedOptimization)
+logsquirl_pgo_problem(
+  LOGSQUIRL_PGO_PROBLEM
+  MODE "${LOGSQUIRL_PGO}"
+  COMPILER_ID "${CMAKE_CXX_COMPILER_ID}"
+  COMPILER_VERSION "${CMAKE_CXX_COMPILER_VERSION}"
+  IS_MSVC "${MSVC}"
+  USE_LTO "${LOGSQUIRL_USE_LTO}"
+  SYSTEM_NAME "${CMAKE_SYSTEM_NAME}"
+  BOLT "${LOGSQUIRL_BOLT}"
+  DIRECTORY "${LOGSQUIRL_PGO_DIR}"
+  CHECK_PROFILE
+)
+if(LOGSQUIRL_PGO_PROBLEM)
+  message(FATAL_ERROR "${LOGSQUIRL_PGO_PROBLEM}")
+endif()
+logsquirl_pgo_flags(
+  LOGSQUIRL_PGO_COMPILE_OPTIONS LOGSQUIRL_PGO_LINK_OPTIONS
+  MODE "${LOGSQUIRL_PGO}"
+  COMPILER_ID "${CMAKE_CXX_COMPILER_ID}"
+  IS_MSVC "${MSVC}"
+  DIRECTORY "${LOGSQUIRL_PGO_DIR}"
+  BOLT "${LOGSQUIRL_BOLT}"
+)
+message("PGO ${LOGSQUIRL_PGO} (profile directory ${LOGSQUIRL_PGO_DIR}), BOLT ${LOGSQUIRL_BOLT}")
+foreach(_option IN LISTS LOGSQUIRL_PGO_COMPILE_OPTIONS)
+  add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:${_option}>")
+endforeach()
+if(LOGSQUIRL_PGO_LINK_OPTIONS)
+  add_link_options(${LOGSQUIRL_PGO_LINK_OPTIONS})
+endif()
+if(LOGSQUIRL_PGO STREQUAL "GENERATE")
+  file(MAKE_DIRECTORY "${LOGSQUIRL_PGO_DIR}")
+endif()
+# A compiler cache keys an object on the compile command, not on the profile
+# the command names, so it would hand out objects optimized for an older
+# profile. MSVC reads the profile at the link only and keeps its cache.
+if(LOGSQUIRL_PGO STREQUAL "USE" AND NOT MSVC)
+  foreach(_lang C CXX)
+    if(CMAKE_${_lang}_COMPILER_LAUNCHER)
+      message(STATUS "LOGSQUIRL_PGO=USE: not using the ${_lang} compiler launcher ${CMAKE_${_lang}_COMPILER_LAUNCHER}")
+      set(CMAKE_${_lang}_COMPILER_LAUNCHER "")
+    endif()
+  endforeach()
+endif()
 
 add_subdirectory(3rdparty)
 

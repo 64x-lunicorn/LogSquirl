@@ -1,0 +1,108 @@
+---
+// The nightly performance trend (#678), drawn at build time from the
+// perf-data branch: src/perf-trend.mjs reads it and draws each chart as SVG.
+// Without a checkout of the branch (LOGSQUIRL_PERF_DATA unset, or no runs in
+// it) the page says so instead of failing the build.
+import { DATA_BRANCH_URL, WINDOW_DAYS, formatValue, readPerfTrend, renderChart } from '../perf-trend.mjs';
+import { readReleases } from '../releases.mjs';
+
+const trend = readPerfTrend({ releases: readReleases() });
+const commitUrl = (commit: string) => `https://github.com/64x-lunicorn/LogSquirl/commit/${commit}`;
+const day = (iso: string) => iso.slice(0, 10);
+const sectionTitle = { 'wall-clock': 'Wall-clock', instructions: 'Instruction counts' };
+const sectionText = {
+  'wall-clock':
+    'The median of each benchmark over its runs, one chart per benchmark, grouped by Benchmark Scenario. A benchmark with a Budget comes first, with its Budget as a dashed line; the other benchmarks of a scenario are for diagnosis. A median compares only with runs on the same runner CPU model, so each model has a line of its own.',
+  instructions:
+    'Instructions of each Catch2 benchmark, counted under Callgrind: they repeat to within a fraction of a percent, so they are what a regression is found on. One line per CPU model and size of the generated Log Files, within which counts compare.',
+};
+---
+
+{
+  trend.runCount === 0 ? (
+    <p class="perf-empty">
+      No nightly run is part of this build of the website yet. The runs are on the{' '}
+      <a href={DATA_BRANCH_URL}>perf-data branch</a>.
+    </p>
+  ) : (
+    <div class="perf-trend not-content">
+      <p class="perf-summary">
+        {trend.runCount} {trend.runCount === 1 ? 'run' : 'runs'} of master from {day(trend.first)} to{' '}
+        {day(trend.latest.recorded_at)}; the latest measured {trend.latest.version} (
+        <a href={commitUrl(trend.latest.commit)}>
+          <code>{String(trend.latest.commit).slice(0, 12)}</code>
+        </a>
+        ).
+        {trend.allRunCount > trend.runCount && (
+          <>
+            {' '}The charts show the last {WINDOW_DAYS} days of the {trend.allRunCount} runs recorded; the{' '}
+            <a href={DATA_BRANCH_URL}>branch</a> has them all.
+          </>
+        )}{' '}
+        The Budgets are {trend.budgetsAccepted ? 'accepted' : 'proposed: checked and shown, but no run fails on them yet'}.
+      </p>
+      <ul class="perf-legend" aria-label="Lines">
+        {trend.legend.map((item) => (
+          <li>
+            <span class={`perf-swatch perf-slot-${item.slot}`} aria-hidden="true" />
+            {item.label}
+          </li>
+        ))}
+        <li>
+          <span class="perf-swatch perf-swatch-budget" aria-hidden="true" />
+          Budget
+        </li>
+        <li>
+          <span class="perf-swatch perf-swatch-release" aria-hidden="true" />
+          Release
+        </li>
+        <li>
+          <span class="perf-swatch perf-swatch-unusable" aria-hidden="true" />
+          Run not compared (within-run CV above 20 %)
+        </li>
+      </ul>
+      {trend.sections.map((section) => (
+        <section class="perf-section">
+          <h2 id={`perf-${section.metric}`}>{sectionTitle[section.metric]}</h2>
+          <p>{sectionText[section.metric]}</p>
+          {section.scenarios.map((scenario) => {
+            const headline = scenario.charts.filter((chart) => chart.headline);
+            const others = scenario.charts.filter((chart) => !chart.headline);
+            const figure = (chart) => (
+              <figure class="perf-figure">
+                <figcaption>
+                  <code>{chart.title}</code>
+                  {chart.description && <span class="perf-description">{chart.description}</span>}
+                  {chart.budget && (
+                    <span class="perf-description">
+                      Budget {formatValue(chart.budget.value, chart.unit)}, broken above{' '}
+                      {formatValue(chart.budget.brokenAbove, chart.unit)}
+                    </span>
+                  )}
+                </figcaption>
+                <Fragment set:html={renderChart(chart, { domain: trend.domain, markers: trend.markers })} />
+              </figure>
+            );
+            return (
+              <section class="perf-scenario">
+                <h3 id={`perf-${section.metric}-${scenario.name}`}>{scenario.name}</h3>
+                {headline.length > 0 && <div class="perf-grid-charts">{headline.map(figure)}</div>}
+                {others.length > 0 &&
+                  (headline.length > 0 ? (
+                    <details>
+                      <summary>
+                        {others.length} more {others.length === 1 ? 'benchmark' : 'benchmarks'} of {scenario.name}, without a Budget
+                      </summary>
+                      <div class="perf-grid-charts">{others.map(figure)}</div>
+                    </details>
+                  ) : (
+                    <div class="perf-grid-charts">{others.map(figure)}</div>
+                  ))}
+              </section>
+            );
+          })}
+        </section>
+      ))}
+    </div>
+  )
+}

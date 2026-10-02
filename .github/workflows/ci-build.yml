@@ -257,6 +257,11 @@ jobs:
         # install-checked in: digest-pinned like the build images' FROM lines,
         # its digest kept current by Renovate. The release in its tag moves by
         # hand with os_version and container_root (#198, #230).
+        #
+        # pgo and bolt switch the release build of one entry to profile-guided
+        # optimization and, on top of it, BOLT (#682). Both stay false until
+        # the A/B numbers of the PGO workflow (pgo.yml) show a clear gain for
+        # that build; BUILD.md, "Profile-guided optimization".
         config:
           - os: oraclelinux
             os_version: 10
@@ -268,6 +273,8 @@ jobs:
             container_root: docker/oracle10
             image: ghcr.io/64x-lunicorn/logsquirl-oracle10
             cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on
+            pgo: false
+            bolt: false
 
           - os: ubuntu_noble
             os_version: 24.04
@@ -279,6 +286,8 @@ jobs:
             container_root: docker/ubuntu24.04
             image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
             cmake_opts:
+            pgo: false
+            bolt: false
 
           - os: ubuntu_appimage
             # Built on Ubuntu 22.04 (jammy) so the AppImage's glibc/libstdc++
@@ -290,6 +299,8 @@ jobs:
             container_root: docker/ubuntu22.04
             image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy
             cmake_opts:
+            pgo: false
+            bolt: false
 
           - os: fedora
             os_version: 44
@@ -301,6 +312,8 @@ jobs:
             container_root: docker/fedora44
             image: ghcr.io/64x-lunicorn/logsquirl-fedora44
             cmake_opts:
+            pgo: false
+            bolt: false
 
     runs-on: ubuntu-24.04
     # Slowest successful run 28 min (appimage; noble/oracle/fedora 22-24 min),
@@ -341,7 +354,15 @@ jobs:
 
       - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env
+      # Off for every entry until #682's numbers decide (see the matrix).
+      - uses: ./.github/actions/pgo-profile
+        if: matrix.config.pgo
+        with:
+          toolchain: gcc
+          bolt: ${{ matrix.config.bolt }}
       - uses: ./.github/actions/docker-build
+      - uses: ./.github/actions/bolt
+        if: matrix.config.bolt
 
       # Only the default branch saves, and only when the exact key was missing
       # (caches are immutable): a dependency change on a pull request would
@@ -704,6 +725,10 @@ jobs:
             # line info at the same optimization as before (#340), matching
             # Windows and Linux (#280).
             cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_SKIP_INSTALL_RPATH=ON
+            # Profile-guided optimization of the release build, off until the
+            # A/B numbers of the PGO workflow (pgo.yml) show a clear gain on
+            # macOS (#682).
+            pgo: false
 
     runs-on: ${{ matrix.config.runner }}
     # Slowest successful run 25 min, when master builds still waited on
@@ -740,6 +765,10 @@ jobs:
       - uses: ./.github/actions/agent-setup
       - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env
+      - uses: ./.github/actions/pgo-profile
+        if: matrix.config.pgo
+        with:
+          toolchain: clang
       - uses: ./.github/actions/agent-build
       - uses: ./.github/actions/agent-run-tests
       - uses: ./.github/actions/run-e2e
@@ -797,6 +826,10 @@ jobs:
             ssl_arch: -x64
             cmake_opts:
             artifacts_id: windows-x64
+            # Profile-guided optimization of the release build, off until the
+            # A/B numbers of the PGO workflow (pgo.yml) show a clear gain on
+            # Windows (#682).
+            pgo: false
 
     runs-on: ${{ matrix.config.runner }}
     # Slowest successful run 38 min (cold sccache), median 22 min, before #217's
@@ -827,6 +860,10 @@ jobs:
         with:
           arch: ${{ matrix.config.arch }}
 
+      - uses: ./.github/actions/pgo-profile
+        if: matrix.config.pgo
+        with:
+          toolchain: msvc
       - uses: ./.github/actions/agent-build
       - uses: ./.github/actions/agent-run-tests
       - uses: ./.github/actions/run-e2e
@@ -922,7 +959,7 @@ jobs:
       - name: Install dependencies
         run: cd website && npm ci
 
-      - name: Test the release pages
+      - name: Test the website's scripts
         run: cd website && npm test
 
       - name: Build and check links

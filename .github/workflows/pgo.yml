@@ -1,0 +1,707 @@
+name: "PGO"
+
+# Measures what profile-guided optimization, and BOLT on Linux, would change
+# in the release builds (#682): on each platform, LogSquirl built the way the
+# release builds it, without and with, and every Catch2 micro-benchmark and the
+# whole e2e performance suite run on all of them on one runner. The job
+# summaries and the `pgo-report` artifact hold the A/B tables and the build
+# times; they are the numbers #682 decides per platform from.
+#
+# Dispatch it from the Actions tab or with
+#   gh workflow run pgo.yml --ref <branch> [-f linux=false] [-f macos=false] [-f windows=false]
+# GitHub only offers workflow_dispatch for a workflow file that exists on the
+# default branch.
+#
+# Nothing is checked in or cached between runs: every run builds the
+# instrumented binaries from the commit it measures, trains them on the
+# benchmark mode's scenarios (the e2e performance suite, one run each, on the
+# Log Files up to 100 MB) and builds the optimized binaries from that profile
+# (.github/scripts/pgo.py, cmake/ProfileGuidedOptimization.cmake).
+#
+# Per platform, the variants build in parallel, each on its own runner, and a
+# measure job then runs all of them on one runner, one benchmark at a time
+# across the variants:
+#
+# - plain: LOGSQUIRL_PGO=OFF, the release build as it is.
+# - pgo:   instrumented build, training, merge, LOGSQUIRL_PGO=USE.
+# - bolt (Linux): as pgo, but linked for BOLT (LOGSQUIRL_BOLT), then
+#   llvm-bolt instruments logsquirl and logsquirl_grep, the scenarios train
+#   them again, and llvm-bolt rewrites them from that profile. The micro-
+#   benchmarks are separate executables, so the bolt side has the scenarios
+#   only.
+#
+# Build time: every variant compiles from scratch without a compiler cache,
+# and pgo.py records each phase; `pgo.py times` sets a release build with PGO
+# (instrumented build, training, merge, optimized build, and BOLT's phases)
+# against the one plain build it would replace. The variants run on separate
+# runners of the same class, so the comparison carries their difference in
+# hardware too; it is an estimate, not a benchmark.
+#
+# Linux is measured in the Ubuntu 24.04 container of the CI Build noble job
+# (GCC 13); the appimage (GCC 12), oracle (GCC 14) and fedora (GCC 16) jobs
+# use other compilers and are not measured here. macOS in the configuration
+# of the CI Build Mac job (AppleClang, arm64), Windows in that of the Windows
+# job (MSVC, x64).
+#
+# The release builds adopt PGO per platform only behind the `pgo` switch of
+# that platform's job in ci-build.yml, which stays false until these numbers
+# show a clear gain there (#682).
+on:
+  workflow_dispatch:
+    inputs:
+      linux:
+        description: "Measure Linux (noble container, GCC): plain, PGO, PGO and BOLT"
+        type: boolean
+        default: true
+      macos:
+        description: "Measure macOS (AppleClang, arm64): plain and PGO"
+        type: boolean
+        default: true
+      windows:
+        description: "Measure Windows (MSVC, x64): plain and PGO"
+        type: boolean
+        default: true
+      training_runs:
+        description: "Runs per scenario in each training (--bench-runs)"
+        type: number
+        default: 1
+      benchmark_samples:
+        description: "Catch2 --benchmark-samples per benchmark"
+        type: number
+        default: 20
+      log_file_mb:
+        description: "Size in MiB of each Log File logsquirl_logdata_benchmark writes (LOGSQUIRL_BENCHMARK_LOG_FILE_MB)"
+        type: number
+        default: 256
+      e2e_runs:
+        description: "Measured runs per e2e performance benchmark (--bench-runs)"
+        type: number
+        default: 21
+
+concurrency:
+  group: pgo-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Everything a job adds to the workspace. Not a hidden directory, which
+  # upload-artifact would leave out.
+  RUN_DIR: pgo-run
+  QT_QPA_PLATFORM: offscreen
+  TRAINING_RUNS: ${{ inputs.training_runs }}
+  BENCHMARK_SAMPLES: ${{ inputs.benchmark_samples }}
+  LOG_FILE_MB: ${{ inputs.log_file_mb }}
+  E2E_RUNS: ${{ inputs.e2e_runs }}
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Linux
+  # -------------------------------------------------------------------------
+  linux-build:
+    name: PGO / Linux / build ${{ matrix.variant }}
+    if: inputs.linux
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [plain, pgo, bolt]
+        # Shaped like the CI Build Linux matrix so the shared composite
+        # actions (which read matrix.config.*) work unchanged.
+        config:
+          - arch: x64
+            artifacts_id: noble
+            container_root: docker/ubuntu24.04
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            cmake_opts:
+    runs-on: ubuntu-24.04
+    # No run history yet. Up to two full builds without a compiler cache
+    # (about 40 minutes each on this runner class), two trainings and BOLT.
+    timeout-minutes: 300
+    permissions:
+      contents: read
+      packages: read # pull the signed build container from GHCR
+    env:
+      VARIANT: ${{ matrix.variant }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Same key as the noble job (#219); only restored.
+      - name: Restore CPM cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cpm_cache
+          key: cpm-Linux-noble-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
+          restore-keys: |
+            cpm-Linux-noble-
+
+      - uses: ./.github/actions/logsquirl-version
+      - uses: ./.github/actions/prepare-workspace-env
+      - uses: ./.github/actions/docker-pull-or-build
+        with:
+          image: ${{ matrix.config.image }}
+          container_root: ${{ matrix.config.container_root }}
+
+      - name: Generate the training data
+        if: matrix.variant != 'plain'
+        run: python3 tests/e2e/generate_test_data.py --max-mb 100
+
+      # One container for every step, as docker-build keeps one: the
+      # workspace is /usr/local inside it.
+      - name: Start the build container
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUN_DIR"
+          docker run -d --name pgo_build \
+            --env QT_QPA_PLATFORM="$QT_QPA_PLATFORM" \
+            --env PYTHONDONTWRITEBYTECODE=1 \
+            --env PIP_ROOT_USER_ACTION=ignore \
+            --env LOGSQUIRL_VERSION="$LOGSQUIRL_VERSION" \
+            --workdir /usr/local \
+            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" sleep infinity
+
+      - name: Install the training's tools
+        if: matrix.variant != 'plain'
+        run: |
+          set -euo pipefail
+          docker exec pgo_build python3 -m pip install --quiet --break-system-packages --require-hashes \
+            --only-binary :all: -r .github/requirements/e2e.txt
+
+      # Ubuntu 24.04's own LLVM 18 build of BOLT, from the distribution's
+      # archive like the rest of the image's toolchain.
+      - name: Install BOLT
+        if: matrix.variant == 'bolt'
+        run: |
+          set -euo pipefail
+          docker exec pgo_build /bin/bash -c '
+            set -euo pipefail
+            apt-get update -qq
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends bolt-18 binutils
+            llvm-bolt-18 --version'
+
+      - name: Plain build
+        if: matrix.variant == 'plain'
+        run: |
+          set -euo pipefail
+          docker exec pgo_build python3 .github/scripts/pgo.py --timings "$RUN_DIR/timings.json" \
+            build --build-dir "$RUN_DIR/build" --mode OFF --benchmarks \
+            --targets logsquirl logsquirl_grep crashpad_handler \
+            --cmake-args "$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache"
+
+      # GCC names each object's profile after the object's absolute path, so
+      # the optimized build reuses the instrumented build's directory.
+      - name: Instrumented build
+        if: matrix.variant != 'plain'
+        run: |
+          set -euo pipefail
+          docker exec pgo_build python3 .github/scripts/pgo.py --timings "$RUN_DIR/timings.json" \
+            build --build-dir "$RUN_DIR/build" --mode GENERATE \
+            --targets logsquirl logsquirl_grep crashpad_handler \
+            --cmake-args "$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache"
+
+      - name: Training
+        if: matrix.variant != 'plain'
+        run: |
+          set -euo pipefail
+          docker exec pgo_build python3 .github/scripts/pgo.py --timings "$RUN_DIR/timings.json" \
+            train --binary-dir "$RUN_DIR/build/output" --runs "$TRAINING_RUNS"
+
+      - name: Merge the profile
+        if: matrix.variant != 'plain'
+        run: |
+          set -euo pipefail
+          docker exec pgo_build python3 .github/scripts/pgo.py --timings "$RUN_DIR/timings.json" \
+            merge --toolchain gcc --profile-dir "$RUN_DIR/build/pgo-profile"
+
+      - name: Optimized build
+        if: matrix.variant != 'plain'
+        env:
+          BOLT: ${{ matrix.variant == 'bolt' && '--bolt' || '' }}
+          BENCHMARKS: ${{ matrix.variant == 'pgo' && '--benchmarks' || '' }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086 # BOLT and BENCHMARKS are one flag or none
+          docker exec pgo_build python3 .github/scripts/pgo.py --timings "$RUN_DIR/timings.json" \
+            build --build-dir "$RUN_DIR/build" --mode USE $BOLT $BENCHMARKS \
+            --targets logsquirl logsquirl_grep crashpad_handler \
+            --cmake-args "$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache"
+
+      - name: BOLT
+        if: matrix.variant == 'bolt'
+        run: |
+          set -euo pipefail
+          pgo() { docker exec pgo_build python3 .github/scripts/pgo.py --timings "$RUN_DIR/timings.json" "$@"; }
+          pgo bolt-instrument --binary-dir "$RUN_DIR/build/output" --out-dir "$RUN_DIR/bolt-instrumented" \
+            --profile-dir "$RUN_DIR/bolt-profile"
+          pgo train --phase "BOLT training" --binary-dir "$RUN_DIR/bolt-instrumented" --runs "$TRAINING_RUNS"
+          pgo bolt-optimize --binary-dir "$RUN_DIR/build/output" --out-dir "$RUN_DIR/bin" \
+            --profile-dir "$RUN_DIR/bolt-profile" --split-debug
+
+      - name: Collect the binaries
+        run: |
+          set -euo pipefail
+          if [ "$VARIANT" != bolt ]; then
+            docker exec pgo_build python3 .github/scripts/pgo.py collect \
+              --output "$RUN_DIR/build/output" --out-dir "$RUN_DIR/bin"
+          fi
+          docker exec pgo_build python3 .github/scripts/pgo.py --timings "$RUN_DIR/timings.json" \
+            times --title "Linux, $VARIANT" --markdown "$RUN_DIR/times.md"
+          # A tar keeps the executable bits that an artifact loses.
+          docker exec pgo_build tar -cf "$RUN_DIR/pgo-linux-$VARIANT.tar" -C "$RUN_DIR" bin timings.json times.md
+          docker exec pgo_build chmod a+r "$RUN_DIR/pgo-linux-$VARIANT.tar"
+          cat "$RUN_DIR/times.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop the build container
+        if: always()
+        run: docker rm -f pgo_build || true
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pgo-linux-${{ matrix.variant }}
+          path: pgo-run/pgo-linux-${{ matrix.variant }}.tar
+          if-no-files-found: error
+          retention-days: 14
+
+  linux-measure:
+    name: PGO / Linux / measure
+    needs: linux-build
+    # A variant that failed to build is left out; the others are measured.
+    if: ${{ !cancelled() && needs.linux-build.result != 'skipped' }}
+    strategy:
+      matrix:
+        config:
+          - arch: x64
+            artifacts_id: noble
+            container_root: docker/ubuntu24.04
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            cmake_opts:
+    runs-on: ubuntu-24.04
+    # Each micro-benchmark twice and the e2e performance suite three times
+    # (#218: about a quarter of an hour per suite run with its 1 GB cases).
+    timeout-minutes: 240
+    permissions:
+      contents: read
+      packages: read # pull the signed build container from GHCR
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/prepare-workspace-env
+      - uses: ./.github/actions/docker-pull-or-build
+        with:
+          image: ${{ matrix.config.image }}
+          container_root: ${{ matrix.config.container_root }}
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: pgo-linux-*
+          path: pgo-run/artifacts
+
+      - name: Unpack the variants
+        id: sides
+        run: .github/scripts/pgo-unpack.sh linux
+
+      - name: Generate the e2e test data
+        run: python3 tests/e2e/generate_test_data.py
+
+      - name: Measure
+        id: measure
+        env:
+          SIDES: ${{ steps.sides.outputs.sides }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086 # one --side argument per word
+          docker run --rm \
+            --env QT_QPA_PLATFORM="$QT_QPA_PLATFORM" \
+            --env PYTHONDONTWRITEBYTECODE=1 \
+            --env PIP_ROOT_USER_ACTION=ignore \
+            --env BENCHMARK_SAMPLES --env LOG_FILE_MB --env E2E_RUNS \
+            --workdir /usr/local \
+            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c '
+              set -euo pipefail
+              python3 -m pip install --quiet --break-system-packages --require-hashes --only-binary :all: \
+                -r .github/requirements/e2e.txt
+              status=0
+              python3 .github/scripts/pgo.py measure "$@" --results pgo-run/results \
+                --benchmark-samples "$BENCHMARK_SAMPLES" --log-file-mb "$LOG_FILE_MB" \
+                --e2e-runs "$E2E_RUNS" || status=$?
+              chmod -R a+rX pgo-run/results
+              exit "$status"
+            ' measure $SIDES
+        continue-on-error: true
+
+      - name: Compare
+        if: always() && steps.sides.outcome == 'success'
+        run: .github/scripts/pgo-report.sh Linux
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.sides.outcome == 'success'
+        with:
+          name: pgo-results-linux
+          path: pgo-run/results
+          if-no-files-found: error
+
+      - name: Fail when the measurement failed
+        if: steps.measure.outcome == 'failure'
+        run: |
+          echo "::error::Not every benchmark ran on every side; the comparison covers the others"
+          exit 1
+
+  # -------------------------------------------------------------------------
+  # macOS
+  # -------------------------------------------------------------------------
+  mac-build:
+    name: PGO / macOS / build ${{ matrix.variant }}
+    if: inputs.macos
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [plain, pgo]
+        # The CI Build Mac job's configuration.
+        config:
+          - os: macos
+            runner: macos-26
+            qt_version: 6.11.3
+            qt_arch: clang_64
+            qt_modules: qt5compat
+            arch: arm64
+            artifacts_id: mac-arm64
+            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_SKIP_INSTALL_RPATH=ON
+    runs-on: ${{ matrix.config.runner }}
+    timeout-minutes: 300
+    permissions:
+      contents: read
+    env:
+      VARIANT: ${{ matrix.variant }}
+      HOMEBREW_NO_ANALYTICS: 1
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Vectorscan generates sources with it at build time (ci-build.yml, #199).
+      - name: Brew deps
+        run: brew install ragel
+
+      - uses: ./.github/actions/agent-setup
+      - uses: ./.github/actions/logsquirl-version
+      - uses: ./.github/actions/prepare-workspace-env
+
+      - name: Restore CPM cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cpm_cache
+          key: cpm-${{ runner.os }}-${{ matrix.config.arch }}-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
+          restore-keys: |
+            cpm-${{ runner.os }}-${{ matrix.config.arch }}-
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Prepare the training
+        if: matrix.variant != 'plain'
+        run: |
+          set -euo pipefail
+          pip install --require-hashes --only-binary :all: -r .github/requirements/e2e.txt
+          python tests/e2e/generate_test_data.py --max-mb 100
+
+      - name: Build
+        run: .github/scripts/pgo-native.sh clang
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pgo-macos-${{ matrix.variant }}
+          path: pgo-run/pgo-macos-${{ matrix.variant }}.tar
+          if-no-files-found: error
+          retention-days: 14
+
+  mac-measure:
+    name: PGO / macOS / measure
+    needs: mac-build
+    if: ${{ !cancelled() && needs.mac-build.result != 'skipped' }}
+    strategy:
+      matrix:
+        config:
+          - os: macos
+            runner: macos-26
+            qt_version: 6.11.3
+            qt_arch: clang_64
+            qt_modules: qt5compat
+            arch: arm64
+            artifacts_id: mac-arm64
+            cmake_opts:
+    runs-on: ${{ matrix.config.runner }}
+    timeout-minutes: 240
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The same Qt, at the same path, the binaries were linked against.
+      - uses: ./.github/actions/agent-setup
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: pgo-macos-*
+          path: pgo-run/artifacts
+
+      - name: Unpack the variants
+        id: sides
+        run: .github/scripts/pgo-unpack.sh macos
+
+      - name: Measure
+        id: measure
+        env:
+          SIDES: ${{ steps.sides.outputs.sides }}
+        run: |
+          set -euo pipefail
+          pip install --require-hashes --only-binary :all: -r .github/requirements/e2e.txt
+          python tests/e2e/generate_test_data.py
+          # shellcheck disable=SC2086 # one --side argument per word
+          python .github/scripts/pgo.py measure $SIDES --results pgo-run/results \
+            --benchmark-samples "$BENCHMARK_SAMPLES" --log-file-mb "$LOG_FILE_MB" --e2e-runs "$E2E_RUNS"
+        continue-on-error: true
+
+      - name: Compare
+        if: always() && steps.sides.outcome == 'success'
+        run: .github/scripts/pgo-report.sh macOS
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.sides.outcome == 'success'
+        with:
+          name: pgo-results-macos
+          path: pgo-run/results
+          if-no-files-found: error
+
+      - name: Fail when the measurement failed
+        if: steps.measure.outcome == 'failure'
+        run: |
+          echo "::error::Not every benchmark ran on every side; the comparison covers the others"
+          exit 1
+
+  # -------------------------------------------------------------------------
+  # Windows
+  # -------------------------------------------------------------------------
+  windows-build:
+    name: PGO / Windows / build ${{ matrix.variant }}
+    if: inputs.windows
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [plain, pgo]
+        # The CI Build Windows job's configuration.
+        config:
+          - os: windows
+            runner: windows-2025
+            qt_version: 6.11.3
+            qt_modules: qt5compat
+            qt_arch: win64_msvc2022_64
+            arch: x64
+            ssl_arch: -x64
+            cmake_opts:
+            artifacts_id: windows-x64
+    runs-on: ${{ matrix.config.runner }}
+    timeout-minutes: 300
+    permissions:
+      contents: read
+    env:
+      VARIANT: ${{ matrix.variant }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/windows-openssl
+
+      # Only the workspace path and the workflow's own matrix (#204).
+      - name: Set openssl paths
+        env:
+          WORKSPACE: ${{ github.workspace }}
+          ARCH: ${{ matrix.config.arch }}
+          SSL_ARCH: ${{ matrix.config.ssl_arch }}
+        run: | # zizmor: ignore[github-env]
+          set -euo pipefail
+          printf 'SSL_DIR=%s\\openssl-3\\%s\\bin\n' "$WORKSPACE" "$ARCH" >> "$GITHUB_ENV"
+          echo "SSL_ARCH=$SSL_ARCH" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/agent-setup
+      - uses: ./.github/actions/logsquirl-version
+      - uses: ./.github/actions/prepare-workspace-env
+
+      - name: Prepare dev cmd
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: ${{ matrix.config.arch }}
+
+      - name: Restore CPM cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cpm_cache
+          key: cpm-${{ runner.os }}-${{ matrix.config.arch }}-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
+          restore-keys: |
+            cpm-${{ runner.os }}-${{ matrix.config.arch }}-
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Prepare the training
+        if: matrix.variant != 'plain'
+        run: |
+          set -euo pipefail
+          pip install --require-hashes --only-binary :all: -r .github/requirements/e2e.txt
+          python tests/e2e/generate_test_data.py --max-mb 100
+
+      - name: Build
+        run: .github/scripts/pgo-native.sh msvc
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pgo-windows-${{ matrix.variant }}
+          path: pgo-run/pgo-windows-${{ matrix.variant }}.tar
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-measure:
+    name: PGO / Windows / measure
+    needs: windows-build
+    if: ${{ !cancelled() && needs.windows-build.result != 'skipped' }}
+    strategy:
+      matrix:
+        config:
+          - os: windows
+            runner: windows-2025
+            qt_version: 6.11.3
+            qt_modules: qt5compat
+            qt_arch: win64_msvc2022_64
+            arch: x64
+            cmake_opts:
+            artifacts_id: windows-x64
+    runs-on: ${{ matrix.config.runner }}
+    timeout-minutes: 240
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The Qt the binaries were built with, on PATH.
+      - uses: ./.github/actions/agent-setup
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: pgo-windows-*
+          path: pgo-run/artifacts
+
+      - name: Unpack the variants
+        id: sides
+        run: .github/scripts/pgo-unpack.sh windows
+
+      - name: Measure
+        id: measure
+        env:
+          SIDES: ${{ steps.sides.outputs.sides }}
+        run: |
+          set -euo pipefail
+          pip install --require-hashes --only-binary :all: -r .github/requirements/e2e.txt
+          python tests/e2e/generate_test_data.py
+          # shellcheck disable=SC2086 # one --side argument per word
+          python .github/scripts/pgo.py measure $SIDES --results pgo-run/results \
+            --benchmark-samples "$BENCHMARK_SAMPLES" --log-file-mb "$LOG_FILE_MB" --e2e-runs "$E2E_RUNS"
+        continue-on-error: true
+
+      - name: Compare
+        if: always() && steps.sides.outcome == 'success'
+        run: .github/scripts/pgo-report.sh Windows
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.sides.outcome == 'success'
+        with:
+          name: pgo-results-windows
+          path: pgo-run/results
+          if-no-files-found: error
+
+      - name: Fail when the measurement failed
+        if: steps.measure.outcome == 'failure'
+        run: |
+          echo "::error::Not every benchmark ran on every side; the comparison covers the others"
+          exit 1
+
+  # -------------------------------------------------------------------------
+  # One report for the ticket
+  # -------------------------------------------------------------------------
+  report:
+    name: PGO / report
+    needs: [linux-measure, mac-measure, windows-measure]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: pgo-results-*
+          path: results
+
+      # The platforms in a fixed order; a platform not measured is named.
+      - name: Join the platforms' reports
+        run: |
+          set -euo pipefail
+          {
+            echo "# PGO and BOLT: A/B per platform (#682)"
+            echo
+            for platform in linux macos windows; do
+              if [ -f "results/pgo-results-$platform/report.md" ]; then
+                cat "results/pgo-results-$platform/report.md"
+              else
+                echo "## $platform"
+                echo
+                echo "Not measured in this run."
+              fi
+              echo
+            done
+          } > pgo-report.md
+          cat pgo-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pgo-report
+          path: pgo-report.md
+          if-no-files-found: error

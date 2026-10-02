@@ -264,28 +264,34 @@ if(LOGSQUIRL_USE_SENTRY)
       )
     else()
       find_program(OBJCOPY objcopy)
-      add_custom_command(
-        TARGET logsquirl
-        POST_BUILD
-        COMMAND ${OBJCOPY} --only-keep-debug --compress-debug-sections=zlib $<TARGET_FILE:logsquirl>
-                ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/logsquirl.debug
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Generating symbols for $<TARGET_FILE:logsquirl>"
-      )
-      add_custom_command(
-        TARGET logsquirl
-        POST_BUILD
-        COMMAND ${OBJCOPY} --strip-debug --strip-unneeded $<TARGET_FILE:logsquirl>
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Stripping $<TARGET_FILE:logsquirl>"
-      )
-      add_custom_command(
-        TARGET logsquirl
-        POST_BUILD
-        COMMAND ${OBJCOPY} --add-gnu-debuglink=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/logsquirl.debug $<TARGET_FILE:logsquirl>
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Linking symbols for $<TARGET_FILE:logsquirl>"
-      )
+      # BOLT rewrites logsquirl from its symbols and relocations, so a build
+      # for it keeps both, and `.github/scripts/pgo.py bolt-optimize
+      # --split-debug` splits, strips and links the debug information the
+      # same way after BOLT has run (#682).
+      if(NOT LOGSQUIRL_BOLT)
+        add_custom_command(
+          TARGET logsquirl
+          POST_BUILD
+          COMMAND ${OBJCOPY} --only-keep-debug --compress-debug-sections=zlib $<TARGET_FILE:logsquirl>
+                  ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/logsquirl.debug
+          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+          COMMENT "Generating symbols for $<TARGET_FILE:logsquirl>"
+        )
+        add_custom_command(
+          TARGET logsquirl
+          POST_BUILD
+          COMMAND ${OBJCOPY} --strip-debug --strip-unneeded $<TARGET_FILE:logsquirl>
+          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+          COMMENT "Stripping $<TARGET_FILE:logsquirl>"
+        )
+        add_custom_command(
+          TARGET logsquirl
+          POST_BUILD
+          COMMAND ${OBJCOPY} --add-gnu-debuglink=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/logsquirl.debug $<TARGET_FILE:logsquirl>
+          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+          COMMENT "Linking symbols for $<TARGET_FILE:logsquirl>"
+        )
+      endif()
 
       add_custom_command(
         TARGET logsquirl_portable

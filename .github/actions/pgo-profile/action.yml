@@ -1,0 +1,128 @@
+name: "Profile for PGO"
+description: >-
+  Build the instrumented binaries in the build root, train them on the
+  benchmark mode's scenarios and merge the profile, so that the build after
+  this one (docker-build or agent-build) uses it: LOGSQUIRL_PGO=USE (#682)
+# A release build of a platform uses this only behind its job's `pgo` switch
+# in ci-build.yml, which stays false until the A/B numbers of the PGO workflow
+# (pgo.yml) show a clear gain there. The profile is made by this run, from
+# this commit, and never kept: it cannot go stale. While every switch is
+# off nothing in CI runs this action; test_pgo.py checks its pgo.py calls and
+# the files it names (#732).
+#
+# The instrumented build is the build root itself: GCC names each object's
+# profile after the object's absolute path, so the optimized build has to
+# compile in the same directory, and the build after this one reconfigures it
+# with LOGSQUIRL_PGO=USE. It runs after logsquirl-version and
+# prepare-workspace-env, and on Linux after docker-pull-or-build.
+inputs:
+  toolchain:
+    description: "gcc (Linux, in the build container), clang (macOS) or msvc (Windows)"
+    required: true
+  bolt:
+    description: "true: link the builds for BOLT as well (LOGSQUIRL_BOLT, Linux); the bolt action runs after the build"
+    required: false
+    default: "false"
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      if: runner.os != 'Linux'
+      with:
+        python-version: '3.12'
+
+    # The same key as agent-build's, which restores it again afterwards.
+    - name: Restore CPM cache
+      if: runner.os != 'Linux'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ github.workspace }}/cpm_cache
+        key: cpm-${{ runner.os }}-${{ matrix.config.arch }}-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
+        restore-keys: |
+          cpm-${{ runner.os }}-${{ matrix.config.arch }}-
+
+    # The Log Files up to 100 MB: the scenarios' code runs on them as on the
+    # 1 GB one, in a fraction of the time.
+    - name: Generate the training data
+      shell: bash
+      run: |
+        set -euo pipefail
+        python=$(command -v python3 || command -v python)
+        "$python" tests/e2e/generate_test_data.py --max-mb 100
+
+    - name: Instrumented build, training and merge
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
+        BOLT: ${{ inputs.bolt }}
+      run: |
+        set -euo pipefail
+        # shellcheck disable=SC2016 # expanded by the shell in the container
+        docker run --rm \
+          --env QT_QPA_PLATFORM=offscreen \
+          --env PYTHONDONTWRITEBYTECODE=1 \
+          --env PIP_ROOT_USER_ACTION=ignore \
+          --env LOGSQUIRL_VERSION \
+          --env LOGSQUIRL_BUILD_ROOT \
+          --env LOGSQUIRL_CMAKE_OPTS \
+          --env TOOLCHAIN \
+          --env BOLT \
+          --workdir /usr/local \
+          -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c '
+            set -euo pipefail
+            python3 -m pip install --quiet --break-system-packages --require-hashes --only-binary :all: \
+              -r .github/requirements/e2e.txt
+            bolt=()
+            [ "$BOLT" != true ] || bolt=(--bolt)
+            pgo() { python3 .github/scripts/pgo.py --timings pgo-run/timings.json "$@"; }
+            pgo build --build-dir "$LOGSQUIRL_BUILD_ROOT" --mode GENERATE "${bolt[@]}" \
+              --targets logsquirl logsquirl_grep crashpad_handler \
+              --cmake-args "$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache"
+            pgo train --binary-dir "$LOGSQUIRL_BUILD_ROOT/output"
+            pgo merge --toolchain "$TOOLCHAIN" --profile-dir "$LOGSQUIRL_BUILD_ROOT/pgo-profile"
+          '
+
+    # Configured as agent-build configures, compiler launcher included, so the
+    # optimized build compiles the same objects the profile was taken from.
+    - name: Instrumented build, training and merge
+      if: runner.os != 'Linux'
+      shell: bash
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
+        BOLT: ${{ inputs.bolt }}
+      run: |
+        set -euo pipefail
+        pip install --require-hashes --only-binary :all: -r .github/requirements/e2e.txt
+        if [ "$RUNNER_OS" = Windows ]; then workspace=$(pwd -W); else workspace=$(pwd); fi
+        launcher=""
+        if [ "${SCCACHE_GHA_ENABLED:-}" = "true" ]; then
+          launcher="-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            launcher="$launcher -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DCMAKE_POLICY_DEFAULT_CMP0141=NEW"
+          fi
+        fi
+        bolt=()
+        [ "$BOLT" != true ] || bolt=(--bolt)
+        pgo() { python .github/scripts/pgo.py --timings pgo-run/timings.json "$@"; }
+        pgo build --build-dir "$LOGSQUIRL_BUILD_ROOT" --mode GENERATE "${bolt[@]}" \
+          --targets logsquirl logsquirl_grep crashpad_handler \
+          --cmake-args "$LOGSQUIRL_CMAKE_OPTS $launcher -DCPM_SOURCE_CACHE=$workspace/cpm_cache"
+        pgo train --binary-dir "$LOGSQUIRL_BUILD_ROOT/output" --profile-dir "$LOGSQUIRL_BUILD_ROOT/pgo-profile"
+        pgo merge --toolchain "$TOOLCHAIN" --profile-dir "$LOGSQUIRL_BUILD_ROOT/pgo-profile"
+
+    # Only the options prepare-workspace-env wrote and literals (#204).
+    - name: Build with the profile
+      shell: bash
+      env:
+        BOLT: ${{ inputs.bolt }}
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
+        opts="$LOGSQUIRL_CMAKE_OPTS -DLOGSQUIRL_PGO=USE"
+        if [ "$BOLT" = true ]; then
+          opts="$opts -DLOGSQUIRL_BOLT=ON"
+        fi
+        echo "LOGSQUIRL_CMAKE_OPTS=$opts" >> "$GITHUB_ENV"
+        python=$(command -v python3 || command -v python)
+        "$python" .github/scripts/pgo.py --timings pgo-run/timings.json times --title "$RUNNER_OS" \
+          >> "$GITHUB_STEP_SUMMARY"
