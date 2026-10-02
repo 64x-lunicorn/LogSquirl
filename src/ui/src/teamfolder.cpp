@@ -1444,16 +1444,61 @@ void TeamFolder::setGroups( QList<TeamGroup<PredefinedFilterSet>> filterGroups,
     }
 }
 
+namespace {
+
+// The step that failed as the log names it: in English, whatever language the
+// status is shown in, like the rest of the log.
+const char* logDescriptionOf( SyncStep step )
+{
+    switch ( step ) {
+    case SyncStep::None:
+        return "sync failed";
+    case SyncStep::StartGit:
+        return "Git could not be started";
+    case SyncStep::Subfolder:
+        return "the subfolder lies outside the repository";
+    case SyncStep::Clone:
+        return "clone failed";
+    case SyncStep::Pull:
+        return "pull failed";
+    case SyncStep::Merge:
+        return "merge failed";
+    case SyncStep::Push:
+        return "push failed";
+    case SyncStep::PushRefused:
+        return "push refused";
+    }
+    return "sync failed";
+}
+
+} // namespace
+
 void TeamFolder::setState( State state, SyncStep failedStep, const QString& message )
 {
-    if ( state == State::Error || failedStep != SyncStep::None ) {
-        LOG_WARNING << "Team Folder: " << headingOf( failedStep ) << ": " << message;
-    }
-    state_ = state;
-    failedStep_ = failedStep;
     // The subfolder is LogSquirl's own refusal: its reason is a remark, and
     // there is no output of Git's.
     const bool fromGit = failedStep != SyncStep::Subfolder;
+    if ( state == State::Error || failedStep != SyncStep::None ) {
+        // Git's output as it is; for the subfolder, the subfolder itself
+        // rather than the translated reason. Why Git could not be started was
+        // logged where it failed to (teamfoldergit.cpp). Nothing after the
+        // step when there is nothing to add.
+        QString detail;
+        if ( failedStep == SyncStep::Subfolder ) {
+            detail = policy_.subfolder;
+        }
+        else if ( failedStep != SyncStep::StartGit ) {
+            detail = message;
+        }
+        if ( detail.isEmpty() ) {
+            LOG_WARNING << "Team Folder: " << logDescriptionOf( failedStep );
+        }
+        else {
+            LOG_WARNING << "Team Folder: " << logDescriptionOf( failedStep ) << ": " << detail;
+        }
+    }
+    state_ = state;
+    failedStep_ = failedStep;
     gitOutput_ = fromGit ? message : QString{};
     failureReason_ = fromGit ? QString{} : message;
     Q_EMIT stateChanged();
