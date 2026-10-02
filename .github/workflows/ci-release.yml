@@ -1030,7 +1030,7 @@ jobs:
     # workflow empty, although its build job names the environment
     # (actions/runner#4453): v26.10.0 left the repository unsigned and
     # unpublished (#626). Only the build job reads a secret, the signing key.
-    secrets: inherit
+    secrets: inherit # zizmor: ignore[secrets-inherit] environment secrets need inherit, see above
     permissions:
       contents: read
       pages: write

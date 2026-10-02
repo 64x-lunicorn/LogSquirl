@@ -135,6 +135,11 @@
 
 ## Bug fixes
 
+- **The dashboard lists a plugin installed while it is shown**: a plugin
+  installed, enabled or disabled in *Plugins* while the dashboard was open
+  did not show on its Plugins card, which kept saying *No plugins installed*
+  until the dashboard was shown again. The card now follows at once, in every
+  window. (#710)
 - **A plugin disabled while one of its dialogs is open no longer crashes
   LogSquirl**: a plugin whose menu action, configuration, converter, Regex Lab
   answer or active-file callback shows a modal dialog could be disabled in

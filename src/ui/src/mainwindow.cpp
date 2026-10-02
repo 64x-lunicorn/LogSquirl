@@ -407,6 +407,17 @@ MainWindow::MainWindow( WindowSession session,
         }
     } );
 
+    // A plugin installed, enabled or disabled later -- from this window's
+    // Plugins dialog or another's -- shows on the dashboard right away (#710).
+    if ( welcomeDashboard_ ) {
+        const auto refreshDashboard = [ this ] { welcomeDashboard_->refresh(); };
+        auto& pluginHost = plugins_->host();
+        connect( &pluginHost, &logsquirl::plugins::PluginHost::pluginLoaded, this,
+                 refreshDashboard );
+        connect( &pluginHost, &logsquirl::plugins::PluginHost::pluginUnloaded, this,
+                 refreshDashboard );
+    }
+
     updateTitleBar( "" );
     loadIcons();
     Theme::whenApplied( this, [ this ] {
