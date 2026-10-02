@@ -286,6 +286,14 @@
   spread` measures the spread of the medians within one CPU model, which is
   posted on #675 after eight weeks of nightly runs to re-decide a dedicated
   benchmark runner. (#685)
+||||||| parent of 4181ae7b (BUILD.md, CONTRIBUTING.md and the CHANGELOG tell how the gate keeps an inflated count from failing (#708))
+- **The instruction counts gate does not turn red on a count that a waiting
+  thread inflated**: counted, the benchmarks run oneTBB's flow graphs on the
+  thread that waits for them alone, so no idle TBB worker spins into a count,
+  which once added 9 % to a 20-tab Session restore that cost nothing more. A
+  benchmark over its threshold is counted once more on the pull request's
+  side and fails the gate only when both counts are over; the comment lists
+  both counts. (#708)
 
 - **Widgets built while the File Watcher polls do not race its poll thread**:
   the application creates Qt's gesture manager before the poll thread starts,
