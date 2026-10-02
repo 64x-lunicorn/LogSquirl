@@ -63,6 +63,13 @@ inline constexpr int MaxDelimiterNeighbours = 3;
 // arm64 target, and byte by byte on any other. The same pass also sees
 // whether any of the bytes is beyond ASCII, so a Log File whose encoding
 // guess is provisional (#657) has its bytes read only once (#701).
+//
+// The vector member that collects the bytes makes MSVC pad the class to its
+// 16-byte alignment, which is what it is for: C4324 says only that.
+#if defined( _MSC_VER )
+#pragma warning( push )
+#pragma warning( disable : 4324 )
+#endif
 class LineFeedAndTabScanner {
 public:
     LineFeedAndTabScanner( const char* bytes, std::size_t size, std::size_t from = 0 )
@@ -191,6 +198,9 @@ private:
 #endif
     unsigned char tailBytes_ = 0;
 };
+#if defined( _MSC_VER )
+#pragma warning( pop )
+#endif
 
 // One block of a Log File as indexing reads it, and what parsing it on its own
 // found.
