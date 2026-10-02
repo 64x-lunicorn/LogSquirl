@@ -89,6 +89,45 @@ workflow do that on one runner, push a throwaway branch whose only commit turns 
 gh workflow run benchmarks.yml --ref <override-branch> -f base_ref=<branch without it>
 ```
 
+### Profile-guided optimization
+
+`-DLOGSQUIRL_PGO=GENERATE` builds instrumented binaries; every run of them records a profile into
+`LOGSQUIRL_PGO_DIR` (default `<build dir>/pgo-profile`). `-DLOGSQUIRL_PGO=USE` builds optimized for that profile
+(Clang and AppleClang, GCC, MSVC; `cmake/ProfileGuidedOptimization.cmake` says how per compiler). The training
+workload is the benchmark mode's scenarios, run by the e2e performance suite. `-DLOGSQUIRL_BOLT=ON` (Linux) links
+the executables so that `llvm-bolt` can rewrite them afterwards. All three are off by default, and a release build
+uses them only behind its job's `pgo` (and `bolt`) switch in `ci-build.yml`, false until the A/B numbers show a clear
+gain on that platform (#682). No profile is checked in: CI builds, trains and uses it in one run.
+
+`.github/scripts/pgo.py` runs each step and records its wall time. On a developer machine (here macOS):
+
+```bash
+pgo() { python3 .github/scripts/pgo.py --timings pgo/timings.json "$@"; }
+pgo build --build-dir pgo/plain --mode OFF --benchmarks          # the build to compare with
+python3 tests/e2e/generate_test_data.py --max-mb 100
+pgo build --build-dir pgo/build --mode GENERATE
+pgo train --binary-dir pgo/build/output                         # needs .github/requirements/e2e.txt
+pgo merge --toolchain clang --profile-dir pgo/build/pgo-profile # gcc: nothing to merge; msvc: pgomgr
+pgo build --build-dir pgo/build --mode USE --benchmarks         # GCC: the same build directory
+pgo measure --side plain=pgo/plain/output --side pgo=pgo/build/output --results pgo/results
+python3 .github/scripts/benchmark-compare.py --before pgo/results/plain --after pgo/results/pgo
+pgo times
+```
+
+A USE build without its profile stops at configure time and says what to run. It keeps `-Werror` on its compile and
+link lines (ADR 0009) and accepts two diagnostics as warnings: GCC's `-Wmissing-profile`, for code the training never
+ran, and Clang's `-Wbackend-plugin` hash mismatch, for an inline function whose copies differ between translation units
+(GCC's `-Wcoverage-mismatch` still fails the build). The profile reaches the libraries and
+`logsquirl` and `logsquirl_grep`, the executables the training runs; the own sources of the other executables (tests,
+micro-benchmarks) compile without it, since Clang would match their `main()` to logsquirl's by name. A USE build does not use a compiler launcher
+(sccache): the cache keys an object on the command line, not on the profile it names.
+
+The **PGO** workflow (`.github/workflows/pgo.yml`) produces the numbers per platform, `gh workflow run pgo.yml --ref
+<branch>`: plain, PGO, and on Linux PGO and BOLT, each built from scratch on its own runner, then every Catch2
+micro-benchmark and the e2e performance suite run on all of them on one runner. The `pgo-report` artifact holds the
+A/B tables and the build time each variant took; the build time increase is the instrumented build, the training,
+the merge and the optimized build (and BOLT's three steps) against the one plain build they replace.
+
 ### Plugin SDK
 
 The plugin C ABI header (`logsquirl_plugin_api.h`) is installed alongside the
@@ -1049,6 +1088,7 @@ before anything is downloaded, because its signing job could not enter the
 | `instruction-counts-comment.yml` | `workflow_run` of CI Build | Post the report and the gate's verdict as one pull request comment, updated on every run, with master's code only |
 | `instruction-counts-label.yml` | `perf-accepted` added to or removed from a PR | Re-run CI Build's instruction counts gate and update the comment (see *Instruction counts*) |
 | `performance.yml` | nightly schedule (02:41 UTC), dispatch | Measure master's e2e performance suite and the instruction counts of its benchmarks in an optimized build, find change points and broken Budgets, record the run on the `perf-data` branch and file an issue per scenario with a finding (see *Nightly performance*) |
+| `pgo.yml` | dispatch only | Build each platform without and with profile-guided optimization (and BOLT on Linux), measure the micro-benchmarks and the e2e performance suite of all of them on one runner, and report the A/B tables and the build times (see *Profile-guided optimization*) |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 
 
