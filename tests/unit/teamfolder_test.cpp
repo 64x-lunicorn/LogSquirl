@@ -530,6 +530,49 @@ TEST_CASE( "An unreachable repository keeps the groups of the last sync", "[team
     CHECK( bob->heading() == "Synced" );
 }
 
+TEST_CASE( "A clone that cannot take what was pulled reports the failed merge", "[teamfolder]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    team.pushGroupByHand( "alice", makeGroup( "Network" ) );
+    const auto bob = team.member( "bob" );
+    REQUIRE( bob->state() == TeamFolder::State::Synced );
+
+    // Alice shares a second group; Bob's clone holds a file of his own,
+    // untracked, where it would go. Git fetches it, and refuses to overwrite
+    // the file with it.
+    const auto file = suggestedFileName( "Second", GroupKind::Filter );
+    team.pushGroupByHand( "alice", makeGroup( "Second" ) );
+    {
+        QFile mine( QDir( team.cloneOf( "bob" ) ).filePath( file ) );
+        REQUIRE( mine.open( QIODevice::WriteOnly ) );
+        mine.write( "Bob's own file\n" );
+    }
+    syncNow( *bob );
+
+    CHECK( bob->state() == TeamFolder::State::Error );
+    CHECK( bob->failedStep() == SyncStep::Merge );
+    CHECK( bob->heading() == "Merge failed" );
+    // Git's own output, naming the file it would not overwrite.
+    CHECK( bob->gitOutput().contains( file ) );
+    CHECK_FALSE( bob->gitOutput().contains( "Merge failed" ) );
+    CHECK( namesOf( bob->filterGroups() ).contains( "Network" ) );
+
+    // With the file out of the way, the next sync merges.
+    REQUIRE( QFile::remove( QDir( team.cloneOf( "bob" ) ).filePath( file ) ) );
+    syncNow( *bob );
+    CHECK( bob->state() == TeamFolder::State::Synced );
+    CHECK( bob->failedStep() == SyncStep::None );
+    CHECK( bob->gitOutput().isEmpty() );
+    CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Network", "Second" } );
+}
+
 TEST_CASE( "Turning the Team Folder off or pointing it elsewhere replaces only Team groups",
            "[teamfolder]" )
 {
