@@ -36,8 +36,10 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <QClipboard>
 #include <QColorDialog>
 #include <QDesktopServices>
+#include <QFontDatabase>
 #include <QKeySequenceEdit>
 #include <QMessageBox>
 #include <QToolButton>
@@ -127,6 +129,7 @@ OptionsDialog::OptionsDialog( const LogFormatCatalog& logFormatCatalog, QWidget*
     setupLogging();
     setupArchives();
     setupIndexCache();
+    setupTeamFolderStatus();
     setupTeamFolder();
     setupLogFormats( logFormatCatalog );
 }
@@ -256,6 +259,33 @@ void OptionsDialog::setupTeamFolder()
     updateTeamFolderStatus();
 }
 
+void OptionsDialog::setupTeamFolderStatus()
+{
+    auto headingFont = teamFolderStatusHeadingLabel->font();
+    headingFont.setBold( true );
+    teamFolderStatusHeadingLabel->setFont( headingFont );
+
+    // Git's output as Git wrote it: its own line breaks, none added.
+    teamFolderDetailsEdit->setFont( QFontDatabase::systemFont( QFontDatabase::FixedFont ) );
+    teamFolderDetailsEdit->setVisible( false );
+    connect( teamFolderDetailsButton, &QToolButton::toggled, this, [ this ]( bool expanded ) {
+        teamFolderDetailsButton->setArrowType( expanded ? Qt::DownArrow : Qt::RightArrow );
+        updateTeamFolderStatus();
+    } );
+    connect( teamFolderCopyDetailsButton, &QPushButton::clicked, this, [ this ] {
+        QGuiApplication::clipboard()->setText( teamFolderDetailsEdit->toPlainText() );
+    } );
+
+    // The note explains; it stays out of the way of the settings and the
+    // status.
+    auto noteFont = teamFolderNoteLabel->font();
+    noteFont.setPointSizeF( noteFont.pointSizeF() * 0.9 );
+    teamFolderNoteLabel->setFont( noteFont );
+    teamFolderNoteLabel->setForegroundRole( QPalette::PlaceholderText );
+
+    teamFolderStatusGroup->setVisible( false );
+}
+
 void OptionsDialog::showTeamFolder( TeamFolder& teamFolder )
 {
     teamFolder_ = &teamFolder;
@@ -264,21 +294,63 @@ void OptionsDialog::showTeamFolder( TeamFolder& teamFolder )
     updateTeamFolderStatus();
 }
 
+namespace {
+
+// The standard icon of the Team Folder's status: one for each state, and a
+// warning for Team groups that are current but read-only.
+QStyle::StandardPixmap statusIconOf( const TeamFolder& teamFolder )
+{
+    if ( teamFolder.isSyncing() ) {
+        return QStyle::SP_BrowserReload;
+    }
+    switch ( teamFolder.state() ) {
+    case TeamFolder::State::Off:
+        return QStyle::SP_MediaStop;
+    case TeamFolder::State::NotSynced:
+        return QStyle::SP_MessageBoxWarning;
+    case TeamFolder::State::Synced:
+        return teamFolder.failedStep() == logsquirl::teamfolder::SyncStep::None
+                   ? QStyle::SP_DialogApplyButton
+                   : QStyle::SP_MessageBoxWarning;
+    case TeamFolder::State::Error:
+        return QStyle::SP_MessageBoxCritical;
+    }
+    return QStyle::SP_MessageBoxInformation;
+}
+
+} // namespace
+
 void OptionsDialog::updateTeamFolderStatus()
 {
     // What the Team Folder does now, as it was last applied: Sync Now syncs
     // that one, not what the dialog shows before Apply.
-    const bool active = teamFolder_ && teamFolder_->state() != TeamFolder::State::Off;
-    teamFolderStatusLabel->setVisible( active );
-    teamFolderSyncButton->setVisible( active );
-    if ( !active ) {
+    teamFolderStatusGroup->setVisible( teamFolder_ != nullptr );
+    if ( !teamFolder_ ) {
         return;
     }
-    const auto details = teamFolder_->details();
-    teamFolderStatusLabel->setText( details.isEmpty() ? teamFolder_->summary()
-                                                      : teamFolder_->summary()
-                                                            + QStringLiteral( "\n" ) + details );
-    teamFolderSyncButton->setEnabled( !teamFolder_->isSyncing() );
+
+    const auto iconSize = style()->pixelMetric( QStyle::PM_SmallIconSize, nullptr, this );
+    teamFolderStatusIconLabel->setPixmap(
+        style()
+            ->standardIcon( statusIconOf( *teamFolder_ ), nullptr, this )
+            .pixmap( QSize( iconSize, iconSize ), devicePixelRatioF() ) );
+    teamFolderStatusHeadingLabel->setText( teamFolder_->heading() );
+
+    const auto remarks = teamFolder_->remarks();
+    teamFolderRemarksLabel->setText( remarks.join( QLatin1Char( '\n' ) ) );
+    teamFolderRemarksLabel->setVisible( !remarks.isEmpty() );
+
+    // Git's output, untranslated (ADR-0008), of the last sync that failed.
+    const auto gitOutput = teamFolder_->isSyncing() ? QString{} : teamFolder_->gitOutput();
+    if ( teamFolderDetailsEdit->toPlainText() != gitOutput ) {
+        teamFolderDetailsEdit->setPlainText( gitOutput );
+    }
+    const bool hasDetails = !gitOutput.isEmpty();
+    teamFolderDetailsHeader->setVisible( hasDetails );
+    teamFolderDetailsEdit->setVisible( hasDetails && teamFolderDetailsButton->isChecked() );
+
+    teamFolderSyncButton->setEnabled( teamFolder_->state() != TeamFolder::State::Off
+                                      && !teamFolder_->isSyncing() );
 }
 
 // Populate the Log Formats tab from the application's Log Format Catalog

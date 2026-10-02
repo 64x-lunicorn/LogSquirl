@@ -50,9 +50,11 @@
 #include "naminggroup.h"
 #include "teamfolder.h"
 #include "teamfoldergit.h"
+#include "teamfoldertesting.h"
 
 using logsquirl::teamfolder::Git;
 using logsquirl::teamfolder::groupOfKind;
+using logsquirl::teamfolder::SyncStep;
 using logsquirl::teamfolder::TeamGroupChanges;
 using logsquirl::valuenames::GroupTable;
 using logsquirl::valuenames::NameRow;
@@ -60,80 +62,9 @@ using logsquirl::valuenames::NameTable;
 using logsquirl::valuenames::NamingGroup;
 using logsquirl::valuenames::NamingRule;
 using namespace logsquirl::groupexchange;
+using namespace teamfolder_testing;
 
 namespace {
-
-constexpr int SyncTimeoutMs = 60'000;
-
-// Sets the environment every Git of this process runs in for as long as it
-// lives, and puts back what was there.
-class IsolatedGitEnvironment {
-public:
-    IsolatedGitEnvironment()
-    {
-#ifdef Q_OS_WIN
-        const QByteArray nullDevice = "NUL";
-#else
-        const QByteArray nullDevice = "/dev/null";
-#endif
-        set( "GIT_CONFIG_GLOBAL", nullDevice );
-        set( "GIT_CONFIG_NOSYSTEM", "1" );
-        set( "GIT_TERMINAL_PROMPT", "0" );
-        set( "GIT_AUTHOR_NAME", "Team Folder Test" );
-        set( "GIT_AUTHOR_EMAIL", "team-folder-test@example.invalid" );
-        set( "GIT_COMMITTER_NAME", "Team Folder Test" );
-        set( "GIT_COMMITTER_EMAIL", "team-folder-test@example.invalid" );
-    }
-
-    ~IsolatedGitEnvironment()
-    {
-        for ( const auto& [ name, value ] : previous_ ) {
-            if ( value.has_value() ) {
-                qputenv( name.c_str(), *value );
-            }
-            else {
-                qunsetenv( name.c_str() );
-            }
-        }
-    }
-
-    IsolatedGitEnvironment( const IsolatedGitEnvironment& ) = delete;
-    IsolatedGitEnvironment& operator=( const IsolatedGitEnvironment& ) = delete;
-
-private:
-    void set( const char* name, const QByteArray& value )
-    {
-        previous_.emplace( name, qEnvironmentVariableIsSet( name )
-                                     ? std::optional<QByteArray>( qgetenv( name ) )
-                                     : std::nullopt );
-        qputenv( name, value );
-    }
-
-    std::map<std::string, std::optional<QByteArray>> previous_;
-};
-
-bool gitInstalled()
-{
-    return !QStandardPaths::findExecutable( QStringLiteral( "git" ) ).isEmpty();
-}
-
-// Whether the Team Folder is done syncing, waiting for it as long as needed.
-bool settled( const TeamFolder& folder )
-{
-    return QTest::qWaitFor( [ &folder ] { return !folder.isSyncing(); }, SyncTimeoutMs );
-}
-
-void syncNow( TeamFolder& folder )
-{
-    REQUIRE( settled( folder ) );
-    folder.sync();
-    REQUIRE( settled( folder ) );
-}
-
-TeamFolderPolicy policyFor( const QString& url, const QString& subfolder = {} )
-{
-    return TeamFolderPolicy{ .enabled = true, .repositoryUrl = url, .subfolder = subfolder };
-}
 
 PredefinedFilterSet makeGroup( const QString& name, const QString& pattern = "ERROR" )
 {
@@ -334,7 +265,8 @@ void checkMissingGitIsReported( const QString& gitProgram = QStringLiteral( "git
     REQUIRE( settled( folder ) );
 
     CHECK( folder.state() == TeamFolder::State::Error );
-    CHECK( folder.message().contains( "Git could not be started" ) );
+    CHECK( folder.failedStep() == SyncStep::StartGit );
+    CHECK( folder.gitOutput().contains( "Git could not be started" ) );
     CHECK( folder.filterGroups().isEmpty() );
 }
 
@@ -388,7 +320,9 @@ TEST_CASE( "A group file added on one side appears on the other after a sync", "
     syncNow( *bob );
 
     CHECK( bob->state() == TeamFolder::State::Synced );
-    CHECK( bob->message().isEmpty() );
+    CHECK( bob->failedStep() == SyncStep::None );
+    CHECK( bob->gitOutput().isEmpty() );
+    CHECK( bob->heading() == "Synced" );
     const auto groups = bob->filterGroups();
     REQUIRE( groups.size() == 1 );
     CHECK( groups[ 0 ].id() == network.id() );
@@ -487,6 +421,10 @@ TEST_CASE( "A malformed file in the Team Folder is skipped and reported", "[team
     REQUIRE( skipped.size() == 1 );
     CHECK( skipped[ 0 ].file == "broken_filter.conf" );
     CHECK_FALSE( skipped[ 0 ].reason.isEmpty() );
+    // Still shown beside the status.
+    CHECK( bob->remarks()
+           == QStringList{
+               QStringLiteral( "Skipped broken_filter.conf: %1" ).arg( skipped[ 0 ].reason ) } );
 }
 
 TEST_CASE( "Team groups are sorted by name and read from the subfolder", "[teamfolder]" )
@@ -522,7 +460,9 @@ TEST_CASE( "A subfolder outside the repository is refused", "[teamfolder]" )
     const Team team;
     const auto bob = team.member( "bob", "../elsewhere" );
     CHECK( bob->state() == TeamFolder::State::Error );
-    CHECK_FALSE( bob->message().isEmpty() );
+    CHECK( bob->failedStep() == SyncStep::Subfolder );
+    // The subfolder is LogSquirl's to refuse: there is nothing from Git.
+    CHECK( bob->gitOutput().isEmpty() );
 }
 
 TEST_CASE( "A failed clone is reported with Git's message", "[teamfolder]" )
@@ -540,8 +480,11 @@ TEST_CASE( "A failed clone is reported with Git's message", "[teamfolder]" )
     REQUIRE( settled( folder ) );
 
     CHECK( folder.state() == TeamFolder::State::Error );
-    CHECK_FALSE( folder.message().isEmpty() );
-    CHECK_FALSE( folder.message().contains( "Git could not be started" ) );
+    CHECK( folder.failedStep() == SyncStep::Clone );
+    CHECK( folder.heading() == "Clone failed" );
+    // Git's own output, and nothing but it: the heading is not joined to it.
+    CHECK( folder.gitOutput().startsWith( "fatal: " ) );
+    CHECK_FALSE( folder.gitOutput().contains( "Clone failed" ) );
     CHECK( folder.filterGroups().isEmpty() );
 }
 
@@ -564,14 +507,18 @@ TEST_CASE( "An unreachable repository keeps the groups of the last sync", "[team
     syncNow( *bob );
 
     CHECK( bob->state() == TeamFolder::State::NotSynced );
-    CHECK_FALSE( bob->message().isEmpty() );
+    CHECK( bob->failedStep() == SyncStep::Pull );
+    CHECK( bob->heading() == "Pull failed" );
+    CHECK( bob->gitOutput().startsWith( "fatal: " ) );
     CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Network" } );
 
     // And comes back.
     REQUIRE( QDir().rename( team.serverPath() + ".gone", team.serverPath() ) );
     syncNow( *bob );
     CHECK( bob->state() == TeamFolder::State::Synced );
-    CHECK( bob->message().isEmpty() );
+    CHECK( bob->failedStep() == SyncStep::None );
+    CHECK( bob->gitOutput().isEmpty() );
+    CHECK( bob->heading() == "Synced" );
 }
 
 TEST_CASE( "Turning the Team Folder off or pointing it elsewhere replaces only Team groups",
@@ -1090,6 +1037,14 @@ TEST_CASE( "A push refused for missing rights makes the Team groups read-only",
     CHECK( outcome.results[ 0 ].message.contains( "you may not push here" ) );
     CHECK_FALSE( alice->isWritable() );
     CHECK( alice->readOnlyReason().contains( "you may not push here" ) );
+    // The step that failed and Git's output, apart; the Team groups stay
+    // current, and say they are read-only.
+    CHECK( alice->state() == TeamFolder::State::Synced );
+    CHECK( alice->failedStep() == SyncStep::PushRefused );
+    CHECK( alice->heading() == "Push refused" );
+    CHECK( alice->gitOutput().contains( "you may not push here" ) );
+    CHECK_FALSE( alice->gitOutput().contains( "read-only" ) );
+    CHECK( alice->remarks() == QStringList{ "The Team groups are read-only." } );
     // Nothing is left pending that could never be pushed.
     CHECK_FALSE( alice->hasPendingChanges() );
     CHECK( alice->filterGroups().isEmpty() );
@@ -1969,4 +1924,107 @@ TEST_CASE( "Publishing a Naming Group someone else changed meanwhile reports a c
         CHECK( groups[ 1 ].id() != bap.id() );
         CHECK( ecuNameOf( groups[ 1 ] ) == "Bobs" );
     }
+}
+
+// The step that failed and Git's output, reported apart (#711): the status
+// names the step, and Git's output is shown as Git wrote it.
+TEST_CASE( "A failed step is reported apart from Git's output, which is kept as Git wrote it",
+           "[teamfolder]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    // Git's output of several lines, one of them indented, as Git writes the
+    // message of a server.
+    const QString printed = "fatal: first line of the server's message\n"
+                            "    an indented second line, longer than a status label would "
+                            "show on one line of its own without wrapping it\n"
+                            "fatal: Could not read from remote repository.";
+    const auto failOn = [ & ]( const QString& command ) {
+        return wrapperGit( team.root(), "git-" + command + ".sh",
+                           QStringLiteral( "if [ \"$1\" = %1 ]; then\n"
+                                           "  printf '%s\\n' \"fatal: first line of the "
+                                           "server's message\" \"    an indented second line, "
+                                           "longer than a status label would show on one line "
+                                           "of its own without wrapping it\" \"fatal: Could not "
+                                           "read from remote repository.\" >&2\n"
+                                           "  exit 128\n"
+                                           "fi" )
+                               .arg( command ) );
+    };
+
+    SECTION( "a clone" )
+    {
+        TeamFolder folder( team.cloneOf( "alice" ), failOn( "clone" ) );
+        folder.setUp( policyFor( team.url() ) );
+        REQUIRE( settled( folder ) );
+
+        CHECK( folder.state() == TeamFolder::State::Error );
+        CHECK( folder.failedStep() == SyncStep::Clone );
+        CHECK( folder.heading() == "Clone failed" );
+        CHECK( folder.gitOutput() == printed );
+        CHECK( folder.remarks().isEmpty() );
+    }
+
+    SECTION( "a pull" )
+    {
+        // Alice's clone exists; only the syncs after it fail.
+        team.member( "alice" );
+        TeamFolder folder( team.cloneOf( "alice" ), failOn( "fetch" ) );
+        folder.setUp( policyFor( team.url() ) );
+        REQUIRE( settled( folder ) );
+
+        CHECK( folder.state() == TeamFolder::State::NotSynced );
+        CHECK( folder.failedStep() == SyncStep::Pull );
+        CHECK( folder.heading() == "Pull failed" );
+        CHECK( folder.gitOutput() == printed );
+    }
+
+    SECTION( "a push the server cannot be reached for" )
+    {
+        TeamFolder folder( team.cloneOf( "alice" ), failOn( "push" ) );
+        folder.setUp( policyFor( team.url() ) );
+        REQUIRE( settled( folder ) );
+        REQUIRE( folder.failedStep() == SyncStep::None );
+
+        const auto outcome = publishGroup( folder, makeGroup( "Network" ), GroupAction::Add );
+        REQUIRE( outcome.results.size() == 1 );
+        CHECK( outcome.results[ 0 ].status == PublishStatus::Pending );
+        CHECK( folder.state() == TeamFolder::State::NotSynced );
+        CHECK( folder.failedStep() == SyncStep::Push );
+        CHECK( folder.heading() == "Push failed" );
+        CHECK( folder.gitOutput() == printed );
+        CHECK( folder.isWritable() );
+    }
+}
+
+TEST_CASE( "A group that could not be published is still reported beside the status",
+           "[teamfolder][publish]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const Team team;
+    const auto wrapper = wrapperGit( team.root(), "git-commit.sh",
+                                     "if [ \"$1\" = commit ]; then\n"
+                                     "  echo 'fatal: no commit in this test' >&2\n"
+                                     "  exit 128\n"
+                                     "fi" );
+    TeamFolder alice( team.cloneOf( "alice" ), wrapper );
+    alice.setUp( policyFor( team.url() ) );
+    REQUIRE( settled( alice ) );
+
+    const auto outcome = publishGroup( alice, makeGroup( "Network" ), GroupAction::Add );
+    REQUIRE( outcome.results.size() == 1 );
+    CHECK( outcome.results[ 0 ].status == PublishStatus::Failed );
+    // The sync itself worked out.
+    CHECK( alice.state() == TeamFolder::State::Synced );
+    CHECK( alice.failedStep() == SyncStep::None );
+    CHECK( alice.remarks() == QStringList{ "Not published: fatal: no commit in this test" } );
 }

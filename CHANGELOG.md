@@ -144,6 +144,17 @@
   with the new run, so no unreleased website change goes live with it.
   Without the branch the page says it has no runs and the site still builds.
   BUILD.md and the README link to it. (#678)
+- **The Team Folder tab shows a structured status instead of a block of Git
+  output**: *Settings → Team Folder* has a *Repository* group and a *Status*
+  group. The status shows an icon for its state and a heading that names the
+  step that failed, such as *Clone failed*, *Pull failed* or *Push refused*,
+  followed by the groups not published, the Team groups being read-only and
+  the files skipped. Git's own output, untranslated, is in *Details from Git*:
+  collapsed at first, in a monospace font with Git's line breaks and no added
+  wrapping, selectable, and with a *Copy* button. *Sync Now* sits in the
+  *Status* group, the explanatory note is at the bottom of the tab, smaller
+  and subdued, and the check box names Filter Groups, Highlighter Sets and
+  Naming Groups. (#711)
 
 ## Bug fixes
 
