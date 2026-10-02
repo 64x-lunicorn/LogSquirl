@@ -7,7 +7,17 @@ on:
   # change merged to master deliberately does not deploy on its own; it waits
   # for the next release (#350). That such a change builds and its links hold
   # is checked per pull request by CI Build's Website job (#311).
+  #
+  # The nightly Performance run dispatches it too, with performance_trend, once
+  # it has recorded a run of master on the perf-data branch (#678). That
+  # rebuilds the site of the last published release with the new run on its
+  # Performance page: the website code stays the release's, so #350 holds.
   workflow_dispatch:
+    inputs:
+      performance_trend:
+        description: "Rebuild the last published release's site with the newest performance runs, instead of building master"
+        type: boolean
+        default: false
 
 # Only one deploy at a time, and never cancel one mid-upload: two
 # interleaved syncs against the same server-dir leave a mixed site and a
@@ -34,10 +44,51 @@ jobs:
     # the default 6 hours (#206).
     timeout-minutes: 20
     steps:
+      # A release deploys master as it is; the nightly update rebuilds what
+      # the last release deployed, the newest GitHub release that is not a
+      # draft (a beta deploys as well), so no website change of master since
+      # then goes live with it (#350, #678).
+      - name: Choose the code to build
+        id: site
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PERFORMANCE_TREND: ${{ inputs.performance_trend }}
+        run: |
+          set -euo pipefail
+          if [ "$PERFORMANCE_TREND" != true ]; then
+            echo "Building $GITHUB_REF_NAME"
+            exit 0
+          fi
+          tag=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=30" \
+            --jq '[.[] | select(.draft | not)] | sort_by(.published_at) | last | .tag_name // empty')
+          if [ -z "$tag" ]; then
+            echo "::error::No published release to rebuild the site of"
+            exit 1
+          fi
+          echo "Rebuilding the site of $tag with the newest performance runs"
+          echo "ref=refs/tags/$tag" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ steps.site.outputs.ref }}
           persist-credentials: false
+
+      # The Performance page draws the runs of the perf-data branch (#678;
+      # website/src/perf-trend.mjs). Without the branch the page says it has
+      # no runs, and the site deploys all the same.
+      - name: Check out the performance history
+        id: perf_data
+        run: |
+          set -euo pipefail
+          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          dir="$RUNNER_TEMP/perf-data"
+          if git ls-remote --exit-code --heads "$url" perf-data > /dev/null; then
+            git clone --quiet --depth 1 --single-branch --branch perf-data "$url" "$dir"
+            echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::There is no perf-data branch; the Performance page shows no runs"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -62,6 +113,8 @@ jobs:
           cd website && node scripts/leave-out-unpublished.mjs "$RUNNER_TEMP/published-releases.txt"
 
       - name: Build
+        env:
+          LOGSQUIRL_PERF_DATA: ${{ steps.perf_data.outputs.dir }}
         run: cd website && npm run build
 
       # The pin is the v4.4.0 tag's commit. The action repository also has a
