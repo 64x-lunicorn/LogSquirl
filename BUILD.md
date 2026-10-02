@@ -118,7 +118,8 @@ A USE build without its profile stops at configure time and says what to run. A 
 its compile and link lines (ADR 0009) like any other; a USE build keeps it for everything but two diagnostics, which
 it accepts as warnings: GCC's `-Wmissing-profile`, for code the training never ran, and Clang's `-Wbackend-plugin`
 hash mismatch, for an inline function whose copies differ between translation units (GCC's `-Wcoverage-mismatch`
-still fails the build). The profile reaches the libraries and
+still fails the build). Clang has no group of its own for the hash mismatch, so `pgo.py build --mode USE` fails on
+any other `-Wbackend-plugin` diagnostic and logs how many of each accepted one the build printed (ADR 0019). The profile reaches the libraries and
 `logsquirl` and `logsquirl_grep`, the executables the training runs; the own sources of the other executables (tests,
 micro-benchmarks) compile without it, since Clang would match their `main()` to logsquirl's by name. A USE build does not use a compiler launcher
 (sccache): the cache keys an object on the command line, not on the profile it names.

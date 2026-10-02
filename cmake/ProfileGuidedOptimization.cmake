@@ -30,7 +30,8 @@
 # other (docs/adr/0009-lto-link-diagnostics-fail-the-build.md). A USE build is
 # too, with two exceptions: it accepts two diagnostics of the profile as
 # warnings, each with -Wno-error= so it stays in the log, and only on the
-# targets that get the profile:
+# targets that get the profile. Why, how narrowly, and how each goes away is
+# docs/adr/0019-a-profile-guided-build-accepts-two-diagnostics-of-its-profile-as-warnings.md:
 # - GCC's -Wmissing-profile: "this object never ran during training", true of
 #   every object of code the scenarios do not reach. GCC's -Wcoverage-mismatch,
 #   an object whose profile no longer fits it, still fails the build.
@@ -42,7 +43,9 @@
 #   src/app/main.cpp (#682). Such a function is optimized without a profile,
 #   which is what the warning says. Chromium and Firefox build their PGO with
 #   the same diagnostic off. A profile from another commit cannot come about
-#   here: CI trains the commit it builds, every run.
+#   here: CI trains the commit it builds, every run. Clang has no narrower
+#   group for it (measured, ADR 0019), so `pgo.py build --mode USE` fails on
+#   any other -Wbackend-plugin diagnostic.
 #
 # LOGSQUIRL_BOLT prepares a Linux build for BOLT (llvm-bolt), which rewrites
 # the linked executable's layout from a profile of its own: the executables

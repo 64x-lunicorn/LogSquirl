@@ -127,6 +127,39 @@ def test_the_benchmark_targets_are_read_from_their_cmake_file(tmp_path):
     assert pgo.benchmark_targets(Path(__file__).parents[2])
 
 
+def test_a_use_build_accepts_the_hash_mismatch_and_the_missing_profile_only():
+    lines = [
+        "warning: main.cpp: function control flow change detected (hash mismatch) main "
+        "Hash = 942389666994816328 up to 101 count discarded [-Wbackend-plugin]",
+        "a.cpp:3:5: warning: 'f' profile count data file not found [-Wmissing-profile]",
+        "b.cpp:7:1: warning: 'g' profile count data file not found [-Wmissing-profile]",
+        "c.cpp:1:1: warning: unused variable 'x' [-Wunused-variable]",
+    ]
+    counts, unaccepted = pgo.accepted_diagnostics(lines)
+    assert counts == {pgo.HASH_MISMATCH: 1, pgo.MISSING_PROFILE: 2}
+    assert unaccepted == []
+
+
+def test_any_other_backend_plugin_diagnostic_fails_a_use_build():
+    other = "warning: x.cpp: stack frame size (90000) exceeds limit (80000) in 'f' [-Wbackend-plugin]"
+    counts, unaccepted = pgo.accepted_diagnostics([other])
+    assert counts == {pgo.HASH_MISMATCH: 0, pgo.MISSING_PROFILE: 0}
+    assert unaccepted == [other]
+
+
+def test_the_build_output_passes_through_and_its_diagnostics_are_kept(capsys):
+    script = ("print('[1/2] Building a.cpp'); "
+              "print('warning: x [-Wbackend-plugin]'); print('[2/2] Linking')")
+    kept = pgo.run_keeping_diagnostics([sys.executable, "-c", script])
+    assert kept == ["warning: x [-Wbackend-plugin]"]
+    assert "[2/2] Linking" in capsys.readouterr().out
+
+
+def test_a_failing_build_still_fails():
+    with pytest.raises(pgo.subprocess.CalledProcessError):
+        pgo.run_keeping_diagnostics([sys.executable, "-c", "raise SystemExit(2)"])
+
+
 # --- train -----------------------------------------------------------------
 
 def test_the_training_runs_every_scenario_without_comparing():

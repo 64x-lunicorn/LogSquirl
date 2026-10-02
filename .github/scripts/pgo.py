@@ -89,6 +89,23 @@ def run(command: list[str], **kwargs) -> None:
     subprocess.run([str(part) for part in command], check=True, **kwargs)
 
 
+def run_keeping_diagnostics(command: list[str]) -> list[str]:
+    """Run like run(), passing the output through, and return its lines that
+    name a warning option."""
+    log("+ " + shlex.join(str(part) for part in command))
+    kept = []
+    with subprocess.Popen([str(part) for part in command], stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, text=True, errors="replace") as process:
+        for line in process.stdout:
+            sys.stdout.write(line)
+            if "[-W" in line:
+                kept.append(line.rstrip())
+    sys.stdout.flush()
+    if process.returncode != 0:
+        raise subprocess.CalledProcessError(process.returncode, command)
+    return kept
+
+
 # ---------------------------------------------------------------------------
 # Timings
 # ---------------------------------------------------------------------------
@@ -182,16 +199,53 @@ def benchmark_targets(source: Path) -> list[str]:
     return re.findall(r"^\s*add_executable\(\s*([A-Za-z0-9_]+)", text, flags=re.MULTILINE)
 
 
+# The two diagnostics a USE build accepts as warnings (ADR 0019,
+# cmake/ProfileGuidedOptimization.cmake). Clang has no group of its own for a
+# profile's hash mismatch: it reports it under -Wbackend-plugin, which carries
+# other diagnostics of the code generation as well. No compiler flag accepts the
+# one without the others, so the build of this script holds the group to it.
+HASH_MISMATCH = "profile hash mismatch"
+MISSING_PROFILE = "missing profile"
+
+
+def accepted_diagnostics(lines: list[str]) -> tuple[dict[str, int], list[str]]:
+    """How often a USE build printed each accepted diagnostic, and the
+    -Wbackend-plugin lines that are not the hash mismatch accepted."""
+    counts = {HASH_MISMATCH: 0, MISSING_PROFILE: 0}
+    unaccepted = []
+    for line in lines:
+        if "[-Wbackend-plugin]" in line:
+            if "function control flow change detected (hash mismatch)" in line:
+                counts[HASH_MISMATCH] += 1
+            else:
+                unaccepted.append(line)
+        elif "[-Wmissing-profile]" in line:
+            counts[MISSING_PROFILE] += 1
+    return counts, unaccepted
+
+
 def cmd_build(args) -> int:
     phase = args.phase or build_phase(args.mode, args.bolt)
     extra = shlex.split(args.cmake_args or "")
     targets = list(args.targets)
     if args.benchmarks:
         targets += benchmark_targets(args.source)
+    build = ["cmake", "--build", args.build_dir, "--target", *targets]
     with Timer(args.timings, phase):
         run(cmake_configure_command(args.source, args.build_dir, args.mode, args.bolt,
                                     args.profile_dir, extra))
-        run(["cmake", "--build", args.build_dir, "--target", *targets])
+        if args.mode != "USE":
+            run(build)
+            return 0
+        diagnostics = run_keeping_diagnostics(build)
+    counts, unaccepted = accepted_diagnostics(diagnostics)
+    log("Accepted as warnings (ADR 0019): " + ", ".join(f"{count} {name}" for name, count in counts.items()))
+    if unaccepted:
+        for line in unaccepted:
+            log(line)
+        log("error: the build printed -Wbackend-plugin diagnostics other than the profile hash mismatch "
+            "that a USE build accepts (ADR 0019); they would fail any other build")
+        return 1
     return 0
 
 

@@ -7,7 +7,7 @@
 # -Wmissing-profile (an object the training never ran) and Clang's
 # -Wbackend-plugin (a function whose profile record belongs to another copy of
 # it), and nothing that would let GCC's mismatching profile or an LTO link
-# diagnostic pass (docs/adr/0009). And a USE build
+# diagnostic pass (docs/adr/0009, docs/adr/0019). And a USE build
 # without its profile stops at configure time with what to run, instead of
 # building an unoptimized binary that looks like an optimized one.
 #
@@ -99,6 +99,18 @@ foreach(_compiler GNU Clang AppleClang)
       endif()
     endforeach()
   endforeach()
+endforeach()
+
+# GCC's missing profile is accepted because the training covers only part of
+# LogSquirl, the decision -fprofile-partial-training stands for: the one goes
+# with the other (ADR 0019).
+logsquirl_pgo_flags(_c _l MODE USE ${_gcc})
+foreach(_flags IN ITEMS "${_l}" "${_c}")
+  string(FIND "${_flags}" "-fprofile-partial-training" _partial)
+  string(FIND "${_flags}" "-Wno-error=missing-profile" _missing)
+  if(_partial EQUAL -1 AND NOT _missing EQUAL -1)
+    message(SEND_ERROR "GCC accepts a missing profile without training on part of LogSquirl: '${_flags}'")
+  endif()
 endforeach()
 
 # --- MSVC: link options only, per target, only where LTCG is ----------------
