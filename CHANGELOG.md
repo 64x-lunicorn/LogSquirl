@@ -2,18 +2,6 @@
 
 ## Changes
 
-- **Release builds can use profile-guided optimization, and BOLT on Linux,
-  per platform once the numbers show a gain**: `-DLOGSQUIRL_PGO=GENERATE`
-  builds instrumented binaries, which the benchmark mode's scenarios train,
-  and `-DLOGSQUIRL_PGO=USE` builds optimized for that profile, with Clang,
-  AppleClang, GCC and MSVC; `-DLOGSQUIRL_BOLT=ON` links a Linux build for
-  `llvm-bolt`. A USE build without its profile stops at configure time and
-  says what to run, and its warnings still fail it. The PGO workflow
-  builds each platform without and with, from scratch, and measures the
-  micro-benchmarks and the e2e performance suite of all of them on one runner,
-  with the build time each took. No profile is checked in. Every release build
-  keeps building as before: its platform's switch in CI Build stays off until
-  those numbers show a clear gain there. (#682)
 - **Values in a Log Line are shown with names from Name Tables (Value
   Names)**: a Naming Rule picks the values of a Log Line by the capture groups
   of its regex and looks each up in a Name Table, and the main view and the
@@ -249,6 +237,18 @@
 
 ## Internal
 
+- **Release builds can use profile-guided optimization, and BOLT on Linux,
+  per platform once the numbers show a gain**: `-DLOGSQUIRL_PGO=GENERATE`
+  builds instrumented binaries, which the benchmark mode's scenarios train,
+  and `-DLOGSQUIRL_PGO=USE` builds optimized for that profile, with Clang,
+  AppleClang, GCC and MSVC; `-DLOGSQUIRL_BOLT=ON` links a Linux build for
+  `llvm-bolt`. A USE build without its profile stops at configure time and
+  says what to run, and its warnings still fail it. The PGO workflow
+  builds each platform without and with, from scratch, and measures the
+  micro-benchmarks and the e2e performance suite of all of them on one runner,
+  with the build time each took. No profile is checked in. Every release build
+  keeps building as before: its platform's switch in CI Build stays off until
+  those numbers show a clear gain there. (#682)
 - **A pull request that touches a hot path gets the benchmark comparison by
   itself**: a pull request that changes reading and indexing, Search,
   QuickFind, the Line Decorator or the paint path of the Text View or Table
