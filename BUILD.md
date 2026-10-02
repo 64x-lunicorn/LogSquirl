@@ -89,6 +89,47 @@ workflow do that on one runner, push a throwaway branch whose only commit turns 
 gh workflow run benchmarks.yml --ref <override-branch> -f base_ref=<branch without it>
 ```
 
+### Profile-guided optimization
+
+`-DLOGSQUIRL_PGO=GENERATE` builds instrumented binaries; every run of them records a profile into
+`LOGSQUIRL_PGO_DIR` (default `<build dir>/pgo-profile`). `-DLOGSQUIRL_PGO=USE` builds optimized for that profile
+(Clang and AppleClang, GCC, MSVC; `cmake/ProfileGuidedOptimization.cmake` says how per compiler). The training
+workload is the benchmark mode's scenarios, run by the e2e performance suite. `-DLOGSQUIRL_BOLT=ON` (Linux) links
+the executables so that `llvm-bolt` can rewrite them afterwards. All three are off by default, and a release build
+uses them only behind its job's `pgo` (and `bolt`) switch in `ci-build.yml`, false until the A/B numbers show a clear
+gain on that platform (#682). No profile is checked in: CI builds, trains and uses it in one run.
+
+`.github/scripts/pgo.py` runs each step and records its wall time. On a developer machine (here macOS):
+
+```bash
+pgo() { python3 .github/scripts/pgo.py --timings pgo/timings.json "$@"; }
+pgo build --build-dir pgo/plain --mode OFF --benchmarks          # the build to compare with
+python3 tests/e2e/generate_test_data.py --max-mb 100
+pgo build --build-dir pgo/build --mode GENERATE
+pgo train --binary-dir pgo/build/output                         # needs .github/requirements/e2e.txt
+pgo merge --toolchain clang --profile-dir pgo/build/pgo-profile # gcc: nothing to merge; msvc: pgomgr
+pgo build --build-dir pgo/build --mode USE --benchmarks         # GCC: the same build directory
+pgo measure --side plain=pgo/plain/output --side pgo=pgo/build/output --results pgo/results
+python3 .github/scripts/benchmark-compare.py --before pgo/results/plain --after pgo/results/pgo
+pgo times
+```
+
+A USE build without its profile stops at configure time and says what to run. A GENERATE build keeps `-Werror` on
+its compile and link lines (ADR 0009) like any other; a USE build keeps it for everything but two diagnostics, which
+it accepts as warnings: GCC's `-Wmissing-profile`, for code the training never ran, and Clang's `-Wbackend-plugin`
+hash mismatch, for an inline function whose copies differ between translation units (GCC's `-Wcoverage-mismatch`
+still fails the build). Clang has no group of its own for the hash mismatch, so `pgo.py build --mode USE` fails on
+any other `-Wbackend-plugin` diagnostic and logs how many of each accepted one the build printed (ADR 0019). The profile reaches the libraries and
+`logsquirl` and `logsquirl_grep`, the executables the training runs; the own sources of the other executables (tests,
+micro-benchmarks) compile without it, since Clang would match their `main()` to logsquirl's by name. A USE build does not use a compiler launcher
+(sccache): the cache keys an object on the command line, not on the profile it names.
+
+The **PGO** workflow (`.github/workflows/pgo.yml`) produces the numbers per platform, `gh workflow run pgo.yml --ref
+<branch>`: plain, PGO, and on Linux PGO and BOLT, each built from scratch on its own runner, then every Catch2
+micro-benchmark and the e2e performance suite run on all of them on one runner. The `pgo-report` artifact holds the
+A/B tables and the build time each variant took; the build time increase is the instrumented build, the training,
+the merge and the optimized build (and BOLT's three steps) against the one plain build they replace.
+
 ### Plugin SDK
 
 The plugin C ABI header (`logsquirl_plugin_api.h`) is installed alongside the
@@ -381,6 +422,14 @@ median CV, what is unusable (`run` or `reference`), the reference tag, then one 
 benchmark median, per ratio (`ratio: <benchmark>`) and per count, for the trend over releases.
 The ratio column is the one to read across CPU models; it steps when a new release becomes the
 reference.
+
+**The trend is on the website**, on the [Performance](https://logsquirl.lunicorn-lab.de/performance/) page
+(#678): one chart per benchmark, grouped by Benchmark Scenario, for the last 120 days of `history/`, with the
+releases marked and each Budget drawn as a line; wall-clock with one line per CPU model, instruction counts
+per benchmark binary. The website build draws it as SVG from the checkout of the branch that
+`LOGSQUIRL_PERF_DATA` names (`website/src/perf-trend.mjs`); without it the page says it has no runs. The
+*website* job brings each recorded run of master to the site (*Release pages on the website*). To see it
+locally, with the worktree below: `cd website && LOGSQUIRL_PERF_DATA=/tmp/perf-data npm run dev`.
 
 **The spread within one CPU model** is what #675 re-decides a dedicated benchmark runner on (one
 pays off if same-model medians vary by more than 3 %):
@@ -925,6 +974,15 @@ the next release (a wrong download link, legal text), and a release whose deploy
 leaves the site on the previous release until someone dispatches it. Nothing retries that on its own, and the
 dispatch must be on `master`, because the `website` environment admits no other branch.
 
+The nightly **Performance** run dispatches it as well, from its *website* job after recording a run of master,
+with `performance_trend` (#678): that deploy builds the
+newest published release's tag instead of master, with the newest runs of the `perf-data` branch on its
+Performance page, so the trend is current every morning and no unreleased website change goes live with it.
+The Budgets drawn are that tag's `tests/e2e/budgets.json`, so a Budget changed on master shows with the next release.
+The deploy runs master's steps on the tag's tree: a tag that lacks a file they use (`website/src/perf-trend.mjs`,
+`website/scripts/leave-out-unpublished.mjs`), such as a release from before #678, leaves the site as it is with a
+notice until the next release deploys (#731).
+
 Manual releases, e.g. to re-run a release, are also supported via
 `workflow_dispatch`: dispatch it from the tag (*Use workflow from*, or
 `gh workflow run ci-release.yml --ref v26.04.0 -f tag=v26.04.0`) with that tag
@@ -1039,7 +1097,7 @@ before anything is downloaded, because its signing job could not enter the
 |----------|---------|---------|
 | `ci-build.yml` | push/PR to master | Build + test all platforms, check the update feed; on a pull request also check a release preparation and build the website with its link check |
 | `changelog.yml` | PR to master (also on label changes) | Require a CHANGELOG entry under `# Unreleased`, or the `no-changelog` label |
-| `deploy-website.yml` | dispatch only: by CI Release after a release is published, or by hand from the Actions tab | Build the website without the pages of unpublished releases and upload it |
+| `deploy-website.yml` | dispatch only: by CI Release after a release is published, by the nightly Performance run (`performance_trend`), or by hand from the Actions tab | Build the website without the pages of unpublished releases, with the performance trend of the `perf-data` branch, and upload it; `performance_trend` rebuilds the last published release's site |
 | `ci-release.yml` | tag push `v*` | Sign and publish the CI Build packages of the tagged commit as a GitHub Release |
 | `publish-packages.yml` | called by CI Release after a stable release; dispatch from a release tag | Build the signed APT and DNF repositories from the last three stable releases and deploy them with GitHub Pages |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
@@ -1049,6 +1107,7 @@ before anything is downloaded, because its signing job could not enter the
 | `instruction-counts-comment.yml` | `workflow_run` of CI Build | Post the report and the gate's verdict as one pull request comment, updated on every run, with master's code only |
 | `instruction-counts-label.yml` | `perf-accepted` added to or removed from a PR | Re-run CI Build's instruction counts gate and update the comment (see *Instruction counts*) |
 | `performance.yml` | nightly schedule (02:41 UTC), dispatch | Measure master's e2e performance suite and the instruction counts of its benchmarks in an optimized build, find change points and broken Budgets, record the run on the `perf-data` branch and file an issue per scenario with a finding (see *Nightly performance*) |
+| `pgo.yml` | dispatch only | Build each platform without and with profile-guided optimization (and BOLT on Linux), measure the micro-benchmarks and the e2e performance suite of all of them on one runner, and report the A/B tables and the build times (see *Profile-guided optimization*) |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 
 

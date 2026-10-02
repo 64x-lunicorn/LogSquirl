@@ -58,6 +58,9 @@ struct SyncOutcome {
     };
 
     Result result = Result::Failed;
+    // The step that failed, and what Git wrote then; or LogSquirl's own
+    // reason, for a step that is not Git's.
+    SyncStep failedStep = SyncStep::None;
     QString message;
     QList<TeamGroup<PredefinedFilterSet>> filterGroups;
     QList<TeamGroup<HighlighterSet>> highlighterGroups;
@@ -72,6 +75,14 @@ struct SyncOutcome {
     // Committed here and not on the server yet.
     bool hasPending = false;
 };
+
+// Records that a step of the sync failed with what Git wrote; a Git that did
+// not even start fails the sync at starting it, whatever the step.
+void failAt( SyncOutcome& outcome, SyncStep step, const GitResult& run )
+{
+    outcome.failedStep = run.started ? step : SyncStep::StartGit;
+    outcome.message = run.message();
+}
 
 std::atomic<int>& groupFileReads()
 {
@@ -351,8 +362,8 @@ bool hasUnpushedCommits( const Git& git, const QString& clone )
 // Brings the clone's working tree to what the repository's default branch
 // holds, and puts changes committed here that were not pushed yet on top of
 // it: a change of this user's wins over the same lines of the server's. Nothing
-// to do for an empty repository. Git's message when it fails.
-std::optional<QString> integrate( const Git& git, const QString& clone )
+// to do for an empty repository. Git's run that failed, when one did.
+std::optional<GitResult> integrate( const Git& git, const QString& clone )
 {
     const QStringList defaultBranch{ QStringLiteral( "symbolic-ref" ), QStringLiteral( "--quiet" ),
                                      QStringLiteral( "--short" ),
@@ -403,7 +414,7 @@ std::optional<QString> integrate( const Git& git, const QString& clone )
         }
     }
     if ( !update.succeeded ) {
-        return update.message();
+        return update;
     }
     return std::nullopt;
 }
@@ -878,6 +889,7 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
 
     const auto folder = groupFolder( clone, policy.subfolder );
     if ( !folder ) {
+        outcome->failedStep = SyncStep::Subfolder;
         outcome->message = TeamFolder::tr( "The subfolder %1 does not lie inside the repository." )
                                .arg( policy.subfolder );
         failRequests( *outcome, requests );
@@ -890,7 +902,7 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
                                        QStringLiteral( "remote.origin.url" ) },
                                      clone );
         if ( !origin.started ) {
-            outcome->message = origin.message();
+            failAt( *outcome, SyncStep::Clone, origin );
             failRequests( *outcome, requests );
             return outcome;
         }
@@ -909,7 +921,7 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
                                        QStringLiteral( "--" ), url, clone } );
         if ( !cloned.succeeded ) {
             QDir( clone ).removeRecursively();
-            outcome->message = cloned.message();
+            failAt( *outcome, SyncStep::Clone, cloned );
             failRequests( *outcome, requests );
             return outcome;
         }
@@ -923,7 +935,7 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
             // groups of the last sync.
             reachable = false;
             outcome->result = SyncOutcome::Result::Offline;
-            outcome->message = fetched.message();
+            failAt( *outcome, SyncStep::Pull, fetched );
         }
     }
 
@@ -937,7 +949,7 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
         todo.append( aside.recommit );
         conflicts = aside.conflicts;
         if ( const auto failed = integrate( git, clone ) ) {
-            outcome->message = *failed;
+            failAt( *outcome, SyncStep::Merge, *failed );
             failRequests( *outcome, todo );
             for ( const auto& conflict : std::as_const( conflicts ) ) {
                 addResult( *outcome, conflict );
@@ -1019,6 +1031,7 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
         case PushResult::Kind::Rejected:
         case PushResult::Kind::Unreachable:
             outcome->result = SyncOutcome::Result::Offline;
+            outcome->failedStep = SyncStep::Push;
             outcome->message = pushed.message;
             break;
         case PushResult::Kind::Refused:
@@ -1217,12 +1230,12 @@ void TeamFolder::setUp( const TeamFolderPolicy& policy )
         syncAgain_ = false;
         skippedFiles_.clear();
         setGroups( {}, {}, {} );
-        setState( State::Off, {} );
+        setState( State::Off );
         return;
     }
 
     LOG_INFO << "Team Folder set up for " << policy_.repositoryUrl;
-    setState( State::NotSynced, {} );
+    setState( State::NotSynced );
     syncTimer_.start();
     sync();
 }
@@ -1368,15 +1381,15 @@ void TeamFolder::takeOutcome()
         switch ( outcome->result ) {
         case SyncOutcome::Result::Synced:
             setGroups( outcome->filterGroups, outcome->highlighterGroups, outcome->namingGroups );
-            setState( State::Synced, {} );
+            setState( State::Synced );
             break;
         case SyncOutcome::Result::Offline:
             setGroups( outcome->filterGroups, outcome->highlighterGroups, outcome->namingGroups );
-            setState( State::NotSynced, outcome->message );
+            setState( State::NotSynced, outcome->failedStep, outcome->message );
             break;
         case SyncOutcome::Result::Failed:
             setGroups( outcome->filterGroups, outcome->highlighterGroups, outcome->namingGroups );
-            setState( State::Error, outcome->message );
+            setState( State::Error, outcome->failedStep, outcome->message );
             break;
         }
     }
@@ -1431,13 +1444,63 @@ void TeamFolder::setGroups( QList<TeamGroup<PredefinedFilterSet>> filterGroups,
     }
 }
 
-void TeamFolder::setState( State state, const QString& message )
+namespace {
+
+// The step that failed as the log names it: in English, whatever language the
+// status is shown in, like the rest of the log.
+const char* logDescriptionOf( SyncStep step )
 {
-    if ( state == State::Error || !message.isEmpty() ) {
-        LOG_WARNING << "Team Folder: " << message;
+    switch ( step ) {
+    case SyncStep::None:
+        return "sync failed";
+    case SyncStep::StartGit:
+        return "Git could not be started";
+    case SyncStep::Subfolder:
+        return "the subfolder lies outside the repository";
+    case SyncStep::Clone:
+        return "clone failed";
+    case SyncStep::Pull:
+        return "pull failed";
+    case SyncStep::Merge:
+        return "merge failed";
+    case SyncStep::Push:
+        return "push failed";
+    case SyncStep::PushRefused:
+        return "push refused";
+    }
+    return "sync failed";
+}
+
+} // namespace
+
+void TeamFolder::setState( State state, SyncStep failedStep, const QString& message )
+{
+    // The subfolder is LogSquirl's own refusal: its reason is a remark, and
+    // there is no output of Git's.
+    const bool fromGit = failedStep != SyncStep::Subfolder;
+    if ( state == State::Error || failedStep != SyncStep::None ) {
+        // Git's output as it is; for the subfolder, the subfolder itself
+        // rather than the translated reason. Why Git could not be started was
+        // logged where it failed to (teamfoldergit.cpp). Nothing after the
+        // step when there is nothing to add.
+        QString detail;
+        if ( failedStep == SyncStep::Subfolder ) {
+            detail = policy_.subfolder;
+        }
+        else if ( failedStep != SyncStep::StartGit ) {
+            detail = message;
+        }
+        if ( detail.isEmpty() ) {
+            LOG_WARNING << "Team Folder: " << logDescriptionOf( failedStep );
+        }
+        else {
+            LOG_WARNING << "Team Folder: " << logDescriptionOf( failedStep ) << ": " << detail;
+        }
     }
     state_ = state;
-    message_ = message;
+    failedStep_ = failedStep;
+    gitOutput_ = fromGit ? message : QString{};
+    failureReason_ = fromGit ? QString{} : message;
     Q_EMIT stateChanged();
 }
 
@@ -1446,9 +1509,19 @@ TeamFolder::State TeamFolder::state() const
     return state_;
 }
 
-QString TeamFolder::message() const
+bool TeamFolder::showsRefusedPush() const
 {
-    return message_;
+    return failedStep_ == SyncStep::None && !writable_;
+}
+
+SyncStep TeamFolder::failedStep() const
+{
+    return showsRefusedPush() ? SyncStep::PushRefused : failedStep_;
+}
+
+QString TeamFolder::gitOutput() const
+{
+    return showsRefusedPush() ? readOnlyReason_ : gitOutput_;
 }
 
 bool TeamFolder::isSyncing() const
@@ -1474,21 +1547,79 @@ QString TeamFolder::summary() const
     return {};
 }
 
-QString TeamFolder::details() const
+QString TeamFolder::heading() const
+{
+    if ( syncing_ ) {
+        return tr( "Syncing…" );
+    }
+    if ( const auto step = failedStep(); step != SyncStep::None ) {
+        return headingOf( step );
+    }
+    switch ( state_ ) {
+    case State::Off:
+        return tr( "Off" );
+    case State::NotSynced:
+        return tr( "Not synced" );
+    case State::Synced:
+        return tr( "Synced" );
+    case State::Error:
+        return tr( "Error" );
+    }
+    return {};
+}
+
+QString TeamFolder::headingOf( SyncStep step )
+{
+    switch ( step ) {
+    case SyncStep::None:
+        return {};
+    case SyncStep::StartGit:
+        return tr( "Git could not be started" );
+    case SyncStep::Subfolder:
+        return tr( "The subfolder lies outside the repository" );
+    case SyncStep::Clone:
+        return tr( "Clone failed" );
+    case SyncStep::Pull:
+        return tr( "Pull failed" );
+    case SyncStep::Merge:
+        return tr( "Merge failed" );
+    case SyncStep::Push:
+        return tr( "Push failed" );
+    case SyncStep::PushRefused:
+        return tr( "Push refused" );
+    }
+    return {};
+}
+
+QStringList TeamFolder::remarks() const
 {
     QStringList lines;
-    if ( !message_.isEmpty() ) {
-        lines.append( message_ );
+    if ( !failureReason_.isEmpty() ) {
+        lines.append( failureReason_ );
     }
     if ( !publishError_.isEmpty() ) {
         lines.append( tr( "Not published: %1" ).arg( publishError_ ) );
     }
     if ( !writable_ ) {
-        lines.append( tr( "The Team groups are read-only: %1" ).arg( readOnlyReason_ ) );
+        // The server's reason is Git's output of the refused push, unless
+        // another step failed since.
+        lines.append( failedStep() == SyncStep::PushRefused
+                          ? tr( "The Team groups are read-only." )
+                          : tr( "The Team groups are read-only: %1" ).arg( readOnlyReason_ ) );
     }
     for ( const auto& skipped : skippedFiles_ ) {
         lines.append( tr( "Skipped %1: %2" ).arg( skipped.file, skipped.reason ) );
     }
+    return lines;
+}
+
+QString TeamFolder::details() const
+{
+    QStringList lines;
+    if ( const auto output = gitOutput(); !output.isEmpty() ) {
+        lines.append( output );
+    }
+    lines.append( remarks() );
     return lines.join( QLatin1Char( '\n' ) );
 }
 

@@ -132,6 +132,29 @@
   them. Search, QuickFind, selection and copy work as under *Hide*, and the
   Table View shows no ANSI colors. A ticked checkbox from an earlier version
   opens as *Hide*. (#573)
+- **The performance trend is on the website**: the new *Performance* page
+  shows each Benchmark Scenario's benchmarks night by night from the
+  `perf-data` branch, the wall-clock medians with one line per runner CPU
+  model and the instruction counts per benchmark binary, for the last 120
+  days. Each Budget of ADR 0018 is drawn as a dashed line and each release is
+  marked; hovering a point shows its date, version, commit and runner. The
+  charts are SVG drawn when the site is built, with nothing loaded in the
+  browser. After each nightly run of master, the Performance workflow
+  dispatches Deploy Website, which rebuilds the last published release's site
+  with the new run, so no unreleased website change goes live with it.
+  Without the branch the page says it has no runs and the site still builds.
+  BUILD.md and the README link to it. (#678)
+- **The Team Folder tab shows a structured status instead of a block of Git
+  output**: *Settings → Team Folder* has a *Repository* group and a *Status*
+  group. The status shows an icon for its state and a heading that names the
+  step that failed, such as *Clone failed*, *Pull failed* or *Push refused*,
+  followed by the groups not published, the Team groups being read-only and
+  the files skipped. Git's own output, untranslated, is in *Details from Git*:
+  collapsed at first, in a monospace font with Git's line breaks and no added
+  wrapping, selectable, and with a *Copy* button. *Sync Now* sits in the
+  *Status* group, the explanatory note is at the bottom of the tab, smaller
+  and subdued, and the check box names Filter Groups, Highlighter Sets and
+  Naming Groups. (#711)
 
 ## Bug fixes
 
@@ -211,6 +234,22 @@
   removes its temporary file. A running LogSquirl that does not take the input
   over, such as one of another version, is reported instead. Before, the input
   was lost. (#623)
+
+## Build and packaging
+
+- **Release builds can use profile-guided optimization, and BOLT on Linux,
+  per platform once the numbers show a gain**: `-DLOGSQUIRL_PGO=GENERATE`
+  builds instrumented binaries, which the benchmark mode's scenarios train,
+  and `-DLOGSQUIRL_PGO=USE` builds optimized for that profile, with Clang,
+  AppleClang, GCC and MSVC; `-DLOGSQUIRL_BOLT=ON` links a Linux build for
+  `llvm-bolt`. A USE build without its profile stops at configure time and
+  says what to run, and its warnings still fail it, but for two diagnostics
+  of the profile itself that it reports as warnings. The PGO workflow
+  builds each platform without and with, from scratch, and measures the
+  micro-benchmarks and the e2e performance suite of all of them on one runner,
+  with the build time each took. No profile is checked in. Every release build
+  keeps building as before: its platform's switch in CI Build stays off until
+  those numbers show a clear gain there. (#682)
 
 ## Internal
 

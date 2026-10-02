@@ -187,6 +187,18 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/full_optimization_flags.cmake
 )
 
+# Profile-guided optimization and BOLT get the options documented in
+# cmake/ProfileGuidedOptimization.cmake and relax no diagnostic but GCC's
+# missing profile, and a profile-use build without its profile stops at
+# configure time (#682).
+add_test(
+    NAME pgo_flags
+    COMMAND ${CMAKE_COMMAND}
+            -DMODULE_DIR=${CMAKE_SOURCE_DIR}/cmake
+            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/pgo_flags
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/pgo_flags.cmake
+)
+
 # Link time optimization covers every compiled target under src/ and tests/
 # alike (#280).
 function(logsquirl_compiled_targets dir out_var)

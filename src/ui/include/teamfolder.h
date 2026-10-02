@@ -78,6 +78,28 @@ struct TeamGroupChanges {
 
 enum class GroupAction { Add, Change, Rename, Delete };
 
+// The step a sync did not get past. The status names it; what Git said is
+// reported apart from it, as Git wrote it (ADR-0008).
+enum class SyncStep {
+    // Nothing failed.
+    None,
+    // Git could not be started: it is not installed, or not executable.
+    StartGit,
+    // The subfolder does not lie inside the repository: LogSquirl's own
+    // refusal, nothing Git said.
+    Subfolder,
+    // Cloning the repository.
+    Clone,
+    // Fetching what the repository holds: it could not be reached.
+    Pull,
+    // Bringing the clone up to date with what was fetched.
+    Merge,
+    // Pushing what was committed here: the server could not be reached.
+    Push,
+    // The server refused a push: the Team groups are read-only.
+    PushRefused
+};
+
 // A group of any kind the Team Folder holds.
 using AnyGroup
     = std::variant<PredefinedFilterSet, HighlighterSet, logsquirl::valuenames::NamingGroup>;
@@ -261,9 +283,13 @@ public:
     void sync();
 
     State state() const;
-    // Why the state is what it is: Git's own message for a failure, empty
-    // otherwise.
-    QString message() const;
+    // The step the last sync did not get past; PushRefused while the Team
+    // groups are read-only and nothing else failed since.
+    logsquirl::teamfolder::SyncStep failedStep() const;
+    // What Git wrote when that step failed, unchanged and untranslated, line
+    // breaks and all; or what kept Git from running. Empty when nothing failed,
+    // and for a failure that is not Git's.
+    QString gitOutput() const;
     bool isSyncing() const;
 
     // The files the last sync could not read as a group, and why. The other
@@ -304,8 +330,17 @@ public:
 
     // The state in a few words, for where it is shown: "Team Folder synced".
     QString summary() const;
-    // Git's message and the files skipped, one per line; empty when there is
-    // nothing to say beyond the summary.
+    // The state as the heading of a status: "Synced", or the step that
+    // failed, "Clone failed".
+    QString heading() const;
+    // The heading for a step that failed: "Clone failed".
+    static QString headingOf( logsquirl::teamfolder::SyncStep step );
+    // What else there is to know, one line each: why a step that is not
+    // Git's failed, a group that was not published, the Team groups being
+    // read-only, a file that was skipped.
+    QStringList remarks() const;
+    // Git's output and the remarks, one per line; empty when there is nothing
+    // to say beyond the summary.
     QString details() const;
 
     // The Team Filter Groups, sorted alphabetically by name.
@@ -336,7 +371,13 @@ private:
         QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups,
         QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups,
         QList<logsquirl::teamfolder::TeamGroup<logsquirl::valuenames::NamingGroup>> namingGroups );
-    void setState( State state, const QString& message );
+    // Whether the status is the refused push: the Team groups are read-only,
+    // and no step failed since.
+    bool showsRefusedPush() const;
+    // Sets the state, the step that failed, and what that step said: Git's
+    // output, or LogSquirl's own reason for a step that is not Git's.
+    void setState( State state, logsquirl::teamfolder::SyncStep failedStep = {},
+                   const QString& message = {} );
     // The Team groups of one kind.
     template <typename Group>
     const QList<logsquirl::teamfolder::TeamGroup<Group>>& teamGroupsOf() const
@@ -357,7 +398,11 @@ private:
     TeamFolderPolicy policy_;
 
     State state_ = State::Off;
-    QString message_;
+    logsquirl::teamfolder::SyncStep failedStep_ = logsquirl::teamfolder::SyncStep::None;
+    QString gitOutput_;
+    // LogSquirl's own reason for a failed step that is not Git's: which
+    // subfolder lies outside the repository.
+    QString failureReason_;
     QList<logsquirl::teamfolder::SkippedFile> skippedFiles_;
     QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups_;
     QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups_;

@@ -37,7 +37,7 @@ export default defineConfig({
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/64x-lunicorn/LogSquirl' },
       ],
-      customCss: ['./src/styles/smyck.css', './src/styles/custom.css', './src/styles/releases.css'],
+      customCss: ['./src/styles/smyck.css', './src/styles/custom.css', './src/styles/releases.css', './src/styles/perf-trend.css'],
       // A link to a page or heading that does not exist fails the build, on
       // pull requests as well as in the deploy (#311).
       plugins: [starlightLinksValidator()],
@@ -54,6 +54,8 @@ export default defineConfig({
           label: 'About',
           items: [
             { label: 'Getting Involved', slug: 'getting-involved' },
+            // The nightly performance trend, from the perf-data branch (#678).
+            { label: 'Performance', slug: 'performance' },
             { label: 'Legal Notice', slug: 'legal-notice' },
             { label: 'Privacy Policy', slug: 'privacy-policy' },
             { label: 'Code Signing Policy', slug: 'code-signing-policy' },

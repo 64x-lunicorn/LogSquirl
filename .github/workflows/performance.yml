@@ -660,3 +660,22 @@ jobs:
         run: |
           echo "::error::The run has findings; see the job summary of the record job and the issues above"
           exit 1
+
+  # The Performance page of the website draws the perf-data branch (#678).
+  # Once a run of the default branch is recorded there, Deploy Website
+  # rebuilds the last release's site with it; it deploys no newer website
+  # code (#350). Deploy Website runs from master in its own `website`
+  # environment, as when CI Release dispatches it.
+  website:
+    name: Performance / update the trend page
+    needs: record
+    if: needs.record.outputs.dest == 'history'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write # dispatch Deploy Website
+    steps:
+      - name: Dispatch Deploy Website
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-website.yml --repo "$GITHUB_REPOSITORY" --ref master -f performance_trend=true
