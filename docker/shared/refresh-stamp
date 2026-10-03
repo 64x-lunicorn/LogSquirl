@@ -4,4 +4,4 @@
 # every image a new inputs hash and therefore a fresh build (new OS packages)
 # under a new tag. The scheduled run of the Docker Images workflow bumps it and
 # opens a pull request; nothing CI uses changes until that PR is merged.
-2026-09-16
+2026-10-01
