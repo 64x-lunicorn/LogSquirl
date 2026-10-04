@@ -1305,6 +1305,16 @@
            </widget>
           </item>
           <item>
+           <widget class="QLabel" name="teamFolderLastSyncedLabel">
+            <property name="textFormat">
+             <enum>Qt::PlainText</enum>
+            </property>
+            <property name="textInteractionFlags">
+             <set>Qt::TextSelectableByMouse</set>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QWidget" name="teamFolderDetailsHeader">
             <layout class="QHBoxLayout" name="teamFolderDetailsHeaderLayout">
              <property name="leftMargin">
@@ -1383,6 +1393,16 @@
              <widget class="QPushButton" name="teamFolderSyncButton">
               <property name="text">
                <string>Sync Now</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="teamFolderOpenFolderButton">
+              <property name="text">
+               <string>Open Folder</string>
+              </property>
+              <property name="toolTip">
+               <string>Open the Team Folder's clone in the file manager</string>
               </property>
              </widget>
             </item>

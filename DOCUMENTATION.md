@@ -89,6 +89,7 @@ does so when it finds a `logsquirl.conf` beside itself:
 | `plugins\`                 | the plugins it comes with and those you install  |
 | `plugin_config\`           | the plugins' own configuration                   |
 | `teamfolder\`              | the Team Folder's clone of the team's repository |
+| `teamfolder-sync.ini`      | when the Team Folder last synced                 |
 | `themes\`                  | your own theme stylesheets                       |
 | `logsquirl_dump\`          | crash dumps                                      |
 | `logsquirl_taken_over.txt` | what it took over from an earlier package        |

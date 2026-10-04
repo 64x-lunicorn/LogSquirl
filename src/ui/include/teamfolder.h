@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <QDateTime>
 #include <QFutureWatcher>
 #include <QHash>
 #include <QList>
@@ -352,6 +353,15 @@ public:
     // Whether changes are committed here that the server does not have yet.
     bool hasPendingChanges() const;
 
+    // When the last sync that reached the repository ended, in UTC; invalid
+    // for never. It is kept across restarts, beside the clone, and starts
+    // again from never when the Repository URL or the Subfolder changes.
+    QDateTime lastSynced() const;
+
+    // Where the clone is, and whether there is one.
+    QString cloneDirectory() const;
+    bool hasClone() const;
+
     // The state in a few words, for where it is shown: "Team Folder synced".
     QString summary() const;
     // The state as the heading of a status: "Synced", or the step that
@@ -435,6 +445,16 @@ private:
     QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups_;
     QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups_;
     QList<logsquirl::teamfolder::TeamGroup<logsquirl::valuenames::NamingGroup>> namingGroups_;
+
+    // Where lastSynced is kept: beside the clone, not in it, as the clone
+    // holds nothing but the repository.
+    QString syncRecordFile() const;
+    // Reads lastSynced for the Policy, starting again from never, for good,
+    // when the record is of another repository or subfolder.
+    void readLastSynced();
+    void writeLastSynced() const;
+
+    QDateTime lastSynced_;
 
     QTimer syncTimer_;
     QFutureWatcher<std::shared_ptr<logsquirl::teamfolder::SyncOutcome>> running_;

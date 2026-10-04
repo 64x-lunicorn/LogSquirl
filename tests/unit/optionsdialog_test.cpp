@@ -21,9 +21,11 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFontDatabase>
+#include <QLocale>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSignalSpy>
@@ -563,6 +565,98 @@ TEST_CASE( "Sync Now syncs the Team Folder the fields show", "[optionsdialog][te
 
 namespace {
 
+// Takes the file URLs the dialog asks to open, instead of a file manager.
+class FileUrlRecorder : public QObject {
+    Q_OBJECT
+public:
+    FileUrlRecorder()
+    {
+        QDesktopServices::setUrlHandler( "file", this, "open" );
+    }
+    ~FileUrlRecorder() override
+    {
+        QDesktopServices::unsetUrlHandler( "file" );
+    }
+
+    FileUrlRecorder( const FileUrlRecorder& ) = delete;
+    FileUrlRecorder& operator=( const FileUrlRecorder& ) = delete;
+
+    QList<QUrl> opened;
+
+public Q_SLOTS:
+    void open( const QUrl& url )
+    {
+        opened.append( url );
+    }
+};
+
+} // namespace
+
+TEST_CASE( "The Team Folder tab shows when it last synced, and opens its folder",
+           "[optionsdialog][teamfolder][lastsynced]" )
+{
+    using namespace teamfolder_testing;
+    if ( !gitInstalled() ) {
+        return;
+    }
+    const IsolatedGitEnvironment environment;
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+    OptionsDialog dialog( catalog );
+    const FileUrlRecorder recorder;
+
+    const QTemporaryDir root;
+    REQUIRE( root.isValid() );
+    auto* const lastSynced = dialog.teamFolderLastSyncedLabel;
+    auto* const openFolder = dialog.teamFolderOpenFolderButton;
+    CHECK( dialog.teamFolderStatusGroup->isAncestorOf( openFolder ) );
+
+    SECTION( "before a sync reached the repository: never, and no folder to open" )
+    {
+        TeamFolder folder( root.filePath( "clone" ) );
+        folder.setUp(
+            policyFor( QUrl::fromLocalFile( root.filePath( "missing.git" ) ).toString() ) );
+        REQUIRE( settled( folder ) );
+        dialog.showTeamFolder( folder );
+
+        CHECK( lastSynced->isVisibleTo( dialog.teamFolderTab ) );
+        CHECK( lastSynced->text() == "Last synced: never" );
+        CHECK_FALSE( openFolder->isEnabled() );
+    }
+
+    SECTION( "after a sync: its date and time, and the clone opens" )
+    {
+        const auto server = serverWithACommit( root, "server" );
+        TeamFolder folder( root.filePath( "clone" ) );
+        folder.setUp( policyFor( server ) );
+        REQUIRE( settled( folder ) );
+        REQUIRE( folder.state() == TeamFolder::State::Synced );
+        dialog.showTeamFolder( folder );
+
+        CHECK( lastSynced->text()
+               == "Last synced: "
+                      + QLocale{}.toString( folder.lastSynced().toLocalTime(),
+                                            QLocale::ShortFormat ) );
+        REQUIRE( openFolder->isEnabled() );
+        openFolder->click();
+        REQUIRE( recorder.opened.size() == 1 );
+        CHECK( QDir( recorder.opened.front().toLocalFile() ) == QDir( root.filePath( "clone" ) ) );
+    }
+
+    SECTION( "a Team Folder that is off shows no time" )
+    {
+        TeamFolder folder( root.filePath( "clone" ) );
+        dialog.showTeamFolder( folder );
+        CHECK_FALSE( lastSynced->isVisibleTo( dialog.teamFolderTab ) );
+        CHECK_FALSE( openFolder->isEnabled() );
+    }
+}
+
+namespace {
+
 // The row of a file type on the File Associations page.
 QTreeWidgetItem* fileTypeRow( const OptionsDialog& dialog, const QString& id )
 {
@@ -853,3 +947,5 @@ TEST_CASE( "The File Associations page adds Open with LogSquirl to every file's 
         CHECK_FALSE( checkBox->isVisibleTo( dialog.fileAssociationsTab ) );
     }
 }
+
+#include "optionsdialog_test.moc"

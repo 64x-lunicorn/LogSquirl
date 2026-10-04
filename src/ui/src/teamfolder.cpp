@@ -1235,6 +1235,7 @@ void TeamFolder::setUp( const TeamFolderPolicy& policy )
         return;
     }
 
+    readLastSynced();
     LOG_INFO << "Team Folder set up for " << policy_.repositoryUrl;
     setState( State::NotSynced );
     syncTimer_.start();
@@ -1381,6 +1382,8 @@ void TeamFolder::takeOutcome()
         }
         switch ( outcome->result ) {
         case SyncOutcome::Result::Synced:
+            lastSynced_ = QDateTime::currentDateTimeUtc();
+            writeLastSynced();
             setGroups( outcome->filterGroups, outcome->highlighterGroups, outcome->namingGroups );
             setState( State::Synced );
             break;
@@ -1642,6 +1645,65 @@ QList<HighlighterSet> TeamFolder::highlighterGroups() const
 QList<NamingGroup> TeamFolder::namingGroups() const
 {
     return groupsOf( namingGroups_ );
+}
+
+namespace {
+
+const QString RecordUrlKey = QStringLiteral( "repositoryUrl" );
+const QString RecordSubfolderKey = QStringLiteral( "subfolder" );
+const QString RecordLastSyncedKey = QStringLiteral( "lastSynced" );
+
+} // namespace
+
+QDateTime TeamFolder::lastSynced() const
+{
+    return lastSynced_;
+}
+
+QString TeamFolder::cloneDirectory() const
+{
+    return cloneDirectory_;
+}
+
+bool TeamFolder::hasClone() const
+{
+    return !cloneDirectory_.isEmpty()
+           && QFileInfo( QDir( cloneDirectory_ ).filePath( QStringLiteral( ".git" ) ) ).isDir();
+}
+
+QString TeamFolder::syncRecordFile() const
+{
+    return cloneDirectory_ + QStringLiteral( "-sync.ini" );
+}
+
+void TeamFolder::readLastSynced()
+{
+    QSettings record( syncRecordFile(), QSettings::IniFormat );
+    const auto url = policy_.repositoryUrl.trimmed();
+    if ( record.value( RecordUrlKey ).toString() == url
+         && record.value( RecordSubfolderKey ).toString() == policy_.subfolder ) {
+        lastSynced_ = QDateTime::fromString( record.value( RecordLastSyncedKey ).toString(),
+                                             Qt::ISODateWithMs );
+        return;
+    }
+    // Another repository or subfolder: never synced, also after a restart
+    // that goes back to the earlier one.
+    lastSynced_ = {};
+    writeLastSynced();
+}
+
+void TeamFolder::writeLastSynced() const
+{
+    QDir().mkpath( QFileInfo( syncRecordFile() ).absolutePath() );
+    QSettings record( syncRecordFile(), QSettings::IniFormat );
+    record.setValue( RecordUrlKey, policy_.repositoryUrl.trimmed() );
+    record.setValue( RecordSubfolderKey, policy_.subfolder );
+    if ( lastSynced_.isValid() ) {
+        record.setValue( RecordLastSyncedKey, lastSynced_.toUTC().toString( Qt::ISODateWithMs ) );
+    }
+    else {
+        record.remove( RecordLastSyncedKey );
+    }
 }
 
 FailureHint TeamFolder::failureHint() const

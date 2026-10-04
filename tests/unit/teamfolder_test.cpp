@@ -28,6 +28,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <QDateTime>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -2291,5 +2292,95 @@ TEST_CASE( "A failed sync says what to do about a common failure, with Git's out
         const Team team;
         const auto folder = team.member( "alice" );
         CHECK( folder->failureHint() == FailureHint::None );
+    }
+}
+
+TEST_CASE( "The Team Folder records when it last synced, keeps it, and resets it",
+           "[teamfolder][lastsynced]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const Team team;
+    const auto clone = team.cloneOf( "alice" );
+
+    // Before any sync that reached the repository: never.
+    {
+        TeamFolder folder( clone, QDir( team.root() ).filePath( "no-git-here" ) );
+        CHECK_FALSE( folder.lastSynced().isValid() );
+        folder.setUp( policyFor( team.url() ) );
+        REQUIRE( settled( folder ) );
+        REQUIRE( folder.state() == TeamFolder::State::Error );
+        CHECK_FALSE( folder.lastSynced().isValid() );
+        CHECK_FALSE( folder.hasClone() );
+    }
+
+    const auto before = QDateTime::currentDateTimeUtc().addSecs( -1 );
+    auto folder = std::make_unique<TeamFolder>( clone );
+    folder->setUp( policyFor( team.url() ) );
+    REQUIRE( settled( *folder ) );
+    REQUIRE( folder->state() == TeamFolder::State::Synced );
+    const auto synced = folder->lastSynced();
+    CHECK( synced.isValid() );
+    CHECK( synced >= before );
+    CHECK( synced <= QDateTime::currentDateTimeUtc().addSecs( 1 ) );
+    CHECK( folder->hasClone() );
+    CHECK( folder->cloneDirectory() == clone );
+
+    SECTION( "a failed sync leaves the last successful time" )
+    {
+        REQUIRE( QDir().rename( team.serverPath(), team.serverPath() + ".gone" ) );
+        syncNow( *folder );
+        REQUIRE( folder->state() == TeamFolder::State::NotSynced );
+        CHECK( folder->lastSynced() == synced );
+        REQUIRE( QDir().rename( team.serverPath() + ".gone", team.serverPath() ) );
+    }
+
+    SECTION( "the time survives a restart" )
+    {
+        folder.reset();
+        // A Git that cannot run cannot sync: what is shown is what was kept.
+        TeamFolder restarted( clone, QDir( team.root() ).filePath( "no-git-here" ) );
+        restarted.setUp( policyFor( team.url() ) );
+        REQUIRE( settled( restarted ) );
+        CHECK( restarted.lastSynced() == synced );
+    }
+
+    SECTION( "another Repository URL resets it" )
+    {
+        folder->setUp( policyFor(
+            QUrl::fromLocalFile( QDir( team.root() ).filePath( "other.git" ) ).toString() ) );
+        CHECK_FALSE( folder->lastSynced().isValid() );
+        REQUIRE( settled( *folder ) );
+        CHECK_FALSE( folder->lastSynced().isValid() );
+
+        // Also after a restart, and on going back to the first repository.
+        folder.reset();
+        TeamFolder restarted( clone, QDir( team.root() ).filePath( "no-git-here" ) );
+        restarted.setUp( policyFor( team.url() ) );
+        REQUIRE( settled( restarted ) );
+        CHECK_FALSE( restarted.lastSynced().isValid() );
+    }
+
+    SECTION( "another Subfolder resets it" )
+    {
+        folder->setUp( policyFor( team.url(), "groups" ) );
+        CHECK_FALSE( folder->lastSynced().isValid() );
+        REQUIRE( settled( *folder ) );
+        // The subfolder's sync reached the repository.
+        CHECK( folder->lastSynced().isValid() );
+        CHECK( folder->lastSynced() >= synced );
+    }
+
+    SECTION( "turning the Team Folder off and on again keeps it" )
+    {
+        folder->setUp( TeamFolderPolicy{} );
+        folder.reset();
+        TeamFolder restarted( clone, QDir( team.root() ).filePath( "no-git-here" ) );
+        restarted.setUp( policyFor( team.url() ) );
+        REQUIRE( settled( restarted ) );
+        CHECK( restarted.lastSynced() == synced );
     }
 }

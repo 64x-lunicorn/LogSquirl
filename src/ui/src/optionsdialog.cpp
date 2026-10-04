@@ -279,6 +279,11 @@ void OptionsDialog::setupTeamFolderStatus()
     connect( teamFolderCopyDetailsButton, &QPushButton::clicked, this, [ this ] {
         QGuiApplication::clipboard()->setText( teamFolderDetailsEdit->toPlainText() );
     } );
+    connect( teamFolderOpenFolderButton, &QPushButton::clicked, this, [ this ] {
+        if ( teamFolder_ && teamFolder_->hasClone() ) {
+            QDesktopServices::openUrl( QUrl::fromLocalFile( teamFolder_->cloneDirectory() ) );
+        }
+    } );
 
     // The note explains; it stays out of the way of the settings and the
     // status.
@@ -386,6 +391,16 @@ void OptionsDialog::updateTeamFolderStatus()
     const auto remarks = teamFolder_->remarks();
     teamFolderRemarksLabel->setText( remarks.join( QLatin1Char( '\n' ) ) );
     teamFolderRemarksLabel->setVisible( !remarks.isEmpty() );
+
+    // Whether the Team groups were ever current, in the user's locale.
+    const auto lastSynced = teamFolder_->lastSynced();
+    teamFolderLastSyncedLabel->setText(
+        tr( "Last synced: %1" )
+            .arg( lastSynced.isValid()
+                      ? QLocale{}.toString( lastSynced.toLocalTime(), QLocale::ShortFormat )
+                      : tr( "never" ) ) );
+    teamFolderLastSyncedLabel->setVisible( teamFolder_->state() != TeamFolder::State::Off );
+    teamFolderOpenFolderButton->setEnabled( teamFolder_->hasClone() );
 
     // Git's output, untranslated (ADR-0008), of the last sync that failed.
     const auto gitOutput = teamFolder_->isSyncing() ? QString{} : teamFolder_->gitOutput();

@@ -245,6 +245,14 @@
   path that holds the same words triggers nothing; any other failure shows
   the heading and Git's details only, and Git's output in the details stays
   unchanged. ADR-0008 is amended to allow these hints. (#713)
+- **The Team Folder shows when it last synced, and opens its folder**: the
+  status in *Settings → Team Folder* shows *Last synced:* with the date and
+  time, in the user's locale, of the last sync that reached the repository,
+  or *never*. A failed sync leaves the time as it was; it survives a restart,
+  kept in `teamfolder-sync.ini` beside the clone, and starts again from
+  *never* when the Repository URL or Subfolder changes. *Open Folder* in the
+  *Status* group opens the clone in the file manager, and is disabled while
+  there is no clone. (#714)
 
 ## Bug fixes
 
