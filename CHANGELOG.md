@@ -178,6 +178,20 @@
   remembers per user; where it does not know one, the page says that macOS
   cannot unset a default and how to choose another application in the
   Finder. A run outside LogSquirl.app shows the page disabled. (#721)
+- **The File Associations page works on Windows, installed and portable**:
+  *Apply* registers LogSquirl for the checked types for the current user,
+  under `HKEY_CURRENT_USER\Software\Classes`, so it needs no administrator:
+  the installer's ProgIDs `LogSquirl.<id>` with the document icon and the
+  running executable, LogSquirl under each extension's `OpenWithProgids`, and
+  its capabilities under `RegisteredApplications`. Windows does not let an
+  application make itself the default, so LogSquirl then opens the *Default
+  apps* page of the Windows settings for LogSquirl, says so before *Apply*,
+  and follows the user's choice there: the state column reads the user's
+  actual choice (`UserChoice`), so a type registered but not confirmed shows
+  as *Registered*. Unchecking removes the current user's registration and
+  leaves the machine-wide one the installer made, and says so when LogSquirl
+  still opens the type. The portable build registers its own executable and
+  warns that moving it stops the associations working. (#722)
 
 ## Bug fixes
 

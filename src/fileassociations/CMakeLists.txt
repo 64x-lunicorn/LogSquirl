@@ -7,10 +7,12 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fileassociations.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/xdgfileassociations.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/macfileassociations.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/windowsfileassociations.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filetypes.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/fileassociations.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/xdgfileassociations.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/macfileassociations.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/windowsfileassociations.cpp
   ${LOGSQUIRL_FILE_TYPES_DIR}/file_types.inc
 )
 
@@ -25,12 +27,16 @@ else()
   target_compile_definitions(logsquirl_fileassociations PRIVATE LOGSQUIRL_REGISTERS_FILE_TYPES=0)
 endif()
 target_link_libraries(logsquirl_fileassociations PUBLIC project_options project_warnings Qt6::Core)
-target_link_libraries(logsquirl_fileassociations PRIVATE logsquirl_logging)
+target_link_libraries(logsquirl_fileassociations PRIVATE logsquirl_logging logsquirl_datalocation)
 
-# What talks to the system: NSWorkspace on macOS (#721), in Objective-C++
-# compiled as C++ with the Objective-C++ front end, so the project needs no
-# language of its own for one file.
-if(APPLE)
+# What talks to the system: the registry and the shell on Windows (#722), and
+# NSWorkspace on macOS (#721), in Objective-C++ compiled as C++ with the
+# Objective-C++ front end, so the project needs no language of its own for one
+# file. The rest is compiled everywhere, so its tests run everywhere.
+if(WIN32)
+  target_sources(logsquirl_fileassociations PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/windowssystem.cpp)
+  target_link_libraries(logsquirl_fileassociations PRIVATE advapi32 shell32)
+elseif(APPLE)
   set(_launch_services ${CMAKE_CURRENT_SOURCE_DIR}/src/maclaunchservices.mm)
   set_source_files_properties(${_launch_services} PROPERTIES LANGUAGE CXX COMPILE_OPTIONS
                                                                        "-xobjective-c++;-fobjc-arc")

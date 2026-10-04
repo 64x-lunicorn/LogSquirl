@@ -21,7 +21,9 @@
 
 #include <QCoreApplication>
 
-#if defined( Q_OS_MACOS )
+#if defined( Q_OS_WIN )
+#include "windowsfileassociations.h"
+#elif defined( Q_OS_MACOS )
 #include "macfileassociations.h"
 #elif defined( Q_OS_UNIX )
 #include "xdgfileassociations.h"
@@ -61,10 +63,10 @@ FileAssociationPlan FileAssociationPlan::of( const FileAssociationStates& states
     return plan;
 }
 
-#if !defined( Q_OS_UNIX )
+#if !defined( Q_OS_UNIX ) && !defined( Q_OS_WIN )
 namespace {
 
-// A platform whose own implementation is still to come (#721, #722).
+// A system without an implementation of its own.
 class UnavailableFileAssociations : public FileAssociations {
 public:
     bool isAvailable() const override
@@ -75,8 +77,7 @@ public:
     QString unavailableReason() const override
     {
         return QCoreApplication::translate(
-            "FileAssociations",
-            "LogSquirl cannot choose the file types it opens on this system yet." );
+            "FileAssociations", "LogSquirl cannot choose the file types it opens on this system." );
     }
 
     FileAssociationState state( const FileType& ) const override
@@ -103,7 +104,11 @@ public:
 
 std::unique_ptr<FileAssociations> createFileAssociations()
 {
-#if defined( Q_OS_MACOS )
+#if defined( Q_OS_WIN )
+    return std::make_unique<WindowsFileAssociations>(
+        WindowsFileAssociations::Environment::ofThisRun(),
+        WindowsFileAssociations::windowsSystem() );
+#elif defined( Q_OS_MACOS )
     return std::make_unique<MacFileAssociations>( MacFileAssociations::systemLaunchServices(),
                                                   MacFileAssociations::userSettings() );
 #elif defined( Q_OS_UNIX )

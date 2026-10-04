@@ -319,7 +319,8 @@ The checked types show the *logsquirl* document icon, a sheet with the squirrel.
 *logsquirl* under *Open with* for all of them, checked or not, and for `.gz` and `.zip` files. A type
 you chose to open with another application in Explorer stays with it: Windows does not let an installer
 override that choice. Uninstalling removes all of *logsquirl*'s entries and gives each type back to the
-application that opened it before.
+application that opened it before. The *File Associations* page of the Options chooses the types later,
+for your user (see [File Associations](#File-Associations)).
 
 On macOS, the app declares the file types it opens: `.log`, the Android Logcat traces (`.adb0` to `.adb9`
 are the type *Android Logcat trace*; macOS keeps calling `.adb` Ada source), `.out`/`.err`, `.trace`,
@@ -1558,7 +1559,21 @@ On Linux, the deb and rpm packages offer LogSquirl for these types, and the
 page makes it the default with `xdg-mime default`, for your user only. An
 AppImage cannot register file types, so there the page is disabled and says
 why; so it is when LogSquirl's desktop entry or `xdg-mime` (from
-`xdg-utils`) is missing. On Windows the page is not available yet.
+`xdg-utils`) is missing.
+
+On Windows, in the installed and in the portable build, *Apply* registers
+LogSquirl for the checked types for your user only, so it needs no
+administrator: the same file types the installer registers, with the document
+icon, opened by the LogSquirl you run. Windows does not let an application make
+itself the default, so LogSquirl then opens the *Default apps* page of the
+Windows settings, where you choose LogSquirl for each file type; the page says
+so before you apply. Until you do, a type shows as *Registered*, and once you
+did, as *Default*. Unchecking a type removes your user's registration; what
+the installer registered for every user of the computer stays, and if
+LogSquirl still opens the type then, the page says so and you choose another
+app on the *Default apps* page. In the portable build the page warns that the
+associations stop working if you move LogSquirl: they point at the
+executable where it was when you applied them.
 
 On macOS, the page makes LogSquirl the default for the content type of each
 type: the system's log type for `.log`, LogSquirl's own *Android Logcat

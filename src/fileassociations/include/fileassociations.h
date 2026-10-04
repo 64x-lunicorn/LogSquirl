@@ -122,6 +122,7 @@ struct FileAssociationPlan {
 };
 
 // The implementation of this platform and this run: xdg-mime on Linux and
-// the other freedesktop.org systems, LaunchServices on macOS (#721), one that
-// is never available elsewhere until the platform has its own (#722).
+// the other freedesktop.org systems, LaunchServices on macOS (#721), the
+// registry of the current user on Windows (#722), and one that is never
+// available on any other system.
 std::unique_ptr<FileAssociations> createFileAssociations();
