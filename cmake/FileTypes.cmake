@@ -41,9 +41,9 @@
 #   )
 #
 # It sets LOGSQUIRL_FILE_TYPE_<id>_<FIELD> for each field above, plus _PROGID,
-# and appends <id> to LOGSQUIRL_FILE_TYPES or LOGSQUIRL_OPEN_WITH_TYPES.
+# and appends <id> to LOGSQUIRL_FILE_TYPE_IDS or LOGSQUIRL_OPEN_WITH_TYPES.
 
-set(LOGSQUIRL_FILE_TYPES "")
+set(LOGSQUIRL_FILE_TYPE_IDS "")
 set(LOGSQUIRL_OPEN_WITH_TYPES "")
 set(LOGSQUIRL_FILE_TYPE_FIELDS
     CHECKED
@@ -89,9 +89,9 @@ function(logsquirl_file_type id)
         PARENT_SCOPE
     )
   else()
-    list(APPEND LOGSQUIRL_FILE_TYPES ${id})
-    set(LOGSQUIRL_FILE_TYPES
-        "${LOGSQUIRL_FILE_TYPES}"
+    list(APPEND LOGSQUIRL_FILE_TYPE_IDS ${id})
+    set(LOGSQUIRL_FILE_TYPE_IDS
+        "${LOGSQUIRL_FILE_TYPE_IDS}"
         PARENT_SCOPE
     )
   endif()
@@ -202,7 +202,7 @@ function(logsquirl_file_types_mime_xml out_var)
   set(_xml "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
   string(APPEND _xml "<!-- Generated from cmake/FileTypes.cmake: the file types LogSquirl opens (#717). -->\n")
   string(APPEND _xml "<mime-info xmlns=\"http://www.freedesktop.org/standards/shared-mime-info\">\n")
-  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPES)
+  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPE_IDS)
     if(NOT LOGSQUIRL_FILE_TYPE_${_id}_MIME_DEFINED AND NOT LOGSQUIRL_FILE_TYPE_${_id}_DOCUMENT_ICON)
       continue()
     endif()
@@ -236,7 +236,7 @@ endfunction()
 # offered under "Open with" for each.
 function(logsquirl_file_types_desktop_mime_types out_var)
   set(_types "")
-  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPES LOGSQUIRL_OPEN_WITH_TYPES)
+  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPE_IDS LOGSQUIRL_OPEN_WITH_TYPES)
     list(APPEND _types "${LOGSQUIRL_FILE_TYPE_${_id}_MIME}")
   endforeach()
   list(REMOVE_DUPLICATES _types)
@@ -269,7 +269,7 @@ function(logsquirl_file_types_nsis out_var)
   set(_hide "")
   set(_descriptions "")
   set(_unregister "")
-  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPES LOGSQUIRL_OPEN_WITH_TYPES)
+  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPE_IDS LOGSQUIRL_OPEN_WITH_TYPES)
     set(_progid "${LOGSQUIRL_FILE_TYPE_${_id}_PROGID}")
     string(APPEND _register "    !insertmacro LogSquirlRegisterProgId \"${_progid}\" \"${LOGSQUIRL_FILE_TYPE_${_id}_NAME}\"\n")
     foreach(_extension IN LISTS LOGSQUIRL_FILE_TYPE_${_id}_EXTENSIONS)
@@ -326,7 +326,7 @@ function(logsquirl_file_types_cpp out_var)
   set(_cpp "// Generated from cmake/FileTypes.cmake: the file types LogSquirl opens (#720).\n")
   string(APPEND _cpp "// LOGSQUIRL_FILE_TYPE( id, group, checked, label, shownAs, name, extensions,\n")
   string(APPEND _cpp "//                      mimeType, uti, progId )\n")
-  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPES LOGSQUIRL_OPEN_WITH_TYPES)
+  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPE_IDS LOGSQUIRL_OPEN_WITH_TYPES)
     if(LOGSQUIRL_FILE_TYPE_${_id}_OPEN_WITH_ONLY)
       set(_group OpenWith)
     elseif(LOGSQUIRL_FILE_TYPE_${_id}_GROUP STREQUAL "logs")
@@ -483,7 +483,7 @@ function(logsquirl_file_types_bundle_plist)
   set(_documents "")
   set(_exported "")
   set(_imported "")
-  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPES LOGSQUIRL_OPEN_WITH_TYPES)
+  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPE_IDS LOGSQUIRL_OPEN_WITH_TYPES)
     set(_uti "${LOGSQUIRL_FILE_TYPE_${_id}_UTI}")
     set(_declaration "${LOGSQUIRL_FILE_TYPE_${_id}_UTI_DECLARATION}")
     if(_declaration)
