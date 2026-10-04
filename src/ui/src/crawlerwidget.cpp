@@ -625,6 +625,59 @@ void CrawlerWidget::restoreViewContext( const QString& viewContext )
     if ( context.chartVisible ) {
         chartPanel_->show();
     }
+
+    restoreSearches( context );
+}
+
+void CrawlerWidget::restoreSearches( const ViewState& state )
+{
+    KeptSearches::Requested saved;
+    for ( const auto& search : state.searches ) {
+        saved.patterns.emplace_back( search.pattern, !search.ignoreCase, search.inverseRegexp,
+                                     search.useBooleanCombination, !search.useRegexp );
+    }
+    saved.current = static_cast<std::size_t>( std::max<qsizetype>( state.currentSearch, 0 ) );
+
+    // Each Search gets the Filtered View it had, in its tab; the kept ones
+    // run beside the current one as soon as the Log File has loaded.
+    const auto views = keptSearches_.restore( saved );
+    if ( views.empty() ) {
+        return;
+    }
+    // A tab alone shows no tab bar, and an empty Search no text.
+    if ( !saved.patterns.front().pattern.isEmpty() ) {
+        tabbedFilteredView_->setTabText( 0, searchTabText( saved.patterns.front().pattern ) );
+    }
+    for ( std::size_t index = 1; index < views.size(); ++index ) {
+        connectAllFilteredViewSlots( views[ index ] );
+        tabbedFilteredView_->addTab( views[ index ],
+                                     searchTabText( saved.patterns[ index ].pattern ) );
+    }
+    if ( views.size() > 1 ) {
+        registerShortcuts();
+    }
+    // Already current in the Kept Searches: showing its tab changes nothing.
+    tabbedFilteredView_->setCurrentWidget( keptSearches_.currentView() );
+
+    // A kept Search's Filtered View colors the pattern it runs with. The
+    // current Search is what the Search Line shows and requests, as though
+    // the user asked for it there; it waits for the first load.
+    const auto currentIndex = keptSearches_.requested().current;
+    for ( std::size_t index = 0; index < views.size(); ++index ) {
+        if ( index != currentIndex && !saved.patterns[ index ].pattern.isEmpty() ) {
+            views[ index ]->setSearchPattern( saved.patterns[ index ] );
+        }
+    }
+    const auto& current = saved.patterns[ currentIndex ];
+    if ( !current.pattern.isEmpty() ) {
+        searchLine_->apply( current );
+        replaceCurrentSearch();
+    }
+}
+
+QString CrawlerWidget::searchTabText( const QString& pattern )
+{
+    return "Find \"" + pattern + "\"";
 }
 
 std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() const
@@ -647,6 +700,19 @@ std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() co
     state.chartVisible = chartPanel_->isVisible();
     // A Log File not loaded yet stands where it was restored to.
     state.scrollPosition = scrollPositionToRestore_.value_or( logMainView_->getTopLine() ).get();
+
+    // Every Search, as it was last requested: one waiting for the first load
+    // too.
+    const auto requested = keptSearches_.requested();
+    state.searches.clear();
+    for ( const auto& pattern : requested.patterns ) {
+        state.searches.append( SavedSearch{ .pattern = pattern.pattern,
+                                            .ignoreCase = !pattern.isCaseSensitive,
+                                            .useRegexp = !pattern.isPlainText,
+                                            .inverseRegexp = pattern.isExclude,
+                                            .useBooleanCombination = pattern.isBoolean } );
+    }
+    state.currentSearch = static_cast<qsizetype>( requested.current );
 
     return std::make_shared<const ViewStateContext>( std::move( state ) );
 }
@@ -673,7 +739,7 @@ void CrawlerWidget::startNewSearch( bool keepResults )
     }
 
     tabbedFilteredView_->setTabText( tabbedFilteredView_->currentIndex(),
-                                     "Find \"" + searchLine_->pattern() + "\"" );
+                                     searchTabText( searchLine_->pattern() ) );
 
     // Record the search line in the recent list
     // (reload the list first in case another glogg changed it)
@@ -1521,6 +1587,8 @@ void CrawlerWidget::setup()
     // views, once the request that made it is done.
     connect( &keptSearches_, &KeptSearches::currentSearchUpdated, this,
              &CrawlerWidget::updateFilteredView );
+    connect( &keptSearches_, &KeptSearches::restoredSearchesFinished, this,
+             &CrawlerWidget::restoredSearchesFinished );
 
     // Wire chart panel — provide log data and connect click-to-navigate.
     chartPanel_->setLogData( openLogFile_->logData() );
@@ -2005,7 +2073,7 @@ void CrawlerWidget::replaceCurrentSearch()
     // are discarded on arrival, so there is nothing to wait for here.
 
     // Clear and recompute the content of the filtered window.
-    openLogFile_->clearSearch();
+    keptSearches_.clearCurrent();
     prepareForNewSearch();
 
     if ( !searchText.isEmpty() ) {
@@ -2014,7 +2082,7 @@ void CrawlerWidget::replaceCurrentSearch()
         // Session validates the pattern itself; on failure it goes to
         // InvalidPattern synchronously (without touching the worker), so the
         // state is already conclusive.
-        showSearchRequested( openLogFile_->requestSearch( searchLine_->request() ) );
+        showSearchRequested( keptSearches_.requestCurrent( searchLine_->request() ) );
     }
     else {
         searchLine_->cleared();

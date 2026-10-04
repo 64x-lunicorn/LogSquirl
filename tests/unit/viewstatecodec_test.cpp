@@ -297,3 +297,130 @@ SCENARIO( "A malformed or empty view state reads as defaults", "[viewstatecodec]
         }
     }
 }
+
+namespace {
+
+// The one empty Search, current, a tab has when none was saved (#704).
+const QList<SavedSearch> OneEmptySearch{ SavedSearch{} };
+
+} // namespace
+
+SCENARIO( "A tab's Kept Searches survive being saved and read back", "[viewstatecodec][session]" )
+{
+    GIVEN( "a view state with Searches of mixed flags and any text, the second one current" )
+    {
+        auto state = everyFieldSet();
+        state.searches = {
+            SavedSearch{ .pattern = "ERROR", .ignoreCase = true },
+            SavedSearch{ .pattern = "took (\\d+) ms", .useRegexp = true, .inverseRegexp = true },
+            SavedSearch{ .pattern = R"("db" and not "retry")", .useBooleanCombination = true },
+            SavedSearch{ .pattern = QString::fromUtf8( "Grüße 東京" ) },
+        };
+        state.currentSearch = 1;
+
+        WHEN( "it is encoded and decoded again" )
+        {
+            const auto decoded
+                = decodeViewState( encodeViewState( state ),
+                                   policyReadingSearchesAs( SearchRegexpType::FixedString ) );
+
+            THEN( "the Searches come back in their order, with their flags and the same one "
+                  "current" )
+            {
+                REQUIRE( decoded.searches == state.searches );
+                REQUIRE( decoded.currentSearch == 1 );
+                REQUIRE( decoded == state );
+            }
+        }
+    }
+
+    GIVEN( "a view state whose only Search is empty and current" )
+    {
+        auto state = everyFieldSet();
+        state.chartSeries = {};
+
+        THEN( "its text holds no Searches, as a view state saved before them" )
+        {
+            REQUIRE_FALSE( encodeViewState( state ).contains( "\"KS\"" ) );
+            REQUIRE( state.searches == OneEmptySearch );
+        }
+    }
+}
+
+SCENARIO( "A view state saved before the Session kept Searches has one empty Search",
+          "[viewstatecodec][session]" )
+{
+    const auto policy = policyReadingSearchesAs( SearchRegexpType::ExtendedRegexp );
+
+    GIVEN( "the JSON text of the current release, without Searches" )
+    {
+        const auto state = decodeViewState( SavedByTheCurrentRelease, policy );
+
+        THEN( "the tab has one empty Search, current, and every other field as saved" )
+        {
+            REQUIRE( state.searches == OneEmptySearch );
+            REQUIRE( state.currentSearch == 0 );
+            REQUIRE( state.sizes == QList<int>{ 400, 125 } );
+            REQUIRE( state.marks == QList<LineNumber::UnderlyingType>{ 3, 17, 2048 } );
+        }
+    }
+
+    GIVEN( "the legacy text glogg saved" )
+    {
+        const auto state = decodeViewState( "S512:88:IC1:AR0:FF1", policy );
+
+        THEN( "the tab has one empty Search, current, and every other field as before" )
+        {
+            REQUIRE( state.searches == OneEmptySearch );
+            REQUIRE( state.currentSearch == 0 );
+            REQUIRE( state.sizes == QList<int>{ 512, 88 } );
+            REQUIRE( state.ignoreCase );
+            REQUIRE( state.followFile );
+        }
+    }
+}
+
+SCENARIO( "A saved Search that cannot be read is left out", "[viewstatecodec][session]" )
+{
+    const auto policy = policyReadingSearchesAs( SearchRegexpType::ExtendedRegexp );
+
+    GIVEN( "three saved Searches, the first without a pattern, the third current" )
+    {
+        const auto state = decodeViewState(
+            R"({"KS":[{"IC":true},{"P":"warn","IC":true},{"P":"error","RE":true}],"KC":2,)"
+            R"("S":[1,2]})",
+            policy );
+
+        THEN( "the two that can be read are kept, the same one current, the rest read" )
+        {
+            REQUIRE(
+                state.searches
+                == QList<SavedSearch>{ SavedSearch{ .pattern = "warn", .ignoreCase = true },
+                                       SavedSearch{ .pattern = "error", .useRegexp = true } } );
+            REQUIRE( state.currentSearch == 1 );
+            REQUIRE( state.sizes == QList<int>{ 1, 2 } );
+        }
+    }
+
+    GIVEN( "Searches that are no list of objects" )
+    {
+        const auto state = decodeViewState( R"({"KS":[3,"x",null],"KC":1})", policy );
+
+        THEN( "the tab has one empty Search, current" )
+        {
+            REQUIRE( state.searches == OneEmptySearch );
+            REQUIRE( state.currentSearch == 0 );
+        }
+    }
+
+    GIVEN( "a current Search that is not among those saved" )
+    {
+        const auto state = decodeViewState( R"({"KS":[{"P":"a"},{"P":"b"}],"KC":7})", policy );
+
+        THEN( "the first one is current" )
+        {
+            REQUIRE( state.searches.size() == 2 );
+            REQUIRE( state.currentSearch == 0 );
+        }
+    }
+}

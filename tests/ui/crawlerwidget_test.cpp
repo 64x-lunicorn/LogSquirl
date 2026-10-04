@@ -3169,6 +3169,94 @@ SCENARIO( "A restored tab whose Log File loads after the current one shows what 
     }
 }
 
+SCENARIO( "A restored tab runs every Kept Search again once its Log File has loaded",
+          "[ui][session][keptsearches]" )
+{
+    const auto windowId = QStringLiteral( "crawlerwidget_test_window_704" );
+    QTemporaryFile searched{ "crawler_test_kept_XXXXXX" };
+    QTemporaryFile current{ "crawler_test_current_XXXXXX" };
+    REQUIRE( generateDataFiles( searched ) );
+    REQUIRE( generateDataFiles( current ) );
+
+    // Three Searches of ten Matches each, the second one current, and two
+    // Marks.
+    ViewState saved;
+    saved.sizes = { 400, 100 };
+    saved.marks = { 3, 7 };
+    saved.searches = { SavedSearch{ .pattern = "line 00001", .useRegexp = true },
+                       SavedSearch{ .pattern = "LINE 00002", .ignoreCase = true },
+                       SavedSearch{ .pattern = "line 00004" } };
+    saved.currentSearch = 1;
+
+    // Restored in a tab that is not the current one: its Log File loads only
+    // once it is activated.
+    RestoredWindow restored{
+        windowId, { { searched.fileName(), encodeViewState( saved ) }, { current.fileName(), {} } }
+    };
+    CrawlerWidgetVisitor tab;
+    tab.crawler = std::move( restored.tabs.front() );
+    bool finished = false;
+    QObject::connect( tab.crawler.get(), &CrawlerWidget::restoredSearchesFinished,
+                      [ &finished ] { finished = true; } );
+
+    THEN( "while the Log File has not loaded, every Search has its tab, the second one current" )
+    {
+        REQUIRE( tab.filteredViewTabCount() == 3 );
+        REQUIRE( tab.currentFilteredViewTab() == 1 );
+        REQUIRE( tab.searchText() == "LINE 00002" );
+        REQUIRE_FALSE( tab.matchCaseChecked() );
+        REQUIRE_FALSE( tab.useRegexpChecked() );
+    }
+
+    WHEN( "the Session is saved again before the Log File has loaded" )
+    {
+        const auto savedAgain
+            = decodeViewState( tab.crawler->context()->toString(), QuickFindPolicy{} );
+
+        THEN( "it keeps the same Searches, the same one current" )
+        {
+            REQUIRE( savedAgain.searches == saved.searches );
+            REQUIRE( savedAgain.currentSearch == 1 );
+        }
+    }
+
+    WHEN( "the Log File has loaded" )
+    {
+        restored.window->startLoading( tab.crawler.get() );
+        REQUIRE( waitUiState( [ & ] {
+            return tab.isLoadingFinished() && tab.getLogNbLines().get() == SL_NB_LINES;
+        } ) );
+        REQUIRE( waitUiState( [ & ] { return finished; } ) );
+
+        THEN( "the second Search is current, shows its Matches and carries the Marks" )
+        {
+            REQUIRE( tab.currentFilteredViewTab() == 1 );
+            REQUIRE( tab.openLogFile().matchCount() == 10_lcount );
+            REQUIRE( tab.isMarked( 3_lnum ) );
+            REQUIRE( tab.isMarked( 7_lnum ) );
+            REQUIRE( tab.getLogFilteredNbLines() == 12_lcount );
+        }
+
+        THEN( "the other two show their Matches in their own Filtered Views" )
+        {
+            tab.makeFilteredViewTabCurrent( 0 );
+            REQUIRE( tab.openLogFile().searchState().phase == SearchSession::Phase::Complete );
+            REQUIRE( tab.openLogFile().matchCount() == 10_lcount );
+            tab.makeFilteredViewTabCurrent( 2 );
+            REQUIRE( tab.openLogFile().searchState().phase == SearchSession::Phase::Complete );
+            REQUIRE( tab.openLogFile().matchCount() == 10_lcount );
+        }
+
+        THEN( "a save keeps the same Searches, the same one current" )
+        {
+            const auto savedAgain
+                = decodeViewState( tab.crawler->context()->toString(), QuickFindPolicy{} );
+            REQUIRE( savedAgain.searches == saved.searches );
+            REQUIRE( savedAgain.currentSearch == 1 );
+        }
+    }
+}
+
 namespace {
 
 // Log Lines holding a word with quotes in it: 5 read alpha say "hi", 5 read

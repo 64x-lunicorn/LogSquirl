@@ -40,7 +40,8 @@ lines that were added and starts again when the Log File was truncated or reload
 not survive a truncation or a reload, and Format Recognition is taken again after either. The
 Marks saved with the Session are handed to it when the Log File is opened and applied once,
 after the first load; saving them stays with the user interface. A Search requested before
-the Log File has first loaded waits for that load and then runs over the whole Log File.
+the Log File has first loaded waits for that load and then runs over the whole Log File, a
+kept one as well as the current one.
 It hears of changes on disk through the File Watch Port handed to it when it is built.
 It is the way in to its Log File: it takes every Policy, adds, toggles and clears the Marks,
 owns the Search Limits and tells the View Set when they change, and answers what is known of
@@ -560,7 +561,11 @@ _Avoid_: category, group, domain
 **Session**:
 The set of Log Files currently open, their tabs, and the position and view state restored
 for each on the next start. The position is part of the view state: the Log Line of the text
-view's Scroll Position, where the Log File stands again once its first load is done.
+view's Scroll Position, where the Log File stands again once its first load is done. So
+are the tab's Searches: every one its Kept Searches hold, in their order, with its pattern and
+how the Search Line read it, and which one is current. A restore rebuilds them, each in its
+Filtered View, and runs every one with a pattern again once the first load is done; their
+results are never saved.
 It builds the views of every Log File it opens in one call, from one value: the Open Log
 File, the QuickFind pattern, the Policies, the saved Searches and the view state to restore,
 if any — opening a Log File by hand and restoring it on start take the same path. After that
@@ -581,8 +586,8 @@ restores, plus the names and groups. Transient Log Files are not in it; one deco
 from an archive is, with its archive and member. Every Log File is written with its absolute
 path and its path relative to the Session File's folder, and opening tries both, so a
 folder of logs and its Session File still opens once moved. A Log File that is missing or
-already open in another window is left out and named. Window geometry and the search
-pattern are not part of it.
+already open in another window is left out and named. Each tab's Searches come with its view
+state; window geometry and the search history are not part of it.
 _Avoid_: workspace file, project file, saved layout
 
 **Transient Log File**:

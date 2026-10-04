@@ -28,6 +28,7 @@
 
 #include "textencoding.h"
 
+#include <algorithm>
 #include <mutex>
 #include <utility>
 
@@ -231,6 +232,7 @@ void OpenLogFile::setDecodingPolicy( const DecodingPolicy& policy )
 
 std::shared_ptr<LogFilteredData> OpenLogFile::startAnotherSearch()
 {
+    keepWaitingSearch();
     loadRule_.waitingSearchDropped();
     filteredData_->stop();
     filteredData_ = logData_->getNewFilteredData();
@@ -240,11 +242,55 @@ std::shared_ptr<LogFilteredData> OpenLogFile::startAnotherSearch()
 
 void OpenLogFile::makeSearchCurrent( std::shared_ptr<LogFilteredData> search )
 {
+    if ( search && search != filteredData_ ) {
+        keepWaitingSearch();
+    }
     loadRule_.waitingSearchDropped();
     filteredData_->stop();
     if ( search && search != filteredData_ ) {
         filteredData_ = std::move( search );
         followCurrentSearch();
+
+        // A kept Search that waits for the first load waits on, current.
+        const auto waiting = std::find_if(
+            waitingKeptSearches_.begin(), waitingKeptSearches_.end(),
+            [ this ]( const WaitingSearch& kept ) { return kept.search.lock() == filteredData_; } );
+        if ( waiting != waitingKeptSearches_.end() ) {
+            const auto pattern = waiting->pattern;
+            waitingKeptSearches_.erase( waiting );
+            requestSearch( pattern );
+        }
+    }
+}
+
+void OpenLogFile::requestKeptSearch( const std::shared_ptr<LogFilteredData>& search,
+                                     const RegularExpressionPattern& pattern )
+{
+    if ( !search ) {
+        return;
+    }
+    if ( search == filteredData_ ) {
+        requestSearch( pattern );
+        return;
+    }
+
+    // Requested again, it waits with the pattern requested last.
+    std::erase_if( waitingKeptSearches_, [ &search ]( const WaitingSearch& kept ) {
+        return kept.search.lock() == search;
+    } );
+    if ( !loadRule_.hasLoadFinished() ) {
+        // Nothing to search yet: it runs over the Log Lines once they have
+        // loaded, rather than over none now.
+        waitingKeptSearches_.push_back( WaitingSearch{ search, pattern } );
+        return;
+    }
+    search->request( pattern, searchLimits_.start, searchLimits_.end );
+}
+
+void OpenLogFile::keepWaitingSearch()
+{
+    if ( loadRule_.searchWaitsForLoad() ) {
+        waitingKeptSearches_.push_back( WaitingSearch{ filteredData_, searchPattern_ } );
     }
 }
 
@@ -482,6 +528,14 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
         // The Search requested while the Log File loaded runs over the whole
         // of it now.
         requestSearch( searchPattern_ );
+    }
+    // So do the kept ones, beside it; a Log File that did not load has
+    // nothing to search. Only the first load finds any waiting.
+    for ( const auto& waiting : std::exchange( waitingKeptSearches_, {} ) ) {
+        const auto search = waiting.search.lock();
+        if ( search && status == LoadingStatus::Successful ) {
+            search->request( waiting.pattern, searchLimits_.start, searchLimits_.end );
+        }
     }
 
     if ( decision.recognizeFormat ) {

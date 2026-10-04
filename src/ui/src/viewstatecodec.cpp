@@ -27,7 +27,54 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <utility>
+
 namespace {
+
+// The keys of a saved Search, inside the list of a view state's Searches.
+constexpr auto SearchPatternKey = "P";
+
+// The Searches of a tab, as encodeViewState() writes them: a list of objects,
+// one per Search. An entry that is not an object holding a pattern is left
+// out, and the current Search is counted among those left; one that is no
+// longer there makes the first current. Without any, one empty Search.
+void decodeSearches( const QVariantMap& properties, ViewState& state )
+{
+    if ( !properties.contains( "KS" ) ) {
+        return;
+    }
+
+    const auto savedCurrent = properties.value( "KC" ).toLongLong();
+    QList<SavedSearch> searches;
+    qsizetype current = 0;
+    const auto entries = properties.value( "KS" ).toList();
+    for ( qsizetype index = 0; index < entries.size(); ++index ) {
+        const auto& entry = entries[ index ];
+        if ( entry.typeId() != QMetaType::QVariantMap ) {
+            LOG_WARNING << "A saved Search that is not one is left out";
+            continue;
+        }
+        const auto search = entry.toMap();
+        const auto pattern = search.value( SearchPatternKey );
+        if ( pattern.typeId() != QMetaType::QString ) {
+            LOG_WARNING << "A saved Search without a pattern is left out";
+            continue;
+        }
+        if ( index == savedCurrent ) {
+            current = searches.size();
+        }
+        searches.append( SavedSearch{ .pattern = pattern.toString(),
+                                      .ignoreCase = search.value( "IC" ).toBool(),
+                                      .useRegexp = search.value( "RE" ).toBool(),
+                                      .inverseRegexp = search.value( "IR" ).toBool(),
+                                      .useBooleanCombination = search.value( "BC" ).toBool() } );
+    }
+
+    if ( !searches.isEmpty() ) {
+        state.searches = std::move( searches );
+        state.currentSearch = current;
+    }
+}
 
 // The format glogg wrote: "S<main>:<filtered>:IC<0|1>:AR<0|1>:FF<0|1>". It
 // holds neither the regexp, inverse and combination flags, nor Marks or a
@@ -82,7 +129,8 @@ ViewState decodeJson( const QString& json, bool useRegexpByPolicy )
 {
     ViewState state;
 
-    const auto properties = QJsonDocument::fromJson( json.toLatin1() ).toVariant().toMap();
+    // UTF-8, as encodeViewState() writes it: a Search's pattern may be any text.
+    const auto properties = QJsonDocument::fromJson( json.toUtf8() ).toVariant().toMap();
 
     if ( properties.contains( "S" ) ) {
         const auto sizes = properties.value( "S" ).toList();
@@ -121,6 +169,10 @@ ViewState decodeJson( const QString& json, bool useRegexpByPolicy )
     // Absent from a view state saved before it was part of one: the top.
     state.scrollPosition = properties.value( "SP" ).toULongLong();
 
+    // Absent from a view state saved before the Session kept them (#704): one
+    // empty Search.
+    decodeSearches( properties, state );
+
     return state;
 }
 
@@ -155,6 +207,20 @@ QString encodeViewState( const ViewState& state )
     // Left out at the top, where a view state without it restores to.
     if ( state.scrollPosition != 0 ) {
         properties[ "SP" ] = static_cast<qulonglong>( state.scrollPosition );
+    }
+    // Left out for one empty Search, what a view state without them restores
+    // to.
+    if ( state.searches != QList<SavedSearch>{ SavedSearch{} } || state.currentSearch != 0 ) {
+        QVariantList searches;
+        for ( const auto& search : state.searches ) {
+            searches.append( QVariantMap{ { SearchPatternKey, search.pattern },
+                                          { "IC", search.ignoreCase },
+                                          { "RE", search.useRegexp },
+                                          { "IR", search.inverseRegexp },
+                                          { "BC", search.useBooleanCombination } } );
+        }
+        properties[ "KS" ] = searches;
+        properties[ "KC" ] = static_cast<qlonglong>( state.currentSearch );
     }
 
     return QJsonDocument::fromVariant( properties ).toJson( QJsonDocument::Compact );

@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include "regularexpressionpattern.h"
 #include "searchsessionstate.h"
 
 #include <QObject>
@@ -89,6 +90,36 @@ public:
     // How many Searches there are, the current one included.
     std::size_t count() const;
 
+    // Requests the current Search for pattern, through the Open Log File, and
+    // keeps pattern as what that Search was requested for. Returns the
+    // Search's state right after the request.
+    SearchSessionState requestCurrent( const RegularExpressionPattern& pattern );
+    // No Search is active any longer: the current Search goes idle, requested
+    // for nothing.
+    void clearCurrent();
+
+    // What each Search was last requested for, in the order they are kept,
+    // and which of them is current: what the Session saves of them (#704). A
+    // Search requested for nothing has an empty pattern.
+    struct Requested {
+        std::vector<RegularExpressionPattern> patterns;
+        std::size_t current = 0;
+    };
+    Requested requested() const;
+
+    // Rebuilds the Searches the Session saved, as a user builds them: the
+    // first pattern is the first Search's, the Search shown already, and
+    // every further one is started as another. The one at current (the first
+    // when there is none at current) is made current. Each kept Search with a
+    // pattern is requested beside it, before the Log File has first loaded or
+    // after; the current one is left to the caller to request, with
+    // requestCurrent(), as the Search Line does. One with an empty pattern is
+    // not run. Only the first Search may be shown so far, and an empty list
+    // rebuilds nothing. Returns the Filtered Views of the Searches, in their
+    // order; restoredSearchesFinished() tells once every one with a pattern
+    // has finished.
+    std::vector<FilteredView*> restore( const Requested& saved );
+
 Q_SIGNALS:
     // The current Search's state changed: progress, completion, a failure,
     // as the Open Log File reports it. Told queued, once the change was made,
@@ -96,14 +127,29 @@ Q_SIGNALS:
     // another was made current is dropped.
     void currentSearchUpdated( SearchSessionState state );
 
+    // Every Search restore() ran has finished -- completed, failed, stopped
+    // or found its pattern invalid -- or was dropped. Told once, queued, and
+    // also when there was none to run.
+    void restoredSearchesFinished();
+
 private:
     struct Kept {
         QPointer<FilteredView> view;
         std::shared_ptr<LogFilteredData> search;
+        // What it was last requested for.
+        RegularExpressionPattern requested;
     };
 
     FilteredView* add( std::shared_ptr<LogFilteredData> search );
     std::vector<Kept>::iterator find( const FilteredView* view );
+    // Tells restoredSearchesFinished() once none of the Searches restore()
+    // ran is running any longer.
+    void tellWhenRestoredSearchesFinished();
+
+    // The Searches restore() ran, until they have all finished.
+    std::vector<std::weak_ptr<LogFilteredData>> restoredRuns_;
+    std::vector<QMetaObject::Connection> restoredRunConnections_;
+    bool restoredRunsTold_ = true;
 
     std::shared_ptr<OpenLogFile> openLogFile_;
     ViewSet& viewSet_;

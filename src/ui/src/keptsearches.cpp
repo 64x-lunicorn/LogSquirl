@@ -72,7 +72,7 @@ FilteredView* KeptSearches::add( std::shared_ptr<LogFilteredData> search )
 {
     auto* view = buildView_( search.get() );
 
-    searches_.push_back( Kept{ view, search } );
+    searches_.push_back( Kept{ view, search, {} } );
     current_ = view;
 
     // A view added is the current Search's.
@@ -131,6 +131,97 @@ FilteredView* KeptSearches::currentView() const
 std::size_t KeptSearches::count() const
 {
     return searches_.size();
+}
+
+SearchSessionState KeptSearches::requestCurrent( const RegularExpressionPattern& pattern )
+{
+    if ( const auto current = find( current_ ); current != searches_.end() ) {
+        current->requested = pattern;
+    }
+    return openLogFile_->requestSearch( pattern );
+}
+
+void KeptSearches::clearCurrent()
+{
+    if ( const auto current = find( current_ ); current != searches_.end() ) {
+        current->requested = {};
+    }
+    openLogFile_->clearSearch();
+}
+
+KeptSearches::Requested KeptSearches::requested() const
+{
+    Requested requested;
+    for ( std::size_t index = 0; index < searches_.size(); ++index ) {
+        requested.patterns.push_back( searches_[ index ].requested );
+        if ( searches_[ index ].view == current_ ) {
+            requested.current = index;
+        }
+    }
+    return requested;
+}
+
+std::vector<FilteredView*> KeptSearches::restore( const Requested& saved )
+{
+    std::vector<FilteredView*> views;
+    if ( saved.patterns.empty() || searches_.size() != 1 ) {
+        return views;
+    }
+
+    // Built as the user builds them, before any of them runs: starting
+    // another Search stops the current one.
+    views.push_back( searches_.front().view );
+    for ( std::size_t index = 1; index < saved.patterns.size(); ++index ) {
+        views.push_back( startAnother() );
+    }
+    const auto current = saved.current < views.size() ? saved.current : 0;
+    makeCurrent( views[ current ] );
+
+    for ( std::size_t index = 0; index < views.size(); ++index ) {
+        auto& kept = searches_[ index ];
+        kept.requested = saved.patterns[ index ];
+        if ( kept.requested.pattern.isEmpty() ) {
+            continue;
+        }
+        restoredRuns_.push_back( kept.search );
+        restoredRunConnections_.push_back(
+            connect( kept.search.get(), &LogFilteredData::searchStateChanged, this,
+                     [ this ]() { tellWhenRestoredSearchesFinished(); } ) );
+        if ( index != current ) {
+            openLogFile_->requestKeptSearch( kept.search, kept.requested );
+        }
+    }
+
+    // Told once the caller has had them: also when none runs.
+    restoredRunsTold_ = false;
+    QMetaObject::invokeMethod(
+        this, [ this ] { tellWhenRestoredSearchesFinished(); }, Qt::QueuedConnection );
+    return views;
+}
+
+void KeptSearches::tellWhenRestoredSearchesFinished()
+{
+    if ( restoredRunsTold_ ) {
+        return;
+    }
+    for ( const auto& run : restoredRuns_ ) {
+        const auto search = run.lock();
+        if ( !search ) {
+            continue;
+        }
+        // Idle: not requested yet, or waiting for the first load.
+        const auto phase = search->searchState().phase;
+        if ( phase == SearchSessionPhase::Idle || phase == SearchSessionPhase::Running ) {
+            return;
+        }
+    }
+
+    restoredRunsTold_ = true;
+    for ( const auto& connection : std::exchange( restoredRunConnections_, {} ) ) {
+        disconnect( connection );
+    }
+    restoredRuns_.clear();
+    Q_EMIT restoredSearchesFinished();
 }
 
 std::vector<KeptSearches::Kept>::iterator KeptSearches::find( const FilteredView* view )

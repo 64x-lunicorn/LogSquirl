@@ -253,6 +253,19 @@
   *never* when the Repository URL or Subfolder changes. *Open Folder* in the
   *Status* group opens the clone in the file manager, and is disabled while
   there is no clone. (#714)
+- **The Session keeps the Kept Searches of each tab**: a restored tab, from
+  the last Session or from a Session File, gets back every Search it had, in
+  the same order, each in its own Filtered View, with its pattern and its
+  flags (Match case, regular expression, Inverse match, logical combination),
+  and the same one current, which carries the Marks. Every Search runs again
+  once the Log File has loaded; a restored tab still waiting for its turn
+  keeps them when the Session is saved again. Results are not saved: the
+  Searches are run, not cached. A Search typed before a Log File has loaded
+  and kept with *Keep results* now runs too, once it has. Sessions saved
+  before load as before, with one empty Search. The benchmark scenario
+  `session-restore` saves three Kept Searches with each tab (option
+  `searches`) and reports `tab_searches_finished` and `all_tabs_restored`.
+  (#704)
 
 ## Bug fixes
 

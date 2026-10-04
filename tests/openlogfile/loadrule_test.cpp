@@ -400,6 +400,36 @@ SCENARIO( "The Load Rule decides whether a Search waits for the first load",
     }
 }
 
+SCENARIO( "The Load Rule tells whether a Search waits for the first load now",
+          "[openlogfile][loadrule][pendingsearch]" )
+{
+    struct Row {
+        const char* sequence;
+        std::vector<Event> events;
+        bool waits;
+        bool loadFinished;
+    };
+    // clang-format off
+    const std::vector<Row> rows = {
+        { "before any load", {}, false, false },
+        { "a Search requested before any load", { SearchRequested{} }, true, false },
+        { "a waiting Search dropped", { SearchRequested{}, WaitingSearchDropped{} }, false, false },
+        { "a waiting Search cleared", { SearchRequested{}, SearchCleared{} }, false, false },
+        { "a waiting Search run by the first load", { SearchRequested{}, loaded }, false, true },
+        { "after a first load that failed", { failedToLoad }, false, true },
+        { "a Search requested after the first load", { loaded, SearchRequested{} }, false, true },
+    };
+    // clang-format on
+
+    for ( const auto& row : rows ) {
+        INFO( row.sequence );
+        LoadRule rule;
+        run( rule, row.events );
+        CHECK( rule.searchWaitsForLoad() == row.waits );
+        CHECK( rule.hasLoadFinished() == row.loadFinished );
+    }
+}
+
 SCENARIO( "The Load Rule decides what a reload drops", "[openlogfile][loadrule]" )
 {
     LoadRule rule;

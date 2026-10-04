@@ -370,3 +370,102 @@ SCENARIO(
         }
     }
 }
+
+namespace {
+
+bool samePattern( const RegularExpressionPattern& left, const RegularExpressionPattern& right )
+{
+    return left.pattern == right.pattern && left.isCaseSensitive == right.isCaseSensitive
+           && left.isExclude == right.isExclude && left.isBoolean == right.isBoolean
+           && left.isPlainText == right.isPlainText;
+}
+
+} // namespace
+
+SCENARIO( "The Searches a Session saved are rebuilt and run again", "[keptsearches][session]" )
+{
+    LogFile logFile;
+    auto* first = logFile.keptSearches.showCurrentSearch();
+
+    bool finished = false;
+    QObject::connect( &logFile.keptSearches, &KeptSearches::restoredSearchesFinished,
+                      [ &finished ] { finished = true; } );
+
+    GIVEN( "three saved Searches, the second current, the third with an empty pattern" )
+    {
+        const KeptSearches::Requested saved{ { RegularExpressionPattern( "line 00001" ),
+                                               RegularExpressionPattern( "LINE 00002", false, false,
+                                                                         false, true ),
+                                               RegularExpressionPattern() },
+                                             1 };
+
+        WHEN( "they are restored, and the caller requests the current one" )
+        {
+            const auto views = logFile.keptSearches.restore( saved );
+            REQUIRE( views.size() == 3 );
+            REQUIRE( views.front() == first );
+            const auto current = logFile.currentSearch().lock();
+            logFile.keptSearches.requestCurrent( saved.patterns[ 1 ] );
+
+            THEN( "they are kept in their order, the second one current in every view" )
+            {
+                REQUIRE( logFile.keptSearches.count() == 3 );
+                REQUIRE( logFile.keptSearches.currentView() == views[ 1 ] );
+                REQUIRE( logFile.viewSet.currentSearch() == current.get() );
+            }
+
+            THEN( "each one with a pattern runs, the empty one does not, and the end is told" )
+            {
+                REQUIRE( waitUiState( [ & ] { return finished; }, 30000 ) );
+                REQUIRE( current->searchState().phase == SearchSessionPhase::Complete );
+                REQUIRE( current->getNbMatches() == 10_lcount );
+                // The first one, kept beside the current one.
+                logFile.keptSearches.makeCurrent( views[ 0 ] );
+                REQUIRE( logFile.openLogFile->searchState().phase == SearchSessionPhase::Complete );
+                REQUIRE( logFile.openLogFile->matchCount() == 10_lcount );
+                logFile.keptSearches.makeCurrent( views[ 2 ] );
+                REQUIRE( logFile.openLogFile->searchState().phase == SearchSessionPhase::Idle );
+            }
+
+            THEN( "what each was requested for is what the Session saves again" )
+            {
+                const auto requested = logFile.keptSearches.requested();
+                REQUIRE( requested.current == 1 );
+                REQUIRE( requested.patterns.size() == 3 );
+                for ( std::size_t index = 0; index < 3; ++index ) {
+                    REQUIRE( samePattern( requested.patterns[ index ], saved.patterns[ index ] ) );
+                }
+            }
+        }
+    }
+
+    GIVEN( "a Search requested by the user and another one started after it" )
+    {
+        logFile.keptSearches.requestCurrent( RegularExpressionPattern( "line 00001" ) );
+        logFile.keptSearches.startAnother();
+        logFile.keptSearches.requestCurrent( RegularExpressionPattern( "line 00002" ) );
+        logFile.keptSearches.clearCurrent();
+
+        THEN( "the Session saves the first one's pattern and the second one requested for "
+              "nothing, current" )
+        {
+            const auto requested = logFile.keptSearches.requested();
+            REQUIRE( requested.current == 1 );
+            REQUIRE( requested.patterns.size() == 2 );
+            REQUIRE( requested.patterns[ 0 ].pattern == "line 00001" );
+            REQUIRE( requested.patterns[ 1 ].pattern.isEmpty() );
+        }
+    }
+
+    GIVEN( "a saved Search list with only an empty Search" )
+    {
+        logFile.keptSearches.restore(
+            KeptSearches::Requested{ { RegularExpressionPattern() }, 0 } );
+
+        THEN( "no Search runs, and the end is told all the same" )
+        {
+            REQUIRE( waitUiState( [ & ] { return finished; }, 5000 ) );
+            REQUIRE( logFile.keptSearches.count() == 1 );
+        }
+    }
+}

@@ -39,6 +39,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 class FileWatchPort;
 class TextEncoding;
@@ -188,11 +189,24 @@ public:
     void setDecodingPolicy( const DecodingPolicy& policy );
 
     // Keeps the current Search with its results, and makes a new one, with no
-    // pattern yet, current. Returns it.
+    // pattern yet, current. Returns it. A Search waiting for the first load
+    // still runs once it has, kept.
     std::shared_ptr<LogFilteredData> startAnotherSearch();
 
-    // Makes a Search kept earlier current again, stopping the current one.
+    // Makes a Search kept earlier current again, stopping the current one. A
+    // Search waiting for the first load still runs once it has, kept or
+    // current.
     void makeSearchCurrent( std::shared_ptr<LogFilteredData> search );
+
+    // Requests a kept Search -- one of this Log File, current or not -- for
+    // pattern over the Search Limits, as a restored Session does for every
+    // Search it kept (#704). The current Search is requested as
+    // requestSearch() does; a kept one runs beside it, which stays current.
+    // Requested before the Log File has first loaded, a kept Search waits for
+    // that load and then runs over the whole Log File; a load that does not
+    // succeed drops it.
+    void requestKeptSearch( const std::shared_ptr<LogFilteredData>& search,
+                            const RegularExpressionPattern& pattern );
 
     // Requests the current Search for pattern over the Search Limits. It
     // supersedes the Search before it; an invalid pattern leaves no Search
@@ -313,6 +327,9 @@ private:
     bool settleEncoding();
     // Tells the Search Limits when they are others than last told.
     void tellSearchLimits();
+    // The current Search, about to be no longer current: when it waits for
+    // the first load, it waits on, kept.
+    void keepWaitingSearch();
 
     // Held for as long as the Log File may be watched: the destructor stops
     // watching it through this port before anything else goes.
@@ -332,6 +349,13 @@ private:
     LoadRule loadRule_;
     // The pattern last requested, which a restarted Search runs with.
     RegularExpressionPattern searchPattern_;
+    // Kept Searches requested before the first load, which run once it has:
+    // held no longer than they are kept.
+    struct WaitingSearch {
+        std::weak_ptr<LogFilteredData> search;
+        RegularExpressionPattern pattern;
+    };
+    std::vector<WaitingSearch> waitingKeptSearches_;
     // As set, and as the Load Rule settles them after every load.
     LoadRule::SearchLimits searchLimits_;
     // The Search Limits last told, once they were.
