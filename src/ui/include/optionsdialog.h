@@ -139,6 +139,11 @@ private:
     void setupTeamFolder();
     void setupTeamFolderStatus();
     void updateTeamFolderStatus();
+    // The Team Folder as its fields show it, applied or not.
+    TeamFolderPolicy teamFolderPolicyOfFields() const;
+    // Syncs the Team Folder the fields show, applying its settings first when
+    // they differ from the applied ones.
+    void syncTeamFolderNow();
     void setupStyles();
     void setupEncodings();
     void setupLanguageList();

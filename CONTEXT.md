@@ -193,7 +193,11 @@ A Git repository a team shares its Filter Groups, Highlighter Sets and Naming Gr
 it into its own data folder with the installed `git` and keeps it current: at startup, every
 five minutes and on "Sync now", never blocking the user interface. It is the only part of the
 application that runs Git, and Git's own authentication applies unchanged. Turning it off, or
-pointing it at another repository, leaves the user's own groups alone.
+pointing it at another repository, leaves the user's own groups alone. "Sync now" in the Options
+Dialog syncs the repository its fields show: when the check box, Repository URL or Subfolder
+differ from the applied ones, it applies these three Team Folder settings first, and only these.
+That is real: Cancel afterwards does not undo them, while the other tabs' changes still wait for
+OK or Apply.
 _Avoid_: shared folder, team repository, sync folder
 
 **Team group**:

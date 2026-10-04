@@ -94,6 +94,8 @@ OptionsDialog::OptionsDialog( const LogFormatCatalog& logFormatCatalog, QWidget*
 
     connect( teamFolderCheckBox, &QCheckBox::toggled,
              [ this ]( auto ) { this->setupTeamFolder(); } );
+    connect( teamFolderUrlEdit, &QLineEdit::textChanged, this,
+             &OptionsDialog::updateTeamFolderStatus );
 
     // Beta checkbox is only enabled when version checking is on
     connect( checkForNewVersionCheckBox, &QCheckBox::toggled, checkForBetaVersionCheckBox,
@@ -292,8 +294,44 @@ void OptionsDialog::showTeamFolder( TeamFolder& teamFolder )
 {
     teamFolder_ = &teamFolder;
     connect( &teamFolder, &TeamFolder::stateChanged, this, &OptionsDialog::updateTeamFolderStatus );
-    connect( teamFolderSyncButton, &QPushButton::clicked, &teamFolder, &TeamFolder::sync );
+    connect( teamFolderSyncButton, &QPushButton::clicked, this, &OptionsDialog::syncTeamFolderNow );
     updateTeamFolderStatus();
+}
+
+TeamFolderPolicy OptionsDialog::teamFolderPolicyOfFields() const
+{
+    return TeamFolderPolicy{ .enabled = teamFolderCheckBox->isChecked(),
+                             .repositoryUrl = teamFolderUrlEdit->text().trimmed(),
+                             .subfolder = teamFolderSubfolderEdit->text().trimmed() };
+}
+
+void OptionsDialog::syncTeamFolderNow()
+{
+    if ( !teamFolder_ ) {
+        return;
+    }
+    // Sync Now is the connection test: it syncs the repository the fields
+    // show. Fields that differ from the applied ones are applied first, the
+    // Team Folder settings only and for good: Cancel does not undo them, and
+    // the other tabs keep waiting for OK or Apply.
+    const auto policy = teamFolderPolicyOfFields();
+    auto& config = Configuration::get();
+    const TeamFolderPolicy applied{ .enabled = config.teamFolderEnabled(),
+                                    .repositoryUrl = config.teamFolderUrl(),
+                                    .subfolder = config.teamFolderSubfolder() };
+    if ( policy != applied ) {
+        config.setTeamFolderEnabled( policy.enabled );
+        config.setTeamFolderUrl( policy.repositoryUrl );
+        config.setTeamFolderSubfolder( policy.subfolder );
+        config.save();
+        // A changed repository syncs as it is set up.
+        teamFolder_->setUp( policy );
+        Q_EMIT optionsChanged();
+        if ( !teamFolder_ || teamFolder_->isSyncing() ) {
+            return;
+        }
+    }
+    teamFolder_->sync();
 }
 
 namespace {
@@ -324,8 +362,8 @@ QStyle::StandardPixmap statusIconOf( const TeamFolder& teamFolder )
 
 void OptionsDialog::updateTeamFolderStatus()
 {
-    // What the Team Folder does now, as it was last applied: Sync Now syncs
-    // that one, not what the dialog shows before Apply.
+    // What the Team Folder does now, as it was last applied; Sync Now applies
+    // what the fields show first.
     teamFolderStatusGroup->setVisible( teamFolder_ != nullptr );
     if ( !teamFolder_ ) {
         return;
@@ -351,7 +389,7 @@ void OptionsDialog::updateTeamFolderStatus()
     teamFolderDetailsHeader->setVisible( hasDetails );
     teamFolderDetailsEdit->setVisible( hasDetails && teamFolderDetailsButton->isChecked() );
 
-    teamFolderSyncButton->setEnabled( teamFolder_->state() != TeamFolder::State::Off
+    teamFolderSyncButton->setEnabled( teamFolderPolicyOfFields().isActive()
                                       && !teamFolder_->isSyncing() );
 }
 

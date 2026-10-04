@@ -227,6 +227,15 @@
   unchecked never counts. A moved portable build on Windows says instead
   that the associations point at its old location, and *Restore* points them
   at the new one. (#725)
+- **Sync Now syncs the Team Folder the fields show**: in *Settings → Team
+  Folder*, *Sync Now* used to sync the repository last applied, so a newly
+  typed Repository URL showed the old one's result until *Apply*. When the
+  check box, Repository URL or Subfolder differ from the applied settings,
+  *Sync Now* now applies these three settings, and only these, then syncs,
+  so it doubles as the connection test. *Cancel* afterwards keeps them; the
+  other tabs' changes still wait for *OK* or *Apply*. *Sync Now* is available
+  as soon as the check box is on and a URL is entered, before the first
+  *Apply*. (#712)
 
 ## Bug fixes
 

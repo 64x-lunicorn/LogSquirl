@@ -26,6 +26,7 @@
 #include <QFontDatabase>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QUrl>
@@ -324,6 +325,8 @@ TEST_CASE( "The Team Folder tab shows the failed step and Git's output in collap
         CHECK( dialog.teamFolderStatusGroup->isVisibleTo( dialog.teamFolderTab ) );
         CHECK( dialog.teamFolderStatusHeadingLabel->text() == "Git could not be started" );
         CHECK_FALSE( dialog.teamFolderStatusIconLabel->pixmap().isNull() );
+        dialog.teamFolderCheckBox->setChecked( true );
+        dialog.teamFolderUrlEdit->setText( missingServer );
         CHECK( dialog.teamFolderSyncButton->isEnabled() );
 
         // Collapsed by default, with Git's output as it is.
@@ -410,6 +413,140 @@ TEST_CASE( "The Team Folder tab shows the failed step and Git's output in collap
         CHECK_FALSE( details->isVisibleTo( dialog.teamFolderTab ) );
         CHECK( dialog.teamFolderRemarksLabel->isVisibleTo( dialog.teamFolderTab ) );
         CHECK( dialog.teamFolderRemarksLabel->text().startsWith( "Skipped broken_filter.conf: " ) );
+    }
+}
+
+namespace {
+
+// A bare repository with one commit, as a team's Git server holds it.
+QString serverWithACommit( const QTemporaryDir& root, const QString& name )
+{
+    const auto server = root.filePath( name + ".git" );
+    const auto work = root.filePath( name + "-work" );
+    const logsquirl::teamfolder::Git git( QStringLiteral( "git" ) );
+    REQUIRE( git.run( { "init", "--quiet", "--bare", server } ).succeeded );
+    REQUIRE( git.run( { "clone", "--quiet", server, work } ).succeeded );
+    {
+        QFile readme( QDir( work ).filePath( "README" ) );
+        REQUIRE( readme.open( QIODevice::WriteOnly ) );
+        readme.write( "Team groups\n" );
+    }
+    REQUIRE( git.run( { "add", "--", "README" }, work ).succeeded );
+    REQUIRE( git.run( { "commit", "--quiet", "-m", "Start" }, work ).succeeded );
+    REQUIRE( git.run( { "push", "--quiet", "origin", "HEAD" }, work ).succeeded );
+    return QUrl::fromLocalFile( server ).toString();
+}
+
+void applyTeamFolderSettings( const TeamFolderPolicy& policy )
+{
+    auto& config = Configuration::get();
+    config.setTeamFolderEnabled( policy.enabled );
+    config.setTeamFolderUrl( policy.repositoryUrl );
+    config.setTeamFolderSubfolder( policy.subfolder );
+}
+
+} // namespace
+
+TEST_CASE( "Sync Now syncs the Team Folder the fields show", "[optionsdialog][teamfolder]" )
+{
+    using namespace teamfolder_testing;
+    if ( !gitInstalled() ) {
+        return;
+    }
+    const IsolatedGitEnvironment environment;
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+
+    const QTemporaryDir root;
+    REQUIRE( root.isValid() );
+    const auto missingServer = QUrl::fromLocalFile( root.filePath( "missing.git" ) ).toString();
+    const auto server = serverWithACommit( root, "server" );
+    const auto contextLines = Configuration::get().contextLinesCount();
+
+    TeamFolder folder( root.filePath( "clone" ) );
+
+    SECTION( "unchanged fields sync the applied Team Folder, applying nothing" )
+    {
+        applyTeamFolderSettings( policyFor( server ) );
+        folder.setUp( policyFor( server ) );
+        REQUIRE( settled( folder ) );
+        LogFormatCatalog catalog;
+        OptionsDialog dialog( catalog );
+        dialog.showTeamFolder( folder );
+        const QSignalSpy applied( &dialog, &OptionsDialog::optionsChanged );
+        const QSignalSpy synced( &folder, &TeamFolder::syncFinished );
+
+        REQUIRE( dialog.teamFolderSyncButton->isEnabled() );
+        dialog.teamFolderSyncButton->click();
+        REQUIRE( settled( folder ) );
+
+        CHECK( synced.count() == 1 );
+        CHECK( applied.isEmpty() );
+        CHECK( folder.state() == TeamFolder::State::Synced );
+    }
+
+    SECTION( "a changed URL applies only the Team Folder settings, then syncs that repository" )
+    {
+        applyTeamFolderSettings( policyFor( missingServer ) );
+        folder.setUp( policyFor( missingServer ) );
+        REQUIRE( settled( folder ) );
+        REQUIRE( folder.state() == TeamFolder::State::Error );
+        LogFormatCatalog catalog;
+        OptionsDialog dialog( catalog );
+        dialog.showTeamFolder( folder );
+        const QSignalSpy applied( &dialog, &OptionsDialog::optionsChanged );
+
+        // A change on another tab that is still pending.
+        dialog.contextLinesSpinBox->setValue( contextLines + 3 );
+        dialog.teamFolderUrlEdit->setText( server );
+        dialog.teamFolderSubfolderEdit->setText( " " );
+
+        dialog.teamFolderSyncButton->click();
+        REQUIRE( settled( folder ) );
+
+        CHECK( folder.state() == TeamFolder::State::Synced );
+        CHECK( dialog.teamFolderStatusHeadingLabel->text() == "Synced" );
+        CHECK( Configuration::get().teamFolderEnabled() );
+        CHECK( Configuration::get().teamFolderUrl() == server );
+        CHECK( Configuration::get().teamFolderSubfolder().isEmpty() );
+        CHECK( applied.count() == 1 );
+
+        // The other tab's change is neither applied nor discarded.
+        CHECK( Configuration::get().contextLinesCount() == contextLines );
+        CHECK( dialog.contextLinesSpinBox->value() == contextLines + 3 );
+
+        // Cancel does not undo what Sync Now applied.
+        dialog.buttonBox->button( QDialogButtonBox::Cancel )->click();
+        CHECK( Configuration::get().teamFolderUrl() == server );
+        CHECK( Configuration::get().contextLinesCount() == contextLines );
+    }
+
+    SECTION( "Sync Now is there as soon as the check box is on and a URL entered" )
+    {
+        LogFormatCatalog catalog;
+        OptionsDialog dialog( catalog );
+        dialog.showTeamFolder( folder );
+        REQUIRE( folder.state() == TeamFolder::State::Off );
+
+        CHECK_FALSE( dialog.teamFolderSyncButton->isEnabled() );
+        dialog.teamFolderCheckBox->setChecked( true );
+        CHECK_FALSE( dialog.teamFolderSyncButton->isEnabled() );
+        dialog.teamFolderUrlEdit->setText( "  " );
+        CHECK_FALSE( dialog.teamFolderSyncButton->isEnabled() );
+        dialog.teamFolderUrlEdit->setText( server );
+        REQUIRE( dialog.teamFolderSyncButton->isEnabled() );
+
+        dialog.teamFolderSyncButton->click();
+        REQUIRE( settled( folder ) );
+
+        CHECK( folder.state() == TeamFolder::State::Synced );
+        CHECK( Configuration::get().teamFolderEnabled() );
+        CHECK( Configuration::get().teamFolderUrl() == server );
+
+        dialog.teamFolderCheckBox->setChecked( false );
+        CHECK_FALSE( dialog.teamFolderSyncButton->isEnabled() );
     }
 }
 
