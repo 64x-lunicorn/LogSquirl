@@ -26,6 +26,7 @@ add_executable(logsquirl_tests
     displayedlines_test.cpp
     encodingdetector_test.cpp
     fileassociations_test.cpp
+    macfileassociations_test.cpp
     fileholder_test.cpp
     fontutils_test.cpp
     groupexchange_test.cpp

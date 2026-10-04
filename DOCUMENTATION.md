@@ -325,8 +325,10 @@ On macOS, the app declares the file types it opens: `.log`, the Android Logcat t
 are the type *Android Logcat trace*; macOS keeps calling `.adb` Ada source), `.out`/`.err`, `.trace`,
 `.txt` and every other plain text file, and the compressed `.gz` and `.zip`. Finder offers *logsquirl*
 under *Open with* for all of them, and installing it makes it the default for none. To open a type with
-*logsquirl* by double-click, choose *Get Info*, *Open with*, *logsquirl* and *Change All...*: its files
-then show the *logsquirl* document icon, a sheet with the squirrel. Logcat traces show it anyway.
+*logsquirl* by double-click, check it on the *File Associations* page of the Options (see
+[File Associations](#File-Associations)), or choose *Get Info*, *Open with*, *logsquirl* and *Change
+All...*: its files then show the *logsquirl* document icon, a sheet with the squirrel. Logcat traces
+show it anyway.
 
 On Linux, the DEB and RPM packages make Android Logcat traces (`.adb` and `.adb0` to `.adb9`) a file
 type of their own, *Android Logcat trace* (`application/x-logcat`), and `.out`/`.err` (*Program output*)
@@ -1556,7 +1558,21 @@ On Linux, the deb and rpm packages offer LogSquirl for these types, and the
 page makes it the default with `xdg-mime default`, for your user only. An
 AppImage cannot register file types, so there the page is disabled and says
 why; so it is when LogSquirl's desktop entry or `xdg-mime` (from
-`xdg-utils`) is missing. On macOS and Windows the page is not available yet.
+`xdg-utils`) is missing. On Windows the page is not available yet.
+
+On macOS, the page makes LogSquirl the default for the content type of each
+type: the system's log type for `.log`, LogSquirl's own *Android Logcat
+trace* for `.adb0` to `.adb9`, and plain text for `.txt`. macOS asks you to
+confirm every change in a dialog of its own, so the states follow once you
+answered; a change you decline leaves the type as it was. macOS keeps calling
+`.adb` Ada source, so a plain `.adb` file stays with the application that
+opens Ada source. macOS cannot take a default away, only give it to another
+application: unchecking a type gives it back to the application that opened
+it before LogSquirl took it, which macOS asks you to confirm too. If LogSquirl
+does not know that application, because you made LogSquirl the default in the
+Finder or that application is gone, the page says so; choose another one in
+the Finder with *Get Info*, *Open with* and *Change All...*. The page is
+available in LogSquirl.app only, not in a run of the executable outside it.
 
 ### Advanced options
 

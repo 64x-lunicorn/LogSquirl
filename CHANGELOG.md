@@ -168,6 +168,16 @@
   same list of types as the packages, generated from `cmake/FileTypes.cmake`,
   and each platform implements one interface that tells a type's state and
   applies a choice, with a test implementation for the page's tests. (#720)
+- **The File Associations page works on macOS**: *Apply* makes LogSquirl the
+  default for the content type of each checked type (the system's log type
+  for `.log`, LogSquirl's own Logcat type, plain text for `.txt`) through
+  NSWorkspace. macOS asks the user to confirm every change, so the page says
+  so before *Apply* and shows the states once the confirmations are answered;
+  a declined one leaves the type as it was. Unchecking a type gives it back
+  to the application that opened it before LogSquirl took it, which LogSquirl
+  remembers per user; where it does not know one, the page says that macOS
+  cannot unset a default and how to choose another application in the
+  Finder. A run outside LogSquirl.app shows the page disabled. (#721)
 
 ## Bug fixes
 

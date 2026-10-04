@@ -6,9 +6,11 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/filetypes.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fileassociations.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/xdgfileassociations.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/macfileassociations.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filetypes.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/fileassociations.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/xdgfileassociations.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/macfileassociations.cpp
   ${LOGSQUIRL_FILE_TYPES_DIR}/file_types.inc
 )
 
@@ -24,3 +26,15 @@ else()
 endif()
 target_link_libraries(logsquirl_fileassociations PUBLIC project_options project_warnings Qt6::Core)
 target_link_libraries(logsquirl_fileassociations PRIVATE logsquirl_logging)
+
+# What talks to the system: NSWorkspace on macOS (#721), in Objective-C++
+# compiled as C++ with the Objective-C++ front end, so the project needs no
+# language of its own for one file.
+if(APPLE)
+  set(_launch_services ${CMAKE_CURRENT_SOURCE_DIR}/src/maclaunchservices.mm)
+  set_source_files_properties(${_launch_services} PROPERTIES LANGUAGE CXX COMPILE_OPTIONS
+                                                                       "-xobjective-c++;-fobjc-arc")
+  target_sources(logsquirl_fileassociations PRIVATE ${_launch_services})
+  target_link_libraries(logsquirl_fileassociations PRIVATE "-framework AppKit"
+                                                           "-framework UniformTypeIdentifiers")
+endif()

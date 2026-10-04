@@ -21,7 +21,9 @@
 
 #include <QCoreApplication>
 
-#if defined( Q_OS_UNIX ) && !defined( Q_OS_MACOS )
+#if defined( Q_OS_MACOS )
+#include "macfileassociations.h"
+#elif defined( Q_OS_UNIX )
 #include "xdgfileassociations.h"
 #endif
 
@@ -59,7 +61,7 @@ FileAssociationPlan FileAssociationPlan::of( const FileAssociationStates& states
     return plan;
 }
 
-#if !defined( Q_OS_UNIX ) || defined( Q_OS_MACOS )
+#if !defined( Q_OS_UNIX )
 namespace {
 
 // A platform whose own implementation is still to come (#721, #722).
@@ -101,7 +103,10 @@ public:
 
 std::unique_ptr<FileAssociations> createFileAssociations()
 {
-#if defined( Q_OS_UNIX ) && !defined( Q_OS_MACOS )
+#if defined( Q_OS_MACOS )
+    return std::make_unique<MacFileAssociations>( MacFileAssociations::systemLaunchServices(),
+                                                  MacFileAssociations::userSettings() );
+#elif defined( Q_OS_UNIX )
     return std::make_unique<XdgFileAssociations>( XdgFileAssociations::Environment::ofThisRun() );
 #else
     return std::make_unique<UnavailableFileAssociations>();
