@@ -46,7 +46,8 @@
 #include <QtGui>
 
 #include "encodings.h"
-#include "fileassociationsdialog.h"
+#include "fileassociationchoice.h"
+#include "filetypechoices.h"
 #include "fontutils.h"
 #include "highlighteredit.h"
 #include "installoptout.h"
@@ -489,23 +490,6 @@ void OptionsDialog::showFileAssociations( FileAssociations& fileAssociations )
     updateFileAssociations();
 }
 
-namespace {
-
-QStyle::StandardPixmap fileAssociationIcon( FileAssociationState state )
-{
-    switch ( state ) {
-    case FileAssociationState::Default:
-        return QStyle::SP_DialogApplyButton;
-    case FileAssociationState::Registered:
-        return QStyle::SP_MessageBoxInformation;
-    case FileAssociationState::NotRegistered:
-        return QStyle::SP_DialogNoButton;
-    }
-    return QStyle::SP_MessageBoxInformation;
-}
-
-} // namespace
-
 // Reads the states again and shows them; every check becomes what its state
 // is.
 void OptionsDialog::updateFileAssociations()
@@ -517,38 +501,16 @@ void OptionsDialog::updateFileAssociations()
     fileAssociationStates_ = fileAssociations_->states();
     fileAssociationsContextMenuCheckBox->setChecked( fileAssociations_->hasContextMenuEntry() );
 
-    auto* tree = fileAssociationsTree;
-    for ( int group = 0; group < tree->topLevelItemCount(); ++group ) {
-        auto* groupItem = tree->topLevelItem( group );
-        for ( int index = 0; index < groupItem->childCount(); ++index ) {
-            auto* row = groupItem->child( index );
-            const auto it = fileAssociationStates_.find( row->data( 0, Qt::UserRole ).toString() );
-            if ( it == fileAssociationStates_.end() ) {
-                continue;
-            }
-            const auto state = it->second;
-            row->setCheckState( 0, state == FileAssociationState::Default ? Qt::Checked
-                                                                          : Qt::Unchecked );
-            row->setIcon( 2, style()->standardIcon( fileAssociationIcon( state ), nullptr, this ) );
-            switch ( state ) {
-            case FileAssociationState::Default:
-                row->setText( 2, tr( "Default" ) );
-                row->setToolTip( 2, tr( "LogSquirl opens these files." ) );
-                break;
-            case FileAssociationState::Registered:
-                row->setText( 2, tr( "Registered" ) );
-                row->setToolTip(
-                    2, tr( "LogSquirl is offered for these files, but another application opens "
-                           "them." ) );
-                break;
-            case FileAssociationState::NotRegistered:
-                row->setText( 2, tr( "Not registered" ) );
-                row->setToolTip( 2, tr( "LogSquirl is not offered for these files." ) );
-                break;
-            }
+    for ( const auto& [ id, state ] : fileAssociationStates_ ) {
+        auto* row = FileTypeChoices::row( *fileAssociationsTree, id );
+        if ( row == nullptr ) {
+            continue;
         }
+        row->setCheckState( 0, state == FileAssociationState::Default ? Qt::Checked
+                                                                      : Qt::Unchecked );
+        FileTypeChoices::showState( *row, 2, state, *this );
     }
-    tree->resizeColumnToContents( 2 );
+    fileAssociationsTree->resizeColumnToContents( 2 );
 }
 
 // Makes LogSquirl the default for each checked type it is not the default for
@@ -576,16 +538,15 @@ void OptionsDialog::applyFileAssociations()
             errors << result.error;
         }
     }
-    if ( !plan.isEmpty() ) {
+    if ( const auto result = plan.applyWith( *fileAssociations_ ) ) {
         // The choice is kept, so the first start asks no more (#723).
         auto& config = Configuration::get();
-        auto choice = fileAssociationChoice( config );
+        auto choice = FileAssociationChoice::of( config );
         choice.apply( checkedIds );
-        keepFileAssociationChoice( config, choice );
+        choice.keepIn( config );
 
-        const auto result = fileAssociations_->apply( plan.makeDefault, plan.release );
-        if ( !result.succeeded() ) {
-            errors << result.error;
+        if ( !result->succeeded() ) {
+            errors << result->error;
         }
     }
     // What the system says now, not what was asked for.

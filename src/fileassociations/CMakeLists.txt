@@ -30,7 +30,10 @@ else()
   target_compile_definitions(logsquirl_fileassociations PRIVATE LOGSQUIRL_REGISTERS_FILE_TYPES=0)
 endif()
 target_link_libraries(logsquirl_fileassociations PUBLIC project_options project_warnings Qt6::Core)
-target_link_libraries(logsquirl_fileassociations PRIVATE logsquirl_logging logsquirl_datalocation)
+# The settings keep the user's choice (#723) and, on macOS, what opened a type
+# before LogSquirl (#721).
+target_link_libraries(logsquirl_fileassociations PRIVATE logsquirl_logging logsquirl_datalocation
+                                                         logsquirl_settings)
 
 # What talks to the system: the registry and the shell on Windows (#722), and
 # NSWorkspace on macOS (#721), in Objective-C++ compiled as C++ with the

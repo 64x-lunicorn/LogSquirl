@@ -105,15 +105,6 @@ bool writeText( const QString& path, const QString& text )
     return file.commit();
 }
 
-QString shownAs( const std::vector<FileType>& types )
-{
-    QStringList shown;
-    for ( const auto& type : types ) {
-        shown << type.shownAs;
-    }
-    return shown.join( QStringLiteral( ", " ) );
-}
-
 QString homeLocation( const char* variable, const QString& fallback )
 {
     // The specification ignores a relative path.
@@ -195,9 +186,12 @@ std::optional<QString> XdgFileAssociations::runXdgMime( const QStringList& argum
     xdgMime.setProcessChannelMode( QProcess::ForwardedErrorChannel );
     xdgMime.start( QStringLiteral( "xdg-mime" ), arguments, QIODevice::ReadOnly );
     // xdg-mime is a shell script that asks the desktop's own tool; it answers
-    // at once or not at all.
-    constexpr int TimeoutMs = 10000;
-    if ( !xdgMime.waitForFinished( TimeoutMs ) || xdgMime.exitStatus() != QProcess::NormalExit
+    // at once or not at all. A query blocks the GUI while it waits.
+    constexpr int QueryTimeoutMs = 3000;
+    constexpr int ChangeTimeoutMs = 10000;
+    const auto isQuery = !arguments.isEmpty() && arguments.first() == QLatin1String( "query" );
+    if ( !xdgMime.waitForFinished( isQuery ? QueryTimeoutMs : ChangeTimeoutMs )
+         || xdgMime.exitStatus() != QProcess::NormalExit
          || xdgMime.exitCode() != 0 ) {
         LOG_WARNING << "xdg-mime " << arguments.join( QLatin1Char( ' ' ) ).toStdString()
                     << " failed: " << xdgMime.errorString().toStdString();
@@ -263,37 +257,59 @@ QStringList XdgFileAssociations::userMimeAppsLists() const
     return lists;
 }
 
-FileAssociationState XdgFileAssociations::state( const FileType& type ) const
+QStringList XdgFileAssociations::desktopEntryMimeTypes() const
 {
-    if ( const auto current
-         = xdgMime_( { QStringLiteral( "query" ), QStringLiteral( "default" ), type.mimeType } );
-         current && current->trimmed() == environment_.desktopId ) {
-        return FileAssociationState::Default;
-    }
-
     const auto entry = desktopEntryPath();
     const auto entryText = entry.isEmpty() ? std::nullopt : readText( entry );
-    if ( entryText && XdgFiles::desktopEntryMimeTypes( *entryText ).contains( type.mimeType ) ) {
-        return FileAssociationState::Registered;
+    return entryText ? XdgFiles::desktopEntryMimeTypes( *entryText ) : QStringList{};
+}
+
+std::optional<QString> XdgFileAssociations::queryDefault( const FileType& type ) const
+{
+    return xdgMime_( { QStringLiteral( "query" ), QStringLiteral( "default" ), type.mimeType } );
+}
+
+FileAssociationState XdgFileAssociations::stateFrom( const FileType& type,
+                                                   const std::optional<QString>& opening,
+                                                   const QStringList& offeredFor ) const
+{
+    if ( opening && opening->trimmed() == environment_.desktopId ) {
+        return FileAssociationState::Default;
     }
-    return FileAssociationState::NotRegistered;
+    return offeredFor.contains( type.mimeType ) ? FileAssociationState::Registered
+                                                : FileAssociationState::NotRegistered;
+}
+
+FileAssociationState XdgFileAssociations::state( const FileType& type ) const
+{
+    return stateFrom( type, queryDefault( type ), desktopEntryMimeTypes() );
+}
+
+FileAssociationStates XdgFileAssociations::states() const
+{
+    const auto offeredFor = desktopEntryMimeTypes();
+    FileAssociationStates current;
+    auto answers = true;
+    for ( const auto& type : FileTypes::choices() ) {
+        const auto opening = answers ? queryDefault( type ) : std::nullopt;
+        if ( answers && !opening ) {
+            LOG_WARNING << "xdg-mime did not answer; the other file types are not asked";
+            answers = false;
+        }
+        current[ type.id ] = stateFrom( type, opening, offeredFor );
+    }
+    return current;
 }
 
 FileAssociationResult XdgFileAssociations::apply( const std::vector<FileType>& makeDefault,
                                                   const std::vector<FileType>& release )
 {
+    if ( !isAvailable() ) {
+        return FileAssociationResult::failedFor( makeDefault, release, unavailableReason() );
+    }
+
     FileAssociationResult result;
     QStringList errors;
-
-    if ( !isAvailable() ) {
-        for ( const auto* types : { &makeDefault, &release } ) {
-            for ( const auto& type : *types ) {
-                result.failed << type.id;
-            }
-        }
-        result.error = unavailableReason();
-        return result;
-    }
 
     if ( !makeDefault.empty() ) {
         // One call for every type: xdg-mime takes them all.
@@ -306,7 +322,7 @@ FileAssociationResult XdgFileAssociations::apply( const std::vector<FileType>& m
                 result.failed << type.id;
             }
             errors << tr( "xdg-mime could not make LogSquirl the default for %1." )
-                          .arg( shownAs( makeDefault ) );
+                          .arg( FileTypes::shownAs( makeDefault ) );
         }
     }
 
@@ -332,7 +348,7 @@ FileAssociationResult XdgFileAssociations::apply( const std::vector<FileType>& m
     }
     if ( !notReleased.empty() ) {
         errors << tr( "LogSquirl could not give %1 back: its mimeapps.list cannot be written." )
-                      .arg( shownAs( notReleased ) );
+                      .arg( FileTypes::shownAs( notReleased ) );
     }
 
     result.error = errors.join( QLatin1Char( ' ' ) );

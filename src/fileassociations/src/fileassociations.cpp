@@ -29,6 +29,31 @@
 #include "xdgfileassociations.h"
 #endif
 
+FileAssociationState stateOf( const FileAssociationStates& states, const QString& id )
+{
+    const auto it = states.find( id );
+    return it == states.end() ? FileAssociationState::NotRegistered : it->second;
+}
+
+bool isDefault( const FileAssociationStates& states, const QString& id )
+{
+    return stateOf( states, id ) == FileAssociationState::Default;
+}
+
+FileAssociationResult FileAssociationResult::failedFor( const std::vector<FileType>& makeDefault,
+                                                        const std::vector<FileType>& release,
+                                                        const QString& error )
+{
+    FileAssociationResult result;
+    for ( const auto* types : { &makeDefault, &release } ) {
+        for ( const auto& type : *types ) {
+            result.failed << type.id;
+        }
+    }
+    result.error = error;
+    return result;
+}
+
 FileAssociations::~FileAssociations() = default;
 
 QString FileAssociations::applyNote() const
@@ -70,17 +95,25 @@ FileAssociationPlan FileAssociationPlan::of( const FileAssociationStates& states
 {
     FileAssociationPlan plan;
     for ( const auto& type : FileTypes::choices() ) {
-        const auto it = states.find( type.id );
-        const auto isDefault = it != states.end() && it->second == FileAssociationState::Default;
+        const auto opens = isDefault( states, type.id );
         const auto checked = checkedIds.contains( type.id );
-        if ( checked && !isDefault ) {
+        if ( checked && !opens ) {
             plan.makeDefault.push_back( type );
         }
-        else if ( !checked && isDefault ) {
+        else if ( !checked && opens ) {
             plan.release.push_back( type );
         }
     }
     return plan;
+}
+
+std::optional<FileAssociationResult>
+FileAssociationPlan::applyWith( FileAssociations& fileAssociations ) const
+{
+    if ( isEmpty() ) {
+        return std::nullopt;
+    }
+    return fileAssociations.apply( makeDefault, release );
 }
 
 #if !defined( Q_OS_UNIX ) && !defined( Q_OS_WIN )
@@ -108,14 +141,7 @@ public:
     FileAssociationResult apply( const std::vector<FileType>& makeDefault,
                                  const std::vector<FileType>& release ) override
     {
-        FileAssociationResult result;
-        for ( const auto* types : { &makeDefault, &release } ) {
-            for ( const auto& type : *types ) {
-                result.failed << type.id;
-            }
-        }
-        result.error = unavailableReason();
-        return result;
+        return FileAssociationResult::failedFor( makeDefault, release, unavailableReason() );
     }
 };
 

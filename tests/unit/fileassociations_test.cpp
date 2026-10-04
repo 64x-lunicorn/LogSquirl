@@ -173,6 +173,19 @@ TEST_CASE( "The file types are the ones cmake/FileTypes.cmake declares", "[filea
     CHECK( FileTypes::groupTitle( FileType::Group::Logs ) == "Log files" );
     CHECK( FileTypes::groupTitle( FileType::Group::Optional ) == "More (optional)" );
     CHECK( FileTypes::label( logcat ) == "Android Logcat traces" );
+    CHECK( FileTypes::shownAs( { log, typeWithId( "output" ) } ) == ".log, .out, .err" );
+}
+
+TEST_CASE( "Every label of a file type is there for lupdate to translate", "[fileassociations]" )
+{
+    QStringList translatable;
+    for ( const auto* label : FileTypes::translatableLabels() ) {
+        translatable << QString::fromUtf8( label );
+    }
+    for ( const auto& type : FileTypes::choices() ) {
+        INFO( type.id.toStdString() );
+        CHECK( translatable.contains( type.label ) );
+    }
 }
 
 TEST_CASE( "Applying a choice changes only the types whose check differs from their state",
@@ -325,6 +338,28 @@ TEST_CASE( "On Linux, xdg-mime makes LogSquirl the default and the user's mimeap
         // Not in the desktop entry.
         CHECK( associations.state( typeWithId( "trace" ) ) == FileAssociationState::NotRegistered );
         CHECK( system.calls.contains( "query default text/x-log" ) );
+    }
+
+    SECTION( "the states ask xdg-mime once per type and read the desktop entry" )
+    {
+        writeFile( system.mimeAppsList(), "[Default Applications]\n"
+                                          "text/x-log=logsquirl.desktop;\n" );
+        const auto states = system.associations().states();
+        CHECK( states.at( "log" ) == FileAssociationState::Default );
+        CHECK( states.at( "logcat" ) == FileAssociationState::Registered );
+        CHECK( states.at( "trace" ) == FileAssociationState::NotRegistered );
+        CHECK( system.calls.size() == static_cast<qsizetype>( FileTypes::choices().size() ) );
+    }
+
+    SECTION( "an xdg-mime that does not answer is not asked again for the other types" )
+    {
+        system.xdgMimeFails = true;
+        const auto states = system.associations().states();
+        CHECK( system.calls == QStringList{ "query default text/x-log" } );
+        // What the desktop entry says is all that is known.
+        CHECK( states.at( "log" ) == FileAssociationState::Registered );
+        CHECK( states.at( "logcat" ) == FileAssociationState::Registered );
+        CHECK( states.at( "trace" ) == FileAssociationState::NotRegistered );
     }
 
     SECTION( "applying makes the checked types LogSquirl's with one xdg-mime default" )

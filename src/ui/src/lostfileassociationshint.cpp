@@ -49,11 +49,7 @@ LostFileAssociationsHint::LostFileAssociationsHint( FileAssociations& fileAssoci
     , fileAssociations_( &fileAssociations )
     , lost_( lost )
 {
-    QStringList shown;
-    for ( const auto& type : typesOf( lost ) ) {
-        shown << type.shownAs;
-    }
-    const auto types = shown.join( QStringLiteral( ", " ) );
+    const auto types = FileTypes::shownAs( typesOf( lost ) );
 
     textLabel_ = new QLabel( this );
     if ( movedFrom.isEmpty() ) {

@@ -107,7 +107,7 @@
 #include "favoritefiles.h"
 #include "fileassociationchoice.h"
 #include "fileassociations.h"
-#include "fileassociationsdialog.h"
+#include "firststartfileassociationsdialog.h"
 #include "highlightersdialog.h"
 #include "highlightersmenu.h"
 #include "indexcache.h"
@@ -2032,10 +2032,10 @@ void MainWindow::checkFileAssociationsAtStart( bool mayAsk )
         return;
     }
     auto& config = Configuration::getSynced();
-    auto choice = fileAssociationChoice( config );
+    auto choice = FileAssociationChoice::of( config );
     const auto atStart = FileAssociationsAtStart::of( *fileAssociations, choice, mayAsk );
     if ( atStart.choiceChanged ) {
-        keepFileAssociationChoice( config, choice );
+        choice.keepIn( config );
     }
     if ( !atStart.lost.isEmpty() ) {
         showLostFileAssociations( atStart.lost, atStart.movedFrom );
@@ -2050,10 +2050,10 @@ void MainWindow::checkFileAssociationsAtStart( bool mayAsk )
     dialog->setAttribute( Qt::WA_DeleteOnClose );
     connect( dialog, &FirstStartFileAssociationsDialog::answered, this, [ dialog ] {
         // Read again: the Options Dialog may have kept a choice meanwhile.
-        auto& config = Configuration::getSynced();
-        auto answered = fileAssociationChoice( config );
+        auto& syncedConfig = Configuration::getSynced();
+        auto answered = FileAssociationChoice::of( syncedConfig );
         dialog->updateChoice( answered );
-        keepFileAssociationChoice( config, answered );
+        answered.keepIn( syncedConfig );
     } );
     dialog->open();
 }
@@ -2071,13 +2071,13 @@ void MainWindow::showLostFileAssociations( const QStringList& lost, const QStrin
     statusBar()->addPermanentWidget( hint, 1 );
     connect( hint, &LostFileAssociationsHint::dismissed, this, []( const QStringList& dismissed ) {
         auto& config = Configuration::getSynced();
-        auto choice = fileAssociationChoice( config );
+        auto choice = FileAssociationChoice::of( config );
         for ( const auto& id : dismissed ) {
             if ( !choice.dismissed.contains( id ) ) {
                 choice.dismissed << id;
             }
         }
-        keepFileAssociationChoice( config, choice );
+        choice.keepIn( config );
     } );
     connect( hint, &LostFileAssociationsHint::finished, this, [ this, hint, hadStatusBar ] {
         hint->deleteLater();

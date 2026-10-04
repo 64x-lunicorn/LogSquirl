@@ -19,6 +19,7 @@
 
 #include "fileassociationchoice.h"
 
+#include "configuration.h"
 #include "filetypes.h"
 
 void FileAssociationChoice::apply( const QStringList& checkedIds )
@@ -26,6 +27,23 @@ void FileAssociationChoice::apply( const QStringList& checkedIds )
     ask = false;
     chosen = checkedIds;
     dismissed.clear();
+}
+
+FileAssociationChoice FileAssociationChoice::of( const Configuration& config )
+{
+    FileAssociationChoice choice;
+    choice.ask = config.askForFileAssociations();
+    choice.chosen = config.chosenFileAssociations();
+    choice.dismissed = config.dismissedFileAssociations();
+    return choice;
+}
+
+void FileAssociationChoice::keepIn( Configuration& config ) const
+{
+    config.setAskForFileAssociations( ask );
+    config.setChosenFileAssociations( chosen );
+    config.setDismissedFileAssociations( dismissed );
+    config.save();
 }
 
 FileAssociationsAtStart FileAssociationsAtStart::of( const FileAssociations& fileAssociations,

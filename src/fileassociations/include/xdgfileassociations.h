@@ -66,10 +66,12 @@ public:
     };
 
     // Runs xdg-mime with the arguments and returns what it wrote to its
-    // standard output, or nothing when it could not run or failed.
+    // standard output, or nothing when it could not run, failed or did not
+    // answer in time.
     using XdgMime = std::function<std::optional<QString>( const QStringList& arguments )>;
 
-    // Runs the xdg-mime installed.
+    // Runs the xdg-mime installed. A query gets a few seconds, a change ten:
+    // the states are read on the GUI thread, as the application starts too.
     static std::optional<QString> runXdgMime( const QStringList& arguments );
 
     explicit XdgFileAssociations( Environment environment, XdgMime xdgMime = &runXdgMime );
@@ -77,6 +79,10 @@ public:
     bool isAvailable() const override;
     QString unavailableReason() const override;
     FileAssociationState state( const FileType& type ) const override;
+    // Reads the desktop entry once, and once xdg-mime did not answer for a
+    // type, it does not ask for the others: what the system says of them is
+    // then only whether the desktop entry offers LogSquirl for them.
+    FileAssociationStates states() const override;
     FileAssociationResult apply( const std::vector<FileType>& makeDefault,
                                  const std::vector<FileType>& release ) override;
 
@@ -91,6 +97,13 @@ public:
     QStringList userMimeAppsLists() const;
 
 private:
+    // The MIME types LogSquirl's desktop entry lists.
+    QStringList desktopEntryMimeTypes() const;
+    // What xdg-mime says opens the type: nothing when it does not answer.
+    std::optional<QString> queryDefault( const FileType& type ) const;
+    FileAssociationState stateFrom( const FileType& type, const std::optional<QString>& opening,
+                                    const QStringList& offeredFor ) const;
+
     Environment environment_;
     XdgMime xdgMime_;
 };

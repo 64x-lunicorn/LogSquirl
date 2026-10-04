@@ -164,10 +164,13 @@
   types with `xdg-mime default` and gives the unchecked ones back by removing
   only LogSquirl's entry from the user's `mimeapps.list`. An AppImage run, or
   one without LogSquirl's desktop entry or `xdg-mime`, shows the page
-  disabled and says why; macOS and Windows follow. The application reads the
-  same list of types as the packages, generated from `cmake/FileTypes.cmake`,
-  and each platform implements one interface that tells a type's state and
-  applies a choice, with a test implementation for the page's tests. (#720)
+  disabled and says why; macOS and Windows follow. The states are read with
+  a short time limit per `xdg-mime` query, and once a query gets no answer
+  the other types are not asked, so a hanging desktop tool cannot hold up
+  the start for long. The application reads the same list of types as the
+  packages, generated from `cmake/FileTypes.cmake`, and each platform
+  implements one interface that tells a type's state and applies a choice,
+  with a test implementation for the page's tests. (#720)
 - **The File Associations page works on macOS**: *Apply* makes LogSquirl the
   default for the content type of each checked type (the system's log type
   for `.log`, LogSquirl's own Logcat type, plain text for `.txt`) through

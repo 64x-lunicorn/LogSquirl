@@ -46,7 +46,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindowtext.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/menu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/optionsdialog.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/fileassociationsdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/filetypechoices.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/firststartfileassociationsdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/lostfileassociationshint.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/overview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/overviewwidget.h
@@ -153,7 +154,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindowtext.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/menu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/optionsdialog.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/fileassociationsdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/filetypechoices.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/firststartfileassociationsdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/lostfileassociationshint.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/overview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/overviewwidget.cpp

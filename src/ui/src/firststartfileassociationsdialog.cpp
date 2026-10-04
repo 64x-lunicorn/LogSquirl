@@ -17,93 +17,15 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "fileassociationsdialog.h"
+#include "firststartfileassociationsdialog.h"
 
 #include <QDialogButtonBox>
-#include <QHeaderView>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
-#include "configuration.h"
-#include "filetypes.h"
-
-namespace FileTypeChoices {
-
-void fill( QTreeWidget& tree )
-{
-    tree.clear();
-    for ( const auto group : { FileType::Group::Logs, FileType::Group::Optional } ) {
-        auto* groupItem = new QTreeWidgetItem( &tree );
-        groupItem->setText( 0, FileTypes::groupTitle( group ) );
-        groupItem->setFlags( Qt::ItemIsEnabled );
-        groupItem->setFirstColumnSpanned( true );
-        auto groupFont = groupItem->font( 0 );
-        groupFont.setBold( true );
-        groupItem->setFont( 0, groupFont );
-
-        for ( const auto& type : FileTypes::choices() ) {
-            if ( type.group != group ) {
-                continue;
-            }
-            auto* item = new QTreeWidgetItem( groupItem );
-            item->setFlags( Qt::ItemIsEnabled | Qt::ItemIsUserCheckable );
-            item->setData( 0, Qt::UserRole, type.id );
-            item->setCheckState( 0, Qt::Unchecked );
-            item->setText( 0, type.shownAs );
-            item->setText( 1, FileTypes::label( type ) );
-        }
-    }
-    tree.expandAll();
-    tree.resizeColumnToContents( 0 );
-    tree.resizeColumnToContents( 1 );
-}
-
-QTreeWidgetItem* row( const QTreeWidget& tree, const QString& id )
-{
-    for ( int group = 0; group < tree.topLevelItemCount(); ++group ) {
-        auto* groupItem = tree.topLevelItem( group );
-        for ( int index = 0; index < groupItem->childCount(); ++index ) {
-            if ( groupItem->child( index )->data( 0, Qt::UserRole ).toString() == id ) {
-                return groupItem->child( index );
-            }
-        }
-    }
-    return nullptr;
-}
-
-QStringList checkedIds( const QTreeWidget& tree )
-{
-    QStringList ids;
-    for ( const auto& type : FileTypes::choices() ) {
-        if ( const auto* item = row( tree, type.id );
-             item != nullptr && item->checkState( 0 ) == Qt::Checked ) {
-            ids << type.id;
-        }
-    }
-    return ids;
-}
-
-} // namespace FileTypeChoices
-
-FileAssociationChoice fileAssociationChoice( const Configuration& config )
-{
-    FileAssociationChoice choice;
-    choice.ask = config.askForFileAssociations();
-    choice.chosen = config.chosenFileAssociations();
-    choice.dismissed = config.dismissedFileAssociations();
-    return choice;
-}
-
-void keepFileAssociationChoice( Configuration& config, const FileAssociationChoice& choice )
-{
-    config.setAskForFileAssociations( choice.ask );
-    config.setChosenFileAssociations( choice.chosen );
-    config.setDismissedFileAssociations( choice.dismissed );
-    config.save();
-}
 
 FirstStartFileAssociationsDialog::FirstStartFileAssociationsDialog(
     FileAssociations& fileAssociations, const QStringList& checks, QWidget* parent )
@@ -210,12 +132,9 @@ void FirstStartFileAssociationsDialog::applyChoice()
     if ( !fileAssociations_ || !fileAssociations_->isAvailable() ) {
         return;
     }
-    const auto plan = FileAssociationPlan::of( fileAssociations_->states(), checkedIds() );
-    if ( plan.isEmpty() ) {
-        return;
-    }
-    const auto result = fileAssociations_->apply( plan.makeDefault, plan.release );
-    if ( !result.succeeded() ) {
-        QMessageBox::warning( this, tr( "File Associations" ), result.error );
+    const auto result = FileAssociationPlan::of( fileAssociations_->states(), checkedIds() )
+                            .applyWith( *fileAssociations_ );
+    if ( result && !result->succeeded() ) {
+        QMessageBox::warning( this, tr( "File Associations" ), result->error );
     }
 }

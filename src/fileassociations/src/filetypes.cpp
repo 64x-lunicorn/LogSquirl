@@ -119,8 +119,31 @@ QString groupTitle( FileType::Group group )
 QString label( const FileType& type )
 {
     // The labels come from cmake/FileTypes.cmake, so a translation has them
-    // under this context by their English text.
+    // under this context by their English text, from translatableLabels().
     return QCoreApplication::translate( "FileTypes", type.label.toUtf8().constData() );
+}
+
+QString shownAs( const std::vector<FileType>& types )
+{
+    QStringList shown;
+    for ( const auto& type : types ) {
+        shown << type.shownAs;
+    }
+    return shown.join( QStringLiteral( ", " ) );
+}
+
+const std::vector<const char*>& translatableLabels()
+{
+    // The LABEL of every type of cmake/FileTypes.cmake; a test fails when one
+    // is missing here.
+    static const std::vector<const char*> labels{
+        QT_TRANSLATE_NOOP( "FileTypes", "General log files" ),
+        QT_TRANSLATE_NOOP( "FileTypes", "Android Logcat traces" ),
+        QT_TRANSLATE_NOOP( "FileTypes", "Program output" ),
+        QT_TRANSLATE_NOOP( "FileTypes", "Trace files" ),
+        QT_TRANSLATE_NOOP( "FileTypes", "Text files" ),
+    };
+    return labels;
 }
 
 } // namespace FileTypes

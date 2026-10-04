@@ -488,6 +488,22 @@ for an unknown source, and for every AppImage and Windows build, the Update Offe
 its Release Page, and for a known one it names the package manager's upgrade command.
 _Avoid_: distribution channel
 
+### The desktop
+
+**File Type**:
+One kind of file LogSquirl opens, as the user chooses it: one or more extensions under one
+label (*Android Logcat traces*: `.adb`, `.adb0` to `.adb9`), with the MIME type, uniform type
+identifier and ProgID each platform knows it by. The list is declared once, in
+`cmake/FileTypes.cmake`, and every platform's packaging and the application read it.
+_Avoid_: extension (a File Type may have several), format (that is a Log Format)
+
+**File Association**:
+Whether the system opens a File Type with LogSquirl: *Default* (it does), *Registered*
+(LogSquirl is offered under *Open with*, another application opens it) or *Not registered*.
+It is always what the system says, never what LogSquirl asked for; the user chooses it on
+the File Associations page, in the first-start question or in the Windows installer.
+_Avoid_: file binding, default app setting
+
 ### Session and settings
 
 **Settings Policy**:

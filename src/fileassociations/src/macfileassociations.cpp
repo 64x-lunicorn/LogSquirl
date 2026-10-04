@@ -29,14 +29,6 @@ namespace {
 // that opened it before LogSquirl.
 constexpr auto PreviousDefaults = QLatin1String( "PreviousDefaults/" );
 
-QString shownAs( const std::vector<FileType>& types )
-{
-    QStringList shown;
-    for ( const auto& type : types ) {
-        shown << type.shownAs;
-    }
-    return shown.join( QStringLiteral( ", " ) );
-}
 
 } // namespace
 
@@ -135,16 +127,11 @@ void MacFileAssociations::setDefault( const QString& applicationPath, const QStr
 FileAssociationResult MacFileAssociations::apply( const std::vector<FileType>& makeDefault,
                                                   const std::vector<FileType>& release )
 {
-    FileAssociationResult result;
     if ( !isAvailable() ) {
-        for ( const auto* types : { &makeDefault, &release } ) {
-            for ( const auto& type : *types ) {
-                result.failed << type.id;
-            }
-        }
-        result.error = unavailableReason();
-        return result;
+        return FileAssociationResult::failedFor( makeDefault, release, unavailableReason() );
     }
+
+    FileAssociationResult result;
 
     const auto self = *launchServices_->thisApplication();
     for ( const auto& type : makeDefault ) {
@@ -177,7 +164,7 @@ FileAssociationResult MacFileAssociations::apply( const std::vector<FileType>& m
         result.error = tr( "macOS cannot unset the application that opens %1, and LogSquirl does "
                            "not know which one opened them before. Choose one in the Finder: Get "
                            "Info on such a file, then Open with and Change All." )
-                           .arg( shownAs( notReleased ) );
+                           .arg( FileTypes::shownAs( notReleased ) );
     }
     return result;
 }

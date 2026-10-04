@@ -25,7 +25,7 @@
 #include <QTreeWidget>
 
 #include "fake_file_associations.h"
-#include "fileassociationsdialog.h"
+#include "firststartfileassociationsdialog.h"
 
 namespace {
 

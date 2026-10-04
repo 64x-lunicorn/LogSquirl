@@ -54,14 +54,6 @@ QString openWithKey( const QString& extension )
     return extensionKey( extension ) + QStringLiteral( "\\OpenWithProgids" );
 }
 
-QString shownAs( const std::vector<FileType>& types )
-{
-    QStringList shown;
-    for ( const auto& type : types ) {
-        shown << type.shownAs;
-    }
-    return shown.join( QStringLiteral( ", " ) );
-}
 
 } // namespace
 
@@ -248,16 +240,11 @@ bool WindowsFileAssociations::unregisterForUser( const FileType& type )
 FileAssociationResult WindowsFileAssociations::apply( const std::vector<FileType>& makeDefault,
                                                       const std::vector<FileType>& release )
 {
-    FileAssociationResult result;
     if ( !isAvailable() ) {
-        for ( const auto* types : { &makeDefault, &release } ) {
-            for ( const auto& type : *types ) {
-                result.failed << type.id;
-            }
-        }
-        result.error = unavailableReason();
-        return result;
+        return FileAssociationResult::failedFor( makeDefault, release, unavailableReason() );
     }
+
+    FileAssociationResult result;
 
     QStringList errors;
     std::vector<FileType> notRegistered;
@@ -269,7 +256,7 @@ FileAssociationResult WindowsFileAssociations::apply( const std::vector<FileType
     }
     if ( !notRegistered.empty() ) {
         errors << tr( "LogSquirl could not register %1 in the registry." )
-                      .arg( shownAs( notRegistered ) );
+                      .arg( FileTypes::shownAs( notRegistered ) );
     }
 
     std::vector<FileType> notReleased;
@@ -291,13 +278,13 @@ FileAssociationResult WindowsFileAssociations::apply( const std::vector<FileType
     }
     if ( !notReleased.empty() ) {
         errors << tr( "LogSquirl could not remove its registration of %1 from the registry." )
-                      .arg( shownAs( notReleased ) );
+                      .arg( FileTypes::shownAs( notReleased ) );
     }
     if ( !stillDefault.empty() ) {
         errors << tr( "LogSquirl still opens %1: the installer made it the default for every user "
                       "of this computer, or you chose it in Windows. Choose another app for them "
                       "on the Default apps page of the Windows settings." )
-                      .arg( shownAs( stillDefault ) );
+                      .arg( FileTypes::shownAs( stillDefault ) );
     }
 
     // The user confirms the default on the Default apps page.
@@ -333,10 +320,8 @@ void WindowsFileAssociations::checkForChanges()
     watched_ = current;
     // Until the user chose LogSquirl for every type applied, or gave up.
     const auto confirmed
-        = std::all_of( awaited_.begin(), awaited_.end(), [ &current ]( const QString& id ) {
-              const auto it = current.find( id );
-              return it != current.end() && it->second == FileAssociationState::Default;
-          } );
+        = std::all_of( awaited_.begin(), awaited_.end(),
+                       [ &current ]( const QString& id ) { return isDefault( current, id ); } );
     if ( confirmed || ++watchTicks_ >= WatchTicks ) {
         watch_.stop();
     }

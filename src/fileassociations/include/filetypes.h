@@ -73,4 +73,13 @@ QString groupTitle( FileType::Group group );
 // What the choice of a type says, translated.
 QString label( const FileType& type );
 
+// The extensions of the types as their choices show them, one after the
+// other: ".log, .out, .err".
+QString shownAs( const std::vector<FileType>& types );
+
+// The labels lupdate finds for translation, untranslated. The list of types
+// is generated, so lupdate cannot read the labels there; every label of the
+// list is to be among these.
+const std::vector<const char*>& translatableLabels();
+
 } // namespace FileTypes

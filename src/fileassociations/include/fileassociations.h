@@ -25,6 +25,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "filetypes.h"
@@ -42,6 +43,12 @@ enum class FileAssociationState {
 // The state of each type of FileTypes::choices(), by id.
 using FileAssociationStates = std::map<QString, FileAssociationState>;
 
+// The state of the type with the id; NotRegistered for an id without one.
+FileAssociationState stateOf( const FileAssociationStates& states, const QString& id );
+
+// Whether LogSquirl opens the type with the id.
+bool isDefault( const FileAssociationStates& states, const QString& id );
+
 // What applying a choice did. A platform where the user confirms the choice
 // elsewhere may still change its mind after apply() returned; the states
 // tell, not the result.
@@ -55,6 +62,12 @@ struct FileAssociationResult {
     {
         return failed.isEmpty() && error.isEmpty();
     }
+
+    // Nothing went through: every type of makeDefault and of release failed,
+    // for the reason of error.
+    static FileAssociationResult failedFor( const std::vector<FileType>& makeDefault,
+                                            const std::vector<FileType>& release,
+                                            const QString& error );
 };
 
 // Tells the state of a file type and applies the user's choice, one
@@ -95,8 +108,9 @@ public:
     virtual FileAssociationResult apply( const std::vector<FileType>& makeDefault,
                                          const std::vector<FileType>& release ) = 0;
 
-    // The state of every type the user chooses from.
-    FileAssociationStates states() const;
+    // The state of every type the user chooses from. A platform that can
+    // read them faster together than one by one reads them so.
+    virtual FileAssociationStates states() const;
 
     // Whether the platform has an entry "Open with LogSquirl" in the context
     // menu of every file, which opens files of any type, such as rotated logs
@@ -136,6 +150,11 @@ struct FileAssociationPlan {
     // FileTypes::choices(), the others unchecked, given their states now.
     static FileAssociationPlan of( const FileAssociationStates& states,
                                    const QStringList& checkedIds );
+
+    // Applies the plan with the file associations: what Apply does on the
+    // File Associations page and in the first-start dialog. Nothing for an
+    // empty plan.
+    std::optional<FileAssociationResult> applyWith( FileAssociations& fileAssociations ) const;
 };
 
 // The implementation of this platform and this run: xdg-mime on Linux and

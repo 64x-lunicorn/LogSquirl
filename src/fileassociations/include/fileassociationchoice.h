@@ -26,6 +26,8 @@
 
 #include "fileassociations.h"
 
+class Configuration;
+
 // What the user chose for the file types LogSquirl opens, as the settings
 // keep it: whether the first start still asks (#723), and the types the user
 // chose, which a later start compares with what the system says (#725).
@@ -44,6 +46,11 @@ struct FileAssociationChoice {
 
     // The user applied a choice with the types of checkedIds checked.
     void apply( const QStringList& checkedIds );
+
+    // The choice as the settings keep it.
+    static FileAssociationChoice of( const Configuration& config );
+    // Keeps the choice in the settings and saves them.
+    void keepIn( Configuration& config ) const;
 };
 
 // What LogSquirl does about the file associations as it starts, once the

@@ -18,7 +18,9 @@
 #     [OPEN_WITH_ONLY]           only ever offered under "Open with", never made
 #                                the default: a type another application owns
 #     GROUP <logs|optional>      "Log files" or "More (optional)"
-#     LABEL <text>               what the choice says ("Android Logcat traces")
+#     LABEL <text>               what the choice says ("Android Logcat traces");
+#                                a new one goes into FileTypes::
+#                                translatableLabels() too, which a test checks
 #     SHOWN_AS <text>            its extensions as the choice shows them
 #     NAME <text>                what a file of the type is called (Explorer's
 #                                type column, Finder's kind, the MIME comment)
