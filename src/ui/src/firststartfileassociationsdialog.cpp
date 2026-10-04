@@ -26,7 +26,6 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
-
 FirstStartFileAssociationsDialog::FirstStartFileAssociationsDialog(
     FileAssociations& fileAssociations, const QStringList& checks, QWidget* parent )
     : QDialog( parent )

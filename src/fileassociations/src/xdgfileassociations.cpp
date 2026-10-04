@@ -191,8 +191,7 @@ std::optional<QString> XdgFileAssociations::runXdgMime( const QStringList& argum
     constexpr int ChangeTimeoutMs = 10000;
     const auto isQuery = !arguments.isEmpty() && arguments.first() == QLatin1String( "query" );
     if ( !xdgMime.waitForFinished( isQuery ? QueryTimeoutMs : ChangeTimeoutMs )
-         || xdgMime.exitStatus() != QProcess::NormalExit
-         || xdgMime.exitCode() != 0 ) {
+         || xdgMime.exitStatus() != QProcess::NormalExit || xdgMime.exitCode() != 0 ) {
         LOG_WARNING << "xdg-mime " << arguments.join( QLatin1Char( ' ' ) ).toStdString()
                     << " failed: " << xdgMime.errorString().toStdString();
         xdgMime.kill();
@@ -270,8 +269,8 @@ std::optional<QString> XdgFileAssociations::queryDefault( const FileType& type )
 }
 
 FileAssociationState XdgFileAssociations::stateFrom( const FileType& type,
-                                                   const std::optional<QString>& opening,
-                                                   const QStringList& offeredFor ) const
+                                                     const std::optional<QString>& opening,
+                                                     const QStringList& offeredFor ) const
 {
     if ( opening && opening->trimmed() == environment_.desktopId ) {
         return FileAssociationState::Default;
