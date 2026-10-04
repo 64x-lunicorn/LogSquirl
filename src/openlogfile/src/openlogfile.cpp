@@ -111,6 +111,11 @@ void OpenLogFile::open( const QString& fileName )
     fileName_ = fileName;
 }
 
+bool OpenLogFile::hasFirstLoadFinished() const
+{
+    return loadRule_.hasLoadFinished();
+}
+
 void OpenLogFile::restoreMarks( const logsquirl::vector<LineNumber>& marks )
 {
     loadRule_.restoreMarks( marks );

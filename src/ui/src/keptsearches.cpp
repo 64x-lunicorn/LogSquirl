@@ -192,6 +192,12 @@ std::vector<FilteredView*> KeptSearches::restore( const Requested& saved )
         }
     }
 
+    // A first load that does not succeed drops the Searches waiting for it,
+    // which stay idle: none of them tells of it.
+    restoredRunConnections_.push_back(
+        connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this,
+                 [ this ] { tellWhenRestoredSearchesFinished(); } ) );
+
     // Told once the caller has had them: also when none runs.
     restoredRunsTold_ = false;
     QMetaObject::invokeMethod(
@@ -209,9 +215,11 @@ void KeptSearches::tellWhenRestoredSearchesFinished()
         if ( !search ) {
             continue;
         }
-        // Idle: not requested yet, or waiting for the first load.
+        // Idle: waiting for the first load, until it has finished; then
+        // dropped, as a load that did not succeed drops it.
         const auto phase = search->searchState().phase;
-        if ( phase == SearchSessionPhase::Idle || phase == SearchSessionPhase::Running ) {
+        if ( phase == SearchSessionPhase::Running
+             || ( phase == SearchSessionPhase::Idle && !openLogFile_->hasFirstLoadFinished() ) ) {
             return;
         }
     }

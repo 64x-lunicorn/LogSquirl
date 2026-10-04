@@ -129,6 +129,11 @@ public:
         return fileName_;
     }
 
+    // Whether the first load has finished, whatever its outcome. Until it has,
+    // a Search requested waits for it; once it has, a Search that is idle runs
+    // no longer: one waiting for a load that did not succeed was dropped.
+    bool hasFirstLoadFinished() const;
+
     // Marks saved with the Session for this Log File, applied once, when the
     // first load has finished. Hand them over before that.
     void restoreMarks( const logsquirl::vector<LineNumber>& marks );

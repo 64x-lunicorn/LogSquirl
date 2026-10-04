@@ -41,6 +41,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
@@ -466,6 +467,72 @@ SCENARIO( "The Searches a Session saved are rebuilt and run again", "[keptsearch
         {
             REQUIRE( waitUiState( [ & ] { return finished; }, 5000 ) );
             REQUIRE( logFile.keptSearches.count() == 1 );
+        }
+    }
+}
+
+SCENARIO( "The Searches a Session saved are dropped when the first load does not succeed",
+          "[keptsearches][session]" )
+{
+    // A Log File large enough that its first load is still running when it
+    // is interrupted, right after it was opened.
+    QTemporaryFile file{ "keptsearches_test_XXXXXX" };
+    REQUIRE( file.open() );
+    for ( int line = 0; line < 200'000; ++line ) {
+        file.write( ( numberedLine( line ) + '\n' ).toUtf8() );
+    }
+    file.flush();
+
+    auto policies = testSettingsPolicies();
+    auto openLogFile = std::make_shared<OpenLogFile>(
+        policies.indexing, policies.search, policies.fileAccess, policies.decoding,
+        policies.recognition, std::make_shared<LogFormatCatalog>(), nullptr );
+    QuickFindPattern quickFindPattern;
+    ViewSet viewSet;
+    std::vector<std::unique_ptr<FilteredView>> views;
+    KeptSearches keptSearches{ openLogFile, viewSet, [ & ]( LogFilteredData* search ) {
+                                  views.push_back( std::make_unique<FilteredView>(
+                                      search, &quickFindPattern, false ) );
+                                  return views.back().get();
+                              } };
+    // Filtered Views read their Searches: they go first.
+    struct ViewsGoFirst {
+        std::vector<std::unique_ptr<FilteredView>>& views;
+        ~ViewsGoFirst()
+        {
+            views.clear();
+        }
+    } viewsGoFirst{ views };
+    keptSearches.showCurrentSearch();
+
+    bool finished = false;
+    QObject::connect( &keptSearches, &KeptSearches::restoredSearchesFinished,
+                      [ &finished ] { finished = true; } );
+    std::optional<LoadingStatus> loaded;
+    QObject::connect(
+        openLogFile.get(), &OpenLogFile::loadingFinished,
+        [ &loaded ]( const OpenLogFile::LoadFinished& load ) { loaded = load.status; } );
+
+    GIVEN( "two saved Searches restored before the Log File has loaded, the second current" )
+    {
+        openLogFile->open( file.fileName() );
+        const KeptSearches::Requested saved{ { RegularExpressionPattern( "line 00001" ),
+                                               RegularExpressionPattern( "line 00002" ) },
+                                             1 };
+        keptSearches.restore( saved );
+        keptSearches.requestCurrent( saved.patterns[ 1 ] );
+
+        WHEN( "the first load is interrupted" )
+        {
+            openLogFile->logData()->interruptLoading();
+            REQUIRE( waitUiState( [ & ] { return loaded.has_value(); }, 30000 ) );
+            REQUIRE( loaded != LoadingStatus::Successful );
+
+            THEN( "neither runs, and the end is told all the same" )
+            {
+                REQUIRE( waitUiState( [ & ] { return finished; }, 5000 ) );
+                REQUIRE( openLogFile->searchState().phase == SearchSessionPhase::Idle );
+            }
         }
     }
 }
