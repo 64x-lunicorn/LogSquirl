@@ -499,9 +499,11 @@ _Avoid_: extension (a File Type may have several), format (that is a Log Format)
 
 **File Association**:
 Whether the system opens a File Type with LogSquirl: *Default* (it does), *Registered*
-(LogSquirl is offered under *Open with*, another application opens it) or *Not registered*.
-It is always what the system says, never what LogSquirl asked for; the user chooses it on
-the File Associations page, in the first-start question or in the Windows installer.
+(LogSquirl is offered under *Open with*, another application opens it), *Not confirmed*
+(on Windows, LogSquirl applied the user's choice, and another application opens it until
+the user confirms it on the *Default apps* page) or *Not registered*. It is always what the
+system says, never what LogSquirl asked for; the user chooses it on the File Associations
+page, in the first-start question or in the Windows installer.
 _Avoid_: file binding, default app setting
 
 ### Session and settings
