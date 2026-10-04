@@ -130,9 +130,6 @@ THRESHOLD_PERCENT: dict[tuple[str, str], float] = {
     # 1.6 %
     ("logsquirl_overview_selection_benchmark",
      "Extending a selection of 100,000 Log Lines / Shift+Down 20 times and Shift+Up 20 times"): 4.0,
-    # 1.2 %
-    ("logsquirl_session_restore_benchmark",
-     "Restoring a Session of several large Log Files / large Log Files: restore until every tab has loaded"): 3.0,
     # 1.1 %
     ("logsquirl_textview_scroll_benchmark", "text view scroll benchmarks / keys: 5 pages down and 5 up"): 3.0,
 }
