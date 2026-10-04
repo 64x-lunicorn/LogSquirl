@@ -136,6 +136,11 @@ if(NOT
   set(ICON_FILE ${CMAKE_CURRENT_SOURCE_DIR}/Resources/${ICON_NAME})
 endif()
 
+# The document icon, which the file types LogSquirl opens show (#718).
+if(APPLE)
+  set(DOCUMENT_ICON_FILE ${CMAKE_CURRENT_SOURCE_DIR}/Resources/logsquirl-document.icns)
+endif()
+
 if(MSVC AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.14)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /experimental:external /external:W0 ")
   set(CMAKE_INCLUDE_SYSTEM_FLAG_CXX "/external:I ")

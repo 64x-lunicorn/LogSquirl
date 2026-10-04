@@ -247,6 +247,17 @@
   (16 to 256 px), `Resources/logsquirl-document.icns` (16 to 1024 px, with
   @2x) and the hicolor PNGs (16 to 512 px) from them. File types use it once
   each platform declares them (#717, #718, #719). (#726)
+- **On macOS, the app bundle declares Logcat traces and logs with the
+  document icon**: it exports the type *Android Logcat trace*
+  (`io.github.logsquirl.logcat`, `.adb` and `.adb0` to `.adb9` one by one;
+  macOS keeps calling `.adb` Ada source), imports types for `.out`/`.err` and
+  `.trace`, and views the system's log type, plain text and, without the
+  icon, `.gz` and `.zip`, all with the Alternate rank. Finder offers
+  LogSquirl under *Open with* for each of them, a new build makes it the
+  default for none, and after *Change All* their files show the document
+  icon. The types LogSquirl declares itself are opened through the plain text
+  entry, which has the document icon now: LaunchServices makes the only
+  application that names a type its default, whatever the rank. (#718)
 - **On Linux, Logcat traces and logs are file types with the LogSquirl
   document icon**: the deb and rpm install a shared-mime-info package that
   declares the Android Logcat trace (`application/x-logcat`, `.adb` and

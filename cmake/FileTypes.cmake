@@ -113,7 +113,9 @@ logsquirl_file_type(
 # freedesktop.org.xml gives *.adb to Ada source at the default weight 50; the
 # higher weight makes an .adb file a Logcat trace once LogSquirl is installed.
 # One glob per extension rather than *.adb[0-9]: it matches the same names and
-# stays a literal suffix, which the MIME database looks up fastest.
+# stays a literal suffix, which the MIME database looks up fastest. macOS keeps
+# calling an .adb file Ada source (public.ada-source) whatever an application
+# exports; .adb0 to .adb9 become the Logcat type.
 logsquirl_file_type(
   logcat
   CHECKED
@@ -300,3 +302,107 @@ function(logsquirl_generate_file_types dir)
     )
   endforeach()
 endfunction()
+
+# --- macOS -------------------------------------------------------------------
+
+# The UTExportedTypeDeclarations or UTImportedTypeDeclarations entry of <id>.
+# Only LogSquirl's own type carries the document icon: the imported ones are
+# no more LogSquirl's than TextEdit's.
+function(logsquirl_file_type_bundle_declaration id out_var)
+  set(_type "")
+  string(APPEND _type "        <dict>\n")
+  string(APPEND _type "            <key>UTTypeConformsTo</key>\n")
+  string(APPEND _type "            <array>\n")
+  string(APPEND _type "                <string>public.plain-text</string>\n")
+  string(APPEND _type "            </array>\n")
+  string(APPEND _type "            <key>UTTypeDescription</key>\n")
+  string(APPEND _type "            <string>${LOGSQUIRL_FILE_TYPE_${id}_NAME}</string>\n")
+  if(LOGSQUIRL_FILE_TYPE_${id}_UTI_DECLARATION STREQUAL "EXPORTED")
+    string(APPEND _type "            <key>UTTypeIconFile</key>\n")
+    string(APPEND _type "            <string>${LOGSQUIRL_DOCUMENT_ICON_NAME}.icns</string>\n")
+  endif()
+  string(APPEND _type "            <key>UTTypeIdentifier</key>\n")
+  string(APPEND _type "            <string>${LOGSQUIRL_FILE_TYPE_${id}_UTI}</string>\n")
+  string(APPEND _type "            <key>UTTypeTagSpecification</key>\n")
+  string(APPEND _type "            <dict>\n")
+  string(APPEND _type "                <key>public.filename-extension</key>\n")
+  string(APPEND _type "                <array>\n")
+  foreach(_extension IN LISTS LOGSQUIRL_FILE_TYPE_${id}_EXTENSIONS)
+    string(APPEND _type "                    <string>${_extension}</string>\n")
+  endforeach()
+  string(APPEND _type "                </array>\n")
+  string(APPEND _type "            </dict>\n")
+  string(APPEND _type "        </dict>\n")
+  set(${out_var}
+      "${_type}"
+      PARENT_SCOPE
+  )
+endfunction()
+
+# The document types of the app bundle's Info.plist (cmake/MacOSXBundleInfo.
+# plist.in), as three fragments:
+#   LOGSQUIRL_BUNDLE_DOCUMENT_TYPES  an entry per system type LogSquirl views:
+#                                    the log type and plain text with the
+#                                    document icon, the compressed ones without
+#   LOGSQUIRL_BUNDLE_EXPORTED_TYPES  the types LogSquirl owns (the Logcat trace),
+#                                    with the document icon
+#   LOGSQUIRL_BUNDLE_IMPORTED_TYPES  the types nobody declares (.out, .trace)
+# Installing LogSquirl never makes it the default by itself (#718): every entry
+# has the Alternate rank, which leaves a system type with the application that
+# opens it now. LaunchServices prefers an application that names a type over
+# one that opens it as plain text, whatever the rank, so the types LogSquirl
+# declares itself get no entry: an entry would make LogSquirl the default for
+# them. All of them conform to plain text, and the bundle's public.text entry,
+# which has the document icon too, offers LogSquirl under "Open with" for them
+# and shows the icon once the user chose it with "Change All". macOS has no
+# wildcard extensions, so the Logcat type lists .adb0 to .adb9 one by one.
+function(logsquirl_file_types_bundle_plist)
+  set(_icon "${LOGSQUIRL_DOCUMENT_ICON_NAME}.icns")
+  set(_documents "")
+  set(_exported "")
+  set(_imported "")
+  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPES LOGSQUIRL_OPEN_WITH_TYPES)
+    set(_uti "${LOGSQUIRL_FILE_TYPE_${_id}_UTI}")
+    set(_declaration "${LOGSQUIRL_FILE_TYPE_${_id}_UTI_DECLARATION}")
+    if(_declaration)
+      logsquirl_file_type_bundle_declaration(${_id} _type)
+      if(_declaration STREQUAL "EXPORTED")
+        string(APPEND _exported "${_type}")
+      elseif(_declaration STREQUAL "IMPORTED")
+        string(APPEND _imported "${_type}")
+      else()
+        message(FATAL_ERROR "The file type ${_id} has UTI_DECLARATION '${_declaration}', not EXPORTED or IMPORTED")
+      endif()
+      continue()
+    endif()
+    string(APPEND _documents "        <dict>\n")
+    string(APPEND _documents "            <key>CFBundleTypeName</key>\n")
+    string(APPEND _documents "            <string>${LOGSQUIRL_FILE_TYPE_${_id}_NAME}</string>\n")
+    if(NOT LOGSQUIRL_FILE_TYPE_${_id}_OPEN_WITH_ONLY)
+      string(APPEND _documents "            <key>CFBundleTypeIconFile</key>\n")
+      string(APPEND _documents "            <string>${_icon}</string>\n")
+    endif()
+    string(APPEND _documents "            <key>CFBundleTypeRole</key>\n")
+    string(APPEND _documents "            <string>Viewer</string>\n")
+    string(APPEND _documents "            <key>LSHandlerRank</key>\n")
+    string(APPEND _documents "            <string>Alternate</string>\n")
+    string(APPEND _documents "            <key>LSItemContentTypes</key>\n")
+    string(APPEND _documents "            <array>\n")
+    string(APPEND _documents "                <string>${_uti}</string>\n")
+    string(APPEND _documents "            </array>\n")
+    string(APPEND _documents "        </dict>\n")
+  endforeach()
+  set(LOGSQUIRL_BUNDLE_DOCUMENT_TYPES
+      "${_documents}"
+      PARENT_SCOPE
+  )
+  set(LOGSQUIRL_BUNDLE_EXPORTED_TYPES
+      "${_exported}"
+      PARENT_SCOPE
+  )
+  set(LOGSQUIRL_BUNDLE_IMPORTED_TYPES
+      "${_imported}"
+      PARENT_SCOPE
+  )
+endfunction()
+logsquirl_file_types_bundle_plist()

@@ -10,9 +10,11 @@
 #     and every type LogSquirl opens is in the desktop entry's MimeType, the
 #     compressed ones too. With update-mime-database and desktop-file-validate
 #     installed, the files are also run through them.
-#   - macOS: the Info.plist lists each type with the document icon, exports the
-#     Logcat type with .adb and .adb0 to .adb9 one by one, and offers .gz and
-#     .zip with the Alternate role only; plutil checks it where it exists.
+#   - macOS: the Info.plist views the log type and plain text with the
+#     document icon and .gz and .zip without, all with the Alternate role only,
+#     exports the Logcat type with .adb and .adb0 to .adb9 one by one, and
+#     names none of its own types in a document type, which would make it
+#     their default; plutil checks it where it exists.
 #   - Windows: one ProgID per type, the same names the application will use,
 #     .log and the Logcat traces checked, the optional types not, and .gz and
 #     .zip only as an Open with entry; makensis compiles it where it exists.
@@ -234,6 +236,72 @@ if(DESKTOP_FILE_VALIDATE)
   endif()
 else()
   message(STATUS "desktop-file-validate not found: the desktop entry is not run through it")
+endif()
+
+# --- macOS (#718) ----------------------------------------------------------
+
+set(MACOSX_BUNDLE_BUNDLE_DISPLAY_NAME "LogSquirl")
+set(MACOSX_BUNDLE_EXECUTABLE_NAME "logsquirl")
+set(MACOSX_BUNDLE_GUI_IDENTIFIER "io.github.logsquirl")
+set(MACOSX_BUNDLE_ICON_FILE "logsquirl.icns")
+set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0")
+configure_file("${PROJECT_DIR}/cmake/MacOSXBundleInfo.plist.in" "${WORK_DIR}/Info.plist")
+file(READ "${WORK_DIR}/Info.plist" _plist)
+string(REGEX REPLACE "[ \t\r\n]+" "" _plist_compact "${_plist}")
+# The plain text Viewer entry stays, now with the document icon: it is the
+# entry through which LogSquirl opens the types it declares itself.
+expect_contains("${_plist_compact}" "<key>CFBundleTypeIconFile</key><string>logsquirl-document.icns</string><key>CFBundleTypeRole</key><string>Viewer</string><key>LSItemContentTypes</key><array><string>public.text</string></array>"
+                "the bundle's plain text Viewer entry with the document icon"
+)
+foreach(_uti com.apple.log public.plain-text)
+  expect_contains(
+    "${_plist_compact}"
+    "<key>CFBundleTypeIconFile</key><string>logsquirl-document.icns</string><key>CFBundleTypeRole</key><string>Viewer</string><key>LSHandlerRank</key><string>Alternate</string><key>LSItemContentTypes</key><array><string>${_uti}</string></array>"
+    "the bundle views ${_uti} with the document icon, never the default by itself"
+  )
+endforeach()
+foreach(_uti org.gnu.gnu-zip-archive public.zip-archive)
+  expect_contains(
+    "${_plist_compact}"
+    "<key>CFBundleTypeRole</key><string>Viewer</string><key>LSHandlerRank</key><string>Alternate</string><key>LSItemContentTypes</key><array><string>${_uti}</string></array>"
+    "the bundle offers ${_uti} with the Alternate role"
+  )
+endforeach()
+# LaunchServices makes an application that names a type its default, whatever
+# the rank, when no other one names it: the types LogSquirl declares itself
+# have no document type entry of their own.
+foreach(_uti io.github.logsquirl.logcat io.github.logsquirl.program-output io.github.logsquirl.trace)
+  expect_not_contains("${_plist_compact}" "<array><string>${_uti}</string></array>" "the bundle names its own type in a document type")
+endforeach()
+expect_contains("${_plist_compact}" "<key>UTExportedTypeDeclarations</key><array><dict><key>UTTypeConformsTo</key><array><string>public.plain-text</string></array><key>UTTypeDescription</key><string>AndroidLogcattrace</string><key>UTTypeIconFile</key><string>logsquirl-document.icns</string><key>UTTypeIdentifier</key><string>io.github.logsquirl.logcat</string>"
+                "the bundle exports the Logcat type"
+)
+expect_contains("${_plist_compact}" "<key>UTImportedTypeDeclarations</key><array><dict><key>UTTypeConformsTo</key><array><string>public.plain-text</string></array><key>UTTypeDescription</key><string>Programoutput</string><key>UTTypeIdentifier</key><string>io.github.logsquirl.program-output</string>"
+                "the bundle imports the program output type, without LogSquirl's icon"
+)
+set(_tags "")
+foreach(_extension IN LISTS _expected_logcat)
+  string(APPEND _tags "<string>${_extension}</string>")
+endforeach()
+expect_contains("${_plist_compact}" "<key>public.filename-extension</key><array>${_tags}</array>" "the Logcat type's extensions, one by one")
+string(FIND "${_plist_compact}" "$" _at)
+if(NOT _at EQUAL -1)
+  fail("the Info.plist has an unexpanded variable")
+endif()
+
+find_program(PLUTIL plutil)
+if(PLUTIL)
+  execute_process(
+    COMMAND "${PLUTIL}" -lint "${WORK_DIR}/Info.plist"
+    RESULT_VARIABLE _result
+    OUTPUT_VARIABLE _output
+    ERROR_VARIABLE _output
+  )
+  if(NOT _result EQUAL 0)
+    fail("plutil rejects the Info.plist: ${_output}")
+  endif()
+else()
+  message(STATUS "plutil not found: the Info.plist is not linted")
 endif()
 
 if(_failures)

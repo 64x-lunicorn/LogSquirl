@@ -313,8 +313,14 @@ if Hyperscan can't handle the search pattern. However, in this case search will 
 
 On Windows, the installer adds *logsquirl* to the *Open with* menu of the file manager, and makes it
 the program that opens `.log` files when its component *Associate with .log files* is selected, which it
-is not by default. On Mac OS, the *logsquirl* installer configures the operating system to open `.log`
-files by clicking them in the file manager.
+is not by default.
+
+On macOS, the app declares the file types it opens: `.log`, the Android Logcat traces (`.adb0` to `.adb9`
+are the type *Android Logcat trace*; macOS keeps calling `.adb` Ada source), `.out`/`.err`, `.trace`,
+`.txt` and every other plain text file, and the compressed `.gz` and `.zip`. Finder offers *logsquirl*
+under *Open with* for all of them, and installing it makes it the default for none. To open a type with
+*logsquirl* by double-click, choose *Get Info*, *Open with*, *logsquirl* and *Change All...*: its files
+then show the *logsquirl* document icon, a sheet with the squirrel. Logcat traces show it anyway.
 
 On Linux, the DEB and RPM packages make Android Logcat traces (`.adb` and `.adb0` to `.adb9`) a file
 type of their own, *Android Logcat trace* (`application/x-logcat`), and `.out`/`.err` (*Program output*)
