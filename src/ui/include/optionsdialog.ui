@@ -787,6 +787,98 @@
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="fileAssociationsTab">
+      <attribute name="title">
+       <string>File Associations</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="fileAssociationsLayout">
+       <item>
+        <widget class="QLabel" name="fileAssociationsIntroLabel">
+         <property name="text">
+          <string>Choose the file types LogSquirl opens when you double-click them.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QWidget" name="fileAssociationsUnavailable" native="true">
+         <layout class="QHBoxLayout" name="fileAssociationsUnavailableLayout">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item alignment="Qt::AlignTop">
+           <widget class="QLabel" name="fileAssociationsUnavailableIconLabel"/>
+          </item>
+          <item>
+           <widget class="QLabel" name="fileAssociationsUnavailableLabel">
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+              <horstretch>1</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTreeWidget" name="fileAssociationsTree">
+         <property name="rootIsDecorated">
+          <bool>false</bool>
+         </property>
+         <property name="itemsExpandable">
+          <bool>false</bool>
+         </property>
+         <property name="uniformRowHeights">
+          <bool>true</bool>
+         </property>
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
+         </property>
+         <property name="selectionMode">
+          <enum>QAbstractItemView::NoSelection</enum>
+         </property>
+         <column>
+          <property name="text">
+           <string>File type</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Description</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>State</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="fileAssociationsNoteLabel">
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
      <widget class="QWidget" name="shortcutsTab">
       <attribute name="title">
        <string>Shortcuts</string>

@@ -49,6 +49,7 @@
 #include <QStyledItemDelegate>
 
 #include "configuration.h"
+#include "fileassociations.h"
 #include "teamfolder.h"
 
 #include "ui_optionsdialog.h"
@@ -102,6 +103,11 @@ public:
     // Without a call the dialog only edits the Team Folder settings.
     void showTeamFolder( TeamFolder& teamFolder );
 
+    // Shows the File Associations page with the states of these file
+    // associations, and applies the page's choice with them on Apply or OK.
+    // Without a call the dialog has no such page.
+    void showFileAssociations( FileAssociations& fileAssociations );
+
 Q_SIGNALS:
     // Is emitted when new settings must be used
     void optionsChanged();
@@ -137,6 +143,9 @@ private:
     void setupEncodings();
     void setupLanguageList();
     void setupLogFormats( const LogFormatCatalog& logFormatCatalog );
+    void setupFileAssociations();
+    void updateFileAssociations();
+    void applyFileAssociations();
 
     int updateTranslate();
 
@@ -154,6 +163,11 @@ private:
     QColor qfSearchColor_;
 
     QPointer<TeamFolder> teamFolder_;
+
+    QPointer<FileAssociations> fileAssociations_;
+    // The states the page shows, as last read: a check that differs from
+    // its state is what Apply changes.
+    FileAssociationStates fileAssociationStates_;
 };
 
 #endif

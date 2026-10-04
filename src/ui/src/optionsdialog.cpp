@@ -46,6 +46,7 @@
 #include <QtGui>
 
 #include "encodings.h"
+#include "filetypes.h"
 #include "fontutils.h"
 #include "highlighteredit.h"
 #include "installoptout.h"
@@ -132,6 +133,7 @@ OptionsDialog::OptionsDialog( const LogFormatCatalog& logFormatCatalog, QWidget*
     setupTeamFolderStatus();
     setupTeamFolder();
     setupLogFormats( logFormatCatalog );
+    setupFileAssociations();
 }
 
 //
@@ -380,6 +382,164 @@ void OptionsDialog::setupLogFormats( const LogFormatCatalog& logFormatCatalog )
         QDir().mkpath( formatsDir );
         QDesktopServices::openUrl( QUrl::fromLocalFile( formatsDir ) );
     } );
+}
+
+// The File Associations page lists the file types the user chooses from,
+// grouped as the list groups them (#720). It stays hidden until it is given
+// the file associations to show.
+void OptionsDialog::setupFileAssociations()
+{
+    tabWidget->setTabVisible( tabWidget->indexOf( fileAssociationsTab ), false );
+    fileAssociationsUnavailable->setVisible( false );
+    fileAssociationsNoteLabel->setVisible( false );
+
+    auto* tree = fileAssociationsTree;
+    tree->clear();
+    for ( const auto group : { FileType::Group::Logs, FileType::Group::Optional } ) {
+        auto* groupItem = new QTreeWidgetItem( tree );
+        groupItem->setText( 0, FileTypes::groupTitle( group ) );
+        groupItem->setFlags( Qt::ItemIsEnabled );
+        groupItem->setFirstColumnSpanned( true );
+        auto groupFont = groupItem->font( 0 );
+        groupFont.setBold( true );
+        groupItem->setFont( 0, groupFont );
+
+        for ( const auto& type : FileTypes::choices() ) {
+            if ( type.group != group ) {
+                continue;
+            }
+            auto* row = new QTreeWidgetItem( groupItem );
+            row->setFlags( Qt::ItemIsEnabled | Qt::ItemIsUserCheckable );
+            row->setData( 0, Qt::UserRole, type.id );
+            row->setCheckState( 0, Qt::Unchecked );
+            row->setText( 0, type.shownAs );
+            row->setText( 1, FileTypes::label( type ) );
+        }
+    }
+    tree->expandAll();
+    tree->resizeColumnToContents( 0 );
+    tree->resizeColumnToContents( 1 );
+}
+
+void OptionsDialog::showFileAssociations( FileAssociations& fileAssociations )
+{
+    fileAssociations_ = &fileAssociations;
+    tabWidget->setTabVisible( tabWidget->indexOf( fileAssociationsTab ), true );
+
+    const auto available = fileAssociations.isAvailable();
+    fileAssociationsTree->setEnabled( available );
+    fileAssociationsUnavailable->setVisible( !available );
+    if ( !available ) {
+        const auto iconSize = style()->pixelMetric( QStyle::PM_SmallIconSize, nullptr, this );
+        fileAssociationsUnavailableIconLabel->setPixmap(
+            style()
+                ->standardIcon( QStyle::SP_MessageBoxInformation, nullptr, this )
+                .pixmap( QSize( iconSize, iconSize ), devicePixelRatioF() ) );
+        fileAssociationsUnavailableLabel->setText( fileAssociations.unavailableReason() );
+    }
+
+    const auto note = available ? fileAssociations.applyNote() : QString{};
+    fileAssociationsNoteLabel->setText( note );
+    fileAssociationsNoteLabel->setVisible( !note.isEmpty() );
+
+    // A platform where the user confirms outside LogSquirl tells the outcome
+    // later; the page then shows it, and the checks follow.
+    connect( &fileAssociations, &FileAssociations::statesChanged, this,
+             &OptionsDialog::updateFileAssociations );
+    updateFileAssociations();
+}
+
+namespace {
+
+QStyle::StandardPixmap fileAssociationIcon( FileAssociationState state )
+{
+    switch ( state ) {
+    case FileAssociationState::Default:
+        return QStyle::SP_DialogApplyButton;
+    case FileAssociationState::Registered:
+        return QStyle::SP_MessageBoxInformation;
+    case FileAssociationState::NotRegistered:
+        return QStyle::SP_DialogNoButton;
+    }
+    return QStyle::SP_MessageBoxInformation;
+}
+
+} // namespace
+
+// Reads the states again and shows them; every check becomes what its state
+// is.
+void OptionsDialog::updateFileAssociations()
+{
+    if ( !fileAssociations_ || !fileAssociations_->isAvailable() ) {
+        fileAssociationStates_.clear();
+        return;
+    }
+    fileAssociationStates_ = fileAssociations_->states();
+
+    auto* tree = fileAssociationsTree;
+    for ( int group = 0; group < tree->topLevelItemCount(); ++group ) {
+        auto* groupItem = tree->topLevelItem( group );
+        for ( int index = 0; index < groupItem->childCount(); ++index ) {
+            auto* row = groupItem->child( index );
+            const auto it = fileAssociationStates_.find( row->data( 0, Qt::UserRole ).toString() );
+            if ( it == fileAssociationStates_.end() ) {
+                continue;
+            }
+            const auto state = it->second;
+            row->setCheckState( 0, state == FileAssociationState::Default ? Qt::Checked
+                                                                          : Qt::Unchecked );
+            row->setIcon( 2, style()->standardIcon( fileAssociationIcon( state ), nullptr, this ) );
+            switch ( state ) {
+            case FileAssociationState::Default:
+                row->setText( 2, tr( "Default" ) );
+                row->setToolTip( 2, tr( "LogSquirl opens these files." ) );
+                break;
+            case FileAssociationState::Registered:
+                row->setText( 2, tr( "Registered" ) );
+                row->setToolTip(
+                    2, tr( "LogSquirl is offered for these files, but another application opens "
+                           "them." ) );
+                break;
+            case FileAssociationState::NotRegistered:
+                row->setText( 2, tr( "Not registered" ) );
+                row->setToolTip( 2, tr( "LogSquirl is not offered for these files." ) );
+                break;
+            }
+        }
+    }
+    tree->resizeColumnToContents( 2 );
+}
+
+// Makes LogSquirl the default for each checked type it is not the default for
+// yet, and gives back each unchecked one it is the default for.
+void OptionsDialog::applyFileAssociations()
+{
+    if ( !fileAssociations_ || !fileAssociations_->isAvailable() ) {
+        return;
+    }
+
+    QStringList checkedIds;
+    auto* tree = fileAssociationsTree;
+    for ( int group = 0; group < tree->topLevelItemCount(); ++group ) {
+        const auto* groupItem = tree->topLevelItem( group );
+        for ( int index = 0; index < groupItem->childCount(); ++index ) {
+            const auto* row = groupItem->child( index );
+            if ( row->checkState( 0 ) == Qt::Checked ) {
+                checkedIds << row->data( 0, Qt::UserRole ).toString();
+            }
+        }
+    }
+
+    const auto plan = FileAssociationPlan::of( fileAssociationStates_, checkedIds );
+    if ( plan.isEmpty() ) {
+        return;
+    }
+    const auto result = fileAssociations_->apply( plan.makeDefault, plan.release );
+    // What the system says now, not what was asked for.
+    updateFileAssociations();
+    if ( !result.succeeded() ) {
+        QMessageBox::warning( this, tr( "File Associations" ), result.error );
+    }
 }
 
 // Convert a regexp type to its index in the list
@@ -827,6 +987,7 @@ void OptionsDialog::onButtonBoxClicked( QAbstractButton* button )
     QDialogButtonBox::ButtonRole role = buttonBox->buttonRole( button );
     if ( ( role == QDialogButtonBox::AcceptRole ) || ( role == QDialogButtonBox::ApplyRole ) ) {
         updateConfigFromDialog();
+        applyFileAssociations();
     }
 
     if ( role == QDialogButtonBox::AcceptRole )

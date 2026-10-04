@@ -155,6 +155,19 @@
   *Status* group, the explanatory note is at the bottom of the tab, smaller
   and subdued, and the check box names Filter Groups, Highlighter Sets and
   Naming Groups. (#711)
+- **The Options Dialog has a File Associations page, working on Linux**: it
+  lists the file types LogSquirl opens, *Log files* (`.log`, Android Logcat
+  traces `.adb` and `.adb0` to `.adb9`) and *More (optional)* (`.out`/`.err`,
+  `.trace`, `.txt`), each checked where LogSquirl is its default and with its
+  state: *Default*, *Registered* (offered, but another application opens it)
+  or *Not registered*. *Apply* makes LogSquirl the default for the checked
+  types with `xdg-mime default` and gives the unchecked ones back by removing
+  only LogSquirl's entry from the user's `mimeapps.list`. An AppImage run, or
+  one without LogSquirl's desktop entry or `xdg-mime`, shows the page
+  disabled and says why; macOS and Windows follow. The application reads the
+  same list of types as the packages, generated from `cmake/FileTypes.cmake`,
+  and each platform implements one interface that tells a type's state and
+  applies a choice, with a test implementation for the page's tests. (#720)
 
 ## Bug fixes
 

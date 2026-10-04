@@ -225,6 +225,7 @@ target_link_libraries(
          logsquirl_compression
          logsquirl_crash_handler
          logsquirl_valuenames
+         logsquirl_fileassociations
          Qt6::Widgets
          Qt6::Xml
          Qt6::Concurrent

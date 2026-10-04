@@ -32,6 +32,7 @@
 
 #include "configuration.h"
 #include "configurationfixture.h"
+#include "fake_file_associations.h"
 #include "logformatcatalog.h"
 #include "optionsdialog.h"
 #include "recentfiles.h"
@@ -409,5 +410,228 @@ TEST_CASE( "The Team Folder tab shows the failed step and Git's output in collap
         CHECK_FALSE( details->isVisibleTo( dialog.teamFolderTab ) );
         CHECK( dialog.teamFolderRemarksLabel->isVisibleTo( dialog.teamFolderTab ) );
         CHECK( dialog.teamFolderRemarksLabel->text().startsWith( "Skipped broken_filter.conf: " ) );
+    }
+}
+
+namespace {
+
+// The row of a file type on the File Associations page.
+QTreeWidgetItem* fileTypeRow( const OptionsDialog& dialog, const QString& id )
+{
+    auto* tree = dialog.fileAssociationsTree;
+    for ( int group = 0; group < tree->topLevelItemCount(); ++group ) {
+        auto* groupItem = tree->topLevelItem( group );
+        for ( int row = 0; row < groupItem->childCount(); ++row ) {
+            if ( groupItem->child( row )->data( 0, Qt::UserRole ).toString() == id ) {
+                return groupItem->child( row );
+            }
+        }
+    }
+    return nullptr;
+}
+
+bool isFileAssociationsTabVisible( const OptionsDialog& dialog )
+{
+    return dialog.tabWidget->isTabVisible(
+        dialog.tabWidget->indexOf( dialog.fileAssociationsTab ) );
+}
+
+constexpr int StateColumn = 2;
+
+} // namespace
+
+TEST_CASE( "The File Associations page lists the file types grouped, each with its state",
+           "[optionsdialog][fileassociations]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+    OptionsDialog dialog( catalog );
+
+    // Without file associations to show, there is no page.
+    CHECK_FALSE( isFileAssociationsTabVisible( dialog ) );
+
+    FakeFileAssociations associations;
+    associations.current = {
+        { "log", FileAssociationState::Default },
+        { "logcat", FileAssociationState::Registered },
+    };
+    dialog.showFileAssociations( associations );
+
+    CHECK( isFileAssociationsTabVisible( dialog ) );
+    CHECK( dialog.tabWidget->tabText( dialog.tabWidget->indexOf( dialog.fileAssociationsTab ) )
+           == "File Associations" );
+    CHECK( dialog.fileAssociationsTree->isEnabled() );
+    CHECK_FALSE( dialog.fileAssociationsUnavailable->isVisibleTo( dialog.fileAssociationsTab ) );
+    CHECK_FALSE( dialog.fileAssociationsNoteLabel->isVisibleTo( dialog.fileAssociationsTab ) );
+
+    auto* tree = dialog.fileAssociationsTree;
+    REQUIRE( tree->topLevelItemCount() == 2 );
+    const auto* logs = tree->topLevelItem( 0 );
+    const auto* optional = tree->topLevelItem( 1 );
+    CHECK( logs->text( 0 ) == "Log files" );
+    CHECK( optional->text( 0 ) == "More (optional)" );
+    REQUIRE( logs->childCount() == 2 );
+    REQUIRE( optional->childCount() == 3 );
+    CHECK( logs->child( 1 )->text( 0 ) == ".adb, .adb0-.adb9" );
+    CHECK( logs->child( 1 )->text( 1 ) == "Android Logcat traces" );
+    CHECK( optional->child( 0 )->text( 0 ) == ".out, .err" );
+    CHECK( optional->child( 2 )->text( 1 ) == "Text files" );
+    CHECK_FALSE( logs->flags().testFlag( Qt::ItemIsUserCheckable ) );
+
+    // Checked where LogSquirl is the default.
+    CHECK( fileTypeRow( dialog, "log" )->checkState( 0 ) == Qt::Checked );
+    CHECK( fileTypeRow( dialog, "logcat" )->checkState( 0 ) == Qt::Unchecked );
+    CHECK( fileTypeRow( dialog, "trace" )->checkState( 0 ) == Qt::Unchecked );
+
+    CHECK( fileTypeRow( dialog, "log" )->text( StateColumn ) == "Default" );
+    CHECK( fileTypeRow( dialog, "logcat" )->text( StateColumn ) == "Registered" );
+    CHECK( fileTypeRow( dialog, "trace" )->text( StateColumn ) == "Not registered" );
+    for ( const auto* id : { "log", "logcat", "trace" } ) {
+        INFO( id );
+        CHECK_FALSE( fileTypeRow( dialog, id )->icon( StateColumn ).isNull() );
+        CHECK_FALSE( fileTypeRow( dialog, id )->toolTip( StateColumn ).isEmpty() );
+    }
+}
+
+TEST_CASE( "Applying the File Associations page makes the checked types LogSquirl's and gives "
+           "the unchecked back",
+           "[optionsdialog][fileassociations]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+
+    FakeFileAssociations associations;
+    associations.current = {
+        { "log", FileAssociationState::Default },
+        { "logcat", FileAssociationState::Registered },
+        { "text", FileAssociationState::Registered },
+    };
+
+    {
+        OptionsDialog dialog( catalog );
+        dialog.showFileAssociations( associations );
+
+        SECTION( "an unchanged page applies nothing" )
+        {
+            dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+            CHECK( associations.applied.empty() );
+        }
+
+        SECTION( "a changed page applies exactly the changes" )
+        {
+            fileTypeRow( dialog, "logcat" )->setCheckState( 0, Qt::Checked );
+            fileTypeRow( dialog, "log" )->setCheckState( 0, Qt::Unchecked );
+            dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+
+            REQUIRE( associations.applied.size() == 1 );
+            CHECK( associations.applied[ 0 ].first == QStringList{ "logcat" } );
+            CHECK( associations.applied[ 0 ].second == QStringList{ "log" } );
+
+            // The states after Apply, as the system tells them.
+            CHECK( fileTypeRow( dialog, "logcat" )->text( StateColumn ) == "Default" );
+            CHECK( fileTypeRow( dialog, "log" )->text( StateColumn ) == "Registered" );
+            CHECK( fileTypeRow( dialog, "text" )->text( StateColumn ) == "Registered" );
+
+            // Applying again changes nothing more.
+            dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+            CHECK( associations.applied.size() == 1 );
+
+            // Reopened, the page shows the same.
+            OptionsDialog reopened( catalog );
+            reopened.showFileAssociations( associations );
+            CHECK( fileTypeRow( reopened, "logcat" )->checkState( 0 ) == Qt::Checked );
+            CHECK( fileTypeRow( reopened, "log" )->checkState( 0 ) == Qt::Unchecked );
+            CHECK( fileTypeRow( reopened, "logcat" )->text( StateColumn ) == "Default" );
+        }
+
+        SECTION( "OK applies them too" )
+        {
+            fileTypeRow( dialog, "trace" )->setCheckState( 0, Qt::Checked );
+            dialog.buttonBox->button( QDialogButtonBox::Ok )->click();
+            REQUIRE( associations.applied.size() == 1 );
+            CHECK( associations.applied[ 0 ].first == QStringList{ "trace" } );
+        }
+
+        SECTION( "Cancel applies nothing" )
+        {
+            fileTypeRow( dialog, "trace" )->setCheckState( 0, Qt::Checked );
+            dialog.buttonBox->button( QDialogButtonBox::Cancel )->click();
+            CHECK( associations.applied.empty() );
+        }
+
+        SECTION( "a type that could not be changed is reported and shown as it is" )
+        {
+            associations.failing = { "trace" };
+            fileTypeRow( dialog, "trace" )->setCheckState( 0, Qt::Checked );
+            fileTypeRow( dialog, "output" )->setCheckState( 0, Qt::Checked );
+
+            QString reported;
+            QTimer messageBoxCloser;
+            QObject::connect( &messageBoxCloser, &QTimer::timeout, [ &reported ] {
+                if ( auto* box = qobject_cast<QMessageBox*>( QApplication::activeModalWidget() ) ) {
+                    reported = box->text();
+                    box->accept();
+                }
+            } );
+            messageBoxCloser.start( 10 );
+            dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+            messageBoxCloser.stop();
+
+            CHECK( reported.contains( associations.failure ) );
+            CHECK( fileTypeRow( dialog, "output" )->text( StateColumn ) == "Default" );
+            CHECK( fileTypeRow( dialog, "trace" )->text( StateColumn ) == "Not registered" );
+            CHECK( fileTypeRow( dialog, "trace" )->checkState( 0 ) == Qt::Unchecked );
+        }
+
+        SECTION( "a change outside the page shows at once" )
+        {
+            associations.change( "text", FileAssociationState::Default );
+            CHECK( fileTypeRow( dialog, "text" )->text( StateColumn ) == "Default" );
+            CHECK( fileTypeRow( dialog, "text" )->checkState( 0 ) == Qt::Checked );
+        }
+    }
+}
+
+TEST_CASE( "The File Associations page says what applying leads to, and why it is disabled",
+           "[optionsdialog][fileassociations]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+    OptionsDialog dialog( catalog );
+    FakeFileAssociations associations;
+
+    SECTION( "a platform where the user confirms elsewhere" )
+    {
+        associations.note = "Windows asks you to confirm.";
+        dialog.showFileAssociations( associations );
+        CHECK( dialog.fileAssociationsNoteLabel->isVisibleTo( dialog.fileAssociationsTab ) );
+        CHECK( dialog.fileAssociationsNoteLabel->text() == "Windows asks you to confirm." );
+    }
+
+    SECTION( "a run that cannot associate, such as an AppImage" )
+    {
+        associations.available = false;
+        associations.reason = "An AppImage cannot register the file types it opens.";
+        associations.current = { { "log", FileAssociationState::Default } };
+        dialog.showFileAssociations( associations );
+
+        CHECK( isFileAssociationsTabVisible( dialog ) );
+        CHECK_FALSE( dialog.fileAssociationsTree->isEnabled() );
+        CHECK( dialog.fileAssociationsUnavailable->isVisibleTo( dialog.fileAssociationsTab ) );
+        CHECK( dialog.fileAssociationsUnavailableLabel->text() == associations.reason );
+        CHECK_FALSE( dialog.fileAssociationsUnavailableIconLabel->pixmap().isNull() );
+        // Nothing is read from the system, nothing applied.
+        CHECK( fileTypeRow( dialog, "log" )->text( StateColumn ).isEmpty() );
+        dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+        CHECK( associations.applied.empty() );
     }
 }

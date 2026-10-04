@@ -1535,6 +1535,29 @@ can't be checked. In some development environments self-signed
 certificates are used. In this case, *logsquirl* can be instructed to ignore
 SSL errors.
 
+### File Associations
+
+The *File Associations* page chooses the file types LogSquirl opens when you
+double-click a file of them. It lists them in two groups: *Log files* (`.log`;
+Android Logcat traces `.adb` and `.adb0` to `.adb9`) and *More (optional)*
+(`.out` and `.err`, `.trace`, `.txt`). Each type shows where it stands:
+
+- *Default*: LogSquirl opens it.
+- *Registered*: LogSquirl is offered under *Open with*, but another
+  application opens it.
+- *Not registered*: LogSquirl is not offered for it.
+
+A type is checked where LogSquirl is its default. *Apply* or *OK* makes
+LogSquirl the default for every checked type and gives back every type you
+unchecked. Giving a type back only removes what LogSquirl set; it does not
+choose another application, so the desktop's own choice opens it again.
+
+On Linux, the deb and rpm packages offer LogSquirl for these types, and the
+page makes it the default with `xdg-mime default`, for your user only. An
+AppImage cannot register file types, so there the page is disabled and says
+why; so it is when LogSquirl's desktop entry or `xdg-mime` (from
+`xdg-utils`) is missing. On macOS and Windows the page is not available yet.
+
 ### Advanced options
 
 These options refer to the customization of performance related settings.

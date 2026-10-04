@@ -104,6 +104,7 @@
 #include "downloader.h"
 #include "encodings.h"
 #include "favoritefiles.h"
+#include "fileassociations.h"
 #include "highlightersdialog.h"
 #include "highlightersmenu.h"
 #include "indexcache.h"
@@ -2001,10 +2002,13 @@ void MainWindow::applyValueNamesChange()
 void MainWindow::options()
 {
     const auto logFormatCatalog = session_.logFormatCatalog();
+    // The file types LogSquirl opens, as this platform tells them (#720).
+    const auto fileAssociations = createFileAssociations();
     OptionsDialog dialog( *logFormatCatalog, this );
     if ( const auto teamFolder = session_.teamFolder() ) {
         dialog.showTeamFolder( *teamFolder );
     }
+    dialog.showFileAssociations( *fileAssociations );
 
     // The dialog only says that the settings changed; the Session takes it
     // from there, to every open Log File and every window, this one included.

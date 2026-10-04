@@ -310,6 +310,43 @@ function(logsquirl_file_types_nsis out_var)
   )
 endfunction()
 
+# --- the application ---------------------------------------------------------
+
+# The list as the application reads it (src/fileassociations, #720): one
+# LOGSQUIRL_FILE_TYPE(...) line per type, the types the user chooses first, in
+# the order above, then the ones only offered under "Open with".
+function(logsquirl_file_types_cpp out_var)
+  set(_cpp "// Generated from cmake/FileTypes.cmake: the file types LogSquirl opens (#720).\n")
+  string(APPEND _cpp "// LOGSQUIRL_FILE_TYPE( id, group, checked, label, shownAs, name, extensions,\n")
+  string(APPEND _cpp "//                      mimeType, uti, progId )\n")
+  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPES LOGSQUIRL_OPEN_WITH_TYPES)
+    if(LOGSQUIRL_FILE_TYPE_${_id}_OPEN_WITH_ONLY)
+      set(_group OpenWith)
+    elseif(LOGSQUIRL_FILE_TYPE_${_id}_GROUP STREQUAL "logs")
+      set(_group Logs)
+    elseif(LOGSQUIRL_FILE_TYPE_${_id}_GROUP STREQUAL "optional")
+      set(_group Optional)
+    else()
+      message(FATAL_ERROR "The file type ${_id} has GROUP '${LOGSQUIRL_FILE_TYPE_${_id}_GROUP}', not logs or optional")
+    endif()
+    if(LOGSQUIRL_FILE_TYPE_${_id}_CHECKED)
+      set(_checked true)
+    else()
+      set(_checked false)
+    endif()
+    list(JOIN LOGSQUIRL_FILE_TYPE_${_id}_EXTENSIONS " " _extensions)
+    string(APPEND _cpp "LOGSQUIRL_FILE_TYPE( \"${_id}\", ${_group}, ${_checked}, ")
+    string(APPEND _cpp "\"${LOGSQUIRL_FILE_TYPE_${_id}_LABEL}\", \"${LOGSQUIRL_FILE_TYPE_${_id}_SHOWN_AS}\", ")
+    string(APPEND _cpp "\"${LOGSQUIRL_FILE_TYPE_${_id}_NAME}\", \"${_extensions}\", ")
+    string(APPEND _cpp "\"${LOGSQUIRL_FILE_TYPE_${_id}_MIME}\", \"${LOGSQUIRL_FILE_TYPE_${_id}_UTI}\", ")
+    string(APPEND _cpp "\"${LOGSQUIRL_FILE_TYPE_${_id}_PROGID}\" )\n")
+  endforeach()
+  set(${out_var}
+      "${_cpp}"
+      PARENT_SCOPE
+  )
+endfunction()
+
 # --- the generated files ----------------------------------------------------
 
 # Writes <content> to <file> only when it changed, so nothing that depends on
@@ -329,6 +366,7 @@ endfunction()
 #                       the installer's file types (Windows), which
 #                       packaging/windows/prepare_release.cmd copies beside
 #                       logsquirl.nsi
+#   file_types.inc      the list the application reads (#720)
 # The desktop entry lists the file types only with FILE_TYPES (the default);
 # the AppImage, which has no install step to register types, is built without.
 function(logsquirl_generate_file_types dir)
@@ -343,6 +381,9 @@ function(logsquirl_generate_file_types dir)
 
   logsquirl_file_types_nsis(_nsh)
   logsquirl_write_if_changed("${dir}/logsquirl_file_types.nsh" "${_nsh}")
+
+  logsquirl_file_types_cpp(_cpp)
+  logsquirl_write_if_changed("${dir}/file_types.inc" "${_cpp}")
 
   if(GEN_FILE_TYPES)
     logsquirl_file_types_desktop_mime_types(LOGSQUIRL_DESKTOP_MIME_TYPES)
