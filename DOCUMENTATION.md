@@ -338,7 +338,9 @@ show it anyway.
 
 On Linux, the DEB and RPM packages make Android Logcat traces (`.adb` and `.adb0` to `.adb9`) a file
 type of their own, *Android Logcat trace* (`application/x-logcat`), and `.out`/`.err` (*Program output*)
-and `.trace` (*Trace file*) as well. `.log` files, the Logcat traces and these optional types show the
+and `.trace` (*Trace file*) as well. The Logcat type wins over Ada source, which claims `.adb` too, so
+with the package installed every `.adb` file is a Logcat trace for the whole system, Ada source files
+included. `.log` files, the Logcat traces and these optional types show the
 *logsquirl* document icon, a sheet with the squirrel, and the file manager offers *logsquirl* under
 *Open with* for them, for `.txt` and for the compressed `.gz` and `.zip` files it opens. The packages do
 not make *logsquirl* the default application for any of them. The AppImage registers no file types.

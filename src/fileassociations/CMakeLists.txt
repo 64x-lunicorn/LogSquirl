@@ -22,7 +22,8 @@ set_target_properties(logsquirl_fileassociations PROPERTIES AUTOMOC ON)
 target_include_directories(logsquirl_fileassociations PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 # The list as cmake/FileTypes.cmake generates it.
 target_include_directories(logsquirl_fileassociations PRIVATE "${LOGSQUIRL_FILE_TYPES_DIR}")
-# A build without the file types, the AppImage, registers none (#717).
+# A build without the file types, the AppImage, registers none on Linux, the
+# only platform that reads this (#717).
 if(LOGSQUIRL_FILE_TYPES)
   target_compile_definitions(logsquirl_fileassociations PRIVATE LOGSQUIRL_REGISTERS_FILE_TYPES=1)
 else()

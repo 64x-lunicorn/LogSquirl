@@ -76,8 +76,9 @@ third-party libraries; turn it off with `-DLOGSQUIRL_USE_LTO=OFF`, which makes l
 
 The file types LogSquirl opens are declared once, in `cmake/FileTypes.cmake`, and each platform's packaging is
 generated from that list. On Linux, `make install` and the deb and rpm install them: a shared-mime-info package, the
-document icon in the hicolor theme and the desktop entry's `MimeType`. `-DLOGSQUIRL_FILE_TYPES=OFF` leaves them out,
-which is how the AppImage is built: it has no install step that could register them.
+document icon in the hicolor theme and the desktop entry's `MimeType`. `-DLOGSQUIRL_FILE_TYPES=OFF` leaves them out
+and builds an application that registers none on Linux, so its *File Associations* page is disabled there; that is
+how the AppImage is built: it has no install step that could register them.
 
 LogSquirl links [mimalloc](https://github.com/microsoft/mimalloc) on every platform. By default only LogSquirl's own
 containers, roaring and Vectorscan allocate through it; Qt and the standard containers use the system allocator.

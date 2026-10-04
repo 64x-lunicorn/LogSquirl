@@ -168,9 +168,14 @@ include(FindPkgConfig)
 include(GNUInstallDirs)
 
 # The file types LogSquirl opens, and the packaging every platform generates
-# from them (#717, #718, #719). The AppImage has no install step to register
-# types, so it is built with LOGSQUIRL_FILE_TYPES=OFF and ships none of this.
-option(LOGSQUIRL_FILE_TYPES "Install the file types LogSquirl opens with the Linux packages" ON)
+# from them (#717, #718, #719). Off, the Linux packages install none of them,
+# and the application on Linux registers none either, so its File
+# Associations page is disabled there (#720); macOS and Windows declare and
+# register their types whatever it says. The AppImage has no install step to
+# register types, so it is built with LOGSQUIRL_FILE_TYPES=OFF.
+option(LOGSQUIRL_FILE_TYPES
+       "Register the file types LogSquirl opens on Linux: in the packages and from the application" ON
+)
 include(FileTypes)
 set(LOGSQUIRL_FILE_TYPES_DIR "${CMAKE_BINARY_DIR}/generated/file_types")
 logsquirl_generate_file_types(

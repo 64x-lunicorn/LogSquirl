@@ -388,8 +388,7 @@
 - **On Linux, Logcat traces and logs are file types with the LogSquirl
   document icon**: the deb and rpm install a shared-mime-info package that
   declares the Android Logcat trace (`application/x-logcat`, `.adb` and
-  `.adb0` to `.adb9`, ahead of the Ada source type that also claims `.adb`)
-  and the optional types `.out`/`.err` and `.trace`, and gives them and
+  `.adb0` to `.adb9`) and the optional types `.out`/`.err` and `.trace`, and gives them and
   `text/x-log` the document icon, which goes into the hicolor theme. The
   desktop entry lists these types, `.txt` and the compressed `.gz` and `.zip`,
   so the file manager offers LogSquirl under *Open with* without making it the
@@ -397,7 +396,10 @@
   after an install and an uninstall, and the package check covers the new
   files. The file types are declared once, in `cmake/FileTypes.cmake`, for
   every platform's packaging; the AppImage, built with
-  `-DLOGSQUIRL_FILE_TYPES=OFF`, registers none. (#717)
+  `-DLOGSQUIRL_FILE_TYPES=OFF`, registers none. The Logcat globs weigh more
+  than the Ada source type's, which also claims `*.adb`, so once the package
+  is installed every `.adb` file on the machine is a Logcat trace, Ada source
+  included. (#717)
 - **Release builds can use profile-guided optimization, and BOLT on Linux,
   per platform once the numbers show a gain**: `-DLOGSQUIRL_PGO=GENERATE`
   builds instrumented binaries, which the benchmark mode's scenarios train,
