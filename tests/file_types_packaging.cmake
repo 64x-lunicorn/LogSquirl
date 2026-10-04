@@ -340,6 +340,10 @@ expect_contains("${_nsi}" "!include \"logsquirl_file_types.nsh\"" "the installer
 expect_contains("${_nsi}" "!insertmacro LogSquirlFileTypeSections" "the installer script")
 expect_contains("${_nsi}" "!insertmacro LogSquirlUnregisterFileTypes" "the installer script")
 expect_not_contains("${_nsi}" "Associate with .log files" "the installer script still has the single .log box")
+# Open with LogSquirl for every file (#724), added by a section, removed on
+# uninstall.
+expect_contains("${_nsi}" "!insertmacro LogSquirlAddContextMenu" "the installer adds the context menu entry")
+expect_contains("${_nsi}" "!insertmacro LogSquirlRemoveContextMenu" "the uninstaller removes the context menu entry")
 file(READ "${PROJECT_DIR}/packaging/windows/prepare_release.cmd" _prepare)
 expect_contains("${_prepare}" "logsquirl_file_types.nsh" "prepare_release.cmd copies the generated file types")
 expect_contains("${_prepare}" "FileTypes.nsh" "prepare_release.cmd copies the file type macros")
@@ -362,11 +366,15 @@ if(MAKENSIS)
        "  WriteUninstaller \"$INSTDIR\\Uninstall.exe\"\n"
        "SectionEnd\n"
        "!insertmacro LogSquirlFileTypeSections\n"
+       "Section \"Open with LogSquirl\" contextmenu\n"
+       "  !insertmacro LogSquirlAddContextMenu\n"
+       "SectionEnd\n"
        "Section \"-after\"\n"
        "  !insertmacro LogSquirlFileTypesChanged\n"
        "SectionEnd\n"
        "Section \"Uninstall\"\n"
        "  !insertmacro LogSquirlUnregisterFileTypes\n"
+       "  !insertmacro LogSquirlRemoveContextMenu\n"
        "SectionEnd\n"
   )
   execute_process(

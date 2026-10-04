@@ -392,6 +392,7 @@ void OptionsDialog::setupFileAssociations()
     tabWidget->setTabVisible( tabWidget->indexOf( fileAssociationsTab ), false );
     fileAssociationsUnavailable->setVisible( false );
     fileAssociationsNoteLabel->setVisible( false );
+    fileAssociationsContextMenuCheckBox->setVisible( false );
 
     auto* tree = fileAssociationsTree;
     tree->clear();
@@ -438,6 +439,10 @@ void OptionsDialog::showFileAssociations( FileAssociations& fileAssociations )
         fileAssociationsUnavailableLabel->setText( fileAssociations.unavailableReason() );
     }
 
+    // Explorer's entry for every file, on Windows (#724).
+    fileAssociationsContextMenuCheckBox->setVisible( available
+                                                     && fileAssociations.offersContextMenuEntry() );
+
     const auto note = available ? fileAssociations.applyNote() : QString{};
     fileAssociationsNoteLabel->setText( note );
     fileAssociationsNoteLabel->setVisible( !note.isEmpty() );
@@ -475,6 +480,7 @@ void OptionsDialog::updateFileAssociations()
         return;
     }
     fileAssociationStates_ = fileAssociations_->states();
+    fileAssociationsContextMenuCheckBox->setChecked( fileAssociations_->hasContextMenuEntry() );
 
     auto* tree = fileAssociationsTree;
     for ( int group = 0; group < tree->topLevelItemCount(); ++group ) {
@@ -530,15 +536,31 @@ void OptionsDialog::applyFileAssociations()
         }
     }
 
+    QStringList errors;
     const auto plan = FileAssociationPlan::of( fileAssociationStates_, checkedIds );
-    if ( plan.isEmpty() ) {
+    const auto entryChanged = fileAssociations_->offersContextMenuEntry()
+                              && fileAssociationsContextMenuCheckBox->isChecked()
+                                     != fileAssociations_->hasContextMenuEntry();
+    if ( plan.isEmpty() && !entryChanged ) {
         return;
     }
-    const auto result = fileAssociations_->apply( plan.makeDefault, plan.release );
+    if ( entryChanged ) {
+        const auto result = fileAssociations_->setContextMenuEntry(
+            fileAssociationsContextMenuCheckBox->isChecked() );
+        if ( !result.succeeded() ) {
+            errors << result.error;
+        }
+    }
+    if ( !plan.isEmpty() ) {
+        const auto result = fileAssociations_->apply( plan.makeDefault, plan.release );
+        if ( !result.succeeded() ) {
+            errors << result.error;
+        }
+    }
     // What the system says now, not what was asked for.
     updateFileAssociations();
-    if ( !result.succeeded() ) {
-        QMessageBox::warning( this, tr( "File Associations" ), result.error );
+    if ( !errors.isEmpty() ) {
+        QMessageBox::warning( this, tr( "File Associations" ), errors.join( QLatin1Char( '\n' ) ) );
     }
 }
 

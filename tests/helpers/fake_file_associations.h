@@ -42,6 +42,12 @@ public:
     QString failure = QStringLiteral( "The system refused." );
     // Each call of apply(): the ids to make default, the ids to give back.
     std::vector<std::pair<QStringList, QStringList>> applied;
+    // The entry "Open with LogSquirl" of every file's context menu: whether
+    // the platform has one, whether it is there, and each call to show or
+    // hide it.
+    bool offersEntry = false;
+    bool entry = false;
+    std::vector<bool> entrySet;
 
     bool isAvailable() const override
     {
@@ -92,6 +98,23 @@ public:
         }
         applied.push_back( call );
         return result;
+    }
+
+    bool offersContextMenuEntry() const override
+    {
+        return offersEntry;
+    }
+
+    bool hasContextMenuEntry() const override
+    {
+        return entry;
+    }
+
+    FileAssociationResult setContextMenuEntry( bool shown ) override
+    {
+        entrySet.push_back( shown );
+        entry = shown;
+        return {};
     }
 
     // Another application takes the type over, or the user confirms it

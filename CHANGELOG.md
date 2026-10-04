@@ -192,6 +192,15 @@
   leaves the machine-wide one the installer made, and says so when LogSquirl
   still opens the type. The portable build registers its own executable and
   warns that moving it stops the associations working. (#722)
+- **On Windows, every file offers Open with LogSquirl in the context menu**:
+  right-clicking any file in Explorer offers *Open with LogSquirl* (on
+  Windows 11 under *Show more options*), which opens it as a double-click on
+  a `.log` file does, so rotated logs like `app.log.1`, whose extension
+  Windows sees as `.1`, open in LogSquirl too. The installer offers it on its
+  file type page, checked by default, and the uninstaller removes it; the
+  File Associations page has the same check box, applied for the current
+  user in the installed and the portable build, and hides the installer's
+  entry for the current user when unchecked. (#724)
 
 ## Bug fixes
 

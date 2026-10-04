@@ -36,6 +36,21 @@ QString FileAssociations::applyNote() const
     return {};
 }
 
+bool FileAssociations::offersContextMenuEntry() const
+{
+    return false;
+}
+
+bool FileAssociations::hasContextMenuEntry() const
+{
+    return false;
+}
+
+FileAssociationResult FileAssociations::setContextMenuEntry( bool )
+{
+    return {};
+}
+
 FileAssociationStates FileAssociations::states() const
 {
     FileAssociationStates current;

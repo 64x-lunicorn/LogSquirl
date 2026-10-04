@@ -319,8 +319,12 @@ The checked types show the *logsquirl* document icon, a sheet with the squirrel.
 *logsquirl* under *Open with* for all of them, checked or not, and for `.gz` and `.zip` files. A type
 you chose to open with another application in Explorer stays with it: Windows does not let an installer
 override that choice. Uninstalling removes all of *logsquirl*'s entries and gives each type back to the
-application that opened it before. The *File Associations* page of the Options chooses the types later,
-for your user (see [File Associations](#File-Associations)).
+application that opened it before. The page also offers *Open with LogSquirl in the context menu of every
+file*, checked: right-clicking any file in Explorer then offers *Open with LogSquirl* (on Windows 11 under
+*Show more options*), also for files whose type *logsquirl* does not open on a double-click, such as
+rotated logs like `app.log.1`, whose extension Windows sees as `.1`. The *File Associations* page of the
+Options chooses the types and the context menu entry later, for your user (see
+[File Associations](#File-Associations)).
 
 On macOS, the app declares the file types it opens: `.log`, the Android Logcat traces (`.adb0` to `.adb9`
 are the type *Android Logcat trace*; macOS keeps calling `.adb` Ada source), `.out`/`.err`, `.trace`,
@@ -1574,6 +1578,14 @@ LogSquirl still opens the type then, the page says so and you choose another
 app on the *Default apps* page. In the portable build the page warns that the
 associations stop working if you move LogSquirl: they point at the
 executable where it was when you applied them.
+
+On Windows, the page also has the check box *Offer Open with LogSquirl in the
+context menu of every file*. Checked, right-clicking any file in Explorer
+offers *Open with LogSquirl* (on Windows 11 under *Show more options*), which
+opens the file as a double-click on a `.log` file would, also for rotated logs
+like `app.log.1`. *Apply* adds or removes the entry for your user, in the
+installed and in the portable build. Where the installer added it for every
+user, unchecking hides it for you.
 
 On macOS, the page makes LogSquirl the default for the content type of each
 type: the system's log type for `.log`, LogSquirl's own *Android Logcat

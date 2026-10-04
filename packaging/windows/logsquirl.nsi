@@ -76,7 +76,8 @@ the COPYING and NOTICE files.$\r$\n$\r$\n$_CLICK"
 !define MUI_PAGE_HEADER_TEXT "File types"
 !define MUI_PAGE_HEADER_SUBTEXT "Choose which files open in LogSquirl."
 !define MUI_COMPONENTSPAGE_TEXT_TOP "LogSquirl opens the checked file types on a double-click, and they show its \
-document icon. Explorer offers LogSquirl under Open with for all of them, checked or not, and for .gz and .zip files."
+document icon. Explorer offers LogSquirl under Open with for all of them, checked or not, and for .gz and .zip files. \
+Open with LogSquirl in the context menu opens any file, such as app.log.1."
 !define MUI_COMPONENTSPAGE_TEXT_COMPLIST "File types to open with LogSquirl:"
 !define MUI_PAGE_CUSTOMFUNCTION_PRE FileTypesPagePre
 !insertmacro MUI_PAGE_COMPONENTS
@@ -110,6 +111,7 @@ VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion" "${PRODUCT_VI_VERSION}"
 !define SECTION_TEXT_VCRUNTIME "MSVC Runtime libraries"
 !define SECTION_TEXT_SHORTCUT "Create Start menu shortcut"
 !define SECTION_TEXT_UPDATECHECK "Check for updates automatically"
+!define SECTION_TEXT_CONTEXTMENU "Open with LogSquirl in the context menu of every file"
 
 Section "${SECTION_TEXT_LOGSQUIRL}" logsquirl
     ; Prevent this section from being unselected
@@ -152,6 +154,9 @@ Section "${SECTION_TEXT_LOGSQUIRL}" logsquirl
     ; gives .log back first, to the ProgID it had before.
     ${UnRegisterExtension} ".log" "Log file"
     !insertmacro LogSquirlRegisterFileTypes
+    ; The context menu entry of every file goes unless its section below adds
+    ; it again, so an upgrade with it unchecked removes it (#724).
+    DeleteRegKey HKLM "${LOGSQUIRL_CONTEXT_MENU}"
 
     ; Register uninstaller
     WriteRegExpandStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\logsquirl"\
@@ -228,6 +233,11 @@ SectionEnd
 ; not. A silent install (/S) takes these defaults (#719).
 !insertmacro LogSquirlFileTypeSections
 
+; On the file type page too, checked by default (#724).
+Section "${SECTION_TEXT_CONTEXTMENU}" contextmenu
+    !insertmacro LogSquirlAddContextMenu
+SectionEnd
+
 Section "-File types changed"
     !insertmacro LogSquirlFileTypesChanged
 SectionEnd
@@ -264,14 +274,18 @@ you already have the Qt development kit installed."
 you already have the Microsoft Visual C++ 2017 Redistributable installed."
     !insertmacro MUI_DESCRIPTION_TEXT ${shortcut} "Create a shortcut in the Start menu for logsquirl."
     !insertmacro LogSquirlFileTypeDescriptions
+    !insertmacro MUI_DESCRIPTION_TEXT ${contextmenu} "Right-clicking any file in Explorer offers Open with LogSquirl, \
+also for files whose type LogSquirl does not open on a double-click, such as rotated logs like app.log.1. On \
+Windows 11 it is under Show more options."
     !insertmacro MUI_DESCRIPTION_TEXT ${updatecheck} "At most once a week, when it starts, LogSquirl downloads \
 a small file from GitHub to see whether a newer version is out. Untick to turn this off for this installation."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 # The components page shows the components and the file type page the file
-# types (#719).
+# types (#719) and the context menu entry (#724).
 Function ComponentsPagePre
     !insertmacro LogSquirlHideFileTypeSections
+    SectionSetText ${contextmenu} ""
     SectionSetText ${logsquirl} "${SECTION_TEXT_LOGSQUIRL}"
     SectionSetText ${qtlibs} "${SECTION_TEXT_QTLIBS}"
     SectionSetText ${vcruntime} "${SECTION_TEXT_VCRUNTIME}"
@@ -286,6 +300,7 @@ Function FileTypesPagePre
     SectionSetText ${shortcut} ""
     SectionSetText ${updatecheck} ""
     !insertmacro LogSquirlShowFileTypeSections
+    SectionSetText ${contextmenu} "${SECTION_TEXT_CONTEXTMENU}"
 FunctionEnd
 
 # Uninstaller
@@ -364,6 +379,8 @@ Section "Uninstall"
     ; Uninstall key, whose going tells a deployment that the uninstall is done.
     !insertmacro LogSquirlUnregisterFileTypes
     ${unregisterExtension} ".log" "Log file"
+    ; And the context menu entry of every file (#724).
+    !insertmacro LogSquirlRemoveContextMenu
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\logsquirl"
 
     DeleteRegKey HKCR "*\OpenWithList\logsquirl.exe"

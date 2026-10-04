@@ -871,6 +871,16 @@
         </widget>
        </item>
        <item>
+        <widget class="QCheckBox" name="fileAssociationsContextMenuCheckBox">
+         <property name="text">
+          <string>Offer Open with LogSquirl in the context menu of every file</string>
+         </property>
+         <property name="toolTip">
+          <string>Opens files of any type in LogSquirl, such as rotated logs like app.log.1.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QLabel" name="fileAssociationsNoteLabel">
          <property name="wordWrap">
           <bool>true</bool>

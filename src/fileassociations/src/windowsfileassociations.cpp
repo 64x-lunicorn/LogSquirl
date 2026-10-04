@@ -69,6 +69,9 @@ const QString WindowsFileAssociations::RegisteredApplicationName = QStringLitera
 const QString WindowsFileAssociations::CapabilitiesKey
     = QStringLiteral( "Software\\LogSquirl\\Capabilities" );
 
+const QString WindowsFileAssociations::ContextMenuKey
+    = QStringLiteral( "Software\\Classes\\*\\shell\\LogSquirl" );
+
 WindowsFileAssociations::System::~System() = default;
 
 #ifndef Q_OS_WIN
@@ -322,4 +325,61 @@ void WindowsFileAssociations::checkForChanges()
 bool WindowsFileAssociations::isWatching() const
 {
     return watch_.isActive();
+}
+
+bool WindowsFileAssociations::offersContextMenuEntry() const
+{
+    return isAvailable();
+}
+
+bool WindowsFileAssociations::hasContextMenuEntry() const
+{
+    if ( !isAvailable() ) {
+        return false;
+    }
+    // The current user's entry hides the machine's, shown or not.
+    for ( const auto hive : { Hive::CurrentUser, Hive::LocalMachine } ) {
+        if ( system_->hasKey( hive, ContextMenuKey ) ) {
+            return !system_->value( hive, ContextMenuKey, QStringLiteral( "LegacyDisable" ) )
+                        .has_value();
+        }
+    }
+    return false;
+}
+
+FileAssociationResult WindowsFileAssociations::setContextMenuEntry( bool shown )
+{
+    FileAssociationResult result;
+    if ( !isAvailable() ) {
+        result.error = unavailableReason();
+        return result;
+    }
+
+    bool written = true;
+    if ( shown || system_->hasKey( Hive::LocalMachine, ContextMenuKey ) ) {
+        // The whole entry, also where it only hides the machine's: then it is
+        // all the current user's view of it has.
+        written
+            = system_->setValue( ContextMenuKey, QStringLiteral( "MUIVerb" ),
+                                 tr( "Open with LogSquirl" ) )
+              && system_->setValue( ContextMenuKey, QStringLiteral( "Icon" ),
+                                    environment_.executable )
+              && system_->setValue( ContextMenuKey + QStringLiteral( "\\command" ), {}, command() );
+        written
+            = written
+              && ( shown ? system_->removeValue( ContextMenuKey, QStringLiteral( "LegacyDisable" ) )
+                         : system_->setValue( ContextMenuKey, QStringLiteral( "LegacyDisable" ),
+                                              {} ) );
+    }
+    else {
+        written = system_->removeKey( ContextMenuKey );
+    }
+
+    if ( !written || hasContextMenuEntry() != shown ) {
+        result.error = shown ? tr( "LogSquirl could not add Open with LogSquirl to the context "
+                                   "menu of every file." )
+                             : tr( "LogSquirl could not remove Open with LogSquirl from the "
+                                   "context menu of every file." );
+    }
+    return result;
 }

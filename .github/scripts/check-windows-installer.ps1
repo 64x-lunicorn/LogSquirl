@@ -16,7 +16,8 @@
      machine's Uninstall key, and the file types with their defaults (#719):
      a ProgID with the document icon for every type, LogSquirl under Open
      with for each extension, and the default for .log and the Logcat traces
-     only -- also for .adb5, which another application owned before. The
+     only -- also for .adb5, which another application owned before --, and
+     Open with LogSquirl in the context menu of every file (#724). The
      installed application starts -- a standard (non-administrator) user
      included -- and `Uninstall.exe /S` removes it all again, gives every
      extension back to what it had before and leaves no ProgID and no Open
@@ -127,6 +128,9 @@ function Get-ClassesKey([string] $Path) {
     return [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("SOFTWARE\Classes\$Path")
 }
 
+# The context menu entry of every file (#724).
+$ContextMenuEntry = '*\shell\LogSquirl'
+
 function Get-ExtensionDefault([string] $Extension) {
     $key = Get-ClassesKey $Extension
     if ($null -eq $key) { return '' }
@@ -166,6 +170,12 @@ function Test-FileTypesInstalled([string] $InstallDir) {
             Check ((Get-ExtensionDefault $extension) -eq $script:DefaultsBefore[$extension]) "$extension keeps its default '$($script:DefaultsBefore[$extension])' (is '$(Get-ExtensionDefault $extension)')"
         }
     }
+    # Open with LogSquirl in the context menu of every file, checked by
+    # default (#724).
+    $entry = Get-ClassesKey $ContextMenuEntry
+    Check ($null -ne $entry -and $entry.GetValue('MUIVerb') -eq 'Open with LogSquirl') "every file's context menu offers Open with LogSquirl (HKLM\SOFTWARE\Classes\$ContextMenuEntry)"
+    $command = Get-ClassesKey "$ContextMenuEntry\command"
+    Check ($null -ne $command -and $command.GetValue('') -eq "`"$exe`" `"%1`"") "it opens the file with $exe"
 }
 
 function Test-FileTypesRemoved {
@@ -179,6 +189,7 @@ function Test-FileTypesRemoved {
         Check ($defaults[$extension] -eq $script:DefaultsBefore[$extension]) "$extension is back to its default '$($script:DefaultsBefore[$extension])' (is '$($defaults[$extension])')"
     }
     Check ((Get-ExtensionDefault $OwnedExtension) -eq $OwnedProgId) "$OwnedExtension is $OwnedProgId's again"
+    Check ($null -eq (Get-ClassesKey $ContextMenuEntry)) "Open with LogSquirl is gone from every file's context menu"
 }
 
 function Get-DotLogAssociation {

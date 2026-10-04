@@ -106,6 +106,33 @@
     !insertmacro LogSquirlDeleteKeyIfEmpty "Software\logsquirl"
 !macroend
 
+; The entry "Open with LogSquirl" in the context menu of every file (#724),
+; for files whose type LogSquirl does not claim, such as rotated logs like
+; app.log.1. The application's File Associations page adds and removes the
+; same entry, LogSquirl, for the current user; that one hides the machine's.
+!define LOGSQUIRL_CONTEXT_MENU "Software\Classes\*\shell\LogSquirl"
+
+; Adds the entry for every user. It opens a file the way a double-click on a
+; .log file does.
+!macro LogSquirlAddContextMenu
+    WriteRegStr HKLM "${LOGSQUIRL_CONTEXT_MENU}" "MUIVerb" "Open with LogSquirl"
+    WriteRegStr HKLM "${LOGSQUIRL_CONTEXT_MENU}" "Icon" "$INSTDIR\logsquirl.exe"
+    WriteRegStr HKLM "${LOGSQUIRL_CONTEXT_MENU}\command" "" '"$INSTDIR\logsquirl.exe" "%1"'
+!macroend
+
+; Removes the entry for every user, and the uninstalling user's own entry when
+; it opens this installation's logsquirl.exe, shown or hiding the machine's;
+; an entry of a portable LogSquirl stays.
+!macro LogSquirlRemoveContextMenu
+    Push $R0
+    DeleteRegKey HKLM "${LOGSQUIRL_CONTEXT_MENU}"
+    ReadRegStr $R0 HKCU "${LOGSQUIRL_CONTEXT_MENU}\command" ""
+    ${If} $R0 == '"$INSTDIR\logsquirl.exe" "%1"'
+        DeleteRegKey HKCU "${LOGSQUIRL_CONTEXT_MENU}"
+    ${EndIf}
+    Pop $R0
+!macroend
+
 ; Tells Explorer that file associations changed, so icons and "Open with"
 ; follow at once (SHCNE_ASSOCCHANGED).
 !macro LogSquirlFileTypesChanged

@@ -453,3 +453,59 @@ TEST_CASE( "On Windows, giving a type back removes the current user's registrati
         CHECK( result.error.contains( "Default apps" ) );
     }
 }
+
+TEST_CASE( "On Windows, every file's context menu offers Open with LogSquirl",
+           "[fileassociations][windows]" )
+{
+    Windows windows;
+    const QString Entry = "Software\\Classes\\*\\shell\\LogSquirl";
+
+    SECTION( "the page offers it, and adds it for the current user" )
+    {
+        auto associations = windows.associations();
+        CHECK( associations->offersContextMenuEntry() );
+        CHECK_FALSE( associations->hasContextMenuEntry() );
+
+        const auto result = associations->setContextMenuEntry( true );
+        CHECK( result.succeeded() );
+        CHECK( associations->hasContextMenuEntry() );
+        CHECK( windows.user( Entry, "MUIVerb" ) == "Open with LogSquirl" );
+        CHECK( windows.user( Entry, "Icon" ) == Installed );
+        // As a double-click on a .log file opens it.
+        CHECK( windows.user( Entry + "\\command" ) == "\"" + Installed + "\" \"%1\"" );
+        CHECK_FALSE( windows.registry.has( Hive::LocalMachine, Entry ) );
+    }
+
+    SECTION( "the portable build adds its own executable, and removes it again" )
+    {
+        windows.environment = { Portable, true };
+        auto associations = windows.associations();
+        associations->setContextMenuEntry( true );
+        CHECK( windows.user( Entry + "\\command" ) == "\"" + Portable + "\" \"%1\"" );
+
+        const auto result = associations->setContextMenuEntry( false );
+        CHECK( result.succeeded() );
+        CHECK_FALSE( associations->hasContextMenuEntry() );
+        CHECK_FALSE( windows.registry.has( Hive::CurrentUser, Entry ) );
+    }
+
+    SECTION( "the installer's entry for the machine is hidden for the current user" )
+    {
+        windows.registry.set( Hive::LocalMachine, Entry, "MUIVerb", "Open with LogSquirl" );
+        windows.registry.set( Hive::LocalMachine, Entry + "\\command", {},
+                              "\"" + Installed + "\" \"%1\"" );
+        auto associations = windows.associations();
+        CHECK( associations->hasContextMenuEntry() );
+
+        const auto removed = associations->setContextMenuEntry( false );
+        CHECK( removed.succeeded() );
+        CHECK_FALSE( associations->hasContextMenuEntry() );
+        CHECK( windows.user( Entry, "LegacyDisable" ).has_value() );
+        CHECK( windows.registry.has( Hive::LocalMachine, Entry ) );
+
+        const auto added = associations->setContextMenuEntry( true );
+        CHECK( added.succeeded() );
+        CHECK( associations->hasContextMenuEntry() );
+        CHECK_FALSE( windows.user( Entry, "LegacyDisable" ).has_value() );
+    }
+}

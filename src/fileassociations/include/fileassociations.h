@@ -98,6 +98,17 @@ public:
     // The state of every type the user chooses from.
     FileAssociationStates states() const;
 
+    // Whether the platform has an entry "Open with LogSquirl" in the context
+    // menu of every file, which opens files of any type, such as rotated logs
+    // like app.log.1 (#724): Explorer's on Windows. None by default.
+    virtual bool offersContextMenuEntry() const;
+
+    // Whether every file's context menu has the entry now.
+    virtual bool hasContextMenuEntry() const;
+
+    // Adds the entry or removes it, for the current user.
+    virtual FileAssociationResult setContextMenuEntry( bool shown );
+
 Q_SIGNALS:
     // The states changed outside apply(), or after it returned.
     void statesChanged();

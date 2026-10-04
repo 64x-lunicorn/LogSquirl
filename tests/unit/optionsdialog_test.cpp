@@ -635,3 +635,66 @@ TEST_CASE( "The File Associations page says what applying leads to, and why it i
         CHECK( associations.applied.empty() );
     }
 }
+
+TEST_CASE( "The File Associations page adds Open with LogSquirl to every file's context menu",
+           "[optionsdialog][fileassociations]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+    OptionsDialog dialog( catalog );
+    FakeFileAssociations associations;
+    auto* checkBox = dialog.fileAssociationsContextMenuCheckBox;
+
+    SECTION( "a platform without such an entry does not show the check box" )
+    {
+        dialog.showFileAssociations( associations );
+        CHECK_FALSE( checkBox->isVisibleTo( dialog.fileAssociationsTab ) );
+        dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+        CHECK( associations.entrySet.empty() );
+    }
+
+    SECTION( "Windows shows it checked where the entry is there" )
+    {
+        associations.offersEntry = true;
+        associations.entry = true;
+        dialog.showFileAssociations( associations );
+        CHECK( checkBox->isVisibleTo( dialog.fileAssociationsTab ) );
+        CHECK( checkBox->isChecked() );
+        CHECK( checkBox->text().contains( "Open with LogSquirl" ) );
+
+        // Unchanged, nothing is applied.
+        dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+        CHECK( associations.entrySet.empty() );
+
+        checkBox->setChecked( false );
+        dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+        CHECK( associations.entrySet == std::vector<bool>{ false } );
+        CHECK_FALSE( checkBox->isChecked() );
+
+        checkBox->setChecked( true );
+        dialog.buttonBox->button( QDialogButtonBox::Ok )->click();
+        CHECK( associations.entrySet == std::vector<bool>{ false, true } );
+        // The file types were not touched.
+        CHECK( associations.applied.empty() );
+    }
+
+    SECTION( "Cancel adds nothing" )
+    {
+        associations.offersEntry = true;
+        dialog.showFileAssociations( associations );
+        checkBox->setChecked( true );
+        dialog.buttonBox->button( QDialogButtonBox::Cancel )->click();
+        CHECK( associations.entrySet.empty() );
+    }
+
+    SECTION( "a run that cannot associate does not show it" )
+    {
+        associations.offersEntry = true;
+        associations.available = false;
+        dialog.showFileAssociations( associations );
+        CHECK_FALSE( checkBox->isVisibleTo( dialog.fileAssociationsTab ) );
+    }
+}

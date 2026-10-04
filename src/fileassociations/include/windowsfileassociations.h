@@ -120,6 +120,15 @@ public:
     FileAssociationResult apply( const std::vector<FileType>& makeDefault,
                                  const std::vector<FileType>& release ) override;
 
+    // The entry "Open with LogSquirl" of every file's context menu (#724),
+    // under HKEY_CURRENT_USER for the page and HKEY_LOCAL_MACHINE for the
+    // installer, both named ContextMenuKey. Removing the entry where the
+    // installer added it for the machine hides it for the current user.
+    static const QString ContextMenuKey;
+    bool offersContextMenuEntry() const override;
+    bool hasContextMenuEntry() const override;
+    FileAssociationResult setContextMenuEntry( bool shown ) override;
+
     // The ProgID that opens files with the extension (without the dot) for
     // the current user: the user's choice, or else the current user's and
     // then the machine's default of the extension. Empty if none.
