@@ -911,12 +911,12 @@ Pattern: %2</source>
 <context>
     <name>CrawlerWidget</name>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="785"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="780"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="786"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="781"/>
         <source>Search history:</source>
         <translation>搜索历史：</translation>
     </message>
@@ -936,27 +936,27 @@ Pattern: %2</source>
         <translation> 目前已找到 %1 个匹配。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1367"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1362"/>
         <source>Marks and matches</source>
         <translation>标记和匹配</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1373"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1368"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>标记、匹配 + 上下文行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1378"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1373"/>
         <source>Matches + breadcrumbs</source>
         <translation>匹配 + 上下文行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1383"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1378"/>
         <source>Marks</source>
         <translation>仅标记</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1387"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1382"/>
         <source>Matches</source>
         <translation>仅匹配</translation>
     </message>
@@ -1000,32 +1000,32 @@ Pattern: %2</source>
         <translation>搜索表达式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1429"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1424"/>
         <source>Clear search history</source>
         <translation>清空搜索历史</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1430"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1425"/>
         <source>Edit search history</source>
         <translation>编辑搜索历史</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1431"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1426"/>
         <source>Save as Filter</source>
         <translation>保存为过滤器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1432"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1427"/>
         <source>Open in Regex Lab...</source>
         <translation>在正则实验室中打开...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1434"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1429"/>
         <source>Try out the pattern and its options on Log Lines in the Regex Lab</source>
         <translation>在正则实验室中用日志行试用该模式及其选项</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1440"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1435"/>
         <source>Count values of capture group</source>
         <translation>统计捕获组的值</translation>
     </message>
@@ -1050,32 +1050,32 @@ Pattern: %2</source>
         <translation>保留这些结果，并在新窗口中显示后续结果</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1455"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1450"/>
         <source>Toggle table/text view</source>
         <translation>切换表格/文本视图</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1456"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1451"/>
         <source>Toggle table view</source>
         <translation>切换表格视图</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1858"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1853"/>
         <source>Group %1</source>
         <translation>分组 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1859"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1854"/>
         <source>Group %1 (%2)</source>
         <translation>分组 %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1887"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1882"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>“%2”的分组 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2270"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2265"/>
         <source>Toggle table/text view (%1)</source>
         <translation>切换表格/文本视图 (%1)</translation>
     </message>
@@ -1115,12 +1115,12 @@ Pattern: %2</source>
         <translation>磁盘上的文件已被截断</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2149"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2144"/>
         <source>Displayed as %1</source>
         <translation>显示编码：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2149"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2144"/>
         <source>Detected as %1</source>
         <translation>检测到编码：%1</translation>
     </message>
@@ -1200,7 +1200,7 @@ Do you want to replace it?</source>
 <context>
     <name>FileAssociations</name>
     <message>
-        <location filename="../../fileassociations/src/fileassociations.cpp" line="99"/>
+        <location filename="../../fileassociations/src/fileassociations.cpp" line="137"/>
         <source>LogSquirl cannot choose the file types it opens on this system.</source>
         <translation>LogSquirl 无法在此系统上选择它打开的文件类型。</translation>
     </message>
@@ -1221,6 +1221,31 @@ Do you want to replace it?</source>
         <location filename="../../fileassociations/src/filetypes.cpp" line="114"/>
         <source>Open with</source>
         <translation>打开方式</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="140"/>
+        <source>General log files</source>
+        <translation>通用日志文件</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="141"/>
+        <source>Android Logcat traces</source>
+        <translation>Android Logcat 跟踪</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="142"/>
+        <source>Program output</source>
+        <translation>程序输出</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="143"/>
+        <source>Trace files</source>
+        <translation>跟踪文件</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="144"/>
+        <source>Text files</source>
+        <translation>文本文件</translation>
     </message>
 </context>
 <context>
@@ -1287,33 +1312,33 @@ Do you want to replace it?</source>
 <context>
     <name>FirstStartFileAssociationsDialog</name>
     <message>
-        <location filename="../../ui/src/fileassociationsdialog.cpp" line="113"/>
-        <location filename="../../ui/src/fileassociationsdialog.cpp" line="219"/>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="34"/>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="137"/>
         <source>File Associations</source>
         <translation>文件关联</translation>
     </message>
     <message>
-        <location filename="../../ui/src/fileassociationsdialog.cpp" line="117"/>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="38"/>
         <source>Make LogSquirl the default app</source>
         <translation>将 LogSquirl 设为默认应用</translation>
     </message>
     <message>
-        <location filename="../../ui/src/fileassociationsdialog.cpp" line="146"/>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="67"/>
         <source>You can change this later on the File Associations page of the Options.</source>
         <translation>您可以稍后在首选项的“文件关联”页面中更改此设置。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/fileassociationsdialog.cpp" line="151"/>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="72"/>
         <source>Later</source>
         <translation>稍后</translation>
     </message>
     <message>
-        <location filename="../../ui/src/fileassociationsdialog.cpp" line="153"/>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="74"/>
         <source>Don&apos;t ask again</source>
         <translation>不再询问</translation>
     </message>
     <message>
-        <location filename="../../ui/src/fileassociationsdialog.cpp" line="154"/>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="75"/>
         <source>Apply</source>
         <translation>应用</translation>
     </message>
@@ -1733,42 +1758,42 @@ Do you want to replace it?</source>
 <context>
     <name>LostFileAssociationsHint</name>
     <message>
-        <location filename="../../ui/src/lostfileassociationshint.cpp" line="60"/>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="56"/>
         <source>LogSquirl no longer opens %1 files.</source>
         <translation>LogSquirl 不再打开 %1 文件。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/lostfileassociationshint.cpp" line="63"/>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="59"/>
         <source>The associations of %1 point at the old location of LogSquirl, %2.</source>
         <translation>%1 的关联指向 LogSquirl 的旧位置 %2。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/lostfileassociationshint.cpp" line="67"/>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="63"/>
         <source>You can choose the file types LogSquirl opens on the File Associations page of the Options.</source>
         <translation>您可以在首选项的“文件关联”页面中选择 LogSquirl 打开的文件类型。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/lostfileassociationshint.cpp" line="70"/>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="66"/>
         <source>Restore</source>
         <translation>恢复</translation>
     </message>
     <message>
-        <location filename="../../ui/src/lostfileassociationshint.cpp" line="71"/>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="67"/>
         <source>Make LogSquirl open these files again.</source>
         <translation>让 LogSquirl 重新打开这些文件。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/lostfileassociationshint.cpp" line="72"/>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="68"/>
         <source>Dismiss</source>
         <translation>忽略</translation>
     </message>
     <message>
-        <location filename="../../ui/src/lostfileassociationshint.cpp" line="73"/>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="69"/>
         <source>Do not tell again until you choose the file types again.</source>
         <translation>在您再次选择文件类型之前不再提示。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/lostfileassociationshint.cpp" line="95"/>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="91"/>
         <source>File Associations</source>
         <translation>文件关联</translation>
     </message>
@@ -1776,17 +1801,17 @@ Do you want to replace it?</source>
 <context>
     <name>MacFileAssociations</name>
     <message>
-        <location filename="../../fileassociations/src/macfileassociations.cpp" line="78"/>
+        <location filename="../../fileassociations/src/macfileassociations.cpp" line="71"/>
         <source>LogSquirl runs outside its app bundle, so macOS cannot open files with it. Start LogSquirl from LogSquirl.app to choose them.</source>
         <translation>LogSquirl 在其应用程序包之外运行，因此 macOS 无法用它打开文件。请从 LogSquirl.app 启动 LogSquirl 以选择文件类型。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/macfileassociations.cpp" line="84"/>
+        <location filename="../../fileassociations/src/macfileassociations.cpp" line="77"/>
         <source>macOS asks you to confirm each change. The states show what you answered.</source>
         <translation>macOS 会要求您确认每项更改。状态显示了您的回答。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/macfileassociations.cpp" line="177"/>
+        <location filename="../../fileassociations/src/macfileassociations.cpp" line="203"/>
         <source>macOS cannot unset the application that opens %1, and LogSquirl does not know which one opened them before. Choose one in the Finder: Get Info on such a file, then Open with and Change All.</source>
         <translation>macOS 无法取消打开 %1 的应用程序，且 LogSquirl 不知道之前由哪个应用程序打开它们。请在访达中选择一个：对此类文件使用“显示简介”，然后在“打开方式”中选择并点按“全部更改”。</translation>
     </message>
@@ -1799,55 +1824,55 @@ Do you want to replace it?</source>
         <translation>打开URL作为日志文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3836"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3841"/>
         <source>Select item to remove from favorites</source>
         <translation>选择要从收藏中移除的项目</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3881"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3886"/>
         <source>logsquirl -- switch to file</source>
         <translation>logsquirl -- 切换到已打开的文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3997"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4020"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4002"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4025"/>
         <source>Save Session As</source>
         <translation>会话另存为</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3998"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4032"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4003"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4037"/>
         <source>LogSquirl sessions (*.%1)</source>
         <translation>LogSquirl 会话 (*.%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4021"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4026"/>
         <source>The session could not be saved to %1:
 %2</source>
         <translation>无法将会话保存到 %1：
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4031"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4041"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4093"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4036"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4046"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4098"/>
         <source>Open Session</source>
         <translation>打开会话</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4046"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4051"/>
         <source>The session file %1 could not be read:
 %2</source>
         <translation>无法读取会话文件 %1：
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4067"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4072"/>
         <source>The session holds no log files.</source>
         <translation>该会话不包含日志文件。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4068"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4073"/>
         <source>None of the log files of this session could be opened. They are missing or already open:
 
 %1</source>
@@ -1856,7 +1881,7 @@ Do you want to replace it?</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4094"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4099"/>
         <source>These log files of the session were left out. They are missing or already open in another window:
 
 %1</source>
@@ -1865,12 +1890,12 @@ Do you want to replace it?</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4159"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4164"/>
         <source>logsquirl - generate crash dump</source>
         <translation>logsquirl - 生成崩溃记录</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4160"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4165"/>
         <source>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</source>
         <translation>关闭logsquirl并产生诊断性的崩溃信息。是否继续？</translation>
     </message>
@@ -1896,7 +1921,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1611"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3318"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3323"/>
         <source>All files (*)</source>
         <translation>全部文件 (*)</translation>
     </message>
@@ -1947,45 +1972,45 @@ Do you want to replace it?</source>
         <translation>下载文件的URL:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2371"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2376"/>
         <source>About LogSquirl</source>
         <translation>关于LogSquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2372"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2377"/>
         <source>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is a fork of &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; by Anton Filimonov, which is a fork of &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; by Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</source>
         <translation>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;一款快速、先进的日志浏览器。&lt;/p&gt;&lt;p&gt;构建于 %2，源自 %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;本程序是 Anton Filimonov 的 &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; 的分支，而 klogg 是 Nicolas Bonnefon 的 &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; 的分支。&lt;/p&gt;&lt;p&gt;使用了 &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; 项目的图标&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon、Anton Filimonov 及其他贡献者&lt;/p&gt;&lt;p&gt;您可以依据 GPL（第 3 版或更高版本）的条款修改和再发布本程序。&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2391"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2396"/>
         <source>About Qt</source>
         <translation>关于QT</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2404"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2409"/>
         <source>logsquirl documentation</source>
         <translation>logsquirl文档</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3317"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3322"/>
         <source>Open file from archive</source>
         <translation>从压缩包中打开文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3579"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3584"/>
         <source>Untitled</source>
         <translation>未命名</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3589"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3594"/>
         <source>%1 - %2%3</source>
         <translation>%1 - %2%3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3255"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3300"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3335"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3589"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3260"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3305"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3340"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3594"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
@@ -2017,7 +2042,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="359"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3003"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3008"/>
         <source>Dashboard</source>
         <translation>仪表板</translation>
     </message>
@@ -2104,231 +2129,231 @@ Working folder: %2
         <translation>要清除文件 %1 吗？文件内容将从磁盘中删除，此操作不可撤销</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2186"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2191"/>
         <source>Team group changed</source>
         <translation>团队分组已更改</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2187"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2192"/>
         <source>Somebody else changed the Team group &quot;%1&quot; since you started editing it.</source>
         <translation>自您开始编辑以来，其他人更改了团队分组“%1”。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2193"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2198"/>
         <source>Keep your version and replace theirs, take theirs and drop your change, or save yours as a copy next to theirs?</source>
         <translation>保留您的版本并替换对方的版本、采用对方的版本并放弃您的更改，还是将您的版本另存为副本放在对方的版本旁边？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2195"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2200"/>
         <source>Somebody deleted it. Keep your version to publish it again, or take the deletion and drop your change?</source>
         <translation>有人已将其删除。保留您的版本以重新发布，还是接受删除并放弃您的更改？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2197"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2202"/>
         <source>Keep mine</source>
         <translation>保留我的</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2198"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2203"/>
         <source>Take theirs</source>
         <translation>采用对方的</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2199"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2204"/>
         <source>Save mine as a copy</source>
         <translation>将我的另存为副本</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2261"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2266"/>
         <source>Click to sync now.</source>
         <translation>点击立即同步。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2288"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2293"/>
         <source>Start %1 data source</source>
         <translation>启动 %1 数据源</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2296"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2301"/>
         <source>(no data source plugins)</source>
         <translation>（没有数据源插件）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2336"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2341"/>
         <source>Plugin Error</source>
         <translation>插件错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2337"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2342"/>
         <source>Failed to load plugin:
 %1</source>
         <translation>加载插件失败：
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2349"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2354"/>
         <source>DataSource Error</source>
         <translation>数据源错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2364"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2369"/>
         <source>DataSource: %1
 %2</source>
         <translation>数据源：%1
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2454"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2459"/>
         <source>Index cache cleared (%1 MB freed)</source>
         <translation>索引缓存已清除（释放了 %1 MB）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2520"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2525"/>
         <source>Merged (dedup)</source>
         <translation>已合并（去重）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2520"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2525"/>
         <source>Merged</source>
         <translation>已合并</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2558"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2563"/>
         <source>Import Chipmunk filters</source>
         <translation>导入 Chipmunk 过滤器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2559"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2564"/>
         <source>Chipmunk filters (*.json);;All files (*)</source>
         <translation>Chipmunk 过滤器 (*.json);;所有文件 (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2567"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2572"/>
         <source>Import error</source>
         <translation>导入错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2568"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2573"/>
         <source>Could not open file: %1</source>
         <translation>无法打开文件：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2576"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2588"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2620"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2581"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2593"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2625"/>
         <source>Import result</source>
         <translation>导入结果</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2577"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2582"/>
         <source>No filters found in the selected file.</source>
         <translation>所选文件中未找到过滤器。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2589"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2594"/>
         <source>A filter group named &apos;%1&apos; already exists. Skipping filter import.</source>
         <translation>名为“%1”的过滤器分组已存在。跳过过滤器导入。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2621"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2626"/>
         <source>Imported %1 filter(s) and %2 highlighter set.</source>
         <translation>已导入 %1 个过滤器和 %2 个高亮规则集。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2699"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2704"/>
         <source>Ln:%1/%2</source>
         <translation>行:%1/%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2704"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2709"/>
         <source>Ln:%1/%2 Col:%3 Sel:%4|%5</source>
         <translation>行:%1/%2 列:%3 选:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2713"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2718"/>
         <source>Ln:%1/%2 Sel:%4|%5</source>
         <translation>行:%1/%2 选:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2753"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2758"/>
         <source> - Indexing lines... (%1 %)</source>
         <translation> - 正在索引行... (%1 %)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2802"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2807"/>
         <source>Not enough memory.</source>
         <translation>内存不足。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2804"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2809"/>
         <source>The system does not have enough memory to hold the index for this file. The file will now be closed.</source>
         <translation>系统内存不足，无法保存此文件的索引。文件将被关闭。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2887"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2892"/>
         <source>Close Tab</source>
         <translation>关闭标签页</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2888"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2893"/>
         <source>Close tab &quot;%1&quot;?</source>
         <translation>要关闭标签页“%1”吗？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2897"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2902"/>
         <source>Don&apos;t ask again</source>
         <translation>不再询问</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2891"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2896"/>
         <source>Close Tabs</source>
         <translation>关闭标签页</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../ui/src/mainwindow.cpp" line="2892"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2897"/>
         <source>Close %n tab(s)?</source>
         <translation>
             <numerusform>要关闭 %n 个标签页吗？</numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3256"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3261"/>
         <source>Extract archive to temp folder?</source>
         <translation>将存档解压缩到临时文件夹？</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="599"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3272"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3277"/>
         <source>Extracting %1</source>
         <translation>正在解压 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3301"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3306"/>
         <source>Failed to decompress %1</source>
         <translation>解压 %1 失败</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3336"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3341"/>
         <source>Failed to extract %1</source>
         <translation>提取 %1 失败</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3590"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3595"/>
         <source> (build </source>
         <translation> （构建 </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3616"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3621"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3709"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3714"/>
         <source>modified on %1</source>
         <translation>修改于 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3835"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3840"/>
         <source>Remove from favorites</source>
         <translation>从收藏中移除</translation>
     </message>
@@ -2759,7 +2784,7 @@ Working folder: %2
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="792"/>
-        <location filename="../../ui/src/optionsdialog.cpp" line="594"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="582"/>
         <source>File Associations</source>
         <translation>文件关联</translation>
     </message>
@@ -3040,94 +3065,104 @@ Working folder: %2
         <translation>详细级别</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="175"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="176"/>
         <source>Extended Regexp</source>
         <translation>扩展正则表达式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="175"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="176"/>
         <source>Fixed Strings</source>
         <translation>固定字符串</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="181"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="182"/>
         <source>Qt</source>
         <translation>Qt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="181"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="182"/>
         <source>Vectorscan</source>
         <translation>Vectorscan</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="398"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="399"/>
         <source>Last synced: %1</source>
         <translation>上次同步：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="401"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="402"/>
         <source>never</source>
         <translation>从未</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="535"/>
+        <location filename="../../ui/src/filetypechoices.cpp" line="90"/>
         <source>Default</source>
         <translation>默认</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="536"/>
+        <location filename="../../ui/src/filetypechoices.cpp" line="91"/>
         <source>LogSquirl opens these files.</source>
         <translation>LogSquirl 会打开这些文件。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="539"/>
+        <location filename="../../ui/src/filetypechoices.cpp" line="94"/>
         <source>Registered</source>
         <translation>已注册</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="541"/>
+        <location filename="../../ui/src/filetypechoices.cpp" line="95"/>
         <source>LogSquirl is offered for these files, but another application opens them.</source>
         <translation>已为这些文件提供 LogSquirl，但由其他应用程序打开它们。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="545"/>
+        <location filename="../../ui/src/filetypechoices.cpp" line="100"/>
+        <source>Not confirmed</source>
+        <translation>未确认</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filetypechoices.cpp" line="101"/>
+        <source>LogSquirl is registered for these files for you, but another application opens them until you choose LogSquirl on the Default apps page of the Windows settings.</source>
+        <translation>已为您将 LogSquirl 注册到这些文件，但在您于 Windows 设置的“默认应用”页面中选择 LogSquirl 之前，仍由其他应用程序打开它们。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filetypechoices.cpp" line="108"/>
         <source>Not registered</source>
         <translation>未注册</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="546"/>
+        <location filename="../../ui/src/filetypechoices.cpp" line="109"/>
         <source>LogSquirl is not offered for these files.</source>
         <translation>未为这些文件提供 LogSquirl。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="775"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="763"/>
         <source>Turned off when LogSquirl was installed. Run the installer again to turn it back on.</source>
         <translation>安装 LogSquirl 时已关闭。再次运行安装程序即可重新开启。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1031"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1019"/>
         <source>LogSquirl needs to be restarted to apply some changes. </source>
         <translation>LogSquirl 需要重新启动才能应用部分更改。 </translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1220"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1208"/>
         <source>Click or press Enter to record a shortcut, Escape cancels.
 Backspace or Delete clears the shortcut.</source>
         <translation>单击或按 Enter 键录制快捷键，按 Escape 键取消。
 按 Backspace 或 Delete 键清除快捷键。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1235"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1223"/>
         <source>Action</source>
         <translation>操作</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1236"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1224"/>
         <source>Primary shortcut</source>
         <translation>主快捷键</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1238"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1226"/>
         <source>Secondary shortcut</source>
         <translation>备用快捷键</translation>
     </message>
@@ -4684,192 +4719,192 @@ Restart LogSquirl to try again.</source>
 <context>
     <name>TeamFolder</name>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="136"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="139"/>
         <source>Another file holds the group %1 already.</source>
         <translation>另一个文件中已有分组 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="202"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="205"/>
         <source>The file cannot be read.</source>
         <translation>无法读取该文件。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="204"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="207"/>
         <source>The file holds a kind of group this version does not know.</source>
         <translation>该文件包含此版本不认识的分组类型。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="206"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="209"/>
         <source>The file was written by a newer version of LogSquirl.</source>
         <translation>该文件由更新版本的 LogSquirl 写入。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="211"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="214"/>
         <source>The file holds no Filter Group, Highlighter Set or Naming Group.</source>
         <translation>该文件中没有过滤器分组、高亮规则集或命名组。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="651"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="654"/>
         <source>The group could not be written to %1.</source>
         <translation>无法将分组写入 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="894"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="897"/>
         <source>The subfolder %1 does not lie inside the repository.</source>
         <translation>子文件夹 %1 不在仓库内。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1267"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1270"/>
         <source>The Team Folder is off.</source>
         <translation>团队文件夹已关闭。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1539"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1543"/>
         <source>Team Folder syncing…</source>
         <translation>团队文件夹同步中…</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1543"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1547"/>
         <source>Team Folder off</source>
         <translation>团队文件夹已关闭</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1545"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1549"/>
         <source>Team Folder not synced</source>
         <translation>团队文件夹未同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1547"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1551"/>
         <source>Team Folder synced</source>
         <translation>团队文件夹已同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1549"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1553"/>
         <source>Team Folder error</source>
         <translation>团队文件夹出错</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1557"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1561"/>
         <source>Syncing…</source>
         <translation>同步中…</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1564"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1568"/>
         <source>Off</source>
         <translation>已关闭</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1566"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1570"/>
         <source>Not synced</source>
         <translation>未同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1568"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1572"/>
         <source>Synced</source>
         <translation>已同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1570"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1574"/>
         <source>Error</source>
         <translation>出错</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1581"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1585"/>
         <source>Git could not be started</source>
         <translation>无法启动 Git</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1583"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1587"/>
         <source>The subfolder lies outside the repository</source>
         <translation>子文件夹位于仓库之外</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1585"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1589"/>
         <source>Clone failed</source>
         <translation>克隆失败</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1587"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1591"/>
         <source>Pull failed</source>
         <translation>拉取失败</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1589"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1593"/>
         <source>Merge failed</source>
         <translation>合并失败</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1591"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1595"/>
         <source>Push failed</source>
         <translation>推送失败</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1593"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1597"/>
         <source>Push refused</source>
         <translation>推送被拒绝</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1605"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1609"/>
         <source>Not published: %1</source>
         <translation>未发布：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1611"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1615"/>
         <source>The Team groups are read-only.</source>
         <translation>团队分组为只读。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1612"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1616"/>
         <source>The Team groups are read-only: %1</source>
         <translation>团队分组为只读：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1615"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1619"/>
         <source>Skipped %1: %2</source>
         <translation>已跳过 %1：%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1720"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1724"/>
         <source>Sign-in failed. Make sure Git can sign in to this server outside LogSquirl: with an SSH key added to your account for an SSH URL, or with stored credentials or a token for an HTTPS URL.</source>
         <translation>登录失败。请确保 Git 能在 LogSquirl 之外登录此服务器：对于 SSH URL，使用已添加到您账户的 SSH 密钥；对于 HTTPS URL，使用已保存的凭据或令牌。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1724"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1728"/>
         <source>The organization requires SSO authorization. Authorize your SSH key or token for the organization in your account settings on the server, or use an HTTPS URL.</source>
         <translation>该组织要求 SSO 授权。请在服务器上的账户设置中为该组织授权您的 SSH 密钥或令牌，或使用 HTTPS URL。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1728"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1732"/>
         <source>Repository not found. Check the Repository URL, and that your account may read the repository.</source>
         <translation>未找到仓库。请检查仓库 URL，以及您的账户是否有权读取该仓库。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1731"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1735"/>
         <source>Server unreachable. Check the host name in the Repository URL, your network connection and your proxy settings.</source>
         <translation>无法连接服务器。请检查仓库 URL 中的主机名、您的网络连接和代理设置。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1734"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1738"/>
         <source>Git is not installed. Install Git, make sure the git program is on the PATH, and press Sync Now.</source>
         <translation>未安装 Git。请安装 Git，确保 git 程序位于 PATH 中，然后点击“立即同步”。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfoldergit.cpp" line="95"/>
+        <location filename="../../ui/src/teamfoldergit.cpp" line="105"/>
         <source>Git could not be started (%1). Install Git, or put it on the PATH, to use a Team Folder.</source>
         <translation>无法启动 Git (%1)。请安装 Git，或将其加入 PATH，以使用团队文件夹。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfoldergit.cpp" line="165"/>
+        <location filename="../../ui/src/teamfoldergit.cpp" line="177"/>
         <source>Stopped.</source>
         <translation>已停止。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfoldergit.cpp" line="166"/>
+        <location filename="../../ui/src/teamfoldergit.cpp" line="178"/>
         <source>Git did not finish in time.</source>
         <translation>Git 未能在限定时间内完成。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfoldergit.cpp" line="176"/>
+        <location filename="../../ui/src/teamfoldergit.cpp" line="188"/>
         <source>Git ended with exit code %1.</source>
         <translation>Git 以退出码 %1 结束。</translation>
     </message>
@@ -5591,57 +5626,57 @@ Without a date, %1 is used.</source>
 <context>
     <name>WindowsFileAssociations</name>
     <message>
-        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="113"/>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="104"/>
         <source>LogSquirl cannot choose the file types it opens on this system.</source>
         <translation>LogSquirl 无法在此系统上选择它打开的文件类型。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="118"/>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="109"/>
         <source>Windows does not let an application make itself the default. After Apply, LogSquirl opens the Default apps page of the Windows settings, where you choose LogSquirl for each file type.</source>
         <translation>Windows 不允许应用程序将自己设为默认应用。点击“应用”后，LogSquirl 会打开 Windows 设置中的“默认应用”页面，您可以在其中为每种文件类型选择 LogSquirl。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="123"/>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="114"/>
         <source>If you move LogSquirl, these associations stop working.</source>
         <translation>如果移动 LogSquirl，这些关联将失效。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="215"/>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="216"/>
         <source>A fast, smart log file explorer</source>
         <translation>快速、智能的日志文件浏览器</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="271"/>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="267"/>
         <source>LogSquirl could not register %1 in the registry.</source>
         <translation>LogSquirl 无法在注册表中注册 %1。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="293"/>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="289"/>
         <source>LogSquirl could not remove its registration of %1 from the registry.</source>
         <translation>LogSquirl 无法从注册表中删除其对 %1 的注册。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="297"/>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="293"/>
         <source>LogSquirl still opens %1: the installer made it the default for every user of this computer, or you chose it in Windows. Choose another app for them on the Default apps page of the Windows settings.</source>
         <translation>LogSquirl 仍会打开 %1：安装程序已将其设为此计算机所有用户的默认应用，或者您在 Windows 中选择了它。请在 Windows 设置的“默认应用”页面中为它们选择其他应用。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="320"/>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="316"/>
         <source>LogSquirl could not open the Default apps page of the Windows settings. Open it yourself and choose LogSquirl there.</source>
         <translation>LogSquirl 无法打开 Windows 设置中的“默认应用”页面。请自行打开该页面并在其中选择 LogSquirl。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="387"/>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="381"/>
         <source>Open with LogSquirl</source>
         <translation>用 LogSquirl 打开</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="402"/>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="396"/>
         <source>LogSquirl could not add Open with LogSquirl to the context menu of every file.</source>
         <translation>LogSquirl 无法将“用 LogSquirl 打开”添加到每个文件的上下文菜单。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="404"/>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="398"/>
         <source>LogSquirl could not remove Open with LogSquirl from the context menu of every file.</source>
         <translation>LogSquirl 无法从每个文件的上下文菜单中删除“用 LogSquirl 打开”。</translation>
     </message>
@@ -5649,27 +5684,27 @@ Without a date, %1 is used.</source>
 <context>
     <name>XdgFileAssociations</name>
     <message>
-        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="225"/>
+        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="218"/>
         <source>An AppImage cannot register the file types it opens. Install the deb or rpm package of LogSquirl to choose them.</source>
         <translation>AppImage 无法注册它打开的文件类型。请安装 LogSquirl 的 deb 或 rpm 软件包以选择文件类型。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="229"/>
+        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="222"/>
         <source>LogSquirl&apos;s desktop entry is not installed, so the desktop cannot open files with it. Install the deb or rpm package of LogSquirl to choose them.</source>
         <translation>LogSquirl 的桌面项未安装，因此桌面环境无法用它打开文件。请安装 LogSquirl 的 deb 或 rpm 软件包以选择文件类型。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="233"/>
+        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="226"/>
         <source>xdg-mime is not installed, which chooses the application a file type opens with. Install xdg-utils to choose them.</source>
         <translation>未安装 xdg-mime，它用于选择打开某种文件类型的应用程序。请安装 xdg-utils 以选择文件类型。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="308"/>
+        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="323"/>
         <source>xdg-mime could not make LogSquirl the default for %1.</source>
         <translation>xdg-mime 无法将 LogSquirl 设为 %1 的默认应用。</translation>
     </message>
     <message>
-        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="334"/>
+        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="349"/>
         <source>LogSquirl could not give %1 back: its mimeapps.list cannot be written.</source>
         <translation>LogSquirl 无法交还 %1：无法写入其 mimeapps.list。</translation>
     </message>
