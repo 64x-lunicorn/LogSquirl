@@ -791,6 +791,16 @@ public:
     {
         dismissedFileAssociations_ = dismissed;
     }
+    // The ids of the chosen file types LogSquirl was seen to open since they
+    // were chosen: only those count as lost when it no longer does (#725).
+    QStringList confirmedFileAssociations() const
+    {
+        return confirmedFileAssociations_;
+    }
+    void setConfirmedFileAssociations( const QStringList& confirmed )
+    {
+        confirmedFileAssociations_ = confirmed;
+    }
 
     // Chart presets — app-level named chart configurations
     QMap<QString, QString> chartPresets() const
@@ -934,6 +944,7 @@ private:
     bool fileAssociationsChosen_{};
     QStringList chosenFileAssociations_;
     QStringList dismissedFileAssociations_;
+    QStringList confirmedFileAssociations_;
 
     bool qfIgnoreCase_{};
 

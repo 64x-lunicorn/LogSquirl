@@ -225,16 +225,21 @@
   window's Options Dialog uses too. (#723)
 - **LogSquirl says when a chosen file association was lost, and restores it**:
   LogSquirl keeps the file types chosen on the File Associations page or in
-  the first-start dialog -- before either, the types it opens when it first
-  looks, as the installer chose them -- and at every start compares them with
-  what the system says. When one no longer opens in LogSquirl, as after
-  another application or a Windows update took it over, a quiet hint in the
-  status bar names it and offers *Restore*, which applies the choice again
-  (on Windows through the *Default apps* page), and *Dismiss*, which stops
-  the hint for that loss until a choice is applied again. A type the user
-  unchecked never counts. A moved portable build on Windows says instead
-  that the associations point at its old location, and *Restore* points them
-  at the new one. (#725)
+  the first-start dialog, and before either the types it opens when it first
+  looks, as the installer chose them. At every start it compares them with
+  what the system says. When a chosen type LogSquirl opened since it was
+  chosen no longer opens in LogSquirl, as after another application or a
+  Windows update took it over, a quiet hint in the status bar names it and
+  offers *Restore*, which applies the choice again (on Windows through the
+  *Default apps* page), and *Dismiss*, which stops the hint for that loss
+  until a choice is applied again. A type the user unchecked never counts,
+  and neither does one LogSquirl never opened, such as one applied on Windows
+  but never confirmed on the *Default apps* page. A moved portable build on
+  Windows says instead that the associations point at its old location, and
+  *Restore* points them at the new one. The installer's choice is not
+  recorded as such: a type it chose that LogSquirl does not open by the first
+  start, because the user's own choice in Windows wins or another application
+  took it first, does not count as chosen. (#725)
 - **Sync Now syncs the Team Folder the fields show**: in *Settings → Team
   Folder*, *Sync Now* used to sync the repository last applied, so a newly
   typed Repository URL showed the old one's result until *Apply*. When the

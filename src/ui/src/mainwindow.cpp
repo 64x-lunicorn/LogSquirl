@@ -2048,13 +2048,18 @@ void MainWindow::checkFileAssociationsAtStart( bool mayAsk )
     LOG_INFO << "Asking which file types LogSquirl opens";
     auto* dialog = new FirstStartFileAssociationsDialog( *fileAssociations, atStart.checks, this );
     dialog->setAttribute( Qt::WA_DeleteOnClose );
-    connect( dialog, &FirstStartFileAssociationsDialog::answered, this, [ dialog ] {
-        // Read again: the Options Dialog may have kept a choice meanwhile.
-        auto& syncedConfig = Configuration::getSynced();
-        auto answered = FileAssociationChoice::of( syncedConfig );
-        dialog->updateChoice( answered );
-        answered.keepIn( syncedConfig );
-    } );
+    connect( dialog, &FirstStartFileAssociationsDialog::answered, this,
+             [ dialog, fileAssociations ] {
+                 // Read again: the Options Dialog may have kept a choice
+                 // meanwhile.
+                 auto& syncedConfig = Configuration::getSynced();
+                 auto answered = FileAssociationChoice::of( syncedConfig );
+                 dialog->updateChoice( answered );
+                 // What the system made LogSquirl's at once counts as
+                 // confirmed (#725).
+                 answered.confirm( fileAssociations->states() );
+                 answered.keepIn( syncedConfig );
+             } );
     dialog->open();
 }
 

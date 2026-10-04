@@ -43,14 +43,27 @@ struct FileAssociationChoice {
     // The ids of the lost types whose hint the user dismissed, until a choice
     // is applied again.
     QStringList dismissed;
+    // The ids of the chosen types LogSquirl was seen to open since they were
+    // chosen. Only these count as lost when it no longer opens them: on
+    // Windows a type is chosen as soon as it is applied, but LogSquirl opens
+    // it only once the user confirms it on the Default apps page.
+    QStringList confirmed;
 
-    // The user applied a choice with the types of checkedIds checked.
+    // The user applied a choice with the types of checkedIds checked. A type
+    // that stays chosen stays confirmed.
     void apply( const QStringList& checkedIds );
+
+    // Counts every chosen type LogSquirl opens in the states as confirmed;
+    // whether that changed the choice.
+    bool confirm( const FileAssociationStates& states );
 
     // The choice as the settings keep it.
     static FileAssociationChoice of( const Configuration& config );
     // Keeps the choice in the settings and saves them.
     void keepIn( Configuration& config ) const;
+    // Confirms the chosen types LogSquirl opens in the states, in the choice
+    // the settings keep, and keeps it if that changed it.
+    static void confirmIn( Configuration& config, const FileAssociationStates& states );
 };
 
 // What LogSquirl does about the file associations as it starts, once the
@@ -62,14 +75,15 @@ struct FileAssociationsAtStart {
     // The types the question offers checked: the suggested ones and every
     // one LogSquirl is the default for already.
     QStringList checks;
-    // The chosen types that are no longer LogSquirl's, or, for a moved
+    // The confirmed types that are no longer LogSquirl's, or, for a moved
     // portable LogSquirl, the chosen types that still point at where it was:
     // what the hint names. Empty while the question is asked.
     QStringList lost;
     // Where a moved portable LogSquirl was; empty otherwise.
     QString movedFrom;
     // Whether the choice changed and is to be kept: nothing was chosen yet,
-    // so the types LogSquirl opens became the choice.
+    // so the types LogSquirl opens became the choice, or a chosen type is
+    // LogSquirl's for the first time.
     bool choiceChanged = false;
 
     // What to do with these file associations and the choice as kept; the

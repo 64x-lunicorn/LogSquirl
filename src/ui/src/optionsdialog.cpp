@@ -568,6 +568,8 @@ void OptionsDialog::applyFileAssociations()
         auto& config = Configuration::get();
         auto choice = FileAssociationChoice::of( config );
         choice.apply( checkedIds );
+        // What the system made LogSquirl's at once counts as confirmed (#725).
+        choice.confirm( fileAssociations_->states() );
         choice.keepIn( config );
 
         if ( !result->succeeded() ) {

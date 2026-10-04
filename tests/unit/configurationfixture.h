@@ -258,6 +258,7 @@ inline Configuration nonDefaultConfiguration()
     config.setAskForFileAssociations( false );
     config.setChosenFileAssociations( QStringList{ "log", "trace" } );
     config.setDismissedFileAssociations( { "trace" } );
+    config.setConfirmedFileAssociations( { "log" } );
 
     config.setChartPreset( "Latency", R"({"series": [{"field": "duration", "unit": "ms"}]})" );
     config.setChartPreset( "Errors", "[]" );

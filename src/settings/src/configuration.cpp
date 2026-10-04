@@ -622,6 +622,7 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
     visit( "fileAssociations.chosen", config.fileAssociationsChosen_, false );
     visit( "fileAssociations.chosenTypes", config.chosenFileAssociations_, QStringList{} );
     visit( "fileAssociations.dismissed", config.dismissedFileAssociations_, QStringList{} );
+    visit( "fileAssociations.confirmed", config.confirmedFileAssociations_, QStringList{} );
 
     visit( "chartPresets", config.chartPresets_, ChartPresets{} );
 

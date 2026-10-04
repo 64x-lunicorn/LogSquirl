@@ -54,6 +54,7 @@
 #include "applicationplugins.h"
 #include "configuration.h"
 #include "crashhandler.h"
+#include "fileassociationchoice.h"
 #include "fileassociations.h"
 #include "filewatcher.h"
 #include "gesturemanager.h"
@@ -171,6 +172,13 @@ public:
         // for the run, which every window's Options Dialog and the questions
         // of the start use (#723).
         fileAssociations_ = createFileAssociations();
+        // A choice the user confirms outside LogSquirl, on Windows' Default
+        // apps page or in macOS' dialog, counts as confirmed once the system
+        // tells it (#725).
+        connect( fileAssociations_.get(), &FileAssociations::statesChanged, this, [ this ] {
+            FileAssociationChoice::confirmIn( Configuration::getSynced(),
+                                              fileAssociations_->states() );
+        } );
 
         versionChecker_ = std::make_unique<VersionChecker>();
         if ( singleApplication_.isPrimaryInstance() ) {

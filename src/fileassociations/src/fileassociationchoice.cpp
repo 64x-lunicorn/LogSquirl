@@ -27,6 +27,28 @@ void FileAssociationChoice::apply( const QStringList& checkedIds )
     ask = false;
     chosen = checkedIds;
     dismissed.clear();
+    QStringList stillConfirmed;
+    for ( const auto& id : confirmed ) {
+        if ( checkedIds.contains( id ) ) {
+            stillConfirmed << id;
+        }
+    }
+    confirmed = stillConfirmed;
+}
+
+bool FileAssociationChoice::confirm( const FileAssociationStates& states )
+{
+    if ( !chosen ) {
+        return false;
+    }
+    auto changed = false;
+    for ( const auto& id : *chosen ) {
+        if ( isDefault( states, id ) && !confirmed.contains( id ) ) {
+            confirmed << id;
+            changed = true;
+        }
+    }
+    return changed;
 }
 
 FileAssociationChoice FileAssociationChoice::of( const Configuration& config )
@@ -35,6 +57,7 @@ FileAssociationChoice FileAssociationChoice::of( const Configuration& config )
     choice.ask = config.askForFileAssociations();
     choice.chosen = config.chosenFileAssociations();
     choice.dismissed = config.dismissedFileAssociations();
+    choice.confirmed = config.confirmedFileAssociations();
     return choice;
 }
 
@@ -43,7 +66,16 @@ void FileAssociationChoice::keepIn( Configuration& config ) const
     config.setAskForFileAssociations( ask );
     config.setChosenFileAssociations( chosen );
     config.setDismissedFileAssociations( dismissed );
+    config.setConfirmedFileAssociations( confirmed );
     config.save();
+}
+
+void FileAssociationChoice::confirmIn( Configuration& config, const FileAssociationStates& states )
+{
+    auto choice = of( config );
+    if ( choice.confirm( states ) ) {
+        choice.keepIn( config );
+    }
 }
 
 FileAssociationsAtStart FileAssociationsAtStart::of( const FileAssociations& fileAssociations,
@@ -70,6 +102,9 @@ FileAssociationsAtStart FileAssociationsAtStart::of( const FileAssociations& fil
             atStart.choiceChanged = true;
         }
     }
+    if ( choice.confirm( states ) ) {
+        atStart.choiceChanged = true;
+    }
 
     if ( mayAsk && choice.ask ) {
         auto suggestedAreDefault = true;
@@ -92,16 +127,20 @@ FileAssociationsAtStart FileAssociationsAtStart::of( const FileAssociations& fil
         return atStart;
     }
     // A moved portable LogSquirl: every chosen type points at where it was,
-    // whatever the system says of it.
-    const auto movedFrom = fileAssociations.movedFrom();
+    // whatever the system says of it. Otherwise a type is lost once LogSquirl
+    // no longer opens it, having opened it since it was chosen.
+    const auto oldLocation = fileAssociations.movedFrom();
     for ( const auto& type : FileTypes::choices() ) {
-        if ( choice.chosen->contains( type.id ) && !choice.dismissed.contains( type.id )
-             && ( !movedFrom.isEmpty() || !isDefault( states, type.id ) ) ) {
+        if ( !choice.chosen->contains( type.id ) || choice.dismissed.contains( type.id ) ) {
+            continue;
+        }
+        if ( !oldLocation.isEmpty()
+             || ( choice.confirmed.contains( type.id ) && !isDefault( states, type.id ) ) ) {
             atStart.lost << type.id;
         }
     }
     if ( !atStart.lost.isEmpty() ) {
-        atStart.movedFrom = movedFrom;
+        atStart.movedFrom = oldLocation;
     }
     return atStart;
 }

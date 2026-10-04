@@ -86,6 +86,7 @@ TEST_CASE( "Restore makes LogSquirl the default again, Dismiss stops the hint fo
 
         FileAssociationChoice choice;
         choice.apply( { "log", "logcat" } );
+        choice.confirmed = { "log", "logcat" };
         choice.dismissed = dismissed.at( 0 ).at( 0 ).toStringList();
         CHECK( FileAssociationsAtStart::of( associations, choice, true ).lost.isEmpty() );
 

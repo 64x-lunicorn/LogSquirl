@@ -26,6 +26,7 @@ namespace {
 
 constexpr auto Default = FileAssociationState::Default;
 constexpr auto Registered = FileAssociationState::Registered;
+constexpr auto Unconfirmed = FileAssociationState::Unconfirmed;
 
 } // namespace
 
@@ -80,11 +81,29 @@ TEST_CASE( "Applying a choice keeps it, stops the question and forgets what was 
 {
     FileAssociationChoice choice;
     choice.dismissed = { "log" };
+    choice.confirmed = { "log", "logcat" };
     choice.apply( { "log", "trace" } );
     CHECK_FALSE( choice.ask );
     REQUIRE( choice.chosen );
     CHECK( *choice.chosen == QStringList{ "log", "trace" } );
     CHECK( choice.dismissed.isEmpty() );
+    // A type that stays chosen stays confirmed.
+    CHECK( choice.confirmed == QStringList{ "log" } );
+}
+
+TEST_CASE( "A chosen type counts as confirmed once LogSquirl opens it",
+           "[fileassociations][lostassociation]" )
+{
+    FileAssociationChoice choice;
+    CHECK_FALSE( choice.confirm( { { "log", Default } } ) );
+
+    choice.apply( { "log", "trace" } );
+    CHECK_FALSE( choice.confirm( { { "log", Unconfirmed }, { "text", Default } } ) );
+    CHECK( choice.confirmed.isEmpty() );
+
+    CHECK( choice.confirm( { { "log", Default }, { "text", Default } } ) );
+    CHECK( choice.confirmed == QStringList{ "log" } );
+    CHECK_FALSE( choice.confirm( { { "log", Default } } ) );
 }
 
 TEST_CASE( "A chosen file type that is no longer LogSquirl's is lost",
@@ -94,6 +113,8 @@ TEST_CASE( "A chosen file type that is no longer LogSquirl's is lost",
     FileAssociationChoice choice;
     choice.ask = false;
     choice.apply( { "log", "logcat" } );
+    // LogSquirl opened both since.
+    choice.confirm( { { "log", Default }, { "logcat", Default } } );
 
     SECTION( "no hint while every chosen type is LogSquirl's" )
     {
@@ -143,6 +164,33 @@ TEST_CASE( "A chosen file type that is no longer LogSquirl's is lost",
     }
 }
 
+TEST_CASE( "A chosen type LogSquirl never opened is not lost, as one Windows waits to confirm",
+           "[fileassociations][lostassociation]" )
+{
+    FakeFileAssociations associations;
+    FileAssociationChoice choice;
+    choice.apply( { "log", "trace" } );
+
+    // Applied, but the user never chose LogSquirl on the Default apps page.
+    associations.current = { { "log", Unconfirmed }, { "trace", Registered } };
+    auto atStart = FileAssociationsAtStart::of( associations, choice, true );
+    CHECK( atStart.lost.isEmpty() );
+    CHECK_FALSE( atStart.choiceChanged );
+
+    // Confirmed later: a start counts it, and keeps that.
+    associations.current[ "log" ] = Default;
+    atStart = FileAssociationsAtStart::of( associations, choice, true );
+    CHECK( atStart.lost.isEmpty() );
+    CHECK( atStart.choiceChanged );
+    CHECK( choice.confirmed == QStringList{ "log" } );
+
+    // Taken over by a Windows update: lost. .trace never was LogSquirl's.
+    associations.current[ "log" ] = Unconfirmed;
+    atStart = FileAssociationsAtStart::of( associations, choice, true );
+    CHECK( atStart.lost == QStringList{ "log" } );
+    CHECK_FALSE( atStart.choiceChanged );
+}
+
 TEST_CASE( "Before the user chose, the types LogSquirl opens count as chosen, as the installer "
            "chose them",
            "[fileassociations][lostassociation]" )
@@ -158,6 +206,7 @@ TEST_CASE( "Before the user chose, the types LogSquirl opens count as chosen, as
         CHECK( atStart.choiceChanged );
         REQUIRE( choice.chosen );
         CHECK( *choice.chosen == QStringList{ "log", "text" } );
+        CHECK( choice.confirmed == QStringList{ "log", "text" } );
         CHECK( atStart.lost.isEmpty() );
 
         // Taken over afterwards, it is lost.
