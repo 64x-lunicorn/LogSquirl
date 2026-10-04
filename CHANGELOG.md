@@ -436,14 +436,13 @@
 ## Internal
 
 - **The Open Log File's test runner joins oneTBB's workers before it exits,
-  as the other runners do**: a worker that oneTBB left to end on its own could
-  still be giving its memory back while mimalloc's process teardown took all
-  such memory in and freed it, and a Debug build, where mimalloc checks
-  itself, then stopped the test process at exit on a mimalloc assertion. The
-  application, `logsquirl_grep` and the logdata, unit and UI test runners join
-  the workers since #702; the Open Log File's runner indexes Log Files too and
-  now does the same. mimalloc 2.5.2 is still its newest 2.x release, so there
-  is no newer version to move to. (#665)
+  as the other runners do**: the mimalloc assertion that once stopped a
+  logdata test process at exit in a Debug build most likely came from a
+  oneTBB worker left to end on its own while mimalloc's process teardown ran,
+  which #702 dealt with in the application, `logsquirl_grep` and the logdata,
+  unit and UI test runners. The Open Log File's runner indexes Log Files with
+  oneTBB too, and was the one #702 left out; it now joins the workers as
+  well. (#665)
 
 - **A pull request that touches a hot path gets the benchmark comparison by
   itself**: a pull request that changes reading and indexing, Search,
