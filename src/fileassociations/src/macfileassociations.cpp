@@ -155,10 +155,14 @@ FileAssociationResult MacFileAssociations::apply( const std::vector<FileType>& m
     if ( !isAvailable() ) {
         return FileAssociationResult::failedFor( makeDefault, release, unavailableReason() );
     }
+    const auto thisApplication = launchServices_->thisApplication();
+    if ( !thisApplication ) {
+        return FileAssociationResult::failedFor( makeDefault, release, unavailableReason() );
+    }
 
     FileAssociationResult result;
 
-    const auto self = *launchServices_->thisApplication();
+    const auto& self = *thisApplication;
     for ( const auto& type : makeDefault ) {
         for ( const auto& contentType : contentTypes( type ) ) {
             const auto before = launchServices_->defaultApplication( contentType );
