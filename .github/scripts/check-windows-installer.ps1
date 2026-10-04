@@ -21,10 +21,12 @@
      installed application starts -- a standard (non-administrator) user
      included -- and `Uninstall.exe /S` removes it all again, gives every
      extension back to what it had before and leaves no ProgID and no Open
-     with entry of LogSquirl's. Started by a standard user, the installer is
-     refused before it runs.
+     with entry of LogSquirl's, neither the machine's nor the ones the File
+     Associations page registered for the uninstalling user (#722). Started
+     by a standard user, the installer is refused before it runs.
   2. `setup.exe /S /D=<dir>`, run as SYSTEM the way Intune runs it, installs
-     into that directory.
+     into that directory; uninstalling it leaves the uninstalling user's
+     registration of a portable LogSquirl alone.
   3. `setup.exe /S` over the latest release upgrades it in place.
 
   The installed application is only ever started with `--version`, with its
@@ -190,6 +192,49 @@ function Test-FileTypesRemoved {
     }
     Check ((Get-ExtensionDefault $OwnedExtension) -eq $OwnedProgId) "$OwnedExtension is $OwnedProgId's again"
     Check ($null -eq (Get-ClassesKey $ContextMenuEntry)) "Open with LogSquirl is gone from every file's context menu"
+}
+
+# What the File Associations page registers for the current user (#722): the
+# ProgID of a type, opening the executable, LogSquirl under its extensions'
+# OpenWithProgids, and LogSquirl's capabilities under RegisteredApplications.
+$UserCapabilities = 'SOFTWARE\LogSquirl\Capabilities'
+
+function Register-ForUser([string] $ProgId, [string[]] $Extensions, [string] $Exe) {
+    $hkcu = [Microsoft.Win32.Registry]::CurrentUser
+    $command = $hkcu.CreateSubKey("SOFTWARE\Classes\$ProgId\shell\open\command")
+    $command.SetValue('', "`"$Exe`" `"%1`"")
+    $command.Close()
+    foreach ($extension in $Extensions) {
+        $openWith = $hkcu.CreateSubKey("SOFTWARE\Classes\$extension\OpenWithProgids")
+        $openWith.SetValue($ProgId, '')
+        $openWith.Close()
+        $associations = $hkcu.CreateSubKey("$UserCapabilities\FileAssociations")
+        $associations.SetValue($extension, $ProgId)
+        $associations.Close()
+    }
+    $registered = $hkcu.CreateSubKey('SOFTWARE\RegisteredApplications')
+    $registered.SetValue('LogSquirl', $UserCapabilities)
+    $registered.Close()
+}
+
+function Get-UserKey([string] $Path) {
+    return [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($Path)
+}
+
+function Test-UserOpenWith([string] $Extension, [string] $ProgId) {
+    $key = Get-UserKey "SOFTWARE\Classes\$Extension\OpenWithProgids"
+    return ($null -ne $key) -and ($key.GetValueNames() -contains $ProgId)
+}
+
+function Test-UserRegisteredApplication {
+    $key = Get-UserKey 'SOFTWARE\RegisteredApplications'
+    return ($null -ne $key) -and ($key.GetValueNames() -contains 'LogSquirl')
+}
+
+function Test-UserFileTypeRemoved([string] $ProgId, [string[]] $Extensions) {
+    Check ($null -eq (Get-UserKey "SOFTWARE\Classes\$ProgId")) "the uninstalling user's ProgID $ProgId is gone"
+    $left = @($Extensions | Where-Object { Test-UserOpenWith $_ $ProgId })
+    Check ($left.Count -eq 0) "no Open with entry of the user's $ProgId is left$(if ($left) { " -- under: $($left -join ', ')" })"
 }
 
 function Get-DotLogAssociation {
@@ -392,7 +437,16 @@ Write-Host "  $($run.Output)"
 Check ($run.ExitCode -eq 0 -and $run.Output -match "logsquirl $([regex]::Escape($Version))") "logsquirl.exe --version runs for $standardUser and reports $Version"
 
 Step '1c. Uninstall.exe /S'
+# The uninstalling user applied the File Associations page of this
+# installation (#722).
+$installedExe = Join-Path $DefaultInstallDir 'logsquirl.exe'
+Register-ForUser 'LogSquirl.log' $DefaultFileTypes['LogSquirl.log'] $installedExe
+Register-ForUser 'LogSquirl.logcat' $DefaultFileTypes['LogSquirl.logcat'] $installedExe
 Uninstall $DefaultInstallDir
+Test-UserFileTypeRemoved 'LogSquirl.log' $DefaultFileTypes['LogSquirl.log']
+Test-UserFileTypeRemoved 'LogSquirl.logcat' $DefaultFileTypes['LogSquirl.logcat']
+Check ($null -eq (Get-UserKey $UserCapabilities)) "the uninstalling user's HKCU\$UserCapabilities is gone"
+Check (-not (Test-UserRegisteredApplication)) "the uninstalling user's RegisteredApplications names LogSquirl no more"
 Check (-not (Test-Path $UserSendToLink)) "the 'Send to' shortcut is gone from the installing user's profile"
 
 Step '1d. setup.exe started without elevation'
@@ -437,7 +491,23 @@ Test-Installed $customDir $Version
 foreach ($link in $SystemSendToLinks) { Write-Host "  'Send to' shortcut in SYSTEM's profile ($link): $(Test-Path $link)" }
 Write-Host "  'Send to' shortcut in the administrator's profile: $(Test-Path $UserSendToLink)"
 Test-Starts $customDir $Version
+# The uninstalling user applied the page of this installation for .log and of
+# a portable LogSquirl for .trace: the portable one's registration stays.
+$portableExe = 'D:\Tools\LogSquirl\logsquirl_portable.exe'
+Register-ForUser 'LogSquirl.log' $DefaultFileTypes['LogSquirl.log'] (Join-Path $customDir 'logsquirl.exe')
+Register-ForUser 'LogSquirl.trace' $OpenWithFileTypes['LogSquirl.trace'] $portableExe
 Uninstall $customDir
+Test-UserFileTypeRemoved 'LogSquirl.log' $DefaultFileTypes['LogSquirl.log']
+$command = Get-UserKey 'SOFTWARE\Classes\LogSquirl.trace\shell\open\command'
+Check ($null -ne $command -and $command.GetValue('') -eq "`"$portableExe`" `"%1`"") "the portable LogSquirl's ProgID LogSquirl.trace stays"
+Check (Test-UserOpenWith '.trace' 'LogSquirl.trace') "and its Open with entry under .trace"
+$associations = Get-UserKey "$UserCapabilities\FileAssociations"
+Check ($null -ne $associations -and $associations.GetValue('.trace') -eq 'LogSquirl.trace' -and $null -eq $associations.GetValue('.log')) "the user's capabilities keep .trace only"
+Check (Test-UserRegisteredApplication) "RegisteredApplications still names LogSquirl for the portable one"
+[Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree('SOFTWARE\Classes\LogSquirl.trace', $false)
+[Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree('SOFTWARE\Classes\.trace\OpenWithProgids', $false)
+[Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree('SOFTWARE\LogSquirl', $false)
+[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('SOFTWARE\RegisteredApplications', $true).DeleteValue('LogSquirl', $false)
 
 # ---------------------------------------------------------------------------
 Step "3. setup.exe /S over the latest release ($PreviousVersion)"

@@ -320,7 +320,9 @@ The checked types show the *logsquirl* document icon, a sheet with the squirrel.
 *logsquirl* under *Open with* for all of them, checked or not, and for `.gz` and `.zip` files. A type
 you chose to open with another application in Explorer stays with it: Windows does not let an installer
 override that choice. Uninstalling removes all of *logsquirl*'s entries and gives each type back to the
-application that opened it before. The page also offers *Open with LogSquirl in the context menu of every
+application that opened it before. It also removes what the *File Associations* page registered for the
+user who uninstalls, where that opens the installation being removed; other users' registrations and
+those of a portable *logsquirl* stay. The page also offers *Open with LogSquirl in the context menu of every
 file*, checked: right-clicking any file in Explorer then offers *Open with LogSquirl* (on Windows 11 under
 *Show more options*), also for files whose type *logsquirl* does not open on a double-click, such as
 rotated logs like `app.log.1`, whose extension Windows sees as `.1`. The *File Associations* page of the

@@ -256,7 +256,9 @@ endfunction()
 #   LogSquirlShowFileTypeSections     shows them (the file type page)
 #   LogSquirlHideFileTypeSections     hides them (the components page)
 #   LogSquirlFileTypeDescriptions     their descriptions on the page
-#   LogSquirlUnregisterFileTypes      removes all of it again
+#   LogSquirlUnregisterFileTypes      removes all of it again, and the
+#                                     uninstalling user's registration of this
+#                                     installation (#722)
 # The compressed types only get the ProgID and the Open with entry.
 function(logsquirl_file_types_nsis out_var)
   set(_register "")
@@ -271,8 +273,10 @@ function(logsquirl_file_types_nsis out_var)
     foreach(_extension IN LISTS LOGSQUIRL_FILE_TYPE_${_id}_EXTENSIONS)
       string(APPEND _register "    !insertmacro LogSquirlAddOpenWith \".${_extension}\" \"${_progid}\"\n")
       string(APPEND _unregister "    !insertmacro LogSquirlRemoveExtension \".${_extension}\" \"${_progid}\"\n")
+      string(APPEND _unregister "    !insertmacro LogSquirlRemoveUserExtension \".${_extension}\" \"${_progid}\"\n")
     endforeach()
     string(APPEND _unregister "    !insertmacro LogSquirlRemoveProgId \"${_progid}\"\n")
+    string(APPEND _unregister "    !insertmacro LogSquirlRemoveUserProgId \"${_progid}\"\n")
     if(LOGSQUIRL_FILE_TYPE_${_id}_OPEN_WITH_ONLY)
       continue()
     endif()
@@ -302,6 +306,7 @@ function(logsquirl_file_types_nsis out_var)
   string(APPEND _nsh "!macro LogSquirlHideFileTypeSections\n${_hide}!macroend\n\n")
   string(APPEND _nsh "!macro LogSquirlFileTypeDescriptions\n${_descriptions}!macroend\n\n")
   string(APPEND _nsh "!macro LogSquirlUnregisterFileTypes\n${_unregister}")
+  string(APPEND _nsh "    !insertmacro LogSquirlRemoveUserCapabilities\n")
   string(APPEND _nsh "    !insertmacro LogSquirlRemoveFileTypesBackup\n")
   string(APPEND _nsh "    !insertmacro LogSquirlFileTypesChanged\n!macroend\n")
   set(${out_var}

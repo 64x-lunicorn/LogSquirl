@@ -370,7 +370,9 @@
   handler, as far as Windows lets an installer. `.gz` and `.zip` only get the
   *Open with* entry. The uninstaller removes the ProgIDs and the *Open with*
   entries and gives each extension back to the ProgID it had before; an
-  extension another application took since keeps it. The installer's types,
+  extension another application took since keeps it. It also removes what
+  the File Associations page registered for the uninstalling user where that
+  opens this installation, and leaves a portable LogSquirl's registration. The installer's types,
   sections and ProgIDs are generated from `cmake/FileTypes.cmake`, the names
   the application will register too, and CI's installer check covers them.
   (#719)

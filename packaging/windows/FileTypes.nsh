@@ -13,7 +13,10 @@
 ; The uninstaller removes the ProgIDs and LogSquirl's OpenWithProgids entries,
 ; and gives an extension back to the ProgID it had before the installer made
 ; LogSquirl its default. An extension another application took in the
-; meantime keeps that application.
+; meantime keeps that application. It removes the uninstalling user's own
+; registration too, which the File Associations page wrote (#722), where it
+; opens this installation's logsquirl.exe; a portable LogSquirl's stays.
+; Other users' registrations are in their own hives, out of its reach.
 ;
 ; Everything goes into HKLM\Software\Classes: the installer runs as an
 ; administrator for all users of the machine.
@@ -52,27 +55,32 @@
     Pop $R0
 !macroend
 
-; Deletes a key under HKLM that holds nothing: no subkey and no value. Not
-; DeleteRegKey /ifempty, which looks at the subkeys only and would take an
-; extension's other values with it. EnumRegValue names the default value "",
-; the same as the end of the list, so a key with a default value is kept, and
-; a second value is looked for.
-!macro LogSquirlDeleteKeyIfEmpty _KEY
+; Deletes a key under a root key, HKLM or HKCU, that holds nothing: no subkey
+; and no value. Not DeleteRegKey /ifempty, which looks at the subkeys only and
+; would take an extension's other values with it. EnumRegValue names the
+; default value "", the same as the end of the list, so a key with a default
+; value is kept, and a second value is looked for.
+!macro LogSquirlDeleteKeyIfEmptyIn _ROOT _KEY
     Push $R1
-    EnumRegKey $R1 HKLM "${_KEY}" 0
+    EnumRegKey $R1 ${_ROOT} "${_KEY}" 0
     ${If} $R1 == ""
-        ReadRegStr $R1 HKLM "${_KEY}" ""
+        ReadRegStr $R1 ${_ROOT} "${_KEY}" ""
         ${If} $R1 == ""
-            EnumRegValue $R1 HKLM "${_KEY}" 0
+            EnumRegValue $R1 ${_ROOT} "${_KEY}" 0
             ${If} $R1 == ""
-                EnumRegValue $R1 HKLM "${_KEY}" 1
+                EnumRegValue $R1 ${_ROOT} "${_KEY}" 1
                 ${If} $R1 == ""
-                    DeleteRegKey HKLM "${_KEY}"
+                    DeleteRegKey ${_ROOT} "${_KEY}"
                 ${EndIf}
             ${EndIf}
         ${EndIf}
     ${EndIf}
     Pop $R1
+!macroend
+
+; The same under HKLM.
+!macro LogSquirlDeleteKeyIfEmpty _KEY
+    !insertmacro LogSquirlDeleteKeyIfEmptyIn HKLM "${_KEY}"
 !macroend
 
 ; Removes LogSquirl's entries of an extension, and gives the extension back if
@@ -97,6 +105,51 @@
 ; Removes the ProgID of a type.
 !macro LogSquirlRemoveProgId _PROGID
     DeleteRegKey HKLM "Software\Classes\${_PROGID}"
+!macroend
+
+; Where the File Associations page registers LogSquirl as an application for
+; the current user (#722), which RegisteredApplications names.
+!define LOGSQUIRL_USER_CAPABILITIES "Software\LogSquirl\Capabilities"
+
+; Removes the uninstalling user's entries of an extension, as the File
+; Associations page wrote them, when the user's ProgID opens this
+; installation's logsquirl.exe. Before LogSquirlRemoveUserProgId, which takes
+; the ProgID this looks at.
+!macro LogSquirlRemoveUserExtension _EXT _PROGID
+    Push $R0
+    ReadRegStr $R0 HKCU "Software\Classes\${_PROGID}\shell\open\command" ""
+    ${If} $R0 == '"$INSTDIR\logsquirl.exe" "%1"'
+        DeleteRegValue HKCU "Software\Classes\${_EXT}\OpenWithProgids" "${_PROGID}"
+        !insertmacro LogSquirlDeleteKeyIfEmptyIn HKCU "Software\Classes\${_EXT}\OpenWithProgids"
+        !insertmacro LogSquirlDeleteKeyIfEmptyIn HKCU "Software\Classes\${_EXT}"
+        DeleteRegValue HKCU "${LOGSQUIRL_USER_CAPABILITIES}\FileAssociations" "${_EXT}"
+    ${EndIf}
+    Pop $R0
+!macroend
+
+; Removes the uninstalling user's ProgID of a type when it opens this
+; installation's logsquirl.exe.
+!macro LogSquirlRemoveUserProgId _PROGID
+    Push $R0
+    ReadRegStr $R0 HKCU "Software\Classes\${_PROGID}\shell\open\command" ""
+    ${If} $R0 == '"$INSTDIR\logsquirl.exe" "%1"'
+        DeleteRegKey HKCU "Software\Classes\${_PROGID}"
+    ${EndIf}
+    Pop $R0
+!macroend
+
+; Removes the uninstalling user's registration of LogSquirl as an application
+; once no type is left in it, after LogSquirlRemoveUserExtension: a portable
+; LogSquirl's types keep it.
+!macro LogSquirlRemoveUserCapabilities
+    Push $R0
+    EnumRegValue $R0 HKCU "${LOGSQUIRL_USER_CAPABILITIES}\FileAssociations" 0
+    ${If} $R0 == ""
+        DeleteRegKey HKCU "${LOGSQUIRL_USER_CAPABILITIES}"
+        DeleteRegValue HKCU "Software\RegisteredApplications" "LogSquirl"
+        !insertmacro LogSquirlDeleteKeyIfEmptyIn HKCU "Software\LogSquirl"
+    ${EndIf}
+    Pop $R0
 !macroend
 
 ; Removes what the installer kept about the extensions, after every extension
