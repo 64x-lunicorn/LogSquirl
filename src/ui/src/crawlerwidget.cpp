@@ -633,8 +633,7 @@ void CrawlerWidget::restoreSearches( const ViewState& state )
 {
     KeptSearches::Requested saved;
     for ( const auto& search : state.searches ) {
-        saved.patterns.emplace_back( search.pattern, !search.ignoreCase, search.inverseRegexp,
-                                     search.useBooleanCombination, !search.useRegexp );
+        saved.patterns.push_back( patternOf( search ) );
     }
     saved.current = static_cast<std::size_t>( std::max<qsizetype>( state.currentSearch, 0 ) );
 
@@ -706,11 +705,7 @@ std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() co
     const auto requested = keptSearches_.requested();
     state.searches.clear();
     for ( const auto& pattern : requested.patterns ) {
-        state.searches.append( SavedSearch{ .pattern = pattern.pattern,
-                                            .ignoreCase = !pattern.isCaseSensitive,
-                                            .useRegexp = !pattern.isPlainText,
-                                            .inverseRegexp = pattern.isExclude,
-                                            .useBooleanCombination = pattern.isBoolean } );
+        state.searches.append( keptSearchStateOf( pattern ) );
     }
     state.currentSearch = static_cast<qsizetype>( requested.current );
 

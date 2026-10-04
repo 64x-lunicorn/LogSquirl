@@ -301,7 +301,7 @@ SCENARIO( "A malformed or empty view state reads as defaults", "[viewstatecodec]
 namespace {
 
 // The one empty Search, current, a tab has when none was saved (#704).
-const QList<SavedSearch> OneEmptySearch{ SavedSearch{} };
+const QList<KeptSearchState> OneEmptySearch{ KeptSearchState{} };
 
 } // namespace
 
@@ -311,10 +311,11 @@ SCENARIO( "A tab's Kept Searches survive being saved and read back", "[viewstate
     {
         auto state = everyFieldSet();
         state.searches = {
-            SavedSearch{ .pattern = "ERROR", .ignoreCase = true },
-            SavedSearch{ .pattern = "took (\\d+) ms", .useRegexp = true, .inverseRegexp = true },
-            SavedSearch{ .pattern = R"("db" and not "retry")", .useBooleanCombination = true },
-            SavedSearch{ .pattern = QString::fromUtf8( "Grüße 東京" ) },
+            KeptSearchState{ .pattern = "ERROR", .ignoreCase = true },
+            KeptSearchState{
+                .pattern = "took (\\d+) ms", .useRegexp = true, .inverseRegexp = true },
+            KeptSearchState{ .pattern = R"("db" and not "retry")", .useBooleanCombination = true },
+            KeptSearchState{ .pattern = QString::fromUtf8( "Grüße 東京" ) },
         };
         state.currentSearch = 1;
 
@@ -393,10 +394,10 @@ SCENARIO( "A saved Search that cannot be read is left out", "[viewstatecodec][se
 
         THEN( "the two that can be read are kept, the same one current, the rest read" )
         {
-            REQUIRE(
-                state.searches
-                == QList<SavedSearch>{ SavedSearch{ .pattern = "warn", .ignoreCase = true },
-                                       SavedSearch{ .pattern = "error", .useRegexp = true } } );
+            REQUIRE( state.searches
+                     == QList<KeptSearchState>{
+                         KeptSearchState{ .pattern = "warn", .ignoreCase = true },
+                         KeptSearchState{ .pattern = "error", .useRegexp = true } } );
             REQUIRE( state.currentSearch == 1 );
             REQUIRE( state.sizes == QList<int>{ 1, 2 } );
         }
@@ -421,6 +422,44 @@ SCENARIO( "A saved Search that cannot be read is left out", "[viewstatecodec][se
         {
             REQUIRE( state.searches.size() == 2 );
             REQUIRE( state.currentSearch == 0 );
+        }
+    }
+}
+
+SCENARIO( "A Search's pattern and flags are kept as the Session keeps them",
+          "[viewstatecodec][session]" )
+{
+    GIVEN( "a pattern read case-insensitively, as a regexp, inverted and combined" )
+    {
+        const RegularExpressionPattern pattern( "took (\\d+) ms", false, true, true, false );
+
+        THEN( "it is kept with these flags, and read back as it was" )
+        {
+            const auto kept = keptSearchStateOf( pattern );
+            REQUIRE( kept
+                     == KeptSearchState{ .pattern = "took (\\d+) ms",
+                                         .ignoreCase = true,
+                                         .useRegexp = true,
+                                         .inverseRegexp = true,
+                                         .useBooleanCombination = true } );
+            const auto back = patternOf( kept );
+            REQUIRE( back.pattern == pattern.pattern );
+            REQUIRE( back.isCaseSensitive == pattern.isCaseSensitive );
+            REQUIRE( back.isExclude == pattern.isExclude );
+            REQUIRE( back.isBoolean == pattern.isBoolean );
+            REQUIRE( back.isPlainText == pattern.isPlainText );
+        }
+    }
+
+    GIVEN( "a fixed string, matching case" )
+    {
+        const RegularExpressionPattern pattern( "ERROR", true, false, false, true );
+
+        THEN( "it is kept as such" )
+        {
+            REQUIRE( keptSearchStateOf( pattern ) == KeptSearchState{ .pattern = "ERROR" } );
+            REQUIRE( patternOf( KeptSearchState{ .pattern = "ERROR" } ).isPlainText );
+            REQUIRE( patternOf( KeptSearchState{ .pattern = "ERROR" } ).isCaseSensitive );
         }
     }
 }

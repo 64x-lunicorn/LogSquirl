@@ -200,9 +200,9 @@ SCENARIO( "A Session File keeps every Kept Search of a tab", "[ui][session][file
 
     ViewState state;
     state.sizes = { 400, 100 };
-    state.searches = { SavedSearch{ .pattern = "ERROR", .ignoreCase = true },
-                       SavedSearch{ .pattern = "took (\\d+) ms", .useRegexp = true },
-                       SavedSearch{ .pattern = "retry", .inverseRegexp = true } };
+    state.searches = { KeptSearchState{ .pattern = "ERROR", .ignoreCase = true },
+                       KeptSearchState{ .pattern = "took (\\d+) ms", .useRegexp = true },
+                       KeptSearchState{ .pattern = "retry", .inverseRegexp = true } };
     state.currentSearch = 2;
 
     WindowSnapshot window;

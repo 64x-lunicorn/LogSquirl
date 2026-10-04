@@ -31,8 +31,16 @@
 
 namespace {
 
-// The keys of a saved Search, inside the list of a view state's Searches.
+// The keys of a view state's Searches: the list of them, and which one is
+// current.
+constexpr auto KeptSearchesKey = "KS";
+constexpr auto CurrentSearchKey = "KC";
+// The keys of each Search, inside that list.
 constexpr auto SearchPatternKey = "P";
+constexpr auto SearchIgnoreCaseKey = "IC";
+constexpr auto SearchRegexpKey = "RE";
+constexpr auto SearchInverseKey = "IR";
+constexpr auto SearchBooleanKey = "BC";
 
 // The Searches of a tab, as encodeViewState() writes them: a list of objects,
 // one per Search. An entry that is not an object holding a pattern is left
@@ -40,14 +48,14 @@ constexpr auto SearchPatternKey = "P";
 // longer there makes the first current. Without any, one empty Search.
 void decodeSearches( const QVariantMap& properties, ViewState& state )
 {
-    if ( !properties.contains( "KS" ) ) {
+    if ( !properties.contains( KeptSearchesKey ) ) {
         return;
     }
 
-    const auto savedCurrent = properties.value( "KC" ).toLongLong();
-    QList<SavedSearch> searches;
+    const auto savedCurrent = properties.value( CurrentSearchKey ).toLongLong();
+    QList<KeptSearchState> searches;
     qsizetype current = 0;
-    const auto entries = properties.value( "KS" ).toList();
+    const auto entries = properties.value( KeptSearchesKey ).toList();
     for ( qsizetype index = 0; index < entries.size(); ++index ) {
         const auto& entry = entries[ index ];
         if ( entry.typeId() != QMetaType::QVariantMap ) {
@@ -63,11 +71,12 @@ void decodeSearches( const QVariantMap& properties, ViewState& state )
         if ( index == savedCurrent ) {
             current = searches.size();
         }
-        searches.append( SavedSearch{ .pattern = pattern.toString(),
-                                      .ignoreCase = search.value( "IC" ).toBool(),
-                                      .useRegexp = search.value( "RE" ).toBool(),
-                                      .inverseRegexp = search.value( "IR" ).toBool(),
-                                      .useBooleanCombination = search.value( "BC" ).toBool() } );
+        searches.append(
+            KeptSearchState{ .pattern = pattern.toString(),
+                             .ignoreCase = search.value( SearchIgnoreCaseKey ).toBool(),
+                             .useRegexp = search.value( SearchRegexpKey ).toBool(),
+                             .inverseRegexp = search.value( SearchInverseKey ).toBool(),
+                             .useBooleanCombination = search.value( SearchBooleanKey ).toBool() } );
     }
 
     if ( !searches.isEmpty() ) {
@@ -178,6 +187,21 @@ ViewState decodeJson( const QString& json, bool useRegexpByPolicy )
 
 } // namespace
 
+KeptSearchState keptSearchStateOf( const RegularExpressionPattern& pattern )
+{
+    return KeptSearchState{ .pattern = pattern.pattern,
+                            .ignoreCase = !pattern.isCaseSensitive,
+                            .useRegexp = !pattern.isPlainText,
+                            .inverseRegexp = pattern.isExclude,
+                            .useBooleanCombination = pattern.isBoolean };
+}
+
+RegularExpressionPattern patternOf( const KeptSearchState& search )
+{
+    return RegularExpressionPattern( search.pattern, !search.ignoreCase, search.inverseRegexp,
+                                     search.useBooleanCombination, !search.useRegexp );
+}
+
 QString encodeViewState( const ViewState& state )
 {
     const auto toVariantList = []( const auto& list ) -> QVariantList {
@@ -210,17 +234,18 @@ QString encodeViewState( const ViewState& state )
     }
     // Left out for one empty Search, what a view state without them restores
     // to.
-    if ( state.searches != QList<SavedSearch>{ SavedSearch{} } || state.currentSearch != 0 ) {
+    if ( state.searches != QList<KeptSearchState>{ KeptSearchState{} }
+         || state.currentSearch != 0 ) {
         QVariantList searches;
         for ( const auto& search : state.searches ) {
             searches.append( QVariantMap{ { SearchPatternKey, search.pattern },
-                                          { "IC", search.ignoreCase },
-                                          { "RE", search.useRegexp },
-                                          { "IR", search.inverseRegexp },
-                                          { "BC", search.useBooleanCombination } } );
+                                          { SearchIgnoreCaseKey, search.ignoreCase },
+                                          { SearchRegexpKey, search.useRegexp },
+                                          { SearchInverseKey, search.inverseRegexp },
+                                          { SearchBooleanKey, search.useBooleanCombination } } );
         }
-        properties[ "KS" ] = searches;
-        properties[ "KC" ] = static_cast<qlonglong>( state.currentSearch );
+        properties[ KeptSearchesKey ] = searches;
+        properties[ CurrentSearchKey ] = static_cast<qlonglong>( state.currentSearch );
     }
 
     return QJsonDocument::fromVariant( properties ).toJson( QJsonDocument::Compact );

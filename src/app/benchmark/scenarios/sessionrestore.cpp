@@ -121,7 +121,7 @@ public:
             static const std::array<QString, 5> words{ "error", "warn", "info", "debug", "fatal" };
             state.searches.clear();
             for ( auto search = 0; search < searches_; ++search ) {
-                state.searches.append( SavedSearch{
+                state.searches.append( KeptSearchState{
                     .pattern = words[ static_cast<std::size_t>( search ) % words.size() ],
                     .ignoreCase = true } );
             }

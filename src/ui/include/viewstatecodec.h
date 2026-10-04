@@ -20,6 +20,7 @@
 #pragma once
 
 #include "linetypes.h"
+#include "regularexpressionpattern.h"
 #include "viewinterface.h"
 
 #include <QJsonArray>
@@ -30,18 +31,22 @@
 
 struct QuickFindPolicy;
 
-// A Search of a tab as the Session keeps it: its pattern and how the Search
-// Line read it when it was requested (#704). Its results are not kept: a
-// restored Search runs again.
-struct SavedSearch {
+// One of a tab's Kept Searches as the Session keeps it: its pattern and how
+// the Search Line read it when it was requested (#704). Its results are not
+// kept: a restored Search runs again.
+struct KeptSearchState {
     QString pattern;
     bool ignoreCase = false;
     bool useRegexp = false;
     bool inverseRegexp = false;
     bool useBooleanCombination = false;
 
-    bool operator==( const SavedSearch& ) const = default;
+    bool operator==( const KeptSearchState& ) const = default;
 };
+
+// What a Search was requested for, as the Session keeps it, and back.
+KeptSearchState keptSearchStateOf( const RegularExpressionPattern& pattern );
+RegularExpressionPattern patternOf( const KeptSearchState& search );
 
 // The view state of a tab: what the Session saves for a Log File's views
 // and hands back to restore them on the next start (#390).
@@ -72,7 +77,7 @@ struct ViewState {
     // Every Search of the tab, in the order its Kept Searches hold them, and
     // which of them is current. A tab has at least one: a view state saved
     // without them has one empty Search, current (#704).
-    QList<SavedSearch> searches{ SavedSearch{} };
+    QList<KeptSearchState> searches{ KeptSearchState{} };
     qsizetype currentSearch = 0;
 
     bool operator==( const ViewState& ) const = default;

@@ -3183,9 +3183,9 @@ SCENARIO( "A restored tab runs every Kept Search again once its Log File has loa
     ViewState saved;
     saved.sizes = { 400, 100 };
     saved.marks = { 3, 7 };
-    saved.searches = { SavedSearch{ .pattern = "line 00001", .useRegexp = true },
-                       SavedSearch{ .pattern = "LINE 00002", .ignoreCase = true },
-                       SavedSearch{ .pattern = "line 00004" } };
+    saved.searches = { KeptSearchState{ .pattern = "line 00001", .useRegexp = true },
+                       KeptSearchState{ .pattern = "LINE 00002", .ignoreCase = true },
+                       KeptSearchState{ .pattern = "line 00004" } };
     saved.currentSearch = 1;
 
     // Restored in a tab that is not the current one: its Log File loads only
