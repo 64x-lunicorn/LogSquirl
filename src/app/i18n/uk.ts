@@ -1202,7 +1202,7 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../fileassociations/src/fileassociations.cpp" line="99"/>
         <source>LogSquirl cannot choose the file types it opens on this system.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl не може вибрати в цій системі типи файлів, які він відкриває.</translation>
     </message>
 </context>
 <context>
@@ -1210,17 +1210,17 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../fileassociations/src/filetypes.cpp" line="110"/>
         <source>Log files</source>
-        <translation type="unfinished"></translation>
+        <translation>Файли журналу</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/filetypes.cpp" line="112"/>
         <source>More (optional)</source>
-        <translation type="unfinished"></translation>
+        <translation>Інші (необов’язково)</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/filetypes.cpp" line="114"/>
         <source>Open with</source>
-        <translation type="unfinished"></translation>
+        <translation>Відкривати за допомогою</translation>
     </message>
 </context>
 <context>
@@ -1290,32 +1290,32 @@ Do you want to replace it?</source>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="113"/>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="219"/>
         <source>File Associations</source>
-        <translation type="unfinished"></translation>
+        <translation>Асоціації файлів</translation>
     </message>
     <message>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="117"/>
         <source>Make LogSquirl the default app</source>
-        <translation type="unfinished"></translation>
+        <translation>Зробити LogSquirl типовою програмою</translation>
     </message>
     <message>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="146"/>
         <source>You can change this later on the File Associations page of the Options.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ви можете змінити це пізніше на сторінці «Асоціації файлів» у налаштуваннях.</translation>
     </message>
     <message>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="151"/>
         <source>Later</source>
-        <translation type="unfinished"></translation>
+        <translation>Пізніше</translation>
     </message>
     <message>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="153"/>
         <source>Don&apos;t ask again</source>
-        <translation type="unfinished">Більше не питати</translation>
+        <translation>Більше не питати</translation>
     </message>
     <message>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="154"/>
         <source>Apply</source>
-        <translation type="unfinished"></translation>
+        <translation>Застосувати</translation>
     </message>
 </context>
 <context>
@@ -1735,42 +1735,42 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="60"/>
         <source>LogSquirl no longer opens %1 files.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl більше не відкриває файли %1.</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="63"/>
         <source>The associations of %1 point at the old location of LogSquirl, %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Асоціації %1 вказують на старе розташування LogSquirl, %2.</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="67"/>
         <source>You can choose the file types LogSquirl opens on the File Associations page of the Options.</source>
-        <translation type="unfinished"></translation>
+        <translation>Вибрати типи файлів, які відкриває LogSquirl, можна на сторінці «Асоціації файлів» у налаштуваннях.</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="70"/>
         <source>Restore</source>
-        <translation type="unfinished"></translation>
+        <translation>Відновити</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="71"/>
         <source>Make LogSquirl open these files again.</source>
-        <translation type="unfinished"></translation>
+        <translation>Знову відкривати ці файли в LogSquirl.</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="72"/>
         <source>Dismiss</source>
-        <translation type="unfinished"></translation>
+        <translation>Відхилити</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="73"/>
         <source>Do not tell again until you choose the file types again.</source>
-        <translation type="unfinished"></translation>
+        <translation>Не нагадувати, доки ви знову не виберете типи файлів.</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="95"/>
         <source>File Associations</source>
-        <translation type="unfinished"></translation>
+        <translation>Асоціації файлів</translation>
     </message>
 </context>
 <context>
@@ -1778,17 +1778,17 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../fileassociations/src/macfileassociations.cpp" line="78"/>
         <source>LogSquirl runs outside its app bundle, so macOS cannot open files with it. Start LogSquirl from LogSquirl.app to choose them.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl працює поза своїм пакетом програми, тому macOS не може відкривати ним файли. Запустіть LogSquirl з LogSquirl.app, щоб вибрати їх.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/macfileassociations.cpp" line="84"/>
         <source>macOS asks you to confirm each change. The states show what you answered.</source>
-        <translation type="unfinished"></translation>
+        <translation>macOS просить вас підтвердити кожну зміну. Стани показують, що ви відповіли.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/macfileassociations.cpp" line="177"/>
         <source>macOS cannot unset the application that opens %1, and LogSquirl does not know which one opened them before. Choose one in the Finder: Get Info on such a file, then Open with and Change All.</source>
-        <translation type="unfinished"></translation>
+        <translation>macOS не може скасувати програму, яка відкриває %1, а LogSquirl не знає, яка програма відкривала їх раніше. Виберіть її у Finder: «Отримати інфо» для такого файлу, потім «Відкривати за допомогою» і «Змінити все».</translation>
     </message>
 </context>
 <context>
@@ -2763,32 +2763,32 @@ Working folder: %2
         <location filename="../../ui/include/optionsdialog.ui" line="792"/>
         <location filename="../../ui/src/optionsdialog.cpp" line="594"/>
         <source>File Associations</source>
-        <translation type="unfinished"></translation>
+        <translation>Асоціації файлів</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="798"/>
         <source>Choose the file types LogSquirl opens when you double-click them.</source>
-        <translation type="unfinished"></translation>
+        <translation>Виберіть типи файлів, які LogSquirl відкриває подвійним клацанням.</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="858"/>
         <source>File type</source>
-        <translation type="unfinished"></translation>
+        <translation>Тип файлу</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="868"/>
         <source>State</source>
-        <translation type="unfinished"></translation>
+        <translation>Стан</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="876"/>
         <source>Offer Open with LogSquirl in the context menu of every file</source>
-        <translation type="unfinished"></translation>
+        <translation>Пропонувати «Відкрити в LogSquirl» у контекстному меню кожного файлу</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="879"/>
         <source>Opens files of any type in LogSquirl, such as rotated logs like app.log.1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Відкриває файли будь-якого типу в LogSquirl, наприклад ротовані журнали на кшталт app.log.1.</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="894"/>
@@ -2858,12 +2858,12 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1402"/>
         <source>Open Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>Відкрити теку</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1405"/>
         <source>Open the Team Folder&apos;s clone in the file manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Відкрити клон командної теки у файловому менеджері</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1443"/>
@@ -3064,42 +3064,42 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="398"/>
         <source>Last synced: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Остання синхронізація: %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="401"/>
         <source>never</source>
-        <translation type="unfinished"></translation>
+        <translation>ніколи</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="535"/>
         <source>Default</source>
-        <translation type="unfinished"></translation>
+        <translation>Типово</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="536"/>
         <source>LogSquirl opens these files.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl відкриває ці файли.</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="539"/>
         <source>Registered</source>
-        <translation type="unfinished"></translation>
+        <translation>Зареєстровано</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="541"/>
         <source>LogSquirl is offered for these files, but another application opens them.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl пропонується для цих файлів, але їх відкриває інша програма.</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="545"/>
         <source>Not registered</source>
-        <translation type="unfinished"></translation>
+        <translation>Не зареєстровано</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="546"/>
         <source>LogSquirl is not offered for these files.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl не пропонується для цих файлів.</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="775"/>
@@ -4047,7 +4047,7 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="533"/>
         <source>Jump to line number</source>
-        <translation type="unfinished"></translation>
+        <translation>Перейти до номера рядка</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="540"/>
@@ -4613,7 +4613,7 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="402"/>
         <source>Tab name</source>
-        <translation type="unfinished"></translation>
+        <translation>Назва вкладки</translation>
     </message>
     <message>
         <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="419"/>
@@ -4833,27 +4833,27 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1720"/>
         <source>Sign-in failed. Make sure Git can sign in to this server outside LogSquirl: with an SSH key added to your account for an SSH URL, or with stored credentials or a token for an HTTPS URL.</source>
-        <translation type="unfinished"></translation>
+        <translation>Не вдалося увійти. Переконайтеся, що Git може увійти на цей сервер поза LogSquirl: з SSH-ключем, доданим до вашого облікового запису, для SSH-URL або зі збереженими обліковими даними чи токеном для HTTPS-URL.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1724"/>
         <source>The organization requires SSO authorization. Authorize your SSH key or token for the organization in your account settings on the server, or use an HTTPS URL.</source>
-        <translation type="unfinished"></translation>
+        <translation>Організація вимагає SSO-авторизації. Авторизуйте ваш SSH-ключ або токен для організації в налаштуваннях облікового запису на сервері або використайте HTTPS-URL.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1728"/>
         <source>Repository not found. Check the Repository URL, and that your account may read the repository.</source>
-        <translation type="unfinished"></translation>
+        <translation>Репозиторій не знайдено. Перевірте URL репозиторію і те, чи може ваш обліковий запис читати репозиторій.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1731"/>
         <source>Server unreachable. Check the host name in the Repository URL, your network connection and your proxy settings.</source>
-        <translation type="unfinished"></translation>
+        <translation>Сервер недоступний. Перевірте ім’я хоста в URL репозиторію, мережеве з’єднання та налаштування проксі.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1734"/>
         <source>Git is not installed. Install Git, make sure the git program is on the PATH, and press Sync Now.</source>
-        <translation type="unfinished"></translation>
+        <translation>Git не встановлено. Встановіть Git, переконайтеся, що програма git є в PATH, і натисніть «Синхронізувати зараз».</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfoldergit.cpp" line="95"/>
@@ -4934,12 +4934,12 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/timenavigation.cpp" line="109"/>
         <source>The Log File is not in time order here: the position may be off.</source>
-        <translation type="unfinished"></translation>
+        <translation>Файл журналу тут не впорядкований за часом: позиція може бути неточною.</translation>
     </message>
     <message>
         <location filename="../../ui/src/timenavigation.cpp" line="129"/>
         <source>Looking up the time...</source>
-        <translation type="unfinished"></translation>
+        <translation>Пошук часу...</translation>
     </message>
     <message>
         <location filename="../../ui/src/timenavigation.cpp" line="202"/>
@@ -5050,17 +5050,17 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../versioncheck/src/installsource.cpp" line="173"/>
         <source>&lt;p&gt; A new version of logsquirl (%1) is available for download &lt;/p&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt; Доступна для завантаження нова версія logsquirl (%1) &lt;/p&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;</translation>
     </message>
     <message>
         <location filename="../../versioncheck/src/installsource.cpp" line="180"/>
         <source>&lt;p&gt; A new version of logsquirl (%1) is available. Update it with your package manager: &lt;/p&gt;&lt;p&gt;&lt;code&gt;%2&lt;/code&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt; Доступна нова версія logsquirl (%1). Оновіть її за допомогою менеджера пакетів: &lt;/p&gt;&lt;p&gt;&lt;code&gt;%2&lt;/code&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <location filename="../../versioncheck/src/installsource.cpp" line="189"/>
         <source>&lt;p&gt;Important changes:&lt;/p&gt;&lt;ul&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Важливі зміни:&lt;/p&gt;&lt;ul&gt;</translation>
     </message>
 </context>
 <context>
@@ -5068,27 +5068,27 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="76"/>
         <source>(empty)</source>
-        <translation type="unfinished">(порожньо)</translation>
+        <translation>(порожньо)</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="80"/>
         <source>%1 %</source>
-        <translation type="unfinished">%1 %</translation>
+        <translation>%1 %</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="94"/>
         <source>Value</source>
-        <translation type="unfinished">Значення</translation>
+        <translation>Значення</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="96"/>
         <source>Count</source>
-        <translation type="unfinished">Кількість</translation>
+        <translation>Кількість</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="98"/>
         <source>Share</source>
-        <translation type="unfinished">Поділитися</translation>
+        <translation>Частка</translation>
     </message>
 </context>
 <context>
@@ -5597,57 +5597,57 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="113"/>
         <source>LogSquirl cannot choose the file types it opens on this system.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl не може вибрати в цій системі типи файлів, які він відкриває.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="118"/>
         <source>Windows does not let an application make itself the default. After Apply, LogSquirl opens the Default apps page of the Windows settings, where you choose LogSquirl for each file type.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows не дозволяє програмі самій робити себе типовою. Після «Застосувати» LogSquirl відкриває сторінку «Програми за замовчуванням» у параметрах Windows, де ви вибираєте LogSquirl для кожного типу файлів.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="123"/>
         <source>If you move LogSquirl, these associations stop working.</source>
-        <translation type="unfinished"></translation>
+        <translation>Якщо ви перемістите LogSquirl, ці асоціації перестануть працювати.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="215"/>
         <source>A fast, smart log file explorer</source>
-        <translation type="unfinished"></translation>
+        <translation>Швидкий і розумний оглядач файлів журналу</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="271"/>
         <source>LogSquirl could not register %1 in the registry.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl не вдалося зареєструвати %1 у реєстрі.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="293"/>
         <source>LogSquirl could not remove its registration of %1 from the registry.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl не вдалося видалити свою реєстрацію %1 з реєстру.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="297"/>
         <source>LogSquirl still opens %1: the installer made it the default for every user of this computer, or you chose it in Windows. Choose another app for them on the Default apps page of the Windows settings.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl і далі відкриває %1: інсталятор зробив його типовим для всіх користувачів цього комп’ютера, або ви вибрали його в Windows. Виберіть для них іншу програму на сторінці «Програми за замовчуванням» у параметрах Windows.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="320"/>
         <source>LogSquirl could not open the Default apps page of the Windows settings. Open it yourself and choose LogSquirl there.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl не вдалося відкрити сторінку «Програми за замовчуванням» у параметрах Windows. Відкрийте її самостійно й виберіть там LogSquirl.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="387"/>
         <source>Open with LogSquirl</source>
-        <translation type="unfinished"></translation>
+        <translation>Відкрити в LogSquirl</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="402"/>
         <source>LogSquirl could not add Open with LogSquirl to the context menu of every file.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl не вдалося додати «Відкрити в LogSquirl» до контекстного меню кожного файлу.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="404"/>
         <source>LogSquirl could not remove Open with LogSquirl from the context menu of every file.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl не вдалося видалити «Відкрити в LogSquirl» з контекстного меню кожного файлу.</translation>
     </message>
 </context>
 <context>
@@ -5655,27 +5655,27 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="225"/>
         <source>An AppImage cannot register the file types it opens. Install the deb or rpm package of LogSquirl to choose them.</source>
-        <translation type="unfinished"></translation>
+        <translation>AppImage не може зареєструвати типи файлів, які він відкриває. Встановіть пакет deb або rpm LogSquirl, щоб вибрати їх.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="229"/>
         <source>LogSquirl&apos;s desktop entry is not installed, so the desktop cannot open files with it. Install the deb or rpm package of LogSquirl to choose them.</source>
-        <translation type="unfinished"></translation>
+        <translation>Елемент стільниці LogSquirl не встановлено, тому стільниця не може відкривати ним файли. Встановіть пакет deb або rpm LogSquirl, щоб вибрати їх.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="233"/>
         <source>xdg-mime is not installed, which chooses the application a file type opens with. Install xdg-utils to choose them.</source>
-        <translation type="unfinished"></translation>
+        <translation>xdg-mime, який вибирає програму для відкриття типу файлів, не встановлено. Встановіть xdg-utils, щоб вибрати їх.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="308"/>
         <source>xdg-mime could not make LogSquirl the default for %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>xdg-mime не вдалося зробити LogSquirl типовою програмою для %1.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="334"/>
         <source>LogSquirl could not give %1 back: its mimeapps.list cannot be written.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl не вдалося повернути %1: неможливо записати його mimeapps.list.</translation>
     </message>
 </context>
 <context>

@@ -1202,7 +1202,7 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <location filename="../../fileassociations/src/fileassociations.cpp" line="99"/>
         <source>LogSquirl cannot choose the file types it opens on this system.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl kann auf diesem System nicht wählen, welche Dateitypen es öffnet.</translation>
     </message>
 </context>
 <context>
@@ -1210,17 +1210,17 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <location filename="../../fileassociations/src/filetypes.cpp" line="110"/>
         <source>Log files</source>
-        <translation type="unfinished"></translation>
+        <translation>Logdateien</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/filetypes.cpp" line="112"/>
         <source>More (optional)</source>
-        <translation type="unfinished"></translation>
+        <translation>Weitere (optional)</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/filetypes.cpp" line="114"/>
         <source>Open with</source>
-        <translation type="unfinished"></translation>
+        <translation>Öffnen mit</translation>
     </message>
 </context>
 <context>
@@ -1290,32 +1290,32 @@ Möchten Sie die Datei ersetzen?</translation>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="113"/>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="219"/>
         <source>File Associations</source>
-        <translation type="unfinished"></translation>
+        <translation>Dateizuordnungen</translation>
     </message>
     <message>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="117"/>
         <source>Make LogSquirl the default app</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl zur Standard-App machen</translation>
     </message>
     <message>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="146"/>
         <source>You can change this later on the File Associations page of the Options.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sie können dies später auf der Seite Dateizuordnungen der Einstellungen ändern.</translation>
     </message>
     <message>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="151"/>
         <source>Later</source>
-        <translation type="unfinished"></translation>
+        <translation>Später</translation>
     </message>
     <message>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="153"/>
         <source>Don&apos;t ask again</source>
-        <translation type="unfinished">Nicht mehr fragen</translation>
+        <translation>Nicht mehr fragen</translation>
     </message>
     <message>
         <location filename="../../ui/src/fileassociationsdialog.cpp" line="154"/>
         <source>Apply</source>
-        <translation type="unfinished"></translation>
+        <translation>Anwenden</translation>
     </message>
 </context>
 <context>
@@ -1735,42 +1735,42 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="60"/>
         <source>LogSquirl no longer opens %1 files.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl öffnet Dateien vom Typ %1 nicht mehr.</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="63"/>
         <source>The associations of %1 point at the old location of LogSquirl, %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Zuordnungen von %1 verweisen auf den alten Speicherort von LogSquirl, %2.</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="67"/>
         <source>You can choose the file types LogSquirl opens on the File Associations page of the Options.</source>
-        <translation type="unfinished"></translation>
+        <translation>Auf der Seite Dateizuordnungen der Einstellungen können Sie wählen, welche Dateitypen LogSquirl öffnet.</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="70"/>
         <source>Restore</source>
-        <translation type="unfinished"></translation>
+        <translation>Wiederherstellen</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="71"/>
         <source>Make LogSquirl open these files again.</source>
-        <translation type="unfinished"></translation>
+        <translation>Diese Dateien wieder mit LogSquirl öffnen lassen.</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="72"/>
         <source>Dismiss</source>
-        <translation type="unfinished"></translation>
+        <translation>Verwerfen</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="73"/>
         <source>Do not tell again until you choose the file types again.</source>
-        <translation type="unfinished"></translation>
+        <translation>Nicht mehr darauf hinweisen, bis Sie die Dateitypen erneut wählen.</translation>
     </message>
     <message>
         <location filename="../../ui/src/lostfileassociationshint.cpp" line="95"/>
         <source>File Associations</source>
-        <translation type="unfinished"></translation>
+        <translation>Dateizuordnungen</translation>
     </message>
 </context>
 <context>
@@ -1778,17 +1778,17 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <location filename="../../fileassociations/src/macfileassociations.cpp" line="78"/>
         <source>LogSquirl runs outside its app bundle, so macOS cannot open files with it. Start LogSquirl from LogSquirl.app to choose them.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl läuft außerhalb seines App-Bundles, daher kann macOS keine Dateien damit öffnen. Starten Sie LogSquirl über LogSquirl.app, um sie zu wählen.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/macfileassociations.cpp" line="84"/>
         <source>macOS asks you to confirm each change. The states show what you answered.</source>
-        <translation type="unfinished"></translation>
+        <translation>macOS bittet Sie, jede Änderung zu bestätigen. Die Zustände zeigen, was Sie geantwortet haben.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/macfileassociations.cpp" line="177"/>
         <source>macOS cannot unset the application that opens %1, and LogSquirl does not know which one opened them before. Choose one in the Finder: Get Info on such a file, then Open with and Change All.</source>
-        <translation type="unfinished"></translation>
+        <translation>macOS kann die App, die %1 öffnet, nicht zurücksetzen, und LogSquirl weiß nicht, welche sie vorher geöffnet hat. Wählen Sie eine im Finder: Informationen zu einer solchen Datei, dann Öffnen mit und Alle ändern.</translation>
     </message>
 </context>
 <context>
@@ -2762,32 +2762,32 @@ Arbeitsordner: %2
         <location filename="../../ui/include/optionsdialog.ui" line="792"/>
         <location filename="../../ui/src/optionsdialog.cpp" line="594"/>
         <source>File Associations</source>
-        <translation type="unfinished"></translation>
+        <translation>Dateizuordnungen</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="798"/>
         <source>Choose the file types LogSquirl opens when you double-click them.</source>
-        <translation type="unfinished"></translation>
+        <translation>Wählen Sie die Dateitypen, die LogSquirl bei einem Doppelklick öffnet.</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="858"/>
         <source>File type</source>
-        <translation type="unfinished"></translation>
+        <translation>Dateityp</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="868"/>
         <source>State</source>
-        <translation type="unfinished"></translation>
+        <translation>Zustand</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="876"/>
         <source>Offer Open with LogSquirl in the context menu of every file</source>
-        <translation type="unfinished"></translation>
+        <translation>Mit LogSquirl öffnen im Kontextmenü jeder Datei anbieten</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="879"/>
         <source>Opens files of any type in LogSquirl, such as rotated logs like app.log.1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Öffnet Dateien jedes Typs in LogSquirl, etwa rotierte Logs wie app.log.1.</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="894"/>
@@ -2857,12 +2857,12 @@ Arbeitsordner: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1402"/>
         <source>Open Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>Ordner öffnen</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1405"/>
         <source>Open the Team Folder&apos;s clone in the file manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Den Klon des Team-Ordners im Dateimanager öffnen</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1443"/>
@@ -3063,42 +3063,42 @@ Arbeitsordner: %2
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="398"/>
         <source>Last synced: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Zuletzt synchronisiert: %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="401"/>
         <source>never</source>
-        <translation type="unfinished"></translation>
+        <translation>nie</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="535"/>
         <source>Default</source>
-        <translation type="unfinished"></translation>
+        <translation>Standard</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="536"/>
         <source>LogSquirl opens these files.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl öffnet diese Dateien.</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="539"/>
         <source>Registered</source>
-        <translation type="unfinished"></translation>
+        <translation>Registriert</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="541"/>
         <source>LogSquirl is offered for these files, but another application opens them.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl wird für diese Dateien angeboten, aber eine andere Anwendung öffnet sie.</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="545"/>
         <source>Not registered</source>
-        <translation type="unfinished"></translation>
+        <translation>Nicht registriert</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="546"/>
         <source>LogSquirl is not offered for these files.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl wird für diese Dateien nicht angeboten.</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="775"/>
@@ -4832,27 +4832,27 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1720"/>
         <source>Sign-in failed. Make sure Git can sign in to this server outside LogSquirl: with an SSH key added to your account for an SSH URL, or with stored credentials or a token for an HTTPS URL.</source>
-        <translation type="unfinished"></translation>
+        <translation>Anmeldung fehlgeschlagen. Stellen Sie sicher, dass Git sich außerhalb von LogSquirl bei diesem Server anmelden kann: mit einem SSH-Schlüssel in Ihrem Konto für eine SSH-URL oder mit gespeicherten Zugangsdaten oder einem Token für eine HTTPS-URL.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1724"/>
         <source>The organization requires SSO authorization. Authorize your SSH key or token for the organization in your account settings on the server, or use an HTTPS URL.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Organisation verlangt eine SSO-Autorisierung. Autorisieren Sie Ihren SSH-Schlüssel oder Token für die Organisation in Ihren Kontoeinstellungen auf dem Server, oder verwenden Sie eine HTTPS-URL.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1728"/>
         <source>Repository not found. Check the Repository URL, and that your account may read the repository.</source>
-        <translation type="unfinished"></translation>
+        <translation>Repository nicht gefunden. Prüfen Sie die Repository-URL und ob Ihr Konto das Repository lesen darf.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1731"/>
         <source>Server unreachable. Check the host name in the Repository URL, your network connection and your proxy settings.</source>
-        <translation type="unfinished"></translation>
+        <translation>Server nicht erreichbar. Prüfen Sie den Hostnamen in der Repository-URL, Ihre Netzwerkverbindung und Ihre Proxy-Einstellungen.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1734"/>
         <source>Git is not installed. Install Git, make sure the git program is on the PATH, and press Sync Now.</source>
-        <translation type="unfinished"></translation>
+        <translation>Git ist nicht installiert. Installieren Sie Git, stellen Sie sicher, dass das Programm git im PATH liegt, und klicken Sie auf Jetzt synchronisieren.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfoldergit.cpp" line="95"/>
@@ -5049,17 +5049,17 @@ Ohne Datum wird %1 verwendet.</translation>
     <message>
         <location filename="../../versioncheck/src/installsource.cpp" line="173"/>
         <source>&lt;p&gt; A new version of logsquirl (%1) is available for download &lt;/p&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt; Eine neue Version von logsquirl (%1) steht zum Download bereit &lt;/p&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;</translation>
     </message>
     <message>
         <location filename="../../versioncheck/src/installsource.cpp" line="180"/>
         <source>&lt;p&gt; A new version of logsquirl (%1) is available. Update it with your package manager: &lt;/p&gt;&lt;p&gt;&lt;code&gt;%2&lt;/code&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt; Eine neue Version von logsquirl (%1) ist verfügbar. Aktualisieren Sie sie mit Ihrem Paketmanager: &lt;/p&gt;&lt;p&gt;&lt;code&gt;%2&lt;/code&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <location filename="../../versioncheck/src/installsource.cpp" line="189"/>
         <source>&lt;p&gt;Important changes:&lt;/p&gt;&lt;ul&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Wichtige Änderungen:&lt;/p&gt;&lt;ul&gt;</translation>
     </message>
 </context>
 <context>
@@ -5067,27 +5067,27 @@ Ohne Datum wird %1 verwendet.</translation>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="76"/>
         <source>(empty)</source>
-        <translation type="unfinished">(leer)</translation>
+        <translation>(leer)</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="80"/>
         <source>%1 %</source>
-        <translation type="unfinished">%1 %</translation>
+        <translation>%1 %</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="94"/>
         <source>Value</source>
-        <translation type="unfinished">Wert</translation>
+        <translation>Wert</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="96"/>
         <source>Count</source>
-        <translation type="unfinished">Anzahl</translation>
+        <translation>Anzahl</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="98"/>
         <source>Share</source>
-        <translation type="unfinished">Anteil</translation>
+        <translation>Anteil</translation>
     </message>
 </context>
 <context>
@@ -5595,57 +5595,57 @@ Ohne Datum wird %1 verwendet.</translation>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="113"/>
         <source>LogSquirl cannot choose the file types it opens on this system.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl kann auf diesem System nicht wählen, welche Dateitypen es öffnet.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="118"/>
         <source>Windows does not let an application make itself the default. After Apply, LogSquirl opens the Default apps page of the Windows settings, where you choose LogSquirl for each file type.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows erlaubt keiner Anwendung, sich selbst zum Standard zu machen. Nach Anwenden öffnet LogSquirl die Seite Standard-Apps der Windows-Einstellungen, wo Sie LogSquirl für jeden Dateityp wählen.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="123"/>
         <source>If you move LogSquirl, these associations stop working.</source>
-        <translation type="unfinished"></translation>
+        <translation>Wenn Sie LogSquirl verschieben, funktionieren diese Zuordnungen nicht mehr.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="215"/>
         <source>A fast, smart log file explorer</source>
-        <translation type="unfinished"></translation>
+        <translation>Ein schneller, intelligenter Logdatei-Explorer</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="271"/>
         <source>LogSquirl could not register %1 in the registry.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl konnte %1 nicht in der Registry registrieren.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="293"/>
         <source>LogSquirl could not remove its registration of %1 from the registry.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl konnte seine Registrierung von %1 nicht aus der Registry entfernen.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="297"/>
         <source>LogSquirl still opens %1: the installer made it the default for every user of this computer, or you chose it in Windows. Choose another app for them on the Default apps page of the Windows settings.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl öffnet %1 weiterhin: Das Installationsprogramm hat es für alle Benutzer dieses Computers zum Standard gemacht, oder Sie haben es in Windows gewählt. Wählen Sie auf der Seite Standard-Apps der Windows-Einstellungen eine andere App dafür.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="320"/>
         <source>LogSquirl could not open the Default apps page of the Windows settings. Open it yourself and choose LogSquirl there.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl konnte die Seite Standard-Apps der Windows-Einstellungen nicht öffnen. Öffnen Sie sie selbst und wählen Sie dort LogSquirl.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="387"/>
         <source>Open with LogSquirl</source>
-        <translation type="unfinished"></translation>
+        <translation>Mit LogSquirl öffnen</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="402"/>
         <source>LogSquirl could not add Open with LogSquirl to the context menu of every file.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl konnte Mit LogSquirl öffnen nicht zum Kontextmenü jeder Datei hinzufügen.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="404"/>
         <source>LogSquirl could not remove Open with LogSquirl from the context menu of every file.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl konnte Mit LogSquirl öffnen nicht aus dem Kontextmenü jeder Datei entfernen.</translation>
     </message>
 </context>
 <context>
@@ -5653,27 +5653,27 @@ Ohne Datum wird %1 verwendet.</translation>
     <message>
         <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="225"/>
         <source>An AppImage cannot register the file types it opens. Install the deb or rpm package of LogSquirl to choose them.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ein AppImage kann die Dateitypen, die es öffnet, nicht registrieren. Installieren Sie das deb- oder rpm-Paket von LogSquirl, um sie zu wählen.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="229"/>
         <source>LogSquirl&apos;s desktop entry is not installed, so the desktop cannot open files with it. Install the deb or rpm package of LogSquirl to choose them.</source>
-        <translation type="unfinished"></translation>
+        <translation>Der Desktop-Eintrag von LogSquirl ist nicht installiert, daher kann der Desktop keine Dateien damit öffnen. Installieren Sie das deb- oder rpm-Paket von LogSquirl, um sie zu wählen.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="233"/>
         <source>xdg-mime is not installed, which chooses the application a file type opens with. Install xdg-utils to choose them.</source>
-        <translation type="unfinished"></translation>
+        <translation>xdg-mime ist nicht installiert, das die Anwendung wählt, mit der ein Dateityp geöffnet wird. Installieren Sie xdg-utils, um sie zu wählen.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="308"/>
         <source>xdg-mime could not make LogSquirl the default for %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>xdg-mime konnte LogSquirl nicht zum Standard für %1 machen.</translation>
     </message>
     <message>
         <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="334"/>
         <source>LogSquirl could not give %1 back: its mimeapps.list cannot be written.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl konnte %1 nicht wieder abgeben: Die mimeapps.list kann nicht geschrieben werden.</translation>
     </message>
 </context>
 <context>
