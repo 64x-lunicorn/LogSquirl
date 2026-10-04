@@ -255,9 +255,11 @@
   SSO), *Repository not found*, *Server unreachable* and *Git is not
   installed*, each saying what to check or do. LogSquirl recognises them by
   Git's fixed English sentences as whole lines of its output, so a URL or
-  path that holds the same words triggers nothing; any other failure shows
-  the heading and Git's details only, and Git's output in the details stays
-  unchanged. ADR-0008 is amended to allow these hints. (#713)
+  path that holds the same words triggers nothing. *Git is not installed* is
+  shown only when there is no Git program to start, not for one that is
+  there and does not start. Any other failure shows the heading and Git's
+  details only, and Git's output in the details stays unchanged. ADR-0008 is
+  amended to allow these hints. (#713)
 - **The Team Folder shows when it last synced, and opens its folder**: the
   status in *Settings → Team Folder* shows *Last synced:* with the date and
   time, in the user's locale, of the last sync that reached the repository,

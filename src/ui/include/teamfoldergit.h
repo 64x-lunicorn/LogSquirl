@@ -40,6 +40,11 @@ struct GitResult {
     // Whether Git could be started at all. When it could not, Git is missing
     // (or not executable) and error says why.
     bool started = false;
+    // Whether it could not be started because there is no program to start:
+    // Git is not installed, or not where it was looked for. Not set when
+    // the program is there and still does not start, say, as it is not
+    // executable.
+    bool notFound = false;
     // Whether it ran to the end and exited with 0.
     bool succeeded = false;
     QString output;

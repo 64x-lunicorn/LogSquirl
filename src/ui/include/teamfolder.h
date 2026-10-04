@@ -116,14 +116,16 @@ enum class FailureHint {
     RepositoryNotFound,
     // The server's host cannot be resolved or connected to.
     ServerUnreachable,
-    // Git is not installed, or cannot be started.
+    // There is no Git to start: it is not installed, or not on the PATH.
     GitMissing
 };
 
 // The common failure a step failed with, recognised by Git's fixed English
 // sentences (Git runs with LC_ALL=C) on whole lines of its output: never by
-// a bare word or number, which a URL or path may hold as well.
-FailureHint failureHintOf( SyncStep step, const QString& gitOutput );
+// a bare word or number, which a URL or path may hold as well. For Git that
+// could not be started, gitNotFound tells whether there was no program to
+// start; only then is Git missing.
+FailureHint failureHintOf( SyncStep step, const QString& gitOutput, bool gitNotFound = false );
 
 // A group of any kind the Team Folder holds.
 using AnyGroup
@@ -438,6 +440,8 @@ private:
     State state_ = State::Off;
     logsquirl::teamfolder::SyncStep failedStep_ = logsquirl::teamfolder::SyncStep::None;
     QString gitOutput_;
+    // Whether the last sync could not start Git as there is none.
+    bool gitNotFound_ = false;
     // LogSquirl's own reason for a failed step that is not Git's: which
     // subfolder lies outside the repository.
     QString failureReason_;

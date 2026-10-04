@@ -2173,8 +2173,12 @@ TEST_CASE( "Common failures are recognised in Git's recorded output", "[teamfold
 
     SECTION( "Git that cannot be started" )
     {
-        CHECK( failureHintOf( SyncStep::StartGit, "Git could not be started" )
+        // Only when there is no Git to start is it missing; one that is there
+        // and does not start says why in its output.
+        CHECK( failureHintOf( SyncStep::StartGit, "Git could not be started", true )
                == FailureHint::GitMissing );
+        CHECK( failureHintOf( SyncStep::StartGit, "Git could not be started", false )
+               == FailureHint::None );
     }
 
     SECTION( "nothing recognised, and a sentence that is only part of a line" )
@@ -2224,6 +2228,24 @@ TEST_CASE( "A failed sync says what to do about a common failure, with Git's out
         REQUIRE( settled( folder ) );
 
         CHECK( folder.failureHint() == FailureHint::GitMissing );
+    }
+
+    SECTION( "a Git program that is there and cannot be started" )
+    {
+        // Neither executable nor a program: starting it fails all the same.
+        QFile notExecutable( root.filePath( "git-not-executable" ) );
+        REQUIRE( notExecutable.open( QIODevice::WriteOnly ) );
+        notExecutable.write( "not a program\n" );
+        notExecutable.close();
+        REQUIRE( notExecutable.setPermissions( QFile::ReadOwner | QFile::WriteOwner ) );
+
+        TeamFolder folder( root.filePath( "clone" ), notExecutable.fileName() );
+        folder.setUp(
+            policyFor( QUrl::fromLocalFile( root.filePath( "server.git" ) ).toString() ) );
+        REQUIRE( settled( folder ) );
+
+        CHECK( folder.failedStep() == SyncStep::StartGit );
+        CHECK( folder.failureHint() == FailureHint::None );
     }
 
     if ( !gitInstalled() ) {

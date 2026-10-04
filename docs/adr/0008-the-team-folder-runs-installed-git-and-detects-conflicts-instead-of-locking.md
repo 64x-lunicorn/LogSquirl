@@ -29,6 +29,6 @@ Git's raw text alone left users stuck on common, well-understood failures, such 
 - **Organization requires SSO authorization**: `The <org> organization has enabled or enforced SAML SSO.`, as GitHub prints it, with or without `ERROR: ` or `remote: ` before it.
 - **Repository not found**: `ERROR: Repository not found.` or `remote: Repository not found.`, `fatal: repository '<url>' not found`, `fatal: '<path>' does not appear to be a git repository`.
 - **Server unreachable**: `ssh: Could not resolve hostname ...`, `ssh: connect to host <host> port <n>: ...`, and `fatal: unable to access '<url>': ` followed by a resolve, connect or time-out failure.
-- **Git is not installed**: Git could not be started at all.
+- **Git is not installed**: Git could not be started because there is no program to start, neither on the `PATH` nor at the path given. Git that is there and still does not start, say as it is not executable, gets no hint.
 
 A sentence matches only as a whole line of Git's output, with the URL, path or host where Git puts it, never as a bare number or a word inside a line, so a URL or path that holds the words of a sentence matches nothing. A failure that is not recognised shows the heading and the details only. The 403 rule above stays as it is: a refused push gets no hint of its own.

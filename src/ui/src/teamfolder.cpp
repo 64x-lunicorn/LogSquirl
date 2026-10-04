@@ -63,6 +63,8 @@ struct SyncOutcome {
     // reason, for a step that is not Git's.
     SyncStep failedStep = SyncStep::None;
     QString message;
+    // Git could not be started as there is no Git to start.
+    bool gitNotFound = false;
     QList<TeamGroup<PredefinedFilterSet>> filterGroups;
     QList<TeamGroup<HighlighterSet>> highlighterGroups;
     QList<TeamGroup<NamingGroup>> namingGroups;
@@ -82,6 +84,7 @@ struct SyncOutcome {
 void failAt( SyncOutcome& outcome, SyncStep step, const GitResult& run )
 {
     outcome.failedStep = run.started ? step : SyncStep::StartGit;
+    outcome.gitNotFound = !run.started && run.notFound;
     outcome.message = run.message();
 }
 
@@ -1380,6 +1383,7 @@ void TeamFolder::takeOutcome()
             writable_ = false;
             readOnlyReason_ = outcome->refusedReason;
         }
+        gitNotFound_ = outcome->gitNotFound;
         switch ( outcome->result ) {
         case SyncOutcome::Result::Synced:
             lastSynced_ = QDateTime::currentDateTimeUtc();
@@ -1708,7 +1712,7 @@ void TeamFolder::writeLastSynced() const
 
 FailureHint TeamFolder::failureHint() const
 {
-    return failureHintOf( failedStep(), gitOutput() );
+    return failureHintOf( failedStep(), gitOutput(), gitNotFound_ );
 }
 
 QString TeamFolder::hintOf( FailureHint hint )
@@ -1781,7 +1785,7 @@ const QList<HintSentences>& hintSentences()
 
 } // namespace
 
-FailureHint failureHintOf( SyncStep step, const QString& gitOutput )
+FailureHint failureHintOf( SyncStep step, const QString& gitOutput, bool gitNotFound )
 {
     switch ( step ) {
     case SyncStep::None:
@@ -1789,8 +1793,9 @@ FailureHint failureHintOf( SyncStep step, const QString& gitOutput )
     // The 403 of a refused push has its own rule (ADR-0008).
     case SyncStep::PushRefused:
         return FailureHint::None;
+    // Git that is there and still does not start: nothing to tell beyond why.
     case SyncStep::StartGit:
-        return FailureHint::GitMissing;
+        return gitNotFound ? FailureHint::GitMissing : FailureHint::None;
     case SyncStep::Clone:
     case SyncStep::Pull:
     case SyncStep::Merge:
