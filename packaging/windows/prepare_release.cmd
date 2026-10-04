@@ -117,6 +117,10 @@ xcopy %QTDIR%\plugins\tls\qschannelbackend.dll %LOGSQUIRL_WORKSPACE%\release\tls
 echo "Copying packaging files..."
 xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\logsquirl.nsi  /y || exit /b 1
 xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\FileAssociation.nsh  /y || exit /b 1
+REM The file types LogSquirl opens: the registry macros, and the types and
+REM sections generated from cmake/FileTypes.cmake (#719)
+xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\FileTypes.nsh  /y || exit /b 1
+xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\generated\file_types\logsquirl_file_types.nsh  /y || exit /b 1
 REM The version resource of the executables, for the installer's own (#445)
 xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\generated\version_info.nsh  /y || exit /b 1
 

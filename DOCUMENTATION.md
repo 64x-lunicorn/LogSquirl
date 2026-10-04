@@ -55,10 +55,11 @@ On Windows, administrators can deploy the installer without any dialog, for
 example wrapped into an `.intunewin` package for Microsoft Intune:
 
 - `logsquirl-win-x64-setup.exe /S` installs for all users of the machine into
-  `C:\Program Files\logsquirl`, with the Start menu shortcut and without the
-  `.log` association, and exits with 0. `/D=C:\Some Dir` as the last argument,
-  without quotes even with spaces, installs into another directory. Run over an
-  older version, it upgrades that in place.
+  `C:\Program Files\logsquirl`, with the Start menu shortcut and the default
+  file types (`.log` and the Logcat traces open in *logsquirl*, see
+  [Opening files](#opening-files)), and exits with 0. `/D=C:\Some Dir` as the
+  last argument, without quotes even with spaces, installs into another
+  directory. Run over an older version, it upgrades that in place.
 - It needs administrator rights, which the SYSTEM account Intune installs with
   has. Started without them, Windows asks for elevation or refuses to start it;
   it never installs half.
@@ -311,9 +312,14 @@ if Hyperscan can't handle the search pattern. However, in this case search will 
 * running a command and following its output (see [Command output](#Command-output))
 * using recent files or favorite menu items.
 
-On Windows, the installer adds *logsquirl* to the *Open with* menu of the file manager, and makes it
-the program that opens `.log` files when its component *Associate with .log files* is selected, which it
-is not by default.
+On Windows, the installer has a page *File types* that chooses which files open in *logsquirl* on a
+double-click: *General log files* (`.log`) and *Android Logcat traces* (`.adb`, `.adb0` to `.adb9`) are
+checked, *Program output* (`.out`, `.err`), *Trace files* (`.trace`) and *Text files* (`.txt`) are not.
+The checked types show the *logsquirl* document icon, a sheet with the squirrel. Explorer offers
+*logsquirl* under *Open with* for all of them, checked or not, and for `.gz` and `.zip` files. A type
+you chose to open with another application in Explorer stays with it: Windows does not let an installer
+override that choice. Uninstalling removes all of *logsquirl*'s entries and gives each type back to the
+application that opened it before.
 
 On macOS, the app declares the file types it opens: `.log`, the Android Logcat traces (`.adb0` to `.adb9`
 are the type *Android Logcat trace*; macOS keeps calling `.adb` Ada source), `.out`/`.err`, `.trace`,

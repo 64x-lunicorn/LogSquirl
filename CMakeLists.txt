@@ -136,8 +136,12 @@ if(NOT
   set(ICON_FILE ${CMAKE_CURRENT_SOURCE_DIR}/Resources/${ICON_NAME})
 endif()
 
-# The document icon, which the file types LogSquirl opens show (#718).
-if(APPLE)
+# The document icon, which the file types LogSquirl opens show: in the app
+# bundle's Resources (#718), and the second icon of the Windows executables
+# (cmake/version_resource.rc.in, #719).
+if(WIN32)
+  set(DOCUMENT_ICON_FILE ${CMAKE_CURRENT_SOURCE_DIR}/Resources/logsquirl-document.ico)
+elseif(APPLE)
   set(DOCUMENT_ICON_FILE ${CMAKE_CURRENT_SOURCE_DIR}/Resources/logsquirl-document.icns)
 endif()
 
@@ -552,6 +556,7 @@ add_custom_target(
   SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/logsquirl.nsi
           ${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/logsquirl.desktop.in
           ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FileTypes.cmake
+          ${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/FileTypes.nsh
           ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in
 )
 

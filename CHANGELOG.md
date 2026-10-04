@@ -247,6 +247,22 @@
   (16 to 256 px), `Resources/logsquirl-document.icns` (16 to 1024 px, with
   @2x) and the hicolor PNGs (16 to 512 px) from them. File types use it once
   each platform declares them (#717, #718, #719). (#726)
+- **The Windows installer chooses which file types LogSquirl opens and sets
+  the document icon**: its new page *File types* replaces the single
+  unchecked *Associate with .log files* box and lists *General log files*
+  (`.log`) and *Android Logcat traces* (`.adb`, `.adb0` to `.adb9`), checked,
+  and *Program output* (`.out`, `.err`), *Trace files* (`.trace`) and *Text
+  files* (`.txt`), unchecked; a silent install (`/S`) takes these defaults.
+  Every type gets a ProgID, `LogSquirl.<type>`, whose icon is the document
+  icon, now the second icon of `logsquirl.exe`, and LogSquirl is listed under
+  each extension's `OpenWithProgids`; the checked types get LogSquirl as their
+  handler, as far as Windows lets an installer. `.gz` and `.zip` only get the
+  *Open with* entry. The uninstaller removes the ProgIDs and the *Open with*
+  entries and gives each extension back to the ProgID it had before; an
+  extension another application took since keeps it. The installer's types,
+  sections and ProgIDs are generated from `cmake/FileTypes.cmake`, the names
+  the application will register too, and CI's installer check covers them.
+  (#719)
 - **On macOS, the app bundle declares Logcat traces and logs with the
   document icon**: it exports the type *Android Logcat trace*
   (`io.github.logsquirl.logcat`, `.adb` and `.adb0` to `.adb9` one by one;

@@ -39,19 +39,29 @@ macro(fail _description)
   list(APPEND _failures "${_description}")
 endmacro()
 
-macro(expect_contains _text _needle _description)
+# Functions, not macros: a macro would read the backslashes of the text it is
+# handed as escapes.
+function(expect_contains _text _needle _description)
   string(FIND "${_text}" "${_needle}" _at)
   if(_at EQUAL -1)
-    fail("${_description}: '${_needle}' is missing")
+    list(APPEND _failures "${_description}: '${_needle}' is missing")
+    set(_failures
+        "${_failures}"
+        PARENT_SCOPE
+    )
   endif()
-endmacro()
+endfunction()
 
-macro(expect_not_contains _text _needle _description)
+function(expect_not_contains _text _needle _description)
   string(FIND "${_text}" "${_needle}" _at)
   if(NOT _at EQUAL -1)
-    fail("${_description}: '${_needle}' is there")
+    list(APPEND _failures "${_description}: '${_needle}' is there")
+    set(_failures
+        "${_failures}"
+        PARENT_SCOPE
+    )
   endif()
-endmacro()
+endfunction()
 
 include("${PROJECT_DIR}/cmake/FileTypes.cmake")
 logsquirl_generate_file_types("${WORK_DIR}" DESKTOP_TEMPLATE "${PROJECT_DIR}/packaging/linux/logsquirl.desktop.in")
@@ -302,6 +312,75 @@ if(PLUTIL)
   endif()
 else()
   message(STATUS "plutil not found: the Info.plist is not linted")
+endif()
+
+# --- Windows (#719) --------------------------------------------------------
+
+file(READ "${WORK_DIR}/logsquirl_file_types.nsh" _nsh)
+expect_contains("${_nsh}" "Section \"General log files (.log)\" FileType_log" "the installer offers .log, checked")
+expect_contains("${_nsh}" "Section \"Android Logcat traces (.adb, .adb0-.adb9)\" FileType_logcat" "the installer offers the Logcat traces, checked")
+expect_contains("${_nsh}" "Section /o \"Program output (.out, .err)\" FileType_output" "the installer offers .out and .err, unchecked")
+expect_contains("${_nsh}" "Section /o \"Trace files (.trace)\" FileType_trace" "the installer offers .trace, unchecked")
+expect_contains("${_nsh}" "Section /o \"Text files (.txt)\" FileType_text" "the installer offers .txt, unchecked")
+expect_contains("${_nsh}" "!insertmacro LogSquirlSetDefault \".adb7\" \"LogSquirl.logcat\"" "the Logcat section sets .adb7")
+foreach(_extension .log .adb .adb0 .adb9 .out .err .trace .txt .gz .zip)
+  expect_contains("${_nsh}" "!insertmacro LogSquirlAddOpenWith \"${_extension}\"" "the installer offers LogSquirl under Open with")
+  expect_contains("${_nsh}" "!insertmacro LogSquirlRemoveExtension \"${_extension}\"" "the uninstaller removes LogSquirl's entries")
+endforeach()
+foreach(_extension .gz .zip)
+  expect_not_contains("${_nsh}" "LogSquirlSetDefault \"${_extension}\"" "the installer makes LogSquirl the default for a compressed type")
+endforeach()
+foreach(_id IN LISTS LOGSQUIRL_FILE_TYPES LOGSQUIRL_OPEN_WITH_TYPES)
+  expect_contains("${_nsh}" "!insertmacro LogSquirlRegisterProgId \"LogSquirl.${_id}\"" "the installer registers the ProgID")
+  expect_contains("${_nsh}" "!insertmacro LogSquirlRemoveProgId \"LogSquirl.${_id}\"" "the uninstaller removes the ProgID")
+endforeach()
+
+file(READ "${PROJECT_DIR}/packaging/windows/logsquirl.nsi" _nsi)
+expect_contains("${_nsi}" "!include \"logsquirl_file_types.nsh\"" "the installer script")
+expect_contains("${_nsi}" "!insertmacro LogSquirlFileTypeSections" "the installer script")
+expect_contains("${_nsi}" "!insertmacro LogSquirlUnregisterFileTypes" "the installer script")
+expect_not_contains("${_nsi}" "Associate with .log files" "the installer script still has the single .log box")
+file(READ "${PROJECT_DIR}/packaging/windows/prepare_release.cmd" _prepare)
+expect_contains("${_prepare}" "logsquirl_file_types.nsh" "prepare_release.cmd copies the generated file types")
+expect_contains("${_prepare}" "FileTypes.nsh" "prepare_release.cmd copies the file type macros")
+
+find_program(MAKENSIS makensis)
+if(MAKENSIS)
+  # The generated sections and the macros behind them, compiled into an
+  # installer of their own: makensis is the only compiler they have.
+  file(TO_NATIVE_PATH "${PROJECT_DIR}/packaging/windows/FileTypes.nsh" _macros)
+  file(WRITE "${WORK_DIR}/file_types_test.nsi"
+       "Unicode true\n"
+       "OutFile \"file_types_test.exe\"\n"
+       "InstallDir \"$PROGRAMFILES64\\logsquirl\"\n"
+       "RequestExecutionLevel admin\n"
+       "!include \"LogicLib.nsh\"\n"
+       "!include \"${_macros}\"\n"
+       "!include \"logsquirl_file_types.nsh\"\n"
+       "Section \"-core\"\n"
+       "  !insertmacro LogSquirlRegisterFileTypes\n"
+       "  WriteUninstaller \"$INSTDIR\\Uninstall.exe\"\n"
+       "SectionEnd\n"
+       "!insertmacro LogSquirlFileTypeSections\n"
+       "Section \"-after\"\n"
+       "  !insertmacro LogSquirlFileTypesChanged\n"
+       "SectionEnd\n"
+       "Section \"Uninstall\"\n"
+       "  !insertmacro LogSquirlUnregisterFileTypes\n"
+       "SectionEnd\n"
+  )
+  execute_process(
+    COMMAND "${MAKENSIS}" -V2 -WX file_types_test.nsi
+    WORKING_DIRECTORY "${WORK_DIR}"
+    RESULT_VARIABLE _result
+    OUTPUT_VARIABLE _output
+    ERROR_VARIABLE _output
+  )
+  if(NOT _result EQUAL 0)
+    fail("makensis does not compile the file types: ${_output}")
+  endif()
+else()
+  message(STATUS "makensis not found: the installer's file types are not compiled")
 endif()
 
 if(_failures)

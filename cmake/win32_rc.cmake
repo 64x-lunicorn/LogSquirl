@@ -26,6 +26,8 @@ set(GenerateProductVersionCurrentDir ${CMAKE_CURRENT_LIST_DIR})
 #   NAME               - name of executable (no defaults, ex: Microsoft Word)
 #   BUNDLE             - bundle (${NAME} is default, ex: Microsoft Office)
 #   ICON               - path to application icon (${CMAKE_SOURCE_DIR}/product.ico by default)
+#   DOCUMENT_ICON      - path to the icon of the files the application opens, the
+#                        executable's second icon (none by default)
 #   VERSION_MAJOR      - 1 is default
 #   VERSION_MINOR      - 0 is default
 #   VERSION_PATCH      - 0 is default
@@ -42,6 +44,7 @@ function(generate_product_version outfiles)
       NAME
       BUNDLE
       ICON
+      DOCUMENT_ICON
       VERSION_MAJOR
       VERSION_MINOR
       VERSION_PATCH
@@ -67,6 +70,9 @@ function(generate_product_version outfiles)
   endif()
   if(NOT PRODUCT_ICON OR "${PRODUCT_ICON}" STREQUAL "")
     set(PRODUCT_ICON "${CMAKE_SOURCE_DIR}/product.ico")
+  endif()
+  if(PRODUCT_DOCUMENT_ICON)
+    set(PRODUCT_HAS_DOCUMENT_ICON ON)
   endif()
 
   if(NOT

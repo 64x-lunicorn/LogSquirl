@@ -13,10 +13,15 @@
   1. `setup.exe /S`, started by an administrator, installs without a dialog
      and exits with 0: the files under Program Files, the Qt and MSVC runtime
      DLLs, the Start menu shortcut for all users, the version under the
-     machine's Uninstall key, no .log association (that section is /o). The
+     machine's Uninstall key, and the file types with their defaults (#719):
+     a ProgID with the document icon for every type, LogSquirl under Open
+     with for each extension, and the default for .log and the Logcat traces
+     only -- also for .adb5, which another application owned before. The
      installed application starts -- a standard (non-administrator) user
-     included -- and `Uninstall.exe /S` removes it all again. Started by a
-     standard user, the installer is refused before it runs.
+     included -- and `Uninstall.exe /S` removes it all again, gives every
+     extension back to what it had before and leaves no ProgID and no Open
+     with entry of LogSquirl's. Started by a standard user, the installer is
+     refused before it runs.
   2. `setup.exe /S /D=<dir>`, run as SYSTEM the way Intune runs it, installs
      into that directory.
   3. `setup.exe /S` over the latest release upgrades it in place.
@@ -91,6 +96,89 @@ function Step([string] $Title) { Write-Host "`n=== $Title ===" }
 function Get-UninstallKey([Microsoft.Win32.RegistryView] $View) {
     $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, $View)
     return $base.OpenSubKey($UninstallKeyPath)
+}
+
+# The file types of cmake/FileTypes.cmake, by ProgID: the ones the installer
+# makes LogSquirl the default for by default, and the ones it only lists
+# LogSquirl under "Open with" for (#719).
+$DefaultFileTypes = [ordered]@{
+    'LogSquirl.log'    = @('.log')
+    'LogSquirl.logcat' = @('.adb') + (0..9 | ForEach-Object { ".adb$_" })
+}
+$OpenWithFileTypes = [ordered]@{
+    'LogSquirl.output' = @('.out', '.err')
+    'LogSquirl.trace'  = @('.trace')
+    'LogSquirl.text'   = @('.txt')
+    'LogSquirl.gz'     = @('.gz')
+    'LogSquirl.zip'    = @('.zip')
+}
+$AllFileTypes = [ordered]@{}
+foreach ($types in $DefaultFileTypes, $OpenWithFileTypes) {
+    foreach ($progId in $types.Keys) { $AllFileTypes[$progId] = $types[$progId] }
+}
+# An extension another application owns before the install: the installer
+# makes LogSquirl its default, the uninstaller gives it back.
+$OwnedExtension = '.adb5'
+$OwnedProgId = 'LogSquirlCheck.OtherApplication'
+
+# A key under HKLM\SOFTWARE\Classes, where the installer registers the file
+# types; that part of the registry is shared by the 32-bit and 64-bit views.
+function Get-ClassesKey([string] $Path) {
+    return [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("SOFTWARE\Classes\$Path")
+}
+
+function Get-ExtensionDefault([string] $Extension) {
+    $key = Get-ClassesKey $Extension
+    if ($null -eq $key) { return '' }
+    return [string] $key.GetValue('')
+}
+
+function Test-OpenWith([string] $Extension, [string] $ProgId) {
+    $key = Get-ClassesKey "$Extension\OpenWithProgids"
+    return ($null -ne $key) -and ($key.GetValueNames() -contains $ProgId)
+}
+
+# The default of every extension LogSquirl registers.
+function Get-ExtensionDefaults {
+    $defaults = [ordered]@{}
+    foreach ($extensions in $AllFileTypes.Values) {
+        foreach ($extension in $extensions) { $defaults[$extension] = Get-ExtensionDefault $extension }
+    }
+    return $defaults
+}
+
+function Test-FileTypesInstalled([string] $InstallDir) {
+    $exe = Join-Path $InstallDir 'logsquirl.exe'
+    foreach ($progId in $AllFileTypes.Keys) {
+        $icon = Get-ClassesKey "$progId\DefaultIcon"
+        Check ($null -ne $icon -and $icon.GetValue('') -eq "$exe,1") "$progId shows the document icon, the second icon of $exe"
+        $command = Get-ClassesKey "$progId\shell\open\command"
+        Check ($null -ne $command -and $command.GetValue('') -eq "`"$exe`" `"%1`"") "$progId opens a file with $exe"
+        $missing = @($AllFileTypes[$progId] | Where-Object { -not (Test-OpenWith $_ $progId) })
+        Check ($missing.Count -eq 0) "$($AllFileTypes[$progId] -join ', ') list $progId under Open with$(if ($missing) { " -- missing: $($missing -join ', ')" })"
+    }
+    foreach ($progId in $DefaultFileTypes.Keys) {
+        $other = @($DefaultFileTypes[$progId] | Where-Object { (Get-ExtensionDefault $_) -ne $progId })
+        Check ($other.Count -eq 0) "$($DefaultFileTypes[$progId] -join ', ') open with $progId$(if ($other) { " -- not: $($other -join ', ')" })"
+    }
+    foreach ($progId in $OpenWithFileTypes.Keys) {
+        foreach ($extension in $OpenWithFileTypes[$progId]) {
+            Check ((Get-ExtensionDefault $extension) -eq $script:DefaultsBefore[$extension]) "$extension keeps its default '$($script:DefaultsBefore[$extension])' (is '$(Get-ExtensionDefault $extension)')"
+        }
+    }
+}
+
+function Test-FileTypesRemoved {
+    foreach ($progId in $AllFileTypes.Keys) {
+        Check ($null -eq (Get-ClassesKey $progId)) "the ProgID $progId is gone"
+        $left = @($AllFileTypes[$progId] | Where-Object { Test-OpenWith $_ $progId })
+        Check ($left.Count -eq 0) "no Open with entry of $progId is left$(if ($left) { " -- under: $($left -join ', ')" })"
+    }
+    $defaults = Get-ExtensionDefaults
+    foreach ($extension in $defaults.Keys) {
+        Check ($defaults[$extension] -eq $script:DefaultsBefore[$extension]) "$extension is back to its default '$($script:DefaultsBefore[$extension])' (is '$($defaults[$extension])')"
+    }
+    Check ((Get-ExtensionDefault $OwnedExtension) -eq $OwnedProgId) "$OwnedExtension is $OwnedProgId's again"
 }
 
 function Get-DotLogAssociation {
@@ -207,8 +295,7 @@ function Test-Installed([string] $InstallDir, [string] $ExpectedVersion) {
     Check ((Get-LinkTarget $CommonStartMenuLink) -eq (Join-Path $InstallDir 'logsquirl.exe')) "it points to $InstallDir\logsquirl.exe"
     Check (-not (Test-Path $UserStartMenuLink)) "no Start menu shortcut in the installing user's own profile"
 
-    $association = Get-DotLogAssociation
-    Check ($association -eq $script:DotLogBefore) ".log association unchanged: $association"
+    Test-FileTypesInstalled $InstallDir
 }
 
 function Test-Removed([string] $InstallDir) {
@@ -223,7 +310,8 @@ function Test-Removed([string] $InstallDir) {
     Check (-not (Test-Path $CommonStartMenuLink)) "the Start menu shortcut is gone"
     Check ($null -eq [Microsoft.Win32.Registry]::ClassesRoot.OpenSubKey('Applications\logsquirl.exe')) "HKCR\Applications\logsquirl.exe is gone"
     $association = Get-DotLogAssociation
-    Check ($association -eq $script:DotLogBefore) ".log association unchanged: $association"
+    Check ($association -eq $script:DotLogBefore) ".log association as before: $association"
+    Test-FileTypesRemoved
 }
 
 function Uninstall([string] $InstallDir) {
@@ -244,6 +332,13 @@ Check (-not (Test-Path $DefaultInstallDir)) "nothing is installed at $DefaultIns
 Check ($null -eq (Get-UninstallKey Registry32) -and $null -eq (Get-UninstallKey Registry64)) 'no Uninstall key yet'
 $script:DotLogBefore = Get-DotLogAssociation
 Write-Host "  .log association before: $script:DotLogBefore"
+# Another application owns one of the extensions the installer makes
+# LogSquirl's by default (#719).
+$owned = [Microsoft.Win32.Registry]::LocalMachine.CreateSubKey("SOFTWARE\Classes\$OwnedExtension")
+$owned.SetValue('', $OwnedProgId)
+$owned.Close()
+$script:DefaultsBefore = Get-ExtensionDefaults
+Write-Host "  defaults before: $(($script:DefaultsBefore.GetEnumerator() | ForEach-Object { "$($_.Key)='$($_.Value)'" }) -join ' ')"
 $realAppData = Join-Path $env:APPDATA 'logsquirl'
 $realAppDataBefore = Test-Path $realAppData
 
@@ -351,5 +446,7 @@ $code = Invoke-Setup $Installer '/S'
 Check ($code -eq 0) 'setup.exe /S again, with logsquirl_no_update_check present, exits with 0'
 Check (Test-Path $optOut) "a silent upgrade keeps the administrator's logsquirl_no_update_check"
 Uninstall $DefaultInstallDir
+
+[Microsoft.Win32.Registry]::LocalMachine.DeleteSubKeyTree("SOFTWARE\Classes\$OwnedExtension", $false)
 
 Write-Host "`nAll installer checks passed."

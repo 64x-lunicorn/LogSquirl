@@ -245,6 +245,73 @@ function(logsquirl_file_types_desktop_mime_types out_var)
   )
 endfunction()
 
+# --- Windows -----------------------------------------------------------------
+
+# The installer's file types (packaging/windows/logsquirl.nsi), as NSIS macros
+# over packaging/windows/FileTypes.nsh:
+#   LogSquirlRegisterFileTypes        every ProgID and every Open with entry
+#   LogSquirlFileTypeSections         a section per type for the file type
+#                                     page, checked as the list says; a checked
+#                                     section makes LogSquirl the default
+#   LogSquirlShowFileTypeSections     shows them (the file type page)
+#   LogSquirlHideFileTypeSections     hides them (the components page)
+#   LogSquirlFileTypeDescriptions     their descriptions on the page
+#   LogSquirlUnregisterFileTypes      removes all of it again
+# The compressed types only get the ProgID and the Open with entry.
+function(logsquirl_file_types_nsis out_var)
+  set(_register "")
+  set(_sections "")
+  set(_show "")
+  set(_hide "")
+  set(_descriptions "")
+  set(_unregister "")
+  foreach(_id IN LISTS LOGSQUIRL_FILE_TYPES LOGSQUIRL_OPEN_WITH_TYPES)
+    set(_progid "${LOGSQUIRL_FILE_TYPE_${_id}_PROGID}")
+    string(APPEND _register "    !insertmacro LogSquirlRegisterProgId \"${_progid}\" \"${LOGSQUIRL_FILE_TYPE_${_id}_NAME}\"\n")
+    foreach(_extension IN LISTS LOGSQUIRL_FILE_TYPE_${_id}_EXTENSIONS)
+      string(APPEND _register "    !insertmacro LogSquirlAddOpenWith \".${_extension}\" \"${_progid}\"\n")
+      string(APPEND _unregister "    !insertmacro LogSquirlRemoveExtension \".${_extension}\" \"${_progid}\"\n")
+    endforeach()
+    string(APPEND _unregister "    !insertmacro LogSquirlRemoveProgId \"${_progid}\"\n")
+    if(LOGSQUIRL_FILE_TYPE_${_id}_OPEN_WITH_ONLY)
+      continue()
+    endif()
+
+    set(_text "${LOGSQUIRL_FILE_TYPE_${_id}_LABEL} (${LOGSQUIRL_FILE_TYPE_${_id}_SHOWN_AS})")
+    set(_flags "")
+    if(NOT LOGSQUIRL_FILE_TYPE_${_id}_CHECKED)
+      set(_flags "/o ")
+    endif()
+    string(APPEND _sections "    Section ${_flags}\"${_text}\" FileType_${_id}\n")
+    foreach(_extension IN LISTS LOGSQUIRL_FILE_TYPE_${_id}_EXTENSIONS)
+      string(APPEND _sections "        !insertmacro LogSquirlSetDefault \".${_extension}\" \"${_progid}\"\n")
+    endforeach()
+    string(APPEND _sections "    SectionEnd\n")
+    string(APPEND _show "    SectionSetText \${FileType_${_id}} \"${_text}\"\n")
+    string(APPEND _hide "    SectionSetText \${FileType_${_id}} \"\"\n")
+    string(APPEND _descriptions
+           "    !insertmacro MUI_DESCRIPTION_TEXT \${FileType_${_id}} \"Double-clicking a ${LOGSQUIRL_FILE_TYPE_${_id}_SHOWN_AS} file opens it in LogSquirl, and the file shows the LogSquirl document icon.\"\n"
+    )
+  endforeach()
+
+  set(_nsh "; Generated from cmake/FileTypes.cmake: the file types LogSquirl opens, for\n")
+  string(APPEND _nsh "; packaging/windows/logsquirl.nsi, with the macros of FileTypes.nsh (#719).\n\n")
+  string(APPEND _nsh "!macro LogSquirlRegisterFileTypes\n${_register}!macroend\n\n")
+  string(APPEND _nsh "!macro LogSquirlFileTypeSections\n${_sections}!macroend\n\n")
+  string(APPEND _nsh "!macro LogSquirlShowFileTypeSections\n${_show}!macroend\n\n")
+  string(APPEND _nsh "!macro LogSquirlHideFileTypeSections\n${_hide}!macroend\n\n")
+  string(APPEND _nsh "!macro LogSquirlFileTypeDescriptions\n${_descriptions}!macroend\n\n")
+  string(APPEND _nsh "!macro LogSquirlUnregisterFileTypes\n${_unregister}")
+  string(APPEND _nsh "    !insertmacro LogSquirlRemoveFileTypesBackup\n")
+  string(APPEND _nsh "    !insertmacro LogSquirlFileTypesChanged\n!macroend\n")
+  set(${out_var}
+      "${_nsh}"
+      PARENT_SCOPE
+  )
+endfunction()
+
+# --- the generated files ----------------------------------------------------
+
 # Writes <content> to <file> only when it changed, so nothing that depends on
 # the file is rebuilt by a configure run that changed nothing.
 function(logsquirl_write_if_changed file content)
@@ -258,6 +325,10 @@ endfunction()
 #   logsquirl.desktop   the desktop entry, from DESKTOP_TEMPLATE (Linux)
 #   postinst, postrm    the deb's and the rpm's scripts that refresh the MIME
 #                       database, the icon cache and the desktop database
+#   logsquirl_file_types.nsh
+#                       the installer's file types (Windows), which
+#                       packaging/windows/prepare_release.cmd copies beside
+#                       logsquirl.nsi
 # The desktop entry lists the file types only with FILE_TYPES (the default);
 # the AppImage, which has no install step to register types, is built without.
 function(logsquirl_generate_file_types dir)
@@ -269,6 +340,9 @@ function(logsquirl_generate_file_types dir)
 
   logsquirl_file_types_mime_xml(_mime_xml)
   logsquirl_write_if_changed("${dir}/logsquirl.xml" "${_mime_xml}")
+
+  logsquirl_file_types_nsis(_nsh)
+  logsquirl_write_if_changed("${dir}/logsquirl_file_types.nsh" "${_nsh}")
 
   if(GEN_FILE_TYPES)
     logsquirl_file_types_desktop_mime_types(LOGSQUIRL_DESKTOP_MIME_TYPES)

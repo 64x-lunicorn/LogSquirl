@@ -2,6 +2,12 @@
 #include "winres.h"
 
 IDI_ICON1               ICON                    PRODUCT_ICON
+#if defined(PRODUCT_HAS_DOCUMENT_ICON)
+// The document icon, the executable's second icon (index 1), which the file
+// types LogSquirl opens show (cmake/FileTypes.cmake, #719). Named resources
+// are ordered by name, so IDI_ICON2 comes after IDI_ICON1.
+IDI_ICON2               ICON                    PRODUCT_DOCUMENT_ICON
+#endif
 
 LANGUAGE LANG_ENGLISH, SUBLANG_DEFAULT
 
