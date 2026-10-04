@@ -132,9 +132,9 @@ void MacFileAssociations::setDefault( const QString& applicationPath, const QStr
     launchServices_->setDefaultApplication(
         applicationPath, contentType,
         [ this, applicationPath, contentType,
-          succeeded = std::move( succeeded ) ]( const QString& error ) {
+          onSuccess = std::move( succeeded ) ]( const QString& error ) {
             if ( error.isEmpty() ) {
-                succeeded();
+                onSuccess();
             }
             else {
                 LOG_WARNING << "macOS did not make " << applicationPath.toStdString()
