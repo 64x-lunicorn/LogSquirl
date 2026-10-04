@@ -48,6 +48,8 @@ public:
     bool offersEntry = false;
     bool entry = false;
     std::vector<bool> entrySet;
+    // Where a moved portable LogSquirl was.
+    QString moved;
 
     bool isAvailable() const override
     {
@@ -115,6 +117,11 @@ public:
         entrySet.push_back( shown );
         entry = shown;
         return {};
+    }
+
+    QString movedFrom() const override
+    {
+        return moved;
     }
 
     // Another application takes the type over, or the user confirms it

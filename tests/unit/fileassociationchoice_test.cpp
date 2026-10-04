@@ -25,6 +25,7 @@
 namespace {
 
 constexpr auto Default = FileAssociationState::Default;
+constexpr auto Registered = FileAssociationState::Registered;
 
 } // namespace
 
@@ -39,6 +40,7 @@ TEST_CASE( "The first start asks which file types LogSquirl opens, with the sugg
         const auto atStart = FileAssociationsAtStart::of( associations, choice, true );
         CHECK( atStart.ask );
         CHECK( atStart.checks == QStringList{ "log", "logcat" } );
+        CHECK( atStart.lost.isEmpty() );
     }
 
     SECTION( "a type LogSquirl already opens is checked too" )
@@ -73,11 +75,101 @@ TEST_CASE( "The first start asks which file types LogSquirl opens, with the sugg
     }
 }
 
-TEST_CASE( "Applying a choice keeps it and stops the question", "[fileassociations][firststart]" )
+TEST_CASE( "Applying a choice keeps it, stops the question and forgets what was dismissed",
+           "[fileassociations][firststart]" )
 {
     FileAssociationChoice choice;
+    choice.dismissed = { "log" };
     choice.apply( { "log", "trace" } );
     CHECK_FALSE( choice.ask );
     REQUIRE( choice.chosen );
     CHECK( *choice.chosen == QStringList{ "log", "trace" } );
+    CHECK( choice.dismissed.isEmpty() );
+}
+
+TEST_CASE( "A chosen file type that is no longer LogSquirl's is lost",
+           "[fileassociations][lostassociation]" )
+{
+    FakeFileAssociations associations;
+    FileAssociationChoice choice;
+    choice.ask = false;
+    choice.apply( { "log", "logcat" } );
+
+    SECTION( "no hint while every chosen type is LogSquirl's" )
+    {
+        associations.current = { { "log", Default }, { "logcat", Default } };
+        const auto atStart = FileAssociationsAtStart::of( associations, choice, true );
+        CHECK( atStart.lost.isEmpty() );
+        CHECK_FALSE( atStart.ask );
+        CHECK_FALSE( atStart.choiceChanged );
+    }
+
+    SECTION( "another application took .log over" )
+    {
+        associations.current = { { "log", Registered }, { "logcat", Default } };
+        const auto atStart = FileAssociationsAtStart::of( associations, choice, true );
+        CHECK( atStart.lost == QStringList{ "log" } );
+        CHECK( atStart.movedFrom.isEmpty() );
+    }
+
+    SECTION( "a type the user unchecked never counts" )
+    {
+        choice.apply( { "logcat" } );
+        associations.current = { { "log", Registered }, { "logcat", Default } };
+        CHECK( FileAssociationsAtStart::of( associations, choice, true ).lost.isEmpty() );
+    }
+
+    SECTION( "a dismissed loss is not named again" )
+    {
+        associations.current = { { "log", Registered }, { "logcat", Registered } };
+        choice.dismissed = { "log" };
+        CHECK( FileAssociationsAtStart::of( associations, choice, true ).lost
+               == QStringList{ "logcat" } );
+    }
+
+    SECTION( "a run that cannot associate says nothing" )
+    {
+        associations.available = false;
+        CHECK( FileAssociationsAtStart::of( associations, choice, true ).lost.isEmpty() );
+    }
+
+    SECTION( "a moved portable LogSquirl names every chosen type and where it was" )
+    {
+        associations.current = { { "log", Default }, { "logcat", Default } };
+        associations.moved = "D:\\Old\\logsquirl_portable.exe";
+        const auto atStart = FileAssociationsAtStart::of( associations, choice, true );
+        CHECK( atStart.lost == QStringList{ "log", "logcat" } );
+        CHECK( atStart.movedFrom == associations.moved );
+    }
+}
+
+TEST_CASE( "Before the user chose, the types LogSquirl opens count as chosen, as the installer "
+           "chose them",
+           "[fileassociations][lostassociation]" )
+{
+    FakeFileAssociations associations;
+    FileAssociationChoice choice;
+    choice.ask = false;
+
+    SECTION( "the installer made LogSquirl the default" )
+    {
+        associations.current = { { "log", Default }, { "text", Default } };
+        const auto atStart = FileAssociationsAtStart::of( associations, choice, true );
+        CHECK( atStart.choiceChanged );
+        REQUIRE( choice.chosen );
+        CHECK( *choice.chosen == QStringList{ "log", "text" } );
+        CHECK( atStart.lost.isEmpty() );
+
+        // Taken over afterwards, it is lost.
+        associations.current[ "text" ] = Registered;
+        CHECK( FileAssociationsAtStart::of( associations, choice, true ).lost
+               == QStringList{ "text" } );
+    }
+
+    SECTION( "nothing is LogSquirl's: nothing is chosen yet" )
+    {
+        const auto atStart = FileAssociationsAtStart::of( associations, choice, true );
+        CHECK_FALSE( atStart.choiceChanged );
+        CHECK_FALSE( choice.chosen );
+    }
 }

@@ -768,7 +768,7 @@ public:
         askForFileAssociations_ = ask;
     }
     // The ids of the file types the user chose LogSquirl to open; nothing
-    // until a choice is kept (#723).
+    // until a choice is kept (#723, #725).
     std::optional<QStringList> chosenFileAssociations() const
     {
         if ( !fileAssociationsChosen_ ) {
@@ -780,6 +780,16 @@ public:
     {
         fileAssociationsChosen_ = chosen.has_value();
         chosenFileAssociations_ = chosen.value_or( QStringList{} );
+    }
+    // The ids of the chosen file types that are no longer LogSquirl's and
+    // whose hint the user dismissed, until a choice is applied again (#725).
+    QStringList dismissedFileAssociations() const
+    {
+        return dismissedFileAssociations_;
+    }
+    void setDismissedFileAssociations( const QStringList& dismissed )
+    {
+        dismissedFileAssociations_ = dismissed;
     }
 
     // Chart presets — app-level named chart configurations
@@ -923,6 +933,7 @@ private:
     bool askForFileAssociations_{};
     bool fileAssociationsChosen_{};
     QStringList chosenFileAssociations_;
+    QStringList dismissedFileAssociations_;
 
     bool qfIgnoreCase_{};
 

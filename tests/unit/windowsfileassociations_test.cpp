@@ -509,3 +509,36 @@ TEST_CASE( "On Windows, every file's context menu offers Open with LogSquirl",
         CHECK_FALSE( windows.user( Entry, "LegacyDisable" ).has_value() );
     }
 }
+
+TEST_CASE( "On Windows, a moved portable LogSquirl knows its associations point where it was",
+           "[fileassociations][windows][lostassociation]" )
+{
+    Windows windows;
+    windows.environment = { Portable, true };
+    REQUIRE( windows.associations()->apply( { typeWithId( "log" ) }, {} ).succeeded() );
+    windows.registry.choose( "log", "LogSquirl.log" );
+
+    SECTION( "where it applied them, nothing moved" )
+    {
+        CHECK( windows.associations()->movedFrom().isEmpty() );
+    }
+
+    SECTION( "moved, the associations still open the old executable" )
+    {
+        windows.environment = { "E:\\LogSquirl\\logsquirl_portable.exe", true };
+        const auto associations = windows.associations();
+        CHECK( associations->movedFrom() == Portable );
+        // Windows still names LogSquirl the default.
+        CHECK( associations->state( typeWithId( "log" ) ) == FileAssociationState::Default );
+
+        // Applying again points them at this run.
+        REQUIRE( associations->apply( { typeWithId( "log" ) }, {} ).succeeded() );
+        CHECK( associations->movedFrom().isEmpty() );
+    }
+
+    SECTION( "the installed build is never moved" )
+    {
+        windows.environment = { Installed, false };
+        CHECK( windows.associations()->movedFrom().isEmpty() );
+    }
+}

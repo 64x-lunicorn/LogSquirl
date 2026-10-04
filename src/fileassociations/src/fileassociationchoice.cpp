@@ -25,11 +25,11 @@ void FileAssociationChoice::apply( const QStringList& checkedIds )
 {
     ask = false;
     chosen = checkedIds;
+    dismissed.clear();
 }
 
 FileAssociationsAtStart FileAssociationsAtStart::of( const FileAssociations& fileAssociations,
-                                                     const FileAssociationChoice& choice,
-                                                     bool mayAsk )
+                                                     FileAssociationChoice& choice, bool mayAsk )
 {
     FileAssociationsAtStart atStart;
     if ( !fileAssociations.isAvailable() ) {
@@ -42,6 +42,21 @@ FileAssociationsAtStart FileAssociationsAtStart::of( const FileAssociations& fil
         return it != states.end() && it->second == FileAssociationState::Default;
     };
 
+    // Before the user chose, what LogSquirl opens is what the installer, or
+    // whoever made it the default, chose.
+    if ( !choice.chosen ) {
+        QStringList defaults;
+        for ( const auto& type : FileTypes::choices() ) {
+            if ( isDefault( type.id ) ) {
+                defaults << type.id;
+            }
+        }
+        if ( !defaults.isEmpty() ) {
+            choice.chosen = defaults;
+            atStart.choiceChanged = true;
+        }
+    }
+
     if ( mayAsk && choice.ask ) {
         auto suggestedAreDefault = true;
         for ( const auto& type : FileTypes::choices() ) {
@@ -53,9 +68,26 @@ FileAssociationsAtStart FileAssociationsAtStart::of( const FileAssociations& fil
         }
         // Nothing to ask when everything it would suggest is LogSquirl's.
         atStart.ask = !suggestedAreDefault;
-        if ( !atStart.ask ) {
-            atStart.checks.clear();
+        if ( atStart.ask ) {
+            return atStart;
         }
+        atStart.checks.clear();
+    }
+
+    if ( !choice.chosen ) {
+        return atStart;
+    }
+    // A moved portable LogSquirl: every chosen type points at where it was,
+    // whatever the system says of it.
+    const auto movedFrom = fileAssociations.movedFrom();
+    for ( const auto& type : FileTypes::choices() ) {
+        if ( choice.chosen->contains( type.id ) && !choice.dismissed.contains( type.id )
+             && ( !movedFrom.isEmpty() || !isDefault( type.id ) ) ) {
+            atStart.lost << type.id;
+        }
+    }
+    if ( !atStart.lost.isEmpty() ) {
+        atStart.movedFrom = movedFrom;
     }
     return atStart;
 }

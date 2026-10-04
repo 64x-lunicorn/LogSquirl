@@ -215,6 +215,18 @@
   start opens a file from the command line or by a double-click. The
   application keeps one file associations object for the run, which every
   window's Options Dialog uses too. (#723)
+- **LogSquirl says when a chosen file association was lost, and restores it**:
+  LogSquirl keeps the file types chosen on the File Associations page or in
+  the first-start dialog -- before either, the types it opens when it first
+  looks, as the installer chose them -- and at every start compares them with
+  what the system says. When one no longer opens in LogSquirl, as after
+  another application or a Windows update took it over, a quiet hint in the
+  status bar names it and offers *Restore*, which applies the choice again
+  (on Windows through the *Default apps* page), and *Dismiss*, which stops
+  the hint for that loss until a choice is applied again. A type the user
+  unchecked never counts. A moved portable build on Windows says instead
+  that the associations point at its old location, and *Restore* points them
+  at the new one. (#725)
 
 ## Bug fixes
 

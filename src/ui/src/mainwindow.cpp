@@ -82,6 +82,7 @@
 #include <QSettings>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
+#include <QStatusBar>
 #include <QStringListModel>
 #include <QTemporaryFile>
 #include <QTextBrowser>
@@ -114,6 +115,7 @@
 #include "issuereporter.h"
 #include "logger.h"
 #include "logsquirl_version.h"
+#include "lostfileassociationshint.h"
 #include "mainwindowtext.h"
 #include "menu.h"
 #include "mergecontroller.h"
@@ -2029,8 +2031,16 @@ void MainWindow::checkFileAssociationsAtStart( bool mayAsk )
     if ( !fileAssociations ) {
         return;
     }
-    const auto choice = fileAssociationChoice( Configuration::getSynced() );
+    auto& config = Configuration::getSynced();
+    auto choice = fileAssociationChoice( config );
     const auto atStart = FileAssociationsAtStart::of( *fileAssociations, choice, mayAsk );
+    if ( atStart.choiceChanged ) {
+        keepFileAssociationChoice( config, choice );
+    }
+    if ( !atStart.lost.isEmpty() ) {
+        showLostFileAssociations( atStart.lost, atStart.movedFrom );
+        return;
+    }
     if ( !atStart.ask ) {
         return;
     }
@@ -2046,6 +2056,35 @@ void MainWindow::checkFileAssociationsAtStart( bool mayAsk )
         keepFileAssociationChoice( config, answered );
     } );
     dialog->open();
+}
+
+// The hint sits in the status bar, which stays until it is done with.
+void MainWindow::showLostFileAssociations( const QStringList& lost, const QString& movedFrom )
+{
+    const auto fileAssociations = session_.fileAssociations();
+    if ( !fileAssociations ) {
+        return;
+    }
+    LOG_INFO << "File associations lost: " << lost.join( QStringLiteral( ", " ) );
+    const auto hadStatusBar = findChild<QStatusBar*>( {}, Qt::FindDirectChildrenOnly ) != nullptr;
+    auto* hint = new LostFileAssociationsHint( *fileAssociations, lost, movedFrom );
+    statusBar()->addPermanentWidget( hint, 1 );
+    connect( hint, &LostFileAssociationsHint::dismissed, this, []( const QStringList& dismissed ) {
+        auto& config = Configuration::getSynced();
+        auto choice = fileAssociationChoice( config );
+        for ( const auto& id : dismissed ) {
+            if ( !choice.dismissed.contains( id ) ) {
+                choice.dismissed << id;
+            }
+        }
+        keepFileAssociationChoice( config, choice );
+    } );
+    connect( hint, &LostFileAssociationsHint::finished, this, [ this, hint, hadStatusBar ] {
+        hint->deleteLater();
+        if ( !hadStatusBar ) {
+            setStatusBar( nullptr );
+        }
+    } );
 }
 
 void MainWindow::connectTeamFolder()

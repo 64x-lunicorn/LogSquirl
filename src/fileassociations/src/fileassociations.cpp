@@ -51,6 +51,11 @@ FileAssociationResult FileAssociations::setContextMenuEntry( bool )
     return {};
 }
 
+QString FileAssociations::movedFrom() const
+{
+    return {};
+}
+
 FileAssociationStates FileAssociations::states() const
 {
     FileAssociationStates current;

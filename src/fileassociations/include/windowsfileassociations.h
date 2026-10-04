@@ -129,6 +129,11 @@ public:
     bool hasContextMenuEntry() const override;
     FileAssociationResult setContextMenuEntry( bool shown ) override;
 
+    // A portable run whose registration for the current user opens another
+    // executable: the portable LogSquirl that applied it was moved since
+    // (#725).
+    QString movedFrom() const override;
+
     // The ProgID that opens files with the extension (without the dot) for
     // the current user: the user's choice, or else the current user's and
     // then the machine's default of the extension. Empty if none.

@@ -93,6 +93,7 @@ FileAssociationChoice fileAssociationChoice( const Configuration& config )
     FileAssociationChoice choice;
     choice.ask = config.askForFileAssociations();
     choice.chosen = config.chosenFileAssociations();
+    choice.dismissed = config.dismissedFileAssociations();
     return choice;
 }
 
@@ -100,6 +101,7 @@ void keepFileAssociationChoice( Configuration& config, const FileAssociationChoi
 {
     config.setAskForFileAssociations( choice.ask );
     config.setChosenFileAssociations( choice.chosen );
+    config.setDismissedFileAssociations( choice.dismissed );
     config.save();
 }
 

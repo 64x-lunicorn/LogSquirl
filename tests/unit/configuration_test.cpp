@@ -564,6 +564,7 @@ const QStringList StoredSettingNames = {
     "fileAssociations.ask",
     "fileAssociations.chosen",
     "fileAssociations.chosenTypes",
+    "fileAssociations.dismissed",
     "filewatch.allowFollowOnScroll",
     "filewatch.fastModificationDetection",
     "filewatch.pollingIntervalMs",
@@ -715,6 +716,7 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.enabledPlugins() == expected.enabledPlugins() );
     CHECK( actual.askForFileAssociations() == expected.askForFileAssociations() );
     CHECK( actual.chosenFileAssociations() == expected.chosenFileAssociations() );
+    CHECK( actual.dismissedFileAssociations() == expected.dismissedFileAssociations() );
     CHECK( actual.chartPresets() == expected.chartPresets() );
     CHECK( actual.csvSeparator() == expected.csvSeparator() );
     CHECK( actual.csvHeader() == expected.csvHeader() );
@@ -954,7 +956,7 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                         "teamFolder.subfolder", "export.csvSeparator", "export.csvHeader",
                         "commandSource.recentCommands/size", "view.showValueNames",
                         "fileAssociations.ask", "fileAssociations.chosen",
-                        "fileAssociations.chosenTypes" } ) {
+                        "fileAssociations.chosenTypes", "fileAssociations.dismissed" } ) {
                     stored.remove( added );
                 }
                 CHECK( stored.keys() == releaseValues.keys() );

@@ -27,31 +27,46 @@
 #include "fileassociations.h"
 
 // What the user chose for the file types LogSquirl opens, as the settings
-// keep it: whether the first start still asks, and the types the user chose
-// (#723).
+// keep it: whether the first start still asks (#723), and the types the user
+// chose, which a later start compares with what the system says (#725).
 struct FileAssociationChoice {
     // Whether the first start asks, until the user applies a choice or
     // answers "Don't ask again".
     bool ask = true;
     // The ids of the types the user chose for LogSquirl, on the File
-    // Associations page or in the first-start dialog. Nothing until then.
+    // Associations page or in the first-start dialog; before either, the
+    // types LogSquirl opened when a start first looked, as the installer
+    // chose them. Nothing until then.
     std::optional<QStringList> chosen;
+    // The ids of the lost types whose hint the user dismissed, until a choice
+    // is applied again.
+    QStringList dismissed;
 
     // The user applied a choice with the types of checkedIds checked.
     void apply( const QStringList& checkedIds );
 };
 
 // What LogSquirl does about the file associations as it starts, once the
-// main window shows: ask the first-start question, or not.
+// main window shows: ask the first-start question, or name the chosen types
+// that are no longer LogSquirl's.
 struct FileAssociationsAtStart {
     // Ask which file types LogSquirl opens.
     bool ask = false;
     // The types the question offers checked: the suggested ones and every
     // one LogSquirl is the default for already.
     QStringList checks;
+    // The chosen types that are no longer LogSquirl's, or, for a moved
+    // portable LogSquirl, the chosen types that still point at where it was:
+    // what the hint names. Empty while the question is asked.
+    QStringList lost;
+    // Where a moved portable LogSquirl was; empty otherwise.
+    QString movedFrom;
+    // Whether the choice changed and is to be kept: nothing was chosen yet,
+    // so the types LogSquirl opens became the choice.
+    bool choiceChanged = false;
 
     // What to do with these file associations and the choice as kept; the
     // question is only asked when mayAsk, so not while a start opens a file.
     static FileAssociationsAtStart of( const FileAssociations& fileAssociations,
-                                       const FileAssociationChoice& choice, bool mayAsk );
+                                       FileAssociationChoice& choice, bool mayAsk );
 };

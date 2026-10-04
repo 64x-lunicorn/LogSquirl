@@ -109,6 +109,12 @@ public:
     // Adds the entry or removes it, for the current user.
     virtual FileAssociationResult setContextMenuEntry( bool shown );
 
+    // Where a portable LogSquirl was when it applied the associations that
+    // still point there, now that it was moved (#725): the executable they
+    // open. Applying them again points them at this run. Empty when they
+    // point at this run, and on a platform where nothing points at a place.
+    virtual QString movedFrom() const;
+
 Q_SIGNALS:
     // The states changed outside apply(), or after it returned.
     void statesChanged();

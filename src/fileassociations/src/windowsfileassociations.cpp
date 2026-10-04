@@ -130,6 +130,29 @@ QString WindowsFileAssociations::command() const
     return QLatin1Char( '"' ) + environment_.executable + QStringLiteral( "\" \"%1\"" );
 }
 
+QString WindowsFileAssociations::movedFrom() const
+{
+    if ( !isAvailable() || !environment_.portable ) {
+        return {};
+    }
+    for ( const auto& type : FileTypes::choices() ) {
+        const auto registered = system_->value(
+            Hive::CurrentUser,
+            ClassesKey + type.progId + QStringLiteral( "\\shell\\open\\command" ), {} );
+        if ( !registered || registered->isEmpty()
+             || registered->compare( command(), Qt::CaseInsensitive ) == 0 ) {
+            continue;
+        }
+        // "C:\path\logsquirl_portable.exe" "%1": the executable is the first
+        // argument.
+        if ( registered->startsWith( QLatin1Char( '"' ) ) ) {
+            return registered->mid( 1 ).section( QLatin1Char( '"' ), 0, 0 );
+        }
+        return registered->section( QLatin1Char( ' ' ), 0, 0 );
+    }
+    return {};
+}
+
 QString WindowsFileAssociations::openingProgId( const QString& extension ) const
 {
     // The user's choice: UserChoiceLatest on the newest Windows 11, which

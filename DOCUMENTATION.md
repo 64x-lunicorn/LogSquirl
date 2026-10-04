@@ -1570,6 +1570,17 @@ LogSquirl already opens `.log` and the Logcat traces, after you applied a
 choice on the page, or when LogSquirl starts to open a file, from the command
 line or by a double-click.
 
+LogSquirl remembers the types you chose on the page or in that question;
+until you choose, the types it opens when it first looks count as chosen, for
+example those of the Windows installer. At every start it compares them with
+what the system says. When a chosen type no longer opens in LogSquirl,
+because another application or a Windows update took it over, a hint in the
+status bar names it: *Restore* makes LogSquirl its default again (on Windows
+through the *Default apps* page), and *Dismiss* stops the hint for that loss
+until you apply a choice again. A type you unchecked never counts. When the
+portable build on Windows was moved, the hint says that the associations
+point at its old location, and *Restore* points them at the new one.
+
 On Linux, the deb and rpm packages offer LogSquirl for these types, and the
 page makes it the default with `xdg-mime default`, for your user only. An
 AppImage cannot register file types, so there the page is disabled and says
