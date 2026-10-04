@@ -39,8 +39,9 @@
 // Windows does not let an application make itself the default: the user's
 // choice (UserChoice) is protected. After registering, LogSquirl opens the
 // Default apps page for LogSquirl, where the user confirms, and watches the
-// user's choice for a while so the states follow. A type registered but not
-// confirmed is Registered.
+// user's choice for a while so the states follow. A type the current user
+// registered but did not choose LogSquirl for there is Unconfirmed; one only
+// the installer registered for the machine is Registered.
 //
 // Giving a type back removes the current user's registration only; what the
 // installer registered for the machine stays.
@@ -149,6 +150,7 @@ public:
 
 private:
     QString command() const;
+    bool isProgIdRegisteredForUser( const QString& progId ) const;
     bool isProgIdRegistered( const QString& progId ) const;
     bool registerForUser( const FileType& type );
     bool unregisterForUser( const FileType& type );

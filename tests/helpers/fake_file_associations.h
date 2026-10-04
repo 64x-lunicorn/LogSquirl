@@ -91,7 +91,7 @@ public:
                 result.failed << type.id;
                 continue;
             }
-            if ( state( type ) == FileAssociationState::Default ) {
+            if ( isChosen( state( type ) ) ) {
                 current[ type.id ] = FileAssociationState::Registered;
             }
         }

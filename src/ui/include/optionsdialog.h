@@ -149,7 +149,11 @@ private:
     void setupLanguageList();
     void setupLogFormats( const LogFormatCatalog& logFormatCatalog );
     void setupFileAssociations();
+    // Reads the states again and shows them, with every check as its state
+    // but those the user changed since the last reset.
     void updateFileAssociations();
+    // The same, every check as its state.
+    void resetFileAssociations();
     void applyFileAssociations();
 
     int updateTranslate();
@@ -173,6 +177,11 @@ private:
     // The states the page shows, as last read: a check that differs from
     // its state is what Apply changes.
     FileAssociationStates fileAssociationStates_;
+    // The ids of the types whose check the user changed since the page last
+    // showed every check as its state, and whether the user changed the
+    // context menu entry's: a state read meanwhile leaves them as they are.
+    QStringList editedFileAssociations_;
+    bool contextMenuEntryEdited_ = false;
 };
 
 #endif

@@ -844,6 +844,46 @@ TEST_CASE( "Applying the File Associations page makes the checked types LogSquir
             CHECK( fileTypeRow( dialog, "text" )->text( StateColumn ) == "Default" );
             CHECK( fileTypeRow( dialog, "text" )->checkState( 0 ) == Qt::Checked );
         }
+
+        SECTION( "a check the user changed stays while the states change, until Apply" )
+        {
+            fileTypeRow( dialog, "trace" )->setCheckState( 0, Qt::Checked );
+            fileTypeRow( dialog, "log" )->setCheckState( 0, Qt::Unchecked );
+            associations.change( "text", FileAssociationState::Default );
+            associations.change( "log", FileAssociationState::Default );
+
+            CHECK( fileTypeRow( dialog, "text" )->checkState( 0 ) == Qt::Checked );
+            CHECK( fileTypeRow( dialog, "trace" )->checkState( 0 ) == Qt::Checked );
+            CHECK( fileTypeRow( dialog, "log" )->checkState( 0 ) == Qt::Unchecked );
+            // The state column always shows what the system says.
+            CHECK( fileTypeRow( dialog, "text" )->text( StateColumn ) == "Default" );
+
+            dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+            REQUIRE( associations.applied.size() == 1 );
+            CHECK( associations.applied[ 0 ].first == QStringList{ "trace" } );
+            CHECK( associations.applied[ 0 ].second == QStringList{ "log" } );
+
+            // After Apply, the checks follow the states again.
+            associations.change( "log", FileAssociationState::Default );
+            CHECK( fileTypeRow( dialog, "log" )->checkState( 0 ) == Qt::Checked );
+        }
+
+        SECTION( "a type the user is still to confirm is checked, and unchecking gives it back" )
+        {
+            associations.change( "output", FileAssociationState::Unconfirmed );
+            auto* output = fileTypeRow( dialog, "output" );
+            CHECK( output->checkState( 0 ) == Qt::Checked );
+            CHECK( output->text( StateColumn ) == "Not confirmed" );
+            CHECK( output->toolTip( StateColumn ).contains( "Default apps" ) );
+            CHECK_FALSE( output->icon( StateColumn ).isNull() );
+
+            output->setCheckState( 0, Qt::Unchecked );
+            dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+            REQUIRE( associations.applied.size() == 1 );
+            CHECK( associations.applied[ 0 ].first.isEmpty() );
+            CHECK( associations.applied[ 0 ].second == QStringList{ "output" } );
+            CHECK( output->checkState( 0 ) == Qt::Unchecked );
+        }
     }
 }
 
@@ -928,6 +968,18 @@ TEST_CASE( "The File Associations page adds Open with LogSquirl to every file's 
         CHECK( associations.entrySet == std::vector<bool>{ false, true } );
         // The file types were not touched.
         CHECK( associations.applied.empty() );
+    }
+
+    SECTION( "the check box the user changed stays while the states change" )
+    {
+        associations.offersEntry = true;
+        associations.entry = true;
+        dialog.showFileAssociations( associations );
+        checkBox->setChecked( false );
+        associations.change( "log", FileAssociationState::Default );
+        CHECK_FALSE( checkBox->isChecked() );
+        dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+        CHECK( associations.entrySet == std::vector<bool>{ false } );
     }
 
     SECTION( "Cancel adds nothing" )

@@ -36,6 +36,11 @@ enum class FileAssociationState {
     Default,
     // LogSquirl is offered for it, but another application opens it.
     Registered,
+    // LogSquirl applied the user's choice of it, but another application
+    // opens it until the user confirms the choice outside LogSquirl: on
+    // Windows, LogSquirl's registration for the current user that the user
+    // has not chosen on the Default apps page, or no longer.
+    Unconfirmed,
     // LogSquirl is not offered for it.
     NotRegistered,
 };
@@ -48,6 +53,11 @@ FileAssociationState stateOf( const FileAssociationStates& states, const QString
 
 // Whether LogSquirl opens the type with the id.
 bool isDefault( const FileAssociationStates& states, const QString& id );
+
+// Whether a type in the state is chosen for LogSquirl: LogSquirl opens it, or
+// the user is still to confirm it. Its check shows checked, and unchecking it
+// gives it back.
+bool isChosen( FileAssociationState state );
 
 // What applying a choice did. A platform where the user confirms the choice
 // elsewhere may still change its mind after apply() returned; the states
@@ -134,9 +144,9 @@ Q_SIGNALS:
     void statesChanged();
 };
 
-// What applying a choice changes: the checked types LogSquirl is not the
-// default for yet become it, the unchecked ones it is the default for are
-// given back, and every other type is left as it is.
+// What applying a choice changes: the checked types not chosen for LogSquirl
+// yet become LogSquirl's, the unchecked ones chosen for it are given back,
+// and every other type is left as it is.
 struct FileAssociationPlan {
     std::vector<FileType> makeDefault;
     std::vector<FileType> release;

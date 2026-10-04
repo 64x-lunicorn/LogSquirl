@@ -298,6 +298,21 @@ TEST_CASE( "On Windows, the states are the user's actual choice", "[fileassociat
                == FileAssociationState::Registered );
     }
 
+    SECTION( "the current user's registration, not chosen in Default apps, is unconfirmed" )
+    {
+        windows.registry.install( typeWithId( "log" ), Installed );
+        windows.registry.choose( "log", "txtfile" );
+        auto associations = windows.associations();
+        associations->apply( { typeWithId( "log" ) }, {} );
+        CHECK( associations->state( typeWithId( "log" ) ) == FileAssociationState::Unconfirmed );
+        // Chosen, so unchecking gives it back, which removes the user's
+        // registration and leaves the installer's offer.
+        CHECK( isChosen( associations->state( typeWithId( "log" ) ) ) );
+        associations->apply( {}, { typeWithId( "log" ) } );
+        CHECK( associations->state( typeWithId( "log" ) ) == FileAssociationState::Registered );
+        CHECK_FALSE( windows.registry.has( Hive::CurrentUser, Classes + "LogSquirl.log" ) );
+    }
+
     SECTION( "a choice of a ProgID that is gone opens nothing of LogSquirl's" )
     {
         windows.registry.choose( "trace", "LogSquirl.trace" );
@@ -342,8 +357,8 @@ TEST_CASE( "On Windows, applying registers for the current user and opens Defaul
             CHECK( windows.registry.keys[ key ] == values );
         }
 
-        // Registered until the user confirms.
-        CHECK( associations->state( typeWithId( "trace" ) ) == FileAssociationState::Registered );
+        // Unconfirmed until the user confirms.
+        CHECK( associations->state( typeWithId( "trace" ) ) == FileAssociationState::Unconfirmed );
         CHECK( associations->isWatching() );
         associations->checkForChanges();
         CHECK( changed.isEmpty() );

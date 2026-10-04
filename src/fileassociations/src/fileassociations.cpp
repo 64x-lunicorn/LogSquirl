@@ -40,6 +40,11 @@ bool isDefault( const FileAssociationStates& states, const QString& id )
     return stateOf( states, id ) == FileAssociationState::Default;
 }
 
+bool isChosen( FileAssociationState state )
+{
+    return state == FileAssociationState::Default || state == FileAssociationState::Unconfirmed;
+}
+
 FileAssociationResult FileAssociationResult::failedFor( const std::vector<FileType>& makeDefault,
                                                         const std::vector<FileType>& release,
                                                         const QString& error )
@@ -95,12 +100,12 @@ FileAssociationPlan FileAssociationPlan::of( const FileAssociationStates& states
 {
     FileAssociationPlan plan;
     for ( const auto& type : FileTypes::choices() ) {
-        const auto opens = isDefault( states, type.id );
+        const auto chosen = isChosen( stateOf( states, type.id ) );
         const auto checked = checkedIds.contains( type.id );
-        if ( checked && !opens ) {
+        if ( checked && !chosen ) {
             plan.makeDefault.push_back( type );
         }
-        else if ( !checked && opens ) {
+        else if ( !checked && chosen ) {
             plan.release.push_back( type );
         }
     }

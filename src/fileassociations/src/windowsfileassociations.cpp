@@ -54,7 +54,6 @@ QString openWithKey( const QString& extension )
     return extensionKey( extension ) + QStringLiteral( "\\OpenWithProgids" );
 }
 
-
 } // namespace
 
 const QString WindowsFileAssociations::RegisteredApplicationName = QStringLiteral( "LogSquirl" );
@@ -167,11 +166,17 @@ QString WindowsFileAssociations::openingProgId( const QString& extension ) const
     return {};
 }
 
+bool WindowsFileAssociations::isProgIdRegisteredForUser( const QString& progId ) const
+{
+    return system_->hasKey( Hive::CurrentUser,
+                            ClassesKey + progId + QStringLiteral( "\\shell\\open\\command" ) );
+}
+
 bool WindowsFileAssociations::isProgIdRegistered( const QString& progId ) const
 {
-    const auto commandKey = ClassesKey + progId + QStringLiteral( "\\shell\\open\\command" );
-    return system_->hasKey( Hive::CurrentUser, commandKey )
-           || system_->hasKey( Hive::LocalMachine, commandKey );
+    return isProgIdRegisteredForUser( progId )
+           || system_->hasKey( Hive::LocalMachine,
+                               ClassesKey + progId + QStringLiteral( "\\shell\\open\\command" ) );
 }
 
 FileAssociationState WindowsFileAssociations::state( const FileType& type ) const
@@ -181,7 +186,11 @@ FileAssociationState WindowsFileAssociations::state( const FileType& type ) cons
     }
     for ( const auto& extension : type.extensions ) {
         if ( openingProgId( extension ).compare( type.progId, Qt::CaseInsensitive ) != 0 ) {
-            return FileAssociationState::Registered;
+            // The current user's registration is the user's choice, applied
+            // and waiting for the Default apps page; the machine's alone is
+            // the installer's offer.
+            return isProgIdRegisteredForUser( type.progId ) ? FileAssociationState::Unconfirmed
+                                                            : FileAssociationState::Registered;
         }
     }
     return FileAssociationState::Default;

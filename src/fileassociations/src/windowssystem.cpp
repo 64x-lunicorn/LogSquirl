@@ -204,11 +204,8 @@ public:
     bool removeKey( const QString& key ) override
     {
         const auto keyName = wide( key );
-        // RegDeleteTreeW empties the key; RegDeleteKeyW removes it then.
-        auto status = RegDeleteTreeW( HKEY_CURRENT_USER, keyName.c_str() );
-        if ( status == ERROR_SUCCESS ) {
-            status = RegDeleteKeyW( HKEY_CURRENT_USER, keyName.c_str() );
-        }
+        // Given a subkey, RegDeleteTreeW deletes it with everything under it.
+        const auto status = RegDeleteTreeW( HKEY_CURRENT_USER, keyName.c_str() );
         return status == ERROR_SUCCESS || status == ERROR_FILE_NOT_FOUND;
     }
 

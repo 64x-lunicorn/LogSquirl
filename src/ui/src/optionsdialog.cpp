@@ -456,6 +456,17 @@ void OptionsDialog::setupFileAssociations()
     fileAssociationsContextMenuCheckBox->setVisible( false );
 
     FileTypeChoices::fill( *fileAssociationsTree );
+
+    // What the user changes stays until Apply, whatever the states do.
+    connect( fileAssociationsTree, &QTreeWidget::itemChanged, this,
+             [ this ]( QTreeWidgetItem* item, int column ) {
+                 const auto id = item->data( 0, Qt::UserRole ).toString();
+                 if ( column == 0 && !id.isEmpty() && !editedFileAssociations_.contains( id ) ) {
+                     editedFileAssociations_ << id;
+                 }
+             } );
+    connect( fileAssociationsContextMenuCheckBox, &QCheckBox::toggled, this,
+             [ this ] { contextMenuEntryEdited_ = true; } );
 }
 
 void OptionsDialog::showFileAssociations( FileAssociations& fileAssociations )
@@ -487,11 +498,11 @@ void OptionsDialog::showFileAssociations( FileAssociations& fileAssociations )
     // later; the page then shows it, and the checks follow.
     connect( &fileAssociations, &FileAssociations::statesChanged, this,
              &OptionsDialog::updateFileAssociations );
-    updateFileAssociations();
+    resetFileAssociations();
 }
 
-// Reads the states again and shows them; every check becomes what its state
-// is.
+// A type is checked while it is chosen for LogSquirl: also while the user is
+// still to confirm it outside LogSquirl, so unchecking gives it back.
 void OptionsDialog::updateFileAssociations()
 {
     if ( !fileAssociations_ || !fileAssociations_->isAvailable() ) {
@@ -499,18 +510,31 @@ void OptionsDialog::updateFileAssociations()
         return;
     }
     fileAssociationStates_ = fileAssociations_->states();
-    fileAssociationsContextMenuCheckBox->setChecked( fileAssociations_->hasContextMenuEntry() );
 
+    // Shown as the system says, not edited by the user.
+    const QSignalBlocker treeBlocker( fileAssociationsTree );
+    const QSignalBlocker checkBoxBlocker( fileAssociationsContextMenuCheckBox );
+    if ( !contextMenuEntryEdited_ ) {
+        fileAssociationsContextMenuCheckBox->setChecked( fileAssociations_->hasContextMenuEntry() );
+    }
     for ( const auto& [ id, state ] : fileAssociationStates_ ) {
         auto* row = FileTypeChoices::row( *fileAssociationsTree, id );
         if ( row == nullptr ) {
             continue;
         }
-        row->setCheckState( 0, state == FileAssociationState::Default ? Qt::Checked
-                                                                      : Qt::Unchecked );
+        if ( !editedFileAssociations_.contains( id ) ) {
+            row->setCheckState( 0, isChosen( state ) ? Qt::Checked : Qt::Unchecked );
+        }
         FileTypeChoices::showState( *row, 2, state, *this );
     }
     fileAssociationsTree->resizeColumnToContents( 2 );
+}
+
+void OptionsDialog::resetFileAssociations()
+{
+    editedFileAssociations_.clear();
+    contextMenuEntryEdited_ = false;
+    updateFileAssociations();
 }
 
 // Makes LogSquirl the default for each checked type it is not the default for
@@ -529,6 +553,7 @@ void OptionsDialog::applyFileAssociations()
                               && fileAssociationsContextMenuCheckBox->isChecked()
                                      != fileAssociations_->hasContextMenuEntry();
     if ( plan.isEmpty() && !entryChanged ) {
+        resetFileAssociations();
         return;
     }
     if ( entryChanged ) {
@@ -550,7 +575,7 @@ void OptionsDialog::applyFileAssociations()
         }
     }
     // What the system says now, not what was asked for.
-    updateFileAssociations();
+    resetFileAssociations();
     if ( !errors.isEmpty() ) {
         QMessageBox::warning( this, tr( "File Associations" ), errors.join( QLatin1Char( '\n' ) ) );
     }

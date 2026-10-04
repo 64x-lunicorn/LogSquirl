@@ -195,9 +195,10 @@
   apps* page of the Windows settings for LogSquirl, says so before *Apply*,
   and follows the user's choice there: the state column reads the user's
   actual choice (`UserChoice`), so a type registered but not confirmed shows
-  as *Registered*. Unchecking removes the current user's registration and
-  leaves the machine-wide one the installer made, and says so when LogSquirl
-  still opens the type. The portable build registers its own executable and
+  as *Not confirmed* and stays checked, and a check the user changed stays
+  while the page follows. Unchecking a type, confirmed or not, removes the
+  current user's registration and leaves the machine-wide one the installer
+  made, and says so when LogSquirl still opens the type. The portable build registers its own executable and
   warns that moving it stops the associations working. (#722)
 - **On Windows, every file offers Open with LogSquirl in the context menu**:
   right-clicking any file in Explorer offers *Open with LogSquirl* (on

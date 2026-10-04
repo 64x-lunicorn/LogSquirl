@@ -55,17 +55,13 @@ FileAssociationsAtStart FileAssociationsAtStart::of( const FileAssociations& fil
     }
 
     const auto states = fileAssociations.states();
-    const auto isDefault = [ &states ]( const QString& id ) {
-        const auto it = states.find( id );
-        return it != states.end() && it->second == FileAssociationState::Default;
-    };
 
     // Before the user chose, what LogSquirl opens is what the installer, or
     // whoever made it the default, chose.
     if ( !choice.chosen ) {
         QStringList defaults;
         for ( const auto& type : FileTypes::choices() ) {
-            if ( isDefault( type.id ) ) {
+            if ( isDefault( states, type.id ) ) {
                 defaults << type.id;
             }
         }
@@ -78,11 +74,11 @@ FileAssociationsAtStart FileAssociationsAtStart::of( const FileAssociations& fil
     if ( mayAsk && choice.ask ) {
         auto suggestedAreDefault = true;
         for ( const auto& type : FileTypes::choices() ) {
-            if ( type.checkedByDefault || isDefault( type.id ) ) {
+            if ( type.checkedByDefault || isChosen( stateOf( states, type.id ) ) ) {
                 atStart.checks << type.id;
             }
             suggestedAreDefault
-                = suggestedAreDefault && ( !type.checkedByDefault || isDefault( type.id ) );
+                = suggestedAreDefault && ( !type.checkedByDefault || isDefault( states, type.id ) );
         }
         // Nothing to ask when everything it would suggest is LogSquirl's.
         atStart.ask = !suggestedAreDefault;
@@ -100,7 +96,7 @@ FileAssociationsAtStart FileAssociationsAtStart::of( const FileAssociations& fil
     const auto movedFrom = fileAssociations.movedFrom();
     for ( const auto& type : FileTypes::choices() ) {
         if ( choice.chosen->contains( type.id ) && !choice.dismissed.contains( type.id )
-             && ( !movedFrom.isEmpty() || !isDefault( type.id ) ) ) {
+             && ( !movedFrom.isEmpty() || !isDefault( states, type.id ) ) ) {
             atStart.lost << type.id;
         }
     }

@@ -1557,11 +1557,14 @@ Android Logcat traces `.adb` and `.adb0` to `.adb9`) and *More (optional)*
 - *Default*: LogSquirl opens it.
 - *Registered*: LogSquirl is offered under *Open with*, but another
   application opens it.
+- *Not confirmed* (Windows only): you applied LogSquirl for it, but another
+  application opens it until you choose LogSquirl on the *Default apps* page.
 - *Not registered*: LogSquirl is not offered for it.
 
-A type is checked where LogSquirl is its default. *Apply* or *OK* makes
-LogSquirl the default for every checked type and gives back every type you
-unchecked. Giving a type back only removes what LogSquirl set; it does not
+A type is checked where LogSquirl is its default, or not confirmed yet.
+*Apply* or *OK* makes LogSquirl the default for every checked type and gives
+back every type you unchecked. A check you changed stays as you set it while
+the page follows the states, until you apply. Giving a type back only removes what LogSquirl set; it does not
 choose another application, so the desktop's own choice opens it again.
 
 On the first start, once the main window shows, LogSquirl asks *Make
@@ -1598,8 +1601,9 @@ administrator: the same file types the installer registers, with the document
 icon, opened by the LogSquirl you run. Windows does not let an application make
 itself the default, so LogSquirl then opens the *Default apps* page of the
 Windows settings, where you choose LogSquirl for each file type; the page says
-so before you apply. Until you do, a type shows as *Registered*, and once you
-did, as *Default*. Unchecking a type removes your user's registration; what
+so before you apply. Until you do, a type shows as *Not confirmed* and stays
+checked, and once you did, as *Default*. Unchecking a type, confirmed or not,
+removes your user's registration; what
 the installer registered for every user of the computer stays, and if
 LogSquirl still opens the type then, the page says so and you choose another
 app on the *Default apps* page. In the portable build the page warns that the

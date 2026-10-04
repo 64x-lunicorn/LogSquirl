@@ -95,6 +95,14 @@ StateLook lookOf( FileAssociationState state )
                  QCoreApplication::translate( "OptionsDialog",
                                               "LogSquirl is offered for these files, but another "
                                               "application opens them." ) };
+    case FileAssociationState::Unconfirmed:
+        return { QStyle::SP_MessageBoxWarning,
+                 QCoreApplication::translate( "OptionsDialog", "Not confirmed" ),
+                 QCoreApplication::translate(
+                     "OptionsDialog",
+                     "LogSquirl is registered for these files for you, but another application "
+                     "opens them until you choose LogSquirl on the Default apps page of the "
+                     "Windows settings." ) };
     case FileAssociationState::NotRegistered:
         return { QStyle::SP_DialogNoButton,
                  QCoreApplication::translate( "OptionsDialog", "Not registered" ),
