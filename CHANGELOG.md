@@ -236,6 +236,15 @@
   other tabs' changes still wait for *OK* or *Apply*. *Sync Now* is available
   as soon as the check box is on and a URL is entered, before the first
   *Apply*. (#712)
+- **A failed Team Folder sync says what to do**: the status in *Settings →
+  Team Folder* adds a short hint under its heading for common failures:
+  *Sign-in failed*, *Organization requires SSO authorization* (GitHub's SAML
+  SSO), *Repository not found*, *Server unreachable* and *Git is not
+  installed*, each saying what to check or do. LogSquirl recognises them by
+  Git's fixed English sentences as whole lines of its output, so a URL or
+  path that holds the same words triggers nothing; any other failure shows
+  the heading and Git's details only, and Git's output in the details stays
+  unchanged. ADR-0008 is amended to allow these hints. (#713)
 
 ## Bug fixes
 

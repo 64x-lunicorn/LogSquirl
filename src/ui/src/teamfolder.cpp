@@ -26,6 +26,7 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QMap>
+#include <QRegularExpression>
 #include <QSet>
 #include <QSettings>
 #include <QTemporaryFile>
@@ -1643,7 +1644,115 @@ QList<NamingGroup> TeamFolder::namingGroups() const
     return groupsOf( namingGroups_ );
 }
 
+FailureHint TeamFolder::failureHint() const
+{
+    return failureHintOf( failedStep(), gitOutput() );
+}
+
+QString TeamFolder::hintOf( FailureHint hint )
+{
+    switch ( hint ) {
+    case FailureHint::None:
+        return {};
+    case FailureHint::SignIn:
+        return tr( "Sign-in failed. Make sure Git can sign in to this server outside LogSquirl: "
+                   "with an SSH key added to your account for an SSH URL, or with stored "
+                   "credentials or a token for an HTTPS URL." );
+    case FailureHint::SsoAuthorization:
+        return tr( "The organization requires SSO authorization. Authorize your SSH key or "
+                   "token for the organization in your account settings on the server, or use "
+                   "an HTTPS URL." );
+    case FailureHint::RepositoryNotFound:
+        return tr( "Repository not found. Check the Repository URL, and that your account may "
+                   "read the repository." );
+    case FailureHint::ServerUnreachable:
+        return tr( "Server unreachable. Check the host name in the Repository URL, your network "
+                   "connection and your proxy settings." );
+    case FailureHint::GitMissing:
+        return tr( "Git is not installed. Install Git, make sure the git program is on the "
+                   "PATH, and press Sync Now." );
+    }
+    return {};
+}
+
 namespace logsquirl::teamfolder {
+
+namespace {
+
+// Git's fixed sentences (LC_ALL=C) of each common failure, each a whole line.
+// Where a line holds a URL or a host, it sits where Git puts it, so the words
+// of a sentence inside a URL or a path never make a line match.
+struct HintSentences {
+    FailureHint hint;
+    QList<QRegularExpression> lines;
+};
+
+const QList<HintSentences>& hintSentences()
+{
+    static const QList<HintSentences> sentences = [] {
+        const auto line = []( const char* pattern ) {
+            return QRegularExpression( QStringLiteral( "^%1$" ).arg( QLatin1String( pattern ) ) );
+        };
+        // In the order they are looked for: SSO before the sign-in, which a
+        // server may report alongside it.
+        return QList<HintSentences>{
+            { FailureHint::SsoAuthorization,
+              { line( "(?:ERROR: |remote: )?The \\S+ organization has enabled or enforced SAML "
+                      "SSO\\..*" ) } },
+            { FailureHint::SignIn,
+              { line( "\\S+: Permission denied \\([a-z-]+(?:,[a-z-]+)*\\)\\." ),
+                line( "fatal: Authentication failed for '[^']+'" ),
+                line( "fatal: could not read (?:Username|Password) for '[^']+': .+" ) } },
+            { FailureHint::RepositoryNotFound,
+              { line( "(?:ERROR|remote): Repository not found\\." ),
+                line( "fatal: repository '[^']+' not found" ),
+                line( "fatal: '[^']+' does not appear to be a git repository" ) } },
+            { FailureHint::ServerUnreachable,
+              { line( "ssh: Could not resolve hostname \\S+: .+" ),
+                line( "ssh: connect to host \\S+ port \\d+: .+" ),
+                line( "fatal: unable to access '[^']+': (?:Could not resolve (?:host|proxy): "
+                      "|Failed to connect to |Connection timed out|Operation timed out).*" ) } },
+        };
+    }();
+    return sentences;
+}
+
+} // namespace
+
+FailureHint failureHintOf( SyncStep step, const QString& gitOutput )
+{
+    switch ( step ) {
+    case SyncStep::None:
+    case SyncStep::Subfolder:
+    // The 403 of a refused push has its own rule (ADR-0008).
+    case SyncStep::PushRefused:
+        return FailureHint::None;
+    case SyncStep::StartGit:
+        return FailureHint::GitMissing;
+    case SyncStep::Clone:
+    case SyncStep::Pull:
+    case SyncStep::Merge:
+    case SyncStep::Push:
+        break;
+    }
+
+    auto lines = gitOutput.split( QLatin1Char( '\n' ) );
+    for ( auto& line : lines ) {
+        if ( line.endsWith( QLatin1Char( '\r' ) ) ) {
+            line.chop( 1 );
+        }
+    }
+    for ( const auto& sentences : hintSentences() ) {
+        for ( const auto& sentence : sentences.lines ) {
+            for ( const auto& line : std::as_const( lines ) ) {
+                if ( sentence.match( line ).hasMatch() ) {
+                    return sentences.hint;
+                }
+            }
+        }
+    }
+    return FailureHint::None;
+}
 
 namespace {
 

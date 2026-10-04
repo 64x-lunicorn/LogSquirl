@@ -376,6 +376,13 @@ void OptionsDialog::updateTeamFolderStatus()
             .pixmap( QSize( iconSize, iconSize ), devicePixelRatioF() ) );
     teamFolderStatusHeadingLabel->setText( teamFolder_->heading() );
 
+    // What to do about a common failure, under the heading; Git's output
+    // stays as it is in the details.
+    const auto hint
+        = teamFolder_->isSyncing() ? QString{} : TeamFolder::hintOf( teamFolder_->failureHint() );
+    teamFolderHintLabel->setText( hint );
+    teamFolderHintLabel->setVisible( !hint.isEmpty() );
+
     const auto remarks = teamFolder_->remarks();
     teamFolderRemarksLabel->setText( remarks.join( QLatin1Char( '\n' ) ) );
     teamFolderRemarksLabel->setVisible( !remarks.isEmpty() );

@@ -52,6 +52,8 @@
 #include "teamfoldergit.h"
 #include "teamfoldertesting.h"
 
+using logsquirl::teamfolder::FailureHint;
+using logsquirl::teamfolder::failureHintOf;
 using logsquirl::teamfolder::Git;
 using logsquirl::teamfolder::groupOfKind;
 using logsquirl::teamfolder::SyncStep;
@@ -2079,4 +2081,215 @@ TEST_CASE( "A group that could not be published is still reported beside the sta
     CHECK( alice.state() == TeamFolder::State::Synced );
     CHECK( alice.failedStep() == SyncStep::None );
     CHECK( alice.remarks() == QStringList{ "Not published: fatal: no commit in this test" } );
+}
+
+TEST_CASE( "Common failures are recognised in Git's recorded output", "[teamfolder][hint]" )
+{
+    // What servers print, recorded: these cannot be produced locally.
+    SECTION( "a sign-in refused over SSH" )
+    {
+        CHECK( failureHintOf( SyncStep::Clone, "git@github.com: Permission denied (publickey).\n"
+                                               "fatal: Could not read from remote repository.\n"
+                                               "\n"
+                                               "Please make sure you have the correct access "
+                                               "rights\n"
+                                               "and the repository exists." )
+               == FailureHint::SignIn );
+        CHECK( failureHintOf( SyncStep::Pull,
+                              "git@git.example.com: Permission denied (publickey,password)." )
+               == FailureHint::SignIn );
+    }
+
+    SECTION( "a sign-in refused over HTTPS" )
+    {
+        CHECK( failureHintOf( SyncStep::Clone,
+                              "remote: Invalid username or token. Password authentication is not "
+                              "supported for Git operations.\n"
+                              "fatal: Authentication failed for "
+                              "'https://github.com/example/team.git/'" )
+               == FailureHint::SignIn );
+        CHECK( failureHintOf( SyncStep::Pull,
+                              "fatal: could not read Username for 'https://github.com': terminal "
+                              "prompts disabled" )
+               == FailureHint::SignIn );
+    }
+
+    SECTION( "an organization that requires SAML SSO" )
+    {
+        CHECK( failureHintOf( SyncStep::Clone,
+                              "ERROR: The 'example' organization has enabled or enforced SAML "
+                              "SSO. To access this repository, you must use the HTTPS remote "
+                              "with a personal access token or SSH with an SSH key and passphrase "
+                              "that has been authorized for this organization. Visit "
+                              "https://docs.github.com/articles/"
+                              "authenticating-to-a-github-organization-with-saml-single-sign-on/ "
+                              "for more information.\n"
+                              "\n"
+                              "fatal: Could not read from remote repository.\n"
+                              "\n"
+                              "Please make sure you have the correct access rights\n"
+                              "and the repository exists." )
+               == FailureHint::SsoAuthorization );
+        CHECK( failureHintOf( SyncStep::Pull,
+                              "remote: The `example' organization has enabled or enforced SAML "
+                              "SSO. To access\n"
+                              "remote: this repository, you must re-authorize the OAuth "
+                              "Application `Git Credential Manager`.\n"
+                              "fatal: unable to access 'https://github.com/example/team.git/': "
+                              "The requested URL returned error: 403" )
+               == FailureHint::SsoAuthorization );
+    }
+
+    SECTION( "a repository the server does not have, or does not show" )
+    {
+        CHECK( failureHintOf( SyncStep::Clone, "ERROR: Repository not found.\n"
+                                               "fatal: Could not read from remote repository." )
+               == FailureHint::RepositoryNotFound );
+        CHECK( failureHintOf( SyncStep::Clone,
+                              "remote: Repository not found.\n"
+                              "fatal: repository 'https://github.com/example/team.git/' not "
+                              "found" )
+               == FailureHint::RepositoryNotFound );
+    }
+
+    SECTION( "a server that cannot be reached over SSH" )
+    {
+        CHECK( failureHintOf( SyncStep::Clone,
+                              "ssh: Could not resolve hostname git.example.com: nodename nor "
+                              "servname provided, or not known\n"
+                              "fatal: Could not read from remote repository." )
+               == FailureHint::ServerUnreachable );
+        CHECK( failureHintOf( SyncStep::Pull,
+                              "ssh: connect to host git.example.com port 22: Connection timed "
+                              "out\n"
+                              "fatal: Could not read from remote repository." )
+               == FailureHint::ServerUnreachable );
+        CHECK( failureHintOf( SyncStep::Push,
+                              "fatal: unable to access 'https://git.example.com/team.git/': "
+                              "Could not resolve host: git.example.com" )
+               == FailureHint::ServerUnreachable );
+    }
+
+    SECTION( "Git that cannot be started" )
+    {
+        CHECK( failureHintOf( SyncStep::StartGit, "Git could not be started" )
+               == FailureHint::GitMissing );
+    }
+
+    SECTION( "nothing recognised, and a sentence that is only part of a line" )
+    {
+        CHECK( failureHintOf( SyncStep::Merge, "fatal: Not possible to fast-forward, aborting." )
+               == FailureHint::None );
+        CHECK( failureHintOf( SyncStep::None, {} ) == FailureHint::None );
+        // The words inside a URL or a path are no sentence of Git's.
+        CHECK( failureHintOf( SyncStep::Merge, "error: cannot lock ref "
+                                               "'refs/remotes/origin/Permission denied "
+                                               "(publickey).'" )
+               == FailureHint::None );
+        CHECK( failureHintOf( SyncStep::Pull, "fatal: the remote end hung up: 'https://host/"
+                                              "Repository not found./x'" )
+               == FailureHint::None );
+    }
+
+    SECTION( "the 403 of a refused push keeps its own rule" )
+    {
+        CHECK( failureHintOf( SyncStep::PushRefused,
+                              "remote: Permission to example/team.git denied.\n"
+                              "fatal: unable to access 'https://github.com/example/team.git/': "
+                              "The requested URL returned error: 403" )
+               == FailureHint::None );
+    }
+
+    CHECK( TeamFolder::hintOf( FailureHint::None ).isEmpty() );
+    for ( const auto hint :
+          { FailureHint::SignIn, FailureHint::SsoAuthorization, FailureHint::RepositoryNotFound,
+            FailureHint::ServerUnreachable, FailureHint::GitMissing } ) {
+        CHECK_FALSE( TeamFolder::hintOf( hint ).isEmpty() );
+    }
+}
+
+TEST_CASE( "A failed sync says what to do about a common failure, with Git's output unchanged",
+           "[teamfolder][hint]" )
+{
+    const IsolatedGitEnvironment environment;
+    const QTemporaryDir root;
+    REQUIRE( root.isValid() );
+
+    SECTION( "Git is not installed" )
+    {
+        TeamFolder folder( root.filePath( "clone" ), root.filePath( "no-git-here" ) );
+        folder.setUp(
+            policyFor( QUrl::fromLocalFile( root.filePath( "server.git" ) ).toString() ) );
+        REQUIRE( settled( folder ) );
+
+        CHECK( folder.failureHint() == FailureHint::GitMissing );
+    }
+
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    SECTION( "a repository that is not there" )
+    {
+        TeamFolder folder( root.filePath( "clone" ) );
+        folder.setUp(
+            policyFor( QUrl::fromLocalFile( root.filePath( "missing.git" ) ).toString() ) );
+        REQUIRE( settled( folder ) );
+
+        CHECK( folder.failedStep() == SyncStep::Clone );
+        CHECK( folder.failureHint() == FailureHint::RepositoryNotFound );
+        // The hint only adds to Git's output.
+        CHECK( folder.gitOutput().startsWith( "fatal: " ) );
+        CHECK_FALSE( folder.gitOutput().contains( TeamFolder::hintOf( folder.failureHint() ) ) );
+    }
+
+    SECTION( "a URL that holds the words of other failures names only the missing repository" )
+    {
+        const auto misleading
+            = root.filePath( "Permission denied (publickey) organization has enabled or enforced "
+                             "SAML SSO ssh Could not resolve hostname" );
+        REQUIRE( QDir().mkpath( misleading ) );
+        TeamFolder folder( root.filePath( "clone" ) );
+        folder.setUp( policyFor(
+            QUrl::fromLocalFile( QDir( misleading ).filePath( "missing.git" ) ).toString() ) );
+        REQUIRE( settled( folder ) );
+
+        CHECK( folder.failedStep() == SyncStep::Clone );
+        CHECK( folder.failureHint() == FailureHint::RepositoryNotFound );
+    }
+
+    SECTION( "a server nobody answers at" )
+    {
+        TeamFolder folder( root.filePath( "clone" ) );
+        folder.setUp( policyFor( "http://127.0.0.1:1/team.git" ) );
+        REQUIRE( settled( folder ) );
+
+        CHECK( folder.failedStep() == SyncStep::Clone );
+        INFO( folder.gitOutput().toStdString() );
+        CHECK( folder.failureHint() == FailureHint::ServerUnreachable );
+    }
+
+    SECTION( "an unrecognised failure gives no hint" )
+    {
+        const auto wrapper = wrapperGit( root.path(), "git-clone.sh",
+                                         "if [ \"$1\" = clone ]; then\n"
+                                         "  echo 'fatal: something nobody foresaw' >&2\n"
+                                         "  exit 128\n"
+                                         "fi" );
+        TeamFolder folder( root.filePath( "clone" ), wrapper );
+        folder.setUp(
+            policyFor( QUrl::fromLocalFile( root.filePath( "missing.git" ) ).toString() ) );
+        REQUIRE( settled( folder ) );
+
+        CHECK( folder.failedStep() == SyncStep::Clone );
+        CHECK( folder.gitOutput() == "fatal: something nobody foresaw" );
+        CHECK( folder.failureHint() == FailureHint::None );
+    }
+
+    SECTION( "a sync that worked gives no hint" )
+    {
+        const Team team;
+        const auto folder = team.member( "alice" );
+        CHECK( folder->failureHint() == FailureHint::None );
+    }
 }

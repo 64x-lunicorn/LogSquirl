@@ -324,6 +324,13 @@ TEST_CASE( "The Team Folder tab shows the failed step and Git's output in collap
 
         CHECK( dialog.teamFolderStatusGroup->isVisibleTo( dialog.teamFolderTab ) );
         CHECK( dialog.teamFolderStatusHeadingLabel->text() == "Git could not be started" );
+        // What to do, under the heading.
+        CHECK( dialog.teamFolderHintLabel->isVisibleTo( dialog.teamFolderTab ) );
+        CHECK( dialog.teamFolderHintLabel->text()
+               == TeamFolder::hintOf( logsquirl::teamfolder::FailureHint::GitMissing ) );
+        auto* const statusLayout = dialog.teamFolderStatusGroup->layout();
+        CHECK( statusLayout->indexOf( dialog.teamFolderHintLabel )
+               == statusLayout->indexOf( dialog.teamFolderStatusLineLayout ) + 1 );
         CHECK_FALSE( dialog.teamFolderStatusIconLabel->pixmap().isNull() );
         dialog.teamFolderCheckBox->setChecked( true );
         dialog.teamFolderUrlEdit->setText( missingServer );
@@ -365,6 +372,7 @@ TEST_CASE( "The Team Folder tab shows the failed step and Git's output in collap
                == "The subfolder ../elsewhere does not lie inside the repository." );
         // Nothing of Git's to show.
         CHECK_FALSE( detailsButton->isVisibleTo( dialog.teamFolderTab ) );
+        CHECK_FALSE( dialog.teamFolderHintLabel->isVisibleTo( dialog.teamFolderTab ) );
     }
 
     if ( !gitInstalled() ) {
@@ -379,6 +387,8 @@ TEST_CASE( "The Team Folder tab shows the failed step and Git's output in collap
         dialog.showTeamFolder( folder );
 
         CHECK( dialog.teamFolderStatusHeadingLabel->text() == "Clone failed" );
+        CHECK( dialog.teamFolderHintLabel->text()
+               == TeamFolder::hintOf( logsquirl::teamfolder::FailureHint::RepositoryNotFound ) );
         const auto output = folder.gitOutput();
         REQUIRE( output.contains( '\n' ) );
         CHECK( details->toPlainText() == output );
@@ -409,6 +419,7 @@ TEST_CASE( "The Team Folder tab shows the failed step and Git's output in collap
         dialog.showTeamFolder( folder );
 
         CHECK( dialog.teamFolderStatusHeadingLabel->text() == "Synced" );
+        CHECK_FALSE( dialog.teamFolderHintLabel->isVisibleTo( dialog.teamFolderTab ) );
         CHECK_FALSE( detailsButton->isVisibleTo( dialog.teamFolderTab ) );
         CHECK_FALSE( details->isVisibleTo( dialog.teamFolderTab ) );
         CHECK( dialog.teamFolderRemarksLabel->isVisibleTo( dialog.teamFolderTab ) );

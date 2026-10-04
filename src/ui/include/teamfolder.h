@@ -100,6 +100,30 @@ enum class SyncStep {
     PushRefused
 };
 
+// A common failure the Team Folder recognises in what Git wrote, to tell the
+// user what to do about it. Git's output itself stays as it is (ADR-0008).
+enum class FailureHint {
+    // Nothing recognised: Git's output speaks for itself.
+    None,
+    // The server refused the sign-in: SSH permission denied, HTTPS
+    // authentication failed.
+    SignIn,
+    // The organization enforces SAML SSO, and the key or token is not
+    // authorized for it.
+    SsoAuthorization,
+    // There is no such repository, or no access to it.
+    RepositoryNotFound,
+    // The server's host cannot be resolved or connected to.
+    ServerUnreachable,
+    // Git is not installed, or cannot be started.
+    GitMissing
+};
+
+// The common failure a step failed with, recognised by Git's fixed English
+// sentences (Git runs with LC_ALL=C) on whole lines of its output: never by
+// a bare word or number, which a URL or path may hold as well.
+FailureHint failureHintOf( SyncStep step, const QString& gitOutput );
+
 // A group of any kind the Team Folder holds.
 using AnyGroup
     = std::variant<PredefinedFilterSet, HighlighterSet, logsquirl::valuenames::NamingGroup>;
@@ -335,6 +359,10 @@ public:
     QString heading() const;
     // The heading for a step that failed: "Clone failed".
     static QString headingOf( logsquirl::teamfolder::SyncStep step );
+    // The common failure the last sync failed with, if it is one.
+    logsquirl::teamfolder::FailureHint failureHint() const;
+    // What to do about it, in a sentence or two; empty for None.
+    static QString hintOf( logsquirl::teamfolder::FailureHint hint );
     // What else there is to know, one line each: why a step that is not
     // Git's failed, a group that was not published, the Team groups being
     // read-only, a file that was skipped.

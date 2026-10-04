@@ -17,6 +17,18 @@ Nothing is locked. Every group is its own file in the Team Folder. When a Team g
 
 - LogSquirl starts an external program that can reach the network. That is new for the application, and it is confined to the Team Folder module.
 - Git must be installed for the Team Folder. Without it the feature reports that and stays off; nothing else depends on it.
-- Git's own messages (authentication failures, refused pushes) are what the user sees for failures. LogSquirl does not translate them. There is one exception: it reads, but does not translate, a single message. A push that fails with Git's fixed sentence `The requested URL returned error: 403` on standard error (Git runs with `LC_ALL=C`) counts as refused, like a `[remote rejected]` ref, and the Team groups turn read-only. The sentence is matched, not a bare number, so a URL that contains 403 never matches. Every other failure of a push that is not a rejected ref stays "unreachable", so a network error never discards or blocks a local commit.
+- Git's own messages (authentication failures, refused pushes) are what the user sees for failures. LogSquirl does not translate them. There is one exception: it reads, but does not translate, a single message. A push that fails with Git's fixed sentence `The requested URL returned error: 403` on standard error (Git runs with `LC_ALL=C`) counts as refused, like a `[remote rejected]` ref, and the Team groups turn read-only. The sentence is matched, not a bare number, so a URL that contains 403 never matches. Every other failure of a push that is not a rejected ref stays "unreachable", so a network error never discards or blocks a local commit. Beside it, LogSquirl recognises a few more fixed sentences, only to add a hint (see the amendment below).
 - Two people changing the same group at the same time get a question instead of a lock. Nobody is ever locked out, and nobody's change is dropped without a decision.
 - Tests run against real Git repositories with `file://` remotes, so CI needs Git, which its runners have.
+
+## Amendment: hints for common failures (#713)
+
+Git's raw text alone left users stuck on common, well-understood failures, such as a clone refused because the organization enforces SAML SSO. LogSquirl still never rewrites or translates Git's messages, and the details show Git's output unchanged. In addition, it may recognise a listed set of Git's fixed English sentences (Git runs with `LC_ALL=C`) to add a short, translated hint under the status heading that says what to do:
+
+- **Sign-in failed**: an SSH `Permission denied (<methods>).`, `fatal: Authentication failed for '<url>'`, or `fatal: could not read Username|Password for '<url>': ...`.
+- **Organization requires SSO authorization**: `The <org> organization has enabled or enforced SAML SSO.`, as GitHub prints it, with or without `ERROR: ` or `remote: ` before it.
+- **Repository not found**: `ERROR: Repository not found.` or `remote: Repository not found.`, `fatal: repository '<url>' not found`, `fatal: '<path>' does not appear to be a git repository`.
+- **Server unreachable**: `ssh: Could not resolve hostname ...`, `ssh: connect to host <host> port <n>: ...`, and `fatal: unable to access '<url>': ` followed by a resolve, connect or time-out failure.
+- **Git is not installed**: Git could not be started at all.
+
+A sentence matches only as a whole line of Git's output, with the URL, path or host where Git puts it, never as a bare number or a word inside a line, so a URL or path that holds the words of a sentence matches nothing. A failure that is not recognised shows the heading and the details only. The 403 rule above stays as it is: a refused push gets no hint of its own.
