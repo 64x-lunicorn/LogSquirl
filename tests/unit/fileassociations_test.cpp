@@ -141,7 +141,7 @@ TEST_CASE( "The file types are the ones cmake/FileTypes.cmake declares", "[filea
            == QStringList{ "log", "logcat", "output", "trace", "text" } );
     CHECK( idsOf( FileTypes::openWithOnly() ) == QStringList{ "gz", "zip" } );
 
-    const auto& logcat = typeWithId( "logcat" );
+    const FileType logcat = typeWithId( "logcat" );
     CHECK( logcat.group == FileType::Group::Logs );
     CHECK( logcat.checkedByDefault );
     CHECK( logcat.label == "Android Logcat traces" );
@@ -154,7 +154,7 @@ TEST_CASE( "The file types are the ones cmake/FileTypes.cmake declares", "[filea
     CHECK( logcat.uti == "io.github.logsquirl.logcat" );
     CHECK( logcat.progId == "LogSquirl.logcat" );
 
-    const auto& log = typeWithId( "log" );
+    const FileType log = typeWithId( "log" );
     CHECK( log.group == FileType::Group::Logs );
     CHECK( log.checkedByDefault );
     CHECK( log.mimeType == "text/x-log" );
