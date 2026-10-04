@@ -122,9 +122,7 @@ DEFAULT_THRESHOLD_PERCENT = 2.0
 # <benchmark>", as the comparison names them; the gate warns about an entry
 # that names no benchmark any more.
 THRESHOLD_PERCENT: dict[tuple[str, str], float] = {
-    # widest spread 2.8 %
-    ("logsquirl_logdata_benchmark", "Indexing a Log File / tabs and long lines: whole Log File"): 6.0,
-    # 2.0 %
+    # widest spread 2.0 %
     ("logsquirl_textview_scroll_benchmark",
      "text view scroll benchmarks / scrollbar: dragged over 200 values"): 5.0,
     # 1.7 %
