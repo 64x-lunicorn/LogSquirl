@@ -7,7 +7,7 @@ Type=Application
 Comment=A smart interactive log explorer.
 Terminal=false
 Categories=Qt;Utility;TextTools;Development;
-MimeType=text/plain;
+MimeType=@LOGSQUIRL_DESKTOP_MIME_TYPES@
 Actions=Session;NewInstance;
 
 [Desktop Action Session]

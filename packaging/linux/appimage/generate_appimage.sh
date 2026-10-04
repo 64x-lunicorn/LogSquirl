@@ -31,6 +31,14 @@ fetch_verified() {
 # Install into AppDir
 DESTDIR=$(readlink -f appdir) ninja install
 
+# An AppImage has no install step that could register file types, so it is
+# configured with LOGSQUIRL_FILE_TYPES=OFF (.github/workflows/ci-build.yml) and
+# carries no MIME package and no document icon (#717).
+if [ -e appdir/usr/share/mime ] || ls appdir/usr/share/icons/hicolor/*/mimetypes > /dev/null 2>&1; then
+    echo "::error::the AppImage would carry the file types of the deb and rpm; configure it with -DLOGSQUIRL_FILE_TYPES=OFF (#717)"
+    exit 1
+fi
+
 # Download linuxdeploy and its Qt plugin
 fetch_verified \
     "https://github.com/linuxdeploy/linuxdeploy/releases/download/${LINUXDEPLOY_TAG}/linuxdeploy-x86_64.AppImage" \

@@ -443,6 +443,18 @@ add_test(
 
 
 
+# The file types LogSquirl opens are declared once (cmake/FileTypes.cmake), and
+# the packaging of every platform generated from them says the same: the MIME
+# package and desktop entry on Linux, the bundle's document types on macOS, the
+# installer's file type page on Windows (#717, #718, #719).
+add_test(
+    NAME file_types_packaging
+    COMMAND ${CMAKE_COMMAND}
+            -DPROJECT_DIR=${CMAKE_SOURCE_DIR}
+            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/file_types_packaging
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/file_types_packaging.cmake
+)
+
 # The version the binaries report is the one the project declares, leading zero
 # and all, whether the build was handed a version or left to CMakeLists.txt
 # (#372).

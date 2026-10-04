@@ -74,6 +74,11 @@ Releases are `RelWithDebInfo` builds. LogSquirl optimizes that build type as ful
 debug information for crash reports. Link time optimization is on for every LogSquirl target, not for the
 third-party libraries; turn it off with `-DLOGSQUIRL_USE_LTO=OFF`, which makes linking a lot faster during development.
 
+The file types LogSquirl opens are declared once, in `cmake/FileTypes.cmake`, and each platform's packaging is
+generated from that list. On Linux, `make install` and the deb and rpm install them: a shared-mime-info package, the
+document icon in the hicolor theme and the desktop entry's `MimeType`. `-DLOGSQUIRL_FILE_TYPES=OFF` leaves them out,
+which is how the AppImage is built: it has no install step that could register them.
+
 LogSquirl links [mimalloc](https://github.com/microsoft/mimalloc) on every platform. By default only LogSquirl's own
 containers, roaring and Vectorscan allocate through it; Qt and the standard containers use the system allocator.
 On Linux, `-DLOGSQUIRL_MIMALLOC_OVERRIDE=ON` lets mimalloc serve `malloc` and `new` for the whole process, Qt included.

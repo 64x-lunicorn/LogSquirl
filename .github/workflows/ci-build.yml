@@ -298,7 +298,8 @@ jobs:
             package_suffix: AppImage
             container_root: docker/ubuntu22.04
             image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy
-            cmake_opts:
+            # No install step registers file types for an AppImage (#717).
+            cmake_opts: -DLOGSQUIRL_FILE_TYPES=OFF
             pgo: false
             bolt: false
 

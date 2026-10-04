@@ -158,6 +158,17 @@ include(prepare_version)
 include(FindPkgConfig)
 include(GNUInstallDirs)
 
+# The file types LogSquirl opens, and the packaging every platform generates
+# from them (#717, #718, #719). The AppImage has no install step to register
+# types, so it is built with LOGSQUIRL_FILE_TYPES=OFF and ships none of this.
+option(LOGSQUIRL_FILE_TYPES "Install the file types LogSquirl opens with the Linux packages" ON)
+include(FileTypes)
+set(LOGSQUIRL_FILE_TYPES_DIR "${CMAKE_BINARY_DIR}/generated/file_types")
+logsquirl_generate_file_types(
+  "${LOGSQUIRL_FILE_TYPES_DIR}" DESKTOP_TEMPLATE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/logsquirl.desktop.in"
+  FILE_TYPES ${LOGSQUIRL_FILE_TYPES}
+)
+
 if(MSVC)
   if(CMAKE_CXX_FLAGS MATCHES "/W[0-4]")
     string(
@@ -444,7 +455,35 @@ if(UNIX)
       DESTINATION ${CMAKE_INSTALL_DOCDIR}
     )
 
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/logsquirl.desktop DESTINATION share/applications)
+    install(FILES ${LOGSQUIRL_FILE_TYPES_DIR}/logsquirl.desktop DESTINATION share/applications)
+
+    # The file types (#717): the MIME package defines the Logcat trace and the
+    # optional types, and gives them and text/x-log the document icon, which
+    # goes into the hicolor theme as logsquirl-document. The package scripts
+    # refresh the MIME database and the icon cache after an install and after
+    # an uninstall.
+    set(_document_icon_sizes 16 32 48 64 128 256 512)
+    set(_file_types_dirs "")
+    if(LOGSQUIRL_FILE_TYPES)
+      install(FILES ${LOGSQUIRL_FILE_TYPES_DIR}/logsquirl.xml DESTINATION share/mime/packages)
+      foreach(_size IN LISTS _document_icon_sizes)
+        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/app/images/hicolor/${_size}x${_size}/logsquirl-document.png
+                DESTINATION share/icons/hicolor/${_size}x${_size}/mimetypes
+        )
+        list(APPEND _file_types_dirs /usr/share/icons/hicolor/${_size}x${_size}
+             /usr/share/icons/hicolor/${_size}x${_size}/mimetypes
+        )
+      endforeach()
+      install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/app/images/hicolor/scalable/logsquirl-document.svg
+              DESTINATION share/icons/hicolor/scalable/mimetypes
+      )
+      list(APPEND _file_types_dirs /usr/share/icons/hicolor/scalable/mimetypes /usr/share/mime
+           /usr/share/mime/packages
+      )
+      set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${LOGSQUIRL_FILE_TYPES_DIR}/postinst;${LOGSQUIRL_FILE_TYPES_DIR}/postrm")
+      set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${LOGSQUIRL_FILE_TYPES_DIR}/postinst")
+      set(CPACK_RPM_POST_UNINSTALL_SCRIPT_FILE "${LOGSQUIRL_FILE_TYPES_DIR}/postrm")
+    endif()
 
     set(CPACK_GENERATOR DEB)
 
@@ -496,6 +535,7 @@ if(UNIX)
         /usr/share/icons/hicolor/32x32/apps
         /usr/share/icons/hicolor/scalable
         /usr/share/icons/hicolor/scalable/apps
+        ${_file_types_dirs}
     )
   endif()
   include(CPack)
@@ -505,7 +545,8 @@ endif()
 add_custom_target(
   installation
   SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/logsquirl.nsi
-          ${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/logsquirl.desktop
+          ${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/logsquirl.desktop.in
+          ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FileTypes.cmake
           ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in
 )
 

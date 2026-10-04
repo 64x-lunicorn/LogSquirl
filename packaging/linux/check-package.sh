@@ -4,7 +4,10 @@
 #
 # 1. It ships only what the application needs at runtime: no static
 #    libraries, headers (except the Plugin SDK header), CMake or pkg-config
-#    files. It does ship the command line tool beside the application (#430).
+#    files. It does ship the command line tool beside the application (#430),
+#    and the file types LogSquirl opens: the MIME package, the document icon
+#    in the hicolor theme and the scripts that refresh their caches after an
+#    install and an uninstall (#717).
 # 2. It declares the distribution's Qt packages with the Qt it was built
 #    against ($QT_VERSION) as the minimum version.
 # 3. The package manager installs it (dry run) when the distribution has that
@@ -62,6 +65,33 @@ fi
 echo "$files" | grep -qx '/usr/bin/logsquirl' || fail "does not ship /usr/bin/logsquirl"
 # The command line tool ships beside the application (#430).
 echo "$files" | grep -qx '/usr/bin/logsquirl_grep' || fail "does not ship /usr/bin/logsquirl_grep"
+
+# The file types (#717, cmake/FileTypes.cmake)
+for file in /usr/share/applications/logsquirl.desktop /usr/share/mime/packages/logsquirl.xml \
+    /usr/share/icons/hicolor/scalable/mimetypes/logsquirl-document.svg; do
+    echo "$files" | grep -qx "$file" || fail "does not ship $file"
+done
+for size in 16 32 48 64 128 256 512; do
+    file=/usr/share/icons/hicolor/${size}x${size}/mimetypes/logsquirl-document.png
+    echo "$files" | grep -qx "$file" || fail "does not ship $file"
+done
+case $kind in
+    deb)
+        desktop=$(dpkg-deb --fsys-tarfile "$package" | tar -xO ./usr/share/applications/logsquirl.desktop)
+        scripts=$(dpkg-deb --info "$package" postinst; dpkg-deb --info "$package" postrm) \
+            || fail "has no postinst or postrm"
+        ;;
+    rpm)
+        desktop=""
+        scripts=$(rpm -qp --scripts "$package")
+        ;;
+esac
+if [ -n "$desktop" ]; then
+    echo "$desktop" | grep -q '^MimeType=.*application/x-logcat;' \
+        || fail "its desktop entry does not open application/x-logcat"
+fi
+[ "$(echo "$scripts" | grep -c 'update-mime-database /usr/share/mime')" -ge 2 ] \
+    || fail "does not refresh the MIME database after an install and an uninstall"
 
 # 2. Declared Qt dependency
 echo "$requires" | grep -qxF "$qt_requirement" \
