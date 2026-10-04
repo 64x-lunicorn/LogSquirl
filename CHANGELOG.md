@@ -176,11 +176,15 @@
   for `.log`, LogSquirl's own Logcat type, plain text for `.txt`) through
   NSWorkspace. macOS asks the user to confirm every change, so the page says
   so before *Apply* and shows the states once the confirmations are answered;
-  a declined one leaves the type as it was. Unchecking a type gives it back
-  to the application that opened it before LogSquirl took it, which LogSquirl
-  remembers per user; where it does not know one, the page says that macOS
-  cannot unset a default and how to choose another application in the
-  Finder. A run outside LogSquirl.app shows the page disabled. (#721)
+  a declined one leaves the type as it was. A type is *Default* only where
+  every extension of it opens in LogSquirl, so the Logcat traces also take
+  `.adb`, which macOS keeps calling Ada source (`public.ada-source`), and
+  *Apply* asks for both. Unchecking a type gives it back to the application
+  that opened it before LogSquirl took it, which LogSquirl keeps in its
+  settings, beside the executable for a portable run; where it does not know
+  one, the page says that macOS cannot unset a default and how to choose
+  another application in the Finder. A run outside LogSquirl.app shows the
+  page disabled. (#721)
 - **The File Associations page works on Windows, installed and portable**:
   *Apply* registers LogSquirl for the checked types for the current user,
   under `HKEY_CURRENT_USER\Software\Classes`, so it needs no administrator:

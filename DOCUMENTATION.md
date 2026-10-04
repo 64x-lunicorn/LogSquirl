@@ -1616,13 +1616,17 @@ user, unchecking hides it for you.
 
 On macOS, the page makes LogSquirl the default for the content type of each
 type: the system's log type for `.log`, LogSquirl's own *Android Logcat
-trace* for `.adb0` to `.adb9`, and plain text for `.txt`. macOS asks you to
-confirm every change in a dialog of its own, so the states follow once you
-answered; a change you decline leaves the type as it was. macOS keeps calling
-`.adb` Ada source, so a plain `.adb` file stays with the application that
-opens Ada source. macOS cannot take a default away, only give it to another
-application: unchecking a type gives it back to the application that opened
-it before LogSquirl took it, which macOS asks you to confirm too. If LogSquirl
+trace* for `.adb0` to `.adb9`, and plain text for `.txt`. macOS keeps calling
+`.adb` Ada source, so for the Logcat traces the page makes LogSquirl the
+default for Ada source too, and the type shows as *Default* only while both
+open in LogSquirl: every Ada source file then opens in LogSquirl. macOS asks
+you to confirm every change in a dialog of its own, so the states follow once
+you answered; a change you decline leaves the type as it was. macOS cannot
+take a default away, only give it to another application: unchecking a type
+gives each of its content types back to the application that opened it
+before LogSquirl took it, which macOS asks you to confirm too. LogSquirl keeps
+those applications with its settings, beside the executable for a portable
+run. If LogSquirl
 does not know that application, because you made LogSquirl the default in the
 Finder or that application is gone, the page says so; choose another one in
 the Finder with *Get Info*, *Open with* and *Change All...*. The page is

@@ -21,14 +21,17 @@
 
 #include <QPointer>
 
+#include <algorithm>
+#include <utility>
+
 #include "log.h"
+#include "persistentinfo.h"
 
 namespace {
 
 // The group of the settings that keeps, per content type, the application
 // that opened it before LogSquirl.
-constexpr auto PreviousDefaults = QLatin1String( "PreviousDefaults/" );
-
+constexpr auto PreviousDefaults = QLatin1String( "fileAssociations.previousDefaults/" );
 
 } // namespace
 
@@ -41,17 +44,15 @@ std::unique_ptr<MacFileAssociations::LaunchServices> MacFileAssociations::system
 }
 #endif
 
-std::unique_ptr<QSettings> MacFileAssociations::userSettings()
+QSettings& MacFileAssociations::userSettings()
 {
-    return std::make_unique<QSettings>( QSettings::NativeFormat, QSettings::UserScope,
-                                        QStringLiteral( "logsquirl" ),
-                                        QStringLiteral( "fileassociations" ) );
+    return PersistentInfo::getSettings( app_settings{} );
 }
 
 MacFileAssociations::MacFileAssociations( std::unique_ptr<LaunchServices> launchServices,
-                                          std::unique_ptr<QSettings> settings )
+                                          QSettings& settings )
     : launchServices_( std::move( launchServices ) )
-    , settings_( std::move( settings ) )
+    , settings_( settings )
 {
 }
 
@@ -76,15 +77,39 @@ QString MacFileAssociations::applyNote() const
     return tr( "macOS asks you to confirm each change. The states show what you answered." );
 }
 
+QStringList MacFileAssociations::contentTypes( const FileType& type ) const
+{
+    QStringList types{ type.uti };
+    if ( !launchServices_ ) {
+        return types;
+    }
+    for ( const auto& extension : type.extensions ) {
+        const auto contentType = launchServices_->contentTypeOf( extension );
+        if ( !contentType.isEmpty() && !types.contains( contentType ) ) {
+            types << contentType;
+        }
+    }
+    return types;
+}
+
+bool MacFileAssociations::opensWithLogSquirl( const QString& contentType,
+                                              const Application& self ) const
+{
+    // Any copy of LogSquirl is LogSquirl.
+    const auto current = launchServices_->defaultApplication( contentType );
+    return current && current->identifier == self.identifier;
+}
+
 FileAssociationState MacFileAssociations::state( const FileType& type ) const
 {
     const auto self = launchServices_ ? launchServices_->thisApplication() : std::nullopt;
     if ( !self ) {
         return FileAssociationState::NotRegistered;
     }
-    // Any copy of LogSquirl is LogSquirl.
-    if ( const auto current = launchServices_->defaultApplication( type.uti );
-         current && current->identifier == self->identifier ) {
+    const auto types = contentTypes( type );
+    if ( std::all_of( types.begin(), types.end(), [ this, &self ]( const QString& contentType ) {
+             return opensWithLogSquirl( contentType, *self );
+         } ) ) {
         return FileAssociationState::Default;
     }
     for ( const auto& application : launchServices_->applications( type.uti ) ) {
@@ -97,7 +122,7 @@ FileAssociationState MacFileAssociations::state( const FileType& type ) const
 
 QString MacFileAssociations::previousDefault( const QString& contentType ) const
 {
-    return settings_->value( PreviousDefaults + contentType ).toString();
+    return settings_.value( PreviousDefaults + contentType ).toString();
 }
 
 void MacFileAssociations::setDefault( const QString& applicationPath, const QString& contentType,
@@ -135,30 +160,44 @@ FileAssociationResult MacFileAssociations::apply( const std::vector<FileType>& m
 
     const auto self = *launchServices_->thisApplication();
     for ( const auto& type : makeDefault ) {
-        const auto before = launchServices_->defaultApplication( type.uti );
-        const auto contentType = type.uti;
-        const auto previous
-            = before && before->identifier != self.identifier ? before->path : QString{};
-        setDefault( self.path, contentType, [ this, contentType, previous ] {
-            if ( !previous.isEmpty() ) {
-                settings_->setValue( PreviousDefaults + contentType, previous );
+        for ( const auto& contentType : contentTypes( type ) ) {
+            const auto before = launchServices_->defaultApplication( contentType );
+            if ( before && before->identifier == self.identifier ) {
+                continue;
             }
-        } );
+            const auto previous = before ? before->path : QString{};
+            setDefault( self.path, contentType, [ this, contentType, previous ] {
+                if ( !previous.isEmpty() ) {
+                    settings_.setValue( PreviousDefaults + contentType, previous );
+                }
+            } );
+        }
     }
 
     std::vector<FileType> notReleased;
     for ( const auto& type : release ) {
-        // macOS cannot unset a default, only choose another application.
-        const auto previous = previousDefault( type.uti );
-        if ( previous.isEmpty() || !launchServices_->isApplication( previous ) ) {
+        // macOS cannot unset a default, only choose another application: the
+        // one before LogSquirl, for each content type LogSquirl opens.
+        std::vector<std::pair<QString, QString>> givenBack;
+        auto known = true;
+        for ( const auto& contentType : contentTypes( type ) ) {
+            if ( !opensWithLogSquirl( contentType, self ) ) {
+                continue;
+            }
+            const auto previous = previousDefault( contentType );
+            known = known && !previous.isEmpty() && launchServices_->isApplication( previous );
+            givenBack.emplace_back( contentType, previous );
+        }
+        if ( !known ) {
             result.failed << type.id;
             notReleased.push_back( type );
             continue;
         }
-        const auto contentType = type.uti;
-        setDefault( previous, contentType, [ this, contentType ] {
-            settings_->remove( PreviousDefaults + contentType );
-        } );
+        for ( const auto& back : givenBack ) {
+            setDefault( back.second, back.first, [ this, contentType = back.first ] {
+                settings_.remove( PreviousDefaults + contentType );
+            } );
+        }
     }
     if ( !notReleased.empty() ) {
         result.error = tr( "macOS cannot unset the application that opens %1, and LogSquirl does "

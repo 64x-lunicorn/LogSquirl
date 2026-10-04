@@ -42,6 +42,7 @@ using Application = MacFileAssociations::Application;
 const Application LogSquirl{ "/Applications/LogSquirl.app", "io.github.logsquirl" };
 const Application Console{ "/System/Applications/Utilities/Console.app", "com.apple.Console" };
 const Application TextEdit{ "/System/Applications/TextEdit.app", "com.apple.TextEdit" };
+const Application Xcode{ "/Applications/Xcode.app", "com.apple.dt.Xcode" };
 
 // LaunchServices that stand in for the machine: the defaults and the
 // applications are what the test sets, and every change of a default waits
@@ -50,7 +51,9 @@ struct LaunchServicesState {
     std::optional<Application> self = LogSquirl;
     std::map<QString, Application> defaults;
     std::map<QString, std::vector<Application>> handlers;
-    std::vector<Application> installed{ LogSquirl, Console, TextEdit };
+    std::vector<Application> installed{ LogSquirl, Console, TextEdit, Xcode };
+    // The content type of an extension where macOS gives it one of its own.
+    std::map<QString, QString> extensionTypes;
 
     struct Request {
         QString applicationPath;
@@ -105,6 +108,12 @@ public:
                             [ &path ]( const Application& app ) { return app.path == path; } );
     }
 
+    QString contentTypeOf( const QString& extension ) const override
+    {
+        const auto it = state_.extensionTypes.find( extension );
+        return it == state_.extensionTypes.end() ? QString{} : it->second;
+    }
+
     void setDefaultApplication( const QString& applicationPath, const QString& contentType,
                                 Done done ) override
     {
@@ -118,6 +127,8 @@ private:
 struct Mac {
     QTemporaryDir root;
     LaunchServicesState launchServices;
+    // The settings of each run, which outlive its file associations.
+    std::vector<std::unique_ptr<QSettings>> settingsOfRuns;
 
     Mac()
     {
@@ -129,16 +140,12 @@ struct Mac {
         launchServices.defaults[ "public.plain-text" ] = TextEdit;
     }
 
-    std::unique_ptr<QSettings> settings() const
-    {
-        return std::make_unique<QSettings>( root.filePath( "fileassociations.ini" ),
-                                            QSettings::IniFormat );
-    }
-
     std::unique_ptr<MacFileAssociations> associations()
     {
+        settingsOfRuns.push_back( std::make_unique<QSettings>( root.filePath( "logsquirl.conf" ),
+                                                               QSettings::IniFormat ) );
         return std::make_unique<MacFileAssociations>(
-            std::make_unique<FakeLaunchServices>( launchServices ), settings() );
+            std::make_unique<FakeLaunchServices>( launchServices ), *settingsOfRuns.back() );
     }
 };
 
@@ -174,6 +181,22 @@ TEST_CASE( "On macOS, the states are LaunchServices' defaults of each type's con
         CHECK( associations->state( typeWithId( "text" ) ) == FileAssociationState::Registered );
         CHECK( associations->state( typeWithId( "trace" ) )
                == FileAssociationState::NotRegistered );
+    }
+
+    SECTION( "a type is the default only where every extension of it opens with LogSquirl" )
+    {
+        // .adb stays Ada source whatever LogSquirl declares.
+        mac.launchServices.extensionTypes[ "adb" ] = "public.ada-source";
+        mac.launchServices.extensionTypes[ "adb0" ] = "io.github.logsquirl.logcat";
+        mac.launchServices.defaults[ "io.github.logsquirl.logcat" ] = LogSquirl;
+        mac.launchServices.defaults[ "public.ada-source" ] = Xcode;
+        const auto associations = mac.associations();
+        CHECK( associations->contentTypes( typeWithId( "logcat" ) )
+               == QStringList{ "io.github.logsquirl.logcat", "public.ada-source" } );
+        CHECK( associations->state( typeWithId( "logcat" ) ) == FileAssociationState::Registered );
+
+        mac.launchServices.defaults[ "public.ada-source" ] = LogSquirl;
+        CHECK( associations->state( typeWithId( "logcat" ) ) == FileAssociationState::Default );
     }
 
     SECTION( "another copy of LogSquirl is LogSquirl" )
@@ -214,6 +237,58 @@ TEST_CASE( "On macOS, applying asks LaunchServices and the states follow the con
         // What opened .log before is kept, to give it back to.
         CHECK( associations->previousDefault( "com.apple.log" ) == Console.path );
         CHECK( associations->previousDefault( "io.github.logsquirl.logcat" ).isEmpty() );
+    }
+
+    SECTION( "making a type the default asks for every content type of its extensions" )
+    {
+        mac.launchServices.extensionTypes[ "adb" ] = "public.ada-source";
+        mac.launchServices.defaults[ "public.ada-source" ] = Xcode;
+        associations->apply( { typeWithId( "logcat" ) }, {} );
+        REQUIRE( mac.launchServices.requests.size() == 2 );
+        CHECK( mac.launchServices.requests[ 0 ].contentType == "io.github.logsquirl.logcat" );
+        CHECK( mac.launchServices.requests[ 1 ].contentType == "public.ada-source" );
+        mac.launchServices.answer( 0 );
+        mac.launchServices.answer( 1 );
+        CHECK( changed.size() == 1 );
+        CHECK( associations->state( typeWithId( "logcat" ) ) == FileAssociationState::Default );
+        CHECK( associations->previousDefault( "public.ada-source" ) == Xcode.path );
+
+        // Given back, Ada source goes back to Xcode; nothing opened the Logcat
+        // type before, so that one cannot be given back, and neither is the
+        // type.
+        const auto result = associations->apply( {}, { typeWithId( "logcat" ) } );
+        CHECK( result.failed == QStringList{ "logcat" } );
+        CHECK( mac.launchServices.requests.size() == 2 );
+
+        // Where the application before is known for each, each is given back.
+        mac.launchServices.defaults[ "io.github.logsquirl.logcat" ] = LogSquirl;
+        mac.settingsOfRuns.back()->setValue(
+            "fileAssociations.previousDefaults/io.github.logsquirl.logcat", TextEdit.path );
+        CHECK( associations->apply( {}, { typeWithId( "logcat" ) } ).succeeded() );
+        REQUIRE( mac.launchServices.requests.size() == 4 );
+        CHECK( mac.launchServices.requests[ 2 ].applicationPath == TextEdit.path );
+        CHECK( mac.launchServices.requests[ 3 ].applicationPath == Xcode.path );
+        CHECK( mac.launchServices.requests[ 3 ].contentType == "public.ada-source" );
+    }
+
+    SECTION( "a content type LogSquirl opens already is not asked for again" )
+    {
+        mac.launchServices.extensionTypes[ "adb" ] = "public.ada-source";
+        mac.launchServices.defaults[ "io.github.logsquirl.logcat" ] = LogSquirl;
+        mac.launchServices.defaults[ "public.ada-source" ] = Xcode;
+        associations->apply( { typeWithId( "logcat" ) }, {} );
+        REQUIRE( mac.launchServices.requests.size() == 1 );
+        CHECK( mac.launchServices.requests[ 0 ].contentType == "public.ada-source" );
+    }
+
+    SECTION( "what opened a type before is kept in the application's settings" )
+    {
+        associations->apply( { typeWithId( "log" ) }, {} );
+        mac.launchServices.answer( 0 );
+        mac.settingsOfRuns.back()->sync();
+        QSettings appSettings( mac.root.filePath( "logsquirl.conf" ), QSettings::IniFormat );
+        CHECK( appSettings.value( "fileAssociations.previousDefaults/com.apple.log" ).toString()
+               == Console.path );
     }
 
     SECTION( "a declined confirmation leaves the type as it was" )

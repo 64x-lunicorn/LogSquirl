@@ -98,34 +98,49 @@ public:
         return [NSBundle bundleWithPath:path.toNSString()] != nil;
     }
 
+    QString contentTypeOf( const QString& extension ) const override
+    {
+        UTType* type = [UTType typeWithFilenameExtension:extension.toNSString()];
+        // A dynamic type is one macOS made up for an extension nothing
+        // declares.
+        if ( type == nil || type.dynamic ) {
+            return {};
+        }
+        return toQString( type.identifier );
+    }
+
     void setDefaultApplication( const QString& applicationPath, const QString& contentType,
                                 Done done ) override
     {
+        // The answer is always delivered later, from the event loop of the
+        // main thread, and only while this is still there; done is shared by
+        // whatever delivers it, so it goes with the last of them.
+        std::weak_ptr<bool> alive = alive_;
+        auto answered = std::make_shared<Done>( std::move( done ) );
+        const auto deliver = [ alive, answered ]( const QString& message ) {
+            QMetaObject::invokeMethod(
+                QCoreApplication::instance(),
+                [ alive, answered, message ] {
+                    if ( alive.lock() ) {
+                        ( *answered )( message );
+                    }
+                },
+                Qt::QueuedConnection );
+        };
+
         UTType* type = [UTType typeWithIdentifier:contentType.toNSString()];
         if ( type == nil ) {
-            done( QStringLiteral( "macOS does not know the type %1." ).arg( contentType ) );
+            deliver( QStringLiteral( "macOS does not know the type %1." ).arg( contentType ) );
             return;
         }
         // macOS asks the user to confirm and calls back once answered, on a
-        // queue of its own: the answer goes to the main thread, and only while
-        // this is still there.
-        std::weak_ptr<bool> alive = alive_;
-        auto* answered = new Done( std::move( done ) );
+        // queue of its own.
         [NSWorkspace.sharedWorkspace
             setDefaultApplicationAtURL:[NSURL fileURLWithPath:applicationPath.toNSString()]
                      toOpenContentType:type
                      completionHandler:^( NSError* error ) {
-                       const auto message
-                           = error == nil ? QString{} : toQString( error.localizedDescription );
-                       QMetaObject::invokeMethod(
-                           QCoreApplication::instance(),
-                           [ alive, answered, message ] {
-                               if ( alive.lock() ) {
-                                   ( *answered )( message );
-                               }
-                               delete answered;
-                           },
-                           Qt::QueuedConnection );
+                       deliver( error == nil ? QString{}
+                                             : toQString( error.localizedDescription ) );
                      }];
     }
 

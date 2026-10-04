@@ -39,9 +39,17 @@
 // applying returns at once and statesChanged() follows once every
 // confirmation is answered; a declined one leaves the type as it was.
 //
+// A type is LogSquirl's where every extension of it opens with LogSquirl:
+// besides the type's own content type, an extension macOS gives a content
+// type of its own counts too, as .adb, which stays Ada source
+// (public.ada-source) whatever LogSquirl declares. Making the type
+// LogSquirl's makes it the default for each of them.
+//
 // macOS cannot unset a default. Giving a type back makes the application
 // that opened it before LogSquirl took it its default again; for a type
-// LogSquirl does not know that of, it says it cannot.
+// LogSquirl does not know that of, it says it cannot. Those applications are
+// kept in the application's settings, where DataLocation puts them
+// (ADR-0015).
 //
 // It is compiled on every platform, so its tests run everywhere; only macOS
 // creates it for the run.
@@ -76,14 +84,19 @@ public:
         // Whether an application bundle is at the path.
         virtual bool isApplication( const QString& path ) const = 0;
 
+        // The content type macOS gives a file with the extension (without
+        // the dot); empty where it only makes one up, as for an extension
+        // nothing declares.
+        virtual QString contentTypeOf( const QString& extension ) const = 0;
+
         // Called with an empty string when the change went through, with why
         // not otherwise.
         using Done = std::function<void( const QString& error )>;
 
         // Makes the application at the path the default for the content
         // type. macOS may ask the user first, so it returns at once and calls
-        // done later, in the thread of the caller, unless the LaunchServices
-        // is gone by then.
+        // done later, from the event loop of the caller's thread, also when
+        // it fails at once, unless the LaunchServices is gone by then.
         virtual void setDefaultApplication( const QString& applicationPath,
                                             const QString& contentType, Done done ) = 0;
     };
@@ -93,11 +106,12 @@ public:
     static std::unique_ptr<LaunchServices> systemLaunchServices();
 
     // Where the applications that opened each content type before LogSquirl
-    // are kept for this user.
-    static std::unique_ptr<QSettings> userSettings();
+    // are kept for this user: the application's settings, beside the
+    // executable for a portable run (ADR-0015).
+    static QSettings& userSettings();
 
-    MacFileAssociations( std::unique_ptr<LaunchServices> launchServices,
-                         std::unique_ptr<QSettings> settings );
+    // The settings outlive the file associations.
+    MacFileAssociations( std::unique_ptr<LaunchServices> launchServices, QSettings& settings );
     ~MacFileAssociations() override;
 
     bool isAvailable() const override;
@@ -111,12 +125,18 @@ public:
     // its default, by the path of its bundle; empty if none is known.
     QString previousDefault( const QString& contentType ) const;
 
+    // The content types of the type: its own, then those macOS gives its
+    // extensions, each once.
+    QStringList contentTypes( const FileType& type ) const;
+
 private:
+    // Whether LogSquirl, any copy of it, opens the content type.
+    bool opensWithLogSquirl( const QString& contentType, const Application& self ) const;
     void setDefault( const QString& applicationPath, const QString& contentType,
                      std::function<void()> succeeded );
 
     std::unique_ptr<LaunchServices> launchServices_;
-    std::unique_ptr<QSettings> settings_;
+    QSettings& settings_;
     // The changes asked for and not answered yet.
     int pending_ = 0;
 };
