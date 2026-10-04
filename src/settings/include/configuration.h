@@ -43,6 +43,7 @@
 #include <QColor>
 #include <QFont>
 #include <QSettings>
+#include <optional>
 #include <qcolor.h>
 #include <string>
 #include <string_view>
@@ -756,6 +757,31 @@ public:
         enabledPlugins_ = plugins;
     }
 
+    // Whether a start asks which file types LogSquirl opens, until the user
+    // applies a choice or answers "Don't ask again" (#723).
+    bool askForFileAssociations() const
+    {
+        return askForFileAssociations_;
+    }
+    void setAskForFileAssociations( bool ask )
+    {
+        askForFileAssociations_ = ask;
+    }
+    // The ids of the file types the user chose LogSquirl to open; nothing
+    // until a choice is kept (#723).
+    std::optional<QStringList> chosenFileAssociations() const
+    {
+        if ( !fileAssociationsChosen_ ) {
+            return std::nullopt;
+        }
+        return chosenFileAssociations_;
+    }
+    void setChosenFileAssociations( const std::optional<QStringList>& chosen )
+    {
+        fileAssociationsChosen_ = chosen.has_value();
+        chosenFileAssociations_ = chosen.value_or( QStringList{} );
+    }
+
     // Chart presets — app-level named chart configurations
     QMap<QString, QString> chartPresets() const
     {
@@ -893,6 +919,10 @@ private:
 
     bool pluginsAutoLoad_{};
     QStringList enabledPlugins_;
+
+    bool askForFileAssociations_{};
+    bool fileAssociationsChosen_{};
+    QStringList chosenFileAssociations_;
 
     bool qfIgnoreCase_{};
 

@@ -255,6 +255,9 @@ inline Configuration nonDefaultConfiguration()
     config.setPluginsAutoLoad( false );
     config.setEnabledPlugins( { "com.example.a", "com.example.b" } );
 
+    config.setAskForFileAssociations( false );
+    config.setChosenFileAssociations( QStringList{ "log", "trace" } );
+
     config.setChartPreset( "Latency", R"({"series": [{"field": "duration", "unit": "ms"}]})" );
     config.setChartPreset( "Errors", "[]" );
 

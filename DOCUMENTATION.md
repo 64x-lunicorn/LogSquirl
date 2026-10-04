@@ -1559,6 +1559,17 @@ LogSquirl the default for every checked type and gives back every type you
 unchecked. Giving a type back only removes what LogSquirl set; it does not
 choose another application, so the desktop's own choice opens it again.
 
+On the first start, once the main window shows, LogSquirl asks *Make
+LogSquirl the default app* with the same list: `.log` and the Android Logcat
+traces are checked, and so is every type LogSquirl already opens, for example
+one chosen in the Windows installer. *Apply* applies the choice as the page
+does, *Later* asks again at the next start, and *Don't ask again* never asks
+again; the page stays where it is either way. The question does not appear
+where LogSquirl cannot choose the file types it opens (an AppImage), when
+LogSquirl already opens `.log` and the Logcat traces, after you applied a
+choice on the page, or when LogSquirl starts to open a file, from the command
+line or by a double-click.
+
 On Linux, the deb and rpm packages offer LogSquirl for these types, and the
 page makes it the default with `xdg-mime default`, for your user only. An
 AppImage cannot register file types, so there the page is disabled and says

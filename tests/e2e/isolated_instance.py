@@ -70,9 +70,11 @@ import time
 from pathlib import Path
 
 # Version checking is off: a "new version" message box would block the
-# primary instance's event loop.
+# primary instance's event loop. Nor does the first start ask which file types
+# LogSquirl opens (#723): the question would wait for an answer no test gives.
 _SETTINGS = """[General]
 versionchecker.enabled=false
+fileAssociations.ask=false
 session.loadLast=false
 view.showSplashScreen=false
 """

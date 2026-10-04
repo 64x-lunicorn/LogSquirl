@@ -5,11 +5,13 @@ add_library(
   logsquirl_fileassociations STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include/filetypes.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fileassociations.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/fileassociationchoice.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/xdgfileassociations.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/macfileassociations.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/windowsfileassociations.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filetypes.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/fileassociations.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/fileassociationchoice.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/xdgfileassociations.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/macfileassociations.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/windowsfileassociations.cpp

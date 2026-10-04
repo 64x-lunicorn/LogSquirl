@@ -561,6 +561,9 @@ const QStringList StoredSettingNames = {
     "defaultView.splitterSizes",
     "export.csvHeader",
     "export.csvSeparator",
+    "fileAssociations.ask",
+    "fileAssociations.chosen",
+    "fileAssociations.chosenTypes",
     "filewatch.allowFollowOnScroll",
     "filewatch.fastModificationDetection",
     "filewatch.pollingIntervalMs",
@@ -710,6 +713,8 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.autoShowTableView() == expected.autoShowTableView() );
     CHECK( actual.pluginsAutoLoad() == expected.pluginsAutoLoad() );
     CHECK( actual.enabledPlugins() == expected.enabledPlugins() );
+    CHECK( actual.askForFileAssociations() == expected.askForFileAssociations() );
+    CHECK( actual.chosenFileAssociations() == expected.chosenFileAssociations() );
     CHECK( actual.chartPresets() == expected.chartPresets() );
     CHECK( actual.csvSeparator() == expected.csvSeparator() );
     CHECK( actual.csvHeader() == expected.csvHeader() );
@@ -947,7 +952,9 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                 for ( const auto* added :
                       { "defaultView.searchWindowMinutes", "teamFolder.enabled", "teamFolder.url",
                         "teamFolder.subfolder", "export.csvSeparator", "export.csvHeader",
-                        "commandSource.recentCommands/size", "view.showValueNames" } ) {
+                        "commandSource.recentCommands/size", "view.showValueNames",
+                        "fileAssociations.ask", "fileAssociations.chosen",
+                        "fileAssociations.chosenTypes" } ) {
                     stored.remove( added );
                 }
                 CHECK( stored.keys() == releaseValues.keys() );

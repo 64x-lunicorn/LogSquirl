@@ -26,6 +26,7 @@ add_executable(logsquirl_tests
     displayedlines_test.cpp
     encodingdetector_test.cpp
     fileassociations_test.cpp
+    fileassociationchoice_test.cpp
     macfileassociations_test.cpp
     windowsfileassociations_test.cpp
     fileholder_test.cpp
@@ -64,6 +65,7 @@ add_executable(logsquirl_tests
     menu_test.cpp
     mergecontroller_test.cpp
     optionsdialog_test.cpp
+    fileassociationsdialog_test.cpp
     overviewwidget_test.cpp
     patternmatcher_test.cpp
     plugindialog_test.cpp

@@ -358,6 +358,7 @@ int main( int argc, char* argv[] )
     }
 
     app.startBackgroundTasks();
+    app.checkFileAssociations( !parameters.filenames.empty() || parameters.read_stdin );
 
     return app.exec();
 }

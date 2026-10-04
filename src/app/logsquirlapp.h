@@ -54,6 +54,7 @@
 #include "applicationplugins.h"
 #include "configuration.h"
 #include "crashhandler.h"
+#include "fileassociations.h"
 #include "filewatcher.h"
 #include "gesturemanager.h"
 #include "log.h"
@@ -166,6 +167,11 @@ public:
         plugins_ = std::make_shared<logsquirl::plugins::ApplicationPlugins>(
             &LogSquirlApp::loadConfiguredPlugins );
 
+        // The file types LogSquirl opens, as this platform tells them: one
+        // for the run, which every window's Options Dialog and the questions
+        // of the start use (#723).
+        fileAssociations_ = createFileAssociations();
+
         versionChecker_ = std::make_unique<VersionChecker>();
         if ( singleApplication_.isPrimaryInstance() ) {
             connect( versionChecker_.get(), &VersionChecker::newVersionFound,
@@ -255,6 +261,7 @@ public:
         if ( !session_ ) {
             session_ = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_,
                                                   fileWatcher_, teamFolder_ );
+            session_->setFileAssociations( fileAssociations_ );
         }
 
         for ( auto&& windowSession : session_->windowSessions() ) {
@@ -298,6 +305,7 @@ public:
         if ( !session_ ) {
             session_ = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_,
                                                   fileWatcher_, teamFolder_ );
+            session_->setFileAssociations( fileAssociations_ );
         }
 
         const auto previousSessions = session_->windowSessions();
@@ -347,6 +355,27 @@ public:
         versionChecker_->startCheck();
     }
 
+    // Once the main window shows, asks which file types LogSquirl opens where
+    // that is still to be asked (#723) -- but not when the start opens a
+    // file, from the command line or by a double-click, so the question does
+    // not get in the way of that file. macOS delivers a double-clicked file as
+    // a QFileOpenEvent once the event loop runs, so the question waits a
+    // moment for one.
+    void checkFileAssociations( bool startOpensFile )
+    {
+        constexpr auto FileOpenEventTimeout = std::chrono::milliseconds( 1000 );
+        QTimer::singleShot( FileOpenEventTimeout, this, [ this, startOpensFile ] {
+            while ( !activeWindows_.empty() && activeWindows_.top().isNull() ) {
+                activeWindows_.pop();
+            }
+            if ( activeWindows_.empty() ) {
+                return;
+            }
+            activeWindows_.top()->checkFileAssociationsAtStart( !startOpensFile
+                                                                && !fileOpenedAtStart_ );
+        } );
+    }
+
 #ifdef Q_OS_MAC
     bool event( QEvent* event ) override
     {
@@ -355,6 +384,7 @@ public:
             LOG_INFO << "File open request " << openEvent->file();
 
             if ( !isSecondary() ) {
+                fileOpenedAtStart_ = true;
                 loadFileNonInteractive( openEvent->file() );
             }
             else {
@@ -507,6 +537,12 @@ private:
     std::stack<QPointer<MainWindow>> activeWindows_;
 
     std::unique_ptr<VersionChecker> versionChecker_;
+
+    // The application's one file associations (#723).
+    std::shared_ptr<FileAssociations> fileAssociations_;
+
+    // Whether macOS opened a file, as a double-click on it does (#723).
+    bool fileOpenedAtStart_ = false;
 };
 
 #endif // LOGSQUIRL_LOGSQUIRLAPP_H

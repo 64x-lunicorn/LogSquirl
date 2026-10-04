@@ -521,6 +521,9 @@ TEST_CASE( "Applying the File Associations page makes the checked types LogSquir
         {
             dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
             CHECK( associations.applied.empty() );
+            // Nothing chosen, so the first start still asks (#723).
+            CHECK( Configuration::get().askForFileAssociations() );
+            CHECK_FALSE( Configuration::get().chosenFileAssociations() );
         }
 
         SECTION( "a changed page applies exactly the changes" )
@@ -532,6 +535,10 @@ TEST_CASE( "Applying the File Associations page makes the checked types LogSquir
             REQUIRE( associations.applied.size() == 1 );
             CHECK( associations.applied[ 0 ].first == QStringList{ "logcat" } );
             CHECK( associations.applied[ 0 ].second == QStringList{ "log" } );
+
+            // The choice is kept, and the first start asks no more (#723).
+            CHECK_FALSE( Configuration::get().askForFileAssociations() );
+            CHECK( Configuration::get().chosenFileAssociations() == QStringList{ "logcat" } );
 
             // The states after Apply, as the system tells them.
             CHECK( fileTypeRow( dialog, "logcat" )->text( StateColumn ) == "Default" );

@@ -134,6 +134,13 @@ public:
     // Loads the initial file (parameter passed or from config file)
     void loadInitialFile( QString fileName, bool followFile );
 
+    // What a start does about the file associations, once this window shows
+    // (#723): asks which file types LogSquirl opens, on the first start and
+    // after Later, where the platform can associate and something is left to
+    // ask. Not when mayAsk is false, as when the start opens a file. The
+    // question does not block: the window stays usable behind it.
+    void checkFileAssociationsAtStart( bool mayAsk );
+
     // Opens what arrives on standard input as a Log File that is followed. The
     // window keeps reading until the writing end closes or it is destroyed.
     // A window reads it once.

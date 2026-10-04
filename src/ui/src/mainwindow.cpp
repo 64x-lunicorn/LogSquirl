@@ -104,7 +104,9 @@
 #include "downloader.h"
 #include "encodings.h"
 #include "favoritefiles.h"
+#include "fileassociationchoice.h"
 #include "fileassociations.h"
+#include "fileassociationsdialog.h"
 #include "highlightersdialog.h"
 #include "highlightersmenu.h"
 #include "indexcache.h"
@@ -2002,8 +2004,12 @@ void MainWindow::applyValueNamesChange()
 void MainWindow::options()
 {
     const auto logFormatCatalog = session_.logFormatCatalog();
-    // The file types LogSquirl opens, as this platform tells them (#720).
-    const auto fileAssociations = createFileAssociations();
+    // The file types LogSquirl opens, as this platform tells them (#720): the
+    // application's, or one for this dialog where there is none.
+    std::shared_ptr<FileAssociations> fileAssociations = session_.fileAssociations();
+    if ( !fileAssociations ) {
+        fileAssociations = createFileAssociations();
+    }
     OptionsDialog dialog( *logFormatCatalog, this );
     if ( const auto teamFolder = session_.teamFolder() ) {
         dialog.showTeamFolder( *teamFolder );
@@ -2015,6 +2021,31 @@ void MainWindow::options()
     connect( &dialog, &OptionsDialog::optionsChanged,
              [ this ]() { session_.applyChange( Changed::Settings ); } );
     dialog.exec();
+}
+
+void MainWindow::checkFileAssociationsAtStart( bool mayAsk )
+{
+    const auto fileAssociations = session_.fileAssociations();
+    if ( !fileAssociations ) {
+        return;
+    }
+    const auto choice = fileAssociationChoice( Configuration::getSynced() );
+    const auto atStart = FileAssociationsAtStart::of( *fileAssociations, choice, mayAsk );
+    if ( !atStart.ask ) {
+        return;
+    }
+
+    LOG_INFO << "Asking which file types LogSquirl opens";
+    auto* dialog = new FirstStartFileAssociationsDialog( *fileAssociations, atStart.checks, this );
+    dialog->setAttribute( Qt::WA_DeleteOnClose );
+    connect( dialog, &FirstStartFileAssociationsDialog::answered, this, [ dialog ] {
+        // Read again: the Options Dialog may have kept a choice meanwhile.
+        auto& config = Configuration::getSynced();
+        auto answered = fileAssociationChoice( config );
+        dialog->updateChoice( answered );
+        keepFileAssociationChoice( config, answered );
+    } );
+    dialog->open();
 }
 
 void MainWindow::connectTeamFolder()

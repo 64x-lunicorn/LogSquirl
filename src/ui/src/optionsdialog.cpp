@@ -46,7 +46,7 @@
 #include <QtGui>
 
 #include "encodings.h"
-#include "filetypes.h"
+#include "fileassociationsdialog.h"
 #include "fontutils.h"
 #include "highlighteredit.h"
 #include "installoptout.h"
@@ -394,32 +394,7 @@ void OptionsDialog::setupFileAssociations()
     fileAssociationsNoteLabel->setVisible( false );
     fileAssociationsContextMenuCheckBox->setVisible( false );
 
-    auto* tree = fileAssociationsTree;
-    tree->clear();
-    for ( const auto group : { FileType::Group::Logs, FileType::Group::Optional } ) {
-        auto* groupItem = new QTreeWidgetItem( tree );
-        groupItem->setText( 0, FileTypes::groupTitle( group ) );
-        groupItem->setFlags( Qt::ItemIsEnabled );
-        groupItem->setFirstColumnSpanned( true );
-        auto groupFont = groupItem->font( 0 );
-        groupFont.setBold( true );
-        groupItem->setFont( 0, groupFont );
-
-        for ( const auto& type : FileTypes::choices() ) {
-            if ( type.group != group ) {
-                continue;
-            }
-            auto* row = new QTreeWidgetItem( groupItem );
-            row->setFlags( Qt::ItemIsEnabled | Qt::ItemIsUserCheckable );
-            row->setData( 0, Qt::UserRole, type.id );
-            row->setCheckState( 0, Qt::Unchecked );
-            row->setText( 0, type.shownAs );
-            row->setText( 1, FileTypes::label( type ) );
-        }
-    }
-    tree->expandAll();
-    tree->resizeColumnToContents( 0 );
-    tree->resizeColumnToContents( 1 );
+    FileTypeChoices::fill( *fileAssociationsTree );
 }
 
 void OptionsDialog::showFileAssociations( FileAssociations& fileAssociations )
@@ -524,17 +499,7 @@ void OptionsDialog::applyFileAssociations()
         return;
     }
 
-    QStringList checkedIds;
-    auto* tree = fileAssociationsTree;
-    for ( int group = 0; group < tree->topLevelItemCount(); ++group ) {
-        const auto* groupItem = tree->topLevelItem( group );
-        for ( int index = 0; index < groupItem->childCount(); ++index ) {
-            const auto* row = groupItem->child( index );
-            if ( row->checkState( 0 ) == Qt::Checked ) {
-                checkedIds << row->data( 0, Qt::UserRole ).toString();
-            }
-        }
-    }
+    const auto checkedIds = FileTypeChoices::checkedIds( *fileAssociationsTree );
 
     QStringList errors;
     const auto plan = FileAssociationPlan::of( fileAssociationStates_, checkedIds );
@@ -552,6 +517,12 @@ void OptionsDialog::applyFileAssociations()
         }
     }
     if ( !plan.isEmpty() ) {
+        // The choice is kept, so the first start asks no more (#723).
+        auto& config = Configuration::get();
+        auto choice = fileAssociationChoice( config );
+        choice.apply( checkedIds );
+        keepFileAssociationChoice( config, choice );
+
         const auto result = fileAssociations_->apply( plan.makeDefault, plan.release );
         if ( !result.succeeded() ) {
             errors << result.error;

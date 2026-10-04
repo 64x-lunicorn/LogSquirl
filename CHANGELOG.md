@@ -201,6 +201,20 @@
   File Associations page has the same check box, applied for the current
   user in the installed and the portable build, and hides the installer's
   entry for the current user when unchecked. (#724)
+- **On the first start, LogSquirl asks which file types it should open**: once
+  the main window shows, a dialog *Make LogSquirl the default app* lists the
+  types of the File Associations page with `.log` and the Logcat traces
+  checked, and every type LogSquirl already opens, such as one chosen in the
+  installer, checked too. *Apply* applies the choice as the page does,
+  *Later* asks again at the next start, *Don't ask again* never asks again,
+  and the dialog says in one line that the page stays reachable. It shows
+  what applying leads to on the platform, in the portable build of Windows
+  with the warning about moving LogSquirl. It does not appear where the
+  platform cannot associate (an AppImage), when every suggested type is
+  LogSquirl's already, after a choice was applied on the page, or when the
+  start opens a file from the command line or by a double-click. The
+  application keeps one file associations object for the run, which every
+  window's Options Dialog uses too. (#723)
 
 ## Bug fixes
 
