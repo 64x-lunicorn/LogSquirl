@@ -111,8 +111,10 @@ around a process and never with a fixed wait:
   built is part of it.
   `_all_tabs_indexed` is the restore to the last tab's Index finished; restored tabs load one
   after another behind the tab in front (#300). Each tab's Kept Searches run again once its Log
-  File has loaded (#704); the report's `all_tabs_restored` is the restore to the last of them
-  finished, which no benchmark measures yet.
+  File has loaded (#704), beside the Indexes of the tabs still loading, so both benchmarks
+  include what they cost there; their numbers before #704 were of a restore without Searches.
+  The report's `all_tabs_restored` is the restore to the last of them finished. No benchmark
+  reads it: it has no baseline entry yet, and a case without one skips.
 - **Grep cases** (`grep_*`) run `logsquirl_grep --benchmark-output <file>`, which writes a
   report of the same format for its Search (scenario `grep`): `index_finished`,
   `search_finished` and `matches_written`, timed from the open of the Log File. A case reports

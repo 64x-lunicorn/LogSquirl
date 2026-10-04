@@ -274,11 +274,13 @@
   once the Log File has loaded; a restored tab still waiting for its turn
   keeps them when the Session is saved again. Results are not saved: the
   Searches are run, not cached. A Search typed before a Log File has loaded
-  and kept with *Keep results* now runs too, once it has. Sessions saved
-  before load as before, with one empty Search. The benchmark scenario
-  `session-restore` saves three Kept Searches with each tab (option
-  `searches`) and reports `tab_searches_finished` and `all_tabs_restored`.
-  (#704)
+  and kept with *Keep results* now runs too, once it has. A Session saved
+  by an earlier version restores as before, each tab with one empty Search.
+  The benchmark scenario `session-restore` saves three Kept Searches with
+  each tab (option `searches`) and reports `tab_searches_finished` and
+  `all_tabs_restored`. As those Searches run beside the Indexes of the tabs
+  still loading, the `gui_session_restore_*` benchmarks measure more than
+  before and their numbers move. (#704)
 
 ## Bug fixes
 
