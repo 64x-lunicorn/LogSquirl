@@ -544,9 +544,9 @@
   (#708), 17 counts of the same code from the CI runs since then were measured
   again. Indexing a Log File with tabs and long lines, scrolling the text view
   with the wheel and restoring a Session until every tab has loaded now repeat
-  within 0.71 % and are judged by the default threshold of +2 % instead of +3
-  to +6 %, and dragging the text view's scrollbar fails the gate at +4 %
-  instead of +5 %. The other three benchmarks keep their thresholds, which the
+  within 0.01 %, 0.71 % and 0.04 % respectively and are judged by the default
+  threshold of +2 % instead of +6 %, +3 % and +3 %, and dragging the text
+  view's scrollbar fails the gate at +4 % instead of +5 %. The other three benchmarks keep their thresholds, which the
   new counts still need. (#727)
 
 # v26.10.0 (2026-09-29)
