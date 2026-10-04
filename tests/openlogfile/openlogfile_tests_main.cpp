@@ -23,6 +23,7 @@
 // signals carry, so a host only opens a Log File (#394).
 
 #include "datalocation.h"
+#include "tbbworkersjoinedatexit.h"
 
 #include <QCoreApplication>
 
@@ -35,6 +36,9 @@ const bool DataLocation::ForcePortable = true;
 
 int main( int argc, char* argv[] )
 {
+    // Destroyed last: the Open Log File indexes with oneTBB, whose workers
+    // have ended before exit() runs (#665).
+    const TbbWorkersJoinedAtExit tbbWorkers;
     QCoreApplication app( argc, argv );
 
     return Catch::Session().run( argc, argv );
