@@ -1616,7 +1616,8 @@ offers *Open with LogSquirl* (on Windows 11 under *Show more options*), which
 opens the file as a double-click on a `.log` file would, also for rotated logs
 like `app.log.1`. *Apply* adds or removes the entry for your user, in the
 installed and in the portable build. Where the installer added it for every
-user, unchecking hides it for you.
+user, unchecking does not remove it: it hides it for your user only, and the
+other users of the computer keep it.
 
 On macOS, the page makes LogSquirl the default for the content type of each
 type: the system's log type for `.log`, LogSquirl's own *Android Logcat
