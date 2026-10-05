@@ -58,6 +58,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/recentfiles.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savedsearches.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/selection.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/showncolumns.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/session.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfileprovenance.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/sessionfile.h
@@ -166,6 +167,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/savedsearches.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/linemapping.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/selection.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/showncolumns.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/session.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfileprovenance.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sessionfile.cpp

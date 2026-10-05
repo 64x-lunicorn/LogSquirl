@@ -24,6 +24,7 @@
 
 #include <limits>
 #include <map>
+#include <utility>
 #include <vector>
 
 #include "viewportlayout.h"
@@ -327,6 +328,93 @@ SCENARIO( "Viewport layout hit testing without any paint", "[viewportlayout]" )
         THEN( "any point in it is the first column" )
         {
             REQUIRE( layout.filePositionAtPoint( 400, 0 ) == FilePosition{ 3_lnum, 0_lcol } );
+        }
+    }
+}
+
+// What a tooltip looks under (#743): the position a click lands on, only
+// where a character is drawn.
+SCENARIO( "Viewport layout finds the character under a point", "[viewportlayout]" )
+{
+    GIVEN( "Three unwrapped Visual Lines starting at line 100" )
+    {
+        const ViewportLayout layout{ fixedWidthInput(),
+                                     unwrappedVisualLines( 100_lnum, 3, 40_length ) };
+        const auto x = layout.leftMarginPx();
+
+        THEN( "a point on the text is where a click lands" )
+        {
+            for ( const auto& [ xPos, yPos ] :
+                  { std::pair{ x, 0 }, std::pair{ x + 5, 0 }, std::pair{ x + 10, 19 },
+                    std::pair{ x + 11, 20 }, std::pair{ x + 395, 59 } } ) {
+                CAPTURE( xPos, yPos );
+                REQUIRE( layout.textPositionAtPoint( xPos, yPos )
+                         == layout.filePositionAtPoint( xPos, yPos ) );
+            }
+            REQUIRE( layout.textPositionAtPoint( x + 395, 59 )
+                     == FilePosition{ 102_lnum, 39_lcol } );
+        }
+
+        THEN( "there is none in the left margin, past the end of the line or below the last" )
+        {
+            REQUIRE_FALSE( layout.textPositionAtPoint( x - 1, 0 ).has_value() );
+            REQUIRE_FALSE( layout.textPositionAtPoint( x + 401, 0 ).has_value() );
+            REQUIRE_FALSE( layout.textPositionAtPoint( x + 5, 60 ).has_value() );
+        }
+    }
+
+    GIVEN( "A view scrolled sideways" )
+    {
+        auto input = fixedWidthInput();
+        input.firstColumn = 30_lcol;
+        const ViewportLayout layout{ input, unwrappedVisualLines( 0_lnum, 2, 40_length ) };
+        const auto x = layout.leftMarginPx();
+
+        THEN( "the first visible column is added, and the line ends where it is drawn" )
+        {
+            REQUIRE( layout.textPositionAtPoint( x + 11, 0 ) == FilePosition{ 0_lnum, 31_lcol } );
+            REQUIRE( layout.textPositionAtPoint( x + 95, 0 ) == FilePosition{ 0_lnum, 39_lcol } );
+            REQUIRE_FALSE( layout.textPositionAtPoint( x + 101, 0 ).has_value() );
+        }
+    }
+
+    GIVEN( "A wrapped Log Line spanning three Visual Lines" )
+    {
+        auto input = fixedWidthInput();
+        input.textWrap = true;
+        VisualLines visualLines;
+        visualLines.push_back( VisualLine{ 7_lnum, 0, 0_lcol, 40_length, 100_length } );
+        visualLines.push_back( VisualLine{ 7_lnum, 1, 40_lcol, 40_length, 100_length } );
+        visualLines.push_back( VisualLine{ 7_lnum, 2, 80_lcol, 20_length, 100_length } );
+        const ViewportLayout layout{ input, visualLines };
+        const auto x = layout.leftMarginPx();
+
+        THEN( "the columns of earlier Visual Lines are added in, and each ends where it is drawn" )
+        {
+            REQUIRE( layout.textPositionAtPoint( x + 11, 20 ) == FilePosition{ 7_lnum, 41_lcol } );
+            REQUIRE( layout.textPositionAtPoint( x + 195, 40 ) == FilePosition{ 7_lnum, 99_lcol } );
+            REQUIRE_FALSE( layout.textPositionAtPoint( x + 201, 40 ).has_value() );
+        }
+    }
+
+    GIVEN( "An empty Log Line" )
+    {
+        const ViewportLayout layout{ fixedWidthInput(),
+                                     unwrappedVisualLines( 3_lnum, 1, 0_length ) };
+
+        THEN( "no point is on a character of it" )
+        {
+            REQUIRE_FALSE( layout.textPositionAtPoint( layout.leftMarginPx(), 0 ).has_value() );
+        }
+    }
+
+    GIVEN( "A layout with no Visual Lines at all" )
+    {
+        const ViewportLayout layout{ fixedWidthInput() };
+
+        THEN( "no point is on a character" )
+        {
+            REQUIRE_FALSE( layout.textPositionAtPoint( 10, 10 ).has_value() );
         }
     }
 }

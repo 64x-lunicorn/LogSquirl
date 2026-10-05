@@ -74,6 +74,7 @@
 #include "regularexpressionpattern.h"
 #include "selection.h"
 #include "settingspolicies.h"
+#include "showncolumns.h"
 #include "shownline.h"
 #include "textviewscrolling.h"
 #include "viewportlayout.h"
@@ -754,21 +755,31 @@ private:
     // Which Value Names the view shows, for the keys of what it caches: 0
     // for none.
     uint64_t valueNamesKey() const;
-    // The Log Line as shown, named by the namer the view shows; none while it
-    // shows none. Read from the Log File.
-    std::optional<logsquirl::valuenames::ShownLine> shownLineOf( LineNumber logLine ) const;
     // Drops what was named with the Value Names shown before, and the widths
     // scrolled to for them.
     void renameLogLines();
+    // The columns of a Log Line as the view shows it, the one way to them:
+    // the identity while the view shows no Value Names, which reads no Log
+    // Line (#740). A Log Line the Viewport holds is taken from there, as it
+    // was read and named for it; any other is read and named (#745). They
+    // read through the view, and must not outlive it.
+    ShownColumns shownColumnsOf( LineNumber logLine ) const;
+    // The same, for a Log Line readLine gives, read already: read again by
+    // nothing, and named only if the Viewport does not hold it.
+    ShownColumns shownColumnsOf( LineNumber logLine,
+                                 const std::function<QString()>& readLine ) const;
+    // The Log Line at a position of the view; the position itself where the
+    // view maps none.
+    LineNumber logLineAtPosition( LineNumber position ) const;
+    // The Log Line in the Viewport, if the Viewport holds it and was built
+    // for what the view shows now: none once the Log File, the Displayed
+    // Lines or the Value Names changed since. Builds nothing.
+    const ViewportLogLine* viewportLogLineOf( LineNumber logLine ) const;
     // The selection with its portion grown to take in every Named Value it
-    // takes in part of; none while there is nothing to grow (#647).
-    std::optional<Selection> selectionCoveringNamedValues() const;
+    // takes in part of (#647).
+    Selection selectionCoveringNamedValues() const;
     // The selected text, never half a raw value, with line numbers or not.
     QString selectedText( bool lineNumbers ) const;
-    // The portion grown to take in every Named Value it takes in part of.
-    Portion coveringNamedValues( const Portion& portion ) const;
-    // The Log Line in the Viewport at a position of the view, if it is there.
-    const ViewportLogLine* viewportLogLineAt( LineNumber position ) const;
     // The widest Log Line the Viewport has shown with Value Names, in display
     // columns: the horizontal scrollbar reaches it as well as the widest raw
     // one. Reset when the Value Names change.

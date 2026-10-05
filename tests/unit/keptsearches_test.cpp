@@ -23,6 +23,7 @@
 // nothing once its Filtered View is gone (#518).
 
 #include "filteredview.h"
+#include "indexoperation.h"
 #include "keptsearches.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
@@ -471,14 +472,23 @@ SCENARIO( "The Searches a Session saved are rebuilt and run again", "[keptsearch
     }
 }
 
+struct KeptSearchesTest {};
+
+template <>
+struct LogData::access_by<KeptSearchesTest> {
+    // The Index of the Log Data, whose lock an index run takes to write it.
+    static const IndexingData* index( const LogData& logData )
+    {
+        return logData.indexing_data_.get();
+    }
+};
+
 SCENARIO( "The Searches a Session saved are dropped when the first load does not succeed",
           "[keptsearches][session]" )
 {
-    // A Log File large enough that its first load is still running when it
-    // is interrupted, right after it was opened.
     QTemporaryFile file{ "keptsearches_test_XXXXXX" };
     REQUIRE( file.open() );
-    for ( int line = 0; line < 200'000; ++line ) {
+    for ( int line = 0; line < 100; ++line ) {
         file.write( ( numberedLine( line ) + '\n' ).toUtf8() );
     }
     file.flush();
@@ -513,25 +523,37 @@ SCENARIO( "The Searches a Session saved are dropped when the first load does not
         openLogFile.get(), &OpenLogFile::loadingFinished,
         [ &loaded ]( const OpenLogFile::LoadFinished& load ) { loaded = load.status; } );
 
-    GIVEN( "two saved Searches restored before the Log File has loaded, the second current" )
+    GIVEN( "the first load interrupted before it could finish" )
     {
+        // Held by the Index's lock, the index run cannot write the Index, so
+        // cannot finish, until the interruption was asked for: it ends
+        // interrupted every time, however the threads run (#751). Nothing
+        // here reads the Log Data while the lock is held.
+        std::optional<IndexingData::ConstAccessor> indexHeld;
+        indexHeld.emplace( LogData::access_by<KeptSearchesTest>::index( *openLogFile->logData() ) );
         openLogFile->open( file.fileName() );
-        const KeptSearches::Requested saved{ { RegularExpressionPattern( "line 00001" ),
-                                               RegularExpressionPattern( "line 00002" ) },
-                                             1 };
-        keptSearches.restore( saved );
-        keptSearches.requestCurrent( saved.patterns[ 1 ] );
+        openLogFile->logData()->interruptLoading();
+        indexHeld.reset();
 
-        WHEN( "the first load is interrupted" )
+        AND_GIVEN( "two saved Searches restored before the Log File is told loaded, the second "
+                   "current" )
         {
-            openLogFile->logData()->interruptLoading();
-            REQUIRE( waitUiState( [ & ] { return loaded.has_value(); }, 30000 ) );
-            REQUIRE( loaded != LoadingStatus::Successful );
+            const KeptSearches::Requested saved{ { RegularExpressionPattern( "line 00001" ),
+                                                   RegularExpressionPattern( "line 00002" ) },
+                                                 1 };
+            keptSearches.restore( saved );
+            keptSearches.requestCurrent( saved.patterns[ 1 ] );
 
-            THEN( "neither runs, and the end is told all the same" )
+            WHEN( "the load ends" )
             {
-                REQUIRE( waitUiState( [ & ] { return finished; }, 5000 ) );
-                REQUIRE( openLogFile->searchState().phase == SearchSessionPhase::Idle );
+                REQUIRE( waitUiState( [ & ] { return loaded.has_value(); }, 30000 ) );
+                REQUIRE( loaded == LoadingStatus::Interrupted );
+
+                THEN( "neither runs, and the end is told all the same" )
+                {
+                    REQUIRE( waitUiState( [ & ] { return finished; }, 5000 ) );
+                    REQUIRE( openLogFile->searchState().phase == SearchSessionPhase::Idle );
+                }
             }
         }
     }

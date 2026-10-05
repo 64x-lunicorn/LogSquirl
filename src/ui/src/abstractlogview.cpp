@@ -154,24 +154,6 @@ void formatLineNumber( QString& text, LineNumber::UnderlyingType number, int wid
     }
 }
 
-// The character of a text drawn at a display column, given the display
-// column each of its characters starts at (rawToDisplayColumns()): a column
-// inside an expanded tab is the tab's.
-qsizetype characterAtDisplayColumn( const logsquirl::vector<int>& displayColumns,
-                                    int displayColumn )
-{
-    const auto next
-        = std::upper_bound( displayColumns.begin(), displayColumns.end(), displayColumn );
-    const auto character = std::distance( displayColumns.begin(), next ) - 1;
-    return std::clamp<qsizetype>( character, 0,
-                                  static_cast<qsizetype>( displayColumns.size() ) - 1 );
-}
-
-qsizetype characterAtDisplayColumn( QStringView text, int displayColumn )
-{
-    return characterAtDisplayColumn( rawToDisplayColumns( text ), displayColumn );
-}
-
 // The display columns each Named Value of a Log Line is drawn in.
 logsquirl::vector<WholeRun> namedValueColumns( const logsquirl::valuenames::ShownLine& shown )
 {
@@ -1104,7 +1086,8 @@ bool AbstractLogView::event( QEvent* e )
 bool AbstractLogView::viewportEvent( QEvent* e )
 {
     if ( e->type() == QEvent::ToolTip && showsValueNames() ) {
-        // Over a Named Value, where its name came from (#647).
+        // Over a Named Value, where its name came from (#647). Without Value
+        // Names shown the tooltip is the base class's, as any other view's.
         const auto* helpEvent = static_cast<QHelpEvent*>( e );
         const auto toolTip = valueNameToolTipAt( helpEvent->pos() );
         if ( toolTip.isEmpty() ) {
@@ -1355,11 +1338,13 @@ void AbstractLogView::setQuickFindResult( bool hasMatch, const Portion& portion 
 {
     if ( portion.isValid() ) {
         LOG_DEBUG << "search " << portion.line();
+        // Selected first: the view scrolls sideways to the end of the
+        // Selection (#749).
+        selection_.selectPortion( portion );
         // The Visual Line holding the start of the found text, at the
         // position its Log Line is shown.
         displayPosition(
             FilePosition{ lines_->nearestPositionOf( portion.line() ), portion.startColumn() } );
-        selection_.selectPortion( portion );
         Q_EMIT newSelection( portion.line(), 1_lcount, 0_lcol, 0_length );
     }
     else if ( !hasMatch ) {
@@ -1496,94 +1481,66 @@ uint64_t AbstractLogView::valueNamesKey() const
     return shownValueNamer() != nullptr ? ValueNamesCollection::get().generation() : 0;
 }
 
-std::optional<logsquirl::valuenames::ShownLine>
-AbstractLogView::shownLineOf( LineNumber logLine ) const
+ShownColumns AbstractLogView::shownColumnsOf( LineNumber logLine ) const
 {
-    const auto* namer = shownValueNamer();
-    if ( namer == nullptr ) {
-        return std::nullopt;
-    }
-    const auto text = lines_->logFile().getLineString( logLine );
-    return logsquirl::valuenames::ShownLine{ text, namer->namedValues( text ) };
+    return shownColumnsOf(
+        logLine, [ this, logLine ] { return lines_->logFile().getLineString( logLine ); } );
 }
 
-Portion AbstractLogView::coveringNamedValues( const Portion& portion ) const
+ShownColumns AbstractLogView::shownColumnsOf( LineNumber logLine,
+                                              const std::function<QString()>& readLine ) const
 {
-    if ( !portion.isValid() ) {
-        return portion;
+    const auto* namer = shownValueNamer();
+    if ( namer != nullptr ) {
+        if ( const auto* onScreen = viewportLogLineOf( logLine ); onScreen != nullptr ) {
+            return ShownColumns{ onScreen->text, onScreen->shown };
+        }
     }
-    const auto shown = shownLineOf( portion.line() );
-    if ( !shown.has_value() || !shown->hasNamedValues() ) {
-        return portion;
-    }
+    return ShownColumns{ namer, readLine };
+}
 
-    // The portion is in the display columns of the raw text.
-    const auto rawColumns
-        = rawToDisplayColumns( lines_->logFile().getLineString( portion.line() ) );
-    // Its characters, kept on the Log Line however far past its end it reaches.
-    const auto rawLength = static_cast<qsizetype>( rawColumns.size() ) - 1;
-    const auto last = std::min(
-        characterAtDisplayColumn( rawColumns, static_cast<int>( portion.endColumn().get() ) ),
-        rawLength - 1 );
-    const auto first = std::min(
-        characterAtDisplayColumn( rawColumns, static_cast<int>( portion.startColumn().get() ) ),
-        last );
-    const auto [ start, end ] = shown->wholeRawRange( first, last + 1 );
-    return Portion{ portion.line(), LineColumn{ rawColumns[ static_cast<size_t>( start ) ] },
-                    LineColumn{ rawColumns[ static_cast<size_t>( end ) ] - 1 } };
+LineNumber AbstractLogView::logLineAtPosition( LineNumber position ) const
+{
+    return lines_->logLineAt( position ).value_or( position );
 }
 
 const AbstractLogView::ViewportLogLine*
-AbstractLogView::viewportLogLineAt( LineNumber position ) const
+AbstractLogView::viewportLogLineOf( LineNumber logLine ) const
 {
-    const auto& logLines = viewportContent().logLines;
-    if ( logLines.empty() || position < logLines.front().position ) {
+    // The key holds the view's own generation, which refresh() of the text
+    // bumps once a change of the Log File or of the Displayed Lines reaches
+    // the view, the count of Log Lines shown, and the Value Names' (#745). A
+    // Log File rewritten with as many Log Lines, before the change reaches
+    // the view, is served as it is on screen.
+    if ( !viewportContent_.has_value()
+         || !( viewportContentKey_ == currentViewportContentKey() ) ) {
         return nullptr;
     }
-    const auto index = position.get() - logLines.front().position.get();
-    return index < logLines.size() ? &logLines[ index ] : nullptr;
+    const auto& logLines = viewportContent_->logLines;
+    const auto found = std::find_if( logLines.begin(), logLines.end(),
+                                     [ logLine ]( const ViewportLogLine& viewportLogLine ) {
+                                         return viewportLogLine.lineNumber == logLine;
+                                     } );
+    return found != logLines.end() ? &*found : nullptr;
 }
 
 QString AbstractLogView::valueNameToolTipAt( const QPoint& pos ) const
 {
-    const auto& layout = viewportLayout();
-    const auto visualLineIndex = layout.visualLineAtPoint( pos.y() );
-    if ( !visualLineIndex.has_value() || pos.x() < layout.leftMarginPx() ) {
+    // The character under the point, found as a click finds it.
+    const auto position = viewportLayout().textPositionAtPoint( pos.x(), pos.y() );
+    if ( !position.has_value() ) {
         return {};
     }
-    const auto& visualLine = layout.visualLines()[ *visualLineIndex ];
-    const auto* logLine = viewportLogLineAt( visualLine.lineNumber );
-    if ( logLine == nullptr || !logLine->shown.hasNamedValues() ) {
-        return {};
-    }
-
-    // The display column under the point, if the point is on the text.
-    const auto columnInView
-        = static_cast<int64_t>( std::floor( ( pos.x() - layout.leftMarginPx() ) / charWidth_ ) );
-    const auto column = columnInView
-                        + ( scrolling_.textWrap() ? visualLine.firstColumn.get()
-                                                  : scrolling_.firstColumn().get() );
-    const auto visualLineEnd = scrolling_.textWrap()
-                                   ? visualLine.firstColumn.get() + visualLine.length.get()
-                                   : visualLine.lineLength.get();
-    if ( column >= visualLineEnd ) {
+    const auto value = shownColumnsOf( logLineAtPosition( position->line() ) )
+                           .namedValueShownAt( position->column() );
+    if ( !value.has_value() ) {
         return {};
     }
 
-    const auto& columns = logLine->namedValueColumns;
-    const auto named
-        = std::find_if( columns.begin(), columns.end(), [ column ]( const WholeRun& run ) {
-              return run.start <= column && column < run.end;
-          } );
-    if ( named == columns.end() ) {
-        return {};
-    }
-
-    const auto& value = logLine->shown.namedValues()[ std::distance( columns.begin(), named ) ];
     //: The tooltip over a Named Value: the raw value, its name, the Name Table,
     //: the Naming Rule and the Naming Group it came from.
     return tr( "%1 → %2 · table %3 · rule %4 · group %5" )
-        .arg( value.value, value.name, value.table, value.rule, value.group );
+        .arg( value->value, value->name, value->table, value->rule, value->group );
 }
 
 void AbstractLogView::textWrapSet( bool checked )
@@ -1932,14 +1889,15 @@ ScrollPosition AbstractLogView::scrollPosition() const
     return scrolling_.position();
 }
 
-std::optional<Selection> AbstractLogView::selectionCoveringNamedValues() const
+Selection AbstractLogView::selectionCoveringNamedValues() const
 {
-    if ( !selection_.isPortion() || shownValueNamer() == nullptr ) {
-        return std::nullopt;
+    if ( !selection_.isPortion() ) {
+        return selection_;
     }
     auto covering = selection_;
     const auto line = selection_.getLines( *lines_ ).front();
-    covering.selectPortion( coveringNamedValues( selection_.getPortionForLine( line ) ) );
+    covering.selectPortion(
+        shownColumnsOf( line ).covering( selection_.getPortionForLine( line ) ) );
     return covering;
 }
 
@@ -1951,46 +1909,22 @@ QString AbstractLogView::getSelectedText() const
 QString AbstractLogView::selectedText( bool lineNumbers ) const
 {
     // Never half a raw value (#647).
-    if ( const auto covering = selectionCoveringNamedValues(); covering.has_value() ) {
-        return covering->getSelectedText( *lines_, *logData_, lineNumbers );
-    }
-    return selection_.getSelectedText( *lines_, *logData_, lineNumbers );
+    return selectionCoveringNamedValues().getSelectedText( *lines_, *logData_, lineNumbers );
 }
 
 QString AbstractLogView::getSelectedTextAsShown() const
 {
-    const auto* namer = shownValueNamer();
-    if ( namer == nullptr ) {
-        return getSelectedText();
+    if ( selection_.isPortion() ) {
+        const auto line = selection_.getLines( *lines_ ).front();
+        return shownColumnsOf( line ).textShown( selection_.getPortionForLine( line ) );
     }
 
-    if ( !selection_.isPortion() ) {
-        return selection_.getSelectedText(
-            *lines_, *logData_, false,
-            [ namer ]( const QString& text ) { return shownText( *namer, text ); } );
-    }
-
-    // A portion is in the display columns of the raw text: it is moved to
-    // the raw text, to the text shown, and to its display columns.
-    const auto line = selection_.getLines( *lines_ ).front();
-    const auto portion = coveringNamedValues( selection_.getPortionForLine( line ) );
-    const auto raw = lines_->logFile().getLineString( line );
-    const logsquirl::valuenames::ShownLine shown{ raw, namer->namedValues( raw ) };
-
-    const auto rawColumns = rawToDisplayColumns( raw );
-    const auto rawLength = static_cast<qsizetype>( rawColumns.size() ) - 1;
-    const auto rawEnd = std::min(
-        characterAtDisplayColumn( rawColumns, static_cast<int>( portion.endColumn().get() ) ) + 1,
-        rawLength );
-    const auto rawStart = std::min(
-        characterAtDisplayColumn( rawColumns, static_cast<int>( portion.startColumn().get() ) ),
-        rawEnd );
-    const auto shownColumns = rawToDisplayColumns( shown.text() );
-    const auto start = shownColumns[ static_cast<size_t>(
-        shown.toShown( rawStart, logsquirl::valuenames::Snap::ToStart ) ) ];
-    const auto end = shownColumns[ static_cast<size_t>(
-        shown.toShown( rawEnd, logsquirl::valuenames::Snap::ToEnd ) ) ];
-    return untabify( QString{ shown.text() } ).mid( start, end - start );
+    // Each Log Line read by the Selection, as shown: without Value Names
+    // shown, as read, which is what Copy gives.
+    return selection_.getSelectedText(
+        *lines_, *logData_, false, [ this ]( LineNumber logLine, const QString& text ) {
+            return shownColumnsOf( logLine, [ &text ] { return text; } ).textShown();
+        } );
 }
 
 bool AbstractLogView::isPartialSelection() const
@@ -2268,8 +2202,7 @@ AbstractLogView::buildViewportContent( std::optional<ViewportContent> previous )
                                   ? std::move( readColoredLines[ readIndex ].spans )
                                   : logsquirl::vector<AnsiColorSpan>{};
             return ViewportLogLine{ .position = position,
-                                    .lineNumber
-                                    = lines_->logLineAt( position ).value_or( position ),
+                                    .lineNumber = logLineAtPosition( position ),
                                     .text = std::move( text ),
                                     .ansiColors = std::move( ansiColors ),
                                     .shown = std::move( shown ),
@@ -2373,20 +2306,12 @@ OptionalLineNumber AbstractLogView::logLineAtY( int yPos ) const
 FilePosition AbstractLogView::logLineFilePosAt( const QPoint& pos ) const
 {
     const auto position = convertCoordToFilePos( pos );
-    auto column = position.column();
-    if ( const auto* logLine = viewportLogLineAt( position.line() );
-         logLine != nullptr && logLine->shown.hasNamedValues() ) {
-        // The column is the text shown's; a position is in the display
-        // columns of the raw text. A point on a Named Value is at its start,
-        // so a selection from or to it takes in all of it (#647).
-        const auto& shown = logLine->shown;
-        const auto shownColumn
-            = characterAtDisplayColumn( shown.text(), static_cast<int>( column.get() ) );
-        const auto rawColumn = shown.toRaw( shownColumn, logsquirl::valuenames::Snap::ToStart );
-        column = LineColumn{ rawToDisplayColumns(
-            logLine->text )[ static_cast<size_t>( rawColumn ) ] };
-    }
-    return FilePosition{ lines_->logLineAt( position.line() ).value_or( position.line() ), column };
+    const auto logLine = logLineAtPosition( position.line() );
+    // The column is the text shown's; a position is in the display columns of
+    // the raw text. A point on a Named Value is at its start, so a selection
+    // from or to it takes in all of it (#647).
+    return FilePosition{ logLine, shownColumnsOf( logLine ).rawColumn(
+                                      position.column(), logsquirl::valuenames::Snap::ToStart ) };
 }
 
 void AbstractLogView::displayLine( LineNumber logLine )
@@ -2410,17 +2335,12 @@ void AbstractLogView::displayPosition( FilePosition position )
     const auto logLine = lines_->logLineAt( position.line() );
     const auto portion = logLine.has_value() ? selection_.getPortionForLine( *logLine ) : Portion{};
     if ( portion.isValid() ) {
-        auto endColumn = portion.endColumn().get();
         // The portion is in the display columns of the raw text; scrolled to
         // is the text shown (#647).
-        if ( const auto shown = shownLineOf( portion.line() );
-             shown.has_value() && shown->hasNamedValues() ) {
-            const auto raw = lines_->logFile().getLineString( portion.line() );
-            const auto rawEnd = characterAtDisplayColumn( raw, static_cast<int>( endColumn ) ) + 1;
-            endColumn = rawToDisplayColumns( shown->text() )[ static_cast<size_t>(
-                            shown->toShown( rawEnd, logsquirl::valuenames::Snap::ToEnd ) ) ]
-                        - 1;
-        }
+        const auto endColumn
+            = shownColumnsOf( portion.line() )
+                  .shownColumn( portion.endColumn(), logsquirl::valuenames::Snap::ToEnd )
+                  .get();
         horizontalScrollBar()->setValue(
             type_safe::narrow_cast<int>( endColumn - getNbVisibleCols().get() + 1 ) );
     }
@@ -2516,20 +2436,11 @@ void AbstractLogView::selectWordAtPosition( const FilePosition& pos )
     const int clickPos = type_safe::narrow_cast<int>( pos.column().get() );
 
     // A Named Value is a word as a whole, whatever it shows (#647).
-    if ( const auto shown = shownLineOf( pos.line() );
-         shown.has_value() && shown->hasNamedValues() ) {
-        const auto rawColumns
-            = rawToDisplayColumns( lines_->logFile().getLineString( pos.line() ) );
-        const auto value = shown->valueAtRaw( characterAtDisplayColumn( rawColumns, clickPos ) );
-        if ( value >= 0 ) {
-            const auto& namedValue = shown->namedValues()[ value ];
-            selection_.selectPortion(
-                pos.line(), LineColumn{ rawColumns[ static_cast<size_t>( namedValue.start ) ] },
-                LineColumn{ rawColumns[ static_cast<size_t>( namedValue.end() ) ] - 1 } );
-            updateGlobalSelection();
-            updateDecorations();
-            return;
-        }
+    if ( const auto value = shownColumnsOf( pos.line() ).namedValueAt( pos ) ) {
+        selection_.selectPortion( *value );
+        updateGlobalSelection();
+        updateDecorations();
+        return;
     }
 
     const QString line = lines_->logFile().getExpandedLineString( pos.line() );
@@ -2561,10 +2472,7 @@ void AbstractLogView::updateGlobalSelection()
 
 LineLength AbstractLogView::selectedTextLength()
 {
-    if ( const auto covering = selectionCoveringNamedValues(); covering.has_value() ) {
-        return selectedTextLength_.of( *covering, *lines_, *logData_ );
-    }
-    return selectedTextLength_.of( selection_, *lines_, *logData_ );
+    return selectedTextLength_.of( selectionCoveringNamedValues(), *lines_, *logData_ );
 }
 
 void AbstractLogView::selectAndDisplayRange( FilePosition pos )

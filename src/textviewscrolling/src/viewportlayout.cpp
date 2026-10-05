@@ -175,6 +175,26 @@ OptionalLineNumber ViewportLayout::lineAtPoint( int yPos ) const
     return visualLines_[ *visualLine ].lineNumber;
 }
 
+LineLength::UnderlyingType ViewportLayout::visibleTextLength( const VisualLine& visualLine ) const
+{
+    return input_.textWrap ? visualLine.length.get()
+                           : std::clamp( visualLine.lineLength.get() - input_.firstColumn.get(),
+                                         LineLength::UnderlyingType{ 0 }, visibleColumns().get() );
+}
+
+int64_t ViewportLayout::columnsBeforeX( int xPos ) const
+{
+    return static_cast<int64_t>( std::ceil( ( xPos - leftMarginPx() ) / charWidth() ) );
+}
+
+LineColumn ViewportLayout::lineColumn( const VisualLine& visualLine, int64_t columnInView ) const
+{
+    // Move from the Visual Line's own columns to the Log Line's columns.
+    return LineColumn{ static_cast<LineColumn::UnderlyingType>( columnInView ) }
+           + ( input_.textWrap ? LineLength{ visualLine.firstColumn.get() }
+                               : LineLength{ input_.firstColumn.get() } );
+}
+
 FilePosition ViewportLayout::filePositionAtPoint( int xPos, int yPos ) const
 {
     if ( visualLines_.empty() ) {
@@ -193,29 +213,33 @@ FilePosition ViewportLayout::filePositionAtPoint( int xPos, int yPos ) const
         return FilePosition{ visualLine.lineNumber, 0_lcol };
     }
 
-    // Number of columns of this Visual Line that are actually in the Viewport.
-    const auto visibleTextLength
-        = input_.textWrap ? visualLine.length.get()
-                          : std::clamp( visualLine.lineLength.get() - input_.firstColumn.get(),
-                                        LineLength::UnderlyingType{ 0 }, visibleColumns().get() );
-
     // The first column whose right edge is at or past xPos, then step back one
     // to land on the column the pixel is actually inside.
-    const auto firstColumnPastX = std::clamp<int64_t>(
-        static_cast<int64_t>( std::ceil( ( xPos - leftMarginPx() ) / charWidth() ) ), 0,
-        visibleTextLength );
+    const auto firstColumnPastX
+        = std::clamp<int64_t>( columnsBeforeX( xPos ), 0, visibleTextLength( visualLine ) );
 
-    auto column
-        = LineColumn{ static_cast<LineColumn::UnderlyingType>( firstColumnPastX ) } - 1_length;
-
-    // Move from the Visual Line's own columns to the Log Line's columns.
-    column += input_.textWrap ? LineLength{ visualLine.firstColumn.get() }
-                              : LineLength{ input_.firstColumn.get() };
+    auto column = lineColumn( visualLine, firstColumnPastX - 1 );
 
     const auto maxColumn = LineColumn{ visualLine.lineLength.get() } - 1_length;
     column = std::clamp( column, 0_lcol, maxColumn );
 
     return FilePosition{ visualLine.lineNumber, column };
+}
+
+std::optional<FilePosition> ViewportLayout::textPositionAtPoint( int xPos, int yPos ) const
+{
+    const auto visualLineIndex = visualLineAtPoint( yPos );
+    if ( !visualLineIndex.has_value() || xPos < leftMarginPx() ) {
+        return std::nullopt;
+    }
+    const auto& visualLine = visualLines_[ *visualLineIndex ];
+    // The pixel on the left edge of the text is in its first column, as
+    // filePositionAtPoint() has it.
+    const auto columnInView = std::max<int64_t>( columnsBeforeX( xPos ), 1 ) - 1;
+    if ( columnInView >= visibleTextLength( visualLine ) ) {
+        return std::nullopt;
+    }
+    return FilePosition{ visualLine.lineNumber, lineColumn( visualLine, columnInView ) };
 }
 
 ViewportRect ViewportLayout::rectForLine( LineNumber line ) const

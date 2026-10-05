@@ -188,6 +188,15 @@ add_executable(logsquirl_textview_ansi_benchmark
 
 target_link_libraries(logsquirl_textview_ansi_benchmark logsquirl_ui Catch2::Catch2 test_utils)
 
+# A Selection drag and a double-click over Named Values in a shown text view
+# (#745), every Log Line on screen named by 22 Naming Rules. Uses only what the
+# text view offered before #745 (see README.md).
+add_executable(logsquirl_textview_valuenames_benchmark
+    textview_valuenames_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_textview_valuenames_benchmark logsquirl_ui Catch2::Catch2 test_utils)
+
 # In the fixed-work mode a benchmark binary that runs oneTBB's flow graphs
 # runs them on the thread that waits for them alone (instruction_count.h,
 # #708), which takes TBB's headers. These are the binaries that link oneTBB:
@@ -215,6 +224,7 @@ foreach(
         logsquirl_tableview_scroll_benchmark
         logsquirl_textview_ansi_benchmark
         logsquirl_textview_scroll_benchmark
+        logsquirl_textview_valuenames_benchmark
         logsquirl_textviewscrolling_benchmark
         logsquirl_timelookup_benchmark
 )

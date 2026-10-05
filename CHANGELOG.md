@@ -286,6 +286,29 @@
 
 ## Bug fixes
 
+- **A click, a drag and scrolling to a Selection inside a tab keep their
+  place in the tab with Value Names shown**: with Value Names shown, on a
+  Log Line with a Named Value, a click or drag inside a tab put the end of
+  the selection at the start of the tab, and scrolling to a Selection that
+  ended inside a tab scrolled to the end of the tab. Both now keep their
+  place in the tab, as with Value Names hidden. (#742, #743)
+- **QuickFind scrolls sideways to the match it finds the first time**: in a
+  view without text wrap, a match beyond the right edge of a long Log Line
+  was selected but stayed out of view until it was found a second time; the
+  view scrolled to the end of the previous selection instead. (#749)
+- ***Copy as Shown* of a selection inside a tab copies only the columns
+  selected**: with Value Names shown, *Copy as Shown* of a selection within
+  one Log Line that started or ended inside a tab copied the whole tab, even
+  on a Log Line without any Named Value, so it held more spaces than *Copy*
+  with Value Names hidden. An end outside every Named Value now keeps its
+  place inside its tab, cut to the width the tab has in the text shown; an
+  end inside a Named Value still takes the whole value as shown. (#748)
+- **A selection that starts or ends inside a tab keeps its width with Value
+  Names shown**: on a Log Line with a Named Value, a selection that started
+  or ended inside a tab grew to the whole tab, though it touched no Named
+  Value, so *Copy* copied more spaces than were selected and the length of
+  the selection counted them. Only an end on a Named Value now grows, to the
+  edge of that value. (#747)
 - **The dashboard lists a plugin installed while it is shown**: a plugin
   installed, enabled or disabled in *Plugins* while the dashboard was open
   did not show on its Plugins card, which kept saying *No plugins installed*
@@ -434,6 +457,46 @@
   those numbers show a clear gain there. (#682)
 
 ## Internal
+
+- **A Portion past the end of a Log Line covers no Named Value**: the
+  whole-value covering cut a Portion lying wholly after the end of a Log Line
+  to its last character, so on a Log Line ending in a Named Value it took in
+  that value. No path of the view builds such a Portion today -- a drag past
+  the end of a line with Value Names shown selects the whole Log Line -- so
+  nobody saw it; the covering now gives such a Portion back as it is. (#746)
+
+- **The Text View and the Filtered View convert columns for Value Names in
+  one module**: `ShownColumns` takes a Log Line and gives, in display
+  columns with tabs before, inside and after a Named Value, a Portion grown
+  to whole Named Values, its text shown, the Named Value at a column, and
+  the columns between raw and shown text. Click and drag, *Copy*, *Copy as
+  Shown*, double-click, scrolling to the Selection and the Named Value
+  tooltip all go through it, and the view builds it in one place, the only
+  one that decides whether a Log Line is read and named: with Value Names
+  hidden it is the identity and reads no Log Line. A Log Line on screen is
+  taken as shown from the Viewport instead of read and named again on every
+  event: in the new `logsquirl_textview_valuenames_benchmark`, 200 mouse
+  moves of a drag went from 4.52 ms to 0.66 ms and 20 double-clicks from
+  1.02 ms to 0.12 ms. Table-driven tests check the module without a widget.
+  (#740, #741, #742, #743, #744, #745)
+
+- **The Kept Searches test of an interrupted first load holds the load until
+  it is interrupted**: the scenario that drops the Searches a Session saved
+  when the first load does not succeed opened a Log File and asked the load
+  to be interrupted right after, so a load that finished first made it fail
+  now and then. It now holds the Index's lock, through a test seam of the
+  Log Data, while it opens the Log File and asks for the interruption: the
+  index run cannot finish before, and the load ends interrupted every time.
+  (#751)
+
+- **The text view tests that show a view one column wide wait until its
+  window is exposed**: the helper that shows such a view processed events
+  once after showing it, which on macOS does not always expose the window. A
+  view not exposed yet paints nothing on `repaint()`, so the scenario that
+  counts the Log Lines a change and the paint after it read with and without
+  an overview counted no paint for one of the two views now and then. The
+  helper now waits with `QTest::qWaitForWindowExposed()`, as other tests do.
+  (#750)
 
 - **The Open Log File's test runner joins oneTBB's workers before it exits,
   as the other runners do**: the mimalloc assertion that once stopped a
