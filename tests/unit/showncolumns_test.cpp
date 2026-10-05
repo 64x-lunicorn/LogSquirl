@@ -50,8 +50,9 @@ ValueNamer exampleNamer()
     rule.pattern = QStringLiteral( "v=(a\tb)" );
     rule.groupTables = { GroupTable{ QStringLiteral( "1" ), QStringLiteral( "Tabbed" ) } };
     tabbed.setRules( { rule } );
-    tabbed.setTables( { NameTable{ QStringLiteral( "Tabbed" ),
-                                   { NameRow{ QStringLiteral( "a\tb" ), QStringLiteral( "AB" ) } } } } );
+    tabbed.setTables(
+        { NameTable{ QStringLiteral( "Tabbed" ),
+                     { NameRow{ QStringLiteral( "a\tb" ), QStringLiteral( "AB" ) } } } } );
     return ValueNamer{ QList<NamingGroup>{ valuenamesfixture::exampleGroup(), tabbed } };
 }
 
@@ -557,6 +558,226 @@ TEST_CASE( "A raw display column on a Log Line without Named Values or without a
                                    } };
         CHECK( columns.shownColumn( LineColumn( column ), snap ) == LineColumn( column ) );
         CHECK( ShownColumns{}.shownColumn( LineColumn( column ), snap ) == LineColumn( column ) );
+        CHECK( reads == 0 );
+    }
+}
+
+namespace {
+
+struct RawColumn {
+    const char* what;
+    QString line;
+    int shownColumn;
+    int toStart;
+    int toEnd;
+};
+
+// "x id=7<tab>z": the Named Value "7" is column 5 and the tab 6-7. Shown as
+// "x id=seven(7)<tab>z", the value is columns 5-12 and the tab 13-15: wider
+// than the raw one.
+const QString IdTabLine = QStringLiteral( "x id=7\tz" );
+
+} // namespace
+
+// What a click on the text shown lands on (#743), the reverse of the table
+// above: EcuLine is shown with its second tab two columns wide instead of four,
+// IdTabLine with its tab three wide instead of two.
+TEST_CASE( "A display column of the text shown is a raw display column",
+           "[showncolumns][valuenames]" )
+{
+    const auto namer = exampleNamer();
+
+    const auto row = GENERATE( values<RawColumn>( {
+        { "on the tab before a Named Value", EcuLine, 0, 0, 0 },
+        { "inside the tab before a Named Value", EcuLine, 3, 3, 3 },
+        { "beside a Named Value, before it", EcuLine, 18, 18, 18 },
+        { "on the first column of a Named Value", EcuLine, 19, 19, 22 },
+        { "inside a Named Value", EcuLine, 25, 19, 22 },
+        { "on the last column of a Named Value", EcuLine, 32, 19, 22 },
+        { "beside a Named Value, between two", EcuLine, 33, 23, 23 },
+        { "on the last column of a Named Value before a tab", EcuLine, 45, 24, 27 },
+        { "on the first column of the narrower tab after a Named Value", EcuLine, 46, 28, 28 },
+        { "inside the narrower tab after a Named Value", EcuLine, 47, 29, 29 },
+        { "after the tab after a Named Value", EcuLine, 48, 32, 32 },
+        { "on the last column of the Log Line", EcuLine, 50, 34, 34 },
+        { "just past the end of the Log Line", EcuLine, 51, 35, 35 },
+        { "far past the end of the Log Line", EcuLine, 56, 40, 40 },
+        { "on the first column of the wider tab after a Named Value", IdTabLine, 13, 6, 6 },
+        { "inside the wider tab after a Named Value", IdTabLine, 14, 7, 7 },
+        { "past the width the tab after a Named Value has raw", IdTabLine, 15, 7, 7 },
+        { "after the wider tab", IdTabLine, 16, 8, 8 },
+        { "just past the end of a Log Line ending after a tab", IdTabLine, 17, 9, 9 },
+        { "before a Named Value with a tab", TabbedLine, 1, 1, 1 },
+        { "on the tab of a Named Value's text shown", TabbedLine, 7, 2, 8 },
+        { "after a Named Value with a tab", TabbedLine, 10, 9, 9 },
+        { "on a Named Value at the end of the Log Line", IdLine, 9, 5, 5 },
+        { "just past a Named Value at the end", IdLine, 13, 6, 6 },
+        { "further past a Named Value at the end", IdLine, 16, 9, 9 },
+    } ) );
+
+    CAPTURE( row.what, row.line, row.shownColumn );
+    const ShownColumns columns{ &namer, [ & ] { return row.line; } };
+    using logsquirl::valuenames::Snap;
+
+    CHECK( columns.rawColumn( LineColumn( row.shownColumn ), Snap::ToStart )
+           == LineColumn( row.toStart ) );
+    CHECK( columns.rawColumn( LineColumn( row.shownColumn ), Snap::ToEnd )
+           == LineColumn( row.toEnd ) );
+}
+
+namespace {
+
+struct RoundTrip {
+    const char* what;
+    QString line;
+    std::vector<int> columns;
+};
+
+} // namespace
+
+// A column outside every Named Value comes back where it was, unless the
+// character it is in -- a tab -- is narrower on the other side.
+TEST_CASE( "A display column outside every Named Value goes there and back unchanged",
+           "[showncolumns][valuenames]" )
+{
+    using logsquirl::valuenames::Snap;
+    const auto namer = exampleNamer();
+    const auto snap = GENERATE( Snap::ToStart, Snap::ToEnd );
+
+    SECTION( "raw to shown and back" )
+    {
+        const auto row = GENERATE( values<RoundTrip>( {
+            { "before and between Named Values", EcuLine, { 0, 3, 7, 8, 18, 23 } },
+            { "in the part of the narrower tab shown, and after", EcuLine, { 28, 29, 32, 34 } },
+            { "past the end", EcuLine, { 35, 40 } },
+            { "in the wider tab, and after", IdTabLine, { 6, 7, 8, 9, 12 } },
+            { "around a Named Value with a tab", TabbedLine, { 0, 1, 9, 10, 12, 13 } },
+        } ) );
+        const ShownColumns columns{ &namer, [ & ] { return row.line; } };
+        for ( const auto column : row.columns ) {
+            CAPTURE( row.what, column );
+            CHECK( columns.rawColumn( columns.shownColumn( LineColumn( column ), snap ), snap )
+                   == LineColumn( column ) );
+        }
+    }
+
+    SECTION( "shown to raw and back" )
+    {
+        const auto row = GENERATE( values<RoundTrip>( {
+            { "before and between Named Values", EcuLine, { 0, 3, 7, 8, 18, 33 } },
+            { "in the narrower tab, and after", EcuLine, { 46, 47, 48, 50, 51, 56 } },
+            { "in the part of the wider tab raw, and after", IdTabLine, { 13, 14, 16, 17 } },
+            { "around a Named Value with a tab", TabbedLine, { 0, 1, 10, 11, 14 } },
+        } ) );
+        const ShownColumns columns{ &namer, [ & ] { return row.line; } };
+        for ( const auto column : row.columns ) {
+            CAPTURE( row.what, column );
+            CHECK( columns.shownColumn( columns.rawColumn( LineColumn( column ), snap ), snap )
+                   == LineColumn( column ) );
+        }
+    }
+}
+
+TEST_CASE( "A display column shown on a Log Line without Named Values or without a namer is the "
+           "raw column",
+           "[showncolumns][valuenames]" )
+{
+    using logsquirl::valuenames::Snap;
+    const auto namer = exampleNamer();
+    const auto column = GENERATE( 0, 3, 9, 20, 60 );
+    const auto snap = GENERATE( Snap::ToStart, Snap::ToEnd );
+    CAPTURE( column );
+
+    SECTION( "a Log Line without Named Values" )
+    {
+        const ShownColumns columns{ &namer,
+                                    [] { return QStringLiteral( "\tnothing named\there" ); } };
+        CHECK( columns.rawColumn( LineColumn( column ), snap ) == LineColumn( column ) );
+    }
+
+    SECTION( "without a namer" )
+    {
+        int reads = 0;
+        const ShownColumns columns{ nullptr, [ &reads ] {
+                                       ++reads;
+                                       return EcuLine;
+                                   } };
+        CHECK( columns.rawColumn( LineColumn( column ), snap ) == LineColumn( column ) );
+        CHECK( ShownColumns{}.rawColumn( LineColumn( column ), snap ) == LineColumn( column ) );
+        CHECK( reads == 0 );
+    }
+}
+
+namespace {
+
+struct ValueShownAt {
+    const char* what;
+    QString line;
+    int shownColumn;
+    // The raw value and its name; none for none.
+    const char* value;
+    const char* name;
+};
+
+} // namespace
+
+// What the tooltip over the text shown tells of (#743).
+TEST_CASE( "The Named Value at a display column of the text shown", "[showncolumns][valuenames]" )
+{
+    const auto namer = exampleNamer();
+
+    const auto row = GENERATE( values<ValueShownAt>( {
+        { "on the first column of a Named Value", EcuLine, 19, "0x15", "Beispiel" },
+        { "on the last column of a Named Value", EcuLine, 32, "0x15", "Beispiel" },
+        { "on a Named Value after another", EcuLine, 40, "0x14", "Sample" },
+        { "on the tab of a Named Value's text shown", TabbedLine, 7, "a\tb", "AB" },
+        { "on a Named Value at the end of the Log Line", IdLine, 12, "7", "seven" },
+        { "inside the tab before a Named Value", EcuLine, 3, nullptr, nullptr },
+        { "beside a Named Value, before it", EcuLine, 18, nullptr, nullptr },
+        { "beside a Named Value, between two", EcuLine, 33, nullptr, nullptr },
+        { "inside the tab after a Named Value", EcuLine, 47, nullptr, nullptr },
+        { "inside the wider tab after a Named Value", IdTabLine, 15, nullptr, nullptr },
+        { "just past a Named Value at the end", IdLine, 13, nullptr, nullptr },
+        { "far past the end of the Log Line", EcuLine, 60, nullptr, nullptr },
+    } ) );
+
+    CAPTURE( row.what, row.line, row.shownColumn );
+    const ShownColumns columns{ &namer, [ & ] { return row.line; } };
+    const auto value = columns.namedValueShownAt( LineColumn( row.shownColumn ) );
+
+    if ( row.value == nullptr ) {
+        CHECK_FALSE( value.has_value() );
+    }
+    else {
+        REQUIRE( value.has_value() );
+        CHECK( value->value == QString::fromUtf8( row.value ) );
+        CHECK( value->name == QString::fromUtf8( row.name ) );
+    }
+}
+
+TEST_CASE( "No Named Value is shown on a Log Line without one or without a namer",
+           "[showncolumns][valuenames]" )
+{
+    const auto namer = exampleNamer();
+    const auto column = GENERATE( 0, 3, 9, 20, 60 );
+    CAPTURE( column );
+
+    SECTION( "a Log Line without Named Values" )
+    {
+        const ShownColumns columns{ &namer,
+                                    [] { return QStringLiteral( "\tnothing named\there" ); } };
+        CHECK_FALSE( columns.namedValueShownAt( LineColumn( column ) ) );
+    }
+
+    SECTION( "without a namer" )
+    {
+        int reads = 0;
+        const ShownColumns columns{ nullptr, [ &reads ] {
+                                       ++reads;
+                                       return EcuLine;
+                                   } };
+        CHECK_FALSE( columns.namedValueShownAt( LineColumn( column ) ) );
+        CHECK_FALSE( ShownColumns{}.namedValueShownAt( LineColumn( column ) ) );
         CHECK( reads == 0 );
     }
 }

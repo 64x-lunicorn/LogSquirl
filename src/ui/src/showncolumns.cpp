@@ -106,8 +106,7 @@ QString ShownColumns::textShown( const Portion& portion ) const
         if ( !readLine_ ) {
             return {};
         }
-        return untabify( readLine_() )
-            .mid( portion.startColumn().get(), portion.size().get() );
+        return untabify( readLine_() ).mid( portion.startColumn().get(), portion.size().get() );
     }
 
     const auto covered = covering( portion );
@@ -117,8 +116,8 @@ QString ShownColumns::textShown( const Portion& portion ) const
         return {};
     }
     const auto startColumn = static_cast<int>( covered.startColumn().get() );
-    const auto endColumn = std::min( static_cast<int>( covered.endColumn().get() ),
-                                     rawColumns.back() - 1 );
+    const auto endColumn
+        = std::min( static_cast<int>( covered.endColumn().get() ), rawColumns.back() - 1 );
     // An end on a Named Value lies on its edge, after covering(), and goes to
     // the edge of what it shows; one outside every Named Value keeps its place
     // inside its tab (#748).
@@ -141,7 +140,8 @@ std::optional<Portion> ShownColumns::namedValueAt( const FilePosition& position 
         return std::nullopt;
     }
     const auto& namedValue = shown_.namedValues()[ value ];
-    return Portion{ position.line(), LineColumn{ columns[ static_cast<size_t>( namedValue.start ) ] },
+    return Portion{ position.line(),
+                    LineColumn{ columns[ static_cast<size_t>( namedValue.start ) ] },
                     LineColumn{ columns[ static_cast<size_t>( namedValue.end() ) ] - 1 } };
 }
 
@@ -175,4 +175,54 @@ LineColumn ShownColumns::shownColumn( LineColumn rawColumn, Snap snap ) const
     return LineColumn{ start
                        + std::clamp( column - rawColumns[ static_cast<size_t>( character ) ], 0,
                                      std::max( width - 1, 0 ) ) };
+}
+
+LineColumn ShownColumns::rawColumn( LineColumn shownColumn, Snap snap ) const
+{
+    // On a Log Line without Named Values the text shown is the raw text.
+    if ( !shown_.hasNamedValues() ) {
+        return shownColumn;
+    }
+    const auto& rawColumns = rawDisplayColumns();
+    const auto& shownColumns = shownDisplayColumns();
+    const auto column = static_cast<int>( shownColumn.get() );
+    if ( column >= shownColumns.back() ) {
+        return LineColumn{ rawColumns.back() + column - shownColumns.back() };
+    }
+
+    const auto character = characterAtDisplayColumn( shownColumns, column );
+    if ( shown_.valueAtShown( character ) >= 0 ) {
+        return snap == Snap::ToStart ? LineColumn{ rawColumns[ static_cast<size_t>(
+                                           shown_.toRaw( character, Snap::ToStart ) ) ] }
+                                     : LineColumn{ rawColumns[ static_cast<size_t>( shown_.toRaw(
+                                                       character + 1, Snap::ToEnd ) ) ]
+                                                   - 1 };
+    }
+    // Converting to a character and back would put a column inside a tab on
+    // the tab's edge (#747).
+    const auto rawCharacter = static_cast<size_t>( shown_.toRaw( character, Snap::ToStart ) );
+    const auto start = rawColumns[ rawCharacter ];
+    const auto width = rawColumns[ rawCharacter + 1 ] - start;
+    return LineColumn{ start
+                       + std::clamp( column - shownColumns[ static_cast<size_t>( character ) ], 0,
+                                     std::max( width - 1, 0 ) ) };
+}
+
+std::optional<logsquirl::valuenames::NamedValue>
+ShownColumns::namedValueShownAt( LineColumn shownColumn ) const
+{
+    if ( !shown_.hasNamedValues() ) {
+        return std::nullopt;
+    }
+    const auto& columns = shownDisplayColumns();
+    const auto column = static_cast<int>( shownColumn.get() );
+    // Past the end of the text shown is on no Named Value.
+    if ( column >= columns.back() ) {
+        return std::nullopt;
+    }
+    const auto value = shown_.valueAtShown( characterAtDisplayColumn( columns, column ) );
+    if ( value < 0 ) {
+        return std::nullopt;
+    }
+    return shown_.namedValues()[ value ];
 }

@@ -470,8 +470,14 @@
   scrolling to the Selection takes the column its end is shown at from it.
   Scrolling to a Selection that ends inside a tab now keeps the end's place
   in the tab, as without Value Names, instead of going to the end of the tab.
+  A click or drag takes the raw column under the mouse from it, and the
+  tooltip of a Named Value finds its value through it, from the same step
+  from pixel to column as a click, instead of repeating the wrapping and
+  horizontal scroll arithmetic. A click or drag inside a tab on a Log Line
+  with a Named Value now keeps its place in the tab, as without Value Names,
+  instead of going to the start of the tab.
   Table-driven tests check it without a widget. `ShownLine` stays as it is.
-  (#740, #741, #742)
+  (#740, #741, #742, #743)
 
 - **The Open Log File's test runner joins oneTBB's workers before it exits,
   as the other runners do**: the mimalloc assertion that once stopped a

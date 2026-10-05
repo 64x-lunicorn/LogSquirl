@@ -320,6 +320,20 @@ SCENARIO( "A text view showing Value Names selects and copies whole values", "[l
         }
     }
 
+    WHEN( "text is dragged from inside a tab to inside the tab after a Named Value" )
+    {
+        // "a<tab>id=seven(7)<tab>b": from the third column of the first tab to
+        // the second of the tab after the value, five columns wide shown and
+        // four raw.
+        drag( view, onText( 1, 3 ), onText( 1, 20 ) );
+
+        THEN( "the selection starts and ends where the mouse was in each tab (#743)" )
+        {
+            REQUIRE( view.getSelectedText() == QStringLiteral( "     id=7  " ) );
+            REQUIRE( view.getSelectedTextAsShown() == QStringLiteral( "     id=seven(7)  " ) );
+        }
+    }
+
     WHEN( "a whole Log Line is selected" )
     {
         drag( view, onText( 0, 3 ), onText( 1, 3 ) );
@@ -482,6 +496,14 @@ SCENARIO( "A text view wraps and scrolls the text it shows with Value Names",
                     // "Beispiel(0x15)" starts at column 11 of the text shown.
                     doubleClick( view, onText( 0, 12 - offset ) );
                     REQUIRE( view.getSelectedText() == QStringLiteral( "0x15" ) );
+                }
+
+                THEN( "the tooltip is that of the Named Value shown there (#743)" )
+                {
+                    REQUIRE( view.valueNameToolTipAt( onText( 0, 12 - offset ).toPoint() )
+                                 .startsWith( QStringLiteral( "0x15 → Beispiel" ) ) );
+                    REQUIRE(
+                        view.valueNameToolTipAt( onText( 0, 25 - offset ).toPoint() ).isEmpty() );
                 }
             }
         }

@@ -95,6 +95,23 @@ public:
     // is and reads nothing.
     LineColumn shownColumn( LineColumn rawColumn, logsquirl::valuenames::Snap snap ) const;
 
+    // The raw display column a display column of the text shown shows: the
+    // reverse of shownColumn(), for what a click lands on (#743). One on what
+    // a Named Value shows goes to the first column of its raw text, or to its
+    // last, as snap asks. One outside every Named Value keeps its place inside
+    // its character -- a tab -- cut to the width that character has in the
+    // raw Log Line. One past the end of the text shown stays as far past the
+    // end of the Log Line. The identity gives the column as it is and reads
+    // nothing.
+    LineColumn rawColumn( LineColumn shownColumn, logsquirl::valuenames::Snap snap ) const;
+
+    // The Named Value whose text shown is drawn at a display column of the
+    // text shown: what its tooltip tells of. None beside every Named Value --
+    // inside a tab next to one, too -- past the end of the text shown, and for
+    // the identity, which reads nothing.
+    std::optional<logsquirl::valuenames::NamedValue>
+    namedValueShownAt( LineColumn shownColumn ) const;
+
 private:
     // The display column each character of the raw Log Line starts at, and
     // its display length last.

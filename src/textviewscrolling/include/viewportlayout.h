@@ -285,6 +285,11 @@ public:
     // The position in the Log File at a viewport point. Always inside the
     // known Visual Lines; returns the first position when there are none.
     FilePosition filePositionAtPoint( int xPos, int yPos ) const;
+    // The position of the character drawn at a viewport point: the one
+    // filePositionAtPoint() gives there, or nothing when the point is on no
+    // character -- in the left margin, past the end of its Visual Line, or
+    // below the last. What a tooltip over the text looks under (#743).
+    std::optional<FilePosition> textPositionAtPoint( int xPos, int yPos ) const;
 
     // --- rectangles ----------------------------------------------------
 
@@ -323,6 +328,16 @@ private:
     // one-pixel cell keeps every answer finite and in range.
     double charWidth() const;
     int charHeight() const;
+
+    // How many columns of a Visual Line are drawn in the Viewport.
+    LineLength::UnderlyingType visibleTextLength( const VisualLine& visualLine ) const;
+    // The first column of the Visual Line whose right edge is at or past
+    // xPos, counted from the first one drawn: one more than the column the
+    // pixel is inside. Not kept inside the text.
+    int64_t columnsBeforeX( int xPos ) const;
+    // The column of the Log Line a column counted from the first one drawn of
+    // a Visual Line is.
+    LineColumn lineColumn( const VisualLine& visualLine, int64_t columnInView ) const;
 
     ViewportLayoutInput input_;
     VisualLines visualLines_;
