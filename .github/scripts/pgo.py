@@ -367,24 +367,25 @@ def find_tool(name: str) -> str:
 BOLT_RUNTIME = "libbolt_rt_instr.a"
 
 
-def bolt_runtime_library(bolt: str) -> Path | None:
-    """The instrumentation runtime of an llvm-bolt, in the lib directory beside
-    its real bin directory.
+def instrumenting_bolt(bolt: str) -> tuple[Path, Path | None]:
+    """The llvm-bolt to instrument with, and its instrumentation runtime if it
+    has one.
 
-    llvm-bolt looks for it beside the path it was started by, so Ubuntu's
-    /usr/bin/llvm-bolt-18, a link to /usr/lib/llvm-18/bin/llvm-bolt, looks in
-    /usr/lib and finds nothing; the library is in /usr/lib/llvm-18/lib, from
-    the libbolt-18-dev package."""
-    library = Path(bolt).resolve().parent.parent / "lib" / BOLT_RUNTIME
-    return library if library.is_file() else None
+    llvm-bolt reads the runtime from the lib directory beside the bin
+    directory of the path it was started by, and LLVM 18 takes
+    --runtime-instrumentation-lib only as a file name within it. Ubuntu's
+    /usr/bin/llvm-bolt-18 links to /usr/lib/llvm-18/bin/llvm-bolt, so started
+    by the link it looks in /usr/lib; started by the real path it finds
+    /usr/lib/llvm-18/lib/libbolt_rt_instr.a from libbolt-18-dev (#732)."""
+    real = Path(bolt).resolve()
+    library = real.parent.parent / "lib" / BOLT_RUNTIME
+    return real, library if library.is_file() else None
 
 
-def bolt_instrument_commands(bolt: str, binary_dir: Path, out_dir: Path, profile_dir: Path,
-                             runtime: Path) -> list[list[str]]:
+def bolt_instrument_commands(bolt: str, binary_dir: Path, out_dir: Path, profile_dir: Path) -> list[list[str]]:
     commands = []
     for name in BOLT_EXECUTABLES:
         commands.append([bolt, str(binary_dir / name), "-instrument",
-                         f"--runtime-instrumentation-lib={runtime}",
                          f"--instrumentation-file={profile_dir / name}.fdata",
                          "--instrumentation-file-append-pid",
                          "-o", str(out_dir / name)])
@@ -467,11 +468,10 @@ def copy_binaries(source: Path, target: Path) -> list[str]:
 
 
 def cmd_bolt_instrument(args) -> int:
-    bolt = find_tool("llvm-bolt")
-    runtime = bolt_runtime_library(bolt)
+    bolt, runtime = instrumenting_bolt(find_tool("llvm-bolt"))
     if runtime is None:
-        log(f"::error::no {BOLT_RUNTIME} beside {Path(bolt).resolve()}: llvm-bolt cannot instrument without it "
-            "(Ubuntu: libbolt-18-dev)")
+        log(f"::error::no lib/{BOLT_RUNTIME} beside the bin directory of {bolt}: llvm-bolt cannot instrument "
+            "without it (Ubuntu: libbolt-18-dev)")
         return 1
     args.profile_dir.mkdir(parents=True, exist_ok=True)
     with Timer(args.timings, "BOLT instrumentation"):
@@ -479,7 +479,7 @@ def cmd_bolt_instrument(args) -> int:
         # Absolute: the instrumented executables write it from wherever the
         # training starts them.
         profile_dir = args.profile_dir.resolve()
-        for command in bolt_instrument_commands(bolt, args.binary_dir, args.out_dir, profile_dir, runtime):
+        for command in bolt_instrument_commands(str(bolt), args.binary_dir, args.out_dir, profile_dir):
             run(command)
     return 0
 

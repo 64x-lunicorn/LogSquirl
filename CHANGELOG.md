@@ -567,7 +567,7 @@
   not instrument on Linux, as Ubuntu's `bolt-18` leaves out its
   instrumentation runtime and `llvm-bolt-18` looked for it in the wrong
   directory. The `bolt` action now installs `libbolt-18-dev`, and `pgo.py`
-  passes the runtime beside the real `llvm-bolt`. (#732)
+  instruments with the real `llvm-bolt`, beside which the runtime is. (#732)
 
 # v26.10.0 (2026-09-29)
 

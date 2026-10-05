@@ -238,20 +238,18 @@ def test_an_unknown_toolchain_is_refused(tmp_path):
 # --- BOLT ------------------------------------------------------------------
 
 def test_bolt_instruments_the_scenario_executables_one_profile_per_process():
-    commands = pgo.bolt_instrument_commands("llvm-bolt-18", Path("/in"), Path("/out"), Path("/prof"),
-                                            Path("/rt/libbolt_rt_instr.a"))
+    commands = pgo.bolt_instrument_commands("llvm-bolt-18", Path("/in"), Path("/out"), Path("/prof"))
     assert [command[1] for command in commands] == ["/in/logsquirl", "/in/logsquirl_grep"]
     first = commands[0]
     assert first[0] == "llvm-bolt-18"
     assert "-instrument" in first
-    assert "--runtime-instrumentation-lib=/rt/libbolt_rt_instr.a" in first
     assert "--instrumentation-file=/prof/logsquirl.fdata" in first
     # Several processes run during the training; each writes its own file.
     assert "--instrumentation-file-append-pid" in first
     assert first[-2:] == ["-o", "/out/logsquirl"]
 
 
-def test_the_bolt_runtime_is_found_beside_the_real_bin_directory_of_a_linked_llvm_bolt(tmp_path):
+def test_a_linked_llvm_bolt_instruments_by_its_real_path_where_its_runtime_is(tmp_path):
     # Ubuntu: /usr/bin/llvm-bolt-18 -> /usr/lib/llvm-18/bin/llvm-bolt, and
     # libbolt-18-dev's /usr/lib/llvm-18/lib/libbolt_rt_instr.a (#732).
     real = tmp_path / "usr" / "lib" / "llvm-18" / "bin" / "llvm-bolt"
@@ -260,11 +258,11 @@ def test_the_bolt_runtime_is_found_beside_the_real_bin_directory_of_a_linked_llv
     link = tmp_path / "usr" / "bin" / "llvm-bolt-18"
     link.parent.mkdir(parents=True)
     link.symlink_to(real)
-    assert pgo.bolt_runtime_library(str(link)) is None
+    assert pgo.instrumenting_bolt(str(link)) == (real.resolve(), None)
     runtime = tmp_path / "usr" / "lib" / "llvm-18" / "lib" / "libbolt_rt_instr.a"
     runtime.parent.mkdir()
     runtime.write_bytes(b"")
-    assert pgo.bolt_runtime_library(str(link)) == runtime.resolve()
+    assert pgo.instrumenting_bolt(str(link)) == (real.resolve(), runtime.resolve())
 
 
 def test_bolt_optimizes_from_the_merged_profile():
