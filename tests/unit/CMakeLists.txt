@@ -125,6 +125,9 @@ set_target_properties(logsquirl_tests PROPERTIES AUTOMOC ON)
 # dialog lists its languages from the application's resources (#108).
 target_include_directories(logsquirl_tests PRIVATE
     "$<TARGET_PROPERTY:logsquirl_ui,BINARY_DIR>/logsquirl_ui_autogen/include")
+# The Kept Searches test holds an index run back by the Index's lock, which
+# the Log Data's private headers declare (#751).
+target_include_directories(logsquirl_tests PRIVATE "${CMAKE_SOURCE_DIR}/src/logdata/src")
 qt_add_resources(logsquirl_tests "optionsdialog_languages"
     PREFIX "/"
     BASE "${CMAKE_SOURCE_DIR}/src/app"

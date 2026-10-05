@@ -480,6 +480,15 @@
   1.02 ms to 0.12 ms. Table-driven tests check the module without a widget.
   (#740, #741, #742, #743, #744, #745)
 
+- **The Kept Searches test of an interrupted first load holds the load until
+  it is interrupted**: the scenario that drops the Searches a Session saved
+  when the first load does not succeed opened a Log File and asked the load
+  to be interrupted right after, so a load that finished first made it fail
+  now and then. It now holds the Index's lock, through a test seam of the
+  Log Data, while it opens the Log File and asks for the interruption: the
+  index run cannot finish before, and the load ends interrupted every time.
+  (#751)
+
 - **The text view tests that show a view one column wide wait until its
   window is exposed**: the helper that shows such a view processed events
   once after showing it, which on macOS does not always expose the window. A

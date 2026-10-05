@@ -97,6 +97,10 @@ class LogData : public AbstractLogData {
     friend class LogDataBlockSource;
 
 public:
+    // Lets a test reach the Index it holds.
+    template <class T>
+    struct access_by;
+
     // The four Policies are everything this object knows about the
     // settings: what indexing a Log File needs, what running a Search on
     // it needs (handed on to every LogFilteredData built from it), how the
