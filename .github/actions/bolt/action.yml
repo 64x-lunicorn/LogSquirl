@@ -47,9 +47,10 @@ runs:
           --workdir /usr/local \
           -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c '
             set -euo pipefail
-            # Ubuntu 24.04 LLVM 18 build of BOLT, from the distribution.
+            # Ubuntu 24.04 LLVM 18 build of BOLT, from the distribution, and
+            # its instrumentation runtime, which bolt-18 leaves out (#732).
             apt-get update -qq
-            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends bolt-18
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends bolt-18 libbolt-18-dev
             python3 -m pip install --quiet --break-system-packages --require-hashes --only-binary :all: \
               -r .github/requirements/e2e.txt
             output="${BUILD_DIR:-$LOGSQUIRL_BUILD_ROOT}/output"

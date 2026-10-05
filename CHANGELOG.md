@@ -561,9 +561,13 @@
   so a broken one would only have failed the first release build with its
   switch on. The actions take the build directory and the training runs as
   inputs and no longer read the job's matrix; the release jobs build as
-  before. The first run found that `pgo-profile` stopped at once on macOS,
-  whose bash 3.2 takes the empty list of BOLT options for an unset variable;
-  it no longer does. (#732)
+  before. The first runs found two faults that had kept every build with
+  them from working: `pgo-profile` stopped at once on macOS, whose bash 3.2
+  takes the empty list of BOLT options for an unset variable, and BOLT could
+  not instrument on Linux, as Ubuntu's `bolt-18` leaves out its
+  instrumentation runtime and `llvm-bolt-18` looked for it in the wrong
+  directory. The `bolt` action now installs `libbolt-18-dev`, and `pgo.py`
+  passes the runtime beside the real `llvm-bolt`. (#732)
 
 # v26.10.0 (2026-09-29)
 
