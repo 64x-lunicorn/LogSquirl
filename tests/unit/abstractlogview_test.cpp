@@ -700,9 +700,9 @@ SCENARIO( "QuickFind scrolls a text view without wrapping sideways to the match 
     using namespace logviewscrolling;
 
     // The match is far right of a Viewport one column wide.
-    const FakeLogData logData{ QStringList{
-        QStringLiteral( "alpha" ),
-        QString( 60, QLatin1Char( 'x' ) ) + QStringLiteral( " found" ) } };
+    const FakeLogData logData{ QStringList{ QStringLiteral( "alpha" ),
+                                            QString( 60, QLatin1Char( 'x' ) )
+                                                + QStringLiteral( " found" ) } };
     QuickFindPattern qfp;
     qfp.changeSearchPattern( QStringLiteral( "found" ), /* useExtendedRegexp */ false );
     TestLogView view( &logData, &qfp );

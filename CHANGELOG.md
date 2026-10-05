@@ -303,11 +303,6 @@
   Value, so *Copy* copied more spaces than were selected and the length of
   the selection counted them. Only an end on a Named Value now grows, to the
   edge of that value. (#747)
-- **A selection past the end of a Log Line no longer copies the Named Value
-  at its end**: with Value Names shown, a selection wholly after the end of a
-  Log Line that ends in a Named Value took in that value, so *Copy* copied
-  its raw text and the length of the selection counted it, though nothing of
-  it was selected. It now copies nothing, as with Value Names hidden. (#746)
 - **The dashboard lists a plugin installed while it is shown**: a plugin
   installed, enabled or disabled in *Plugins* while the dashboard was open
   did not show on its Plugins card, which kept saying *No plugins installed*
@@ -456,6 +451,13 @@
   those numbers show a clear gain there. (#682)
 
 ## Internal
+
+- **A Portion past the end of a Log Line covers no Named Value**: the
+  whole-value covering cut a Portion lying wholly after the end of a Log Line
+  to its last character, so on a Log Line ending in a Named Value it took in
+  that value. No path of the view builds such a Portion today -- a drag past
+  the end of a line with Value Names shown selects the whole Log Line -- so
+  nobody saw it; the covering now gives such a Portion back as it is. (#746)
 
 - **The Text View and the Filtered View cover whole Named Values through one
   module in display columns**: `ShownColumns` takes one Log Line, a Portion
