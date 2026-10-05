@@ -112,6 +112,30 @@ TEST_CASE( "A Portion covers every Named Value it takes part of", "[showncolumns
     CHECK( covered.endColumn() == LineColumn( row.coveredEnd ) );
 }
 
+TEST_CASE( "A Portion inside a tab beside a Named Value keeps its columns",
+           "[showncolumns][valuenames]" )
+{
+    const auto namer = exampleNamer();
+
+    const auto row = GENERATE( values<Covering>( {
+        { "from inside the tab before a Named Value to text before it", EcuLine, 3, 10, 3, 10 },
+        { "from inside the tab before a Named Value into it", EcuLine, 3, 20, 3, 22 },
+        { "from a whole Named Value into the tab after it", EcuLine, 24, 29, 24, 29 },
+        { "from inside a Named Value into the tab after it", EcuLine, 26, 29, 24, 29 },
+        { "inside the tab after a Named Value", EcuLine, 29, 30, 29, 30 },
+        { "from inside the tab after a Named Value to the end", EcuLine, 30, 50, 30, 34 },
+        { "inside the tab of a Named Value's raw text", TabbedLine, 4, 5, 2, 8 },
+    } ) );
+
+    CAPTURE( row.what, row.line, row.start, row.end );
+    const ShownColumns columns{ &namer, [ & ] { return row.line; } };
+    const auto covered
+        = columns.covering( Portion{ 0_lnum, LineColumn( row.start ), LineColumn( row.end ) } );
+
+    CHECK( covered.startColumn() == LineColumn( row.coveredStart ) );
+    CHECK( covered.endColumn() == LineColumn( row.coveredEnd ) );
+}
+
 TEST_CASE( "A Portion past the end of a Log Line covers no Named Value",
            "[showncolumns][valuenames]" )
 {

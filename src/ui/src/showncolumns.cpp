@@ -74,6 +74,13 @@ Portion ShownColumns::covering( const Portion& portion ) const
         characterAtDisplayColumn( columns, static_cast<int>( portion.startColumn().get() ) ),
         last );
     const auto [ start, end ] = shown_.wholeRawRange( first, last + 1 );
-    return Portion{ portion.line(), LineColumn{ columns[ static_cast<size_t>( start ) ] },
-                    LineColumn{ columns[ static_cast<size_t>( end ) ] - 1 } };
+    // Only an end on a Named Value moves, to the edge of it: one inside a tab
+    // beside it stays where it is (#747).
+    const auto startColumn = shown_.valueAtRaw( first ) >= 0
+                                 ? LineColumn{ columns[ static_cast<size_t>( start ) ] }
+                                 : portion.startColumn();
+    const auto endColumn = shown_.valueAtRaw( last ) >= 0
+                               ? LineColumn{ columns[ static_cast<size_t>( end ) ] - 1 }
+                               : std::min( portion.endColumn(), LineColumn{ columns.back() - 1 } );
+    return Portion{ portion.line(), startColumn, endColumn };
 }

@@ -286,6 +286,12 @@
 
 ## Bug fixes
 
+- **A selection that starts or ends inside a tab keeps its width with Value
+  Names shown**: on a Log Line with a Named Value, a selection that started
+  or ended inside a tab grew to the whole tab, though it touched no Named
+  Value, so *Copy* copied more spaces than were selected and the length of
+  the selection counted them. Only an end on a Named Value now grows, to the
+  edge of that value. (#747)
 - **A selection past the end of a Log Line no longer copies the Named Value
   at its end**: with Value Names shown, a selection wholly after the end of a
   Log Line that ends in a Named Value took in that value, so *Copy* copied
