@@ -232,19 +232,16 @@ foreach(
   target_compile_definitions(${_target} PRIVATE LOGSQUIRL_BENCHMARK_LIMITS_TBB)
 endforeach()
 
-# The benchmarks that show a widget wait until its window is exposed, before
-# their measured code, with showUntilExposed() from tests/helpers/shown_widget.h
-# (#757), which takes Qt Test. A new benchmark that shows a widget belongs here.
-foreach(
-  _target IN
-  ITEMS logsquirl_overview_selection_benchmark
-        logsquirl_tableview_paint_benchmark
-        logsquirl_tableview_scroll_benchmark
-        logsquirl_textview_ansi_benchmark
-        logsquirl_textview_scroll_benchmark
-        logsquirl_textview_valuenames_benchmark
-)
-  target_link_libraries(${_target} Qt6::Test)
+# A benchmark that shows a widget waits until its window is exposed, before
+# its measured code, with showUntilExposed() from tests/helpers/shown_widget.h
+# (#757), which takes Qt Test. Every benchmark binary that links test_utils,
+# and with it that header, links Qt Test too, so a new one needs nothing here.
+get_directory_property(_logsquirl_benchmark_targets BUILDSYSTEM_TARGETS)
+foreach(_target IN LISTS _logsquirl_benchmark_targets)
+  get_target_property(_links ${_target} LINK_LIBRARIES)
+  if(test_utils IN_LIST _links)
+    target_link_libraries(${_target} Qt6::Test)
+  endif()
 endforeach()
 
 # The heap counts of the fixed-work mode (#673; heap_count.c): every benchmark

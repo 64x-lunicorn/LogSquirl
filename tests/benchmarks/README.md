@@ -191,8 +191,11 @@ as described above.
 
 A benchmark that shows a widget waits until it is exposed, with
 `showUntilExposed()` from `tests/helpers/shown_widget.h` (#757), before its
-measured code. On a commit from before #754, which lacks that header, copy it
-too: `cp tests/helpers/shown_widget.h ../logsquirl-before/tests/helpers/`.
+measured code. Every benchmark binary that links `test_utils` links Qt Test
+for it. On a commit from before #754, which lacks that header, copy it too:
+`cp tests/helpers/shown_widget.h ../logsquirl-before/tests/helpers/`, and link
+Qt Test into the benchmark there: add `Qt6::Test` to its
+`target_link_libraries` in `tests/benchmarks/CMakeLists.txt`.
 This holds for every benchmark below that is said to build unchanged on an
 older commit and shows a widget.
 
