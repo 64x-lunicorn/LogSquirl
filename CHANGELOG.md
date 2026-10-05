@@ -286,6 +286,12 @@
 
 ## Bug fixes
 
+- **A click, a drag and scrolling to a Selection inside a tab keep their
+  place in the tab with Value Names shown**: with Value Names shown, on a
+  Log Line with a Named Value, a click or drag inside a tab put the end of
+  the selection at the start of the tab, and scrolling to a Selection that
+  ended inside a tab scrolled to the end of the tab. Both now keep their
+  place in the tab, as with Value Names hidden. (#742, #743)
 - **QuickFind scrolls sideways to the match it finds the first time**: in a
   view without text wrap, a match beyond the right edge of a long Log Line
   was selected but stayed out of view until it was found a second time; the
@@ -459,45 +465,19 @@
   the end of a line with Value Names shown selects the whole Log Line -- so
   nobody saw it; the covering now gives such a Portion back as it is. (#746)
 
-- **The Text View and the Filtered View cover whole Named Values through one
-  module in display columns**: `ShownColumns` takes one Log Line, a Portion
-  in the display columns of its raw text, and gives the Portion grown to
-  cover every Named Value it takes part of, with tabs before, inside and
-  after a Named Value. The view builds it in one place, which checks whether
-  Value Names are shown; without them it is the identity and reads no Log
-  Line. The Selection, *Copy* and the length of the Selection take their
-  whole raw values through it, and *Copy as Shown* of a Selection within one
-  Log Line is one call of it, which reads and names the Log Line once. A
-  double-click finds the Named Value it selects whole through it, and
-  scrolling to the Selection takes the column its end is shown at from it.
-  Scrolling to a Selection that ends inside a tab now keeps the end's place
-  in the tab, as without Value Names, instead of going to the end of the tab.
-  A click or drag takes the raw column under the mouse from it, and the
-  tooltip of a Named Value finds its value through it, from the same step
-  from pixel to column as a click, instead of repeating the wrapping and
-  horizontal scroll arithmetic. A click or drag inside a tab on a Log Line
-  with a Named Value now keeps its place in the tab, as without Value Names,
-  instead of going to the start of the tab.
-  No interaction path of the view converts columns between raw and shown
-  text, or asks whether Value Names are shown, outside it any more: the
-  tooltip no longer checks that itself, and the column lookup it alone used
-  is internal to the module. The test that hidden Value Names, or Naming
-  Rules all unchecked, cost a view nothing now also drives a click and a
-  drag, *Copy*, *Copy as Shown*, a double-click, scrolling to the Selection
-  and the tooltip, and finds they give what they give and read what they
-  read in a view without any Naming Group.
-  For a Log Line on screen the module takes the Log Line as shown from the
-  Viewport, which read and named it already, instead of reading and naming
-  it again on every mouse move of a drag, click, double-click, tooltip, Copy
-  or scroll to the Selection; one off screen, or after the Log File, the
-  Displayed Lines or the Value Names changed and before the Viewport is
-  built again, is read and named as before. A new benchmark,
-  `logsquirl_textview_valuenames_benchmark`, measures it on Log Lines with
-  22 Naming Rules: 200 mouse moves of a drag went from 4.5 ms to 0.65 ms,
-  20 double-clicks on a Named Value from 1.02 ms to 0.12 ms (Apple M5,
-  RelWithDebInfo). Painted after each move, a drag costs as before: the
-  paint outweighs both.
-  Table-driven tests check it without a widget. `ShownLine` stays as it is.
+- **The Text View and the Filtered View convert columns for Value Names in
+  one module**: `ShownColumns` takes a Log Line and gives, in display
+  columns with tabs before, inside and after a Named Value, a Portion grown
+  to whole Named Values, its text shown, the Named Value at a column, and
+  the columns between raw and shown text. Click and drag, *Copy*, *Copy as
+  Shown*, double-click, scrolling to the Selection and the Named Value
+  tooltip all go through it, and the view builds it in one place, the only
+  one that decides whether a Log Line is read and named: with Value Names
+  hidden it is the identity and reads no Log Line. A Log Line on screen is
+  taken as shown from the Viewport instead of read and named again on every
+  event: in the new `logsquirl_textview_valuenames_benchmark`, 200 mouse
+  moves of a drag went from 4.52 ms to 0.66 ms and 20 double-clicks from
+  1.02 ms to 0.12 ms. Table-driven tests check the module without a widget.
   (#740, #741, #742, #743, #744, #745)
 
 - **The text view tests that show a view one column wide wait until its

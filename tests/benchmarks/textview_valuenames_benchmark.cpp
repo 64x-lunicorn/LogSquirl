@@ -166,10 +166,10 @@ void doubleClick( AbstractLogView& view, QPointF pos )
     sendMouse( view, QEvent::MouseButtonRelease, pos, Qt::LeftButton, Qt::NoButton );
 }
 
-// The middle of the row of the Viewport, from the height of a row.
-qreal rowY( int row, int rowHeight )
+// The middle of a Visual Line of the Viewport, from the height of one.
+qreal visualLineY( int visualLine, int visualLineHeight )
 {
-    return row * rowHeight + rowHeight / 2.0;
+    return visualLine * visualLineHeight + visualLineHeight / 2.0;
 }
 
 } // namespace
@@ -190,28 +190,28 @@ TEST_CASE( "text view Value Names interaction benchmarks", "[textview-valuenames
     REQUIRE( view.showsValueNames() );
     view.viewport()->repaint();
 
-    const int rowHeight = std::max( view.fontMetrics().height(), 1 );
-    // The first point, from the left, where a double-click on the first row
-    // selects Beispiel(0x15): the Log Lines are laid out alike, so it is on
-    // that Named Value on every row.
+    const int visualLineHeight = std::max( view.fontMetrics().height(), 1 );
+    // The first point, from the left, where a double-click on the first
+    // Visual Line selects Beispiel(0x15): the Log Lines are laid out alike,
+    // each one Visual Line, so it is on that Named Value on every Visual Line.
     std::optional<qreal> onNamedValue;
     for ( int x = 0; x < view.viewport()->width() && !onNamedValue.has_value(); ++x ) {
-        doubleClick( view, QPointF( x, rowY( 0, rowHeight ) ) );
+        doubleClick( view, QPointF( x, visualLineY( 0, visualLineHeight ) ) );
         if ( view.getSelectedTextAsShown() == QStringLiteral( "Beispiel(0x15)" ) ) {
             onNamedValue = x + 2;
         }
     }
     REQUIRE( onNamedValue.has_value() );
-    const int rows = view.viewport()->height() / rowHeight;
-    REQUIRE( rows >= 20 );
-    doubleClick( view, QPointF( *onNamedValue, rowY( 19, rowHeight ) ) );
+    const int visualLines = view.viewport()->height() / visualLineHeight;
+    REQUIRE( visualLines >= 20 );
+    doubleClick( view, QPointF( *onNamedValue, visualLineY( 19, visualLineHeight ) ) );
     REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 19_lnum } );
     REQUIRE( view.getSelectedTextAsShown() == QStringLiteral( "Beispiel(0x15)" ) );
 
     // From the start of the text to past the last Named Value, a few pixels
     // per move, the way a mouse moves.
-    const auto dragAlong = [ & ]( int row, int moves, bool paint ) {
-        const auto y = rowY( row, rowHeight );
+    const auto dragAlong = [ & ]( int visualLine, int moves, bool paint ) {
+        const auto y = visualLineY( visualLine, visualLineHeight );
         sendMouse( view, QEvent::MouseButtonPress, QPointF( 40, y ), Qt::LeftButton,
                    Qt::LeftButton );
         for ( int move = 1; move <= moves; ++move ) {
@@ -243,8 +243,9 @@ TEST_CASE( "text view Value Names interaction benchmarks", "[textview-valuenames
 
     BENCHMARK( "double-click: a Named Value on each of 20 Log Lines" )
     {
-        for ( int row = 0; row < 20; ++row ) {
-            doubleClick( view, QPointF( *onNamedValue, rowY( row, rowHeight ) ) );
+        for ( int visualLine = 0; visualLine < 20; ++visualLine ) {
+            doubleClick( view,
+                         QPointF( *onNamedValue, visualLineY( visualLine, visualLineHeight ) ) );
         }
         return view.getSelectedText().size();
     };

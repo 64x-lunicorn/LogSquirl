@@ -805,9 +805,10 @@ Rules, and the mouse goes through the view's own events:
 - **double-click, 20 Log Lines**: a double-click on a Named Value of each of
   20 Log Lines on screen.
 
-Before measuring it finds the point on the first row where a double-click
-selects `Beispiel(0x15)`, and fails if there is none. It uses only what the
-text view offered at #744, so it builds unchanged on such a commit:
+Before measuring it finds the point on the first Visual Line where a
+double-click selects `Beispiel(0x15)`, and fails if there is none. It uses
+only what the text view offered at #744, so it builds unchanged on such a
+commit:
 
 ```cmake
 add_executable(logsquirl_textview_valuenames_benchmark textview_valuenames_benchmark.cpp)
