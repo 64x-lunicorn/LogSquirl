@@ -44,6 +44,7 @@
 #include <QMouseEvent>
 #include <QScrollBar>
 #include <QSignalSpy>
+#include <QTest>
 #include <QWheelEvent>
 
 #include "abstractlogview.h"
@@ -64,7 +65,7 @@ inline void showOneColumnWide( AbstractLogView& view )
     view.setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
     view.resize( ViewportLayout::BulletAreaWidth + 2 * ViewportLayout::SeparatorWidth + 7, 200 );
     view.show();
-    QCoreApplication::processEvents();
+    REQUIRE( QTest::qWaitForWindowExposed( &view ) );
 
     // What the application hands a view it builds, so that scrolling here
     // behaves as it does there. A view reads no setting of its own.

@@ -479,6 +479,15 @@
   Table-driven tests check it without a widget. `ShownLine` stays as it is.
   (#740, #741, #742, #743)
 
+- **The text view tests that show a view one column wide wait until its
+  window is exposed**: the helper that shows such a view processed events
+  once after showing it, which on macOS does not always expose the window. A
+  view not exposed yet paints nothing on `repaint()`, so the scenario that
+  counts the Log Lines a change and the paint after it read with and without
+  an overview counted no paint for one of the two views now and then. The
+  helper now waits with `QTest::qWaitForWindowExposed()`, as other tests do.
+  (#750)
+
 - **The Open Log File's test runner joins oneTBB's workers before it exits,
   as the other runners do**: the mimalloc assertion that once stopped a
   logdata test process at exit in a Debug build most likely came from a
