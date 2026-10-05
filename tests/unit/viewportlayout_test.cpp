@@ -344,7 +344,7 @@ SCENARIO( "Viewport layout finds the character under a point", "[viewportlayout]
 
         THEN( "a point on the text is where a click lands" )
         {
-            for ( const auto [ xPos, yPos ] :
+            for ( const auto& [ xPos, yPos ] :
                   { std::pair{ x, 0 }, std::pair{ x + 5, 0 }, std::pair{ x + 10, 19 },
                     std::pair{ x + 11, 20 }, std::pair{ x + 395, 59 } } ) {
                 CAPTURE( xPos, yPos );
