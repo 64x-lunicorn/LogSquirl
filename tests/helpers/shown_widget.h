@@ -20,14 +20,8 @@
 #ifndef SHOWN_WIDGET_H
 #define SHOWN_WIDGET_H
 
-// Showing a widget in a test (#754). A widget that is shown is not painted and
-// laid out for its window until that window is exposed, which happens later
-// and on some platforms only after a round trip to the window system. A test
-// that measures the painting or the geometry right after show() then reads
-// what Qt has deferred, and fails now and then (#750). So a test shows its
-// widget with showUntilExposed(), and the CI check
-// .github/scripts/check-shown-widget-wait.py rejects a show() that no wait
-// for exposure follows.
+// Showing a widget in a test (#754): a test waits until a widget it shows is
+// exposed; .github/scripts/check-shown-widget-wait.py holds the full rule.
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -35,14 +29,13 @@
 #include <QWidget>
 
 // Shows widget and waits until its window is exposed; fails the test if that
-// does not happen within timeoutMs. A child widget waits for its window, which
-// must be shown already.
-inline void showUntilExposed( QWidget& widget, int timeoutMs = 5000 )
+// does not happen within Qt Test's five seconds. A child widget waits for its
+// window, which must be shown already.
+inline void showUntilExposed( QWidget& widget )
 {
-    INFO( "the window of the shown " << widget.metaObject()->className() << " is not exposed after "
-                                     << timeoutMs << " ms" );
+    INFO( "the window of the shown " << widget.metaObject()->className() << " is not exposed" );
     widget.show();
-    REQUIRE( QTest::qWaitForWindowExposed( &widget, timeoutMs ) );
+    REQUIRE( QTest::qWaitForWindowExposed( &widget ) );
 }
 
 #endif // SHOWN_WIDGET_H

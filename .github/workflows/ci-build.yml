@@ -151,8 +151,8 @@ jobs:
           done < <(git ls-files -- '*.cpp' '*.h' '*.hpp' | grep -vE '^(3rdparty/|cpm_cache/|website/)')
           exit $exit_code
 
-      # A test that shows a widget waits until it is exposed before it measures
-      # anything (#750, #754), every test without exception (#758).
+      # A test waits until a widget it shows is exposed (#754); the script's
+      # docstring holds the rule.
       - name: Check shown test widgets wait until exposed
         run: .github/scripts/check-shown-widget-wait.py
 
