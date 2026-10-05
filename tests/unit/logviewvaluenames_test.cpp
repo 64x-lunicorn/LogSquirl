@@ -306,6 +306,20 @@ SCENARIO( "A text view showing Value Names selects and copies whole values", "[l
         }
     }
 
+    WHEN( "a portion from inside a tab to inside the tab after a Named Value is selected" )
+    {
+        // "a<tab>id=7<tab>b": from inside the first tab to inside the second,
+        // which is four columns wide in the raw text and five in the text
+        // shown "a<tab>id=seven(7)<tab>b".
+        Access::quickFindFound( view, Portion{ 1_lnum, LineColumn{ 3 }, LineColumn{ 13 } } );
+
+        THEN( "Copy as Shown holds the part of each tab selected (#748)" )
+        {
+            REQUIRE( view.getSelectedText() == QStringLiteral( "     id=7  " ) );
+            REQUIRE( view.getSelectedTextAsShown() == QStringLiteral( "     id=seven(7)  " ) );
+        }
+    }
+
     WHEN( "a whole Log Line is selected" )
     {
         drag( view, onText( 0, 3 ), onText( 1, 3 ) );

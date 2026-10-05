@@ -108,21 +108,43 @@ QString ShownColumns::textShown( const Portion& portion ) const
             .mid( portion.startColumn().get(), portion.size().get() );
     }
 
-    // The covered Portion is moved to the characters of the raw Log Line, to
-    // those of the text shown, and to the display columns of the text shown.
     const auto covered = covering( portion );
     const auto& rawColumns = rawDisplayColumns();
-    const auto rawLength = static_cast<qsizetype>( rawColumns.size() ) - 1;
-    const auto rawEnd = std::min(
-        characterAtDisplayColumn( rawColumns, static_cast<int>( covered.endColumn().get() ) ) + 1,
-        rawLength );
-    const auto rawStart = std::min(
-        characterAtDisplayColumn( rawColumns, static_cast<int>( covered.startColumn().get() ) ),
-        rawEnd );
+    // A Portion wholly past the end of the Log Line holds nothing of it.
+    if ( covered.startColumn().get() >= rawColumns.back() ) {
+        return {};
+    }
+    const auto startColumn = static_cast<int>( covered.startColumn().get() );
+    const auto endColumn = std::min( static_cast<int>( covered.endColumn().get() ),
+                                     rawColumns.back() - 1 );
     const auto& shownColumns = shownDisplayColumns();
-    const auto start = shownColumns[ static_cast<size_t>(
-        shown_.toShown( rawStart, logsquirl::valuenames::Snap::ToStart ) ) ];
-    const auto end = shownColumns[ static_cast<size_t>(
-        shown_.toShown( rawEnd, logsquirl::valuenames::Snap::ToEnd ) ) ];
+
+    // Each end is moved to its character of the raw Log Line and to that of
+    // the text shown. An end on a Named Value lies on its edge, after
+    // covering(); one outside every Named Value keeps its place inside its
+    // character -- a tab -- cut to the width that character has in the text
+    // shown, where a tab after a Named Value is narrower or wider (#748).
+    const auto first = characterAtDisplayColumn( rawColumns, startColumn );
+    const auto shownFirst = shown_.toShown( first, logsquirl::valuenames::Snap::ToStart );
+    auto start = shownColumns[ static_cast<size_t>( shownFirst ) ];
+    if ( shown_.valueAtRaw( first ) < 0 ) {
+        const auto width = shownColumns[ static_cast<size_t>( shownFirst ) + 1 ] - start;
+        start += std::clamp( startColumn - rawColumns[ static_cast<size_t>( first ) ], 0,
+                            std::max( width - 1, 0 ) );
+    }
+
+    const auto last = characterAtDisplayColumn( rawColumns, endColumn );
+    qsizetype end = 0;
+    if ( shown_.valueAtRaw( last ) < 0 ) {
+        const auto shownLast = shown_.toShown( last, logsquirl::valuenames::Snap::ToStart );
+        const auto lastStart = shownColumns[ static_cast<size_t>( shownLast ) ];
+        const auto width = shownColumns[ static_cast<size_t>( shownLast ) + 1 ] - lastStart;
+        end = lastStart
+              + std::min( endColumn - rawColumns[ static_cast<size_t>( last ) ] + 1, width );
+    }
+    else {
+        end = shownColumns[ static_cast<size_t>(
+            shown_.toShown( last + 1, logsquirl::valuenames::Snap::ToEnd ) ) ];
+    }
     return untabify( QString{ shown_.text() } ).mid( start, end - start );
 }

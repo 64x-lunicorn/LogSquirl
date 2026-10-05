@@ -69,8 +69,10 @@ public:
 
     // The text shown for the Portion once it covers every Named Value it
     // takes part of, with its tabs expanded as the text shown expands them:
-    // what Copy as Shown copies. An end of the Portion inside a tab takes the
-    // whole tab. A Portion past the end of the Log Line is cut at its end.
+    // what Copy as Shown copies. An end of the Portion inside a tab outside
+    // every Named Value keeps its place in the tab, cut to the width the tab
+    // has in the text shown; on a Log Line without Named Values it is the text
+    // Copy gives. A Portion past the end of the Log Line is cut at its end.
     //
     // The identity gives the raw text of the Portion with its tabs expanded,
     // as Copy gives it, reading the Log Line once; the default one, which

@@ -296,21 +296,61 @@ TEST_CASE( "Copy as Shown of a Portion is the text shown for it", "[showncolumns
            == row.text );
 }
 
-TEST_CASE( "Copy as Shown of a Portion on a Log Line without Named Values is its text",
+// An end outside every Named Value keeps its place inside its tab: the same
+// offset from the start of the tab in the text shown, cut to the width the
+// tab has there (#748).
+TEST_CASE( "Copy as Shown of a Portion inside a tab copies the part of it selected",
            "[showncolumns][valuenames]" )
 {
     const auto namer = exampleNamer();
-    const ShownColumns columns{ &namer, [] { return QStringLiteral( "\tnothing named\there" ); } };
+
+    const auto row = GENERATE( values<TextShown>( {
+        { "from inside the tab before a Named Value to text before it", EcuLine, 3, 10,
+          QStringLiteral( "     BAP" ) },
+        { "from inside the tab before a Named Value into it", EcuLine, 3, 20,
+          QStringLiteral( "     BAP << ECU Beispiel(0x15)" ) },
+        { "inside the tab before a Named Value", EcuLine, 2, 4, QStringLiteral( "   " ) },
+        { "from a Named Value to inside the narrower tab after it", EcuLine, 24, 28,
+          QStringLiteral( "Sample(0x14) " ) },
+        { "from inside a Named Value to inside the narrower tab after it", EcuLine, 26, 29,
+          QStringLiteral( "Sample(0x14)  " ) },
+        { "on the first column of the narrower tab after a Named Value", EcuLine, 28, 28,
+          QStringLiteral( " " ) },
+        { "past the width the tab after a Named Value is shown with", EcuLine, 30, 31,
+          QStringLiteral( " " ) },
+        { "from inside the narrower tab after a Named Value to the end", EcuLine, 29, 50,
+          QStringLiteral( " end" ) },
+    } ) );
+
+    CAPTURE( row.what, row.line, row.start, row.end );
+    const ShownColumns columns{ &namer, [ & ] { return row.line; } };
+
+    CHECK( columns.textShown( Portion{ 3_lnum, LineColumn( row.start ), LineColumn( row.end ) } )
+           == row.text );
+}
+
+TEST_CASE( "Copy as Shown of a Portion on a Log Line without Named Values is what Copy gives",
+           "[showncolumns][valuenames]" )
+{
+    const auto namer = exampleNamer();
+    const auto line = QStringLiteral( "\tnothing named\there" );
+    const ShownColumns columns{ &namer, [ & ] { return line; } };
+    const ShownColumns identity{ nullptr, [ & ] { return line; } };
 
     const auto row = GENERATE( values<TextShown>( {
         { "the tab", {}, 0, 7, QStringLiteral( "        " ) },
         { "a word", {}, 8, 14, QStringLiteral( "nothing" ) },
+        { "from inside the first tab", {}, 3, 10, QStringLiteral( "     not" ) },
+        { "inside the first tab", {}, 2, 4, QStringLiteral( "   " ) },
+        { "into the second tab", {}, 18, 22, QStringLiteral( "med  " ) },
+        { "from inside the second tab past the end", {}, 22, 40, QStringLiteral( "  here" ) },
         { "past the end", {}, 30, 40, QString{} },
     } ) );
 
-    CAPTURE( row.what );
-    CHECK( columns.textShown( Portion{ 1_lnum, LineColumn( row.start ), LineColumn( row.end ) } )
-           == row.text );
+    CAPTURE( row.what, row.start, row.end );
+    const Portion portion{ 1_lnum, LineColumn( row.start ), LineColumn( row.end ) };
+    CHECK( columns.textShown( portion ) == row.text );
+    CHECK( columns.textShown( portion ) == identity.textShown( portion ) );
 }
 
 TEST_CASE( "Without a namer Copy as Shown of a Portion is its raw text, as Copy gives it",

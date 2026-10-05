@@ -286,6 +286,13 @@
 
 ## Bug fixes
 
+- ***Copy as Shown* of a selection inside a tab copies only the columns
+  selected**: with Value Names shown, *Copy as Shown* of a selection within
+  one Log Line that started or ended inside a tab copied the whole tab, even
+  on a Log Line without any Named Value, so it held more spaces than *Copy*
+  with Value Names hidden. An end outside every Named Value now keeps its
+  place inside its tab, cut to the width the tab has in the text shown; an
+  end inside a Named Value still takes the whole value as shown. (#748)
 - **A selection that starts or ends inside a tab keeps its width with Value
   Names shown**: on a Log Line with a Named Value, a selection that started
   or ended inside a tab grew to the whole tab, though it touched no Named
