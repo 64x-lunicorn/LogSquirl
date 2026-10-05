@@ -369,7 +369,7 @@ def test_times_needs_a_timings_file():
 REPO = Path(__file__).parents[2]
 RELEASE_ACTIONS = [REPO / ".github" / "actions" / name / "action.yml" for name in ("pgo-profile", "bolt")]
 # What the actions' shell expands, as the release jobs set it.
-EXPANSIONS = {'"${bolt[@]}"': "--bolt", '"$TOOLCHAIN"': "gcc", '"$TRAINING_RUNS"': "1"}
+EXPANSIONS = {'${bolt[@]+"${bolt[@]}"}': "--bolt", '"$TOOLCHAIN"': "gcc", '"$TRAINING_RUNS"': "1"}
 PGO_CALL = re.compile(
     r'(?:^|\s)(?:pgo|"\$python"\s+\.github/scripts/pgo\.py\s+--timings\s+\S+)\s+'
     r"(build|train|merge|bolt-instrument|bolt-optimize|collect|measure|times)\b([^\n]*)",

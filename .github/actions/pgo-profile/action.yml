@@ -91,7 +91,7 @@ runs:
             bolt=()
             [ "$BOLT" != true ] || bolt=(--bolt)
             pgo() { python3 .github/scripts/pgo.py --timings pgo-run/timings.json "$@"; }
-            pgo build --build-dir "$build" --mode GENERATE "${bolt[@]}" \
+            pgo build --build-dir "$build" --mode GENERATE ${bolt[@]+"${bolt[@]}"} \
               --targets logsquirl logsquirl_grep crashpad_handler \
               --cmake-args "$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache"
             pgo train --binary-dir "$build/output" --runs "$TRAINING_RUNS"
@@ -122,8 +122,9 @@ runs:
         build=${BUILD_DIR:-$LOGSQUIRL_BUILD_ROOT}
         bolt=()
         [ "$BOLT" != true ] || bolt=(--bolt)
+        # macOS's bash 3.2 takes an empty "${bolt[@]}" for unbound under set -u.
         pgo() { python .github/scripts/pgo.py --timings pgo-run/timings.json "$@"; }
-        pgo build --build-dir "$build" --mode GENERATE "${bolt[@]}" \
+        pgo build --build-dir "$build" --mode GENERATE ${bolt[@]+"${bolt[@]}"} \
           --targets logsquirl logsquirl_grep crashpad_handler \
           --cmake-args "$LOGSQUIRL_CMAKE_OPTS $launcher -DCPM_SOURCE_CACHE=$workspace/cpm_cache"
         pgo train --binary-dir "$build/output" --profile-dir "$build/pgo-profile" --runs "$TRAINING_RUNS"

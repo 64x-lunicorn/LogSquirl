@@ -561,7 +561,9 @@
   so a broken one would only have failed the first release build with its
   switch on. The actions take the build directory and the training runs as
   inputs and no longer read the job's matrix; the release jobs build as
-  before. (#732)
+  before. The first run found that `pgo-profile` stopped at once on macOS,
+  whose bash 3.2 takes the empty list of BOLT options for an unset variable;
+  it no longer does. (#732)
 
 # v26.10.0 (2026-09-29)
 
