@@ -1,6 +1,5 @@
-"""Tests for check-shown-widget-wait.py (#754): which show() of a test waits
-until its widget is exposed, in every test file without exception. No build,
-no Qt."""
+"""Tests for check-shown-widget-wait.py (#754), whose docstring holds the rule.
+No build, no Qt."""
 
 from __future__ import annotations
 
@@ -80,6 +79,144 @@ def test_a_wait_inside_a_comment_does_not_count():
     assert sw.unwaited_shows(source) == [1]
 
 
+# -- what counts as a wait ----------------------------------------------------
+
+def test_a_wait_inside_a_lambda_that_is_never_called_does_not_count():
+    source = """\
+    window->show();
+    const auto exposed = [ & ] { return QTest::qWaitForWindowExposed( window.get() ); };
+"""
+    assert sw.unwaited_shows(source) == [1]
+
+
+def test_a_wait_that_never_runs_does_not_count():
+    source = """\
+    view.show();
+    if ( false ) REQUIRE( QTest::qWaitForWindowExposed( &view ) );
+"""
+    assert sw.unwaited_shows(source) == [1]
+
+
+def test_a_wait_whose_result_is_dropped_does_not_count():
+    source = """\
+    view.show();
+    QTest::qWaitForWindowExposed( &view );
+"""
+    assert sw.unwaited_shows(source) == [1]
+
+
+def test_a_wait_for_another_widget_does_not_count():
+    source = """\
+    view.show();
+    REQUIRE( QTest::qWaitForWindowExposed( &other ) );
+"""
+    assert sw.unwaited_shows(source) == [1]
+
+
+def test_a_wait_assigned_to_a_variable_that_is_never_checked_does_not_count():
+    source = """\
+    view.show();
+    const bool exposed = QTest::qWaitForWindowExposed( &view );
+    view.repaint();
+"""
+    assert sw.unwaited_shows(source) == [1]
+
+
+def test_a_wait_checked_with_check_passes():
+    source = """\
+    view.show();
+    CHECK( QTest::qWaitForWindowFocused( &view, 2000 ) );
+"""
+    assert sw.unwaited_shows(source) == []
+
+
+def test_a_wait_assigned_to_a_variable_checked_later_passes():
+    # As in a callback that cannot REQUIRE itself.
+    source = """\
+    bool openedExposed = false;
+    connect( this, &Opener::opened, [ & ] {
+        opened->show();
+        openedExposed = QTest::qWaitForWindowExposed( opened.get() );
+    } );
+    open();
+    REQUIRE( openedExposed );
+"""
+    assert sw.unwaited_shows(source) == []
+
+
+def test_a_wait_spread_over_lines_passes():
+    source = """\
+    mainWindow->show();
+    REQUIRE( QTest::qWaitForWindowActive( mainWindow.get(),
+                                          5000 ) );
+"""
+    assert sw.unwaited_shows(source) == []
+
+
+def test_the_shown_object_and_the_waited_one_are_compared_however_they_are_spelled():
+    source = """\
+    view.show();
+    REQUIRE( QTest::qWaitForWindowExposed( &view ) );
+    window->show();
+    REQUIRE( QTest::qWaitForWindowExposed( window.get() ) );
+    raw->show();
+    REQUIRE( QTest::qWaitForWindowExposed( raw ) );
+    owned->show();
+    showUntilExposed( *owned );
+    show();
+    REQUIRE( QTest::qWaitForWindowExposed( this ) );
+"""
+    assert sw.unwaited_shows(source) == []
+
+
+def test_show_until_exposed_of_another_widget_does_not_count():
+    source = """\
+    view.show();
+    showUntilExposed( other );
+"""
+    assert sw.unwaited_shows(source) == [1]
+
+
+# -- a deferred wait ------------------------------------------------------------
+
+def test_a_show_marked_deferred_passes_when_a_checked_wait_on_it_follows_later():
+    source = """\
+    window->show(); // shown-widget-wait: deferred, the file is opened before the window is exposed
+    window->loadInitialFile( path, false );
+    REQUIRE( QTest::qWaitForWindowExposed( window.get() ) );
+"""
+    assert sw.unwaited_shows(source) == []
+
+
+def test_a_show_marked_deferred_fails_when_no_checked_wait_on_it_follows():
+    source = """\
+    REQUIRE( QTest::qWaitForWindowExposed( window.get() ) );
+    window->show(); // shown-widget-wait: deferred, the file is opened before the window is exposed
+    window->loadInitialFile( path, false );
+    REQUIRE( QTest::qWaitForWindowExposed( other.get() ) );
+    QTest::qWaitForWindowExposed( window.get() );
+"""
+    assert sw.unwaited_shows(source) == [2]
+
+
+def test_a_deferred_marker_without_a_reason_does_not_count():
+    source = """\
+    window->show(); // shown-widget-wait: deferred,
+    window->loadInitialFile( path, false );
+    REQUIRE( QTest::qWaitForWindowExposed( window.get() ) );
+"""
+    assert sw.unwaited_shows(source) == [1]
+
+
+def test_a_deferred_marker_inside_a_string_does_not_count():
+    source = """\
+    window->show(); log( "// shown-widget-wait: deferred, because" );
+    window->loadInitialFile( path, false );
+    REQUIRE( QTest::qWaitForWindowExposed( window.get() ) );
+"""
+    assert sw.unwaited_shows(source) == [1]
+
+
 # -- the tests of a tree ------------------------------------------------------
 
 UNWAITED = "    view.show();\n    view.repaint();\n"
@@ -124,12 +261,6 @@ def test_the_check_fails_on_a_test_that_does_not_wait_and_passes_once_it_waits(t
     (root / "tests/ui/old_test.cpp").write_text(WAITED, encoding="utf-8")
     assert sw.main(["--root", str(root)]) == 0
     assert capsys.readouterr().out == "Every show() under tests/ waits until its widget is exposed.\n"
-
-
-def test_a_file_named_like_the_old_allowlist_exempts_nothing(tmp_path):
-    root = tree(tmp_path, {"tests/ui/old_test.cpp": UNWAITED,
-                           ".github/scripts/check-shown-widget-wait.allowlist": "tests/ui/old_test.cpp\n"})
-    assert sw.main(["--root", str(root)]) == 1
 
 
 def test_an_unclosed_quote_keeps_the_line_numbers():

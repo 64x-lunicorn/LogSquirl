@@ -3,12 +3,29 @@
 
 A test that shows a widget and right away measures its painting or its
 geometry depends on the window already being exposed; if it is not, Qt defers
-the paint and the test fails now and then (#750). So every `show()` under
-tests/ is followed by a wait for exposure: the next statement calls
-QTest::qWaitForWindowExposed, QTest::qWaitForWindowActive or
-QTest::qWaitForWindowFocused (an activateWindow() or raise() may come in
-between). The helper showUntilExposed() in tests/helpers/shown_widget.h does
-both in one call. Every test file is held to this, without exception (#758).
+the paint and the test fails now and then (#750). This is the one full
+statement of the rule; the helper, BUILD.md and CI point here.
+
+Every `show()` in a .cpp, .h or .hpp under tests/ (`x.show()`, `x->show()` or a
+bare `show()` on this; not showPopup(), setVisible() or showMaximized()) is
+followed by a wait until that same widget is exposed. Comments and string
+literals are not code. The next statement, past any activateWindow() or
+raise(), is one of:
+
+- showUntilExposed( x ) from tests/helpers/shown_widget.h, which shows and
+  waits in one call and is what a test normally uses instead of show();
+- REQUIRE( ... ) or CHECK( ... ) of a call to QTest::qWaitForWindowExposed,
+  qWaitForWindowActive or qWaitForWindowFocused on x;
+- such a call assigned to a variable, as in a callback that cannot REQUIRE,
+  that a later REQUIRE( variable ) or CHECK( variable ) in the file checks.
+
+A wait whose result is dropped, one inside a lambda or an if, and one on
+another widget do not count. x, &x, *x, x.get() and x-> name the same widget.
+
+A test that must act between show() and the wait marks the show() line with a
+comment `// shown-widget-wait: deferred, <reason>`; it then passes if a checked
+wait on the same widget, of a form above, follows anywhere later in the file.
+Every test file is held to this, without an allowlist (#758).
 """
 
 from __future__ import annotations
@@ -22,11 +39,17 @@ TESTS = "tests"
 SUFFIXES = {".cpp", ".h", ".hpp"}
 HELPER = "tests/helpers/shown_widget.h"
 
-SHOW = re.compile(r"(?<![\w])show\s*\(\s*\)\s*;?")
-WAIT = re.compile(r"\b(?:qWaitForWindowExposed|qWaitForWindowActive|qWaitForWindowFocused)\s*\(")
+SHOW = re.compile(r"(?<![\w])show\s*\(\s*\)")
+# The object a show() is called on: what precedes its "." or "->".
+RECEIVER = re.compile(r"([\w:()\[\]*&]+(?:\s*(?:\.|->)\s*[\w:()\[\]]+)*)\s*(?:\.|->)\s*$")
+WAIT_CALL = r"(?:QTest::)?(?:qWaitForWindowExposed|qWaitForWindowActive|qWaitForWindowFocused)\s*\((.*)\)"
+CHECKED_WAIT = re.compile(r"(?:REQUIRE|CHECK)\s*\(\s*" + WAIT_CALL + r"\s*\)", re.S)
+ASSIGNED_WAIT = re.compile(r"(?:(?:const\s+)?(?:bool|auto)\s+)?(\w+)\s*=\s*" + WAIT_CALL, re.S)
+SHOW_UNTIL_EXPOSED = re.compile(r"showUntilExposed\s*\((.*)\)", re.S)
 # What may stand between a show() and its wait: asking for activation, which
 # qWaitForWindowActive then waits for.
-BETWEEN = re.compile(r"^(?:\s*[\w.\->()*&]*\b(?:activateWindow|raise)\s*\(\s*\)\s*;)+\s*$")
+BETWEEN = re.compile(r"[\w.\->()*&\s]*\b(?:activateWindow|raise)\s*\(\s*\)")
+DEFERRED = re.compile(r"//\s*shown-widget-wait:\s*deferred,\s*\S")
 RAW_STRING = re.compile(r'R"([^()\\\s]{0,16})\(')
 
 
@@ -85,26 +108,102 @@ def code_only(source: str) -> str:
     return "".join(out)
 
 
-def _waits_after(lines: list[str], index: int, rest: str) -> bool:
-    """Whether the next statement after a show(), which leaves rest of its
-    line index, waits for exposure."""
-    for line in [rest] + lines[index + 1:]:
-        if not line.strip() or BETWEEN.match(line):
-            continue
-        return bool(WAIT.search(line))
+def _normalized(expression: str) -> str:
+    """The object an expression names, however it is spelled: w, &w, *w,
+    w.get() and this all name the same."""
+    expression = re.sub(r"\s+", "", expression)
+    expression = re.sub(r"\.get\(\)$", "", expression.lstrip("&*"))
+    return "" if expression == "this" else expression
+
+
+def _first_argument(arguments: str) -> str:
+    depth = 0
+    for i, c in enumerate(arguments):
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+        elif c == "," and depth == 0:
+            return arguments[:i]
+    return arguments
+
+
+def _statement(code: str, start: int) -> tuple[str, int]:
+    """The statement that starts at start, without its ";", and where it ends;
+    a statement that its block closes before its ";" is cut there."""
+    depth = 0
+    for i in range(start, len(code)):
+        c = code[i]
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            if depth == 0:
+                return code[start:i].strip(), i
+            depth -= 1
+        elif c == ";" and depth == 0:
+            return code[start:i].strip(), i + 1
+    return code[start:].strip(), len(code)
+
+
+def _is_checked_wait(statement: str, shown: str, after: str) -> bool:
+    """Whether statement waits until shown is exposed and its result is
+    checked: inside a REQUIRE or CHECK, or kept in a variable that after
+    checks; or whether it is showUntilExposed( shown )."""
+    if match := SHOW_UNTIL_EXPOSED.fullmatch(statement) or CHECKED_WAIT.fullmatch(statement):
+        return _normalized(_first_argument(match.group(1))) == shown
+    if match := ASSIGNED_WAIT.fullmatch(statement):
+        checked = re.compile(r"\b(?:REQUIRE|CHECK)\s*\(\s*" + re.escape(match.group(1)) + r"\s*\)")
+        return _normalized(_first_argument(match.group(2))) == shown and bool(checked.search(after))
     return False
+
+
+def _waits_next(code: str, end: int, shown: str) -> bool:
+    """Whether the statement after a show() that ends at end, past any
+    activateWindow() or raise(), is a checked wait until shown is exposed."""
+    while True:
+        statement, end = _statement(code, end)
+        if not BETWEEN.fullmatch(statement):
+            return _is_checked_wait(statement, shown, code[end:])
+
+
+def _waits_later(code: str, end: int, shown: str) -> bool:
+    """Whether any statement after end is a checked wait until shown is exposed."""
+    for boundary in re.finditer(r"[;{}]", code[end:]):
+        statement, stop = _statement(code, end + boundary.end())
+        if _is_checked_wait(statement, shown, code[stop:]):
+            return True
+    return False
+
+
+def _deferred(raw_line: str, code_line: str) -> bool:
+    """Whether a line carries the deferred marker in a comment: blanked out,
+    but not as the contents of a string, which keeps its opening quote."""
+    match = DEFERRED.search(raw_line)
+    return (bool(match) and not code_line[match.start():match.end()].strip()
+            and not code_line[:match.start()].rstrip().endswith(('"', "'")))
 
 
 def unwaited_shows(source: str) -> list[int]:
     """The 1-based lines of source holding a show() that no wait follows."""
+    code = code_only(source)
     # Split on line feeds only, as editors and compilers count lines.
-    lines = code_only(source).split("\n")
-    unwaited = []
-    for index, line in enumerate(lines):
-        for match in SHOW.finditer(line):
-            if not _waits_after(lines, index, line[match.end():]):
-                unwaited.append(index + 1)
-                break
+    raw_lines, code_lines = source.split("\n"), code.split("\n")
+    unwaited: list[int] = []
+    for show in SHOW.finditer(code):
+        line = code.count("\n", 0, show.start())
+        if unwaited and unwaited[-1] == line + 1:
+            continue
+        line_start = code.rfind("\n", 0, show.start()) + 1
+        receiver = RECEIVER.search(code, line_start, show.start())
+        shown = _normalized(receiver.group(1)) if receiver else ""
+        end = show.end()
+        if code.startswith(";", end):
+            end += 1
+        if _waits_next(code, end, shown):
+            continue
+        if _deferred(raw_lines[line], code_lines[line]) and _waits_later(code, end, shown):
+            continue
+        unwaited.append(line + 1)
     return unwaited
 
 

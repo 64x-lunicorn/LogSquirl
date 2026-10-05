@@ -299,11 +299,10 @@ SCENARIO( "A Log File opened before the plugins loaded is opened with the conver
                 = std::make_unique<MainWindow>( WindowSession{ newSession(), "Main", 0 }, plugins );
             // The file is opened right after show(), before the window is
             // exposed and the plugins load; the wait for exposure comes after.
-            window->show();
-            const auto exposed = [ & ] { return QTest::qWaitForWindowExposed( window.get() ); };
+            window->show(); // shown-widget-wait: deferred, the file is opened before exposure
             shownAfterMs = sinceStart.elapsed();
             window->loadInitialFile( logFilePath, false );
-            REQUIRE( exposed() );
+            REQUIRE( QTest::qWaitForWindowExposed( window.get() ) );
 
             THEN( "the file is opened through the converter once the plugin has loaded" )
             {
