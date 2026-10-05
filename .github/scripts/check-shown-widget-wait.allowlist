@@ -46,9 +46,3 @@ tests/ui/valuenames_ui_test.cpp
 tests/ui/viewportmargins_theme_test.cpp
 
 # Benchmarks (#757).
-tests/benchmarks/overview_selection_benchmark.cpp
-tests/benchmarks/tableview_paint_benchmark.cpp
-tests/benchmarks/tableview_scroll_benchmark.cpp
-tests/benchmarks/textview_ansi_benchmark.cpp
-tests/benchmarks/textview_scroll_benchmark.cpp
-tests/benchmarks/textview_valuenames_benchmark.cpp

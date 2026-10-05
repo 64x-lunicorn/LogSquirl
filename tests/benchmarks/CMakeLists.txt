@@ -232,6 +232,21 @@ foreach(
   target_compile_definitions(${_target} PRIVATE LOGSQUIRL_BENCHMARK_LIMITS_TBB)
 endforeach()
 
+# The benchmarks that show a widget wait until its window is exposed, before
+# their measured code, with showUntilExposed() from tests/helpers/shown_widget.h
+# (#757), which takes Qt Test. A new benchmark that shows a widget belongs here.
+foreach(
+  _target IN
+  ITEMS logsquirl_overview_selection_benchmark
+        logsquirl_tableview_paint_benchmark
+        logsquirl_tableview_scroll_benchmark
+        logsquirl_textview_ansi_benchmark
+        logsquirl_textview_scroll_benchmark
+        logsquirl_textview_valuenames_benchmark
+)
+  target_link_libraries(${_target} Qt6::Test)
+endforeach()
+
 # The heap counts of the fixed-work mode (#673; heap_count.c): every benchmark
 # binary above also counts the allocations and the peak heap of each
 # benchmark's measured code. Off unless asked for: it replaces glibc's malloc

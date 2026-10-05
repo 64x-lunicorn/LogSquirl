@@ -31,6 +31,7 @@
 #include "highlighterset.h"
 #include "quickfindpattern.h"
 #include "settingspolicies.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 
 #include <QApplication>
@@ -159,7 +160,7 @@ TEST_CASE( "text view ANSI color benchmarks", "[textview-ansi-benchmark]" )
     AbstractLogView view( &logData, &quickFindPattern, textWrap );
     view.setFrameShape( QFrame::NoFrame );
     view.resize( 800, 600 );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
     const auto policies = testSettingsPolicies();
     view.setPresentationPolicy( policies.presentation );
