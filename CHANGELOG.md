@@ -435,6 +435,16 @@
 
 ## Internal
 
+- **The Text View and the Filtered View cover whole Named Values through one
+  module in display columns**: `ShownColumns` takes one Log Line, a Portion
+  in the display columns of its raw text, and gives the Portion grown to
+  cover every Named Value it takes part of, with tabs before, inside and
+  after a Named Value. The view builds it in one place, which checks whether
+  Value Names are shown; without them it is the identity and reads no Log
+  Line. The Selection, *Copy* and the length of the Selection take their
+  whole raw values through it, and table-driven tests check it without a
+  widget. `ShownLine` stays as it is. (#740)
+
 - **The Open Log File's test runner joins oneTBB's workers before it exits,
   as the other runners do**: the mimalloc assertion that once stopped a
   logdata test process at exit in a Debug build most likely came from a

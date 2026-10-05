@@ -74,6 +74,7 @@
 #include "regularexpressionpattern.h"
 #include "selection.h"
 #include "settingspolicies.h"
+#include "showncolumns.h"
 #include "shownline.h"
 #include "textviewscrolling.h"
 #include "viewportlayout.h"
@@ -760,13 +761,15 @@ private:
     // Drops what was named with the Value Names shown before, and the widths
     // scrolled to for them.
     void renameLogLines();
+    // The columns of a Log Line as the view shows it, the one way to them:
+    // the identity while the view shows no Value Names, which reads no Log
+    // Line (#740).
+    ShownColumns shownColumnsOf( LineNumber logLine ) const;
     // The selection with its portion grown to take in every Named Value it
-    // takes in part of; none while there is nothing to grow (#647).
-    std::optional<Selection> selectionCoveringNamedValues() const;
+    // takes in part of (#647).
+    Selection selectionCoveringNamedValues() const;
     // The selected text, never half a raw value, with line numbers or not.
     QString selectedText( bool lineNumbers ) const;
-    // The portion grown to take in every Named Value it takes in part of.
-    Portion coveringNamedValues( const Portion& portion ) const;
     // The Log Line in the Viewport at a position of the view, if it is there.
     const ViewportLogLine* viewportLogLineAt( LineNumber position ) const;
     // The widest Log Line the Viewport has shown with Value Names, in display
