@@ -152,19 +152,9 @@ jobs:
           exit $exit_code
 
       # A test that shows a widget waits until it is exposed before it measures
-      # anything (#750, #754). The allowlist of files that do not wait yet may
-      # only shrink: a pull request is checked against its base's list.
+      # anything (#750, #754), every test without exception (#758).
       - name: Check shown test widgets wait until exposed
-        run: |
-          set -euo pipefail
-          base_args=()
-          base="$RUNNER_TEMP/base-shown-widget-wait.allowlist"
-          # A base without the list (before #754) has nothing to compare with.
-          if [ "$GITHUB_EVENT_NAME" = pull_request ] \
-             && git show HEAD^1:.github/scripts/check-shown-widget-wait.allowlist > "$base" 2>/dev/null; then
-            base_args=(--base-allowlist "$base")
-          fi
-          .github/scripts/check-shown-widget-wait.py "${base_args[@]}"
+        run: .github/scripts/check-shown-widget-wait.py
 
       # The update feed reaches every installation as soon as it is merged, so
       # a pull request cannot break it (#310).

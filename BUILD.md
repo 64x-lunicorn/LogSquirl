@@ -295,8 +295,8 @@ Format job of CI Build checks this, with no build, as
 .github/scripts/check-shown-widget-wait.py
 ```
 
-The files that do not wait yet are listed in `.github/scripts/check-shown-widget-wait.allowlist`,
-which only shrinks: an entry cannot be added, and fails the check once its file waits everywhere.
+It holds every test, unit, UI and benchmark alike, to the wait, and names the file and line of
+each `show()` that no wait follows.
 
 ### Theme screenshots
 

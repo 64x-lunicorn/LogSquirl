@@ -641,10 +641,9 @@
   Format job runs `.github/scripts/check-shown-widget-wait.py`, which names
   the file and line of every `show()` under `tests/` that no
   `qWaitForWindowExposed()`, `qWaitForWindowActive()` or
-  `qWaitForWindowFocused()` follows. The 40 test files that do not wait yet
-  are on an allowlist beside it that may only shrink: a pull request cannot
-  add an entry, and an entry fails the check once its file waits everywhere.
-  (#754)
+  `qWaitForWindowFocused()` follows. Every unit test, UI test and benchmark
+  that shows a widget now waits, and the check holds each one to it without
+  exception. (#754, #758)
 
 # v26.10.0 (2026-09-29)
 

@@ -1,6 +1,6 @@
 """Tests for check-shown-widget-wait.py (#754): which show() of a test waits
-until its widget is exposed, and how the allowlist of files that do not yet
-wait only shrinks. No build, no Qt."""
+until its widget is exposed, in every test file without exception. No build,
+no Qt."""
 
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ def test_a_wait_inside_a_comment_does_not_count():
     assert sw.unwaited_shows(source) == [1]
 
 
-# -- the tests of a tree, and the allowlist -----------------------------------
+# -- the tests of a tree ------------------------------------------------------
 
 UNWAITED = "    view.show();\n    view.repaint();\n"
 WAITED = "    view.show();\n    REQUIRE( QTest::qWaitForWindowExposed( &view ) );\n"
@@ -94,67 +94,42 @@ def tree(tmp_path: Path, files: dict[str, str]) -> Path:
     return tmp_path
 
 
-def test_a_new_test_that_does_not_wait_fails_with_its_file_and_line(tmp_path):
+def test_a_test_that_does_not_wait_fails_with_its_file_and_line(tmp_path):
     root = tree(tmp_path, {"tests/ui/new_test.cpp": "#include <QTest>\n" + UNWAITED,
                            "tests/ui/good_test.cpp": WAITED})
-    assert sw.problems(root, allowlist=[]) == [
+    assert sw.problems(root) == [
         "::error file=tests/ui/new_test.cpp,line=2::tests/ui/new_test.cpp:2: show() is not followed by "
         "a wait until the widget is exposed; use showUntilExposed() from tests/helpers/shown_widget.h"]
 
 
+def test_every_test_is_held_to_the_wait_wherever_it_lives(tmp_path):
+    root = tree(tmp_path, {"tests/unit/a_test.cpp": UNWAITED, "tests/benchmarks/b_benchmark.cpp": UNWAITED,
+                           "tests/helpers/c.h": WAITED + UNWAITED})
+    assert [problem.split("::")[1] for problem in sw.problems(root)] == [
+        "error file=tests/benchmarks/b_benchmark.cpp,line=1",
+        "error file=tests/helpers/c.h,line=3",
+        "error file=tests/unit/a_test.cpp,line=1"]
+
+
 def test_only_test_sources_are_checked(tmp_path):
     root = tree(tmp_path, {"src/ui/widget.cpp": UNWAITED, "tests/e2e/notes.txt": UNWAITED})
-    assert sw.problems(root, allowlist=[]) == []
+    assert sw.problems(root) == []
 
 
-def test_a_file_on_the_allowlist_may_still_not_wait(tmp_path):
-    root = tree(tmp_path, {"tests/unit/old_test.cpp": UNWAITED})
-    assert sw.problems(root, allowlist=["tests/unit/old_test.cpp"]) == []
-
-
-def test_a_file_on_the_allowlist_that_waits_everywhere_fails_until_its_entry_is_removed(tmp_path):
-    root = tree(tmp_path, {"tests/unit/fixed_test.cpp": WAITED})
-    assert sw.problems(root, allowlist=["tests/unit/fixed_test.cpp"]) == [
-        f"::error file={sw.ALLOWLIST}::tests/unit/fixed_test.cpp now waits after every show(); "
-        f"remove its entry from {sw.ALLOWLIST}"]
-
-
-def test_a_file_on_the_allowlist_that_is_gone_fails_until_its_entry_is_removed(tmp_path):
-    root = tree(tmp_path, {})
-    assert sw.problems(root, allowlist=["tests/unit/gone_test.cpp"]) == [
-        f"::error file={sw.ALLOWLIST}::tests/unit/gone_test.cpp now waits after every show(); "
-        f"remove its entry from {sw.ALLOWLIST}"]
-
-
-def test_an_entry_the_base_allowlist_does_not_have_is_rejected(tmp_path):
-    root = tree(tmp_path, {"tests/unit/old_test.cpp": UNWAITED, "tests/ui/new_test.cpp": UNWAITED})
-    assert sw.problems(root, allowlist=["tests/unit/old_test.cpp", "tests/ui/new_test.cpp"],
-                       base=["tests/unit/old_test.cpp"]) == [
-        f"::error file={sw.ALLOWLIST}::tests/ui/new_test.cpp was added to {sw.ALLOWLIST}; an entry "
-        "may only be removed, so make the test wait instead"]
-
-
-def test_the_allowlist_lists_one_path_per_line_with_comments():
-    text = "# Files that do not wait yet (#754).\n\ntests/unit/a_test.cpp\n  tests/ui/b_test.cpp  # UI\n"
-    assert sw.read_allowlist(text) == ["tests/unit/a_test.cpp", "tests/ui/b_test.cpp"]
-
-
-def test_the_check_fails_on_a_test_that_does_not_wait_and_passes_once_it_is_listed(tmp_path, capsys):
-    root = tree(tmp_path, {"tests/ui/old_test.cpp": UNWAITED, sw.ALLOWLIST: "# None yet.\n"})
+def test_the_check_fails_on_a_test_that_does_not_wait_and_passes_once_it_waits(tmp_path, capsys):
+    root = tree(tmp_path, {"tests/ui/old_test.cpp": UNWAITED})
     assert sw.main(["--root", str(root)]) == 1
     assert "tests/ui/old_test.cpp:1: show() is not followed" in capsys.readouterr().out
 
-    (root / sw.ALLOWLIST).write_text("tests/ui/old_test.cpp\n", encoding="utf-8")
+    (root / "tests/ui/old_test.cpp").write_text(WAITED, encoding="utf-8")
     assert sw.main(["--root", str(root)]) == 0
+    assert capsys.readouterr().out == "Every show() under tests/ waits until its widget is exposed.\n"
 
 
-def test_the_check_reads_the_base_allowlist_when_it_is_given(tmp_path, capsys):
-    root = tree(tmp_path, {"tests/ui/old_test.cpp": UNWAITED, sw.ALLOWLIST: "tests/ui/old_test.cpp\n",
-                           "base.allowlist": "# Empty.\n"})
-    assert sw.main(["--root", str(root), "--base-allowlist", str(root / "base.allowlist")]) == 1
-    assert "an entry may only be removed" in capsys.readouterr().out
-    # Before the allowlist existed there is no base to compare with.
-    assert sw.main(["--root", str(root), "--base-allowlist", str(root / "missing.allowlist")]) == 0
+def test_a_file_named_like_the_old_allowlist_exempts_nothing(tmp_path):
+    root = tree(tmp_path, {"tests/ui/old_test.cpp": UNWAITED,
+                           ".github/scripts/check-shown-widget-wait.allowlist": "tests/ui/old_test.cpp\n"})
+    assert sw.main(["--root", str(root)]) == 1
 
 
 def test_an_unclosed_quote_keeps_the_line_numbers():

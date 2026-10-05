@@ -8,7 +8,7 @@ tests/ is followed by a wait for exposure: the next statement calls
 QTest::qWaitForWindowExposed, QTest::qWaitForWindowActive or
 QTest::qWaitForWindowFocused (an activateWindow() or raise() may come in
 between). The helper showUntilExposed() in tests/helpers/shown_widget.h does
-both in one call.
+both in one call. Every test file is held to this, without exception (#758).
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ from pathlib import Path
 TESTS = "tests"
 SUFFIXES = {".cpp", ".h", ".hpp"}
 HELPER = "tests/helpers/shown_widget.h"
-ALLOWLIST = ".github/scripts/check-shown-widget-wait.allowlist"
 
 SHOW = re.compile(r"(?<![\w])show\s*\(\s*\)\s*;?")
 WAIT = re.compile(r"\b(?:qWaitForWindowExposed|qWaitForWindowActive|qWaitForWindowFocused)\s*\(")
@@ -109,68 +108,34 @@ def unwaited_shows(source: str) -> list[int]:
     return unwaited
 
 
-def read_allowlist(text: str) -> list[str]:
-    """The paths of an allowlist: one per line, `#` starts a comment."""
-    entries = []
-    for line in text.splitlines():
-        entry = line.split("#", 1)[0].strip()
-        if entry:
-            entries.append(entry)
-    return entries
-
-
 def _test_sources(root: Path) -> list[str]:
     return sorted(path.relative_to(root).as_posix() for path in (root / TESTS).rglob("*")
                   if path.suffix in SUFFIXES and path.is_file())
 
 
-def problems(root: Path, allowlist: list[str], base: list[str] | None = None) -> list[str]:
-    """What fails the check for the tests under root, as GitHub annotations.
-
-    allowlist names the files that may still show a widget without waiting;
-    base is the allowlist the change started from, if there was one.
-    """
+def problems(root: Path) -> list[str]:
+    """Every show() under root's tests that no wait follows, as GitHub
+    annotations naming its file and line."""
     found = []
-    unwaited_files = set()
     for name in _test_sources(root):
         lines = unwaited_shows((root / name).read_text(encoding="utf-8", errors="replace"))
-        if lines:
-            unwaited_files.add(name)
-        if name in allowlist:
-            continue
         found.extend(f"::error file={name},line={line}::{name}:{line}: show() is not followed by a wait "
                      f"until the widget is exposed; use showUntilExposed() from {HELPER}"
                      for line in lines)
-    for entry in allowlist:
-        if base is not None and entry not in base:
-            found.append(f"::error file={ALLOWLIST}::{entry} was added to {ALLOWLIST}; an entry may "
-                         "only be removed, so make the test wait instead")
-        elif entry not in unwaited_files:
-            found.append(f"::error file={ALLOWLIST}::{entry} now waits after every show(); "
-                         f"remove its entry from {ALLOWLIST}")
     return found
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", type=Path, default=Path("."), help="the repository root")
-    parser.add_argument("--base-allowlist", type=Path,
-                        help="the allowlist the change started from; entries it lacks are rejected "
-                             "(ignored when the file does not exist)")
     args = parser.parse_args(argv)
 
-    allowlist = read_allowlist((args.root / ALLOWLIST).read_text(encoding="utf-8"))
-    base = None
-    if args.base_allowlist is not None and args.base_allowlist.is_file():
-        base = read_allowlist(args.base_allowlist.read_text(encoding="utf-8"))
-
-    found = problems(args.root, allowlist, base)
+    found = problems(args.root)
     for problem in found:
         print(problem)
     if found:
         return 1
-    print(f"Every show() under {TESTS}/ waits until its widget is exposed, "
-          f"apart from the {len(allowlist)} files on {ALLOWLIST}.")
+    print(f"Every show() under {TESTS}/ waits until its widget is exposed.")
     return 0
 
 
