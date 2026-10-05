@@ -45,6 +45,7 @@
 #include "fake_log_data.h"
 #include "painting_test_font.h"
 #include "quickfindpattern.h"
+#include "shown_widget.h"
 #include "viewportlayout.h"
 
 namespace {
@@ -124,7 +125,7 @@ void showForInteraction( AbstractLogView& view )
     view.setVerticalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
     view.setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
     view.resize( ViewWidth, ViewHeight );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
     view.updateFont( font );
     view.updateData();

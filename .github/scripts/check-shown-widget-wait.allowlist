@@ -7,13 +7,6 @@
 # with the change that makes its tests wait (showUntilExposed() from
 # tests/helpers/shown_widget.h).
 
-# Unit tests (#755).
-tests/unit/abstractlogview_test.cpp
-tests/unit/logtableview_test.cpp
-tests/unit/logviewinteractions_test.cpp
-tests/unit/logviewpainting_test.cpp
-tests/unit/logviewvaluenames_test.cpp
-
 # UI tests (#756).
 tests/ui/applicationplugins_window_test.cpp
 tests/ui/checkbox_theme_test.cpp

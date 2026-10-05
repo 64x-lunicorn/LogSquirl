@@ -54,6 +54,7 @@
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "savelinesdialog.h"
+#include "shown_widget.h"
 #include "valuenames_fixture.h"
 #include "vector_lines.h"
 #include "viewportlayout.h"
@@ -142,7 +143,7 @@ void showForTest( AbstractLogView& view )
     view.setVerticalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
     view.setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
     view.resize( ViewWidth, ViewHeight );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
     view.updateFont( font );
     view.updateData();
