@@ -249,6 +249,22 @@ def test_bolt_instruments_the_scenario_executables_one_profile_per_process():
     assert first[-2:] == ["-o", "/out/logsquirl"]
 
 
+def test_a_linked_llvm_bolt_instruments_by_its_real_path_where_its_runtime_is(tmp_path):
+    # Ubuntu: /usr/bin/llvm-bolt-18 -> /usr/lib/llvm-18/bin/llvm-bolt, and
+    # libbolt-18-dev's /usr/lib/llvm-18/lib/libbolt_rt_instr.a (#732).
+    real = tmp_path / "usr" / "lib" / "llvm-18" / "bin" / "llvm-bolt"
+    real.parent.mkdir(parents=True)
+    real.write_bytes(b"")
+    link = tmp_path / "usr" / "bin" / "llvm-bolt-18"
+    link.parent.mkdir(parents=True)
+    link.symlink_to(real)
+    assert pgo.instrumenting_bolt(str(link)) == (real.resolve(), None)
+    runtime = tmp_path / "usr" / "lib" / "llvm-18" / "lib" / "libbolt_rt_instr.a"
+    runtime.parent.mkdir()
+    runtime.write_bytes(b"")
+    assert pgo.instrumenting_bolt(str(link)) == (real.resolve(), runtime.resolve())
+
+
 def test_bolt_optimizes_from_the_merged_profile():
     command = pgo.bolt_optimize_command("llvm-bolt", Path("/in/logsquirl"), Path("/out/logsquirl"),
                                         Path("/prof/logsquirl.fdata"))
@@ -358,16 +374,18 @@ def test_times_needs_a_timings_file():
 
 # --- the release path's actions ----------------------------------------------
 #
-# The PGO workflow runs pgo.py through its own steps; the release path's
-# composite actions (.github/actions/pgo-profile, .github/actions/bolt) run only
-# behind a release job's switch, and every switch is off. So nothing in CI runs
-# them (#732). What can drift without a run is checked here: that each of their pgo.py
-# calls is one pgo.py accepts, and that the files they name exist.
+# The release path's composite actions (.github/actions/pgo-profile,
+# .github/actions/bolt) run behind a release job's switch, and every switch is
+# off. The PGO workflow builds its variants through them and runs on a pull
+# request that changes them (#732); that run needs a runner for an hour. What
+# is checked here in seconds: that each of their pgo.py calls is one pgo.py
+# accepts, that the files they name exist, and that the PGO workflow still
+# runs both of them on such a pull request.
 
 REPO = Path(__file__).parents[2]
 RELEASE_ACTIONS = [REPO / ".github" / "actions" / name / "action.yml" for name in ("pgo-profile", "bolt")]
 # What the actions' shell expands, as the release jobs set it.
-EXPANSIONS = {'"${bolt[@]}"': "--bolt", '"$TOOLCHAIN"': "gcc"}
+EXPANSIONS = {'${bolt[@]+"${bolt[@]}"}': "--bolt", '"$TOOLCHAIN"': "gcc", '"$TRAINING_RUNS"': "1"}
 PGO_CALL = re.compile(
     r'(?:^|\s)(?:pgo|"\$python"\s+\.github/scripts/pgo\.py\s+--timings\s+\S+)\s+'
     r"(build|train|merge|bolt-instrument|bolt-optimize|collect|measure|times)\b([^\n]*)",
@@ -406,6 +424,18 @@ def test_the_release_actions_name_files_that_exist(action):
     named = set(re.findall(r"(?<![\w/.])((?:\.github|tests)/[\w./-]+\.(?:py|txt|sh))", action.read_text()))
     assert named
     assert sorted(path for path in named if not (REPO / path).is_file()) == []
+
+
+PGO_WORKFLOW = REPO / ".github" / "workflows" / "pgo.yml"
+
+
+@pytest.mark.parametrize("action", RELEASE_ACTIONS, ids=lambda path: path.parent.name)
+def test_the_pgo_workflow_runs_the_release_actions_and_on_a_pull_request_that_changes_them(action):
+    workflow = PGO_WORKFLOW.read_text()
+    name = action.parent.name
+    assert f"uses: ./.github/actions/{name}\n" in workflow
+    paths = workflow.split("pull_request:", 1)[1].split("workflow_dispatch:", 1)[0]
+    assert f"- .github/actions/{name}/**" in paths
 
 
 def test_the_action_check_sees_a_call_pgo_py_does_not_take():

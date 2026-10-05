@@ -1,20 +1,32 @@
 name: "BOLT"
 description: >-
-  Rewrite logsquirl and logsquirl_grep in the build root's output with
+  Rewrite logsquirl and logsquirl_grep in the build directory's output with
   llvm-bolt, from a profile of the benchmark mode's scenarios, then split off
   logsquirl.debug as a build without BOLT does (#682)
 # Linux only, after docker-build of a build linked for BOLT (the pgo-profile
 # action with bolt: true), before the tests and the package, so both see the
 # rewritten executables. A release build uses it only behind its job's `bolt`
 # switch in ci-build.yml, which stays false until the A/B numbers of the PGO
-# workflow (pgo.yml) show a clear gain. While every switch is off nothing in
-# CI runs this action; test_pgo.py checks its pgo.py calls and the files it
-# names (#732).
+# workflow (pgo.yml) show a clear gain. The PGO workflow builds its BOLT
+# variant through this action, and runs on a pull request that changes it, so
+# a broken action fails there before a release switch is turned on (#732).
+inputs:
+  build_dir:
+    description: "The build directory, relative to the workspace (default: LOGSQUIRL_BUILD_ROOT, as docker-build builds)"
+    required: false
+    default: ""
+  training_runs:
+    description: "Runs per scenario in the BOLT training (pgo.py train --runs)"
+    required: false
+    default: "1"
 runs:
   using: "composite"
   steps:
     - name: BOLT
       shell: bash
+      env:
+        BUILD_DIR: ${{ inputs.build_dir }}
+        TRAINING_RUNS: ${{ inputs.training_runs }}
       run: |
         set -euo pipefail
         case " $LOGSQUIRL_CMAKE_OPTS " in
@@ -30,19 +42,22 @@ runs:
           --env PYTHONDONTWRITEBYTECODE=1 \
           --env PIP_ROOT_USER_ACTION=ignore \
           --env LOGSQUIRL_BUILD_ROOT \
+          --env BUILD_DIR \
+          --env TRAINING_RUNS \
           --workdir /usr/local \
           -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c '
             set -euo pipefail
-            # Ubuntu 24.04 LLVM 18 build of BOLT, from the distribution.
+            # Ubuntu 24.04 LLVM 18 build of BOLT, from the distribution, and
+            # its instrumentation runtime, which bolt-18 leaves out (#732).
             apt-get update -qq
-            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends bolt-18
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends bolt-18 libbolt-18-dev
             python3 -m pip install --quiet --break-system-packages --require-hashes --only-binary :all: \
               -r .github/requirements/e2e.txt
-            output="$LOGSQUIRL_BUILD_ROOT/output"
+            output="${BUILD_DIR:-$LOGSQUIRL_BUILD_ROOT}/output"
             pgo() { python3 .github/scripts/pgo.py --timings pgo-run/timings.json "$@"; }
             pgo bolt-instrument --binary-dir "$output" --out-dir pgo-run/bolt-instrumented \
               --profile-dir pgo-run/bolt-profile
-            pgo train --phase "BOLT training" --binary-dir pgo-run/bolt-instrumented
+            pgo train --phase "BOLT training" --binary-dir pgo-run/bolt-instrumented --runs "$TRAINING_RUNS"
             pgo bolt-optimize --binary-dir "$output" --out-dir pgo-run/bolt \
               --profile-dir pgo-run/bolt-profile --split-debug
             cp pgo-run/bolt/logsquirl pgo-run/bolt/logsquirl.debug pgo-run/bolt/logsquirl_grep "$output/"

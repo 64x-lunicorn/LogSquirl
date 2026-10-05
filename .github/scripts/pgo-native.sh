@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Builds one variant of the PGO workflow (#682) on a macOS or Windows runner,
-# and packs what the measure job runs: the plain build, or the instrumented
-# build, its training, the merge and the optimized build (pgo.py).
+# and packs what the measure job runs: the plain build, or the optimized build
+# from the profile the pgo-profile action made in the same build directory
+# before it (pgo.py, #732).
 #
 # Writes pgo-run/pgo-<platform>-<variant>.tar with bin/, timings.json and
 # times.md, and adds times.md to the job summary.
 #
 # Usage: pgo-native.sh clang|msvc   (from the workspace root)
-# Environment: VARIANT (plain or pgo), TRAINING_RUNS, RUN_DIR and
-# LOGSQUIRL_CMAKE_OPTS as set by prepare-workspace-env.
+# Environment: VARIANT (plain or pgo), RUN_DIR and LOGSQUIRL_CMAKE_OPTS as set
+# by prepare-workspace-env, and for pgo as the pgo-profile action left it, with
+# LOGSQUIRL_PGO=USE.
 set -euo pipefail
 
 toolchain=${1:?usage: pgo-native.sh clang|msvc}
@@ -40,9 +42,6 @@ case "$VARIANT" in
             --cmake-args "$cmake_args"
         ;;
     pgo)
-        pgo build --build-dir "$build" --mode GENERATE --targets "${scenario_targets[@]}" --cmake-args "$cmake_args"
-        pgo train --binary-dir "$build/output" --profile-dir "$build/pgo-profile" --runs "$TRAINING_RUNS"
-        pgo merge --toolchain "$toolchain" --profile-dir "$build/pgo-profile"
         pgo build --build-dir "$build" --mode USE --benchmarks --targets "${scenario_targets[@]}" \
             --cmake-args "$cmake_args"
         ;;

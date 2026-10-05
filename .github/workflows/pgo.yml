@@ -18,6 +18,14 @@ name: "PGO"
 # Log Files up to 100 MB) and builds the optimized binaries from that profile
 # (.github/scripts/pgo.py, cmake/ProfileGuidedOptimization.cmake).
 #
+# The instrumented build, the training and the merge, and BOLT, run through
+# the release path's own actions (.github/actions/pgo-profile and
+# .github/actions/bolt), which a release job runs behind its switch. So every
+# run of this workflow runs them, and a pull request that changes that path
+# runs this workflow: it builds the Linux PGO and BOLT variant and the macOS
+# PGO variant through the actions, without measuring, and fails when an
+# action does (#732). A dispatch runs everything.
+#
 # Per platform, the variants build in parallel, each on its own runner, and a
 # measure job then runs all of them on one runner, one benchmark at a time
 # across the variants:
@@ -47,6 +55,21 @@ name: "PGO"
 # that platform's job in ci-build.yml, which stays false until these numbers
 # show a clear gain there (#682).
 on:
+  # The release path's PGO and BOLT actions and what they run on (#732).
+  pull_request:
+    paths:
+      - .github/workflows/pgo.yml
+      - .github/actions/pgo-profile/**
+      - .github/actions/bolt/**
+      - .github/actions/prepare-workspace-env/**
+      - .github/actions/docker-pull-or-build/**
+      - .github/scripts/pgo.py
+      - .github/scripts/pgo-native.sh
+      - .github/scripts/pgo-unpack.sh
+      - .github/scripts/pgo-report.sh
+      - .github/requirements/e2e.txt
+      - cmake/ProfileGuidedOptimization.cmake
+      - docker/ubuntu24.04/**
   workflow_dispatch:
     inputs:
       linux:
@@ -80,7 +103,9 @@ on:
 
 concurrency:
   group: pgo-${{ github.ref }}
-  cancel-in-progress: false
+  # A dispatched measurement runs to its end; a pull request's newer push
+  # replaces its check.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions: {}
 
@@ -90,7 +115,8 @@ env:
   # upload-artifact would leave out.
   RUN_DIR: pgo-run
   QT_QPA_PLATFORM: offscreen
-  TRAINING_RUNS: ${{ inputs.training_runs }}
+  # A pull request has no inputs: it trains once and measures nothing.
+  TRAINING_RUNS: ${{ inputs.training_runs || 1 }}
   BENCHMARK_SAMPLES: ${{ inputs.benchmark_samples }}
   LOG_FILE_MB: ${{ inputs.log_file_mb }}
   E2E_RUNS: ${{ inputs.e2e_runs }}
@@ -101,11 +127,12 @@ jobs:
   # -------------------------------------------------------------------------
   linux-build:
     name: PGO / Linux / build ${{ matrix.variant }}
-    if: inputs.linux
+    if: github.event_name == 'pull_request' || inputs.linux
     strategy:
       fail-fast: false
       matrix:
-        variant: [plain, pgo, bolt]
+        # On a pull request only bolt, which runs both actions (#732).
+        variant: ${{ fromJSON(github.event_name == 'pull_request' && '["bolt"]' || '["plain", "pgo", "bolt"]') }}
         # Shaped like the CI Build Linux matrix so the shared composite
         # actions (which read matrix.config.*) work unchanged.
         config:
@@ -151,9 +178,16 @@ jobs:
           image: ${{ matrix.config.image }}
           container_root: ${{ matrix.config.container_root }}
 
-      - name: Generate the training data
+      # The instrumented build, the training and the merge, as a release job
+      # runs them. GCC names each object's profile after the object's absolute
+      # path, so the optimized build below reuses its directory.
+      - uses: ./.github/actions/pgo-profile
         if: matrix.variant != 'plain'
-        run: python3 tests/e2e/generate_test_data.py --max-mb 100
+        with:
+          toolchain: gcc
+          bolt: ${{ matrix.variant == 'bolt' }}
+          build_dir: pgo-run/build
+          training_runs: ${{ env.TRAINING_RUNS }}
 
       # One container for every step, as docker-build keeps one: the
       # workspace is /usr/local inside it.
@@ -169,25 +203,6 @@ jobs:
             --workdir /usr/local \
             -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" sleep infinity
 
-      - name: Install the training's tools
-        if: matrix.variant != 'plain'
-        run: |
-          set -euo pipefail
-          docker exec pgo_build python3 -m pip install --quiet --break-system-packages --require-hashes \
-            --only-binary :all: -r .github/requirements/e2e.txt
-
-      # Ubuntu 24.04's own LLVM 18 build of BOLT, from the distribution's
-      # archive like the rest of the image's toolchain.
-      - name: Install BOLT
-        if: matrix.variant == 'bolt'
-        run: |
-          set -euo pipefail
-          docker exec pgo_build /bin/bash -c '
-            set -euo pipefail
-            apt-get update -qq
-            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends bolt-18 binutils
-            llvm-bolt-18 --version'
-
       - name: Plain build
         if: matrix.variant == 'plain'
         run: |
@@ -197,31 +212,8 @@ jobs:
             --targets logsquirl logsquirl_grep crashpad_handler \
             --cmake-args "$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache"
 
-      # GCC names each object's profile after the object's absolute path, so
-      # the optimized build reuses the instrumented build's directory.
-      - name: Instrumented build
-        if: matrix.variant != 'plain'
-        run: |
-          set -euo pipefail
-          docker exec pgo_build python3 .github/scripts/pgo.py --timings "$RUN_DIR/timings.json" \
-            build --build-dir "$RUN_DIR/build" --mode GENERATE \
-            --targets logsquirl logsquirl_grep crashpad_handler \
-            --cmake-args "$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache"
-
-      - name: Training
-        if: matrix.variant != 'plain'
-        run: |
-          set -euo pipefail
-          docker exec pgo_build python3 .github/scripts/pgo.py --timings "$RUN_DIR/timings.json" \
-            train --binary-dir "$RUN_DIR/build/output" --runs "$TRAINING_RUNS"
-
-      - name: Merge the profile
-        if: matrix.variant != 'plain'
-        run: |
-          set -euo pipefail
-          docker exec pgo_build python3 .github/scripts/pgo.py --timings "$RUN_DIR/timings.json" \
-            merge --toolchain gcc --profile-dir "$RUN_DIR/build/pgo-profile"
-
+      # LOGSQUIRL_CMAKE_OPTS carries LOGSQUIRL_PGO=USE, and LOGSQUIRL_BOLT for
+      # bolt, as pgo-profile left it for the build after it.
       - name: Optimized build
         if: matrix.variant != 'plain'
         env:
@@ -235,24 +227,19 @@ jobs:
             --targets logsquirl logsquirl_grep crashpad_handler \
             --cmake-args "$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache"
 
-      - name: BOLT
+      # Rewrites logsquirl and logsquirl_grep in the build output, as a
+      # release job's bolt switch does.
+      - uses: ./.github/actions/bolt
         if: matrix.variant == 'bolt'
-        run: |
-          set -euo pipefail
-          pgo() { docker exec pgo_build python3 .github/scripts/pgo.py --timings "$RUN_DIR/timings.json" "$@"; }
-          pgo bolt-instrument --binary-dir "$RUN_DIR/build/output" --out-dir "$RUN_DIR/bolt-instrumented" \
-            --profile-dir "$RUN_DIR/bolt-profile"
-          pgo train --phase "BOLT training" --binary-dir "$RUN_DIR/bolt-instrumented" --runs "$TRAINING_RUNS"
-          pgo bolt-optimize --binary-dir "$RUN_DIR/build/output" --out-dir "$RUN_DIR/bin" \
-            --profile-dir "$RUN_DIR/bolt-profile" --split-debug
+        with:
+          build_dir: pgo-run/build
+          training_runs: ${{ env.TRAINING_RUNS }}
 
       - name: Collect the binaries
         run: |
           set -euo pipefail
-          if [ "$VARIANT" != bolt ]; then
-            docker exec pgo_build python3 .github/scripts/pgo.py collect \
-              --output "$RUN_DIR/build/output" --out-dir "$RUN_DIR/bin"
-          fi
+          docker exec pgo_build python3 .github/scripts/pgo.py collect \
+            --output "$RUN_DIR/build/output" --out-dir "$RUN_DIR/bin"
           docker exec pgo_build python3 .github/scripts/pgo.py --timings "$RUN_DIR/timings.json" \
             times --title "Linux, $VARIANT" --markdown "$RUN_DIR/times.md"
           # A tar keeps the executable bits that an artifact loses.
@@ -274,8 +261,9 @@ jobs:
   linux-measure:
     name: PGO / Linux / measure
     needs: linux-build
-    # A variant that failed to build is left out; the others are measured.
-    if: ${{ !cancelled() && needs.linux-build.result != 'skipped' }}
+    # A variant that failed to build is left out; the others are measured. A
+    # pull request only builds (#732).
+    if: ${{ !cancelled() && needs.linux-build.result != 'skipped' && github.event_name != 'pull_request' }}
     strategy:
       matrix:
         config:
@@ -369,11 +357,13 @@ jobs:
   # -------------------------------------------------------------------------
   mac-build:
     name: PGO / macOS / build ${{ matrix.variant }}
-    if: inputs.macos
+    if: github.event_name == 'pull_request' || inputs.macos
     strategy:
       fail-fast: false
       matrix:
-        variant: [plain, pgo]
+        # On a pull request only pgo, the platform besides Linux that runs
+        # pgo-profile there (#732).
+        variant: ${{ fromJSON(github.event_name == 'pull_request' && '["pgo"]' || '["plain", "pgo"]') }}
         # The CI Build Mac job's configuration.
         config:
           - os: macos
@@ -418,12 +408,14 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Prepare the training
+      # The instrumented build, the training and the merge, as a release job
+      # runs them; pgo-native.sh then builds with the profile.
+      - uses: ./.github/actions/pgo-profile
         if: matrix.variant != 'plain'
-        run: |
-          set -euo pipefail
-          pip install --require-hashes --only-binary :all: -r .github/requirements/e2e.txt
-          python tests/e2e/generate_test_data.py --max-mb 100
+        with:
+          toolchain: clang
+          build_dir: pgo-run/build
+          training_runs: ${{ env.TRAINING_RUNS }}
 
       - name: Build
         run: .github/scripts/pgo-native.sh clang
@@ -438,7 +430,7 @@ jobs:
   mac-measure:
     name: PGO / macOS / measure
     needs: mac-build
-    if: ${{ !cancelled() && needs.mac-build.result != 'skipped' }}
+    if: ${{ !cancelled() && needs.mac-build.result != 'skipped' && github.event_name != 'pull_request' }}
     strategy:
       matrix:
         config:
@@ -574,12 +566,12 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Prepare the training
+      - uses: ./.github/actions/pgo-profile
         if: matrix.variant != 'plain'
-        run: |
-          set -euo pipefail
-          pip install --require-hashes --only-binary :all: -r .github/requirements/e2e.txt
-          python tests/e2e/generate_test_data.py --max-mb 100
+        with:
+          toolchain: msvc
+          build_dir: pgo-run/build
+          training_runs: ${{ env.TRAINING_RUNS }}
 
       - name: Build
         run: .github/scripts/pgo-native.sh msvc
@@ -594,7 +586,7 @@ jobs:
   windows-measure:
     name: PGO / Windows / measure
     needs: windows-build
-    if: ${{ !cancelled() && needs.windows-build.result != 'skipped' }}
+    if: ${{ !cancelled() && needs.windows-build.result != 'skipped' && github.event_name != 'pull_request' }}
     strategy:
       matrix:
         config:
@@ -670,7 +662,7 @@ jobs:
   report:
     name: PGO / report
     needs: [linux-measure, mac-measure, windows-measure]
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
