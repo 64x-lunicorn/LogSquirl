@@ -755,9 +755,6 @@ private:
     // Which Value Names the view shows, for the keys of what it caches: 0
     // for none.
     uint64_t valueNamesKey() const;
-    // The Log Line as shown, named by the namer the view shows; none while it
-    // shows none. Read from the Log File.
-    std::optional<logsquirl::valuenames::ShownLine> shownLineOf( LineNumber logLine ) const;
     // Drops what was named with the Value Names shown before, and the widths
     // scrolled to for them.
     void renameLogLines();

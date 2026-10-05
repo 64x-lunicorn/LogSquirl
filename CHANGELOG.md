@@ -461,9 +461,12 @@
   Value Names are shown; without them it is the identity and reads no Log
   Line. The Selection, *Copy* and the length of the Selection take their
   whole raw values through it, and *Copy as Shown* of a Selection within one
-  Log Line is one call of it, which reads and names the Log Line once.
+  Log Line is one call of it, which reads and names the Log Line once. A
+  double-click finds the Named Value it selects whole through it, and
+  scrolling to the Selection takes the column its end is shown at from it,
+  which keeps an end inside a tab beside a Named Value inside the tab.
   Table-driven tests check it without a widget. `ShownLine` stays as it is.
-  (#740, #741)
+  (#740, #741, #742)
 
 - **The Open Log File's test runner joins oneTBB's workers before it exits,
   as the other runners do**: the mimalloc assertion that once stopped a

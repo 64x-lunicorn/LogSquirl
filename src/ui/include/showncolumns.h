@@ -80,6 +80,21 @@ public:
     // text.
     QString textShown( const Portion& portion ) const;
 
+    // The Named Value at the column of position, as the Portion on the line of
+    // position it takes in the raw Log Line: what a double-click selects.
+    // None beside every Named Value -- inside a tab next to one, too -- past
+    // the end of the Log Line, and for the identity, which reads nothing.
+    std::optional<Portion> namedValueAt( const FilePosition& position ) const;
+
+    // The display column of the text shown a raw display column is shown at.
+    // One on a Named Value goes to the first column of what the value shows,
+    // or to its last, as snap asks. One outside every Named Value keeps its
+    // place inside its character -- a tab -- cut to the width that character
+    // has in the text shown (#748). One past the end of the Log Line stays as
+    // far past the end of the text shown. The identity gives the column as it
+    // is and reads nothing.
+    LineColumn shownColumn( LineColumn rawColumn, logsquirl::valuenames::Snap snap ) const;
+
 private:
     // The display column each character of the raw Log Line starts at, and
     // its display length last.

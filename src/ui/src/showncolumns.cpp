@@ -24,6 +24,8 @@
 
 #include "linetypes.h"
 
+using logsquirl::valuenames::Snap;
+
 qsizetype characterAtDisplayColumn( const logsquirl::vector<int>& displayColumns,
                                     int displayColumn )
 {
@@ -117,34 +119,60 @@ QString ShownColumns::textShown( const Portion& portion ) const
     const auto startColumn = static_cast<int>( covered.startColumn().get() );
     const auto endColumn = std::min( static_cast<int>( covered.endColumn().get() ),
                                      rawColumns.back() - 1 );
-    const auto& shownColumns = shownDisplayColumns();
-
-    // Each end is moved to its character of the raw Log Line and to that of
-    // the text shown. An end on a Named Value lies on its edge, after
-    // covering(); one outside every Named Value keeps its place inside its
-    // character -- a tab -- cut to the width that character has in the text
-    // shown, where a tab after a Named Value is narrower or wider (#748).
-    const auto first = characterAtDisplayColumn( rawColumns, startColumn );
-    const auto shownFirst = shown_.toShown( first, logsquirl::valuenames::Snap::ToStart );
-    auto start = shownColumns[ static_cast<size_t>( shownFirst ) ];
-    if ( shown_.valueAtRaw( first ) < 0 ) {
-        const auto width = shownColumns[ static_cast<size_t>( shownFirst ) + 1 ] - start;
-        start += std::clamp( startColumn - rawColumns[ static_cast<size_t>( first ) ], 0,
-                            std::max( width - 1, 0 ) );
-    }
-
-    const auto last = characterAtDisplayColumn( rawColumns, endColumn );
-    qsizetype end = 0;
-    if ( shown_.valueAtRaw( last ) < 0 ) {
-        const auto shownLast = shown_.toShown( last, logsquirl::valuenames::Snap::ToStart );
-        const auto lastStart = shownColumns[ static_cast<size_t>( shownLast ) ];
-        const auto width = shownColumns[ static_cast<size_t>( shownLast ) + 1 ] - lastStart;
-        end = lastStart
-              + std::min( endColumn - rawColumns[ static_cast<size_t>( last ) ] + 1, width );
-    }
-    else {
-        end = shownColumns[ static_cast<size_t>(
-            shown_.toShown( last + 1, logsquirl::valuenames::Snap::ToEnd ) ) ];
-    }
+    // An end on a Named Value lies on its edge, after covering(), and goes to
+    // the edge of what it shows; one outside every Named Value keeps its place
+    // inside its tab (#748).
+    const auto start = shownColumn( LineColumn{ startColumn }, Snap::ToStart ).get();
+    const auto end = shownColumn( LineColumn{ endColumn }, Snap::ToEnd ).get() + 1;
     return untabify( QString{ shown_.text() } ).mid( start, end - start );
+}
+
+std::optional<Portion> ShownColumns::namedValueAt( const FilePosition& position ) const
+{
+    if ( !shown_.hasNamedValues() ) {
+        return std::nullopt;
+    }
+    const auto& columns = rawDisplayColumns();
+    // A column past the end of the Log Line is on its end, which is on no
+    // Named Value.
+    const auto value = shown_.valueAtRaw(
+        characterAtDisplayColumn( columns, static_cast<int>( position.column().get() ) ) );
+    if ( value < 0 ) {
+        return std::nullopt;
+    }
+    const auto& namedValue = shown_.namedValues()[ value ];
+    return Portion{ position.line(), LineColumn{ columns[ static_cast<size_t>( namedValue.start ) ] },
+                    LineColumn{ columns[ static_cast<size_t>( namedValue.end() ) ] - 1 } };
+}
+
+LineColumn ShownColumns::shownColumn( LineColumn rawColumn, Snap snap ) const
+{
+    // On a Log Line without Named Values the text shown is the raw text.
+    if ( !shown_.hasNamedValues() ) {
+        return rawColumn;
+    }
+    const auto& rawColumns = rawDisplayColumns();
+    const auto& shownColumns = shownDisplayColumns();
+    const auto column = static_cast<int>( rawColumn.get() );
+    if ( column >= rawColumns.back() ) {
+        return LineColumn{ shownColumns.back() + column - rawColumns.back() };
+    }
+
+    const auto character = characterAtDisplayColumn( rawColumns, column );
+    if ( shown_.valueAtRaw( character ) >= 0 ) {
+        return snap == Snap::ToStart
+                   ? LineColumn{ shownColumns[ static_cast<size_t>(
+                         shown_.toShown( character, Snap::ToStart ) ) ] }
+                   : LineColumn{ shownColumns[ static_cast<size_t>(
+                                     shown_.toShown( character + 1, Snap::ToEnd ) ) ]
+                                 - 1 };
+    }
+    // Converting to a character and back would put a column inside a tab on
+    // the tab's edge (#747).
+    const auto shownCharacter = static_cast<size_t>( shown_.toShown( character, Snap::ToStart ) );
+    const auto start = shownColumns[ shownCharacter ];
+    const auto width = shownColumns[ shownCharacter + 1 ] - start;
+    return LineColumn{ start
+                       + std::clamp( column - rawColumns[ static_cast<size_t>( character ) ], 0,
+                                     std::max( width - 1, 0 ) ) };
 }

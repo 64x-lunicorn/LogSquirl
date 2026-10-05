@@ -1485,17 +1485,6 @@ uint64_t AbstractLogView::valueNamesKey() const
     return shownValueNamer() != nullptr ? ValueNamesCollection::get().generation() : 0;
 }
 
-std::optional<logsquirl::valuenames::ShownLine>
-AbstractLogView::shownLineOf( LineNumber logLine ) const
-{
-    const auto* namer = shownValueNamer();
-    if ( namer == nullptr ) {
-        return std::nullopt;
-    }
-    const auto text = lines_->logFile().getLineString( logLine );
-    return logsquirl::valuenames::ShownLine{ text, namer->namedValues( text ) };
-}
-
 ShownColumns AbstractLogView::shownColumnsOf( LineNumber logLine ) const
 {
     return ShownColumns{ shownValueNamer(),
@@ -2357,17 +2346,12 @@ void AbstractLogView::displayPosition( FilePosition position )
     const auto logLine = lines_->logLineAt( position.line() );
     const auto portion = logLine.has_value() ? selection_.getPortionForLine( *logLine ) : Portion{};
     if ( portion.isValid() ) {
-        auto endColumn = portion.endColumn().get();
         // The portion is in the display columns of the raw text; scrolled to
         // is the text shown (#647).
-        if ( const auto shown = shownLineOf( portion.line() );
-             shown.has_value() && shown->hasNamedValues() ) {
-            const auto raw = lines_->logFile().getLineString( portion.line() );
-            const auto rawEnd = characterAtDisplayColumn( raw, static_cast<int>( endColumn ) ) + 1;
-            endColumn = rawToDisplayColumns( shown->text() )[ static_cast<size_t>(
-                            shown->toShown( rawEnd, logsquirl::valuenames::Snap::ToEnd ) ) ]
-                        - 1;
-        }
+        const auto endColumn
+            = shownColumnsOf( portion.line() )
+                  .shownColumn( portion.endColumn(), logsquirl::valuenames::Snap::ToEnd )
+                  .get();
         horizontalScrollBar()->setValue(
             type_safe::narrow_cast<int>( endColumn - getNbVisibleCols().get() + 1 ) );
     }
@@ -2463,20 +2447,11 @@ void AbstractLogView::selectWordAtPosition( const FilePosition& pos )
     const int clickPos = type_safe::narrow_cast<int>( pos.column().get() );
 
     // A Named Value is a word as a whole, whatever it shows (#647).
-    if ( const auto shown = shownLineOf( pos.line() );
-         shown.has_value() && shown->hasNamedValues() ) {
-        const auto rawColumns
-            = rawToDisplayColumns( lines_->logFile().getLineString( pos.line() ) );
-        const auto value = shown->valueAtRaw( characterAtDisplayColumn( rawColumns, clickPos ) );
-        if ( value >= 0 ) {
-            const auto& namedValue = shown->namedValues()[ value ];
-            selection_.selectPortion(
-                pos.line(), LineColumn{ rawColumns[ static_cast<size_t>( namedValue.start ) ] },
-                LineColumn{ rawColumns[ static_cast<size_t>( namedValue.end() ) ] - 1 } );
-            updateGlobalSelection();
-            updateDecorations();
-            return;
-        }
+    if ( const auto value = shownColumnsOf( pos.line() ).namedValueAt( pos ) ) {
+        selection_.selectPortion( *value );
+        updateGlobalSelection();
+        updateDecorations();
+        return;
     }
 
     const QString line = lines_->logFile().getExpandedLineString( pos.line() );
