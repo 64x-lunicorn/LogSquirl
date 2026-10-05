@@ -28,6 +28,7 @@
 
 #include "generated_log_file.h"
 #include "generated_log_lines.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 
 #include "abstractlogdata.h"
@@ -263,7 +264,7 @@ TEST_CASE( "The overview with a million Matches", "[overview-benchmark]" )
     OverviewWidget widget;
     widget.setOverview( &overview );
     widget.resize( 20, static_cast<int>( OverviewRows ) );
-    widget.show();
+    showUntilExposed( widget );
     QCoreApplication::processEvents();
     widget.repaint();
 
@@ -295,7 +296,7 @@ TEST_CASE( "Extending a selection of 100,000 Log Lines", "[selection-benchmark]"
     BenchmarkedView view( &logData, &quickFindPattern );
     view.setFrameShape( QFrame::NoFrame );
     view.resize( 800, 600 );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
     view.setPresentationPolicy( testSettingsPolicies().presentation );
     view.updateData();

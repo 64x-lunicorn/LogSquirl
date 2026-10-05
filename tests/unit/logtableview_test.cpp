@@ -30,6 +30,7 @@
 #include "quickfindmux.h"
 #include "quickfindpattern.h"
 #include "rowmapping.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "valuenames_fixture.h"
 
@@ -244,7 +245,7 @@ SCENARIO( "Save selected to file in the Table View's context menu needs a select
     FakeLogData logData( SaveLines );
     LogTableView view;
     open( view, format, logData );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
 
     // Opens the context menu over the first Row, and tells whether its Save
@@ -383,7 +384,7 @@ SCENARIO( "A Table View whose Rows are not its Log Lines hands out Log Lines",
     LogTableView view( std::make_shared<RowsFromLogLine100>() );
     open( view, format, logData );
     view.setActive( true );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
 
     REQUIRE( view.model()->rowCount() == 5 );
@@ -659,7 +660,7 @@ SCENARIO( "The Text View and the Table View copy a Log Line holding a null chara
         InspectedTableView tableView;
         open( tableView, format, logData );
         tableView.setActive( true );
-        tableView.show();
+        showUntilExposed( tableView );
         QCoreApplication::processEvents();
         const auto cell = tableView.visualRect( tableView.model()->index( 0, BodyColumn ) );
         QTest::mousePress( tableView.viewport(), Qt::LeftButton, {},
@@ -823,7 +824,7 @@ SCENARIO( "Find next and previous in the Table View's context menu select the Lo
     QuickFindBar quickFind( view, testSettingsPolicies().quickFind );
     open( view, format, logData );
     view.setActive( true );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
 
     QSignalSpy newSelection( &view, &LogTableView::newSelection );
@@ -943,7 +944,7 @@ SCENARIO( "A QuickFind in the Table View starts from the selected characters and
     QuickFindBar quickFind( view, testSettingsPolicies().quickFind );
     open( view, format, logData );
     view.setActive( true );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
 
     const auto columnA = columnOf( view, "a" );
@@ -1038,7 +1039,7 @@ SCENARIO( "A double-click in the Table View selects a word as the Text View does
     LogTableView view;
     open( view, format, logData );
     view.setActive( true );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
 
     WHEN( "a word joined by connector punctuation is double-clicked" )
@@ -1128,7 +1129,7 @@ SCENARIO( "The text chosen in the Table View for a QuickFind is read the way the
     const auto& quickFindPattern = quickFind.pattern;
     open( view, format, logData );
     view.setActive( true );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
 
     // Chooses an entry of the context menu over the Row holding the lone

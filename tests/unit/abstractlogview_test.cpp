@@ -41,6 +41,7 @@
 #include "overview.h"
 #include "qfnotifications.h"
 #include "quickfindpattern.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
@@ -87,7 +88,7 @@ SCENARIO( "AbstractLogView updateDisplaySize keeps charWidth_ safe", "[abstractl
                 // If charWidth_ were 0, this would trigger a division by zero
                 // internally in getNbVisibleCols(). The show()/repaint() path
                 // exercises that code.
-                view.show();
+                showUntilExposed( view );
                 view.repaint();
                 REQUIRE( true ); // Reaching here means no crash
             }
@@ -100,7 +101,7 @@ SCENARIO( "AbstractLogView updateDisplaySize keeps charWidth_ safe", "[abstractl
 
             THEN( "the view renders without crashing" )
             {
-                view.show();
+                showUntilExposed( view );
                 view.repaint();
                 REQUIRE( true );
             }
