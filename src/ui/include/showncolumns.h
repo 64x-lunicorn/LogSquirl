@@ -46,8 +46,9 @@ qsizetype characterAtDisplayColumn( const logsquirl::vector<int>& displayColumns
 // characters and back, so no caller chains them itself. The display columns
 // are computed only when an operation needs them.
 //
-// Without a namer it is the identity: it reads no Log Line, computes no
-// columns, and gives every Portion back as it is, in constant time.
+// Without a namer it is the identity: it computes no columns, gives every
+// Portion back as it is, in constant time, and reads the Log Line only for
+// the text of a Portion.
 class ShownColumns {
 public:
     // The identity.
@@ -55,7 +56,7 @@ public:
 
     // The Log Line readLine reads, named by namer. Without a namer -- the
     // view shows no Value Names, or none could name anything -- it is the
-    // identity, and readLine is not called.
+    // identity, and readLine is called only by textShown().
     ShownColumns( const logsquirl::valuenames::ValueNamer* namer,
                   const std::function<QString()>& readLine );
 
@@ -66,12 +67,29 @@ public:
     // Values, and an invalid one, is given back as it is.
     Portion covering( const Portion& portion ) const;
 
+    // The text shown for the Portion once it covers every Named Value it
+    // takes part of, with its tabs expanded as the text shown expands them:
+    // what Copy as Shown copies. An end of the Portion inside a tab takes the
+    // whole tab. A Portion past the end of the Log Line is cut at its end.
+    //
+    // The identity gives the raw text of the Portion with its tabs expanded,
+    // as Copy gives it, reading the Log Line once; the default one, which
+    // reads none, gives an empty text. An invalid Portion gives an empty
+    // text.
+    QString textShown( const Portion& portion ) const;
+
 private:
     // The display column each character of the raw Log Line starts at, and
     // its display length last.
     const logsquirl::vector<int>& rawDisplayColumns() const;
+    // The same for the text shown.
+    const logsquirl::vector<int>& shownDisplayColumns() const;
 
+    bool named_ = false;
+    // Kept by the identity only, for textShown().
+    std::function<QString()> readLine_;
     QString rawText_;
     logsquirl::valuenames::ShownLine shown_;
     mutable std::optional<logsquirl::vector<int>> rawDisplayColumns_;
+    mutable std::optional<logsquirl::vector<int>> shownDisplayColumns_;
 };

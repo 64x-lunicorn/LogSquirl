@@ -453,8 +453,10 @@
   after a Named Value. The view builds it in one place, which checks whether
   Value Names are shown; without them it is the identity and reads no Log
   Line. The Selection, *Copy* and the length of the Selection take their
-  whole raw values through it, and table-driven tests check it without a
-  widget. `ShownLine` stays as it is. (#740)
+  whole raw values through it, and *Copy as Shown* of a Selection within one
+  Log Line is one call of it, which reads and names the Log Line once.
+  Table-driven tests check it without a widget. `ShownLine` stays as it is.
+  (#740, #741)
 
 - **The Open Log File's test runner joins oneTBB's workers before it exits,
   as the other runners do**: the mimalloc assertion that once stopped a

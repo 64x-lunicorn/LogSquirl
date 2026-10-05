@@ -1926,38 +1926,18 @@ QString AbstractLogView::selectedText( bool lineNumbers ) const
 
 QString AbstractLogView::getSelectedTextAsShown() const
 {
+    if ( selection_.isPortion() ) {
+        const auto line = selection_.getLines( *lines_ ).front();
+        return shownColumnsOf( line ).textShown( selection_.getPortionForLine( line ) );
+    }
+
     const auto* namer = shownValueNamer();
     if ( namer == nullptr ) {
         return getSelectedText();
     }
-
-    if ( !selection_.isPortion() ) {
-        return selection_.getSelectedText(
-            *lines_, *logData_, false,
-            [ namer ]( const QString& text ) { return shownText( *namer, text ); } );
-    }
-
-    // A portion is in the display columns of the raw text: it is moved to
-    // the raw text, to the text shown, and to its display columns.
-    const auto line = selection_.getLines( *lines_ ).front();
-    const auto portion = shownColumnsOf( line ).covering( selection_.getPortionForLine( line ) );
-    const auto raw = lines_->logFile().getLineString( line );
-    const logsquirl::valuenames::ShownLine shown{ raw, namer->namedValues( raw ) };
-
-    const auto rawColumns = rawToDisplayColumns( raw );
-    const auto rawLength = static_cast<qsizetype>( rawColumns.size() ) - 1;
-    const auto rawEnd = std::min(
-        characterAtDisplayColumn( rawColumns, static_cast<int>( portion.endColumn().get() ) ) + 1,
-        rawLength );
-    const auto rawStart = std::min(
-        characterAtDisplayColumn( rawColumns, static_cast<int>( portion.startColumn().get() ) ),
-        rawEnd );
-    const auto shownColumns = rawToDisplayColumns( shown.text() );
-    const auto start = shownColumns[ static_cast<size_t>(
-        shown.toShown( rawStart, logsquirl::valuenames::Snap::ToStart ) ) ];
-    const auto end = shownColumns[ static_cast<size_t>(
-        shown.toShown( rawEnd, logsquirl::valuenames::Snap::ToEnd ) ) ];
-    return untabify( QString{ shown.text() } ).mid( start, end - start );
+    return selection_.getSelectedText(
+        *lines_, *logData_, false,
+        [ namer ]( const QString& text ) { return shownText( *namer, text ); } );
 }
 
 bool AbstractLogView::isPartialSelection() const

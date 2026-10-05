@@ -38,8 +38,10 @@ ShownColumns::ShownColumns( const logsquirl::valuenames::ValueNamer* namer,
                             const std::function<QString()>& readLine )
 {
     if ( namer == nullptr ) {
+        readLine_ = readLine;
         return;
     }
+    named_ = true;
     rawText_ = readLine();
     shown_ = logsquirl::valuenames::ShownLine{ rawText_, namer->namedValues( rawText_ ) };
 }
@@ -50,6 +52,14 @@ const logsquirl::vector<int>& ShownColumns::rawDisplayColumns() const
         rawDisplayColumns_ = rawToDisplayColumns( rawText_ );
     }
     return *rawDisplayColumns_;
+}
+
+const logsquirl::vector<int>& ShownColumns::shownDisplayColumns() const
+{
+    if ( !shownDisplayColumns_.has_value() ) {
+        shownDisplayColumns_ = rawToDisplayColumns( shown_.text() );
+    }
+    return *shownDisplayColumns_;
 }
 
 Portion ShownColumns::covering( const Portion& portion ) const
@@ -83,4 +93,36 @@ Portion ShownColumns::covering( const Portion& portion ) const
                                ? LineColumn{ columns[ static_cast<size_t>( end ) ] - 1 }
                                : std::min( portion.endColumn(), LineColumn{ columns.back() - 1 } );
     return Portion{ portion.line(), startColumn, endColumn };
+}
+
+QString ShownColumns::textShown( const Portion& portion ) const
+{
+    if ( !portion.isValid() ) {
+        return {};
+    }
+    if ( !named_ ) {
+        if ( !readLine_ ) {
+            return {};
+        }
+        return untabify( readLine_() )
+            .mid( portion.startColumn().get(), portion.size().get() );
+    }
+
+    // The covered Portion is moved to the characters of the raw Log Line, to
+    // those of the text shown, and to the display columns of the text shown.
+    const auto covered = covering( portion );
+    const auto& rawColumns = rawDisplayColumns();
+    const auto rawLength = static_cast<qsizetype>( rawColumns.size() ) - 1;
+    const auto rawEnd = std::min(
+        characterAtDisplayColumn( rawColumns, static_cast<int>( covered.endColumn().get() ) ) + 1,
+        rawLength );
+    const auto rawStart = std::min(
+        characterAtDisplayColumn( rawColumns, static_cast<int>( covered.startColumn().get() ) ),
+        rawEnd );
+    const auto& shownColumns = shownDisplayColumns();
+    const auto start = shownColumns[ static_cast<size_t>(
+        shown_.toShown( rawStart, logsquirl::valuenames::Snap::ToStart ) ) ];
+    const auto end = shownColumns[ static_cast<size_t>(
+        shown_.toShown( rawEnd, logsquirl::valuenames::Snap::ToEnd ) ) ];
+    return untabify( QString{ shown_.text() } ).mid( start, end - start );
 }

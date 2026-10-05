@@ -239,3 +239,121 @@ TEST_CASE( "With a namer the columns read the Log Line once", "[showncolumns][va
 
     CHECK( reads == 1 );
 }
+
+namespace {
+
+struct TextShown {
+    const char* what;
+    QString line;
+    int start;
+    int end;
+    QString text;
+};
+
+} // namespace
+
+// The text shown of EcuLine is "<tab>BAP << ECU Beispiel(0x15) Sample(0x14)<tab>end":
+// its second tab is two columns wide, not four. That of TabbedLine is
+// "v=AB(a<tab>b) end", whose tab is two columns wide, not five.
+TEST_CASE( "Copy as Shown of a Portion is the text shown for it", "[showncolumns][valuenames]" )
+{
+    const auto namer = exampleNamer();
+
+    const auto row = GENERATE( values<TextShown>( {
+        { "inside a Named Value after a tab", EcuLine, 20, 21, QStringLiteral( "Beispiel(0x15)" ) },
+        { "exactly a Named Value", EcuLine, 19, 22, QStringLiteral( "Beispiel(0x15)" ) },
+        { "ending inside a Named Value", EcuLine, 8, 20,
+          QStringLiteral( "BAP << ECU Beispiel(0x15)" ) },
+        { "starting inside a Named Value", EcuLine, 21, 23, QStringLiteral( "Beispiel(0x15) " ) },
+        { "across two Named Values", EcuLine, 21, 25,
+          QStringLiteral( "Beispiel(0x15) Sample(0x14)" ) },
+        { "beside a Named Value", EcuLine, 18, 18, QStringLiteral( " " ) },
+        { "over the tab before a Named Value", EcuLine, 0, 7, QStringLiteral( "        " ) },
+        { "from the tab before a Named Value into it", EcuLine, 0, 20,
+          QStringLiteral( "        BAP << ECU Beispiel(0x15)" ) },
+        { "from a Named Value over the tab after it", EcuLine, 25, 34,
+          QStringLiteral( "Sample(0x14)  end" ) },
+        { "after the tab after a Named Value", EcuLine, 32, 34, QStringLiteral( "end" ) },
+        { "from a Named Value past the end of the Log Line", EcuLine, 25, 50,
+          QStringLiteral( "Sample(0x14)  end" ) },
+        { "inside the tab of a Named Value's raw text", TabbedLine, 4, 5,
+          QStringLiteral( "AB(a  b)" ) },
+        { "from before a Named Value with a tab into it", TabbedLine, 0, 2,
+          QStringLiteral( "v=AB(a  b)" ) },
+        { "after a Named Value with a tab", TabbedLine, 10, 12, QStringLiteral( "end" ) },
+        { "from a Named Value at the end past the end of the Log Line", IdLine, 5, 20,
+          QStringLiteral( "seven(7)" ) },
+        { "from before a Named Value at the end past the end", IdLine, 4, 20,
+          QStringLiteral( "=seven(7)" ) },
+        { "just past a Named Value at the end", IdLine, 6, 6, QString{} },
+        { "far past the end of a Log Line", EcuLine, 40, 60, QString{} },
+    } ) );
+
+    CAPTURE( row.what, row.line, row.start, row.end );
+    const ShownColumns columns{ &namer, [ & ] { return row.line; } };
+
+    CHECK( columns.textShown( Portion{ 3_lnum, LineColumn( row.start ), LineColumn( row.end ) } )
+           == row.text );
+}
+
+TEST_CASE( "Copy as Shown of a Portion on a Log Line without Named Values is its text",
+           "[showncolumns][valuenames]" )
+{
+    const auto namer = exampleNamer();
+    const ShownColumns columns{ &namer, [] { return QStringLiteral( "\tnothing named\there" ); } };
+
+    const auto row = GENERATE( values<TextShown>( {
+        { "the tab", {}, 0, 7, QStringLiteral( "        " ) },
+        { "a word", {}, 8, 14, QStringLiteral( "nothing" ) },
+        { "past the end", {}, 30, 40, QString{} },
+    } ) );
+
+    CAPTURE( row.what );
+    CHECK( columns.textShown( Portion{ 1_lnum, LineColumn( row.start ), LineColumn( row.end ) } )
+           == row.text );
+}
+
+TEST_CASE( "Without a namer Copy as Shown of a Portion is its raw text, as Copy gives it",
+           "[showncolumns][valuenames]" )
+{
+    int reads = 0;
+    const ShownColumns columns{ nullptr, [ &reads ] {
+                                   ++reads;
+                                   return EcuLine;
+                               } };
+
+    const auto row = GENERATE( values<TextShown>( {
+        { "inside a value", {}, 20, 21, QStringLiteral( "x1" ) },
+        { "inside the tab before a value", {}, 3, 10, QStringLiteral( "     BAP" ) },
+        { "inside the tab after a value", {}, 29, 30, QStringLiteral( "  " ) },
+        { "past the end of the Log Line", {}, 30, 50, QStringLiteral( "  end" ) },
+        { "wholly past the end", {}, 40, 60, QString{} },
+    } ) );
+
+    CAPTURE( row.what );
+    CHECK( columns.textShown( Portion{ 1_lnum, LineColumn( row.start ), LineColumn( row.end ) } )
+           == row.text );
+    CHECK( reads == 1 );
+}
+
+TEST_CASE( "The identity has no text shown", "[showncolumns][valuenames]" )
+{
+    CHECK( ShownColumns{}.textShown( Portion{ 0_lnum, 0_lcol, 5_lcol } ).isEmpty() );
+}
+
+TEST_CASE( "Copy as Shown reads and names the Log Line once", "[showncolumns][valuenames]" )
+{
+    const auto namer = exampleNamer();
+    int reads = 0;
+    const ShownColumns columns{ &namer, [ &reads ] {
+                                   ++reads;
+                                   return EcuLine;
+                               } };
+
+    CHECK( columns.textShown( Portion{ 0_lnum, 20_lcol, 21_lcol } )
+           == QStringLiteral( "Beispiel(0x15)" ) );
+    CHECK( columns.textShown( Portion{ 0_lnum, 25_lcol, 26_lcol } )
+           == QStringLiteral( "Sample(0x14)" ) );
+
+    CHECK( reads == 1 );
+}
