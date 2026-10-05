@@ -7,6 +7,4 @@
 # with the change that makes its tests wait (showUntilExposed() from
 # tests/helpers/shown_widget.h).
 
-# UI tests (#756).
-
 # Benchmarks (#757).
