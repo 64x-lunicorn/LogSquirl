@@ -134,7 +134,10 @@ The **PGO** workflow (`.github/workflows/pgo.yml`) produces the numbers per plat
 <branch>`: plain, PGO, and on Linux PGO and BOLT, each built from scratch on its own runner, then every Catch2
 micro-benchmark and the e2e performance suite run on all of them on one runner. The `pgo-report` artifact holds the
 A/B tables and the build time each variant took; the build time increase is the instrumented build, the training,
-the merge and the optimized build (and BOLT's three steps) against the one plain build they replace.
+the merge and the optimized build (and BOLT's three steps) against the one plain build they replace. It builds its
+PGO and BOLT variants through `.github/actions/pgo-profile` and `.github/actions/bolt`, the actions a release job runs
+behind its switch, and a pull request that changes them, `pgo.py` or what they run on runs it without measuring:
+the Linux PGO and BOLT variant and the macOS PGO variant, so a broken action fails there first (#732).
 
 ### Plugin SDK
 
@@ -1113,7 +1116,7 @@ before anything is downloaded, because its signing job could not enter the
 | `instruction-counts-comment.yml` | `workflow_run` of CI Build | Post the report and the gate's verdict as one pull request comment, updated on every run, with master's code only |
 | `instruction-counts-label.yml` | `perf-accepted` added to or removed from a PR | Re-run CI Build's instruction counts gate and update the comment (see *Instruction counts*) |
 | `performance.yml` | nightly schedule (02:41 UTC), dispatch | Measure master's e2e performance suite and the instruction counts of its benchmarks in an optimized build, find change points and broken Budgets, record the run on the `perf-data` branch and file an issue per scenario with a finding (see *Nightly performance*) |
-| `pgo.yml` | dispatch only | Build each platform without and with profile-guided optimization (and BOLT on Linux), measure the micro-benchmarks and the e2e performance suite of all of them on one runner, and report the A/B tables and the build times (see *Profile-guided optimization*) |
+| `pgo.yml` | dispatch; pull requests changing the PGO/BOLT actions or what they run on (build only) | Build each platform without and with profile-guided optimization (and BOLT on Linux), measure the micro-benchmarks and the e2e performance suite of all of them on one runner, and report the A/B tables and the build times (see *Profile-guided optimization*) |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 
 
