@@ -28,6 +28,7 @@
 #include <QFile>
 #include <QFont>
 #include <QProgressDialog>
+#include <QScrollBar>
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QWidget>
@@ -690,6 +691,50 @@ SCENARIO( "QuickFind in the main view searches every Log Line", "[abstractlogvie
 
         view.incrementalSearchStop();
         REQUIRE( view.getSelectedText() == QStringLiteral( "found" ) );
+    }
+}
+
+SCENARIO( "QuickFind scrolls a text view without wrapping sideways to the match it finds",
+          "[abstractlogview][quickfind]" )
+{
+    using namespace logviewscrolling;
+
+    // The match is far right of a Viewport one column wide.
+    const FakeLogData logData{ QStringList{
+        QStringLiteral( "alpha" ),
+        QString( 60, QLatin1Char( 'x' ) ) + QStringLiteral( " found" ) } };
+    QuickFindPattern qfp;
+    qfp.changeSearchPattern( QStringLiteral( "found" ), /* useExtendedRegexp */ false );
+    TestLogView view( &logData, &qfp );
+    showOneColumnWide( view );
+    view.selectAndDisplayLine( 0_lnum );
+    REQUIRE( view.horizontalScrollBar()->value() == 0 );
+
+    QSignalSpy selected( &view, &AbstractLogView::newSelection );
+    const auto waitForSelection
+        = [ & ]( qsizetype count ) { return selected.count() >= count || selected.wait( 10000 ); };
+    selected.clear();
+
+    WHEN( "QuickFind finds the match for the first time" )
+    {
+        view.searchForward();
+        REQUIRE( waitForSelection( 1 ) );
+        REQUIRE( view.getSelectedText() == QStringLiteral( "found" ) );
+
+        THEN( "the view scrolls sideways to it at once" )
+        {
+            const auto scrolled = view.horizontalScrollBar()->value();
+            REQUIRE( scrolled > 0 );
+
+            AND_THEN( "finding it again leaves the view where it is" )
+            {
+                view.selectAndDisplayLine( 0_lnum );
+                selected.clear();
+                view.searchForward();
+                REQUIRE( waitForSelection( 1 ) );
+                REQUIRE( view.horizontalScrollBar()->value() == scrolled );
+            }
+        }
     }
 }
 

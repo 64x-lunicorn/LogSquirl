@@ -286,6 +286,10 @@
 
 ## Bug fixes
 
+- **QuickFind scrolls sideways to the match it finds the first time**: in a
+  view without text wrap, a match beyond the right edge of a long Log Line
+  was selected but stayed out of view until it was found a second time; the
+  view scrolled to the end of the previous selection instead. (#749)
 - ***Copy as Shown* of a selection inside a tab copies only the columns
   selected**: with Value Names shown, *Copy as Shown* of a selection within
   one Log Line that started or ended inside a tab copied the whole tab, even

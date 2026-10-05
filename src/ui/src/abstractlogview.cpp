@@ -1344,11 +1344,13 @@ void AbstractLogView::setQuickFindResult( bool hasMatch, const Portion& portion 
 {
     if ( portion.isValid() ) {
         LOG_DEBUG << "search " << portion.line();
+        // Selected first: the view scrolls sideways to the end of the
+        // Selection (#749).
+        selection_.selectPortion( portion );
         // The Visual Line holding the start of the found text, at the
         // position its Log Line is shown.
         displayPosition(
             FilePosition{ lines_->nearestPositionOf( portion.line() ), portion.startColumn() } );
-        selection_.selectPortion( portion );
         Q_EMIT newSelection( portion.line(), 1_lcount, 0_lcol, 0_length );
     }
     else if ( !hasMatch ) {
