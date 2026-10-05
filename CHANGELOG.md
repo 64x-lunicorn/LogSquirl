@@ -549,6 +549,26 @@
   view's scrollbar fails the gate at +4 % instead of +5 %. The other three benchmarks keep their thresholds, which the
   new counts still need. (#727)
 
+- **The PGO workflow runs the release path's PGO and BOLT actions**: it builds
+  its PGO variants through `.github/actions/pgo-profile` and its BOLT variant
+  through `.github/actions/bolt`, which a release job runs behind its `pgo` and
+  `bolt` switches, instead of its own copy of their steps. A pull request that
+  changes those actions, `pgo.py` and its scripts, `prepare-workspace-env`,
+  `docker-pull-or-build`, the PGO CMake module or the Linux build container
+  runs the workflow too: it builds the Linux PGO and BOLT variant and the
+  macOS PGO variant through the actions and fails when one does, without
+  measuring. Before, nothing in CI ran the actions while every switch was off,
+  so a broken one would only have failed the first release build with its
+  switch on. The actions take the build directory and the training runs as
+  inputs and no longer read the job's matrix; the release jobs build as
+  before. The first runs found two faults that had kept every build with
+  them from working: `pgo-profile` stopped at once on macOS, whose bash 3.2
+  takes the empty list of BOLT options for an unset variable, and BOLT could
+  not instrument on Linux, as Ubuntu's `bolt-18` leaves out its
+  instrumentation runtime and `llvm-bolt-18` looked for it in the wrong
+  directory. The `bolt` action now installs `libbolt-18-dev`, and `pgo.py`
+  instruments with the real `llvm-bolt`, beside which the runtime is. (#732)
+
 # v26.10.0 (2026-09-29)
 
 The stable release of 26.10. It contains everything from

@@ -6,15 +6,17 @@ description: >-
 # A release build of a platform uses this only behind its job's `pgo` switch
 # in ci-build.yml, which stays false until the A/B numbers of the PGO workflow
 # (pgo.yml) show a clear gain there. The profile is made by this run, from
-# this commit, and never kept: it cannot go stale. While every switch is
-# off nothing in CI runs this action; test_pgo.py checks its pgo.py calls and
-# the files it names (#732).
+# this commit, and never kept: it cannot go stale. The PGO workflow builds its
+# PGO variants through this action, and runs on a pull request that changes
+# it, so a broken action fails there before a release switch is turned on
+# (#732).
 #
-# The instrumented build is the build root itself: GCC names each object's
-# profile after the object's absolute path, so the optimized build has to
-# compile in the same directory, and the build after this one reconfigures it
-# with LOGSQUIRL_PGO=USE. It runs after logsquirl-version and
-# prepare-workspace-env, and on Linux after docker-pull-or-build.
+# The instrumented build is the build directory itself: GCC names each
+# object's profile after the object's absolute path, so the optimized build has
+# to compile in the same directory, and the build after this one reconfigures
+# it with LOGSQUIRL_PGO=USE. It runs after logsquirl-version and
+# prepare-workspace-env, and on Linux after docker-pull-or-build; it reads
+# nothing of the job's matrix.
 inputs:
   toolchain:
     description: "gcc (Linux, in the build container), clang (macOS) or msvc (Windows)"
@@ -23,6 +25,14 @@ inputs:
     description: "true: link the builds for BOLT as well (LOGSQUIRL_BOLT, Linux); the bolt action runs after the build"
     required: false
     default: "false"
+  build_dir:
+    description: "The build directory, relative to the workspace (default: LOGSQUIRL_BUILD_ROOT, as docker-build and agent-build build)"
+    required: false
+    default: ""
+  training_runs:
+    description: "Runs per scenario in the training (pgo.py train --runs)"
+    required: false
+    default: "1"
 runs:
   using: "composite"
   steps:
@@ -37,9 +47,9 @@ runs:
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ github.workspace }}/cpm_cache
-        key: cpm-${{ runner.os }}-${{ matrix.config.arch }}-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
+        key: cpm-${{ runner.os }}-${{ env.LOGSQUIRL_ARCH }}-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
         restore-keys: |
-          cpm-${{ runner.os }}-${{ matrix.config.arch }}-
+          cpm-${{ runner.os }}-${{ env.LOGSQUIRL_ARCH }}-
 
     # The Log Files up to 100 MB: the scenarios' code runs on them as on the
     # 1 GB one, in a fraction of the time.
@@ -56,6 +66,8 @@ runs:
       env:
         TOOLCHAIN: ${{ inputs.toolchain }}
         BOLT: ${{ inputs.bolt }}
+        BUILD_DIR: ${{ inputs.build_dir }}
+        TRAINING_RUNS: ${{ inputs.training_runs }}
       run: |
         set -euo pipefail
         # shellcheck disable=SC2016 # expanded by the shell in the container
@@ -68,19 +80,22 @@ runs:
           --env LOGSQUIRL_CMAKE_OPTS \
           --env TOOLCHAIN \
           --env BOLT \
+          --env BUILD_DIR \
+          --env TRAINING_RUNS \
           --workdir /usr/local \
           -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c '
             set -euo pipefail
             python3 -m pip install --quiet --break-system-packages --require-hashes --only-binary :all: \
               -r .github/requirements/e2e.txt
+            build=${BUILD_DIR:-$LOGSQUIRL_BUILD_ROOT}
             bolt=()
             [ "$BOLT" != true ] || bolt=(--bolt)
             pgo() { python3 .github/scripts/pgo.py --timings pgo-run/timings.json "$@"; }
-            pgo build --build-dir "$LOGSQUIRL_BUILD_ROOT" --mode GENERATE "${bolt[@]}" \
+            pgo build --build-dir "$build" --mode GENERATE ${bolt[@]+"${bolt[@]}"} \
               --targets logsquirl logsquirl_grep crashpad_handler \
               --cmake-args "$LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache"
-            pgo train --binary-dir "$LOGSQUIRL_BUILD_ROOT/output"
-            pgo merge --toolchain "$TOOLCHAIN" --profile-dir "$LOGSQUIRL_BUILD_ROOT/pgo-profile"
+            pgo train --binary-dir "$build/output" --runs "$TRAINING_RUNS"
+            pgo merge --toolchain "$TOOLCHAIN" --profile-dir "$build/pgo-profile"
           '
 
     # Configured as agent-build configures, compiler launcher included, so the
@@ -91,6 +106,8 @@ runs:
       env:
         TOOLCHAIN: ${{ inputs.toolchain }}
         BOLT: ${{ inputs.bolt }}
+        BUILD_DIR: ${{ inputs.build_dir }}
+        TRAINING_RUNS: ${{ inputs.training_runs }}
       run: |
         set -euo pipefail
         pip install --require-hashes --only-binary :all: -r .github/requirements/e2e.txt
@@ -102,14 +119,16 @@ runs:
             launcher="$launcher -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DCMAKE_POLICY_DEFAULT_CMP0141=NEW"
           fi
         fi
+        build=${BUILD_DIR:-$LOGSQUIRL_BUILD_ROOT}
         bolt=()
         [ "$BOLT" != true ] || bolt=(--bolt)
+        # macOS's bash 3.2 takes an empty "${bolt[@]}" for unbound under set -u.
         pgo() { python .github/scripts/pgo.py --timings pgo-run/timings.json "$@"; }
-        pgo build --build-dir "$LOGSQUIRL_BUILD_ROOT" --mode GENERATE "${bolt[@]}" \
+        pgo build --build-dir "$build" --mode GENERATE ${bolt[@]+"${bolt[@]}"} \
           --targets logsquirl logsquirl_grep crashpad_handler \
           --cmake-args "$LOGSQUIRL_CMAKE_OPTS $launcher -DCPM_SOURCE_CACHE=$workspace/cpm_cache"
-        pgo train --binary-dir "$LOGSQUIRL_BUILD_ROOT/output" --profile-dir "$LOGSQUIRL_BUILD_ROOT/pgo-profile"
-        pgo merge --toolchain "$TOOLCHAIN" --profile-dir "$LOGSQUIRL_BUILD_ROOT/pgo-profile"
+        pgo train --binary-dir "$build/output" --profile-dir "$build/pgo-profile" --runs "$TRAINING_RUNS"
+        pgo merge --toolchain "$TOOLCHAIN" --profile-dir "$build/pgo-profile"
 
     # Only the options prepare-workspace-env wrote and literals (#204).
     - name: Build with the profile
