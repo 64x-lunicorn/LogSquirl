@@ -484,8 +484,19 @@
   drag, *Copy*, *Copy as Shown*, a double-click, scrolling to the Selection
   and the tooltip, and finds they give what they give and read what they
   read in a view without any Naming Group.
+  For a Log Line on screen the module takes the Log Line as shown from the
+  Viewport, which read and named it already, instead of reading and naming
+  it again on every mouse move of a drag, click, double-click, tooltip, Copy
+  or scroll to the Selection; one off screen, or after the Log File, the
+  Displayed Lines or the Value Names changed and before the Viewport is
+  built again, is read and named as before. A new benchmark,
+  `logsquirl_textview_valuenames_benchmark`, measures it on Log Lines with
+  22 Naming Rules: 200 mouse moves of a drag went from 4.5 ms to 0.65 ms,
+  20 double-clicks on a Named Value from 1.02 ms to 0.12 ms (Apple M5,
+  RelWithDebInfo). Painted after each move, a drag costs as before: the
+  paint outweighs both.
   Table-driven tests check it without a widget. `ShownLine` stays as it is.
-  (#740, #741, #742, #743, #744)
+  (#740, #741, #742, #743, #744, #745)
 
 - **The text view tests that show a view one column wide wait until its
   window is exposed**: the helper that shows such a view processed events

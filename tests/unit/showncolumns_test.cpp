@@ -24,6 +24,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
+#include <optional>
+#include <tuple>
+
 #include <QList>
 #include <QString>
 
@@ -397,6 +400,63 @@ TEST_CASE( "Copy as Shown reads and names the Log Line once", "[showncolumns][va
            == QStringLiteral( "Sample(0x14)" ) );
 
     CHECK( reads == 1 );
+}
+
+namespace {
+
+// A Portion, comparable, as its line and columns; one of -1 for none.
+std::tuple<uint64_t, int64_t, int64_t> columnsOf( const std::optional<Portion>& portion )
+{
+    if ( !portion.has_value() ) {
+        return { 0, -1, -1 };
+    }
+    return { portion->line().get(), portion->startColumn().get(), portion->endColumn().get() };
+}
+
+} // namespace
+
+TEST_CASE( "A Log Line named already gives what it gives read and named",
+           "[showncolumns][valuenames]" )
+{
+    using logsquirl::valuenames::Snap;
+    const auto namer = exampleNamer();
+    // What the Viewport holds for a Log Line: its raw text, and the Log Line
+    // as shown, empty where nothing is named (#745).
+    const auto line = GENERATE( EcuLine, TabbedLine, IdLine, QStringLiteral( "\tnothing named" ) );
+    const auto namedValues = namer.namedValues( line );
+    const auto shown = namedValues.isEmpty()
+                           ? logsquirl::valuenames::ShownLine{}
+                           : logsquirl::valuenames::ShownLine{ line, namedValues };
+    CAPTURE( line );
+
+    const ShownColumns named{ line, shown };
+    const ShownColumns read{ &namer, [ & ] { return line; } };
+
+    for ( int start = 0; start < 40; ++start ) {
+        for ( const auto end : { start, start + 1, start + 6, 50 } ) {
+            CAPTURE( start, end );
+            const Portion portion{ 2_lnum, LineColumn( start ), LineColumn( end ) };
+            CHECK( columnsOf( named.covering( portion ) )
+                   == columnsOf( read.covering( portion ) ) );
+            CHECK( named.textShown( portion ) == read.textShown( portion ) );
+        }
+        const FilePosition position{ 2_lnum, LineColumn( start ) };
+        CHECK( columnsOf( named.namedValueAt( position ) )
+               == columnsOf( read.namedValueAt( position ) ) );
+        for ( const auto snap : { Snap::ToStart, Snap::ToEnd } ) {
+            CHECK( named.shownColumn( LineColumn( start ), snap )
+                   == read.shownColumn( LineColumn( start ), snap ) );
+            CHECK( named.rawColumn( LineColumn( start ), snap )
+                   == read.rawColumn( LineColumn( start ), snap ) );
+        }
+        const auto namedValue = named.namedValueShownAt( LineColumn( start ) );
+        const auto readValue = read.namedValueShownAt( LineColumn( start ) );
+        CHECK( namedValue.has_value() == readValue.has_value() );
+        if ( namedValue.has_value() && readValue.has_value() ) {
+            CHECK( namedValue->start == readValue->start );
+            CHECK( namedValue->name == readValue->name );
+        }
+    }
 }
 
 namespace {

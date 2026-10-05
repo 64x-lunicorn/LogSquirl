@@ -56,6 +56,13 @@ ShownColumns::ShownColumns( const logsquirl::valuenames::ValueNamer* namer,
     shown_ = logsquirl::valuenames::ShownLine{ rawText_, namer->namedValues( rawText_ ) };
 }
 
+ShownColumns::ShownColumns( const QString& rawText, const logsquirl::valuenames::ShownLine& shown )
+    : named_( true )
+    , rawText_( rawText )
+    , shown_( shown.hasNamedValues() ? shown : logsquirl::valuenames::ShownLine{ rawText, {} } )
+{
+}
+
 const logsquirl::vector<int>& ShownColumns::rawDisplayColumns() const
 {
     if ( !rawDisplayColumns_.has_value() ) {

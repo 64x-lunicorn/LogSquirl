@@ -53,6 +53,11 @@ public:
     ShownColumns( const logsquirl::valuenames::ValueNamer* namer,
                   const std::function<QString()>& readLine );
 
+    // The Log Line rawText as it was named already: shown is what the namer
+    // gave for it, or empty where it gave no Named Value. Neither read nor
+    // named again (#745).
+    ShownColumns( const QString& rawText, const logsquirl::valuenames::ShownLine& shown );
+
     // The Portion grown to cover every Named Value it takes part of, so that
     // a Selection, a Copy and the length of a Selection take its whole raw
     // text. A Portion that reaches past the end of the Log Line is cut at its

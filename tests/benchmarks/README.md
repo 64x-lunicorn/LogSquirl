@@ -790,3 +790,42 @@ cmake --build build-release --target logsquirl_ansicolorsequences_benchmark \
     logsquirl_ansi_log_file_benchmark logsquirl_textview_ansi_benchmark
 ./build-release/output/logsquirl_textview_ansi_benchmark --benchmark-samples 50
 ```
+
+# Value Names interaction benchmark
+
+`logsquirl_textview_valuenames_benchmark` (#745) shows a Text View of 100,000
+generated Log Lines with Value Names shown. Every Log Line holds the
+example's ECU and Id values and four `keyNN=N` pairs, named by 22 Naming
+Rules, and the mouse goes through the view's own events:
+
+- **drag, 200 mouse moves**: a Selection dragged along one Log Line across
+  its Named Values, a few pixels per move, without painting in between.
+- **drag, 20 mouse moves, each painted**: the same with a repaint after each
+  move, for the share the interaction has next to painting.
+- **double-click, 20 Log Lines**: a double-click on a Named Value of each of
+  20 Log Lines on screen.
+
+Before measuring it finds the point on the first row where a double-click
+selects `Beispiel(0x15)`, and fails if there is none. It uses only what the
+text view offered at #744, so it builds unchanged on such a commit:
+
+```cmake
+add_executable(logsquirl_textview_valuenames_benchmark textview_valuenames_benchmark.cpp)
+target_link_libraries(logsquirl_textview_valuenames_benchmark logsquirl_ui Catch2::Catch2 test_utils)
+```
+
+Measured on Apple M5 (macOS, RelWithDebInfo, 50 samples, mean of two runs):
+
+| Benchmark | #744 | #745 |
+|---|---:|---:|
+| drag, 200 mouse moves | 4.52 ms | 0.66 ms |
+| drag, 20 mouse moves, each painted | 216 ms | 201 ms |
+| double-click, 20 Log Lines | 1.02 ms | 0.12 ms |
+
+With #745 a Log Line on screen is taken as shown from the Viewport instead
+of being read and named again for each event; painting outweighs both.
+
+```bash
+cmake --build build-release --target logsquirl_textview_valuenames_benchmark
+./build-release/output/logsquirl_textview_valuenames_benchmark --benchmark-samples 50
+```

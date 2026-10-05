@@ -254,26 +254,33 @@ logsquirl::vector<Interaction> interactWith( AbstractLogView& view, const Counti
 
     record( "drag", [ & ] {
         drag( view, onText( 0, 3 ), onText( 0, 15 ) );
-        return QString{};
+        return view.getSelectedText();
     } );
     record( "Copy", [ & ] { return view.getSelectedText(); } );
     record( "Copy as Shown", [ & ] { return view.getSelectedTextAsShown(); } );
+    // Column 18 is on Beispiel(0x15) shown, on 0x14 unnamed.
     record( "double-click", [ & ] {
-        doubleClick( view, onText( 0, 12 ) );
+        doubleClick( view, onText( 0, 18 ) );
         return view.getSelectedText();
     } );
+    // From Sample(0x14) to the end of a Log Line wider than the Viewport only
+    // with Value Names: only shown is it scrolled to. Scrolled back for what
+    // follows.
     record( "scroll to the Selection", [ & ] {
-        Access::quickFindFound( view, Portion{ NamedLine, LineColumn{ 13 }, LineColumn{ 14 } } );
-        return QString::number( view.horizontalScrollBar()->value() );
+        Access::quickFindFound( view, Portion{ WideLine, LineColumn{ 16 }, LineColumn{ 47 } } );
+        const auto scrolledTo = view.horizontalScrollBar()->value();
+        view.horizontalScrollBar()->setValue( 0 );
+        return QString::number( scrolledTo );
     } );
     record( "Copy as Shown of the scrolled to Selection",
             [ & ] { return view.getSelectedTextAsShown(); } );
-    record( "click", [ & ] {
+    // A click selects the whole Log Line, whatever column it lands on: only
+    // Copy as Shown of it tells a named Log Line from an unnamed one.
+    record( "click, and Copy as Shown of the Log Line", [ & ] {
         sendMouse( view, QEvent::MouseButtonPress, onText( 1, 2 ), Qt::LeftButton, Qt::LeftButton );
         sendMouse( view, QEvent::MouseButtonRelease, onText( 1, 2 ), Qt::LeftButton, Qt::NoButton );
-        return view.getSelectedText();
+        return view.getSelectedTextAsShown();
     } );
-    record( "Copy as Shown of a Log Line", [ & ] { return view.getSelectedTextAsShown(); } );
     record( "tooltip", [ & ] {
         const auto pos = onText( 0, 12 ).toPoint();
         QHelpEvent event( QEvent::ToolTip, pos, view.viewport()->mapToGlobal( pos ) );
@@ -719,6 +726,139 @@ SCENARIO( "Off, Value Names cost a text view nothing", "[logviewvaluenames]" )
     }
 }
 
+SCENARIO( "A text view takes the Log Lines on screen as shown from the Viewport",
+          "[logviewvaluenames]" )
+{
+    const QuickFindPattern quickFindPattern;
+    const auto readNow = []( const CountingLogData& logData, const std::function<void()>& act ) {
+        const auto before = logData.linesRead;
+        act();
+        return logData.linesRead - before;
+    };
+
+    GIVEN( "a painted view that shows Value Names, with every Log Line on screen" )
+    {
+        const ScopedValueNames valueNames;
+        CountingLogData countingData{ valueNamesLines() };
+        ValueNamesLogView view( &countingData, &quickFindPattern, false );
+        showForTest( view );
+        view.valueNamesShownSet( true );
+        paint( view );
+
+        THEN( "a click and the tooltip on a Named Value read no Log Line" )
+        {
+            REQUIRE( readNow( countingData,
+                              [ & ] {
+                                  sendMouse( view, QEvent::MouseButtonPress, onText( 0, 15 ),
+                                             Qt::LeftButton, Qt::LeftButton );
+                                  sendMouse( view, QEvent::MouseButtonRelease, onText( 0, 15 ),
+                                             Qt::LeftButton, Qt::NoButton );
+                              } )
+                     == 0 );
+            REQUIRE( readNow( countingData,
+                              [ & ] {
+                                  REQUIRE( view.valueNameToolTipAt( onText( 0, 12 ).toPoint() )
+                                               .startsWith( QStringLiteral( "0x15 → Beispiel" ) ) );
+                              } )
+                     == 0 );
+        }
+
+        THEN( "selecting, copying, scrolling to the Selection and the tooltip read no more Log "
+              "Lines than a view without any Naming Group" )
+        {
+            const auto named = interactWith( view, countingData );
+            const auto withoutNames = [ & ] {
+                const ScopedValueNames noValueNames{ {} };
+                const CountingLogData unnamedData{ valueNamesLines() };
+                ValueNamesLogView unnamedView( &unnamedData, &quickFindPattern, false );
+                showForTest( unnamedView );
+                unnamedView.valueNamesShownSet( true );
+                paint( unnamedView );
+                return interactWith( unnamedView, unnamedData );
+            }();
+            REQUIRE( named.size() == withoutNames.size() );
+            for ( size_t index = 0; index < named.size(); ++index ) {
+                INFO( named[ index ] );
+                INFO( withoutNames[ index ] );
+                REQUIRE( named[ index ].linesRead <= withoutNames[ index ].linesRead );
+            }
+        }
+
+        WHEN( "the Value Names change, and the view is not painted again" )
+        {
+            doubleClick( view, onText( 0, 12 ) );
+            REQUIRE( view.getSelectedTextAsShown() == QStringLiteral( "Beispiel(0x15)" ) );
+
+            auto group = valuenamesfixture::exampleGroup();
+            auto tables = group.tables();
+            tables[ 0 ].rows[ 0 ].name = QStringLiteral( "Example" );
+            group.setTables( tables );
+            ValueNamesCollection::get().setGroups( { group } );
+            view.applyValueNamesChange();
+
+            THEN( "Copy as Shown, the tooltip and a drag take the new names" )
+            {
+                REQUIRE( view.getSelectedTextAsShown() == QStringLiteral( "Example(0x15)" ) );
+                REQUIRE( view.valueNameToolTipAt( onText( 0, 12 ).toPoint() )
+                             .startsWith( QStringLiteral( "0x15 → Example" ) ) );
+                // Column 24 is the space after Example(0x15); before, it was
+                // the end of Beispiel(0x15).
+                drag( view, onText( 0, 3 ), onText( 0, 24 ) );
+                REQUIRE( view.getSelectedTextAsShown()
+                         == QStringLiteral( " << ECU Example(0x15) " ) );
+            }
+        }
+
+        WHEN( "a Log Line on screen changes in the Log File, and the view is not painted again" )
+        {
+            doubleClick( view, onText( 0, 12 ) );
+            REQUIRE( view.getSelectedTextAsShown() == QStringLiteral( "Beispiel(0x15)" ) );
+
+            // 0x14 and 0x15 swapped: neither is named any longer.
+            auto lines = valueNamesLines();
+            lines[ 0 ] = QStringLiteral( "BAP << ECU 0x14 0x15 sonstiges" );
+            countingData.setLines( lines );
+            view.updateData();
+
+            THEN( "Copy as Shown and the tooltip take the Log Line as it reads now" )
+            {
+                REQUIRE( view.getSelectedTextAsShown() == QStringLiteral( "0x14" ) );
+                REQUIRE( view.valueNameToolTipAt( onText( 0, 12 ).toPoint() ).isEmpty() );
+            }
+        }
+    }
+
+    GIVEN( "a view that shows Value Names, scrolled away from the Named Value selected" )
+    {
+        const ScopedValueNames valueNames;
+        auto lines = valueNamesLines();
+        for ( int filler = 0; filler < 40; ++filler ) {
+            lines << QStringLiteral( "filler %1" ).arg( filler );
+        }
+        const CountingLogData countingData{ lines };
+        ValueNamesLogView view( &countingData, &quickFindPattern, false );
+        showForTest( view );
+        view.valueNamesShownSet( true );
+        paint( view );
+        doubleClick( view, onText( 0, 12 ) );
+        REQUIRE( view.getSelectedTextAsShown() == QStringLiteral( "Beispiel(0x15)" ) );
+
+        view.verticalScrollBar()->setValue( 20 );
+        paint( view );
+        REQUIRE( view.getTopLine() >= 20_lnum );
+
+        THEN( "Copy as Shown reads its Log Line once, and names it" )
+        {
+            REQUIRE( readNow( countingData,
+                              [ & ] {
+                                  REQUIRE( view.getSelectedTextAsShown()
+                                           == QStringLiteral( "Beispiel(0x15)" ) );
+                              } )
+                     == 1 );
+        }
+    }
+}
+
 SCENARIO( "A text view saves its Log Lines with Value Names when asked to",
           "[logviewvaluenames][linessaver]" )
 {
@@ -866,12 +1006,12 @@ SCENARIO( "A Filtered View shows Value Names at its positions", "[logviewvaluena
         QStringLiteral( "a Log Line wrapped inside a Named Value: BAP << ECU 0x15 0x14 end" )
     };
     const std::vector<uint64_t> shown{ 1, 3, 4 };
-    const FakeLogData logFile{ logFileLines };
+    const CountingLogData logFile{ logFileLines };
     QStringList shownLines;
     for ( const auto line : shown ) {
         shownLines << logFileLines[ static_cast<qsizetype>( line ) ];
     }
-    const FakeLogData shownText{ shownLines };
+    const CountingLogData shownText{ shownLines };
     const QuickFindPattern quickFindPattern;
 
     for ( const bool textWrap : { false, true } ) {
@@ -890,6 +1030,20 @@ SCENARIO( "A Filtered View shows Value Names at its positions", "[logviewvaluena
                     == QStringLiteral( "0x15 → Beispiel · table ECU · rule BAP ECU · group BAP" ) );
                 REQUIRE( view.valueNameToolTipAt( onText( 1, 13 ).toPoint() )
                          == QStringLiteral( "7 → seven · table Ids · rule Id · group BAP" ) );
+            }
+
+            THEN( "a click and the tooltip on a Named Value on screen read no Log Line" )
+            {
+                paint( view );
+                const auto readBefore = logFile.linesRead + shownText.linesRead;
+                REQUIRE( view.valueNameToolTipAt( onText( 1, 13 ).toPoint() )
+                             .startsWith( QStringLiteral( "7 → seven" ) ) );
+                sendMouse( view, QEvent::MouseButtonPress, onText( 0, 15 ), Qt::LeftButton,
+                           Qt::LeftButton );
+                sendMouse( view, QEvent::MouseButtonRelease, onText( 0, 15 ), Qt::LeftButton,
+                           Qt::NoButton );
+                REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 1_lnum } );
+                REQUIRE( logFile.linesRead + shownText.linesRead == readBefore );
             }
 
             WHEN( "text is dragged into a Named Value" )

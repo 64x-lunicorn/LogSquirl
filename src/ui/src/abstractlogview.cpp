@@ -1483,8 +1483,31 @@ uint64_t AbstractLogView::valueNamesKey() const
 
 ShownColumns AbstractLogView::shownColumnsOf( LineNumber logLine ) const
 {
-    return ShownColumns{ shownValueNamer(),
+    const auto* namer = shownValueNamer();
+    if ( namer != nullptr ) {
+        if ( const auto* onScreen = viewportLogLineOf( logLine ); onScreen != nullptr ) {
+            return ShownColumns{ onScreen->text, onScreen->shown };
+        }
+    }
+    return ShownColumns{ namer,
                          [ this, logLine ] { return lines_->logFile().getLineString( logLine ); } };
+}
+
+const AbstractLogView::ViewportLogLine*
+AbstractLogView::viewportLogLineOf( LineNumber logLine ) const
+{
+    // The key holds the Log File's generation, which a change of it or of
+    // the Displayed Lines bumps, and the Value Names' (#745).
+    if ( !viewportContent_.has_value()
+         || !( viewportContentKey_ == currentViewportContentKey() ) ) {
+        return nullptr;
+    }
+    const auto& logLines = viewportContent_->logLines;
+    const auto found = std::find_if( logLines.begin(), logLines.end(),
+                                     [ logLine ]( const ViewportLogLine& viewportLogLine ) {
+                                         return viewportLogLine.lineNumber == logLine;
+                                     } );
+    return found != logLines.end() ? &*found : nullptr;
 }
 
 QString AbstractLogView::valueNameToolTipAt( const QPoint& pos ) const
