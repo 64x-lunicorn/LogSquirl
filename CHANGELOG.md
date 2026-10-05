@@ -286,6 +286,11 @@
 
 ## Bug fixes
 
+- **A selection past the end of a Log Line no longer copies the Named Value
+  at its end**: with Value Names shown, a selection wholly after the end of a
+  Log Line that ends in a Named Value took in that value, so *Copy* copied
+  its raw text and the length of the selection counted it, though nothing of
+  it was selected. It now copies nothing, as with Value Names hidden. (#746)
 - **The dashboard lists a plugin installed while it is shown**: a plugin
   installed, enabled or disabled in *Plugins* while the dashboard was open
   did not show on its Plugins card, which kept saying *No plugins installed*

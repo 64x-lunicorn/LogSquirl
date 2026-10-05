@@ -112,6 +112,26 @@ TEST_CASE( "A Portion covers every Named Value it takes part of", "[showncolumns
     CHECK( covered.endColumn() == LineColumn( row.coveredEnd ) );
 }
 
+TEST_CASE( "A Portion past the end of a Log Line covers no Named Value",
+           "[showncolumns][valuenames]" )
+{
+    const auto namer = exampleNamer();
+
+    const auto row = GENERATE( values<Covering>( {
+        { "just past a Named Value at the end", IdLine, 6, 6, 6, 6 },
+        { "further past a Named Value at the end", IdLine, 6, 9, 6, 9 },
+        { "far past the end of a Log Line with Named Values", EcuLine, 40, 60, 40, 60 },
+    } ) );
+
+    CAPTURE( row.what, row.line, row.start, row.end );
+    const ShownColumns columns{ &namer, [ & ] { return row.line; } };
+    const auto covered
+        = columns.covering( Portion{ 0_lnum, LineColumn( row.start ), LineColumn( row.end ) } );
+
+    CHECK( covered.startColumn() == LineColumn( row.coveredStart ) );
+    CHECK( covered.endColumn() == LineColumn( row.coveredEnd ) );
+}
+
 TEST_CASE( "A Portion on a Log Line without Named Values stays as it is",
            "[showncolumns][valuenames]" )
 {

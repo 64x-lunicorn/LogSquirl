@@ -59,6 +59,11 @@ Portion ShownColumns::covering( const Portion& portion ) const
     }
 
     const auto& columns = rawDisplayColumns();
+    // A Portion wholly past the end of the Log Line takes part of nothing on
+    // it (#746).
+    if ( portion.startColumn().get() >= columns.back() ) {
+        return portion;
+    }
     // The characters of the Portion, kept on the Log Line however far past its
     // end it reaches. A Log Line with a Named Value has at least one.
     const auto rawLength = static_cast<qsizetype>( columns.size() ) - 1;

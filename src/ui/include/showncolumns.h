@@ -62,8 +62,8 @@ public:
     // The Portion grown to cover every Named Value it takes part of, so that
     // a Selection, a Copy and the length of a Selection take its whole raw
     // text. A Portion that reaches past the end of the Log Line is cut at its
-    // end. A Portion on a Log Line without Named Values, and an invalid one,
-    // is given back as it is.
+    // end. A Portion wholly past the end, one on a Log Line without Named
+    // Values, and an invalid one, is given back as it is.
     Portion covering( const Portion& portion ) const;
 
 private:
