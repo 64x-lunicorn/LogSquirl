@@ -25,6 +25,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <functional>
+#include <ostream>
+#include <string>
+
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
@@ -33,12 +37,14 @@
 #include <QFile>
 #include <QFontInfo>
 #include <QGridLayout>
+#include <QHelpEvent>
 #include <QLabel>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QToolTip>
 #include <QVBoxLayout>
 
 #include "abstractlogview.h"
@@ -61,8 +67,12 @@ struct AbstractLogView::access_by<ValueNamesViewTest> {
     static logsquirl::vector<HighlightedMatch> decorationSpans( const AbstractLogView& view,
                                                                 LineNumber position )
     {
-        const auto* logLine = view.viewportLogLineAt( position );
-        REQUIRE( logLine != nullptr );
+        const auto& logLines = view.viewportContent().logLines;
+        const auto logLine
+            = std::find_if( logLines.begin(), logLines.end(), [ position ]( const auto& line ) {
+                  return line.position == position;
+              } );
+        REQUIRE( logLine != logLines.end() );
         REQUIRE( logLine->decorated.has_value() );
         return logLine->decorated->decoration.spans();
     }
@@ -195,6 +205,83 @@ void paint( AbstractLogView& view )
 {
     view.viewport()->grab();
     QCoreApplication::processEvents();
+}
+
+// Counts the Log Lines read: every read of a Log Line, alone, expanded or
+// with others, reads it with doGetLineString().
+class CountingLogData : public FakeLogData {
+public:
+    using FakeLogData::FakeLogData;
+
+    mutable uint64_t linesRead = 0;
+
+protected:
+    QString doGetLineString( LineNumber line ) const override
+    {
+        ++linesRead;
+        return FakeLogData::doGetLineString( line );
+    }
+};
+
+// What each interaction of a view gave, and how many Log Lines it read.
+struct Interaction {
+    std::string name;
+    QString result;
+    uint64_t linesRead = 0;
+
+    bool operator==( const Interaction& ) const = default;
+};
+
+std::ostream& operator<<( std::ostream& out, const Interaction& interaction )
+{
+    return out << interaction.name << ": \"" << interaction.result.toStdString() << "\", "
+               << interaction.linesRead << " Log Lines read";
+}
+
+// Drives the interactions that convert between raw and shown text where Value
+// Names are shown -- click and drag, Copy, Copy as Shown, double-click,
+// scroll to the Selection, tooltip -- on a painted view, without painting
+// it again in between.
+logsquirl::vector<Interaction> interactWith( AbstractLogView& view, const CountingLogData& logData )
+{
+    logsquirl::vector<Interaction> interactions;
+    const auto record = [ & ]( std::string name, const std::function<QString()>& interaction ) {
+        const auto before = logData.linesRead;
+        auto result = interaction();
+        interactions.push_back(
+            Interaction{ std::move( name ), std::move( result ), logData.linesRead - before } );
+    };
+
+    record( "drag", [ & ] {
+        drag( view, onText( 0, 3 ), onText( 0, 15 ) );
+        return QString{};
+    } );
+    record( "Copy", [ & ] { return view.getSelectedText(); } );
+    record( "Copy as Shown", [ & ] { return view.getSelectedTextAsShown(); } );
+    record( "double-click", [ & ] {
+        doubleClick( view, onText( 0, 12 ) );
+        return view.getSelectedText();
+    } );
+    record( "scroll to the Selection", [ & ] {
+        Access::quickFindFound( view, Portion{ NamedLine, LineColumn{ 13 }, LineColumn{ 14 } } );
+        return QString::number( view.horizontalScrollBar()->value() );
+    } );
+    record( "Copy as Shown of the scrolled to Selection",
+            [ & ] { return view.getSelectedTextAsShown(); } );
+    record( "click", [ & ] {
+        sendMouse( view, QEvent::MouseButtonPress, onText( 1, 2 ), Qt::LeftButton, Qt::LeftButton );
+        sendMouse( view, QEvent::MouseButtonRelease, onText( 1, 2 ), Qt::LeftButton, Qt::NoButton );
+        return view.getSelectedText();
+    } );
+    record( "Copy as Shown of a Log Line", [ & ] { return view.getSelectedTextAsShown(); } );
+    record( "tooltip", [ & ] {
+        const auto pos = onText( 0, 12 ).toPoint();
+        QHelpEvent event( QEvent::ToolTip, pos, view.viewport()->mapToGlobal( pos ) );
+        QCoreApplication::sendEvent( view.viewport(), &event );
+        QToolTip::hideText();
+        return view.valueNameToolTipAt( pos );
+    } );
+    return interactions;
 }
 
 } // namespace
@@ -515,6 +602,18 @@ SCENARIO( "Off, Value Names cost a text view nothing", "[logviewvaluenames]" )
     const FakeLogData logData{ valueNamesLines() };
     const QuickFindPattern quickFindPattern;
 
+    // What the interactions give, and read, in a view without any Naming
+    // Group: nothing there is named, nothing can be looked up (#744).
+    const auto unnamed = [ &quickFindPattern ]( bool switchOn ) {
+        const ScopedValueNames noValueNames{ {} };
+        const CountingLogData countingData{ valueNamesLines() };
+        ValueNamesLogView view( &countingData, &quickFindPattern, false );
+        showForTest( view );
+        view.valueNamesShownSet( switchOn );
+        paint( view );
+        return interactWith( view, countingData );
+    };
+
     GIVEN( "Naming Rules, and a view whose switch is off" )
     {
         const ScopedValueNames valueNames;
@@ -526,6 +625,16 @@ SCENARIO( "Off, Value Names cost a text view nothing", "[logviewvaluenames]" )
         {
             REQUIRE_FALSE( view.showsValueNames() );
             REQUIRE_FALSE( Access::namesAny( view ) );
+        }
+
+        THEN( "selecting, copying, scrolling to the Selection and the tooltip name nothing and "
+              "read no more than without Naming Rules" )
+        {
+            const CountingLogData countingData{ valueNamesLines() };
+            ValueNamesLogView countedView( &countingData, &quickFindPattern, false );
+            showForTest( countedView );
+            paint( countedView );
+            REQUIRE( interactWith( countedView, countingData ) == unnamed( false ) );
         }
     }
 
@@ -547,6 +656,39 @@ SCENARIO( "Off, Value Names cost a text view nothing", "[logviewvaluenames]" )
         {
             REQUIRE_FALSE( view.showsValueNames() );
             REQUIRE_FALSE( Access::namesAny( view ) );
+        }
+
+        THEN( "selecting, copying, scrolling to the Selection and the tooltip name nothing and "
+              "read no more than without Naming Rules" )
+        {
+            const CountingLogData countingData{ valueNamesLines() };
+            ValueNamesLogView countedView( &countingData, &quickFindPattern, false );
+            showForTest( countedView );
+            countedView.valueNamesShownSet( true );
+            paint( countedView );
+            REQUIRE( interactWith( countedView, countingData ) == unnamed( true ) );
+        }
+    }
+
+    GIVEN( "Naming Rules, and a view that shows Value Names" )
+    {
+        const ScopedValueNames valueNames;
+        const CountingLogData countingData{ valueNamesLines() };
+        ValueNamesLogView view( &countingData, &quickFindPattern, false );
+        showForTest( view );
+        view.valueNamesShownSet( true );
+        paint( view );
+        const auto named = interactWith( view, countingData );
+        const auto withoutNames = unnamed( true );
+
+        THEN( "every interaction reads more or gives another text, so naming would tell" )
+        {
+            REQUIRE( named.size() == withoutNames.size() );
+            for ( size_t index = 0; index < named.size(); ++index ) {
+                INFO( named[ index ].name );
+                REQUIRE( ( named[ index ].linesRead > withoutNames[ index ].linesRead
+                           || named[ index ].result != withoutNames[ index ].result ) );
+            }
         }
     }
 

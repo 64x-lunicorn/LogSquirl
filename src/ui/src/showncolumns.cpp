@@ -26,6 +26,12 @@
 
 using logsquirl::valuenames::Snap;
 
+namespace {
+
+// The character of a text drawn at a display column, given the display
+// column each of its characters starts at (rawToDisplayColumns()): a column
+// inside an expanded tab is the tab's, and one past the end of the text is
+// its length.
 qsizetype characterAtDisplayColumn( const logsquirl::vector<int>& displayColumns,
                                     int displayColumn )
 {
@@ -35,6 +41,8 @@ qsizetype characterAtDisplayColumn( const logsquirl::vector<int>& displayColumns
     return std::clamp<qsizetype>( character, 0,
                                   static_cast<qsizetype>( displayColumns.size() ) - 1 );
 }
+
+} // namespace
 
 ShownColumns::ShownColumns( const logsquirl::valuenames::ValueNamer* namer,
                             const std::function<QString()>& readLine )

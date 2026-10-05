@@ -1085,8 +1085,9 @@ bool AbstractLogView::event( QEvent* e )
 
 bool AbstractLogView::viewportEvent( QEvent* e )
 {
-    if ( e->type() == QEvent::ToolTip && showsValueNames() ) {
-        // Over a Named Value, where its name came from (#647).
+    if ( e->type() == QEvent::ToolTip ) {
+        // Over a Named Value, where its name came from (#647). Without Value
+        // Names shown, none is there and nothing is looked up.
         const auto* helpEvent = static_cast<QHelpEvent*>( e );
         const auto toolTip = valueNameToolTipAt( helpEvent->pos() );
         if ( toolTip.isEmpty() ) {
@@ -1484,17 +1485,6 @@ ShownColumns AbstractLogView::shownColumnsOf( LineNumber logLine ) const
 {
     return ShownColumns{ shownValueNamer(),
                          [ this, logLine ] { return lines_->logFile().getLineString( logLine ); } };
-}
-
-const AbstractLogView::ViewportLogLine*
-AbstractLogView::viewportLogLineAt( LineNumber position ) const
-{
-    const auto& logLines = viewportContent().logLines;
-    if ( logLines.empty() || position < logLines.front().position ) {
-        return nullptr;
-    }
-    const auto index = position.get() - logLines.front().position.get();
-    return index < logLines.size() ? &logLines[ index ] : nullptr;
 }
 
 QString AbstractLogView::valueNameToolTipAt( const QPoint& pos ) const

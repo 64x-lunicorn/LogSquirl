@@ -476,8 +476,16 @@
   horizontal scroll arithmetic. A click or drag inside a tab on a Log Line
   with a Named Value now keeps its place in the tab, as without Value Names,
   instead of going to the start of the tab.
+  No interaction path of the view converts columns between raw and shown
+  text, or asks whether Value Names are shown, outside it any more: the
+  tooltip no longer checks that itself, and the column lookup it alone used
+  is internal to the module. The test that hidden Value Names, or Naming
+  Rules all unchecked, cost a view nothing now also drives a click and a
+  drag, *Copy*, *Copy as Shown*, a double-click, scrolling to the Selection
+  and the tooltip, and finds they give what they give and read what they
+  read in a view without any Naming Group.
   Table-driven tests check it without a widget. `ShownLine` stays as it is.
-  (#740, #741, #742, #743)
+  (#740, #741, #742, #743, #744)
 
 - **The text view tests that show a view one column wide wait until its
   window is exposed**: the helper that shows such a view processed events

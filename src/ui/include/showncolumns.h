@@ -29,13 +29,6 @@
 #include "shownline.h"
 #include "valuenamer.h"
 
-// The character of a text drawn at a display column, given the display
-// column each of its characters starts at (rawToDisplayColumns()): a column
-// inside an expanded tab is the tab's, and one past the end of the text is
-// its length.
-qsizetype characterAtDisplayColumn( const logsquirl::vector<int>& displayColumns,
-                                    int displayColumn );
-
 // The columns of one Log Line as the Text View and the Filtered View show it
 // with its Named Values (#647), in the view's terms: a Portion and display
 // columns, which count a tab as the spaces it is expanded to.

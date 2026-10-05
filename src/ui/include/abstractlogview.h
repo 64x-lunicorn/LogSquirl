@@ -767,8 +767,6 @@ private:
     Selection selectionCoveringNamedValues() const;
     // The selected text, never half a raw value, with line numbers or not.
     QString selectedText( bool lineNumbers ) const;
-    // The Log Line in the Viewport at a position of the view, if it is there.
-    const ViewportLogLine* viewportLogLineAt( LineNumber position ) const;
     // The widest Log Line the Viewport has shown with Value Names, in display
     // columns: the horizontal scrollbar reaches it as well as the widest raw
     // one. Reset when the Value Names change.
