@@ -463,8 +463,9 @@
   whole raw values through it, and *Copy as Shown* of a Selection within one
   Log Line is one call of it, which reads and names the Log Line once. A
   double-click finds the Named Value it selects whole through it, and
-  scrolling to the Selection takes the column its end is shown at from it,
-  which keeps an end inside a tab beside a Named Value inside the tab.
+  scrolling to the Selection takes the column its end is shown at from it.
+  Scrolling to a Selection that ends inside a tab now keeps the end's place
+  in the tab, as without Value Names, instead of going to the end of the tab.
   Table-driven tests check it without a widget. `ShownLine` stays as it is.
   (#740, #741, #742)
 
