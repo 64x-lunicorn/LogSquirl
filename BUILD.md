@@ -286,6 +286,18 @@ Each Catch2 test case is its own ctest test named `<test executable>: <test case
 single case runs with e.g. `ctest -R "^logsquirl_tests: Scenario: QuickFind"`. The tests
 run one after another: the Qt test executables share one portable settings file.
 
+A test that shows a widget waits until its window is exposed before it measures anything:
+it calls `showUntilExposed()` from `tests/helpers/shown_widget.h` rather than `show()`, or
+follows `show()` with `QTest::qWaitForWindowExposed()` (or `qWaitForWindowActive()`). The
+Format job of CI Build checks this, with no build, as
+
+```bash
+.github/scripts/check-shown-widget-wait.py
+```
+
+The files that do not wait yet are listed in `.github/scripts/check-shown-widget-wait.allowlist`,
+which only shrinks: an entry cannot be added, and fails the check once its file waits everywhere.
+
 ### Theme screenshots
 
 A hidden UI test renders every Theme (Light, Dark, High Contrast, Smyck, Smyck Light) to PNG files:

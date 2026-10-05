@@ -50,6 +50,7 @@
 #include "abstractlogview.h"
 #include "log_view_log_files.h"
 #include "quickfindpattern.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "viewportlayout.h"
 
@@ -64,8 +65,7 @@ inline void showOneColumnWide( AbstractLogView& view )
     view.setVerticalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
     view.setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
     view.resize( ViewportLayout::BulletAreaWidth + 2 * ViewportLayout::SeparatorWidth + 7, 200 );
-    view.show();
-    REQUIRE( QTest::qWaitForWindowExposed( &view ) );
+    showUntilExposed( view );
 
     // What the application hands a view it builds, so that scrolling here
     // behaves as it does there. A view reads no setting of its own.

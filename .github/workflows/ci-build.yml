@@ -107,8 +107,9 @@ jobs:
   # -----------------------------------------------------------------------
   # Format — clang-format dry-run over project-owned C++ sources. No Qt,
   # no build; just checks the tree matches .clang-format (#120), that
-  # every action is pinned to a commit SHA (#202) and that the Renovate
-  # config and its checksum pairs are sound (#211).
+  # every action is pinned to a commit SHA (#202), that the Renovate
+  # config and its checksum pairs are sound (#211) and that a test waits
+  # until a widget it shows is exposed (#754).
   # -----------------------------------------------------------------------
   Format:
     name: Format
@@ -149,6 +150,21 @@ jobs:
             fi
           done < <(git ls-files -- '*.cpp' '*.h' '*.hpp' | grep -vE '^(3rdparty/|cpm_cache/|website/)')
           exit $exit_code
+
+      # A test that shows a widget waits until it is exposed before it measures
+      # anything (#750, #754). The allowlist of files that do not wait yet may
+      # only shrink: a pull request is checked against its base's list.
+      - name: Check shown test widgets wait until exposed
+        run: |
+          set -euo pipefail
+          base_args=()
+          base="$RUNNER_TEMP/base-shown-widget-wait.allowlist"
+          # A base without the list (before #754) has nothing to compare with.
+          if [ "$GITHUB_EVENT_NAME" = pull_request ] \
+             && git show HEAD^1:.github/scripts/check-shown-widget-wait.allowlist > "$base" 2>/dev/null; then
+            base_args=(--base-allowlist "$base")
+          fi
+          .github/scripts/check-shown-widget-wait.py "${base_args[@]}"
 
       # The update feed reaches every installation as soon as it is merged, so
       # a pull request cannot break it (#310).
@@ -219,7 +235,8 @@ jobs:
         run: python -m pytest scripts/sbom -p no:cacheprovider
 
       # The Renovate checksum updater (#211), the action allowlist check
-      # (#201) and the release build lookup (#221); they share only pytest
+      # (#201), the release build lookup (#221) and the shown test widget
+      # check (#754), among others; they share only pytest
       # with the SBOM tooling, which this job already installs.
       - name: Test the CI scripts
         run: python -m pytest .github/scripts -p no:cacheprovider
