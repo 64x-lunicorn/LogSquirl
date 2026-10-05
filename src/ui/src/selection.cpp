@@ -186,8 +186,7 @@ Selection::getSelectedPositions( const LineMapping& lines ) const
 // The tab behaviour is a bit odd at the moment, full lines are not expanded
 // but partials (part of line) are, they probably should not ideally.
 QString Selection::getSelectedText( const LineMapping& lines, const AbstractLogData& shownLines,
-                                    bool lineNumbers,
-                                    const std::function<QString( const QString& )>& shownAs ) const
+                                    bool lineNumbers, const ShownAs& shownAs ) const
 {
     const auto selectionData = getSelectionWithLineNumbers( lines, shownLines, shownAs );
 
@@ -218,17 +217,19 @@ QString Selection::getSelectedText( const LineMapping& lines, const AbstractLogD
     return text;
 }
 
-std::map<LineNumber, QString> Selection::getSelectionWithLineNumbers(
-    const LineMapping& lines, const AbstractLogData& shownLines,
-    const std::function<QString( const QString& )>& shownAs ) const
+std::map<LineNumber, QString>
+Selection::getSelectionWithLineNumbers( const LineMapping& lines, const AbstractLogData& shownLines,
+                                        const ShownAs& shownAs ) const
 {
     std::map<LineNumber, QString> selectionData;
-    const auto asShown
-        = [ &shownAs ]( const QString& text ) { return shownAs ? shownAs( text ) : text; };
+    const auto asShown = [ &shownAs ]( LineNumber logLine, const QString& text ) {
+        return shownAs ? shownAs( logLine, text ) : text;
+    };
 
     if ( selectedLine_.has_value() ) {
-        selectionData.emplace( *selectedLine_,
-                               asShown( lines.logFile().getLineString( *selectedLine_ ) ) );
+        selectionData.emplace(
+            *selectedLine_,
+            asShown( *selectedLine_, lines.logFile().getLineString( *selectedLine_ ) ) );
     }
     else if ( selectedPartial_.line.has_value() ) {
         selectionData.emplace(
@@ -252,7 +253,7 @@ std::map<LineNumber, QString> Selection::getSelectionWithLineNumbers(
         for ( const auto& line : text ) {
             const auto logLine = lines.logLineAt( position );
             if ( logLine.has_value() ) {
-                selectionData.emplace( *logLine, asShown( line ) );
+                selectionData.emplace( *logLine, asShown( *logLine, line ) );
             }
             ++position;
         }

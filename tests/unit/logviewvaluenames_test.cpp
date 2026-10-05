@@ -48,6 +48,7 @@
 #include <QVBoxLayout>
 
 #include "abstractlogview.h"
+#include "counting_log_data.h"
 #include "fake_log_data.h"
 #include "painting_test_font.h"
 #include "quickfindpattern.h"
@@ -207,22 +208,6 @@ void paint( AbstractLogView& view )
     QCoreApplication::processEvents();
 }
 
-// Counts the Log Lines read: every read of a Log Line, alone, expanded or
-// with others, reads it with doGetLineString().
-class CountingLogData : public FakeLogData {
-public:
-    using FakeLogData::FakeLogData;
-
-    mutable uint64_t linesRead = 0;
-
-protected:
-    QString doGetLineString( LineNumber line ) const override
-    {
-        ++linesRead;
-        return FakeLogData::doGetLineString( line );
-    }
-};
-
 // What each interaction of a view gave, and how many Log Lines it read.
 struct Interaction {
     std::string name;
@@ -279,6 +264,11 @@ logsquirl::vector<Interaction> interactWith( AbstractLogView& view, const Counti
     record( "click, and Copy as Shown of the Log Line", [ & ] {
         sendMouse( view, QEvent::MouseButtonPress, onText( 1, 2 ), Qt::LeftButton, Qt::LeftButton );
         sendMouse( view, QEvent::MouseButtonRelease, onText( 1, 2 ), Qt::LeftButton, Qt::NoButton );
+        return view.getSelectedTextAsShown();
+    } );
+    // Log Lines 1 to 3, the second named only with Value Names.
+    record( "drag over Log Lines, and Copy as Shown of them", [ & ] {
+        drag( view, onText( 1, 2 ), onText( 3, 2 ) );
         return view.getSelectedTextAsShown();
     } );
     record( "tooltip", [ & ] {
@@ -722,6 +712,33 @@ SCENARIO( "Off, Value Names cost a text view nothing", "[logviewvaluenames]" )
             REQUIRE( view.getSelectedTextAsShown() == QStringLiteral( "Example(0x15)" ) );
             REQUIRE( view.valueNameToolTipAt( onText( 0, 12 ).toPoint() )
                          .startsWith( QStringLiteral( "0x15 → Example" ) ) );
+        }
+    }
+}
+
+SCENARIO( "Without Value Names shown, a text view's tooltip is that of any other view",
+          "[logviewvaluenames]" )
+{
+    const ScopedValueNames valueNames;
+    const FakeLogData logData{ valueNamesLines() };
+    const QuickFindPattern quickFindPattern;
+    ValueNamesLogView view( &logData, &quickFindPattern, false );
+    showForTest( view );
+    paint( view );
+    REQUIRE_FALSE( view.showsValueNames() );
+    view.viewport()->setToolTip( QStringLiteral( "The view's own tooltip" ) );
+
+    WHEN( "the mouse rests on a value Value Names would name" )
+    {
+        const auto pos = onText( 0, 12 ).toPoint();
+        QHelpEvent event( QEvent::ToolTip, pos, view.viewport()->mapToGlobal( pos ) );
+        QCoreApplication::sendEvent( view.viewport(), &event );
+
+        THEN( "the view's own tooltip shows" )
+        {
+            const auto shown = QToolTip::text();
+            QToolTip::hideText();
+            REQUIRE( shown == QStringLiteral( "The view's own tooltip" ) );
         }
     }
 }

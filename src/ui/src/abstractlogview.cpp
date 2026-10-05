@@ -1085,9 +1085,9 @@ bool AbstractLogView::event( QEvent* e )
 
 bool AbstractLogView::viewportEvent( QEvent* e )
 {
-    if ( e->type() == QEvent::ToolTip ) {
+    if ( e->type() == QEvent::ToolTip && showsValueNames() ) {
         // Over a Named Value, where its name came from (#647). Without Value
-        // Names shown, none is there and nothing is looked up.
+        // Names shown the tooltip is the base class's, as any other view's.
         const auto* helpEvent = static_cast<QHelpEvent*>( e );
         const auto toolTip = valueNameToolTipAt( helpEvent->pos() );
         if ( toolTip.isEmpty() ) {
@@ -1483,21 +1483,35 @@ uint64_t AbstractLogView::valueNamesKey() const
 
 ShownColumns AbstractLogView::shownColumnsOf( LineNumber logLine ) const
 {
+    return shownColumnsOf(
+        logLine, [ this, logLine ] { return lines_->logFile().getLineString( logLine ); } );
+}
+
+ShownColumns AbstractLogView::shownColumnsOf( LineNumber logLine,
+                                              const std::function<QString()>& readLine ) const
+{
     const auto* namer = shownValueNamer();
     if ( namer != nullptr ) {
         if ( const auto* onScreen = viewportLogLineOf( logLine ); onScreen != nullptr ) {
             return ShownColumns{ onScreen->text, onScreen->shown };
         }
     }
-    return ShownColumns{ namer,
-                         [ this, logLine ] { return lines_->logFile().getLineString( logLine ); } };
+    return ShownColumns{ namer, readLine };
+}
+
+LineNumber AbstractLogView::logLineAtPosition( LineNumber position ) const
+{
+    return lines_->logLineAt( position ).value_or( position );
 }
 
 const AbstractLogView::ViewportLogLine*
 AbstractLogView::viewportLogLineOf( LineNumber logLine ) const
 {
-    // The key holds the Log File's generation, which a change of it or of
-    // the Displayed Lines bumps, and the Value Names' (#745).
+    // The key holds the view's own generation, which refresh() of the text
+    // bumps once a change of the Log File or of the Displayed Lines reaches
+    // the view, the count of Log Lines shown, and the Value Names' (#745). A
+    // Log File rewritten with as many Log Lines, before the change reaches
+    // the view, is served as it is on screen.
     if ( !viewportContent_.has_value()
          || !( viewportContentKey_ == currentViewportContentKey() ) ) {
         return nullptr;
@@ -1517,9 +1531,8 @@ QString AbstractLogView::valueNameToolTipAt( const QPoint& pos ) const
     if ( !position.has_value() ) {
         return {};
     }
-    const auto value
-        = shownColumnsOf( lines_->logLineAt( position->line() ).value_or( position->line() ) )
-              .namedValueShownAt( position->column() );
+    const auto value = shownColumnsOf( logLineAtPosition( position->line() ) )
+                           .namedValueShownAt( position->column() );
     if ( !value.has_value() ) {
         return {};
     }
@@ -1906,13 +1919,12 @@ QString AbstractLogView::getSelectedTextAsShown() const
         return shownColumnsOf( line ).textShown( selection_.getPortionForLine( line ) );
     }
 
-    const auto* namer = shownValueNamer();
-    if ( namer == nullptr ) {
-        return getSelectedText();
-    }
-    return selection_.getSelectedText( *lines_, *logData_, false, [ namer ]( const QString& text ) {
-        return shownText( *namer, text );
-    } );
+    // Each Log Line read by the Selection, as shown: without Value Names
+    // shown, as read, which is what Copy gives.
+    return selection_.getSelectedText(
+        *lines_, *logData_, false, [ this ]( LineNumber logLine, const QString& text ) {
+            return shownColumnsOf( logLine, [ &text ] { return text; } ).textShown();
+        } );
 }
 
 bool AbstractLogView::isPartialSelection() const
@@ -2190,8 +2202,7 @@ AbstractLogView::buildViewportContent( std::optional<ViewportContent> previous )
                                   ? std::move( readColoredLines[ readIndex ].spans )
                                   : logsquirl::vector<AnsiColorSpan>{};
             return ViewportLogLine{ .position = position,
-                                    .lineNumber
-                                    = lines_->logLineAt( position ).value_or( position ),
+                                    .lineNumber = logLineAtPosition( position ),
                                     .text = std::move( text ),
                                     .ansiColors = std::move( ansiColors ),
                                     .shown = std::move( shown ),
@@ -2295,7 +2306,7 @@ OptionalLineNumber AbstractLogView::logLineAtY( int yPos ) const
 FilePosition AbstractLogView::logLineFilePosAt( const QPoint& pos ) const
 {
     const auto position = convertCoordToFilePos( pos );
-    const auto logLine = lines_->logLineAt( position.line() ).value_or( position.line() );
+    const auto logLine = logLineAtPosition( position.line() );
     // The column is the text shown's; a position is in the display columns of
     // the raw text. A point on a Named Value is at its start, so a selection
     // from or to it takes in all of it (#647).

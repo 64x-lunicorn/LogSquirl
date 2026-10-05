@@ -402,6 +402,46 @@ TEST_CASE( "Copy as Shown reads and names the Log Line once", "[showncolumns][va
     CHECK( reads == 1 );
 }
 
+TEST_CASE( "Copy as Shown of a whole Log Line is its text shown, its tabs as they are",
+           "[showncolumns][valuenames]" )
+{
+    const auto namer = exampleNamer();
+    int reads = 0;
+    const auto read = [ &reads ]( const QString& line ) {
+        return [ &reads, line ] {
+            ++reads;
+            return line;
+        };
+    };
+
+    SECTION( "a Log Line with Named Values" )
+    {
+        CHECK( ShownColumns{ &namer, read( EcuLine ) }.textShown()
+               == QStringLiteral( "\tBAP << ECU Beispiel(0x15) Sample(0x14)\tend" ) );
+        CHECK( ShownColumns{ &namer, read( TabbedLine ) }.textShown()
+               == QStringLiteral( "v=AB(a\tb) end" ) );
+        CHECK( reads == 2 );
+    }
+
+    SECTION( "a Log Line without Named Values is what Copy gives" )
+    {
+        const auto line = QStringLiteral( "\tno value\there" );
+        CHECK( ShownColumns{ &namer, read( line ) }.textShown() == line );
+        CHECK( reads == 1 );
+    }
+
+    SECTION( "without a namer, the Log Line read, once" )
+    {
+        CHECK( ShownColumns{ nullptr, read( EcuLine ) }.textShown() == EcuLine );
+        CHECK( reads == 1 );
+    }
+
+    SECTION( "the identity, which reads none, gives an empty text" )
+    {
+        CHECK( ShownColumns{}.textShown().isEmpty() );
+    }
+}
+
 namespace {
 
 // A Portion, comparable, as its line and columns; one of -1 for none.

@@ -34,6 +34,7 @@
 #include <QWidget>
 
 #include "abstractlogview.h"
+#include "counting_log_data.h"
 #include "fake_log_data.h"
 #include "log_view_scrolling.h"
 #include "logdata.h"
@@ -513,26 +514,6 @@ SCENARIO( "A wrapped text view counts the Log Lines it shows from its Visual Lin
         }
     }
 }
-
-namespace {
-
-// A FakeLogData that counts the Log Lines read from it.
-class CountingLogData : public FakeLogData {
-public:
-    using FakeLogData::FakeLogData;
-
-    mutable uint64_t linesRead = 0;
-
-protected:
-    // Every other read of FakeLogData goes through this one.
-    QString doGetLineString( LineNumber line ) const override
-    {
-        ++linesRead;
-        return FakeLogData::doGetLineString( line );
-    }
-};
-
-} // namespace
 
 SCENARIO( "Updating the scroll bars reads no more than one Viewport height of Log Lines",
           "[abstractlogview][scrollposition][bottom]" )

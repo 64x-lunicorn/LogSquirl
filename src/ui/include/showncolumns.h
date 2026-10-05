@@ -41,7 +41,12 @@
 //
 // Without a namer it is the identity: it computes no columns, gives every
 // Portion back as it is, in constant time, and reads the Log Line only for
-// the text of a Portion.
+// the text shown.
+//
+// It holds the function that reads the Log Line, and whatever that function
+// refers to: one a view builds reads through the view, and must not outlive
+// it. It fills its display columns lazily, from const operations: not to be
+// shared between threads.
 class ShownColumns {
 public:
     // The identity.
@@ -77,6 +82,12 @@ public:
     // reads none, gives an empty text. An invalid Portion gives an empty
     // text.
     QString textShown( const Portion& portion ) const;
+
+    // The whole Log Line as shown, its tabs as they are: what Copy as Shown
+    // copies of a Log Line selected whole. The identity gives the raw Log
+    // Line, as Copy gives it, reading it once; the default one, which reads
+    // none, gives an empty text.
+    QString textShown() const;
 
     // The Named Value at the column of position, as the Portion on the line of
     // position it takes in the raw Log Line: what a double-click selects.

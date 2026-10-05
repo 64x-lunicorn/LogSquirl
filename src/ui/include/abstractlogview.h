@@ -761,8 +761,16 @@ private:
     // The columns of a Log Line as the view shows it, the one way to them:
     // the identity while the view shows no Value Names, which reads no Log
     // Line (#740). A Log Line the Viewport holds is taken from there, as it
-    // was read and named for it; any other is read and named (#745).
+    // was read and named for it; any other is read and named (#745). They
+    // read through the view, and must not outlive it.
     ShownColumns shownColumnsOf( LineNumber logLine ) const;
+    // The same, for a Log Line readLine gives, read already: read again by
+    // nothing, and named only if the Viewport does not hold it.
+    ShownColumns shownColumnsOf( LineNumber logLine,
+                                 const std::function<QString()>& readLine ) const;
+    // The Log Line at a position of the view; the position itself where the
+    // view maps none.
+    LineNumber logLineAtPosition( LineNumber position ) const;
     // The Log Line in the Viewport, if the Viewport holds it and was built
     // for what the view shows now: none once the Log File, the Displayed
     // Lines or the Value Names changed since. Builds nothing.
