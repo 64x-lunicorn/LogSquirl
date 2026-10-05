@@ -69,6 +69,7 @@ set(LOGSQUIRL_UI_SOURCES
     ${BENCHMARK_MODE_SOURCES}
     ${DOCUMENTATION_RESOURCE}
     ${ICON_FILE}
+    ${DOCUMENT_ICON_FILE}
 )
 
 set(LOGSQUIRL_GREP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/logsquirl_grep.cpp)
@@ -154,6 +155,8 @@ if(WIN32)
 
 elseif(APPLE)
   set_source_files_properties(${ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+  # The icon of the document types the Info.plist declares (cmake/FileTypes.cmake, #718)
+  set_source_files_properties(${DOCUMENT_ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
   set_source_files_properties(${NOTICE_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION SharedSupport)
   set_source_files_properties(${COPYING_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION SharedSupport)
 

@@ -42,16 +42,27 @@
     <string>${CMAKE_OSX_DEPLOYMENT_TARGET}</string>
     <key>CFBundleDocumentTypes</key>
     <array>
-            <dict>
-                    <key>CFBundleTypeName</key>
-                    <string>Plain Text File</string>
-                    <key>CFBundleTypeRole</key>
-                    <string>Viewer</string>
-                    <key>LSItemContentTypes</key>
-                    <array>
-                            <string>public.text</string>
-                    </array>
-            </dict>
-    </array>
+        <!-- Also every type of cmake/FileTypes.cmake that LogSquirl declares
+             itself: they conform to plain text (#718) -->
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Plain Text File</string>
+            <key>CFBundleTypeIconFile</key>
+            <string>logsquirl-document.icns</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.text</string>
+            </array>
+        </dict>
+        <!-- The system's types of cmake/FileTypes.cmake (#718) -->
+${LOGSQUIRL_BUNDLE_DOCUMENT_TYPES}    </array>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+${LOGSQUIRL_BUNDLE_EXPORTED_TYPES}    </array>
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+${LOGSQUIRL_BUNDLE_IMPORTED_TYPES}    </array>
 </dict>
 </plist>

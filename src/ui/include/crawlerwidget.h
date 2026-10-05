@@ -90,6 +90,7 @@ class QuickFindPattern;
 class SavedSearches;
 class QStandardItemModel;
 class OverviewWidget;
+struct ViewState;
 
 // Implements the central widget of the application.
 // It includes both windows, the search line, the info
@@ -330,6 +331,10 @@ Q_SIGNALS:
     // and the views were just told: for the benchmark mode, which times a
     // Search (#668). Nothing in the application listens.
     void searchProgressed( const SearchSession::State& state );
+    // Every Search restored with the tab's view context has finished running
+    // once its Log File loaded, or none had a pattern to run (#704). Told
+    // once.
+    void restoredSearchesFinished();
 
     // A short note for the status bar.
     void statusMessage( QString message );
@@ -450,6 +455,10 @@ private:
     // Restores the view context saved with the Session, once the views are
     // built.
     void restoreViewContext( const QString& viewContext );
+    // Rebuilds the Searches of a view context, a tab each, and runs them.
+    void restoreSearches( const ViewState& state );
+    // The text of the tab of a Filtered View showing a Search for pattern.
+    static QString searchTabText( const QString& pattern );
 
     void setShortcuts();
     // Replaces the current Search with the one the Search Line asks for.

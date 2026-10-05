@@ -911,12 +911,12 @@ Motif : %2</translation>
 <context>
     <name>CrawlerWidget</name>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="719"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="780"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="720"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="781"/>
         <source>Search history:</source>
         <translation>Historique de recherche :</translation>
     </message>
@@ -936,27 +936,27 @@ Motif : %2</translation>
         <translation> %1 correspondance trouvée jusqu&apos;à présent.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1301"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1362"/>
         <source>Marks and matches</source>
         <translation>Marquages et correspondances</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1307"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1368"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>Marquages, correspondances + contexte</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1312"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1373"/>
         <source>Matches + breadcrumbs</source>
         <translation>Correspondances + contexte</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1317"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1378"/>
         <source>Marks</source>
         <translation>Marquages</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1321"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1382"/>
         <source>Matches</source>
         <translation>Correspondances</translation>
     </message>
@@ -1000,32 +1000,32 @@ Motif : %2</translation>
         <translation>Motif de recherche</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1363"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1424"/>
         <source>Clear search history</source>
         <translation>Effacer l&apos;historique de recherche</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1364"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1425"/>
         <source>Edit search history</source>
         <translation>Modifier l&apos;historique de recherche</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1365"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1426"/>
         <source>Save as Filter</source>
         <translation>Enregistrer comme filtre</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1366"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1427"/>
         <source>Open in Regex Lab...</source>
         <translation>Ouvrir dans le Labo regex...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1368"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1429"/>
         <source>Try out the pattern and its options on Log Lines in the Regex Lab</source>
         <translation>Essayer le motif et ses options sur des lignes du journal dans le Labo regex</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1374"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1435"/>
         <source>Count values of capture group</source>
         <translation>Compter les valeurs du groupe de capture</translation>
     </message>
@@ -1050,32 +1050,32 @@ Motif : %2</translation>
         <translation>Conserver ces résultats et afficher les résultats suivants dans une nouvelle fenêtre</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1389"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1450"/>
         <source>Toggle table/text view</source>
         <translation>Basculer entre vue tableau et vue texte</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1390"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1451"/>
         <source>Toggle table view</source>
         <translation>Basculer la vue tableau</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1790"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1853"/>
         <source>Group %1</source>
         <translation>Groupe %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1791"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1854"/>
         <source>Group %1 (%2)</source>
         <translation>Groupe %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1819"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1882"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>groupe %1 de &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2202"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2265"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Basculer entre vue tableau et vue texte (%1)</translation>
     </message>
@@ -1115,12 +1115,12 @@ Motif : %2</translation>
         <translation>Fichier tronqué sur le disque</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2081"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2144"/>
         <source>Displayed as %1</source>
         <translation>Affiché en %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2081"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2144"/>
         <source>Detected as %1</source>
         <translation>Détecté en %1</translation>
     </message>
@@ -1198,6 +1198,57 @@ Voulez-vous le remplacer ?</translation>
     </message>
 </context>
 <context>
+    <name>FileAssociations</name>
+    <message>
+        <location filename="../../fileassociations/src/fileassociations.cpp" line="137"/>
+        <source>LogSquirl cannot choose the file types it opens on this system.</source>
+        <translation>LogSquirl ne peut pas choisir les types de fichiers qu&apos;il ouvre sur ce système.</translation>
+    </message>
+</context>
+<context>
+    <name>FileTypes</name>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="110"/>
+        <source>Log files</source>
+        <translation>Fichiers journaux</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="112"/>
+        <source>More (optional)</source>
+        <translation>Autres (facultatif)</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="114"/>
+        <source>Open with</source>
+        <translation>Ouvrir avec</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="140"/>
+        <source>General log files</source>
+        <translation>Fichiers journaux généraux</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="141"/>
+        <source>Android Logcat traces</source>
+        <translation>Traces Android Logcat</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="142"/>
+        <source>Program output</source>
+        <translation>Sortie de programme</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="143"/>
+        <source>Trace files</source>
+        <translation>Fichiers de trace</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/filetypes.cpp" line="144"/>
+        <source>Text files</source>
+        <translation>Fichiers texte</translation>
+    </message>
+</context>
+<context>
     <name>FilteredView</name>
     <message>
         <location filename="../../ui/src/filteredview.cpp" line="99"/>
@@ -1256,6 +1307,40 @@ Voulez-vous le remplacer ?</translation>
         <location filename="../../ui/src/filterspanel.cpp" line="132"/>
         <source>A Team group, shared through the Team Folder</source>
         <translation>Un groupe d&apos;équipe, partagé via le dossier d&apos;équipe</translation>
+    </message>
+</context>
+<context>
+    <name>FirstStartFileAssociationsDialog</name>
+    <message>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="34"/>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="137"/>
+        <source>File Associations</source>
+        <translation>Associations de fichiers</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="38"/>
+        <source>Make LogSquirl the default app</source>
+        <translation>Faire de LogSquirl l&apos;application par défaut</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="67"/>
+        <source>You can change this later on the File Associations page of the Options.</source>
+        <translation>Vous pourrez modifier ce choix plus tard sur la page Associations de fichiers des Préférences.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="72"/>
+        <source>Later</source>
+        <translation>Plus tard</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="74"/>
+        <source>Don&apos;t ask again</source>
+        <translation>Ne plus demander</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="75"/>
+        <source>Apply</source>
+        <translation>Appliquer</translation>
     </message>
 </context>
 <context>
@@ -1671,105 +1756,166 @@ Voulez-vous le remplacer ?</translation>
     </message>
 </context>
 <context>
+    <name>LostFileAssociationsHint</name>
+    <message>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="56"/>
+        <source>LogSquirl no longer opens %1 files.</source>
+        <translation>LogSquirl n&apos;ouvre plus les fichiers %1.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="59"/>
+        <source>The associations of %1 point at the old location of LogSquirl, %2.</source>
+        <translation>Les associations de %1 pointent vers l&apos;ancien emplacement de LogSquirl, %2.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="63"/>
+        <source>You can choose the file types LogSquirl opens on the File Associations page of the Options.</source>
+        <translation>Vous pouvez choisir les types de fichiers que LogSquirl ouvre sur la page Associations de fichiers des Préférences.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="66"/>
+        <source>Restore</source>
+        <translation>Restaurer</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="67"/>
+        <source>Make LogSquirl open these files again.</source>
+        <translation>Faire en sorte que LogSquirl ouvre de nouveau ces fichiers.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="68"/>
+        <source>Dismiss</source>
+        <translation>Ignorer</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="69"/>
+        <source>Do not tell again until you choose the file types again.</source>
+        <translation>Ne plus le signaler jusqu&apos;à ce que vous choisissiez de nouveau les types de fichiers.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/lostfileassociationshint.cpp" line="91"/>
+        <source>File Associations</source>
+        <translation>Associations de fichiers</translation>
+    </message>
+</context>
+<context>
+    <name>MacFileAssociations</name>
+    <message>
+        <location filename="../../fileassociations/src/macfileassociations.cpp" line="71"/>
+        <source>LogSquirl runs outside its app bundle, so macOS cannot open files with it. Start LogSquirl from LogSquirl.app to choose them.</source>
+        <translation>LogSquirl s&apos;exécute en dehors de son paquet d&apos;application, macOS ne peut donc pas ouvrir de fichiers avec lui. Lancez LogSquirl depuis LogSquirl.app pour les choisir.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/macfileassociations.cpp" line="77"/>
+        <source>macOS asks you to confirm each change. The states show what you answered.</source>
+        <translation>macOS vous demande de confirmer chaque modification. Les états indiquent ce que vous avez répondu.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/macfileassociations.cpp" line="203"/>
+        <source>macOS cannot unset the application that opens %1, and LogSquirl does not know which one opened them before. Choose one in the Finder: Get Info on such a file, then Open with and Change All.</source>
+        <translation>macOS ne peut pas retirer l&apos;application qui ouvre %1, et LogSquirl ne sait pas laquelle les ouvrait auparavant. Choisissez-en une dans le Finder : Lire les informations sur un tel fichier, puis Ouvrir avec et Tout modifier.</translation>
+    </message>
+</context>
+<context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1859"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1864"/>
         <source>Open URL as log file</source>
         <translation>Ouvrir une URL comme fichier journal</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1549"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1554"/>
         <source>Open window</source>
         <translation>Ouvrir la fenêtre</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1368"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1373"/>
         <source>Open Recent</source>
         <translation>Ouvrir un fichier récent</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1550"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1555"/>
         <source>Quit</source>
         <translation>Quitter</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1611"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1616"/>
         <source>Open file</source>
         <translation>Ouvrir un fichier</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1606"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3244"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1611"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3323"/>
         <source>All files (*)</source>
         <translation>Tous les fichiers (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="216"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="233"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="221"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="238"/>
         <source>Sidebar</source>
         <translation>Barre latérale</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="221"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="226"/>
         <source>Filters</source>
         <translation>Filtres</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="222"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="227"/>
         <source>Scratchpad</source>
         <translation>Bloc-notes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="246"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="251"/>
         <source>Float</source>
         <translation>Détacher</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="254"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="259"/>
         <source>Close</source>
         <translation>Fermer</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="354"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2929"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="359"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3008"/>
         <source>Dashboard</source>
         <translation>Tableau de bord</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="432"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="437"/>
         <source>LogSquirl main window</source>
         <translation>Fenêtre principale de LogSquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="433"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="438"/>
         <source>Open files</source>
         <translation>Fichiers ouverts</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="626"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="631"/>
         <source>Standard input</source>
         <translation>Entrée standard</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="650"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="655"/>
         <source>Standard input
 %1</source>
         <translation>Entrée standard
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="630"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="642"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="635"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="647"/>
         <source>stdin</source>
         <translation>stdin</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="223"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="228"/>
         <source>Value Names</source>
         <translation>Noms de valeurs</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="656"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="661"/>
         <source>%1
 Working folder: %2
 %3</source>
@@ -1778,294 +1924,294 @@ Dossier de travail : %2
 %3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="666"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="671"/>
         <source>Open Command Output</source>
         <translation>Ouvrir la sortie d&apos;une commande</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="700"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="705"/>
         <source>Standard input closed</source>
         <translation>Entrée standard fermée</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1236"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1241"/>
         <source>Manage Tab Groups...</source>
         <translation>Gérer les groupes d&apos;onglets...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1237"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1242"/>
         <source>Rename, recolor, or delete tab groups</source>
         <translation>Renommer, recolorer ou supprimer des groupes d&apos;onglets</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1241"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1246"/>
         <source>Plugin Management...</source>
         <translation>Gestion des plugins...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1242"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1247"/>
         <source>Manage, install, and update plugins</source>
         <translation>Gérer, installer et mettre à jour les plugins</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1464"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1469"/>
         <source>Sources</source>
         <translation>Sources</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1634"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1639"/>
         <source>Downloading %1</source>
         <translation>Téléchargement de %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1655"/>
         <location filename="../../ui/src/mainwindow.cpp" line="1660"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1665"/>
         <source>LogSquirl - File download</source>
         <translation>LogSquirl - Téléchargement de fichier</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1661"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1666"/>
         <source>Failed to create temp file</source>
         <translation>Échec de la création du fichier temporaire</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1686"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1691"/>
         <source>logsquirl - remove from recent</source>
         <translation>logsquirl - retirer des fichiers récents</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1687"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1692"/>
         <source>Could not read file %1. Remove it from recent files?</source>
         <translation>Impossible de lire le fichier %1. Le retirer des fichiers récents ?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1708"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1713"/>
         <source>logsquirl - remove from favorites</source>
         <translation>logsquirl - retirer des favoris</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1709"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1714"/>
         <source>Could not read file %1. Remove it from favorites?</source>
         <translation>Impossible de lire le fichier %1. Le retirer des favoris ?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1800"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1805"/>
         <source>logsquirl - clear file</source>
         <translation>logsquirl - effacer le fichier</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1801"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1806"/>
         <source>Clear file %1? File content will be removed from disk, this is irreversible</source>
         <translation>Effacer le fichier %1 ? Le contenu du fichier sera supprimé du disque, cette opération est irréversible</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1859"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1864"/>
         <source>URL to download:</source>
         <translation>URL à télécharger :</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2112"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2191"/>
         <source>Team group changed</source>
         <translation>Groupe d&apos;équipe modifié</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2113"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2192"/>
         <source>Somebody else changed the Team group &quot;%1&quot; since you started editing it.</source>
         <translation>Quelqu&apos;un d&apos;autre a modifié le groupe d&apos;équipe &quot;%1&quot; depuis que vous avez commencé à le modifier.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2119"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2198"/>
         <source>Keep your version and replace theirs, take theirs and drop your change, or save yours as a copy next to theirs?</source>
         <translation>Conserver votre version et remplacer la leur, prendre la leur et abandonner votre modification, ou enregistrer la vôtre comme copie à côté de la leur ?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2121"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2200"/>
         <source>Somebody deleted it. Keep your version to publish it again, or take the deletion and drop your change?</source>
         <translation>Quelqu&apos;un l&apos;a supprimé. Conserver votre version pour la publier à nouveau, ou accepter la suppression et abandonner votre modification ?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2123"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2202"/>
         <source>Keep mine</source>
         <translation>Garder la mienne</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2124"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2203"/>
         <source>Take theirs</source>
         <translation>Prendre la leur</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2125"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2204"/>
         <source>Save mine as a copy</source>
         <translation>Enregistrer la mienne comme copie</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2187"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2266"/>
         <source>Click to sync now.</source>
         <translation>Cliquez pour synchroniser maintenant.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2214"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2293"/>
         <source>Start %1 data source</source>
         <translation>Démarrer la source de données %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2222"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2301"/>
         <source>(no data source plugins)</source>
         <translation>(aucun plugin de source de données)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2262"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2341"/>
         <source>Plugin Error</source>
         <translation>Erreur de plugin</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2263"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2342"/>
         <source>Failed to load plugin:
 %1</source>
         <translation>Échec du chargement du plugin :
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2275"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2354"/>
         <source>DataSource Error</source>
         <translation>Erreur de source de données</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2290"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2369"/>
         <source>DataSource: %1
 %2</source>
         <translation>Source de données : %1
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2297"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2376"/>
         <source>About LogSquirl</source>
         <translation>À propos de LogSquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2298"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2377"/>
         <source>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is a fork of &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; by Anton Filimonov, which is a fork of &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; by Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</source>
         <translation>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;Un explorateur de journaux rapide et avancé.&lt;/p&gt;&lt;p&gt;Compilé le %2 à partir de %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Ceci est un fork de &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; par Anton Filimonov, lui-même un fork de &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; par Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Utilise des icônes du projet &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov et autres contributeurs&lt;/p&gt;&lt;p&gt;Vous pouvez modifier et redistribuer ce programme selon les termes de la GPL (version 3 ou ultérieure).&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2317"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2396"/>
         <source>About Qt</source>
         <translation>À propos de Qt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2330"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2409"/>
         <source>logsquirl documentation</source>
         <translation>Documentation logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2380"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2459"/>
         <source>Index cache cleared (%1 MB freed)</source>
         <translation>Cache d&apos;index vidé (%1 Mo libérés)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2446"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2525"/>
         <source>Merged (dedup)</source>
         <translation>Fusionné (sans doublons)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2446"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2525"/>
         <source>Merged</source>
         <translation>Fusionné</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2484"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2563"/>
         <source>Import Chipmunk filters</source>
         <translation>Importer des filtres Chipmunk</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2485"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2564"/>
         <source>Chipmunk filters (*.json);;All files (*)</source>
         <translation>Filtres Chipmunk (*.json);;Tous les fichiers (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2493"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2572"/>
         <source>Import error</source>
         <translation>Erreur d&apos;importation</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2494"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2573"/>
         <source>Could not open file: %1</source>
         <translation>Impossible d&apos;ouvrir le fichier : %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2502"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2514"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2546"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2581"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2593"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2625"/>
         <source>Import result</source>
         <translation>Résultat de l&apos;importation</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2503"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2582"/>
         <source>No filters found in the selected file.</source>
         <translation>Aucun filtre trouvé dans le fichier sélectionné.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2515"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2594"/>
         <source>A filter group named &apos;%1&apos; already exists. Skipping filter import.</source>
         <translation>Un groupe de filtres nommé « %1 » existe déjà. Importation des filtres ignorée.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2547"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2626"/>
         <source>Imported %1 filter(s) and %2 highlighter set.</source>
         <translation>%1 filtre(s) et %2 jeu de surligneurs importés.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2625"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2704"/>
         <source>Ln:%1/%2</source>
         <translation>Ln:%1/%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2630"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2709"/>
         <source>Ln:%1/%2 Col:%3 Sel:%4|%5</source>
         <translation>Ln:%1/%2 Col:%3 Sél:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2639"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2718"/>
         <source>Ln:%1/%2 Sel:%4|%5</source>
         <translation>Ln:%1/%2 Sél:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2679"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2758"/>
         <source> - Indexing lines... (%1 %)</source>
         <translation> - Indexation des lignes... (%1 %)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2728"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2807"/>
         <source>Not enough memory.</source>
         <translation>Mémoire insuffisante.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2730"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2809"/>
         <source>The system does not have enough memory to hold the index for this file. The file will now be closed.</source>
         <translation>Le système ne dispose pas de suffisamment de mémoire pour conserver l&apos;index de ce fichier. Le fichier va maintenant être fermé.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2813"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2892"/>
         <source>Close Tab</source>
         <translation>Fermer l&apos;onglet</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2814"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2893"/>
         <source>Close tab &quot;%1&quot;?</source>
         <translation>Fermer l&apos;onglet « %1 » ?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2823"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2902"/>
         <source>Don&apos;t ask again</source>
         <translation>Ne plus demander</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2817"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2896"/>
         <source>Close Tabs</source>
         <translation>Fermer les onglets</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../ui/src/mainwindow.cpp" line="2818"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2897"/>
         <source>Close %n tab(s)?</source>
         <translation>
             <numerusform>Fermer %n onglet ?</numerusform>
@@ -2073,119 +2219,119 @@ Dossier de travail : %2
         </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3181"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3226"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3261"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3515"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3260"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3305"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3340"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3594"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3182"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3261"/>
         <source>Extract archive to temp folder?</source>
         <translation>Extraire l&apos;archive dans le dossier temporaire ?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="594"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3198"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="599"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3277"/>
         <source>Extracting %1</source>
         <translation>Extraction de %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3227"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3306"/>
         <source>Failed to decompress %1</source>
         <translation>Échec de la décompression de %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3243"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3322"/>
         <source>Open file from archive</source>
         <translation>Ouvrir un fichier depuis l&apos;archive</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3262"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3341"/>
         <source>Failed to extract %1</source>
         <translation>Échec de l&apos;extraction de %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3505"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3584"/>
         <source>Untitled</source>
         <translation>Sans titre</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3515"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3594"/>
         <source>%1 - %2%3</source>
         <translation>%1 - %2%3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3516"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3595"/>
         <source> (build </source>
         <translation> (version </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3542"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3621"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3635"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3714"/>
         <source>modified on %1</source>
         <translation>modifié le %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3761"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3840"/>
         <source>Remove from favorites</source>
         <translation>Retirer des favoris</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3762"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3841"/>
         <source>Select item to remove from favorites</source>
         <translation>Sélectionner l&apos;élément à retirer des favoris</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3807"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3886"/>
         <source>logsquirl -- switch to file</source>
         <translation>logsquirl -- basculer vers le fichier</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3923"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3946"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4002"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4025"/>
         <source>Save Session As</source>
         <translation>Enregistrer la session sous</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3924"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3958"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4003"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4037"/>
         <source>LogSquirl sessions (*.%1)</source>
         <translation>Sessions LogSquirl (*.%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3947"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4026"/>
         <source>The session could not be saved to %1:
 %2</source>
         <translation>Impossible d&apos;enregistrer la session dans %1 :
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3957"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3967"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4019"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4036"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4046"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4098"/>
         <source>Open Session</source>
         <translation>Ouvrir une session</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3972"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4051"/>
         <source>The session file %1 could not be read:
 %2</source>
         <translation>Impossible de lire le fichier de session %1 :
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3993"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4072"/>
         <source>The session holds no log files.</source>
         <translation>La session ne contient aucun fichier journal.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3994"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4073"/>
         <source>None of the log files of this session could be opened. They are missing or already open:
 
 %1</source>
@@ -2194,7 +2340,7 @@ Dossier de travail : %2
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4020"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4099"/>
         <source>These log files of the session were left out. They are missing or already open in another window:
 
 %1</source>
@@ -2203,18 +2349,18 @@ Dossier de travail : %2
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4085"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4164"/>
         <source>logsquirl - generate crash dump</source>
         <translation>logsquirl - générer un rapport de plantage</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4086"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4165"/>
         <source>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</source>
         <translation>Ceci arrêtera logsquirl et générera un rapport de plantage diagnostique. Continuer ?</translation>
     </message>
     <message>
         <location filename="../../ui/include/pluginuiadapter.h" line="167"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="1458"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1463"/>
         <source>Plugins</source>
         <translation>Plugins</translation>
     </message>
@@ -2639,146 +2785,188 @@ Dossier de travail : %2
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="792"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="582"/>
+        <source>File Associations</source>
+        <translation>Associations de fichiers</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="798"/>
+        <source>Choose the file types LogSquirl opens when you double-click them.</source>
+        <translation>Choisissez les types de fichiers que LogSquirl ouvre lorsque vous double-cliquez dessus.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="858"/>
+        <source>File type</source>
+        <translation>Type de fichier</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="868"/>
+        <source>State</source>
+        <translation>État</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="876"/>
+        <source>Offer Open with LogSquirl in the context menu of every file</source>
+        <translation>Proposer Ouvrir avec LogSquirl dans le menu contextuel de chaque fichier</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="879"/>
+        <source>Opens files of any type in LogSquirl, such as rotated logs like app.log.1.</source>
+        <translation>Ouvre les fichiers de tout type dans LogSquirl, comme les journaux rotatifs tels que app.log.1.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="894"/>
         <source>Shortcuts</source>
         <translation>Raccourcis</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="826"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="928"/>
         <source>Restore defaults</source>
         <translation>Restaurer les valeurs par défaut</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="839"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="941"/>
         <source>Advanced</source>
         <translation>Avancé</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="845"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="947"/>
         <source>Indexing and search</source>
         <translation>Indexation et recherche</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="855"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="957"/>
         <source>Regular expressions engine:</source>
         <translation>Moteur d&apos;expressions régulières :</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="920"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1022"/>
         <source>Keep file closed (file reload required)</source>
         <translation>Garder le fichier fermé (rechargement du fichier requis)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="927"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1029"/>
         <source>Use compressed index (file reload required)</source>
         <translation>Utiliser un index compressé (rechargement du fichier requis)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="937"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1039"/>
         <source>Use parallel search</source>
         <translation>Utiliser la recherche parallèle</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1100"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1202"/>
         <source>Team Folder</source>
         <translation>Dossier d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1119"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1221"/>
         <source>Repository URL:</source>
         <translation>URL du dépôt :</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1129"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1231"/>
         <source>https://… or git@…</source>
         <translation>https://… ou git@…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1136"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1238"/>
         <source>Subfolder:</source>
         <translation>Sous-dossier :</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1146"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1248"/>
         <source>The repository&apos;s top folder</source>
         <translation>Le dossier racine du dépôt</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1308"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1402"/>
+        <source>Open Folder</source>
+        <translation>Ouvrir le dossier</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="1405"/>
+        <source>Open the Team Folder&apos;s clone in the file manager</source>
+        <translation>Ouvrir le clone du dossier d&apos;équipe dans le gestionnaire de fichiers</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="1443"/>
         <source>LogSquirl clones the repository into its own data folder with the Git installed on this computer, and signs in the way Git does for you. Turning the Team Folder off or changing the repository leaves your own groups as they are.</source>
         <translation>LogSquirl clone le dépôt dans son propre dossier de données avec le Git installé sur cet ordinateur, et s&apos;authentifie comme Git le fait pour vous. Désactiver le dossier d&apos;équipe ou changer de dépôt laisse vos propres groupes tels quels.</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1270"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1395"/>
         <source>Sync Now</source>
         <translation>Synchroniser maintenant</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1106"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1208"/>
         <source>Share Filter Groups, Highlighter Sets and Naming Groups with the team through a Team Folder</source>
         <translation>Partager les groupes de filtres, les jeux de surligneurs et les groupes de nommage avec l&apos;équipe via un dossier d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1113"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1215"/>
         <source>Repository</source>
         <translation>Dépôt</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1156"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1258"/>
         <source>Status</source>
         <translation>État</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1210"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1335"/>
         <source>Details from Git</source>
         <translation>Détails de Git</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1242"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1367"/>
         <source>Copy</source>
         <translation>Copier</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1245"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1370"/>
         <source>Copy Git&apos;s output to the clipboard</source>
         <translation>Copier la sortie de Git dans le presse-papiers</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1319"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1454"/>
         <source>Log Formats</source>
         <translation>Formats de journal</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1325"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1460"/>
         <source>Auto-detect log format (table view)</source>
         <translation>Détecter automatiquement le format de journal (vue tableau)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1332"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1467"/>
         <source>Automatically switch to table view when format is detected</source>
         <translation>Basculer automatiquement en vue tableau lorsqu&apos;un format est détecté</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1339"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1474"/>
         <source>Available Formats:</source>
         <translation>Formats disponibles :</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1365"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1500"/>
         <source>Name</source>
         <translation>Nom</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1370"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="863"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1505"/>
         <source>Description</source>
         <translation>Description</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1378"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1513"/>
         <source>Open Formats Folder…</source>
         <translation>Ouvrir le dossier des formats…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="872"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="974"/>
         <source>Index file read buffer (Mib):</source>
         <translation>Tampon de lecture du fichier d&apos;index (Mio) :</translation>
     </message>
@@ -2818,114 +3006,164 @@ Dossier de travail : %2
         <translation>Masquer et Afficher les couleurs réduisent les performances de recherche</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="892"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="994"/>
         <source>Search read buffer (lines):</source>
         <translation>Tampon de lecture de recherche (lignes) :</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="917"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1019"/>
         <source>File will be kept closed as much as possible. Affects only files opened after check state changed</source>
         <translation>Le fichier sera maintenu fermé autant que possible. N&apos;affecte que les fichiers ouverts après le changement d&apos;état</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="947"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1049"/>
         <source>Optimize search for non-latin encodings</source>
         <translation>Optimiser la recherche pour les encodages non latins</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="959"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1061"/>
         <source>Caching</source>
         <translation>Mise en cache</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="974"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1076"/>
         <source>Enable search results cache</source>
         <translation>Activer le cache des résultats de recherche</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="984"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1086"/>
         <source>Search cache size (lines):</source>
         <translation>Taille du cache de recherche (lignes) :</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1007"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1109"/>
         <source>Cache file indexes to disk so re-opening a file skips indexing</source>
         <translation>Mettre en cache les index de fichiers sur le disque pour éviter la réindexation à la réouverture</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1010"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1112"/>
         <source>Enable index cache (persist indexes to disk)</source>
         <translation>Activer le cache d&apos;index (conserver les index sur le disque)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1020"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1122"/>
         <source>Index cache max size (MB):</source>
         <translation>Taille maximale du cache d&apos;index (Mo) :</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1049"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1151"/>
         <source>Logging</source>
         <translation>Journalisation</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1055"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1157"/>
         <source>Enable logging</source>
         <translation>Activer la journalisation</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1064"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1166"/>
         <source>Verbosity</source>
         <translation>Verbosité</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="171"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="176"/>
         <source>Extended Regexp</source>
         <translation>Regexp étendue</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="171"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="176"/>
         <source>Fixed Strings</source>
         <translation>Chaînes fixes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="177"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="182"/>
         <source>Qt</source>
         <translation>Qt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="177"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="182"/>
         <source>Vectorscan</source>
         <translation>Vectorscan</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="562"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="399"/>
+        <source>Last synced: %1</source>
+        <translation>Dernière synchronisation : %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/optionsdialog.cpp" line="402"/>
+        <source>never</source>
+        <translation>jamais</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filetypechoices.cpp" line="90"/>
+        <source>Default</source>
+        <translation>Par défaut</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filetypechoices.cpp" line="91"/>
+        <source>LogSquirl opens these files.</source>
+        <translation>LogSquirl ouvre ces fichiers.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filetypechoices.cpp" line="94"/>
+        <source>Registered</source>
+        <translation>Enregistré</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filetypechoices.cpp" line="95"/>
+        <source>LogSquirl is offered for these files, but another application opens them.</source>
+        <translation>LogSquirl est proposé pour ces fichiers, mais une autre application les ouvre.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filetypechoices.cpp" line="100"/>
+        <source>Not confirmed</source>
+        <translation>Non confirmé</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filetypechoices.cpp" line="101"/>
+        <source>LogSquirl is registered for these files for you, but another application opens them until you choose LogSquirl on the Default apps page of the Windows settings.</source>
+        <translation>LogSquirl est enregistré pour vous pour ces fichiers, mais une autre application les ouvre jusqu&apos;à ce que vous choisissiez LogSquirl sur la page Applications par défaut des Paramètres Windows.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filetypechoices.cpp" line="108"/>
+        <source>Not registered</source>
+        <translation>Non enregistré</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/filetypechoices.cpp" line="109"/>
+        <source>LogSquirl is not offered for these files.</source>
+        <translation>LogSquirl n&apos;est pas proposé pour ces fichiers.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/optionsdialog.cpp" line="763"/>
         <source>Turned off when LogSquirl was installed. Run the installer again to turn it back on.</source>
         <translation>Désactivée lors de l&apos;installation de LogSquirl. Relancez le programme d&apos;installation pour la réactiver.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="818"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1019"/>
         <source>LogSquirl needs to be restarted to apply some changes. </source>
         <translation>LogSquirl doit être redémarré pour appliquer certaines modifications. </translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1006"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1208"/>
         <source>Click or press Enter to record a shortcut, Escape cancels.
 Backspace or Delete clears the shortcut.</source>
         <translation>Cliquez ou appuyez sur Entrée pour enregistrer un raccourci, Échap pour annuler.
 Retour arrière ou Suppr efface le raccourci.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1021"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1223"/>
         <source>Action</source>
         <translation>Action</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1022"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1224"/>
         <source>Primary shortcut</source>
         <translation>Raccourci principal</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1024"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1226"/>
         <source>Secondary shortcut</source>
         <translation>Raccourci secondaire</translation>
     </message>
@@ -3843,7 +4081,7 @@ Redémarrez LogSquirl pour réessayer.</translation>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="533"/>
         <source>Jump to line number</source>
-        <translation type="unfinished"></translation>
+        <translation>Aller au numéro de ligne</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="540"/>
@@ -4409,7 +4647,7 @@ Redémarrez LogSquirl pour réessayer.</translation>
     <message>
         <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="402"/>
         <source>Tab name</source>
-        <translation type="unfinished"></translation>
+        <translation>Nom de l&apos;onglet</translation>
     </message>
     <message>
         <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="419"/>
@@ -4482,167 +4720,192 @@ Redémarrez LogSquirl pour réessayer.</translation>
 <context>
     <name>TeamFolder</name>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="135"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="139"/>
         <source>Another file holds the group %1 already.</source>
         <translation>Un autre fichier contient déjà le groupe %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="201"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="205"/>
         <source>The file cannot be read.</source>
         <translation>Le fichier ne peut pas être lu.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="203"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="207"/>
         <source>The file holds a kind of group this version does not know.</source>
         <translation>Le fichier contient un type de groupe que cette version ne connaît pas.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="205"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="209"/>
         <source>The file was written by a newer version of LogSquirl.</source>
         <translation>Le fichier a été écrit par une version plus récente de LogSquirl.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="210"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="214"/>
         <source>The file holds no Filter Group, Highlighter Set or Naming Group.</source>
         <translation>Le fichier ne contient ni groupe de filtres, ni jeu de surligneurs, ni groupe de nommage.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="650"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="654"/>
         <source>The group could not be written to %1.</source>
         <translation>Le groupe n&apos;a pas pu être écrit dans %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="893"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="897"/>
         <source>The subfolder %1 does not lie inside the repository.</source>
         <translation>Le sous-dossier %1 ne se trouve pas dans le dépôt.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1265"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1270"/>
         <source>The Team Folder is off.</source>
         <translation>Le dossier d&apos;équipe est désactivé.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1488"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1543"/>
         <source>Team Folder syncing…</source>
         <translation>Synchronisation du dossier d&apos;équipe…</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1492"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1547"/>
         <source>Team Folder off</source>
         <translation>Dossier d&apos;équipe désactivé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1494"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1549"/>
         <source>Team Folder not synced</source>
         <translation>Dossier d&apos;équipe non synchronisé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1496"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1551"/>
         <source>Team Folder synced</source>
         <translation>Dossier d&apos;équipe synchronisé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1498"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1553"/>
         <source>Team Folder error</source>
         <translation>Erreur du dossier d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1506"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1561"/>
         <source>Syncing…</source>
         <translation>Synchronisation…</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1513"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1568"/>
         <source>Off</source>
         <translation>Désactivé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1515"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1570"/>
         <source>Not synced</source>
         <translation>Non synchronisé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1517"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1572"/>
         <source>Synced</source>
         <translation>Synchronisé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1519"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1574"/>
         <source>Error</source>
         <translation>Erreur</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1530"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1585"/>
         <source>Git could not be started</source>
         <translation>Git n&apos;a pas pu être lancé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1532"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1587"/>
         <source>The subfolder lies outside the repository</source>
         <translation>Le sous-dossier est en dehors du dépôt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1534"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1589"/>
         <source>Clone failed</source>
         <translation>Échec du clonage</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1536"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1591"/>
         <source>Pull failed</source>
         <translation>Échec du pull</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1538"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1593"/>
         <source>Merge failed</source>
         <translation>Échec du merge</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1540"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1595"/>
         <source>Push failed</source>
         <translation>Échec du push</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1542"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1597"/>
         <source>Push refused</source>
         <translation>Push refusé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1551"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1609"/>
         <source>Not published: %1</source>
         <translation>Non publié : %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1557"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1615"/>
         <source>The Team groups are read-only.</source>
         <translation>Les groupes d&apos;équipe sont en lecture seule.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1558"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1616"/>
         <source>The Team groups are read-only: %1</source>
         <translation>Les groupes d&apos;équipe sont en lecture seule : %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1561"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1619"/>
         <source>Skipped %1: %2</source>
         <translation>%1 ignoré : %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfoldergit.cpp" line="95"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1724"/>
+        <source>Sign-in failed. Make sure Git can sign in to this server outside LogSquirl: with an SSH key added to your account for an SSH URL, or with stored credentials or a token for an HTTPS URL.</source>
+        <translation>Échec de l&apos;authentification. Assurez-vous que Git peut s&apos;authentifier auprès de ce serveur en dehors de LogSquirl : avec une clé SSH ajoutée à votre compte pour une URL SSH, ou avec des identifiants enregistrés ou un jeton pour une URL HTTPS.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamfolder.cpp" line="1728"/>
+        <source>The organization requires SSO authorization. Authorize your SSH key or token for the organization in your account settings on the server, or use an HTTPS URL.</source>
+        <translation>L&apos;organisation exige une autorisation SSO. Autorisez votre clé SSH ou votre jeton pour l&apos;organisation dans les paramètres de votre compte sur le serveur, ou utilisez une URL HTTPS.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamfolder.cpp" line="1732"/>
+        <source>Repository not found. Check the Repository URL, and that your account may read the repository.</source>
+        <translation>Dépôt introuvable. Vérifiez l&apos;URL du dépôt, et que votre compte a le droit de lire le dépôt.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamfolder.cpp" line="1735"/>
+        <source>Server unreachable. Check the host name in the Repository URL, your network connection and your proxy settings.</source>
+        <translation>Serveur injoignable. Vérifiez le nom d&apos;hôte dans l&apos;URL du dépôt, votre connexion réseau et vos paramètres de proxy.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamfolder.cpp" line="1738"/>
+        <source>Git is not installed. Install Git, make sure the git program is on the PATH, and press Sync Now.</source>
+        <translation>Git n&apos;est pas installé. Installez Git, assurez-vous que le programme git se trouve dans le PATH, et cliquez sur Synchroniser maintenant.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/teamfoldergit.cpp" line="105"/>
         <source>Git could not be started (%1). Install Git, or put it on the PATH, to use a Team Folder.</source>
         <translation>Git n&apos;a pas pu être démarré (%1). Installez Git, ou ajoutez-le au PATH, pour utiliser un dossier d&apos;équipe.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfoldergit.cpp" line="165"/>
+        <location filename="../../ui/src/teamfoldergit.cpp" line="177"/>
         <source>Stopped.</source>
         <translation>Arrêté.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfoldergit.cpp" line="166"/>
+        <location filename="../../ui/src/teamfoldergit.cpp" line="178"/>
         <source>Git did not finish in time.</source>
         <translation>Git n&apos;a pas terminé à temps.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfoldergit.cpp" line="176"/>
+        <location filename="../../ui/src/teamfoldergit.cpp" line="188"/>
         <source>Git ended with exit code %1.</source>
         <translation>Git s&apos;est terminé avec le code de sortie %1.</translation>
     </message>
@@ -4705,12 +4968,12 @@ Redémarrez LogSquirl pour réessayer.</translation>
     <message>
         <location filename="../../ui/src/timenavigation.cpp" line="109"/>
         <source>The Log File is not in time order here: the position may be off.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le fichier journal n&apos;est pas dans l&apos;ordre chronologique ici : la position peut être approximative.</translation>
     </message>
     <message>
         <location filename="../../ui/src/timenavigation.cpp" line="129"/>
         <source>Looking up the time...</source>
-        <translation type="unfinished"></translation>
+        <translation>Recherche de l&apos;heure...</translation>
     </message>
     <message>
         <location filename="../../ui/src/timenavigation.cpp" line="202"/>
@@ -4821,17 +5084,17 @@ Sans date, %1 est utilisé.</translation>
     <message>
         <location filename="../../versioncheck/src/installsource.cpp" line="173"/>
         <source>&lt;p&gt; A new version of logsquirl (%1) is available for download &lt;/p&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt; Une nouvelle version de logsquirl (%1) est disponible au téléchargement &lt;/p&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;</translation>
     </message>
     <message>
         <location filename="../../versioncheck/src/installsource.cpp" line="180"/>
         <source>&lt;p&gt; A new version of logsquirl (%1) is available. Update it with your package manager: &lt;/p&gt;&lt;p&gt;&lt;code&gt;%2&lt;/code&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt; Une nouvelle version de logsquirl (%1) est disponible. Mettez-la à jour avec votre gestionnaire de paquets : &lt;/p&gt;&lt;p&gt;&lt;code&gt;%2&lt;/code&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <location filename="../../versioncheck/src/installsource.cpp" line="189"/>
         <source>&lt;p&gt;Important changes:&lt;/p&gt;&lt;ul&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Changements importants :&lt;/p&gt;&lt;ul&gt;</translation>
     </message>
 </context>
 <context>
@@ -4839,27 +5102,27 @@ Sans date, %1 est utilisé.</translation>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="76"/>
         <source>(empty)</source>
-        <translation type="unfinished">(vide)</translation>
+        <translation>(vide)</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="80"/>
         <source>%1 %</source>
-        <translation type="unfinished">%1 %</translation>
+        <translation>%1 %</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="94"/>
         <source>Value</source>
-        <translation type="unfinished">Valeur</translation>
+        <translation>Valeur</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="96"/>
         <source>Count</source>
-        <translation type="unfinished">Nombre</translation>
+        <translation>Nombre</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecountmodel.cpp" line="98"/>
         <source>Share</source>
-        <translation type="unfinished">Partager</translation>
+        <translation>Part</translation>
     </message>
 </context>
 <context>
@@ -5360,6 +5623,92 @@ Sans date, %1 est utilisé.</translation>
         <location filename="../../ui/src/welcomedashboard.cpp" line="343"/>
         <source>No plugins installed</source>
         <translation>Aucun plugin installé</translation>
+    </message>
+</context>
+<context>
+    <name>WindowsFileAssociations</name>
+    <message>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="104"/>
+        <source>LogSquirl cannot choose the file types it opens on this system.</source>
+        <translation>LogSquirl ne peut pas choisir les types de fichiers qu&apos;il ouvre sur ce système.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="109"/>
+        <source>Windows does not let an application make itself the default. After Apply, LogSquirl opens the Default apps page of the Windows settings, where you choose LogSquirl for each file type.</source>
+        <translation>Windows ne permet pas à une application de se définir elle-même par défaut. Après Appliquer, LogSquirl ouvre la page Applications par défaut des Paramètres Windows, où vous choisissez LogSquirl pour chaque type de fichier.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="114"/>
+        <source>If you move LogSquirl, these associations stop working.</source>
+        <translation>Si vous déplacez LogSquirl, ces associations cessent de fonctionner.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="216"/>
+        <source>A fast, smart log file explorer</source>
+        <translation>Un explorateur de fichiers journaux rapide et intelligent</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="267"/>
+        <source>LogSquirl could not register %1 in the registry.</source>
+        <translation>LogSquirl n&apos;a pas pu inscrire %1 dans le registre.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="289"/>
+        <source>LogSquirl could not remove its registration of %1 from the registry.</source>
+        <translation>LogSquirl n&apos;a pas pu retirer son inscription de %1 du registre.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="293"/>
+        <source>LogSquirl still opens %1: the installer made it the default for every user of this computer, or you chose it in Windows. Choose another app for them on the Default apps page of the Windows settings.</source>
+        <translation>LogSquirl ouvre toujours %1 : le programme d&apos;installation l&apos;a défini par défaut pour tous les utilisateurs de cet ordinateur, ou vous l&apos;avez choisi dans Windows. Choisissez une autre application pour ces fichiers sur la page Applications par défaut des Paramètres Windows.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="316"/>
+        <source>LogSquirl could not open the Default apps page of the Windows settings. Open it yourself and choose LogSquirl there.</source>
+        <translation>LogSquirl n&apos;a pas pu ouvrir la page Applications par défaut des Paramètres Windows. Ouvrez-la vous-même et choisissez-y LogSquirl.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="381"/>
+        <source>Open with LogSquirl</source>
+        <translation>Ouvrir avec LogSquirl</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="396"/>
+        <source>LogSquirl could not add Open with LogSquirl to the context menu of every file.</source>
+        <translation>LogSquirl n&apos;a pas pu ajouter Ouvrir avec LogSquirl au menu contextuel de chaque fichier.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/windowsfileassociations.cpp" line="398"/>
+        <source>LogSquirl could not remove Open with LogSquirl from the context menu of every file.</source>
+        <translation>LogSquirl n&apos;a pas pu retirer Ouvrir avec LogSquirl du menu contextuel de chaque fichier.</translation>
+    </message>
+</context>
+<context>
+    <name>XdgFileAssociations</name>
+    <message>
+        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="218"/>
+        <source>An AppImage cannot register the file types it opens. Install the deb or rpm package of LogSquirl to choose them.</source>
+        <translation>Une AppImage ne peut pas enregistrer les types de fichiers qu&apos;elle ouvre. Installez le paquet deb ou rpm de LogSquirl pour les choisir.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="222"/>
+        <source>LogSquirl&apos;s desktop entry is not installed, so the desktop cannot open files with it. Install the deb or rpm package of LogSquirl to choose them.</source>
+        <translation>L&apos;entrée de bureau de LogSquirl n&apos;est pas installée, le bureau ne peut donc pas ouvrir de fichiers avec lui. Installez le paquet deb ou rpm de LogSquirl pour les choisir.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="226"/>
+        <source>xdg-mime is not installed, which chooses the application a file type opens with. Install xdg-utils to choose them.</source>
+        <translation>xdg-mime, qui choisit l&apos;application avec laquelle s&apos;ouvre un type de fichier, n&apos;est pas installé. Installez xdg-utils pour les choisir.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="323"/>
+        <source>xdg-mime could not make LogSquirl the default for %1.</source>
+        <translation>xdg-mime n&apos;a pas pu faire de LogSquirl l&apos;application par défaut pour %1.</translation>
+    </message>
+    <message>
+        <location filename="../../fileassociations/src/xdgfileassociations.cpp" line="349"/>
+        <source>LogSquirl could not give %1 back: its mimeapps.list cannot be written.</source>
+        <translation>LogSquirl n&apos;a pas pu rendre %1 : son fichier mimeapps.list ne peut pas être écrit.</translation>
     </message>
 </context>
 <context>

@@ -43,6 +43,7 @@
 #include <QColor>
 #include <QFont>
 #include <QSettings>
+#include <optional>
 #include <qcolor.h>
 #include <string>
 #include <string_view>
@@ -756,6 +757,51 @@ public:
         enabledPlugins_ = plugins;
     }
 
+    // Whether a start asks which file types LogSquirl opens, until the user
+    // applies a choice or answers "Don't ask again" (#723).
+    bool askForFileAssociations() const
+    {
+        return askForFileAssociations_;
+    }
+    void setAskForFileAssociations( bool ask )
+    {
+        askForFileAssociations_ = ask;
+    }
+    // The ids of the file types the user chose LogSquirl to open; nothing
+    // until a choice is kept (#723, #725).
+    std::optional<QStringList> chosenFileAssociations() const
+    {
+        if ( !fileAssociationsChosen_ ) {
+            return std::nullopt;
+        }
+        return chosenFileAssociations_;
+    }
+    void setChosenFileAssociations( const std::optional<QStringList>& chosen )
+    {
+        fileAssociationsChosen_ = chosen.has_value();
+        chosenFileAssociations_ = chosen.value_or( QStringList{} );
+    }
+    // The ids of the chosen file types that are no longer LogSquirl's and
+    // whose hint the user dismissed, until a choice is applied again (#725).
+    QStringList dismissedFileAssociations() const
+    {
+        return dismissedFileAssociations_;
+    }
+    void setDismissedFileAssociations( const QStringList& dismissed )
+    {
+        dismissedFileAssociations_ = dismissed;
+    }
+    // The ids of the chosen file types LogSquirl was seen to open since they
+    // were chosen: only those count as lost when it no longer does (#725).
+    QStringList confirmedFileAssociations() const
+    {
+        return confirmedFileAssociations_;
+    }
+    void setConfirmedFileAssociations( const QStringList& confirmed )
+    {
+        confirmedFileAssociations_ = confirmed;
+    }
+
     // Chart presets — app-level named chart configurations
     QMap<QString, QString> chartPresets() const
     {
@@ -893,6 +939,12 @@ private:
 
     bool pluginsAutoLoad_{};
     QStringList enabledPlugins_;
+
+    bool askForFileAssociations_{};
+    bool fileAssociationsChosen_{};
+    QStringList chosenFileAssociations_;
+    QStringList dismissedFileAssociations_;
+    QStringList confirmedFileAssociations_;
 
     bool qfIgnoreCase_{};
 

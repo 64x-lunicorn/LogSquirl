@@ -134,6 +134,15 @@ public:
     // Loads the initial file (parameter passed or from config file)
     void loadInitialFile( QString fileName, bool followFile );
 
+    // What a start does about the file associations, once this window shows
+    // (#723): asks which file types LogSquirl opens, on the first start and
+    // after Later, where the platform can associate and something is left to
+    // ask. Not when mayAsk is false, as when the start opens a file. The
+    // question does not block: the window stays usable behind it. Otherwise
+    // it compares the types the user chose with what the system says, and
+    // names those no longer LogSquirl's in a hint in the status bar (#725).
+    void checkFileAssociationsAtStart( bool mayAsk );
+
     // Opens what arrives on standard input as a Log File that is followed. The
     // window keeps reading until the writing end closes or it is destroyed.
     // A window reads it once.
@@ -431,6 +440,9 @@ private:
     void showDashboardOrTabs();
     // Shows the Team Folder's Team groups and state in this window.
     void connectTeamFolder();
+    // Shows the hint that the chosen types of lost are no longer LogSquirl's,
+    // or point at where a moved portable LogSquirl was (#725).
+    void showLostFileAssociations( const QStringList& lost, const QString& movedFrom );
     void updateTeamFolderIndicator();
     // Hands the Team Highlighter Sets to the Highlighter Set collection.
     // dropUnknownActivations false: the first sync has not delivered groups.

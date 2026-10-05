@@ -144,10 +144,11 @@ def test_a_count_within_its_threshold_is_ok():
 
 
 def test_a_benchmark_that_varies_more_has_its_gate_threshold():
-    # The gate's 6 % for the indexing of tabs and long lines (#671).
-    key = f"{BIN} / Indexing a Log File / tabs and long lines: whole Log File"
+    # The gate's 4 % for dragging the text view's scrollbar (#727).
+    key = ("logsquirl_textview_scroll_benchmark"
+           " / text view scroll benchmarks / scrollbar: dragged over 200 values")
     runs = [entry(i + 1, counts=counts_block({key: v}))
-            for i, v in enumerate([1_000_000] * 5 + [1_050_000])]
+            for i, v in enumerate([1_000_000] * 5 + [1_035_000])]
     assert only(rows_of(ph.compare(runs[-1], runs[:-1]), "instructions")).status == "ok"
 
 

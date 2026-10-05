@@ -1307,6 +1307,115 @@ SCENARIO( "A Search requested while the Log File loads runs once it has loaded",
     }
 }
 
+SCENARIO( "Kept Searches requested while the Log File loads run once it has loaded",
+          "[openlogfile][pendingsearch][session]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "loading.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    // Nothing has been loaded yet: a load is only followed from the event loop.
+    OpenedLogFile logFile( path );
+    auto& openLogFile = logFile.openLogFile;
+
+    const auto settled = []( const std::shared_ptr<LogFilteredData>& search ) {
+        return waitUiState( [ & ] { return search->searchState().phase == Phase::Complete; },
+                            30000 );
+    };
+
+    GIVEN( "three Searches, as a restored Session rebuilds them, the second one current" )
+    {
+        const auto fizz = openLogFile.filteredData();
+        const auto buzz = openLogFile.startAnotherSearch();
+        const auto line = openLogFile.startAnotherSearch();
+        openLogFile.makeSearchCurrent( buzz );
+
+        openLogFile.requestKeptSearch( fizz, RegularExpressionPattern( "fizz" ) );
+        openLogFile.requestKeptSearch( line, RegularExpressionPattern( "line 00001" ) );
+        openLogFile.requestKeptSearch( buzz, RegularExpressionPattern( "buzz" ) );
+
+        THEN( "none runs over the Log Lines not loaded yet" )
+        {
+            REQUIRE( fizz->searchState().phase == Phase::Idle );
+            REQUIRE( buzz->searchState().phase == Phase::Idle );
+            REQUIRE( line->searchState().phase == Phase::Idle );
+        }
+
+        WHEN( "the Log File has loaded" )
+        {
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+            THEN( "every one ran over the whole Log File, and the second one is still current" )
+            {
+                REQUIRE( settled( fizz ) );
+                REQUIRE( settled( buzz ) );
+                REQUIRE( settled( line ) );
+                REQUIRE( fizz->searchState().matchCount == fizzCount( FirstLineCount ) );
+                REQUIRE( buzz->searchState().matchCount
+                         == LinesCount( FirstLineCount ) - fizzCount( FirstLineCount ) );
+                REQUIRE( line->searchState().matchCount == 10_lcount );
+                REQUIRE( line->searchState().endLine == LineNumber( FirstLineCount ) );
+                REQUIRE( openLogFile.filteredData() == buzz );
+            }
+        }
+    }
+
+    GIVEN( "a Search requested before the first load, and another one started after it" )
+    {
+        const auto first = openLogFile.filteredData();
+        openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+        const auto another = openLogFile.startAnotherSearch();
+
+        WHEN( "the Log File has loaded" )
+        {
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+            THEN( "the first one ran all the same, kept" )
+            {
+                REQUIRE( settled( first ) );
+                REQUIRE( first->searchState().matchCount == fizzCount( FirstLineCount ) );
+                REQUIRE( openLogFile.filteredData() == another );
+                REQUIRE( another->searchState().phase == Phase::Idle );
+            }
+        }
+
+        WHEN( "the first one is made current again before the Log File has loaded" )
+        {
+            openLogFile.makeSearchCurrent( first );
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+            THEN( "it runs as the current Search" )
+            {
+                REQUIRE( settled( first ) );
+                REQUIRE( first->searchState().matchCount == fizzCount( FirstLineCount ) );
+                REQUIRE( openLogFile.searchAutoRefresh().state() != AutoRefreshState::NoSearch );
+            }
+        }
+    }
+
+    GIVEN( "a kept Search requested before the first load and dropped before it" )
+    {
+        std::weak_ptr<LogFilteredData> dropped;
+        {
+            const auto kept = openLogFile.filteredData();
+            openLogFile.startAnotherSearch();
+            openLogFile.requestKeptSearch( kept, RegularExpressionPattern( "fizz" ) );
+            dropped = kept;
+        }
+
+        WHEN( "the Log File has loaded" )
+        {
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+            THEN( "nothing holds it" )
+            {
+                REQUIRE( dropped.expired() );
+            }
+        }
+    }
+}
+
 namespace {
 
 // Log Lines with non-ASCII text, written as UTF-8: read as UTF-8 they say

@@ -46,6 +46,8 @@
 #include <QtGui>
 
 #include "encodings.h"
+#include "fileassociationchoice.h"
+#include "filetypechoices.h"
 #include "fontutils.h"
 #include "highlighteredit.h"
 #include "installoptout.h"
@@ -93,6 +95,8 @@ OptionsDialog::OptionsDialog( const LogFormatCatalog& logFormatCatalog, QWidget*
 
     connect( teamFolderCheckBox, &QCheckBox::toggled,
              [ this ]( auto ) { this->setupTeamFolder(); } );
+    connect( teamFolderUrlEdit, &QLineEdit::textChanged, this,
+             &OptionsDialog::updateTeamFolderStatus );
 
     // Beta checkbox is only enabled when version checking is on
     connect( checkForNewVersionCheckBox, &QCheckBox::toggled, checkForBetaVersionCheckBox,
@@ -132,6 +136,7 @@ OptionsDialog::OptionsDialog( const LogFormatCatalog& logFormatCatalog, QWidget*
     setupTeamFolderStatus();
     setupTeamFolder();
     setupLogFormats( logFormatCatalog );
+    setupFileAssociations();
 }
 
 //
@@ -275,6 +280,11 @@ void OptionsDialog::setupTeamFolderStatus()
     connect( teamFolderCopyDetailsButton, &QPushButton::clicked, this, [ this ] {
         QGuiApplication::clipboard()->setText( teamFolderDetailsEdit->toPlainText() );
     } );
+    connect( teamFolderOpenFolderButton, &QPushButton::clicked, this, [ this ] {
+        if ( teamFolder_ && teamFolder_->hasClone() ) {
+            QDesktopServices::openUrl( QUrl::fromLocalFile( teamFolder_->cloneDirectory() ) );
+        }
+    } );
 
     // The note explains; it stays out of the way of the settings and the
     // status.
@@ -290,8 +300,44 @@ void OptionsDialog::showTeamFolder( TeamFolder& teamFolder )
 {
     teamFolder_ = &teamFolder;
     connect( &teamFolder, &TeamFolder::stateChanged, this, &OptionsDialog::updateTeamFolderStatus );
-    connect( teamFolderSyncButton, &QPushButton::clicked, &teamFolder, &TeamFolder::sync );
+    connect( teamFolderSyncButton, &QPushButton::clicked, this, &OptionsDialog::syncTeamFolderNow );
     updateTeamFolderStatus();
+}
+
+TeamFolderPolicy OptionsDialog::teamFolderPolicyOfFields() const
+{
+    return TeamFolderPolicy{ .enabled = teamFolderCheckBox->isChecked(),
+                             .repositoryUrl = teamFolderUrlEdit->text().trimmed(),
+                             .subfolder = teamFolderSubfolderEdit->text().trimmed() };
+}
+
+void OptionsDialog::syncTeamFolderNow()
+{
+    if ( !teamFolder_ ) {
+        return;
+    }
+    // Sync Now is the connection test: it syncs the repository the fields
+    // show. Fields that differ from the applied ones are applied first, the
+    // Team Folder settings only and for good: Cancel does not undo them, and
+    // the other tabs keep waiting for OK or Apply.
+    const auto policy = teamFolderPolicyOfFields();
+    auto& config = Configuration::get();
+    const TeamFolderPolicy applied{ .enabled = config.teamFolderEnabled(),
+                                    .repositoryUrl = config.teamFolderUrl(),
+                                    .subfolder = config.teamFolderSubfolder() };
+    if ( policy != applied ) {
+        config.setTeamFolderEnabled( policy.enabled );
+        config.setTeamFolderUrl( policy.repositoryUrl );
+        config.setTeamFolderSubfolder( policy.subfolder );
+        config.save();
+        // A changed repository syncs as it is set up.
+        teamFolder_->setUp( policy );
+        Q_EMIT optionsChanged();
+        if ( !teamFolder_ || teamFolder_->isSyncing() ) {
+            return;
+        }
+    }
+    teamFolder_->sync();
 }
 
 namespace {
@@ -322,8 +368,8 @@ QStyle::StandardPixmap statusIconOf( const TeamFolder& teamFolder )
 
 void OptionsDialog::updateTeamFolderStatus()
 {
-    // What the Team Folder does now, as it was last applied: Sync Now syncs
-    // that one, not what the dialog shows before Apply.
+    // What the Team Folder does now, as it was last applied; Sync Now applies
+    // what the fields show first.
     teamFolderStatusGroup->setVisible( teamFolder_ != nullptr );
     if ( !teamFolder_ ) {
         return;
@@ -336,9 +382,26 @@ void OptionsDialog::updateTeamFolderStatus()
             .pixmap( QSize( iconSize, iconSize ), devicePixelRatioF() ) );
     teamFolderStatusHeadingLabel->setText( teamFolder_->heading() );
 
+    // What to do about a common failure, under the heading; Git's output
+    // stays as it is in the details.
+    const auto hint
+        = teamFolder_->isSyncing() ? QString{} : TeamFolder::hintOf( teamFolder_->failureHint() );
+    teamFolderHintLabel->setText( hint );
+    teamFolderHintLabel->setVisible( !hint.isEmpty() );
+
     const auto remarks = teamFolder_->remarks();
     teamFolderRemarksLabel->setText( remarks.join( QLatin1Char( '\n' ) ) );
     teamFolderRemarksLabel->setVisible( !remarks.isEmpty() );
+
+    // Whether the Team groups were ever current, in the user's locale.
+    const auto lastSynced = teamFolder_->lastSynced();
+    teamFolderLastSyncedLabel->setText(
+        tr( "Last synced: %1" )
+            .arg( lastSynced.isValid()
+                      ? QLocale{}.toString( lastSynced.toLocalTime(), QLocale::ShortFormat )
+                      : tr( "never" ) ) );
+    teamFolderLastSyncedLabel->setVisible( teamFolder_->state() != TeamFolder::State::Off );
+    teamFolderOpenFolderButton->setEnabled( teamFolder_->hasClone() );
 
     // Git's output, untranslated (ADR-0008), of the last sync that failed.
     const auto gitOutput = teamFolder_->isSyncing() ? QString{} : teamFolder_->gitOutput();
@@ -349,7 +412,7 @@ void OptionsDialog::updateTeamFolderStatus()
     teamFolderDetailsHeader->setVisible( hasDetails );
     teamFolderDetailsEdit->setVisible( hasDetails && teamFolderDetailsButton->isChecked() );
 
-    teamFolderSyncButton->setEnabled( teamFolder_->state() != TeamFolder::State::Off
+    teamFolderSyncButton->setEnabled( teamFolderPolicyOfFields().isActive()
                                       && !teamFolder_->isSyncing() );
 }
 
@@ -380,6 +443,144 @@ void OptionsDialog::setupLogFormats( const LogFormatCatalog& logFormatCatalog )
         QDir().mkpath( formatsDir );
         QDesktopServices::openUrl( QUrl::fromLocalFile( formatsDir ) );
     } );
+}
+
+// The File Associations page lists the file types the user chooses from,
+// grouped as the list groups them (#720). It stays hidden until it is given
+// the file associations to show.
+void OptionsDialog::setupFileAssociations()
+{
+    tabWidget->setTabVisible( tabWidget->indexOf( fileAssociationsTab ), false );
+    fileAssociationsUnavailable->setVisible( false );
+    fileAssociationsNoteLabel->setVisible( false );
+    fileAssociationsContextMenuCheckBox->setVisible( false );
+
+    FileTypeChoices::fill( *fileAssociationsTree );
+
+    // What the user changes stays until Apply, whatever the states do.
+    connect( fileAssociationsTree, &QTreeWidget::itemChanged, this,
+             [ this ]( QTreeWidgetItem* item, int column ) {
+                 const auto id = item->data( 0, Qt::UserRole ).toString();
+                 if ( column == 0 && !id.isEmpty() && !editedFileAssociations_.contains( id ) ) {
+                     editedFileAssociations_ << id;
+                 }
+             } );
+    connect( fileAssociationsContextMenuCheckBox, &QCheckBox::toggled, this,
+             [ this ] { contextMenuEntryEdited_ = true; } );
+}
+
+void OptionsDialog::showFileAssociations( FileAssociations& fileAssociations )
+{
+    fileAssociations_ = &fileAssociations;
+    tabWidget->setTabVisible( tabWidget->indexOf( fileAssociationsTab ), true );
+
+    const auto available = fileAssociations.isAvailable();
+    fileAssociationsTree->setEnabled( available );
+    fileAssociationsUnavailable->setVisible( !available );
+    if ( !available ) {
+        const auto iconSize = style()->pixelMetric( QStyle::PM_SmallIconSize, nullptr, this );
+        fileAssociationsUnavailableIconLabel->setPixmap(
+            style()
+                ->standardIcon( QStyle::SP_MessageBoxInformation, nullptr, this )
+                .pixmap( QSize( iconSize, iconSize ), devicePixelRatioF() ) );
+        fileAssociationsUnavailableLabel->setText( fileAssociations.unavailableReason() );
+    }
+
+    // Explorer's entry for every file, on Windows (#724).
+    fileAssociationsContextMenuCheckBox->setVisible( available
+                                                     && fileAssociations.offersContextMenuEntry() );
+
+    const auto note = available ? fileAssociations.applyNote() : QString{};
+    fileAssociationsNoteLabel->setText( note );
+    fileAssociationsNoteLabel->setVisible( !note.isEmpty() );
+
+    // A platform where the user confirms outside LogSquirl tells the outcome
+    // later; the page then shows it, and the checks follow.
+    connect( &fileAssociations, &FileAssociations::statesChanged, this,
+             &OptionsDialog::updateFileAssociations );
+    resetFileAssociations();
+}
+
+// A type is checked while it is chosen for LogSquirl: also while the user is
+// still to confirm it outside LogSquirl, so unchecking gives it back.
+void OptionsDialog::updateFileAssociations()
+{
+    if ( !fileAssociations_ || !fileAssociations_->isAvailable() ) {
+        fileAssociationStates_.clear();
+        return;
+    }
+    fileAssociationStates_ = fileAssociations_->states();
+
+    // Shown as the system says, not edited by the user.
+    const QSignalBlocker treeBlocker( fileAssociationsTree );
+    const QSignalBlocker checkBoxBlocker( fileAssociationsContextMenuCheckBox );
+    if ( !contextMenuEntryEdited_ ) {
+        fileAssociationsContextMenuCheckBox->setChecked( fileAssociations_->hasContextMenuEntry() );
+    }
+    for ( const auto& [ id, state ] : fileAssociationStates_ ) {
+        auto* row = FileTypeChoices::row( *fileAssociationsTree, id );
+        if ( row == nullptr ) {
+            continue;
+        }
+        if ( !editedFileAssociations_.contains( id ) ) {
+            row->setCheckState( 0, isChosen( state ) ? Qt::Checked : Qt::Unchecked );
+        }
+        FileTypeChoices::showState( *row, 2, state, *this );
+    }
+    fileAssociationsTree->resizeColumnToContents( 2 );
+}
+
+void OptionsDialog::resetFileAssociations()
+{
+    editedFileAssociations_.clear();
+    contextMenuEntryEdited_ = false;
+    updateFileAssociations();
+}
+
+// Makes LogSquirl the default for each checked type it is not the default for
+// yet, and gives back each unchecked one it is the default for.
+void OptionsDialog::applyFileAssociations()
+{
+    if ( !fileAssociations_ || !fileAssociations_->isAvailable() ) {
+        return;
+    }
+
+    const auto checkedIds = FileTypeChoices::checkedIds( *fileAssociationsTree );
+
+    QStringList errors;
+    const auto plan = FileAssociationPlan::of( fileAssociationStates_, checkedIds );
+    const auto entryChanged = fileAssociations_->offersContextMenuEntry()
+                              && fileAssociationsContextMenuCheckBox->isChecked()
+                                     != fileAssociations_->hasContextMenuEntry();
+    if ( plan.isEmpty() && !entryChanged ) {
+        resetFileAssociations();
+        return;
+    }
+    if ( entryChanged ) {
+        const auto result = fileAssociations_->setContextMenuEntry(
+            fileAssociationsContextMenuCheckBox->isChecked() );
+        if ( !result.succeeded() ) {
+            errors << result.error;
+        }
+    }
+    if ( const auto result = plan.applyWith( *fileAssociations_ ) ) {
+        // The choice is kept, so the first start asks no more (#723).
+        auto& config = Configuration::get();
+        auto choice = FileAssociationChoice::of( config );
+        choice.apply( checkedIds );
+        // What the system made LogSquirl's at once counts as confirmed (#725).
+        choice.confirm( fileAssociations_->states() );
+        choice.keepIn( config );
+
+        if ( !result->succeeded() ) {
+            errors << result->error;
+        }
+    }
+    // What the system says now, not what was asked for.
+    resetFileAssociations();
+    if ( !errors.isEmpty() ) {
+        QMessageBox::warning( this, tr( "File Associations" ), errors.join( QLatin1Char( '\n' ) ) );
+    }
 }
 
 // Convert a regexp type to its index in the list
@@ -827,6 +1028,7 @@ void OptionsDialog::onButtonBoxClicked( QAbstractButton* button )
     QDialogButtonBox::ButtonRole role = buttonBox->buttonRole( button );
     if ( ( role == QDialogButtonBox::AcceptRole ) || ( role == QDialogButtonBox::ApplyRole ) ) {
         updateConfigFromDialog();
+        applyFileAssociations();
     }
 
     if ( role == QDialogButtonBox::AcceptRole )

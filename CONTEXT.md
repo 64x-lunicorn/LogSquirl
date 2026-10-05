@@ -40,7 +40,8 @@ lines that were added and starts again when the Log File was truncated or reload
 not survive a truncation or a reload, and Format Recognition is taken again after either. The
 Marks saved with the Session are handed to it when the Log File is opened and applied once,
 after the first load; saving them stays with the user interface. A Search requested before
-the Log File has first loaded waits for that load and then runs over the whole Log File.
+the Log File has first loaded waits for that load and then runs over the whole Log File, a
+kept one as well as the current one.
 It hears of changes on disk through the File Watch Port handed to it when it is built.
 It is the way in to its Log File: it takes every Policy, adds, toggles and clears the Marks,
 owns the Search Limits and tells the View Set when they change, and answers what is known of
@@ -193,7 +194,11 @@ A Git repository a team shares its Filter Groups, Highlighter Sets and Naming Gr
 it into its own data folder with the installed `git` and keeps it current: at startup, every
 five minutes and on "Sync now", never blocking the user interface. It is the only part of the
 application that runs Git, and Git's own authentication applies unchanged. Turning it off, or
-pointing it at another repository, leaves the user's own groups alone.
+pointing it at another repository, leaves the user's own groups alone. "Sync now" in the Options
+Dialog syncs the repository its fields show: when the check box, Repository URL or Subfolder
+differ from the applied ones, it applies these three Team Folder settings first, and only these.
+That is real: Cancel afterwards does not undo them, while the other tabs' changes still wait for
+OK or Apply.
 _Avoid_: shared folder, team repository, sync folder
 
 **Team group**:
@@ -483,6 +488,24 @@ for an unknown source, and for every AppImage and Windows build, the Update Offe
 its Release Page, and for a known one it names the package manager's upgrade command.
 _Avoid_: distribution channel
 
+### The desktop
+
+**File Type**:
+One kind of file LogSquirl opens, as the user chooses it: one or more extensions under one
+label (*Android Logcat traces*: `.adb`, `.adb0` to `.adb9`), with the MIME type, uniform type
+identifier and ProgID each platform knows it by. The list is declared once, in
+`cmake/FileTypes.cmake`, and every platform's packaging and the application read it.
+_Avoid_: extension (a File Type may have several), format (that is a Log Format)
+
+**File Association**:
+Whether the system opens a File Type with LogSquirl: *Default* (it does), *Registered*
+(LogSquirl is offered under *Open with*, another application opens it), *Not confirmed*
+(on Windows, LogSquirl applied the user's choice, and another application opens it until
+the user confirms it on the *Default apps* page) or *Not registered*. It is always what the
+system says, never what LogSquirl asked for; the user chooses it on the File Associations
+page, in the first-start question or in the Windows installer.
+_Avoid_: file binding, default app setting
+
 ### Session and settings
 
 **Settings Policy**:
@@ -556,7 +579,11 @@ _Avoid_: category, group, domain
 **Session**:
 The set of Log Files currently open, their tabs, and the position and view state restored
 for each on the next start. The position is part of the view state: the Log Line of the text
-view's Scroll Position, where the Log File stands again once its first load is done.
+view's Scroll Position, where the Log File stands again once its first load is done. So
+are the tab's Searches: every one its Kept Searches hold, in their order, with its pattern and
+how the Search Line read it, and which one is current. A restore rebuilds them, each in its
+Filtered View, and runs every one with a pattern again once the first load is done; their
+results are never saved.
 It builds the views of every Log File it opens in one call, from one value: the Open Log
 File, the QuickFind pattern, the Policies, the saved Searches and the view state to restore,
 if any — opening a Log File by hand and restoring it on start take the same path. After that
@@ -577,8 +604,8 @@ restores, plus the names and groups. Transient Log Files are not in it; one deco
 from an archive is, with its archive and member. Every Log File is written with its absolute
 path and its path relative to the Session File's folder, and opening tries both, so a
 folder of logs and its Session File still opens once moved. A Log File that is missing or
-already open in another window is left out and named. Window geometry and the search
-pattern are not part of it.
+already open in another window is left out and named. Each tab's Searches come with its view
+state; window geometry and the search history are not part of it.
 _Avoid_: workspace file, project file, saved layout
 
 **Transient Log File**:

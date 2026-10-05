@@ -155,6 +155,134 @@
   *Status* group, the explanatory note is at the bottom of the tab, smaller
   and subdued, and the check box names Filter Groups, Highlighter Sets and
   Naming Groups. (#711)
+- **The Options Dialog has a File Associations page, working on Linux**: it
+  lists the file types LogSquirl opens, *Log files* (`.log`, Android Logcat
+  traces `.adb` and `.adb0` to `.adb9`) and *More (optional)* (`.out`/`.err`,
+  `.trace`, `.txt`), each checked where LogSquirl is its default and with its
+  state: *Default*, *Registered* (offered, but another application opens it)
+  or *Not registered*. *Apply* makes LogSquirl the default for the checked
+  types with `xdg-mime default` and gives the unchecked ones back by removing
+  only LogSquirl's entry from the user's `mimeapps.list`. An AppImage run, or
+  one without LogSquirl's desktop entry or `xdg-mime`, shows the page
+  disabled and says why; macOS and Windows follow. The states are read with
+  a short time limit per `xdg-mime` query, and once a query gets no answer
+  the other types are not asked, so a hanging desktop tool cannot hold up
+  the start for long. The application reads the same list of types as the
+  packages, generated from `cmake/FileTypes.cmake`, and each platform
+  implements one interface that tells a type's state and applies a choice,
+  with a test implementation for the page's tests. (#720)
+- **The File Associations page works on macOS**: *Apply* makes LogSquirl the
+  default for the content type of each checked type (the system's log type
+  for `.log`, LogSquirl's own Logcat type, plain text for `.txt`) through
+  NSWorkspace. macOS asks the user to confirm every change, so the page says
+  so before *Apply* and shows the states once the confirmations are answered;
+  a declined one leaves the type as it was. A type is *Default* only where
+  every extension of it opens in LogSquirl, so the Logcat traces also take
+  `.adb`, which macOS keeps calling Ada source (`public.ada-source`), and
+  *Apply* asks for both. Unchecking a type gives it back to the application
+  that opened it before LogSquirl took it, which LogSquirl keeps in its
+  settings, beside the executable for a portable run; where it does not know
+  one, the page says that macOS cannot unset a default and how to choose
+  another application in the Finder. A run outside LogSquirl.app shows the
+  page disabled. (#721)
+- **The File Associations page works on Windows, installed and portable**:
+  *Apply* registers LogSquirl for the checked types for the current user,
+  under `HKEY_CURRENT_USER\Software\Classes`, so it needs no administrator:
+  the installer's ProgIDs `LogSquirl.<id>` with the document icon and the
+  running executable, LogSquirl under each extension's `OpenWithProgids`, and
+  its capabilities under `RegisteredApplications`. Windows does not let an
+  application make itself the default, so LogSquirl then opens the *Default
+  apps* page of the Windows settings for LogSquirl, says so before *Apply*,
+  and follows the user's choice there: the state column reads the user's
+  actual choice (`UserChoice`), so a type registered but not confirmed shows
+  as *Not confirmed* and stays checked, and a check the user changed stays
+  while the page follows. Unchecking a type, confirmed or not, removes the
+  current user's registration and leaves the machine-wide one the installer
+  made, and says so when LogSquirl still opens the type. The portable build registers its own executable and
+  warns that moving it stops the associations working. (#722)
+- **On Windows, every file offers Open with LogSquirl in the context menu**:
+  right-clicking any file in Explorer offers *Open with LogSquirl* (on
+  Windows 11 under *Show more options*), which opens it as a double-click on
+  a `.log` file does, so rotated logs like `app.log.1`, whose extension
+  Windows sees as `.1`, open in LogSquirl too. The installer offers it on its
+  file type page, checked by default, and the uninstaller removes it; the
+  File Associations page has the same check box, applied for the current
+  user in the installed and the portable build, and hides the installer's
+  entry for the current user when unchecked. (#724)
+- **On the first start, LogSquirl asks which file types it should open**: once
+  the main window shows, a dialog *Make LogSquirl the default app* lists the
+  types of the File Associations page with `.log` and the Logcat traces
+  checked, and every type LogSquirl already opens, such as one chosen in the
+  installer, checked too. *Apply* applies the choice as the page does,
+  *Later* asks again at the next start, *Don't ask again* never asks again,
+  and the dialog says in one line that the page stays reachable. It shows
+  what applying leads to on the platform, in the portable build of Windows
+  with the warning about moving LogSquirl. It does not appear where the
+  platform cannot associate (an AppImage), when every suggested type is
+  LogSquirl's already, after a choice was applied on the page, or when the
+  start opens a file from the command line or by a double-click. The
+  application keeps one file associations object for the run, which every
+  window's Options Dialog uses too. (#723)
+- **LogSquirl says when a chosen file association was lost, and restores it**:
+  LogSquirl keeps the file types chosen on the File Associations page or in
+  the first-start dialog, and before either the types it opens when it first
+  looks, as the installer chose them. At every start it compares them with
+  what the system says. When a chosen type LogSquirl opened since it was
+  chosen no longer opens in LogSquirl, as after another application or a
+  Windows update took it over, a quiet hint in the status bar names it and
+  offers *Restore*, which applies the choice again (on Windows through the
+  *Default apps* page), and *Dismiss*, which stops the hint for that loss
+  until a choice is applied again. A type the user unchecked never counts,
+  and neither does one LogSquirl never opened, such as one applied on Windows
+  but never confirmed on the *Default apps* page. A moved portable build on
+  Windows says instead that the associations point at its old location, and
+  *Restore* points them at the new one. The installer's choice is not
+  recorded as such: a type it chose that LogSquirl does not open by the first
+  start, because the user's own choice in Windows wins or another application
+  took it first, does not count as chosen. (#725)
+- **Sync Now syncs the Team Folder the fields show**: in *Settings → Team
+  Folder*, *Sync Now* used to sync the repository last applied, so a newly
+  typed Repository URL showed the old one's result until *Apply*. When the
+  check box, Repository URL or Subfolder differ from the applied settings,
+  *Sync Now* now applies these three settings, and only these, then syncs,
+  so it doubles as the connection test. *Cancel* afterwards keeps them; the
+  other tabs' changes still wait for *OK* or *Apply*. *Sync Now* is available
+  as soon as the check box is on and a URL is entered, before the first
+  *Apply*. (#712)
+- **A failed Team Folder sync says what to do**: the status in *Settings →
+  Team Folder* adds a short hint under its heading for common failures:
+  *Sign-in failed*, *Organization requires SSO authorization* (GitHub's SAML
+  SSO), *Repository not found*, *Server unreachable* and *Git is not
+  installed*, each saying what to check or do. LogSquirl recognises them by
+  Git's fixed English sentences as whole lines of its output, so a URL or
+  path that holds the same words triggers nothing. *Git is not installed* is
+  shown only when there is no Git program to start, not for one that is
+  there and does not start. Any other failure shows the heading and Git's
+  details only, and Git's output in the details stays unchanged. ADR-0008 is
+  amended to allow these hints. (#713)
+- **The Team Folder shows when it last synced, and opens its folder**: the
+  status in *Settings → Team Folder* shows *Last synced:* with the date and
+  time, in the user's locale, of the last sync that reached the repository,
+  or *never*. A failed sync leaves the time as it was; it survives a restart,
+  kept in `teamfolder-sync.ini` beside the clone, and starts again from
+  *never* when the Repository URL or Subfolder changes. *Open Folder* in the
+  *Status* group opens the clone in the file manager, and is disabled while
+  there is no clone. (#714)
+- **The Session keeps the Kept Searches of each tab**: a restored tab, from
+  the last Session or from a Session File, gets back every Search it had, in
+  the same order, each in its own Filtered View, with its pattern and its
+  flags (Match case, regular expression, Inverse match, logical combination),
+  and the same one current, which carries the Marks. Every Search runs again
+  once the Log File has loaded; a restored tab still waiting for its turn
+  keeps them when the Session is saved again. Results are not saved: the
+  Searches are run, not cached. A Search typed before a Log File has loaded
+  and kept with *Keep results* now runs too, once it has. A Session saved
+  by an earlier version restores as before, each tab with one empty Search.
+  The benchmark scenario `session-restore` saves three Kept Searches with
+  each tab (option `searches`) and reports `tab_searches_finished` and
+  `all_tabs_restored`. As those Searches run beside the Indexes of the tabs
+  still loading, the `gui_session_restore_*` benchmarks measure more than
+  before and their numbers move. (#704)
 
 ## Bug fixes
 
@@ -247,6 +375,50 @@
   (16 to 256 px), `Resources/logsquirl-document.icns` (16 to 1024 px, with
   @2x) and the hicolor PNGs (16 to 512 px) from them. File types use it once
   each platform declares them (#717, #718, #719). (#726)
+- **The Windows installer chooses which file types LogSquirl opens and sets
+  the document icon**: its new page *File types* replaces the single
+  unchecked *Associate with .log files* box and lists *General log files*
+  (`.log`) and *Android Logcat traces* (`.adb`, `.adb0` to `.adb9`), checked,
+  and *Program output* (`.out`, `.err`), *Trace files* (`.trace`) and *Text
+  files* (`.txt`), unchecked; a silent install (`/S`) takes these defaults.
+  Every type gets a ProgID, `LogSquirl.<type>`, whose icon is the document
+  icon, now the second icon of `logsquirl.exe`, and LogSquirl is listed under
+  each extension's `OpenWithProgids`; the checked types get LogSquirl as their
+  handler, as far as Windows lets an installer. `.gz` and `.zip` only get the
+  *Open with* entry. The uninstaller removes the ProgIDs and the *Open with*
+  entries and gives each extension back to the ProgID it had before; an
+  extension another application took since keeps it. It also removes what
+  the File Associations page registered for the uninstalling user where that
+  opens this installation, and leaves a portable LogSquirl's registration. The installer's types,
+  sections and ProgIDs are generated from `cmake/FileTypes.cmake`, the names
+  the application will register too, and CI's installer check covers them.
+  (#719)
+- **On macOS, the app bundle declares Logcat traces and logs with the
+  document icon**: it exports the type *Android Logcat trace*
+  (`io.github.logsquirl.logcat`, `.adb` and `.adb0` to `.adb9` one by one;
+  macOS keeps calling `.adb` Ada source), imports types for `.out`/`.err` and
+  `.trace`, and views the system's log type, plain text and, without the
+  icon, `.gz` and `.zip`, all with the Alternate rank. Finder offers
+  LogSquirl under *Open with* for each of them, a new build makes it the
+  default for none, and after *Change All* their files show the document
+  icon. The types LogSquirl declares itself are opened through the plain text
+  entry, which has the document icon now: LaunchServices makes the only
+  application that names a type its default, whatever the rank. (#718)
+- **On Linux, Logcat traces and logs are file types with the LogSquirl
+  document icon**: the deb and rpm install a shared-mime-info package that
+  declares the Android Logcat trace (`application/x-logcat`, `.adb` and
+  `.adb0` to `.adb9`) and the optional types `.out`/`.err` and `.trace`, and gives them and
+  `text/x-log` the document icon, which goes into the hicolor theme. The
+  desktop entry lists these types, `.txt` and the compressed `.gz` and `.zip`,
+  so the file manager offers LogSquirl under *Open with* without making it the
+  default; the package scripts refresh the MIME database and the icon cache
+  after an install and an uninstall, and the package check covers the new
+  files. The file types are declared once, in `cmake/FileTypes.cmake`, for
+  every platform's packaging; the AppImage, built with
+  `-DLOGSQUIRL_FILE_TYPES=OFF`, registers none. The Logcat globs weigh more
+  than the Ada source type's, which also claims `*.adb`, so once the package
+  is installed every `.adb` file on the machine is a Logcat trace, Ada source
+  included. (#717)
 - **Release builds can use profile-guided optimization, and BOLT on Linux,
   per platform once the numbers show a gain**: `-DLOGSQUIRL_PGO=GENERATE`
   builds instrumented binaries, which the benchmark mode's scenarios train,
@@ -262,6 +434,15 @@
   those numbers show a clear gain there. (#682)
 
 ## Internal
+
+- **The Open Log File's test runner joins oneTBB's workers before it exits,
+  as the other runners do**: the mimalloc assertion that once stopped a
+  logdata test process at exit in a Debug build most likely came from a
+  oneTBB worker left to end on its own while mimalloc's process teardown ran,
+  which #702 dealt with in the application, `logsquirl_grep` and the logdata,
+  unit and UI test runners. The Open Log File's runner indexes Log Files with
+  oneTBB too, and was the one #702 left out; it now joins the workers as
+  well. (#665)
 
 - **A pull request that touches a hot path gets the benchmark comparison by
   itself**: a pull request that changes reading and indexing, Search,
@@ -357,6 +538,16 @@
   Before, every block was read a second time, which cost indexing up to
   4.5 % more instructions. The search itself loops over whole 16-byte chunks
   more tightly. (#701)
+
+- **The instruction counts gate catches smaller regressions in four
+  benchmarks**: with no idle oneTBB worker spinning into a count any more
+  (#708), 17 counts of the same code from the CI runs since then were measured
+  again. Indexing a Log File with tabs and long lines, scrolling the text view
+  with the wheel and restoring a Session until every tab has loaded now repeat
+  within 0.01 %, 0.71 % and 0.04 % respectively and are judged by the default
+  threshold of +2 % instead of +6 %, +3 % and +3 %, and dragging the text
+  view's scrollbar fails the gate at +4 % instead of +5 %. The other three benchmarks keep their thresholds, which the
+  new counts still need. (#727)
 
 # v26.10.0 (2026-09-29)
 

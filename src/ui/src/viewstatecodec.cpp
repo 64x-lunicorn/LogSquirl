@@ -27,7 +27,63 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <utility>
+
 namespace {
+
+// The keys of a view state's Searches: the list of them, and which one is
+// current.
+constexpr auto KeptSearchesKey = "KS";
+constexpr auto CurrentSearchKey = "KC";
+// The keys of each Search, inside that list.
+constexpr auto SearchPatternKey = "P";
+constexpr auto SearchIgnoreCaseKey = "IC";
+constexpr auto SearchRegexpKey = "RE";
+constexpr auto SearchInverseKey = "IR";
+constexpr auto SearchBooleanKey = "BC";
+
+// The Searches of a tab, as encodeViewState() writes them: a list of objects,
+// one per Search. An entry that is not an object holding a pattern is left
+// out, and the current Search is counted among those left; one that is no
+// longer there makes the first current. Without any, one empty Search.
+void decodeSearches( const QVariantMap& properties, ViewState& state )
+{
+    if ( !properties.contains( KeptSearchesKey ) ) {
+        return;
+    }
+
+    const auto savedCurrent = properties.value( CurrentSearchKey ).toLongLong();
+    QList<KeptSearchState> searches;
+    qsizetype current = 0;
+    const auto entries = properties.value( KeptSearchesKey ).toList();
+    for ( qsizetype index = 0; index < entries.size(); ++index ) {
+        const auto& entry = entries[ index ];
+        if ( entry.typeId() != QMetaType::QVariantMap ) {
+            LOG_WARNING << "A saved Search that is not one is left out";
+            continue;
+        }
+        const auto search = entry.toMap();
+        const auto pattern = search.value( SearchPatternKey );
+        if ( pattern.typeId() != QMetaType::QString ) {
+            LOG_WARNING << "A saved Search without a pattern is left out";
+            continue;
+        }
+        if ( index == savedCurrent ) {
+            current = searches.size();
+        }
+        searches.append(
+            KeptSearchState{ .pattern = pattern.toString(),
+                             .ignoreCase = search.value( SearchIgnoreCaseKey ).toBool(),
+                             .useRegexp = search.value( SearchRegexpKey ).toBool(),
+                             .inverseRegexp = search.value( SearchInverseKey ).toBool(),
+                             .useBooleanCombination = search.value( SearchBooleanKey ).toBool() } );
+    }
+
+    if ( !searches.isEmpty() ) {
+        state.searches = std::move( searches );
+        state.currentSearch = current;
+    }
+}
 
 // The format glogg wrote: "S<main>:<filtered>:IC<0|1>:AR<0|1>:FF<0|1>". It
 // holds neither the regexp, inverse and combination flags, nor Marks or a
@@ -82,7 +138,8 @@ ViewState decodeJson( const QString& json, bool useRegexpByPolicy )
 {
     ViewState state;
 
-    const auto properties = QJsonDocument::fromJson( json.toLatin1() ).toVariant().toMap();
+    // UTF-8, as encodeViewState() writes it: a Search's pattern may be any text.
+    const auto properties = QJsonDocument::fromJson( json.toUtf8() ).toVariant().toMap();
 
     if ( properties.contains( "S" ) ) {
         const auto sizes = properties.value( "S" ).toList();
@@ -121,10 +178,29 @@ ViewState decodeJson( const QString& json, bool useRegexpByPolicy )
     // Absent from a view state saved before it was part of one: the top.
     state.scrollPosition = properties.value( "SP" ).toULongLong();
 
+    // Absent from a view state saved before the Session kept them (#704): one
+    // empty Search.
+    decodeSearches( properties, state );
+
     return state;
 }
 
 } // namespace
+
+KeptSearchState keptSearchStateOf( const RegularExpressionPattern& pattern )
+{
+    return KeptSearchState{ .pattern = pattern.pattern,
+                            .ignoreCase = !pattern.isCaseSensitive,
+                            .useRegexp = !pattern.isPlainText,
+                            .inverseRegexp = pattern.isExclude,
+                            .useBooleanCombination = pattern.isBoolean };
+}
+
+RegularExpressionPattern patternOf( const KeptSearchState& search )
+{
+    return RegularExpressionPattern( search.pattern, !search.ignoreCase, search.inverseRegexp,
+                                     search.useBooleanCombination, !search.useRegexp );
+}
 
 QString encodeViewState( const ViewState& state )
 {
@@ -155,6 +231,21 @@ QString encodeViewState( const ViewState& state )
     // Left out at the top, where a view state without it restores to.
     if ( state.scrollPosition != 0 ) {
         properties[ "SP" ] = static_cast<qulonglong>( state.scrollPosition );
+    }
+    // Left out for one empty Search, what a view state without them restores
+    // to.
+    if ( state.searches != QList<KeptSearchState>{ KeptSearchState{} }
+         || state.currentSearch != 0 ) {
+        QVariantList searches;
+        for ( const auto& search : state.searches ) {
+            searches.append( QVariantMap{ { SearchPatternKey, search.pattern },
+                                          { SearchIgnoreCaseKey, search.ignoreCase },
+                                          { SearchRegexpKey, search.useRegexp },
+                                          { SearchInverseKey, search.inverseRegexp },
+                                          { SearchBooleanKey, search.useBooleanCombination } } );
+        }
+        properties[ KeptSearchesKey ] = searches;
+        properties[ CurrentSearchKey ] = static_cast<qlonglong>( state.currentSearch );
     }
 
     return QJsonDocument::fromVariant( properties ).toJson( QJsonDocument::Compact );

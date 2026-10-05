@@ -139,6 +139,11 @@ public:
     // A Search waiting for the first load no longer does: it was stopped, or
     // another one was made current.
     void waitingSearchDropped();
+    // Whether the Search requested waits for the first load to run.
+    bool searchWaitsForLoad() const;
+    // Whether a load has finished, whatever its outcome: until one has, a
+    // Search requested waits for it.
+    bool hasLoadFinished() const;
 
     // A load of the Log File finished with lineCount Log Lines, whatever its
     // outcome. autoRefresh is the current Search's, as it stands now; limits

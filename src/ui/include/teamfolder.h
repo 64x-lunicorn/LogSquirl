@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <QDateTime>
 #include <QFutureWatcher>
 #include <QHash>
 #include <QList>
@@ -99,6 +100,32 @@ enum class SyncStep {
     // The server refused a push: the Team groups are read-only.
     PushRefused
 };
+
+// A common failure the Team Folder recognises in what Git wrote, to tell the
+// user what to do about it. Git's output itself stays as it is (ADR-0008).
+enum class FailureHint {
+    // Nothing recognised: Git's output speaks for itself.
+    None,
+    // The server refused the sign-in: SSH permission denied, HTTPS
+    // authentication failed.
+    SignIn,
+    // The organization enforces SAML SSO, and the key or token is not
+    // authorized for it.
+    SsoAuthorization,
+    // There is no such repository, or no access to it.
+    RepositoryNotFound,
+    // The server's host cannot be resolved or connected to.
+    ServerUnreachable,
+    // There is no Git to start: it is not installed, or not on the PATH.
+    GitMissing
+};
+
+// The common failure a step failed with, recognised by Git's fixed English
+// sentences (Git runs with LC_ALL=C) on whole lines of its output: never by
+// a bare word or number, which a URL or path may hold as well. For Git that
+// could not be started, gitNotFound tells whether there was no program to
+// start; only then is Git missing.
+FailureHint failureHintOf( SyncStep step, const QString& gitOutput, bool gitNotFound = false );
 
 // A group of any kind the Team Folder holds.
 using AnyGroup
@@ -328,6 +355,15 @@ public:
     // Whether changes are committed here that the server does not have yet.
     bool hasPendingChanges() const;
 
+    // When the last sync that reached the repository ended, in UTC; invalid
+    // for never. It is kept across restarts, beside the clone, and starts
+    // again from never when the Repository URL or the Subfolder changes.
+    QDateTime lastSynced() const;
+
+    // Where the clone is, and whether there is one.
+    QString cloneDirectory() const;
+    bool hasClone() const;
+
     // The state in a few words, for where it is shown: "Team Folder synced".
     QString summary() const;
     // The state as the heading of a status: "Synced", or the step that
@@ -335,6 +371,10 @@ public:
     QString heading() const;
     // The heading for a step that failed: "Clone failed".
     static QString headingOf( logsquirl::teamfolder::SyncStep step );
+    // The common failure the last sync failed with, if it is one.
+    logsquirl::teamfolder::FailureHint failureHint() const;
+    // What to do about it, in a sentence or two; empty for None.
+    static QString hintOf( logsquirl::teamfolder::FailureHint hint );
     // What else there is to know, one line each: why a step that is not
     // Git's failed, a group that was not published, the Team groups being
     // read-only, a file that was skipped.
@@ -400,6 +440,8 @@ private:
     State state_ = State::Off;
     logsquirl::teamfolder::SyncStep failedStep_ = logsquirl::teamfolder::SyncStep::None;
     QString gitOutput_;
+    // Whether the last sync could not start Git as there is none.
+    bool gitNotFound_ = false;
     // LogSquirl's own reason for a failed step that is not Git's: which
     // subfolder lies outside the repository.
     QString failureReason_;
@@ -407,6 +449,16 @@ private:
     QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups_;
     QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups_;
     QList<logsquirl::teamfolder::TeamGroup<logsquirl::valuenames::NamingGroup>> namingGroups_;
+
+    // Where lastSynced is kept: beside the clone, not in it, as the clone
+    // holds nothing but the repository.
+    QString syncRecordFile() const;
+    // Reads lastSynced for the Policy, starting again from never, for good,
+    // when the record is of another repository or subfolder.
+    void readLastSynced();
+    void writeLastSynced() const;
+
+    QDateTime lastSynced_;
 
     QTimer syncTimer_;
     QFutureWatcher<std::shared_ptr<logsquirl::teamfolder::SyncOutcome>> running_;

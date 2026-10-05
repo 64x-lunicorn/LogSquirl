@@ -192,6 +192,40 @@ SCENARIO( "A Session File reads back the snapshot it was written from", "[ui][se
     }
 }
 
+SCENARIO( "A Session File keeps every Kept Search of a tab", "[ui][session][file]" )
+{
+    QTemporaryDir folder;
+    REQUIRE( folder.isValid() );
+    const auto appLog = writeLogFile( folder.filePath( "app.log" ) );
+
+    ViewState state;
+    state.sizes = { 400, 100 };
+    state.searches = { KeptSearchState{ .pattern = "ERROR", .ignoreCase = true },
+                       KeptSearchState{ .pattern = "took (\\d+) ms", .useRegexp = true },
+                       KeptSearchState{ .pattern = "retry", .inverseRegexp = true } };
+    state.currentSearch = 2;
+
+    WindowSnapshot window;
+    window.files = { { appLog, encodeViewState( state ) } };
+    window.currentFile = 0;
+
+    WHEN( "it is written and read again" )
+    {
+        const auto read = readSessionFile( writeSessionFile( window, QDir( folder.path() ) ),
+                                           QDir( folder.path() ) );
+        REQUIRE( read.has_value() );
+        REQUIRE( read->window.files.size() == 1 );
+
+        THEN( "the tab has the same Searches in the same order, the same one current" )
+        {
+            const auto reread = decoded( read->window.files[ 0 ].viewContext );
+            REQUIRE( reread.searches == state.searches );
+            REQUIRE( reread.currentSearch == 2 );
+            REQUIRE( reread == decoded( window.files[ 0 ].viewContext ) );
+        }
+    }
+}
+
 SCENARIO( "A folder of logs and its Session File opens once moved", "[ui][session][file]" )
 {
     QTemporaryDir parent;

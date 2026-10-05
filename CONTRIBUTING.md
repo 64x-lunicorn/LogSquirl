@@ -219,7 +219,7 @@ them in one comment (BUILD.md, *Instruction counts*). The **CI passed** check tu
   threshold is counted once more on the pull request's side, and fails only when both counts
   are over it (#708). Judging the lower of two counts against the base's one count lets a real
   regression smaller than a benchmark's spread pass; that is accepted, since the gate must never
-  be falsely red (#672), and the thresholds are to be lowered once measured again (#727), or
+  be falsely red (#672); the thresholds were measured again with the recount in place (#727), or
 - a benchmark that was counted on the base is not counted on the pull request (it was removed,
   fails or no longer runs).
 

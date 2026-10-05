@@ -104,13 +104,17 @@ around a process and never with a fixed wait:
   are read from one clock, and a Python writer would add its own scheduling. Both latencies
   contain the file watch's (the native one by default): on macOS that is most of them.
 - **Session restore cases** (`gui_session_restore_*`, #670) run the `session-restore` scenario:
-  it generates a Session of one tab per Log File, each with 10 Marks, in the run's own data
-  location (never the instance's, which `test_benchmark_mode.py` checks), and restores it as a
-  start does. `_current_tab_usable` is the restore to the end of the first paint of the tab in
-  front that shows Log Lines after its Index finished; the window being built is part of it.
+  it generates a Session of one tab per Log File, each with 10 Marks and 3 Kept Searches, in
+  the run's own data location (never the instance's, which `test_benchmark_mode.py` checks),
+  and restores it as a start does. `_current_tab_usable` is the restore to the end of the first
+  paint of the tab in front that shows Log Lines after its Index finished; the window being
+  built is part of it.
   `_all_tabs_indexed` is the restore to the last tab's Index finished; restored tabs load one
-  after another behind the tab in front (#300). The Session keeps no Kept Searches yet (#704),
-  so no Search runs.
+  after another behind the tab in front (#300). Each tab's Kept Searches run again once its Log
+  File has loaded (#704), beside the Indexes of the tabs still loading, so both benchmarks
+  include what they cost there; their numbers before #704 were of a restore without Searches.
+  The report's `all_tabs_restored` is the restore to the last of them finished. No benchmark
+  reads it: it has no baseline entry yet, and a case without one skips.
 - **Grep cases** (`grep_*`) run `logsquirl_grep --benchmark-output <file>`, which writes a
   report of the same format for its Search (scenario `grep`): `index_finished`,
   `search_finished` and `matches_written`, timed from the open of the Log File. A case reports

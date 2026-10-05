@@ -20,6 +20,7 @@
 #pragma once
 
 #include "linetypes.h"
+#include "regularexpressionpattern.h"
 #include "viewinterface.h"
 
 #include <QJsonArray>
@@ -29,6 +30,23 @@
 #include <utility>
 
 struct QuickFindPolicy;
+
+// One of a tab's Kept Searches as the Session keeps it: its pattern and how
+// the Search Line read it when it was requested (#704). Its results are not
+// kept: a restored Search runs again.
+struct KeptSearchState {
+    QString pattern;
+    bool ignoreCase = false;
+    bool useRegexp = false;
+    bool inverseRegexp = false;
+    bool useBooleanCombination = false;
+
+    bool operator==( const KeptSearchState& ) const = default;
+};
+
+// What a Search was requested for, as the Session keeps it, and back.
+KeptSearchState keptSearchStateOf( const RegularExpressionPattern& pattern );
+RegularExpressionPattern patternOf( const KeptSearchState& search );
 
 // The view state of a tab: what the Session saves for a Log File's views
 // and hands back to restore them on the next start (#390).
@@ -56,6 +74,12 @@ struct ViewState {
     // depends on a width the next start need not have (#559).
     LineNumber::UnderlyingType scrollPosition = 0;
 
+    // Every Search of the tab, in the order its Kept Searches hold them, and
+    // which of them is current. A tab has at least one: a view state saved
+    // without them has one empty Search, current (#704).
+    QList<KeptSearchState> searches{ KeptSearchState{} };
+    qsizetype currentSearch = 0;
+
     bool operator==( const ViewState& ) const = default;
 };
 
@@ -67,7 +91,8 @@ QString encodeViewState( const ViewState& state );
 // does not hold is cleared, except whether the Search line reads its pattern
 // as a regexp: a view state saved before that was part of one falls back to
 // what the QuickFind Policy says. Text that holds nothing readable gives
-// defaults; decoding never fails.
+// defaults; decoding never fails. A saved Search it cannot read is left out;
+// when none is left, the tab has one empty Search.
 ViewState decodeViewState( const QString& encoded, const QuickFindPolicy& quickFindPolicy );
 
 // A view state as the Session asks the views for it.

@@ -618,6 +618,12 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
     visit( "plugins.autoLoad", config.pluginsAutoLoad_, true );
     visit( "plugins.enabledPlugins", config.enabledPlugins_, QStringList{} );
 
+    visit( "fileAssociations.ask", config.askForFileAssociations_, true );
+    visit( "fileAssociations.chosen", config.fileAssociationsChosen_, false );
+    visit( "fileAssociations.chosenTypes", config.chosenFileAssociations_, QStringList{} );
+    visit( "fileAssociations.dismissed", config.dismissedFileAssociations_, QStringList{} );
+    visit( "fileAssociations.confirmed", config.confirmedFileAssociations_, QStringList{} );
+
     visit( "chartPresets", config.chartPresets_, ChartPresets{} );
 
     visit( "export.csvSeparator", config.csvSeparator_, QStringLiteral( "comma" ),

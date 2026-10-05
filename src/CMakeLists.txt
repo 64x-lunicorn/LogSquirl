@@ -1,6 +1,7 @@
 add_subdirectory(logsquirl_version)
 add_subdirectory(logging)
 add_subdirectory(datalocation)
+add_subdirectory(fileassociations)
 add_subdirectory(benchmark)
 add_subdirectory(utils)
 add_subdirectory(textencoding)

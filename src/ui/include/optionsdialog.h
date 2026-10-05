@@ -49,6 +49,7 @@
 #include <QStyledItemDelegate>
 
 #include "configuration.h"
+#include "fileassociations.h"
 #include "teamfolder.h"
 
 #include "ui_optionsdialog.h"
@@ -102,6 +103,11 @@ public:
     // Without a call the dialog only edits the Team Folder settings.
     void showTeamFolder( TeamFolder& teamFolder );
 
+    // Shows the File Associations page with the states of these file
+    // associations, and applies the page's choice with them on Apply or OK.
+    // Without a call the dialog has no such page.
+    void showFileAssociations( FileAssociations& fileAssociations );
+
 Q_SIGNALS:
     // Is emitted when new settings must be used
     void optionsChanged();
@@ -133,10 +139,22 @@ private:
     void setupTeamFolder();
     void setupTeamFolderStatus();
     void updateTeamFolderStatus();
+    // The Team Folder as its fields show it, applied or not.
+    TeamFolderPolicy teamFolderPolicyOfFields() const;
+    // Syncs the Team Folder the fields show, applying its settings first when
+    // they differ from the applied ones.
+    void syncTeamFolderNow();
     void setupStyles();
     void setupEncodings();
     void setupLanguageList();
     void setupLogFormats( const LogFormatCatalog& logFormatCatalog );
+    void setupFileAssociations();
+    // Reads the states again and shows them, with every check as its state
+    // but those the user changed since the last reset.
+    void updateFileAssociations();
+    // The same, every check as its state.
+    void resetFileAssociations();
+    void applyFileAssociations();
 
     int updateTranslate();
 
@@ -154,6 +172,16 @@ private:
     QColor qfSearchColor_;
 
     QPointer<TeamFolder> teamFolder_;
+
+    QPointer<FileAssociations> fileAssociations_;
+    // The states the page shows, as last read: a check that differs from
+    // its state is what Apply changes.
+    FileAssociationStates fileAssociationStates_;
+    // The ids of the types whose check the user changed since the page last
+    // showed every check as its state, and whether the user changed the
+    // context menu entry's: a state read meanwhile leaves them as they are.
+    QStringList editedFileAssociations_;
+    bool contextMenuEntryEdited_ = false;
 };
 
 #endif

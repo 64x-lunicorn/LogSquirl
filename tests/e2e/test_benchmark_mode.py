@@ -31,7 +31,8 @@ The follow scenario writes a Log File of its own that grows at a fixed rate and
 reports the time from each append to its Log Line displayed, and whether a
 chart following it kept up (#670). The session-restore scenario generates a
 Session of several tabs in the run's own data location, never the instance's,
-restores it and reports when the tab in front was usable and every tab indexed.
+restores it and reports when the tab in front was usable, every tab indexed and
+every tab's Kept Searches finished.
 
 The read-while-indexing scenario reads a Log File from the UI thread at a fixed
 rate while it is indexed and reports each read, and the wall time, CPU time and
@@ -543,6 +544,7 @@ def test_session_restore_reports_the_tab_in_front_usable_and_every_tab_indexed(
     results = report["results"]
     assert (results["tab_count"], results["current_tab"]) == (3, 1)
     assert results["marks_per_tab"] == 10
+    assert results["searches_per_tab"] == 3
     assert results["log_line_count"] == 35_000
     assert results["log_file_bytes"] == sum(path.stat().st_size for path in session_logs)
 
@@ -558,6 +560,16 @@ def test_session_restore_reports_the_tab_in_front_usable_and_every_tab_indexed(
     all_indexed = event(report, "all_tabs_indexed")
     assert all_indexed["since_scenario_start_ms"] == max(
         e["since_scenario_start_ms"] for e in indexed.values()
+    )
+    # Each tab's Kept Searches ran again once its Log File had loaded (#704).
+    searched = {e["data"]["tab"]: e for e in report["events"]
+                if e["name"] == "tab_searches_finished"}
+    assert sorted(searched) == [0, 1, 2]
+    for tab in range(3):
+        assert searched[tab]["since_scenario_start_ms"] >= indexed[tab]["since_scenario_start_ms"]
+    restored = event(report, "all_tabs_restored")
+    assert restored["since_scenario_start_ms"] >= max(
+        e["since_scenario_start_ms"] for e in searched.values()
     )
 
     # The Session was generated in the run's own data location: the

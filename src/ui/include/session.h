@@ -47,6 +47,7 @@ class LogFormatCatalog;
 class OpenLogFile;
 class SavedSearches;
 class TeamFolder;
+class FileAssociations;
 
 // File unreadable error
 class FileUnreadableErr {};
@@ -311,6 +312,20 @@ public:
         return teamFolder_;
     }
 
+    // The application's file associations, which every window's Options
+    // Dialog and the questions of a start use (#723, #725): one for the run,
+    // so a platform that tells the outcome of a choice later still tells it
+    // after the dialog that applied it closed. Null when there are none, as
+    // in a test; a window then makes its own for its Options Dialog.
+    std::shared_ptr<FileAssociations> fileAssociations() const
+    {
+        return fileAssociations_;
+    }
+    void setFileAssociations( std::shared_ptr<FileAssociations> fileAssociations )
+    {
+        fileAssociations_ = std::move( fileAssociations );
+    }
+
     // The axes a window consumes, read at the point of use.
     //
     // A window is not a Log File: it outlives every one of them, and its
@@ -472,6 +487,8 @@ private:
     // Handed the Team Folder Policy.
     std::shared_ptr<TeamFolder> teamFolder_;
 
+    std::shared_ptr<FileAssociations> fileAssociations_;
+
     // Told of every settings change.
     std::vector<SessionWindow*> windows_;
 
@@ -612,6 +629,12 @@ public:
     std::shared_ptr<TeamFolder> teamFolder() const
     {
         return appSession_->teamFolder();
+    }
+
+    // The application's file associations, or null.
+    std::shared_ptr<FileAssociations> fileAssociations() const
+    {
+        return appSession_->fileAssociations();
     }
 
     // The axes the window this session belongs to consumes. See the

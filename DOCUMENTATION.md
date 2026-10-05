@@ -55,10 +55,11 @@ On Windows, administrators can deploy the installer without any dialog, for
 example wrapped into an `.intunewin` package for Microsoft Intune:
 
 - `logsquirl-win-x64-setup.exe /S` installs for all users of the machine into
-  `C:\Program Files\logsquirl`, with the Start menu shortcut and without the
-  `.log` association, and exits with 0. `/D=C:\Some Dir` as the last argument,
-  without quotes even with spaces, installs into another directory. Run over an
-  older version, it upgrades that in place.
+  `C:\Program Files\logsquirl`, with the Start menu shortcut and the default
+  file types (`.log` and the Logcat traces open in *logsquirl*, see
+  [Opening files](#opening-files)), and exits with 0. `/D=C:\Some Dir` as the
+  last argument, without quotes even with spaces, installs into another
+  directory. Run over an older version, it upgrades that in place.
 - It needs administrator rights, which the SYSTEM account Intune installs with
   has. Started without them, Windows asks for elevation or refuses to start it;
   it never installs half.
@@ -88,6 +89,7 @@ does so when it finds a `logsquirl.conf` beside itself:
 | `plugins\`                 | the plugins it comes with and those you install  |
 | `plugin_config\`           | the plugins' own configuration                   |
 | `teamfolder\`              | the Team Folder's clone of the team's repository |
+| `teamfolder-sync.ini`      | when the Team Folder last synced                 |
 | `themes\`                  | your own theme stylesheets                       |
 | `logsquirl_dump\`          | crash dumps                                      |
 | `logsquirl_taken_over.txt` | what it took over from an earlier package        |
@@ -311,10 +313,39 @@ if Hyperscan can't handle the search pattern. However, in this case search will 
 * running a command and following its output (see [Command output](#Command-output))
 * using recent files or favorite menu items.
 
-On Windows, the installer adds *logsquirl* to the *Open with* menu of the file manager, and makes it
-the program that opens `.log` files when its component *Associate with .log files* is selected, which it
-is not by default. On Mac OS, the *logsquirl* installer configures the operating system to open `.log`
-files by clicking them in the file manager.
+On Windows, the installer has a page *File types* that chooses which files open in *logsquirl* on a
+double-click: *General log files* (`.log`) and *Android Logcat traces* (`.adb`, `.adb0` to `.adb9`) are
+checked, *Program output* (`.out`, `.err`), *Trace files* (`.trace`) and *Text files* (`.txt`) are not.
+The checked types show the *logsquirl* document icon, a sheet with the squirrel. Explorer offers
+*logsquirl* under *Open with* for all of them, checked or not, and for `.gz` and `.zip` files. A type
+you chose to open with another application in Explorer stays with it: Windows does not let an installer
+override that choice. Uninstalling removes all of *logsquirl*'s entries and gives each type back to the
+application that opened it before. It also removes what the *File Associations* page registered for the
+user who uninstalls, where that opens the installation being removed; other users' registrations and
+those of a portable *logsquirl* stay. The page also offers *Open with LogSquirl in the context menu of every
+file*, checked: right-clicking any file in Explorer then offers *Open with LogSquirl* (on Windows 11 under
+*Show more options*), also for files whose type *logsquirl* does not open on a double-click, such as
+rotated logs like `app.log.1`, whose extension Windows sees as `.1`. The *File Associations* page of the
+Options chooses the types and the context menu entry later, for your user (see
+[File Associations](#File-Associations)).
+
+On macOS, the app declares the file types it opens: `.log`, the Android Logcat traces (`.adb0` to `.adb9`
+are the type *Android Logcat trace*; macOS keeps calling `.adb` Ada source), `.out`/`.err`, `.trace`,
+`.txt` and every other plain text file, and the compressed `.gz` and `.zip`. Finder offers *logsquirl*
+under *Open with* for all of them, and installing it makes it the default for none. To open a type with
+*logsquirl* by double-click, check it on the *File Associations* page of the Options (see
+[File Associations](#File-Associations)), or choose *Get Info*, *Open with*, *logsquirl* and *Change
+All...*: its files then show the *logsquirl* document icon, a sheet with the squirrel. Logcat traces
+show it anyway.
+
+On Linux, the DEB and RPM packages make Android Logcat traces (`.adb` and `.adb0` to `.adb9`) a file
+type of their own, *Android Logcat trace* (`application/x-logcat`), and `.out`/`.err` (*Program output*)
+and `.trace` (*Trace file*) as well. The Logcat type wins over Ada source, which claims `.adb` too, so
+with the package installed every `.adb` file is a Logcat trace for the whole system, Ada source files
+included. `.log` files, the Logcat traces and these optional types show the
+*logsquirl* document icon, a sheet with the squirrel, and the file manager offers *logsquirl* under
+*Open with* for them, for `.txt` and for the compressed `.gz` and `.zip` files it opens. The packages do
+not make *logsquirl* the default application for any of them. The AppImage registers no file types.
 
 #### Reading standard input
 
@@ -1515,6 +1546,105 @@ By default, *logsquirl* will not download files using HTTPS if certificates
 can't be checked. In some development environments self-signed 
 certificates are used. In this case, *logsquirl* can be instructed to ignore
 SSL errors.
+
+### File Associations
+
+The *File Associations* page chooses the file types LogSquirl opens when you
+double-click a file of them. It lists them in two groups: *Log files* (`.log`;
+Android Logcat traces `.adb` and `.adb0` to `.adb9`) and *More (optional)*
+(`.out` and `.err`, `.trace`, `.txt`). Each type shows where it stands:
+
+- *Default*: LogSquirl opens it.
+- *Registered*: LogSquirl is offered under *Open with*, but another
+  application opens it.
+- *Not confirmed* (Windows only): you applied LogSquirl for it, but another
+  application opens it until you choose LogSquirl on the *Default apps* page.
+- *Not registered*: LogSquirl is not offered for it.
+
+A type is checked where LogSquirl is its default, or not confirmed yet.
+*Apply* or *OK* makes LogSquirl the default for every checked type and gives
+back every type you unchecked. A check you changed stays as you set it while
+the page follows the states, until you apply. Giving a type back only removes what LogSquirl set; it does not
+choose another application, so the desktop's own choice opens it again.
+
+On the first start, once the main window shows, LogSquirl asks *Make
+LogSquirl the default app* with the same list: `.log` and the Android Logcat
+traces are checked, and so is every type LogSquirl already opens, for example
+one chosen in the Windows installer. *Apply* applies the choice as the page
+does, *Later* asks again at the next start, and *Don't ask again* never asks
+again; the page stays where it is either way. The question does not appear
+where LogSquirl cannot choose the file types it opens (an AppImage), when
+LogSquirl already opens `.log` and the Logcat traces, after you applied a
+choice on the page, or when LogSquirl starts to open a file, from the command
+line or by a double-click.
+
+LogSquirl remembers the types you chose on the page or in that question;
+until you choose, the types it opens when it first looks count as chosen, for
+example those of the Windows installer. At every start it compares them with
+what the system says. When a chosen type that opened in LogSquirl since you
+chose it no longer does, because another application or a Windows update
+took it over, a hint in the status bar names it: *Restore* makes LogSquirl
+its default again (on Windows through the *Default apps* page), and *Dismiss*
+stops the hint for that loss until you apply a choice again. A type you
+unchecked never counts, and neither does one LogSquirl never opened, such as
+one you applied on Windows but never chose LogSquirl for on the *Default
+apps* page. When the portable build on Windows was moved, the hint says that
+the associations point at its old location, and *Restore* points them at the
+new one.
+
+LogSquirl does not learn what you chose in the Windows installer, only what
+opens in LogSquirl when it first starts. A type you checked there that
+another application opens by then, because you had chosen that application
+in Windows before or it took the type over before the first start, does not
+count as chosen, and no hint names it.
+
+On Linux, the deb and rpm packages offer LogSquirl for these types, and the
+page makes it the default with `xdg-mime default`, for your user only. An
+AppImage cannot register file types, so there the page is disabled and says
+why; so it is when LogSquirl's desktop entry or `xdg-mime` (from
+`xdg-utils`) is missing.
+
+On Windows, in the installed and in the portable build, *Apply* registers
+LogSquirl for the checked types for your user only, so it needs no
+administrator: the same file types the installer registers, with the document
+icon, opened by the LogSquirl you run. Windows does not let an application make
+itself the default, so LogSquirl then opens the *Default apps* page of the
+Windows settings, where you choose LogSquirl for each file type; the page says
+so before you apply. Until you do, a type shows as *Not confirmed* and stays
+checked, and once you did, as *Default*. Unchecking a type, confirmed or not,
+removes your user's registration; what
+the installer registered for every user of the computer stays, and if
+LogSquirl still opens the type then, the page says so and you choose another
+app on the *Default apps* page. In the portable build the page warns that the
+associations stop working if you move LogSquirl: they point at the
+executable where it was when you applied them.
+
+On Windows, the page also has the check box *Offer Open with LogSquirl in the
+context menu of every file*. Checked, right-clicking any file in Explorer
+offers *Open with LogSquirl* (on Windows 11 under *Show more options*), which
+opens the file as a double-click on a `.log` file would, also for rotated logs
+like `app.log.1`. *Apply* adds or removes the entry for your user, in the
+installed and in the portable build. Where the installer added it for every
+user, unchecking does not remove it: it hides it for your user only, and the
+other users of the computer keep it.
+
+On macOS, the page makes LogSquirl the default for the content type of each
+type: the system's log type for `.log`, LogSquirl's own *Android Logcat
+trace* for `.adb0` to `.adb9`, and plain text for `.txt`. macOS keeps calling
+`.adb` Ada source, so for the Logcat traces the page makes LogSquirl the
+default for Ada source too, and the type shows as *Default* only while both
+open in LogSquirl: every Ada source file then opens in LogSquirl. macOS asks
+you to confirm every change in a dialog of its own, so the states follow once
+you answered; a change you decline leaves the type as it was. macOS cannot
+take a default away, only give it to another application: unchecking a type
+gives each of its content types back to the application that opened it
+before LogSquirl took it, which macOS asks you to confirm too. LogSquirl keeps
+those applications with its settings, beside the executable for a portable
+run. If LogSquirl
+does not know that application, because you made LogSquirl the default in the
+Finder or that application is gone, the page says so; choose another one in
+the Finder with *Get Info*, *Open with* and *Change All...*. The page is
+available in LogSquirl.app only, not in a run of the executable outside it.
 
 ### Advanced options
 

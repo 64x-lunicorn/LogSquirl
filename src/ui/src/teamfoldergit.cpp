@@ -90,6 +90,16 @@ QString missingProgram( const QString& program )
 #endif
 }
 
+// Whether there is a program to start: a bare name found on the PATH, the
+// way QProcess looks it up, or a path that leads to something.
+bool programExists( const QString& program )
+{
+    if ( !program.contains( QLatin1Char( '/' ) ) && !program.contains( QLatin1Char( '\\' ) ) ) {
+        return !QStandardPaths::findExecutable( program ).isEmpty();
+    }
+    return QFileInfo::exists( program );
+}
+
 QString couldNotStart( const QString& reason )
 {
     return QCoreApplication::translate( "TeamFolder",
@@ -117,6 +127,7 @@ GitResult Git::run( const QStringList& arguments, const QString& workingDirector
 
     if ( const auto missing = missingProgram( program_ ); !missing.isEmpty() ) {
         result.error = couldNotStart( missing );
+        result.notFound = true;
         LOG_WARNING << "Team Folder: " << result.error;
         return result;
     }
@@ -144,6 +155,7 @@ GitResult Git::run( const QStringList& arguments, const QString& workingDirector
     process.start( QIODevice::ReadOnly );
     if ( !process.waitForStarted() ) {
         result.error = couldNotStart( process.errorString() );
+        result.notFound = process.error() == QProcess::FailedToStart && !programExists( program_ );
         LOG_WARNING << "Team Folder: " << result.error;
         return result;
     }

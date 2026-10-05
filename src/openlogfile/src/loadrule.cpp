@@ -109,6 +109,16 @@ void LoadRule::waitingSearchDropped()
     searchWaitsForLoad_ = false;
 }
 
+bool LoadRule::searchWaitsForLoad() const
+{
+    return searchWaitsForLoad_;
+}
+
+bool LoadRule::hasLoadFinished() const
+{
+    return loadFinishedOnce_;
+}
+
 LoadRule::LoadDecision LoadRule::loadFinished( LoadingStatus status, LinesCount lineCount,
                                                const SearchAutoRefresh& autoRefresh,
                                                SearchLimits limits, SearchLimits searched )

@@ -113,31 +113,29 @@ DEFAULT_THRESHOLD_PERCENT = 2.0
 # The benchmarks whose counts vary by more than 1 % between counts of the same
 # code, each with its own threshold: twice the widest spread measured, rounded
 # up to a whole percent. Measured as instruction-counts.sh counts (with
-# --fair-sched=yes, and the pause that lets idle workers fall asleep): four
-# counts of the same code in run 36785236485 (#671), and the later runs of #687,
-# #696 and #700 for the benchmarks their changes do not reach. Every other
-# benchmark repeats within 1 %, most within 0.5 %, so the default leaves them
-# twice that. The spread comes from threads taking turns differently (glibc's
-# malloc, oneTBB workers spinning). Keyed by binary and "<test case> /
+# --fair-sched=yes, the pause that lets idle workers fall asleep, and oneTBB's
+# flow graphs run on the waiting thread, #708): 17 counts of the same code
+# after #708 merged, both sides of the CI Build runs 36997083767, 36999084156,
+# 37001100309, 37004331783, 37004351916 and 37065740978, the after side of
+# 36986507547, and the pushes to master 36997061397, 37004286881, 37065722004
+# and 37104445352 (#727). Every other benchmark repeats within 1 %, most within
+# 0.5 %, so the default leaves them twice that. The spread that remains comes
+# from threads taking turns differently: where glibc's malloc finds a free
+# block depends on how the threads interleaved. Keyed by binary and "<test case> /
 # <benchmark>", as the comparison names them; the gate warns about an entry
 # that names no benchmark any more.
 THRESHOLD_PERCENT: dict[tuple[str, str], float] = {
-    # widest spread 2.8 %
-    ("logsquirl_logdata_benchmark", "Indexing a Log File / tabs and long lines: whole Log File"): 6.0,
-    # 2.0 %
+    # widest spread 1.83 %
     ("logsquirl_textview_scroll_benchmark",
-     "text view scroll benchmarks / scrollbar: dragged over 200 values"): 5.0,
-    # 1.7 %
+     "text view scroll benchmarks / scrollbar: dragged over 200 values"): 4.0,
+    # 1.52 %
     ("logsquirl_textview_scroll_benchmark", "text view scroll benchmarks / data changed: a Log Line appended"): 4.0,
-    # 1.6 %
+    # 3.25 %, in run 37065740978 (1.98 % without it); twice that would be 7 %.
+    # Kept at the 4 % of #671, which no comparison of the same code exceeded,
+    # until more counts show whether that run was an outlier.
     ("logsquirl_overview_selection_benchmark",
      "Extending a selection of 100,000 Log Lines / Shift+Down 20 times and Shift+Up 20 times"): 4.0,
-    # 1.3 %
-    ("logsquirl_textview_scroll_benchmark", "text view scroll benchmarks / wheel: 20 notches down and 20 up"): 3.0,
-    # 1.2 %
-    ("logsquirl_session_restore_benchmark",
-     "Restoring a Session of several large Log Files / large Log Files: restore until every tab has loaded"): 3.0,
-    # 1.1 %
+    # 1.34 %
     ("logsquirl_textview_scroll_benchmark", "text view scroll benchmarks / keys: 5 pages down and 5 up"): 3.0,
 }
 MAX_THRESHOLD_PERCENT = 1000.0

@@ -13,12 +13,20 @@
   1. `setup.exe /S`, started by an administrator, installs without a dialog
      and exits with 0: the files under Program Files, the Qt and MSVC runtime
      DLLs, the Start menu shortcut for all users, the version under the
-     machine's Uninstall key, no .log association (that section is /o). The
+     machine's Uninstall key, and the file types with their defaults (#719):
+     a ProgID with the document icon for every type, LogSquirl under Open
+     with for each extension, and the default for .log and the Logcat traces
+     only -- also for .adb5, which another application owned before --, and
+     Open with LogSquirl in the context menu of every file (#724). The
      installed application starts -- a standard (non-administrator) user
-     included -- and `Uninstall.exe /S` removes it all again. Started by a
-     standard user, the installer is refused before it runs.
+     included -- and `Uninstall.exe /S` removes it all again, gives every
+     extension back to what it had before and leaves no ProgID and no Open
+     with entry of LogSquirl's, neither the machine's nor the ones the File
+     Associations page registered for the uninstalling user (#722). Started
+     by a standard user, the installer is refused before it runs.
   2. `setup.exe /S /D=<dir>`, run as SYSTEM the way Intune runs it, installs
-     into that directory.
+     into that directory; uninstalling it leaves the uninstalling user's
+     registration of a portable LogSquirl alone.
   3. `setup.exe /S` over the latest release upgrades it in place.
 
   The installed application is only ever started with `--version`, with its
@@ -91,6 +99,142 @@ function Step([string] $Title) { Write-Host "`n=== $Title ===" }
 function Get-UninstallKey([Microsoft.Win32.RegistryView] $View) {
     $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, $View)
     return $base.OpenSubKey($UninstallKeyPath)
+}
+
+# The file types of cmake/FileTypes.cmake, by ProgID: the ones the installer
+# makes LogSquirl the default for by default, and the ones it only lists
+# LogSquirl under "Open with" for (#719).
+$DefaultFileTypes = [ordered]@{
+    'LogSquirl.log'    = @('.log')
+    'LogSquirl.logcat' = @('.adb') + (0..9 | ForEach-Object { ".adb$_" })
+}
+$OpenWithFileTypes = [ordered]@{
+    'LogSquirl.output' = @('.out', '.err')
+    'LogSquirl.trace'  = @('.trace')
+    'LogSquirl.text'   = @('.txt')
+    'LogSquirl.gz'     = @('.gz')
+    'LogSquirl.zip'    = @('.zip')
+}
+$AllFileTypes = [ordered]@{}
+foreach ($types in $DefaultFileTypes, $OpenWithFileTypes) {
+    foreach ($progId in $types.Keys) { $AllFileTypes[$progId] = $types[$progId] }
+}
+# An extension another application owns before the install: the installer
+# makes LogSquirl its default, the uninstaller gives it back.
+$OwnedExtension = '.adb5'
+$OwnedProgId = 'LogSquirlCheck.OtherApplication'
+
+# A key under HKLM\SOFTWARE\Classes, where the installer registers the file
+# types; that part of the registry is shared by the 32-bit and 64-bit views.
+function Get-ClassesKey([string] $Path) {
+    return [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("SOFTWARE\Classes\$Path")
+}
+
+# The context menu entry of every file (#724).
+$ContextMenuEntry = '*\shell\LogSquirl'
+
+function Get-ExtensionDefault([string] $Extension) {
+    $key = Get-ClassesKey $Extension
+    if ($null -eq $key) { return '' }
+    return [string] $key.GetValue('')
+}
+
+function Test-OpenWith([string] $Extension, [string] $ProgId) {
+    $key = Get-ClassesKey "$Extension\OpenWithProgids"
+    return ($null -ne $key) -and ($key.GetValueNames() -contains $ProgId)
+}
+
+# The default of every extension LogSquirl registers.
+function Get-ExtensionDefaults {
+    $defaults = [ordered]@{}
+    foreach ($extensions in $AllFileTypes.Values) {
+        foreach ($extension in $extensions) { $defaults[$extension] = Get-ExtensionDefault $extension }
+    }
+    return $defaults
+}
+
+function Test-FileTypesInstalled([string] $InstallDir) {
+    $exe = Join-Path $InstallDir 'logsquirl.exe'
+    foreach ($progId in $AllFileTypes.Keys) {
+        $icon = Get-ClassesKey "$progId\DefaultIcon"
+        Check ($null -ne $icon -and $icon.GetValue('') -eq "$exe,1") "$progId shows the document icon, the second icon of $exe"
+        $command = Get-ClassesKey "$progId\shell\open\command"
+        Check ($null -ne $command -and $command.GetValue('') -eq "`"$exe`" `"%1`"") "$progId opens a file with $exe"
+        $missing = @($AllFileTypes[$progId] | Where-Object { -not (Test-OpenWith $_ $progId) })
+        Check ($missing.Count -eq 0) "$($AllFileTypes[$progId] -join ', ') list $progId under Open with$(if ($missing) { " -- missing: $($missing -join ', ')" })"
+    }
+    foreach ($progId in $DefaultFileTypes.Keys) {
+        $other = @($DefaultFileTypes[$progId] | Where-Object { (Get-ExtensionDefault $_) -ne $progId })
+        Check ($other.Count -eq 0) "$($DefaultFileTypes[$progId] -join ', ') open with $progId$(if ($other) { " -- not: $($other -join ', ')" })"
+    }
+    foreach ($progId in $OpenWithFileTypes.Keys) {
+        foreach ($extension in $OpenWithFileTypes[$progId]) {
+            Check ((Get-ExtensionDefault $extension) -eq $script:DefaultsBefore[$extension]) "$extension keeps its default '$($script:DefaultsBefore[$extension])' (is '$(Get-ExtensionDefault $extension)')"
+        }
+    }
+    # Open with LogSquirl in the context menu of every file, checked by
+    # default (#724).
+    $entry = Get-ClassesKey $ContextMenuEntry
+    Check ($null -ne $entry -and $entry.GetValue('MUIVerb') -eq 'Open with LogSquirl') "every file's context menu offers Open with LogSquirl (HKLM\SOFTWARE\Classes\$ContextMenuEntry)"
+    $command = Get-ClassesKey "$ContextMenuEntry\command"
+    Check ($null -ne $command -and $command.GetValue('') -eq "`"$exe`" `"%1`"") "it opens the file with $exe"
+}
+
+function Test-FileTypesRemoved {
+    foreach ($progId in $AllFileTypes.Keys) {
+        Check ($null -eq (Get-ClassesKey $progId)) "the ProgID $progId is gone"
+        $left = @($AllFileTypes[$progId] | Where-Object { Test-OpenWith $_ $progId })
+        Check ($left.Count -eq 0) "no Open with entry of $progId is left$(if ($left) { " -- under: $($left -join ', ')" })"
+    }
+    $defaults = Get-ExtensionDefaults
+    foreach ($extension in $defaults.Keys) {
+        Check ($defaults[$extension] -eq $script:DefaultsBefore[$extension]) "$extension is back to its default '$($script:DefaultsBefore[$extension])' (is '$($defaults[$extension])')"
+    }
+    Check ((Get-ExtensionDefault $OwnedExtension) -eq $OwnedProgId) "$OwnedExtension is $OwnedProgId's again"
+    Check ($null -eq (Get-ClassesKey $ContextMenuEntry)) "Open with LogSquirl is gone from every file's context menu"
+}
+
+# What the File Associations page registers for the current user (#722): the
+# ProgID of a type, opening the executable, LogSquirl under its extensions'
+# OpenWithProgids, and LogSquirl's capabilities under RegisteredApplications.
+$UserCapabilities = 'SOFTWARE\LogSquirl\Capabilities'
+
+function Register-ForUser([string] $ProgId, [string[]] $Extensions, [string] $Exe) {
+    $hkcu = [Microsoft.Win32.Registry]::CurrentUser
+    $command = $hkcu.CreateSubKey("SOFTWARE\Classes\$ProgId\shell\open\command")
+    $command.SetValue('', "`"$Exe`" `"%1`"")
+    $command.Close()
+    foreach ($extension in $Extensions) {
+        $openWith = $hkcu.CreateSubKey("SOFTWARE\Classes\$extension\OpenWithProgids")
+        $openWith.SetValue($ProgId, '')
+        $openWith.Close()
+        $associations = $hkcu.CreateSubKey("$UserCapabilities\FileAssociations")
+        $associations.SetValue($extension, $ProgId)
+        $associations.Close()
+    }
+    $registered = $hkcu.CreateSubKey('SOFTWARE\RegisteredApplications')
+    $registered.SetValue('LogSquirl', $UserCapabilities)
+    $registered.Close()
+}
+
+function Get-UserKey([string] $Path) {
+    return [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($Path)
+}
+
+function Test-UserOpenWith([string] $Extension, [string] $ProgId) {
+    $key = Get-UserKey "SOFTWARE\Classes\$Extension\OpenWithProgids"
+    return ($null -ne $key) -and ($key.GetValueNames() -contains $ProgId)
+}
+
+function Test-UserRegisteredApplication {
+    $key = Get-UserKey 'SOFTWARE\RegisteredApplications'
+    return ($null -ne $key) -and ($key.GetValueNames() -contains 'LogSquirl')
+}
+
+function Test-UserFileTypeRemoved([string] $ProgId, [string[]] $Extensions) {
+    Check ($null -eq (Get-UserKey "SOFTWARE\Classes\$ProgId")) "the uninstalling user's ProgID $ProgId is gone"
+    $left = @($Extensions | Where-Object { Test-UserOpenWith $_ $ProgId })
+    Check ($left.Count -eq 0) "no Open with entry of the user's $ProgId is left$(if ($left) { " -- under: $($left -join ', ')" })"
 }
 
 function Get-DotLogAssociation {
@@ -207,8 +351,7 @@ function Test-Installed([string] $InstallDir, [string] $ExpectedVersion) {
     Check ((Get-LinkTarget $CommonStartMenuLink) -eq (Join-Path $InstallDir 'logsquirl.exe')) "it points to $InstallDir\logsquirl.exe"
     Check (-not (Test-Path $UserStartMenuLink)) "no Start menu shortcut in the installing user's own profile"
 
-    $association = Get-DotLogAssociation
-    Check ($association -eq $script:DotLogBefore) ".log association unchanged: $association"
+    Test-FileTypesInstalled $InstallDir
 }
 
 function Test-Removed([string] $InstallDir) {
@@ -223,7 +366,8 @@ function Test-Removed([string] $InstallDir) {
     Check (-not (Test-Path $CommonStartMenuLink)) "the Start menu shortcut is gone"
     Check ($null -eq [Microsoft.Win32.Registry]::ClassesRoot.OpenSubKey('Applications\logsquirl.exe')) "HKCR\Applications\logsquirl.exe is gone"
     $association = Get-DotLogAssociation
-    Check ($association -eq $script:DotLogBefore) ".log association unchanged: $association"
+    Check ($association -eq $script:DotLogBefore) ".log association as before: $association"
+    Test-FileTypesRemoved
 }
 
 function Uninstall([string] $InstallDir) {
@@ -244,6 +388,13 @@ Check (-not (Test-Path $DefaultInstallDir)) "nothing is installed at $DefaultIns
 Check ($null -eq (Get-UninstallKey Registry32) -and $null -eq (Get-UninstallKey Registry64)) 'no Uninstall key yet'
 $script:DotLogBefore = Get-DotLogAssociation
 Write-Host "  .log association before: $script:DotLogBefore"
+# Another application owns one of the extensions the installer makes
+# LogSquirl's by default (#719).
+$owned = [Microsoft.Win32.Registry]::LocalMachine.CreateSubKey("SOFTWARE\Classes\$OwnedExtension")
+$owned.SetValue('', $OwnedProgId)
+$owned.Close()
+$script:DefaultsBefore = Get-ExtensionDefaults
+Write-Host "  defaults before: $(($script:DefaultsBefore.GetEnumerator() | ForEach-Object { "$($_.Key)='$($_.Value)'" }) -join ' ')"
 $realAppData = Join-Path $env:APPDATA 'logsquirl'
 $realAppDataBefore = Test-Path $realAppData
 
@@ -286,7 +437,16 @@ Write-Host "  $($run.Output)"
 Check ($run.ExitCode -eq 0 -and $run.Output -match "logsquirl $([regex]::Escape($Version))") "logsquirl.exe --version runs for $standardUser and reports $Version"
 
 Step '1c. Uninstall.exe /S'
+# The uninstalling user applied the File Associations page of this
+# installation (#722).
+$installedExe = Join-Path $DefaultInstallDir 'logsquirl.exe'
+Register-ForUser 'LogSquirl.log' $DefaultFileTypes['LogSquirl.log'] $installedExe
+Register-ForUser 'LogSquirl.logcat' $DefaultFileTypes['LogSquirl.logcat'] $installedExe
 Uninstall $DefaultInstallDir
+Test-UserFileTypeRemoved 'LogSquirl.log' $DefaultFileTypes['LogSquirl.log']
+Test-UserFileTypeRemoved 'LogSquirl.logcat' $DefaultFileTypes['LogSquirl.logcat']
+Check ($null -eq (Get-UserKey $UserCapabilities)) "the uninstalling user's HKCU\$UserCapabilities is gone"
+Check (-not (Test-UserRegisteredApplication)) "the uninstalling user's RegisteredApplications names LogSquirl no more"
 Check (-not (Test-Path $UserSendToLink)) "the 'Send to' shortcut is gone from the installing user's profile"
 
 Step '1d. setup.exe started without elevation'
@@ -331,7 +491,23 @@ Test-Installed $customDir $Version
 foreach ($link in $SystemSendToLinks) { Write-Host "  'Send to' shortcut in SYSTEM's profile ($link): $(Test-Path $link)" }
 Write-Host "  'Send to' shortcut in the administrator's profile: $(Test-Path $UserSendToLink)"
 Test-Starts $customDir $Version
+# The uninstalling user applied the page of this installation for .log and of
+# a portable LogSquirl for .trace: the portable one's registration stays.
+$portableExe = 'D:\Tools\LogSquirl\logsquirl_portable.exe'
+Register-ForUser 'LogSquirl.log' $DefaultFileTypes['LogSquirl.log'] (Join-Path $customDir 'logsquirl.exe')
+Register-ForUser 'LogSquirl.trace' $OpenWithFileTypes['LogSquirl.trace'] $portableExe
 Uninstall $customDir
+Test-UserFileTypeRemoved 'LogSquirl.log' $DefaultFileTypes['LogSquirl.log']
+$command = Get-UserKey 'SOFTWARE\Classes\LogSquirl.trace\shell\open\command'
+Check ($null -ne $command -and $command.GetValue('') -eq "`"$portableExe`" `"%1`"") "the portable LogSquirl's ProgID LogSquirl.trace stays"
+Check (Test-UserOpenWith '.trace' 'LogSquirl.trace') "and its Open with entry under .trace"
+$associations = Get-UserKey "$UserCapabilities\FileAssociations"
+Check ($null -ne $associations -and $associations.GetValue('.trace') -eq 'LogSquirl.trace' -and $null -eq $associations.GetValue('.log')) "the user's capabilities keep .trace only"
+Check (Test-UserRegisteredApplication) "RegisteredApplications still names LogSquirl for the portable one"
+[Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree('SOFTWARE\Classes\LogSquirl.trace', $false)
+[Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree('SOFTWARE\Classes\.trace\OpenWithProgids', $false)
+[Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree('SOFTWARE\LogSquirl', $false)
+[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('SOFTWARE\RegisteredApplications', $true).DeleteValue('LogSquirl', $false)
 
 # ---------------------------------------------------------------------------
 Step "3. setup.exe /S over the latest release ($PreviousVersion)"
@@ -351,5 +527,7 @@ $code = Invoke-Setup $Installer '/S'
 Check ($code -eq 0) 'setup.exe /S again, with logsquirl_no_update_check present, exits with 0'
 Check (Test-Path $optOut) "a silent upgrade keeps the administrator's logsquirl_no_update_check"
 Uninstall $DefaultInstallDir
+
+[Microsoft.Win32.Registry]::LocalMachine.DeleteSubKeyTree("SOFTWARE\Classes\$OwnedExtension", $false)
 
 Write-Host "`nAll installer checks passed."

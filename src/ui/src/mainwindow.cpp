@@ -82,6 +82,7 @@
 #include <QSettings>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
+#include <QStatusBar>
 #include <QStringListModel>
 #include <QTemporaryFile>
 #include <QTextBrowser>
@@ -104,6 +105,9 @@
 #include "downloader.h"
 #include "encodings.h"
 #include "favoritefiles.h"
+#include "fileassociationchoice.h"
+#include "fileassociations.h"
+#include "firststartfileassociationsdialog.h"
 #include "highlightersdialog.h"
 #include "highlightersmenu.h"
 #include "indexcache.h"
@@ -111,6 +115,7 @@
 #include "issuereporter.h"
 #include "logger.h"
 #include "logsquirl_version.h"
+#include "lostfileassociationshint.h"
 #include "mainwindowtext.h"
 #include "menu.h"
 #include "mergecontroller.h"
@@ -2001,16 +2006,90 @@ void MainWindow::applyValueNamesChange()
 void MainWindow::options()
 {
     const auto logFormatCatalog = session_.logFormatCatalog();
+    // The file types LogSquirl opens, as this platform tells them (#720): the
+    // application's, or one for this dialog where there is none.
+    std::shared_ptr<FileAssociations> fileAssociations = session_.fileAssociations();
+    if ( !fileAssociations ) {
+        fileAssociations = createFileAssociations();
+    }
     OptionsDialog dialog( *logFormatCatalog, this );
     if ( const auto teamFolder = session_.teamFolder() ) {
         dialog.showTeamFolder( *teamFolder );
     }
+    dialog.showFileAssociations( *fileAssociations );
 
     // The dialog only says that the settings changed; the Session takes it
     // from there, to every open Log File and every window, this one included.
     connect( &dialog, &OptionsDialog::optionsChanged,
              [ this ]() { session_.applyChange( Changed::Settings ); } );
     dialog.exec();
+}
+
+void MainWindow::checkFileAssociationsAtStart( bool mayAsk )
+{
+    const auto fileAssociations = session_.fileAssociations();
+    if ( !fileAssociations ) {
+        return;
+    }
+    auto& config = Configuration::getSynced();
+    auto choice = FileAssociationChoice::of( config );
+    const auto atStart = FileAssociationsAtStart::of( *fileAssociations, choice, mayAsk );
+    if ( atStart.choiceChanged ) {
+        choice.keepIn( config );
+    }
+    if ( !atStart.lost.isEmpty() ) {
+        showLostFileAssociations( atStart.lost, atStart.movedFrom );
+        return;
+    }
+    if ( !atStart.ask ) {
+        return;
+    }
+
+    LOG_INFO << "Asking which file types LogSquirl opens";
+    auto* dialog = new FirstStartFileAssociationsDialog( *fileAssociations, atStart.checks, this );
+    dialog->setAttribute( Qt::WA_DeleteOnClose );
+    connect( dialog, &FirstStartFileAssociationsDialog::answered, this,
+             [ dialog, fileAssociations ] {
+                 // Read again: the Options Dialog may have kept a choice
+                 // meanwhile.
+                 auto& syncedConfig = Configuration::getSynced();
+                 auto answered = FileAssociationChoice::of( syncedConfig );
+                 dialog->updateChoice( answered );
+                 // What the system made LogSquirl's at once counts as
+                 // confirmed (#725).
+                 answered.confirm( fileAssociations->states() );
+                 answered.keepIn( syncedConfig );
+             } );
+    dialog->open();
+}
+
+// The hint sits in the status bar, which stays until it is done with.
+void MainWindow::showLostFileAssociations( const QStringList& lost, const QString& movedFrom )
+{
+    const auto fileAssociations = session_.fileAssociations();
+    if ( !fileAssociations ) {
+        return;
+    }
+    LOG_INFO << "File associations lost: " << lost.join( QStringLiteral( ", " ) );
+    const auto hadStatusBar = findChild<QStatusBar*>( {}, Qt::FindDirectChildrenOnly ) != nullptr;
+    auto* hint = new LostFileAssociationsHint( *fileAssociations, lost, movedFrom );
+    statusBar()->addPermanentWidget( hint, 1 );
+    connect( hint, &LostFileAssociationsHint::dismissed, this, []( const QStringList& dismissed ) {
+        auto& config = Configuration::getSynced();
+        auto choice = FileAssociationChoice::of( config );
+        for ( const auto& id : dismissed ) {
+            if ( !choice.dismissed.contains( id ) ) {
+                choice.dismissed << id;
+            }
+        }
+        choice.keepIn( config );
+    } );
+    connect( hint, &LostFileAssociationsHint::finished, this, [ this, hint, hadStatusBar ] {
+        hint->deleteLater();
+        if ( !hadStatusBar ) {
+            setStatusBar( nullptr );
+        }
+    } );
 }
 
 void MainWindow::connectTeamFolder()
