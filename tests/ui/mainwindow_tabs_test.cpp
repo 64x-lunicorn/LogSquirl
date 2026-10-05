@@ -86,6 +86,7 @@
 
 #ifndef Q_OS_WIN
 #include "command_process_probe.h"
+#include "shown_widget.h"
 #endif
 
 // What the merge scenario reads from a Crawler Widget beyond its public face:
@@ -1031,7 +1032,7 @@ SCENARIO( "The dashboard setting reaches the windows opened after it changes", "
     {
         auto catalog = LogFormatCatalog{};
         OptionsDialog dialog( catalog );
-        dialog.show();
+        showUntilExposed( dialog );
 
         THEN( "a hint beside the dashboard checkbox says it applies to new windows" )
         {

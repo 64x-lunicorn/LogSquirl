@@ -66,6 +66,7 @@
 #include "textviewscrolling.h"
 #include "viewstatecodec.h"
 
+#include "shown_widget.h"
 #include "theme.h"
 
 #include <functional>
@@ -287,7 +288,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     void showSized()
     {
         crawler->resize( 800, 600 );
-        crawler->show();
+        showUntilExposed( *crawler );
         QCoreApplication::processEvents();
     }
 
@@ -550,7 +551,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // the Log Lines that match pattern.
     void showChartCounting( const QString& pattern )
     {
-        crawler->chartPanel_->show();
+        showUntilExposed( *crawler->chartPanel_ );
         crawler->chartPanel_->addFilterFrequencySeries( { pattern }, true );
     }
 
@@ -2048,7 +2049,7 @@ SCENARIO( "A changed Decoration Policy reaches every view of every open Log File
             THEN(
                 "the views of the Log File in the tab not current take it too, with no new Search" )
             {
-                second.crawler->show();
+                showUntilExposed( *second.crawler );
                 QCoreApplication::processEvents();
                 REQUIRE( second.crawler->decorationPolicy() == changed.decoration );
                 REQUIRE( showsColor( second.textView(), changedColor ) );

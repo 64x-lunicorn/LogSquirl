@@ -27,6 +27,7 @@
 #include "overview.h"
 #include "overviewwidget.h"
 #include "regularexpressionpattern.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
@@ -343,7 +344,7 @@ SCENARIO( "The overview widget catches up with a recompute it put off", "[overvi
     OverviewWidget widget;
     widget.setOverview( &overview );
     widget.resize( 20, 20 );
-    widget.show();
+    showUntilExposed( widget );
     widget.repaint();
     REQUIRE( markLines( overview ).empty() );
 

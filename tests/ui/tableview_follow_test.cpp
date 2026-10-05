@@ -29,6 +29,7 @@
 #include "mainwindowtext.h"
 #include "searchlinewidget_access.h"
 #include "session.h"
+#include "shown_widget.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -186,7 +187,7 @@ SCENARIO( "The Table View leaves follow when the user scrolls away from the bott
         WindowSession{ appSession, QUuid::createUuid().toString( QUuid::WithoutBraces ), 0 },
         std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
     mainWindow->resize( 1000, 700 );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
     mainWindow->loadFileNonInteractive( path );
 
     CrawlerWidget* crawler = nullptr;
@@ -306,7 +307,7 @@ SCENARIO( "Follow has one owner per Log File", "[ui][follow][viewset]" )
         WindowSession{ appSession, QUuid::createUuid().toString( QUuid::WithoutBraces ), 0 },
         std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
     mainWindow->resize( 1000, 700 );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
     mainWindow->loadFileNonInteractive( path );
 
     CrawlerWidget* crawler = nullptr;

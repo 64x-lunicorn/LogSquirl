@@ -27,6 +27,7 @@
 #include "logmainview.h"
 #include "quickfindpattern.h"
 #include "shortcuts.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
@@ -103,7 +104,7 @@ SCENARIO( "A key bound to Jump to line number selects the typed line number",
         QuickFindPattern quickFindPattern;
         LogMainView view( &logData, &quickFindPattern, nullptr, nullptr, false );
         view.resize( 400, 200 );
-        view.show();
+        showUntilExposed( view );
         view.registerShortcuts();
         view.selectAndDisplayLine( 5_lnum );
         REQUIRE( view.getSelectedText() == QStringLiteral( "log line 5" ) );

@@ -54,6 +54,7 @@
 #include "pluginuiadapter.h"
 #include "searchlinewidget_access.h"
 #include "session.h"
+#include "shown_widget.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -213,7 +214,7 @@ struct OpenCrawler {
             session.open( file.fileName(),
                           []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
         crawler->resize( 800, 600 );
-        crawler->show();
+        showUntilExposed( *crawler );
         REQUIRE( waitUiState( [ this, &lines ] { return loadedAll( *crawler, lines.size() ); } ) );
         QTest::qWait( 100 );
     }
@@ -558,7 +559,7 @@ SCENARIO( "A plugin reaches the tab in front of the most recently active window"
         = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
     auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
     auto window = std::make_unique<MainWindow>( WindowSession{ session, "Main", 0 }, plugins );
-    window->show();
+    showUntilExposed( *window );
 
     GIVEN( "no open Log File" )
     {

@@ -38,6 +38,7 @@
 #include "fake_log_data.h"
 #include "linemapping.h"
 #include "quickfindpattern.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "theme.h"
 #include "theme_lists.h"
@@ -95,7 +96,7 @@ struct ShownView {
         view.setVerticalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
         view.setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
         view.resize( 400, 240 );
-        view.show();
+        showUntilExposed( view );
         QCoreApplication::processEvents();
 
         view.setPresentationPolicy( testSettingsPolicies().presentation );
@@ -328,7 +329,7 @@ SCENARIO( "A Named Value's underline follows a Theme switch", "[ui][theme][viewp
         MarginsLogView view( &logData, &quickFindPattern );
         view.setFrameShape( QFrame::NoFrame );
         view.resize( 400, 120 );
-        view.show();
+        showUntilExposed( view );
         QCoreApplication::processEvents();
         view.setPresentationPolicy( testSettingsPolicies().presentation );
         view.updateData();

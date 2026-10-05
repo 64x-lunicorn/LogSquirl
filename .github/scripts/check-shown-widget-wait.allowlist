@@ -15,35 +15,6 @@ tests/unit/logviewpainting_test.cpp
 tests/unit/logviewvaluenames_test.cpp
 
 # UI tests (#756).
-tests/ui/applicationplugins_window_test.cpp
-tests/ui/checkbox_theme_test.cpp
-tests/ui/crawlerwidget_test.cpp
-tests/ui/filteredviewcsvexport_test.cpp
-tests/ui/filteredviewselection_test.cpp
-tests/ui/jumptolinenumber_test.cpp
-tests/ui/mainwindow_load_test.cpp
-tests/ui/mainwindow_tabs_test.cpp
-tests/ui/mainwindow_test.cpp
-tests/ui/marknavigation_test.cpp
-tests/ui/modal_paths_test.cpp
-tests/ui/overview_test.cpp
-tests/ui/overviewwidget_theme_test.cpp
-tests/ui/plugin_loglines_test.cpp
-tests/ui/predefinedfiltersetedit_test.cpp
-tests/ui/radiobutton_slider_theme_test.cpp
-tests/ui/regexlab_editors_test.cpp
-tests/ui/regexlab_searchline_test.cpp
-tests/ui/regexlab_window_test.cpp
-tests/ui/searchlinewidget_test.cpp
-tests/ui/shortcuts_table_test.cpp
-tests/ui/sidebar_layout_test.cpp
-tests/ui/tableview_follow_test.cpp
-tests/ui/theme_chrome_colors_test.cpp
-tests/ui/theme_color_labels_test.cpp
-tests/ui/theme_screenshots_test.cpp
-tests/ui/theme_switch_test.cpp
-tests/ui/valuenames_ui_test.cpp
-tests/ui/viewportmargins_theme_test.cpp
 
 # Benchmarks (#757).
 tests/benchmarks/overview_selection_benchmark.cpp

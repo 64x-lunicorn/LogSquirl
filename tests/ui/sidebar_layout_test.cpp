@@ -22,6 +22,7 @@
 #include "logformatcatalog.h"
 #include "mainwindow.h"
 #include "session.h"
+#include "shown_widget.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -70,7 +71,7 @@ struct Window {
               std::make_shared<logsquirl::plugins::ApplicationPlugins>() ) )
     {
         mainWindow->resize( WindowWidth, WindowHeight );
-        mainWindow->show();
+        showUntilExposed( *mainWindow );
         QTest::qWait( 50 );
         sidebar = mainWindow->findChild<QDockWidget*>( "sidebarDock" );
         REQUIRE( sidebar != nullptr );
@@ -78,7 +79,7 @@ struct Window {
 
     void showSidebar() const
     {
-        sidebar->show();
+        showUntilExposed( *sidebar );
         QTest::qWait( 100 );
     }
 

@@ -42,6 +42,7 @@
 #include "optionsdialog.h"
 #include "recentfiles.h"
 #include "savedsearches.h"
+#include "shown_widget.h"
 #include "theme.h"
 
 namespace {
@@ -117,7 +118,7 @@ std::optional<Indicator> checkBoxIndicator( Qt::CheckState state, bool enabled )
     box->setEnabled( enabled );
     box->setGeometry( 0, 0, 40, 40 );
     window.resize( 40, 40 );
-    window.show();
+    showUntilExposed( window );
     QTest::qWait( 20 );
     const auto image = box->grab().toImage();
     return findIndicator( image, image.pixelColor( image.width() - 1, image.height() - 1 ) );
@@ -135,7 +136,7 @@ std::optional<Indicator> treeItemIndicator( Qt::CheckState state )
     // Neither selected nor current, so only the indicator is drawn on the row.
     tree.setFocusPolicy( Qt::NoFocus );
     tree.setSelectionMode( QAbstractItemView::NoSelection );
-    tree.show();
+    showUntilExposed( tree );
     QTest::qWait( 20 );
     // The start of the row, where the indicator is drawn.
     const auto row = tree.visualItemRect( item );

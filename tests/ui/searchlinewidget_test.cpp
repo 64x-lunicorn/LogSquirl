@@ -40,6 +40,7 @@
 #include "searchlinewidget_access.h"
 #include "settingspolicies.h"
 #include "shortcuts.h"
+#include "shown_widget.h"
 #include "theme.h"
 #include "theme_lists.h"
 
@@ -213,7 +214,7 @@ SCENARIO( "The Search Line widget shows Search, Stop and Clear as the Search run
           "[ui][searchline]" )
 {
     SearchLineWidget line{ QuickFindPolicy{}, {} };
-    line.show();
+    showUntilExposed( line );
     QCoreApplication::processEvents();
 
     THEN( "no Search runs at first" )
@@ -303,7 +304,7 @@ SCENARIO( "The Search Line widget shows an error in the error colors of every Th
 
     SearchLineWidget line{ QuickFindPolicy{}, {} };
     line.resize( 900, 40 );
-    line.show();
+    showUntilExposed( line );
     QCoreApplication::processEvents();
 
     // The error background fills the line behind its text.
@@ -345,7 +346,7 @@ SCENARIO( "Return in the Search Line widget asks for the Search and says Keep Re
           "[ui][searchline]" )
 {
     SearchLineWidget line{ QuickFindPolicy{}, { "earlier" } };
-    line.show();
+    showUntilExposed( line );
     QCoreApplication::processEvents();
     QSignalSpy searchRequested( &line, &SearchLineWidget::searchRequested );
 
@@ -395,7 +396,7 @@ SCENARIO( "Return reaches the Search Line widget the way the keyboard focus send
           "[ui][searchline]" )
 {
     SearchLineWidget line{ QuickFindPolicy{}, {} };
-    line.show();
+    showUntilExposed( line );
     line.activateWindow();
     auto* edit = SearchLineAccess::patternEdit( line );
     edit->setFocus();
@@ -514,7 +515,7 @@ SCENARIO( "An edited pattern sets the buttons of the Search Line widget before i
     policy.autoRunSearchOnPatternChange = true;
 
     SearchLineWidget line{ policy, {} };
-    line.show();
+    showUntilExposed( line );
     QCoreApplication::processEvents();
 
     GIVEN( "a plain Search for beta" )

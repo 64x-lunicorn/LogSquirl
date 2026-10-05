@@ -54,6 +54,7 @@
 #include "quickfindwidget.h"
 #include "session.h"
 #include "settingspolicies.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 
 SCENARIO( "Main window tests", "[ui]" )
@@ -74,7 +75,7 @@ SCENARIO( "Main window tests", "[ui]" )
     } );
 
     QTest::qWait( 100 );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
     QTest::qWait( 100 );
     REQUIRE( activateSpy->safeWait() );
 
@@ -227,7 +228,7 @@ SCENARIO( "Toggling line numbers or the overview from the View menu reaches ever
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     mainWindow->loadFileNonInteractive( firstFile.fileName() );
     mainWindow->loadFileNonInteractive( secondFile.fileName() );
@@ -345,7 +346,7 @@ SCENARIO( "A changed QuickFind setting reaches the window's QuickFind bar with s
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     mainWindow->loadFileNonInteractive( firstFile.fileName() );
     mainWindow->loadFileNonInteractive( secondFile.fileName() );

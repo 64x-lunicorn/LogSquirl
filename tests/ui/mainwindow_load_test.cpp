@@ -61,6 +61,7 @@
 #include "session.h"
 #include "sessionfile.h"
 #include "shortcuts.h"
+#include "shown_widget.h"
 #include "stored_session.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabgroupinfo.h"
@@ -143,7 +144,7 @@ SCENARIO( "A Log File that failed to load in a background tab says so when its t
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     // Every question the window asks is answered No, so that no issue is
     // opened in a browser; the ones asked are counted.
@@ -260,7 +261,7 @@ SCENARIO( "One Filters-panel click runs one Search", "[ui][search]" )
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
     REQUIRE( tabArea != nullptr );
@@ -353,7 +354,7 @@ SCENARIO( "A restored window shows the tab that was in front", "[ui][session]" )
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     WHEN( "the window's Session is restored with its first tab saved in front" )
     {
@@ -406,7 +407,7 @@ SCENARIO( "A restored Log File stands where it stood", "[ui][session]" )
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     WHEN( "the window's Session is restored" )
     {
@@ -492,7 +493,7 @@ SCENARIO( "A restored window reopens a decompressed Log File from its archive",
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     // Whatever the window asks or reports is counted and closed.
     int messagesShown = 0;
@@ -608,7 +609,7 @@ SCENARIO( "A restored window is in use while the archive of a Log File decompres
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     // Whatever the window asks or reports is counted and closed.
     int messagesShown = 0;
@@ -768,7 +769,7 @@ SCENARIO( "A Log File still loading in a background tab shows as loading when it
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
     REQUIRE( tabArea != nullptr );
@@ -872,7 +873,7 @@ SCENARIO( "Loading progress follows the tab in front", "[ui][loading]" )
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
     REQUIRE( tabArea != nullptr );
@@ -1043,16 +1044,20 @@ SCENARIO( "A window's Session saves to a Session File and opens from it in a new
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
     REQUIRE( opener != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     // The new window the application would open for a Session File.
     int windowsAskedFor = 0;
+    bool openedExposed = false;
     QObject::connect( opener.get(), &MainWindow::sessionFileOpened,
                       [ & ]( const SessionFileRead& read ) {
                           ++windowsAskedFor;
                           opened.reset( new MainWindow( openedSession, plugins ) );
                           opened->restoreSessionFile( read );
+                          // In the emit of the opener: a failed wait is
+                          // required outside it.
                           opened->show();
+                          openedExposed = QTest::qWaitForWindowExposed( opened.get() );
                       } );
 
     // Whatever a window says is kept and closed.
@@ -1111,6 +1116,7 @@ SCENARIO( "A window's Session saves to a Session File and opens from it in a new
             opener->openSessionFile( sessionPath );
             REQUIRE( windowsAskedFor == 1 );
             REQUIRE( opened != nullptr );
+            REQUIRE( openedExposed );
             REQUIRE( waitForArchiveRestores( *opened ) );
             auto* openedTabs = opened->findChild<TabbedCrawlerWidget*>();
             REQUIRE( openedTabs != nullptr );
@@ -1211,7 +1217,7 @@ SCENARIO( "A Session File names and groups only the Log Files that open", "[ui][
     QTest::qWait( 100 );
     REQUIRE( opened != nullptr );
     opened->restoreSessionFile( read );
-    opened->show();
+    showUntilExposed( *opened );
     REQUIRE( waitForArchiveRestores( *opened ) );
 
     auto* tabs = opened->findChild<TabbedCrawlerWidget*>();
@@ -1293,7 +1299,7 @@ SCENARIO( "A Log File opened to be followed shows followed in the window", "[ui]
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
     REQUIRE( tabArea != nullptr );
@@ -1380,7 +1386,7 @@ SCENARIO( "The window's actions reach only the tab in front and only once", "[ui
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
     REQUIRE( tabArea != nullptr );
@@ -1455,7 +1461,7 @@ SCENARIO( "The window shows the selected Log Line of the tab brought to the fron
                         [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
-    mainWindow->show();
+    showUntilExposed( *mainWindow );
 
     auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
     REQUIRE( tabArea != nullptr );

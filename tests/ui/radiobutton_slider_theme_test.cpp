@@ -23,6 +23,7 @@
 // of a slider show the Theme's Highlight, and disabled ones look different
 // from enabled ones (#258).
 
+#include "shown_widget.h"
 #include "theme.h"
 
 #include <QApplication>
@@ -150,7 +151,7 @@ SCENARIO( "Radio buttons and sliders are styled from Tokens in every Theme",
                   disabledHorizontal, vertical } ) {
             layout->addWidget( widget );
         }
-        window.show();
+        showUntilExposed( window );
         QTest::qWait( 20 );
         // Hover rings in Highlight too: keep the pointer, which an earlier test
         // may have left anywhere, in the layout's margin, off every widget.
