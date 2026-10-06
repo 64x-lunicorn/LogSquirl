@@ -632,6 +632,14 @@
   directory. The `bolt` action now installs `libbolt-18-dev`, and `pgo.py`
   instruments with the real `llvm-bolt`, beside which the runtime is. (#732)
 
+- **The PGO workflow measures Windows**: a Windows build with
+  `-DLOGSQUIRL_PGO=USE` failed to link its first micro-benchmark, as MSVC
+  looked for a profile of that executable, which only the trained executables
+  `logsquirl` and `logsquirl_grep` have (LNK1266). Their links alone read a
+  profile now, and the micro-benchmarks are built as without PGO, which on
+  Windows is what they get from it: MSVC optimizes each binary from its own
+  profile. (#730)
+
 - **A test shows a widget and waits until it is exposed, and CI rejects a new
   test that does not wait**: a test that measures painting or geometry right
   after `show()` reads what Qt defers until the window is exposed, and fails
