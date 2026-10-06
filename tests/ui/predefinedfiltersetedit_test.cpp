@@ -26,6 +26,7 @@
 
 #include "predefinedfilters.h"
 #include "predefinedfiltersetedit.h"
+#include "shown_widget.h"
 
 SCENARIO( "Checking a Predefined Filter's Regex box is kept", "[ui][predefinedfilters]" )
 {
@@ -34,7 +35,7 @@ SCENARIO( "Checking a Predefined Filter's Regex box is kept", "[ui][predefinedfi
 
     PredefinedFilterSetEdit edit;
     edit.setFilterSet( group );
-    edit.show();
+    showUntilExposed( edit );
     QSignalSpy changed( &edit, &PredefinedFilterSetEdit::changed );
 
     WHEN( "the Regex box of a filter is checked, and nothing else is changed" )

@@ -23,6 +23,7 @@
 #include "recentfiles.h"
 #include "savedsearches.h"
 #include "shortcuts.h"
+#include "shown_widget.h"
 
 #include <QApplication>
 #include <QDialogButtonBox>
@@ -129,7 +130,7 @@ SCENARIO( "A shortcut is recorded by clicking its cell", "[ui][options][shortcut
 
         dialog.tabWidget->setCurrentWidget( dialog.shortcutsTab );
         dialog.resize( 700, 800 );
-        dialog.show();
+        showUntilExposed( dialog );
         QTest::qWait( 20 );
 
         auto* table = dialog.shortcutsTable;

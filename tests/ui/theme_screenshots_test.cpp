@@ -27,6 +27,7 @@
 #include "pathline.h"
 #include "recentfiles.h"
 #include "session.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
 #include "theme.h"
@@ -600,7 +601,7 @@ void renderMainWindow( const QString& logFile, const Screenshots& screenshots )
     MainWindow mainWindow( WindowSession{ session, "Main", 0 },
                            std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
     mainWindow.resize( 1400, 850 );
-    mainWindow.show();
+    showUntilExposed( mainWindow );
     settle( 300 );
     screenshots.save( &mainWindow, "main-window-dashboard" );
 

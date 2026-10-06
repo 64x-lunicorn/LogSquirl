@@ -33,6 +33,7 @@
 #include "logformatdefinition.h"
 #include "logtablehighlightdelegate.h"
 #include "logtableview.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 
 #include <QApplication>
@@ -149,7 +150,7 @@ TEST_CASE( "table view paint benchmarks", "[tableview-paint-benchmark]" )
     view.updateData( false );
     view.setActive( true );
     view.resize( 1400, 400 );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
 
     // Exactly VisibleRows Rows fill the viewport; the horizontal scrollbar

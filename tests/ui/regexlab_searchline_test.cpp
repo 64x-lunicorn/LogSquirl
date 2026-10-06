@@ -52,6 +52,7 @@
 #include "savedsearches.h"
 #include "searchlinewidget_access.h"
 #include "session.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
@@ -110,7 +111,7 @@ struct OpenCrawler {
             session.open( file.fileName(),
                           []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
         crawler->resize( 800, 600 );
-        crawler->show();
+        showUntilExposed( *crawler );
         REQUIRE( waitUiState( [ this ] {
             return CrawlerAccess::openLogFile( *crawler ).logData()->getNbLine().get()
                    == static_cast<uint64_t>( LogLineCount );

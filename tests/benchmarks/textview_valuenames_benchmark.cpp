@@ -30,6 +30,7 @@
 #include "datalocation.h"
 #include "highlighterset.h"
 #include "quickfindpattern.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "valuenames_fixture.h"
 
@@ -182,7 +183,7 @@ TEST_CASE( "text view Value Names interaction benchmarks", "[textview-valuenames
     AbstractLogView view( &logData, &quickFindPattern, false );
     view.setFrameShape( QFrame::NoFrame );
     view.resize( 1200, 600 );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
     view.setPresentationPolicy( testSettingsPolicies().presentation );
     view.updateData();

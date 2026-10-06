@@ -47,6 +47,7 @@
 #include "recentfiles.h"
 #include "savedsearches.h"
 #include "shortcuts.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "textviewscrolling.h"
 #include "theme.h"
@@ -128,7 +129,7 @@ struct PulledView {
         view.setVerticalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
         view.setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
         view.resize( 400, 240 );
-        view.show();
+        showUntilExposed( view );
         QCoreApplication::processEvents();
 
         auto presentation = testSettingsPolicies().presentation;
@@ -241,7 +242,7 @@ SCENARIO( "The chart tooltip is drawn in the tooltip Tokens of every Theme", "[u
             series.points.append( ChartPoint{ LineNumber( 4 ), 100.0, 50.0, {} } );
             chart.setSeriesList( { series }, ChartWidget::Change::Series );
             chart.resize( 400, 300 );
-            chart.show();
+            showUntilExposed( chart );
             QCoreApplication::processEvents();
 
             WHEN( "the pointer hovers the point" )
@@ -312,7 +313,7 @@ SCENARIO( "A conflicting shortcut is marked in the Theme's error colors", "[ui][
                     }
                 }
                 dialog.resize( 900, 700 );
-                dialog.show();
+                showUntilExposed( dialog );
                 QCoreApplication::processEvents();
 
                 std::vector<int> conflictingRows;
