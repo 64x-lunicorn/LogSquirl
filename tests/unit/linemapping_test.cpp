@@ -284,6 +284,8 @@ SCENARIO( "A text view keeps its selection on the same Log Line when the lines i
 
 namespace {
 
+// Log Lines with tabs, characters outside the Basic Multilingual Plane and an
+// empty one, whose expanded text has its tabs expanded as a Log File's has.
 QStringList mixedLogLineTexts()
 {
     QStringList texts;

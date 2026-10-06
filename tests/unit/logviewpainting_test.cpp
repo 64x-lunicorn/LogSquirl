@@ -711,7 +711,7 @@ SCENARIO( "The log view expands and wraps a viewport once per change", "[logview
 
             WHEN( "the Log File changes, and the view is painted and hovered over" )
             {
-                logData.linesFetched = 0;
+                logData.fetches = 0;
                 view.rereadLogLines();
                 view.viewport()->grab();
 
@@ -723,7 +723,7 @@ SCENARIO( "The log view expands and wraps a viewport once per change", "[logview
 
                 THEN( "painting and hit testing read the Log Lines of one expansion" )
                 {
-                    REQUIRE( logData.linesFetched == 1 );
+                    REQUIRE( logData.fetches == 1 );
                 }
             }
         }
@@ -753,8 +753,8 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
             // The view stands at the top of the Log File. Scrolling reads Log
             // Lines of its own at the end of the Log File, to find its bottom,
             // so some of these Scenarios count only the fetches at the top.
-            logData.linesFetched = 0;
-            logData.topLinesFetched = 0;
+            logData.fetches = 0;
+            logData.fetchesFromFirstLogLine = 0;
 
             WHEN( "a QuickFind pattern is typed character by character" )
             {
@@ -767,7 +767,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "each keystroke is painted from the Log Lines already read" )
                 {
-                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( logData.fetches == 0 );
                     REQUIRE( painted != before );
                 }
             }
@@ -779,7 +779,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "it is painted from the Log Lines already read" )
                 {
-                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( logData.fetches == 0 );
                     REQUIRE( painted != before );
                 }
             }
@@ -793,7 +793,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "they are painted from the Log Lines already read" )
                 {
-                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( logData.fetches == 0 );
                 }
             }
 
@@ -804,7 +804,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "it is painted from the Log Lines already read" )
                 {
-                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( logData.fetches == 0 );
                 }
             }
 
@@ -815,7 +815,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "they are painted from the Log Lines already read" )
                 {
-                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( logData.fetches == 0 );
                 }
             }
 
@@ -826,7 +826,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "they are painted from the Log Lines already read" )
                 {
-                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( logData.fetches == 0 );
                 }
             }
 
@@ -837,7 +837,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "the Log Lines in the Viewport are read again, once" )
                 {
-                    REQUIRE( logData.topLinesFetched == 1 );
+                    REQUIRE( logData.fetchesFromFirstLogLine == 1 );
                 }
             }
 
@@ -848,7 +848,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "the Log Lines in the Viewport are read again, once" )
                 {
-                    REQUIRE( logData.topLinesFetched == 1 );
+                    REQUIRE( logData.fetchesFromFirstLogLine == 1 );
                 }
             }
 
@@ -860,7 +860,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "the Log Lines in the Viewport are read again, once" )
                 {
-                    REQUIRE( logData.topLinesFetched == 1 );
+                    REQUIRE( logData.fetchesFromFirstLogLine == 1 );
                 }
             }
         }

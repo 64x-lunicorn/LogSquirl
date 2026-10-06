@@ -20,8 +20,10 @@
 #ifndef PLACED_CURSOR_H
 #define PLACED_CURSOR_H
 
-// Placing the mouse cursor in a test (#753): every test that needs the cursor
-// at a point places it through placeCursorOrSkip(), never QCursor::setPos().
+// Placing the mouse cursor in a test (#753): a test that needs the cursor at a
+// point places it through placeCursorOrSkip(), so that where the platform does
+// not let it, the test is skipped rather than failed. No check enforces this;
+// today no test calls QCursor::setPos() itself.
 
 #include <catch2/catch_test_macros.hpp>
 
