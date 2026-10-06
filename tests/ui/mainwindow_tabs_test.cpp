@@ -76,6 +76,7 @@
 #include "recentfiles.h"
 #include "session.h"
 #include "sessioninfo.h"
+#include "shown_widget.h"
 #include "streamwriter.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabgroupinfo.h"
@@ -86,7 +87,6 @@
 
 #ifndef Q_OS_WIN
 #include "command_process_probe.h"
-#include "shown_widget.h"
 #endif
 
 // What the merge scenario reads from a Crawler Widget beyond its public face:
