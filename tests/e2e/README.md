@@ -115,6 +115,13 @@ around a process and never with a fixed wait:
   include what they cost there; their numbers before #704 were of a restore without Searches.
   The report's `all_tabs_restored` is the restore to the last of them finished. No benchmark
   reads it: it has no baseline entry yet, and a case without one skips.
+- **Save cases** (`gui_save_*`, #730) run the `save` scenario: on the loaded Log File, a Search
+  for `slow response` (the WARN Log Lines, about 100,000) runs to its end, unmeasured; then 200
+  Log Lines spread over the Log File are marked one at a time with the Text View's Mark action,
+  the Filtered View's Matches and Marks are saved with *Save selected to file*, and the Marks are
+  removed again. `_marks_added`, `_saved` and `_marks_removed` are each step, timed by the
+  application. The scenario is also what trains a profile-guided build on Marks and on saving
+  displayed lines (BUILD.md, *Profile-guided optimization*).
 - **Grep cases** (`grep_*`) run `logsquirl_grep --benchmark-output <file>`, which writes a
   report of the same format for its Search (scenario `grep`): `index_finished`,
   `search_finished` and `matches_written`, timed from the open of the Log File. A case reports
@@ -240,13 +247,15 @@ pytest -v -m "performance and not slow"          # quick benchmarks only (1-1.5 
 | `gui_read_while_indexing_log_100mb_<read>_p50` / `_p99` / `_max` | While the Log File is indexed, the UI thread reads every 2 ms: `nb_line` (`getNbLine`), `line_string` (`getLineString` of one Log Line), `expanded_lines` (`getExpandedLines` of 60 Log Lines); median / 99th percentile / longest read of a run | 100 MB Log File, generated |
 | `gui_read_while_indexing_log_100mb_index_wall` / `_index_cpu` | The same run's indexing, from the request to open the Log File to its Index finished: wall time / the process's CPU time, every thread together; `_index_wall` also the parallelism, CPU over wall time | 100 MB Log File, generated |
 | `gui_read_while_indexing_log_1gb_*` | The same | 1 GB Log File, generated |
+| `gui_save_log_100mb_marks_added` / `_saved` / `_marks_removed` | After a Search for the WARN Log Lines: 200 Marks set / the Filtered View's Matches and Marks saved to a file / the Marks removed | 100 MB Log File, generated |
 | `gui_startup_version` | Process start to exit of `logsquirl --version` | — |
 
 Every grep case is timed from the open of the Log File to its last match written, every
 `gui_open_*` case from the open, every Search case from its request, every QuickFind case
 from each keystroke, every scroll case is a paint, every follow case is timed from an append
-every session restore case from the restore and every read-while-indexing case is a read or
-the indexing from the open; none contains the process startup.
+every session restore case from the restore, every read-while-indexing case is a read or
+the indexing from the open and every save case a step after the Search finished; none
+contains the process startup.
 
 The read-while-indexing cases see what the instruction counts cannot (#686): Cachegrind runs
 one thread at a time, so a read that waits for the index lock costs no instruction more, and

@@ -228,6 +228,7 @@ def test_the_scenario_of_a_benchmark_comes_from_its_budget_or_its_name():
     assert ph.scenario_of("gui_search_10mb_plain_finished", "wall-clock", None) == "search"
     assert ph.scenario_of("grep_log_1gb_simple", "wall-clock", None) == "grep"
     assert ph.scenario_of("gui_session_restore_small_x", "wall-clock", None) == "session-restore"
+    assert ph.scenario_of("gui_save_log_100mb_saved", "wall-clock", None) == "save"
     assert ph.scenario_of("something_else", "wall-clock", None) == "other"
     assert ph.scenario_of(KEY, "instructions", None) == BIN
 

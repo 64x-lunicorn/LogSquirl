@@ -140,6 +140,7 @@ SCENARIO_PREFIXES = (
     ("gui_follow_", "follow"),
     ("gui_session_restore_", "session-restore"),
     ("gui_read_while_indexing_", "read-while-indexing"),
+    ("gui_save_", "save"),
 )
 
 
