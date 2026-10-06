@@ -28,17 +28,33 @@
 
 // A FakeLogData that counts the Log Lines read from it: every read of a Log
 // Line, alone, expanded or with others, reads it with doGetLineString().
+// It also counts the fetches of several Log Lines at once, expanded or not,
+// for a test that counts how often a view goes to its Log File rather than how
+// much it reads.
 class CountingLogData : public FakeLogData {
 public:
     using FakeLogData::FakeLogData;
 
+    // Every Log Line read.
     mutable uint64_t linesRead = 0;
+    // Every fetch of several Log Lines at once.
+    mutable int linesFetched = 0;
+    // The fetches that start at the first Log Line of the Log File.
+    mutable int topLinesFetched = 0;
 
 protected:
     QString doGetLineString( LineNumber line ) const override
     {
         ++linesRead;
         return FakeLogData::doGetLineString( line );
+    }
+    logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount count ) const override
+    {
+        ++linesFetched;
+        if ( first == 0_lnum ) {
+            ++topLinesFetched;
+        }
+        return FakeLogData::doGetLines( first, count );
     }
 };
 

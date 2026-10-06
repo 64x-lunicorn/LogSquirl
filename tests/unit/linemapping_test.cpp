@@ -22,6 +22,7 @@
 
 #include "abstractlogview.h"
 #include "configuration.h"
+#include "counting_log_data.h"
 #include "fake_log_data.h"
 #include "linemapping.h"
 #include "quickfindpattern.h"
@@ -282,28 +283,6 @@ SCENARIO( "A text view keeps its selection on the same Log Line when the lines i
 }
 
 namespace {
-
-// Log Lines with tabs, characters outside the Basic Multilingual Plane and an
-// empty one, whose expanded text has its tabs expanded as a Log File's has.
-// Counts the Log Lines read (FakeLogData reads several at once one by one).
-class CountingLogData : public FakeLogData {
-public:
-    using FakeLogData::FakeLogData;
-
-    mutable uint64_t linesRead = 0;
-
-protected:
-    QString doGetLineString( LineNumber line ) const override
-    {
-        ++linesRead;
-        return FakeLogData::doGetLineString( line );
-    }
-    QString doGetExpandedLineString( LineNumber line ) const override
-    {
-        ++linesRead;
-        return untabify( FakeLogData::doGetLineString( line ) );
-    }
-};
 
 QStringList mixedLogLineTexts()
 {

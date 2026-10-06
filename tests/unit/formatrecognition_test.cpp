@@ -19,6 +19,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "counting_log_data.h"
 #include "fake_log_data.h"
 #include "formatrecognition.h"
 #include "logformatcatalog.h"
@@ -283,23 +284,6 @@ SCENARIO( "Format Recognition handles empty Catalog", "[logformat][recognition]"
 }
 
 namespace {
-
-// A Log File in memory that counts how many of its Log Lines are read.
-// FakeLogData serves every read, a range of Log Lines included, through
-// doGetLineString(), so counting there counts them all.
-class CountingLogData : public FakeLogData {
-public:
-    using FakeLogData::FakeLogData;
-
-    mutable int linesRead = 0;
-
-protected:
-    QString doGetLineString( LineNumber line ) const override
-    {
-        ++linesRead;
-        return FakeLogData::doGetLineString( line );
-    }
-};
 
 QStringList syslogLines( int count )
 {

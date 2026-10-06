@@ -73,6 +73,7 @@
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
 #include "configuration.h"
+#include "counting_log_data.h"
 #include "fake_log_data.h"
 #include "highlighterset.h"
 #include "painting_test_font.h"
@@ -690,33 +691,6 @@ SCENARIO( "The log view subdues exactly the Log Lines outside the Search Limits"
     }
 }
 
-namespace {
-
-// A FakeLogData that counts how often Log Lines are fetched.
-class CountingLogData : public FakeLogData {
-public:
-    using FakeLogData::FakeLogData;
-
-    // Every fetch of Log Lines.
-    mutable int linesFetched = 0;
-    // The fetches of the Log Lines at the top of the Log File, where the
-    // views these tests count stand. Scrolling reads Log Lines of its own at
-    // the end of the Log File, to find its bottom.
-    mutable int topLinesFetched = 0;
-
-protected:
-    logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount count ) const override
-    {
-        ++linesFetched;
-        if ( first == 0_lnum ) {
-            ++topLinesFetched;
-        }
-        return FakeLogData::doGetLines( first, count );
-    }
-};
-
-} // namespace
-
 SCENARIO( "The log view expands and wraps a viewport once per change", "[logviewpainting]" )
 {
     const PinnedPaintingSettings settings;
@@ -776,6 +750,9 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
             PaintingLogView view( &logData, &quickFindPattern, textWrap );
             showForPainting( view, logData, font, { .textWrap = textWrap } );
             const auto before = grabViewport( view );
+            // The view stands at the top of the Log File. Scrolling reads Log
+            // Lines of its own at the end of the Log File, to find its bottom,
+            // so some of these Scenarios count only the fetches at the top.
             logData.linesFetched = 0;
             logData.topLinesFetched = 0;
 
