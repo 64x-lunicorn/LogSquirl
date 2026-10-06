@@ -76,6 +76,7 @@
 #include "regexlabwindow.h"
 #include "session.h"
 #include "sessioninfo.h"
+#include "shown_widget.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabgroupinfo.h"
 #include "tabnamemapping.h"
@@ -1384,7 +1385,7 @@ TEST_CASE( "A click on a value of a Value Count searches for it", "[ui][modal][v
     auto* chart = crawler->findChild<ChartPanel*>();
     REQUIRE( chart != nullptr );
     // What the Table View's "count values" does: the panel opens, and counts.
-    chart->show();
+    showUntilExposed( *chart );
     chart->countFieldValues( "level" );
     // The panel is given room to lay its rows out.
     window.mainWindow->resize( 1200, 900 );

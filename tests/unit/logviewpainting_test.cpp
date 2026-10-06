@@ -78,6 +78,7 @@
 #include "painting_test_font.h"
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "theme.h"
 #include "valuenames_fixture.h"
@@ -294,7 +295,7 @@ void showForPainting( PaintingLogView& view, const FakeLogData& logData, const Q
     view.setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
     view.setPalette( fixedPalette() );
     view.resize( ViewWidth, configuration.viewHeight );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
 
     // What the application hands a view it builds: the view reads no setting
@@ -729,7 +730,7 @@ SCENARIO( "The log view expands and wraps a viewport once per change", "[logview
             PaintingLogView view( &logData, &quickFindPattern, textWrap );
             view.setFrameShape( QFrame::NoFrame );
             view.resize( ViewWidth, ViewHeight );
-            view.show();
+            showUntilExposed( view );
             QCoreApplication::processEvents();
             view.updateData();
             view.viewport()->grab();

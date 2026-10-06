@@ -43,6 +43,7 @@
 #include "logformatdefinition.h"
 #include "logtableview.h"
 #include "quickfindpattern.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "theme.h"
 
@@ -112,7 +113,7 @@ struct ViewWithLabelledWord {
         view.setVerticalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
         view.setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
         view.resize( 400, 120 );
-        view.show();
+        showUntilExposed( view );
         QCoreApplication::processEvents();
 
         view.setPresentationPolicy( testSettingsPolicies().presentation );
@@ -162,7 +163,7 @@ struct TableViewWithLabelledWord {
         view.setLogFormat( &format, &logData );
         view.updateData( false );
         view.setActive( true );
-        view.show();
+        showUntilExposed( view );
         QTest::qWait( 20 );
 
         ColorLabelsManager::QuickHighlightersCollection words( ColorLabelCount );

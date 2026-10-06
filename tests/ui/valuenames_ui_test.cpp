@@ -53,6 +53,7 @@
 #include "logformatcatalog.h"
 #include "mainwindow.h"
 #include "session.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
 #include "valuenames_fixture.h"
@@ -688,7 +689,7 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
 
         WHEN( "Enter is pressed in the preview" )
         {
-            dialog.show();
+            showUntilExposed( dialog );
             preview->setFocus();
             QTest::keyClick( preview, Qt::Key_Return );
 
@@ -1063,7 +1064,7 @@ struct ValueNamesWindow {
               WindowSession{ session, name, 0 },
               std::make_shared<logsquirl::plugins::ApplicationPlugins>() ) )
     {
-        window->show();
+        showUntilExposed( *window );
         window->loadFileNonInteractive( path );
         CrawlerWidget* crawler = nullptr;
         REQUIRE( waitUiState( [ & ] {

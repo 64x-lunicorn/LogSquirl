@@ -60,6 +60,7 @@
 #include "regexlabsource.h"
 #include "regexlabwindow.h"
 #include "session.h"
+#include "shown_widget.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -118,7 +119,7 @@ struct OpenCrawler {
             session.open( file.fileName(),
                           []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
         crawler->resize( 800, 600 );
-        crawler->show();
+        showUntilExposed( *crawler );
         REQUIRE( waitUiState( [ this ] {
             return CrawlerAccess::openLogFile( *crawler ).logData()->getNbLine().get()
                    == static_cast<uint64_t>( LogLineCount );
@@ -246,7 +247,7 @@ SCENARIO( "The Regex Lab opens from the Tools menu for the tab in front", "[ui][
         = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
     auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
     auto window = std::make_unique<MainWindow>( WindowSession{ session, "Main", 0 }, plugins );
-    window->show();
+    showUntilExposed( *window );
 
     auto* action = regexLabAction( *window );
     REQUIRE( action != nullptr );
@@ -347,7 +348,7 @@ SCENARIO( "The Regex Lab takes its sample from the tab or from pasted text", "[u
 
     RegexLabWindow lab( RegexpEngine::Vectorscan );
     takeSample( lab, [ & ] { lab.setSampleSource( open.source() ); } );
-    lab.show();
+    showUntilExposed( lab );
     auto* sample = part<QPlainTextEdit>( lab, "sampleText" );
 
     THEN( "with a Log Line selected, the sample is the selected Log Line" )
@@ -401,7 +402,7 @@ SCENARIO( "The Regex Lab marks the Matches and lists the capture groups of a lin
           "[ui][regexlab]" )
 {
     RegexLabWindow lab( RegexpEngine::Vectorscan );
-    lab.show();
+    showUntilExposed( lab );
     pasteSample( lab, "GET /index.html 200\nPOST /login 403\nnothing here" );
 
     WHEN( "a pattern with a named and a numbered group is typed" )
@@ -475,7 +476,7 @@ SCENARIO( "The Regex Lab marks the Matches and lists the capture groups of a lin
 SCENARIO( "The Regex Lab says what is wrong with an invalid pattern and where", "[ui][regexlab]" )
 {
     RegexLabWindow lab( RegexpEngine::Vectorscan );
-    lab.show();
+    showUntilExposed( lab );
     pasteSample( lab, "GET /index.html 200" );
 
     typePattern( lab, "GET (/index" );
@@ -564,7 +565,7 @@ SCENARIO( "A newer pattern supersedes the Regex Lab's evaluation, and closing st
           "[ui][regexlab]" )
 {
     auto lab = std::make_unique<RegexLabWindow>( RegexpEngine::QRegularExpression );
-    lab->show();
+    showUntilExposed( *lab );
     // Long lines on which a backtracking pattern takes its time.
     QStringList lines;
     for ( int i = 0; i < 200; ++i ) {
@@ -623,7 +624,7 @@ SCENARIO( "A Regex Lab opened to edit a pattern answers Apply or Cancel once", "
 {
     auto lab = std::make_unique<RegexLabWindow>( RegexpEngine::Vectorscan );
     lab->offerApply( true );
-    lab->show();
+    showUntilExposed( *lab );
     setPattern( *lab, RegularExpressionPattern( "old", false, false, false, true ) );
 
     QSignalSpy applied( lab.get(), &RegexLabWindow::applied );
@@ -665,7 +666,7 @@ SCENARIO( "The Regex Lab keeps what it marks bounded and reads pasted text as li
           "[ui][regexlab]" )
 {
     RegexLabWindow lab( RegexpEngine::Vectorscan );
-    lab.show();
+    showUntilExposed( lab );
 
     GIVEN( "a sample with more matches than are marked" )
     {
@@ -705,7 +706,7 @@ SCENARIO( "A Regex Lab whose tab is closed has no Log File", "[ui][regexlab]" )
     OpenCrawler open;
     RegexLabWindow lab( RegexpEngine::Vectorscan );
     takeSample( lab, [ & ] { lab.setSampleSource( open.source() ); } );
-    lab.show();
+    showUntilExposed( lab );
     REQUIRE( lab.windowTitle().contains( "test.log" ) );
 
     open.crawler.reset();
@@ -724,11 +725,11 @@ SCENARIO( "A Regex Lab opened from a modal dialog answers once, also when destro
 {
     auto dialog = std::make_unique<QDialog>();
     dialog->setModal( true );
-    dialog->show();
+    showUntilExposed( *dialog );
 
     QPointer<RegexLabWindow> lab = new RegexLabWindow( RegexpEngine::Vectorscan, dialog.get() );
     lab->offerApply( true );
-    lab->show();
+    showUntilExposed( *lab );
     QSignalSpy applied( lab.data(), &RegexLabWindow::applied );
     QSignalSpy cancelled( lab.data(), &RegexLabWindow::cancelled );
 

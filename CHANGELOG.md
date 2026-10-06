@@ -632,6 +632,15 @@
   directory. The `bolt` action now installs `libbolt-18-dev`, and `pgo.py`
   instruments with the real `llvm-bolt`, beside which the runtime is. (#732)
 
+- **A test shows a widget and waits until it is exposed, and CI rejects a new
+  test that does not wait**: a test that measures painting or geometry right
+  after `show()` reads what Qt defers until the window is exposed, and fails
+  now and then (#750). Every unit test, UI test and benchmark that shows a
+  widget now waits, mostly with `showUntilExposed()` from
+  `tests/helpers/shown_widget.h`, and the Format job's
+  `.github/scripts/check-shown-widget-wait.py` names the file and line of any
+  `show()` under `tests/` that no checked wait follows. (#754, #758)
+
 # v26.10.0 (2026-09-29)
 
 The stable release of 26.10. It contains everything from

@@ -37,6 +37,7 @@
 #include "logdata.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 
 #include <QApplication>
@@ -164,7 +165,7 @@ TEST_CASE( "Scrolling a Table View over 10 million Log Lines",
     }
     view.setActive( true );
     view.resize( 1400, 400 );
-    view.show();
+    showUntilExposed( view );
     QCoreApplication::processEvents();
     view.resize( 1400,
                  view.height() - view.viewport()->height() + VisibleRows * view.rowHeight( 0 ) );

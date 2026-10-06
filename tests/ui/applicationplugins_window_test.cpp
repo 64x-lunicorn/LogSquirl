@@ -26,6 +26,7 @@
 #include "recentfiles.h"
 #include "session.h"
 #include "sessioninfo.h"
+#include "shown_widget.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -205,7 +206,7 @@ SCENARIO( "The first window is shown before the plugins load", "[ui][plugins][ap
 
             AND_WHEN( "it is shown" )
             {
-                window->show();
+                showUntilExposed( *window );
 
                 THEN( "the plugins load once, with the window already shown" )
                 {
@@ -229,7 +230,7 @@ SCENARIO( "Opening a second window does not load the plugins again",
         const auto session = newSession();
 
         auto first = std::make_unique<MainWindow>( WindowSession{ session, "First", 0 }, plugins );
-        first->show();
+        showUntilExposed( *first );
         REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); }, 5000 ) );
         REQUIRE( loads == 1 );
 
@@ -237,7 +238,7 @@ SCENARIO( "Opening a second window does not load the plugins again",
         {
             auto second
                 = std::make_unique<MainWindow>( WindowSession{ session, "Second", 1 }, plugins );
-            second->show();
+            showUntilExposed( *second );
             QTest::qWait( 200 );
 
             THEN( "the plugins are not loaded again" )
@@ -296,9 +297,12 @@ SCENARIO( "A Log File opened before the plugins loaded is opened with the conver
             sinceStart.start();
             window
                 = std::make_unique<MainWindow>( WindowSession{ newSession(), "Main", 0 }, plugins );
-            window->show();
+            // The file is opened right after show(), before the window is
+            // exposed and the plugins load; the wait for exposure comes after.
+            window->show(); // shown-widget-wait: deferred, the file is opened before exposure
             shownAfterMs = sinceStart.elapsed();
             window->loadInitialFile( logFilePath, false );
+            REQUIRE( QTest::qWaitForWindowExposed( window.get() ) );
 
             THEN( "the file is opened through the converter once the plugin has loaded" )
             {
@@ -375,7 +379,7 @@ SCENARIO( "A converted Log File leaves no temporary path in the recent files or 
         const auto appSession = newSession();
         auto window
             = std::make_unique<MainWindow>( WindowSession{ appSession, windowId, 0 }, plugins );
-        window->show();
+        showUntilExposed( *window );
         REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); }, 5000 ) );
         REQUIRE( loadErrors.isEmpty() );
         auto* tabs = window->findChild<TabbedCrawlerWidget*>();
@@ -485,7 +489,7 @@ SCENARIO( "Opening a converted Log File again shows its open tab",
             WindowSession{ newSession(), QStringLiteral( "applicationplugins_window_test_615" ),
                            0 },
             plugins );
-        window->show();
+        showUntilExposed( *window );
         REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); }, 5000 ) );
         REQUIRE( loadErrors.isEmpty() );
         auto* tabs = window->findChild<TabbedCrawlerWidget*>();
@@ -597,8 +601,8 @@ SCENARIO( "Opening a Log File open in another window shows its tab there",
             WindowSession{ appSession, QStringLiteral( "applicationplugins_window_test_642_b" ),
                            1 },
             plugins );
-        windowA->show();
-        windowB->show();
+        showUntilExposed( *windowA );
+        showUntilExposed( *windowB );
         REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); }, 5000 ) );
         REQUIRE( loadErrors.isEmpty() );
         auto* tabsA = windowA->findChild<TabbedCrawlerWidget*>();
@@ -687,11 +691,11 @@ SCENARIO( "What plugins contribute shows in every window", "[ui][plugins][applic
         const auto session = newSession();
 
         auto first = std::make_unique<MainWindow>( WindowSession{ session, "First", 0 }, plugins );
-        first->show();
+        showUntilExposed( *first );
         REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); }, 5000 ) );
         auto second
             = std::make_unique<MainWindow>( WindowSession{ session, "Second", 1 }, plugins );
-        second->show();
+        showUntilExposed( *second );
         QTest::qWait( 50 );
 
         THEN( "both windows have the plugin's menu action, and it works in both" )
@@ -759,7 +763,7 @@ SCENARIO( "The dashboard lists a plugin installed while it is shown",
             WindowSession{ newSession(), QStringLiteral( "applicationplugins_window_test_dash" ),
                            0 },
             plugins );
-        window->show();
+        showUntilExposed( *window );
         REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); }, 5000 ) );
         REQUIRE( dashboardMentions( *window, QStringLiteral( "No plugins installed" ) ) );
 

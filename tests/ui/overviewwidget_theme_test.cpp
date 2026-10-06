@@ -27,6 +27,7 @@
 #include "overview.h"
 #include "overviewwidget.h"
 #include "regularexpressionpattern.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
 #include "theme.h"
@@ -124,7 +125,7 @@ struct OverviewOfMarkedLogFile {
 
         widget.setOverview( &overview );
         widget.resize( OverviewWidth, NbLogLines );
-        widget.show();
+        showUntilExposed( widget );
         QTest::qWait( 20 );
     }
 

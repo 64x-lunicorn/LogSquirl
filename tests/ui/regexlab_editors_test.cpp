@@ -50,6 +50,7 @@
 #include "regularexpression.h"
 #include "searchline.h"
 #include "settingspolicies.h"
+#include "shown_widget.h"
 #include "test_utils.h"
 
 namespace {
@@ -156,7 +157,7 @@ struct HighlighterEditor {
         auto set = HighlighterSet::createNewSet( QStringLiteral( "Set" ) );
         set.addHighlighter( Highlighter( pattern, true, onlyMatch, Text, Background ) );
         setEdit->setHighlighters( set );
-        dialog.show();
+        showUntilExposed( dialog );
 
         edit = setEdit->findChild<HighlighterEdit*>();
         REQUIRE( edit != nullptr );
@@ -197,7 +198,7 @@ struct FilterEditor {
         group.addFilter( { QStringLiteral( "Errors" ), QStringLiteral( "err.r" ), isRegexp } );
         edit->setReadOnly( readOnly );
         edit->setFilterSet( group );
-        dialog.show();
+        showUntilExposed( dialog );
     }
 
     ~FilterEditor()

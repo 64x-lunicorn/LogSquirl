@@ -28,6 +28,7 @@
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "shortcuts.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
@@ -109,7 +110,7 @@ SCENARIO( "The Filtered View keeps the same Log Line selected when a Mark is add
     QuickFindPattern quickFindPattern;
     FilteredView view( logFile.filteredData.get(), &quickFindPattern, false );
     view.resize( 400, 200 );
-    view.show();
+    showUntilExposed( view );
     view.registerShortcuts();
 
     GIVEN( "Log Line 100 selected, the 11th line the Filtered View displays" )

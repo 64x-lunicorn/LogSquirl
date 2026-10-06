@@ -232,6 +232,18 @@ foreach(
   target_compile_definitions(${_target} PRIVATE LOGSQUIRL_BENCHMARK_LIMITS_TBB)
 endforeach()
 
+# A benchmark that shows a widget waits until its window is exposed, before
+# its measured code, with showUntilExposed() from tests/helpers/shown_widget.h
+# (#757), which takes Qt Test. Every benchmark binary that links test_utils,
+# and with it that header, links Qt Test too, so a new one needs nothing here.
+get_directory_property(_logsquirl_benchmark_targets BUILDSYSTEM_TARGETS)
+foreach(_target IN LISTS _logsquirl_benchmark_targets)
+  get_target_property(_links ${_target} LINK_LIBRARIES)
+  if(test_utils IN_LIST _links)
+    target_link_libraries(${_target} Qt6::Test)
+  endif()
+endforeach()
+
 # The heap counts of the fixed-work mode (#673; heap_count.c): every benchmark
 # binary above also counts the allocations and the peak heap of each
 # benchmark's measured code. Off unless asked for: it replaces glibc's malloc

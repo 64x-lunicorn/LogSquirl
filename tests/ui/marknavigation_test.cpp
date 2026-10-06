@@ -29,6 +29,7 @@
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "shortcuts.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
@@ -160,7 +161,7 @@ SCENARIO( "Next and previous Mark move the same way in the main view and the Fil
         LogMainView view( &logFile.logData, &quickFindPattern, nullptr, nullptr, false );
         view.setCurrentSearch( logFile.filteredData.get() );
         view.resize( 400, 200 );
-        view.show();
+        showUntilExposed( view );
         view.registerShortcuts();
 
         requireMarkNavigationMovesDownAndUp( view );
@@ -170,7 +171,7 @@ SCENARIO( "Next and previous Mark move the same way in the main view and the Fil
     {
         FilteredView view( logFile.filteredData.get(), &quickFindPattern, false );
         view.resize( 400, 200 );
-        view.show();
+        showUntilExposed( view );
         view.registerShortcuts();
 
         requireMarkNavigationMovesDownAndUp( view );

@@ -76,6 +76,7 @@
 #include "recentfiles.h"
 #include "session.h"
 #include "sessioninfo.h"
+#include "shown_widget.h"
 #include "streamwriter.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabgroupinfo.h"
@@ -1031,7 +1032,7 @@ SCENARIO( "The dashboard setting reaches the windows opened after it changes", "
     {
         auto catalog = LogFormatCatalog{};
         OptionsDialog dialog( catalog );
-        dialog.show();
+        showUntilExposed( dialog );
 
         THEN( "a hint beside the dashboard checkbox says it applies to new windows" )
         {

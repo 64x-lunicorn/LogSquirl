@@ -31,6 +31,7 @@
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "shortcuts.h"
+#include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
@@ -253,7 +254,7 @@ SCENARIO( "The Filtered View exports the Matches of a Search as the Table View s
     QuickFindPattern quickFindPattern;
     ExportingFilteredView view( logFile.filteredData.get(), &quickFindPattern, false );
     view.resize( 400, 200 );
-    view.show();
+    showUntilExposed( view );
     view.registerShortcuts();
     const auto format = std::make_shared<const LogFormatDefinition>( makeFormat() );
     view.setRecognizedFormat(

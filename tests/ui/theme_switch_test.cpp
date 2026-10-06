@@ -35,6 +35,7 @@
 #include "recentfiles.h"
 #include "savedsearches.h"
 #include "session.h"
+#include "shown_widget.h"
 #include "tabbarstyle.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
@@ -222,7 +223,7 @@ struct MainWindowFixture {
               WindowSession{ session, "Main", 0 },
               std::make_shared<logsquirl::plugins::ApplicationPlugins>() ) )
     {
-        mainWindow->show();
+        showUntilExposed( *mainWindow );
         QTest::qWait( 100 );
         tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
         REQUIRE( tabArea != nullptr );
@@ -301,13 +302,13 @@ SCENARIO( "Switching the Theme with Log Files, Filtered Views, the Table View, a
 
         auto* sidebar = mainWindow.findChild<QDockWidget*>( "sidebarDock" );
         REQUIRE( sidebar != nullptr );
-        sidebar->show();
+        showUntilExposed( *sidebar );
         sidebar->setFloating( true );
 
         auto highlighters = std::make_unique<HighlightersDialog>( &mainWindow );
-        highlighters->show();
+        showUntilExposed( *highlighters );
         auto filters = std::make_unique<PredefinedFiltersDialog>( &mainWindow );
-        filters->show();
+        showUntilExposed( *filters );
 
         for ( const auto& theme : themes ) {
             Theme::apply( theme );
@@ -339,7 +340,7 @@ SCENARIO( "The Filters Panel survives the palette and stylesheet changing while 
 {
     FiltersPanel panel;
     panel.resize( 300, 400 );
-    panel.show();
+    showUntilExposed( panel );
     QTest::qWait( 20 );
 
     // The order the archived theme switching used, which crashed in the
@@ -602,7 +603,7 @@ SCENARIO( "Widgets that adjust a palette role follow a Theme switch", "[ui][them
         QWidget window;
         auto* label = new QLabel( QStringLiteral( "text" ), &window );
         label->setStyleSheet( QStringLiteral( "color: palette(dark);" ) );
-        window.show();
+        showUntilExposed( window );
         QTest::qWait( 20 );
 
         WHEN( "the Dark Theme is applied" )
@@ -625,7 +626,7 @@ SCENARIO( "Widgets that adjust a palette role follow a Theme switch", "[ui][them
         button->setFixedSize( 60, 24 );
         button->setStyleSheet(
             QStringLiteral( "background-color: #ff0000; border: 1px solid palette(mid);" ) );
-        window.show();
+        showUntilExposed( window );
         QTest::qWait( 20 );
 
         WHEN( "the Dark Theme is applied" )
@@ -726,7 +727,7 @@ SCENARIO( "The Dashboard's hints are drawn in the Theme's secondary text color",
     {
         Theme::apply( Theme::LightKey );
         WelcomeDashboard dashboard;
-        dashboard.show();
+        showUntilExposed( dashboard );
         QTest::qWait( 20 );
 
         const auto hints = [ & ] {
@@ -772,7 +773,7 @@ SCENARIO( "The Command Palette's badges and shortcuts are readable in every Them
               {} },
             { QStringLiteral( "Find" ), QStringLiteral( "Edit" ), QStringLiteral( "Ctrl+F" ), {} },
         } );
-        palette.show();
+        showUntilExposed( palette );
         QTest::qWait( 20 );
         auto* list = palette.findChild<QListWidget*>();
         REQUIRE( list != nullptr );
@@ -846,7 +847,7 @@ SCENARIO( "High Contrast shows checked, hovered, disabled and progress states le
             button.setCheckable( true );
             button.setIcon( IconLoader{}.loadCheckable( "regex" ) );
             button.setChecked( true );
-            button.show();
+            showUntilExposed( button );
             QTest::qWait( 20 );
             const auto image = button.grab().toImage();
 
@@ -875,7 +876,7 @@ SCENARIO( "High Contrast shows checked, hovered, disabled and progress states le
         {
             QPushButton button( QStringLiteral( "Button" ) );
             button.setFocusPolicy( Qt::NoFocus );
-            button.show();
+            showUntilExposed( button );
             QTest::qWait( 20 );
             const auto normal = button.grab().toImage();
             QTest::mouseMove( &button, button.rect().center() );
@@ -898,7 +899,7 @@ SCENARIO( "High Contrast shows checked, hovered, disabled and progress states le
         {
             QPushButton button( QStringLiteral( "Button" ) );
             button.setEnabled( false );
-            button.show();
+            showUntilExposed( button );
             QTest::qWait( 20 );
             const auto image = button.grab().toImage();
 
@@ -922,7 +923,7 @@ SCENARIO( "High Contrast shows checked, hovered, disabled and progress states le
             bar.setValue( 50 );
             bar.setTextVisible( true );
             bar.resize( 200, 16 );
-            bar.show();
+            showUntilExposed( bar );
             QTest::qWait( 20 );
             const auto image = bar.grab().toImage();
 
