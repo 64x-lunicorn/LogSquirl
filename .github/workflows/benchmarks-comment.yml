@@ -116,11 +116,9 @@ jobs:
           python3 "$script" body --comparison "$dir/results/comparison.json" \
             --run-url "$RUN_URL" --conclusion "$CONCLUSION" --out "$RUNNER_TEMP/comment.md"
 
-          marker=$(python3 "$script" marker)
-          ids=$(gh api --paginate "repos/$REPO/issues/$pr/comments" \
-            --jq '.[] | select(.user.login == "github-actions[bot]") | [.id, .body] | @json' |
-            jq -r --arg marker "$marker" 'fromjson | select(.[1] | startswith($marker)) | .[0]')
-          id=${ids%%$'\n'*}
+          id=$(gh api --paginate "repos/$REPO/issues/$pr/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | {id, body}' |
+            python3 "$script" comment-id)
           payload=$(jq -Rs '{body: .}' < "$RUNNER_TEMP/comment.md")
           if [ -n "$id" ]; then
             gh api --method PATCH "repos/$REPO/issues/comments/$id" --input - <<< "$payload" > /dev/null
