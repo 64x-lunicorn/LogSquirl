@@ -378,6 +378,18 @@ def test_save_writes_the_matches_and_the_marks_of_the_filtered_view(isolated_gui
     assert results["log_line_count"] == GENERATED_LOG_LINES
 
 
+def test_save_with_more_marks_than_log_lines_reports_why(isolated_gui, performance_log,
+                                                         tmp_path):
+    # Two Marks on one Log Line would remove each other.
+    run = run_benchmark(isolated_gui, "save", [performance_log], tmp_path / "report.json",
+                        options={"pattern": "slow response",
+                                 "marks": str(GENERATED_LOG_LINES + 1)})
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert "more than the" in run.report["failure"]
+
+
 def test_save_without_a_pattern_reports_why(isolated_gui, performance_log, tmp_path):
     run = run_benchmark(isolated_gui, "save", [performance_log], tmp_path / "report.json")
 

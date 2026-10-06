@@ -282,8 +282,8 @@ the test turns one run's report into `{benchmark name: seconds}` -- use
 them. Add the names to `all_benchmark_names()` and a slot in `baseline.json`. A scenario a
 binary may not have yet -- the before side of the Benchmarks workflow runs its own commit's --
 is run with `run_known_scenario()`, which raises `ScenarioUnknown` for the test to skip on.
-`SEARCH_CASES`, `QUICKFIND_CASES`, `SCROLL_CASES`, `FOLLOW_CASES`, `SESSION_RESTORE_CASES`
-and `READ_WHILE_INDEXING_CASES` are examples.
+`SEARCH_CASES`, `QUICKFIND_CASES`, `SCROLL_CASES`, `FOLLOW_CASES`, `SESSION_RESTORE_CASES`,
+`READ_WHILE_INDEXING_CASES` and `SAVE_CASES` are examples.
 
 ## Test Structure
 

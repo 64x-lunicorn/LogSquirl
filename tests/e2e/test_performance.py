@@ -810,18 +810,18 @@ class SaveCase(ScenarioCase):
 
     log_file: str  # in test_data/, generated
     pattern: str
+    marks: int = 200
     timeout: float = 900
 
     def options(self) -> dict[str, str]:
-        return {"pattern": self.pattern}
+        return {"pattern": self.pattern, "marks": str(self.marks)}
 
     def benchmark_names(self) -> set[str]:
         return {f"{self.name}_marks_added", f"{self.name}_saved", f"{self.name}_marks_removed"}
 
 
 # "slow response" is in every WARN Log Line, one in 13: about 100,000 of the
-# 100 MB Log File, as many as the micro-benchmark saves. The 200 Marks are the
-# scenario's default.
+# 100 MB Log File, as many as the micro-benchmark saves.
 SAVE_CASES = [SaveCase("log_100mb", GENERATED_LOG_FILES["log_100mb"][0], "slow response")]
 
 
@@ -847,11 +847,13 @@ def test_perf_gui_save(
 
     results = measure_events(mark_and_save, **_runs(bench_config, False))
     what = f"Searched for '{case.pattern}' in {case.log_file}, Search finished before"
-    results[added]["measures"] = f"{what}: 200 Marks set, each with the Text View's Mark action"
+    results[added]["measures"] = (
+        f"{what}: {case.marks} Marks set, each with the Text View's Mark action"
+    )
     results[saved]["measures"] = (
         f"{what}: the Filtered View's Matches and Marks selected and saved to a file"
     )
-    results[removed]["measures"] = f"{what}: the 200 Marks removed again"
+    results[removed]["measures"] = f"{what}: the {case.marks} Marks removed again"
     _record(results, collected_results, baseline, request)
 
 

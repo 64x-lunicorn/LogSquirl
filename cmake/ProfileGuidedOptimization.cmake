@@ -88,9 +88,8 @@ function(logsquirl_pgo_flags compile_out link_out)
   set(dir "${ARG_DIRECTORY}")
   # For a USE build's compile options: a library, or a trained executable.
   list(JOIN LOGSQUIRL_PGO_TRAINED_EXECUTABLES "$<SEMICOLON>" trained)
-  set(profiled
-      "$<OR:$<NOT:$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>>,$<IN_LIST:$<TARGET_PROPERTY:NAME>,${trained}>>"
-  )
+  set(trained_executable "$<IN_LIST:$<TARGET_PROPERTY:NAME>,${trained}>")
+  set(profiled "$<OR:$<NOT:$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>>,${trained_executable}>")
 
   if(ARG_IS_MSVC)
     set(ipo "$<BOOL:$<TARGET_PROPERTY:INTERPROCEDURAL_OPTIMIZATION>>")
@@ -101,7 +100,6 @@ function(logsquirl_pgo_flags compile_out link_out)
       # Each linked binary has a profile of its own, and only the trained
       # executables have one: the USE link of any other, a micro-benchmark's,
       # would fail on its missing .pgd (LNK1266, #730).
-      set(trained_executable "$<IN_LIST:$<TARGET_PROPERTY:NAME>,${trained}>")
       list(APPEND link "$<$<AND:${ipo},${trained_executable}>:/USEPROFILE:PGD=${pgd}>")
     endif()
   elseif(ARG_COMPILER_ID MATCHES "Clang")

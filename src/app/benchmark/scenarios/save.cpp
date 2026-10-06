@@ -33,7 +33,7 @@
 //
 // Options:
 //   pattern  what is searched for, as plain text (required)
-//   marks    the Log Lines marked; 200
+//   marks    the Log Lines marked, at most the Log Lines of the Log File; 200
 //
 // Events:
 //   marks_added      every Mark is set
@@ -141,6 +141,14 @@ private:
     {
         if ( !mainView_ || !filteredView_ ) {
             run_->fail( QStringLiteral( "the Log File's tab went" ) );
+            return;
+        }
+        // Each Mark on a Log Line of its own, so that marking them again
+        // removes every one.
+        if ( marks_ > logFile_->logLineCount() ) {
+            run_->fail( QStringLiteral( "marks is %1, more than the %2 Log Lines of the Log File" )
+                            .arg( marks_ )
+                            .arg( logFile_->logLineCount() ) );
             return;
         }
         auto& report = run_->report();
