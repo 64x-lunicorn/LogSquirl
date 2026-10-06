@@ -17,6 +17,9 @@ break the table, nor mention anyone, nor carry HTML or links of its own.
 Usage:
   benchmark-pr-comment.py marker
       Prints the hidden marker the comment starts with, which finds it again.
+  benchmark-pr-comment.py comment-id < COMMENTS
+      Prints the id of the earlier comment among the bot's comments on stdin,
+      one {"id", "body"} JSON object per line, or nothing if there is none.
   benchmark-pr-comment.py number FILE
       Prints the pull request number in FILE, or fails.
   benchmark-pr-comment.py body --comparison FILE --run-url URL --conclusion TEXT --out FILE
@@ -32,6 +35,7 @@ import json
 import math
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -86,6 +90,25 @@ def read_pull_request_number(path: Path) -> int:
     if not _NUMBER.fullmatch(text):
         raise ValueError("the pull request number is not plain digits")
     return int(text)
+
+
+def find_comment_id(lines: Iterable[str]) -> int | None:
+    """The id of this workflow's earlier comment among the bot's comments, one
+    `{"id": ..., "body": ...}` JSON object per line, as the workflow's
+    `gh api --jq` lists them (#764); None if there is none yet."""
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            comment = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise ValueError(f"a comment line is not JSON: {error}") from error
+        if (not isinstance(comment, dict) or type(comment.get("id")) is not int
+                or not isinstance(comment.get("body"), str)):
+            raise ValueError("a comment line is not an object with an id and a body")
+        if comment["body"].startswith(MARKER):
+            return comment["id"]
+    return None
 
 
 def text(value: object) -> str:
@@ -249,6 +272,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("marker", help="print the hidden marker the comment starts with")
+    commands.add_parser("comment-id",
+                        help="print the id of the earlier comment among the bot's comments on stdin")
     number =commands.add_parser("number", help="print the validated pull request number")
     number.add_argument("file", type=Path)
     body = commands.add_parser("body", help="write the comment")
@@ -260,6 +285,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "marker":
         print(MARKER)
+        return 0
+    if args.command == "comment-id":
+        try:
+            found = find_comment_id(sys.stdin)
+        except ValueError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        if found is not None:
+            print(found)
         return 0
     if args.command == "number":
         try:

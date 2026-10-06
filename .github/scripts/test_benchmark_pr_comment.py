@@ -5,6 +5,7 @@ artifact that pull request code wrote and that is therefore untrusted."""
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import sys
 from pathlib import Path
@@ -94,6 +95,59 @@ def test_the_comment_starts_with_the_hidden_marker_that_finds_it_again(tmp_path)
 def test_the_marker_command_prints_the_marker_the_workflow_looks_for(capsys):
     assert pc.main(["marker"]) == 0
     assert capsys.readouterr().out == pc.MARKER + "\n"
+
+
+def bot_comments(*comments: tuple[int, str]) -> list[str]:
+    """The bot's comments as the workflow's `gh api --jq` lists them: one JSON
+    object per line."""
+    return [json.dumps({"id": id_, "body": body}) for id_, body in comments]
+
+
+def test_the_earlier_comment_is_found_behind_other_bot_comments():
+    # #764: the instruction count comment came first, and broke the lookup.
+    lines = bot_comments((1, "<!-- logsquirl-instruction-counts -->\n### Instruction counts"),
+                         (2, pc.MARKER + "\n### Benchmarks\n\nbefore | after"))
+    assert pc.find_comment_id(lines) == 2
+
+
+def test_without_an_earlier_comment_none_is_found():
+    lines = bot_comments((1, "<!-- logsquirl-instruction-counts -->\n### Instruction counts"))
+    assert pc.find_comment_id(lines) is None
+    assert pc.find_comment_id([]) is None
+
+
+def test_the_first_of_several_earlier_comments_is_the_one_updated():
+    lines = bot_comments((5, pc.MARKER + "\nolder"), (9, pc.MARKER + "\nnewer"))
+    assert pc.find_comment_id(lines) == 5
+
+
+def test_a_comment_only_quoting_the_marker_is_not_taken_for_it():
+    lines = bot_comments((3, "See " + pc.MARKER))
+    assert pc.find_comment_id(lines) is None
+
+
+@pytest.mark.parametrize("line", ["not json", '["an", "array"]', '{"id": "7", "body": ""}',
+                                  '{"id": 7}'])
+def test_a_line_that_is_no_comment_is_refused(line):
+    with pytest.raises(ValueError):
+        pc.find_comment_id([line])
+
+
+def test_the_comment_id_command_prints_the_id_or_nothing(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "stdin", io.StringIO(
+        "\n".join(bot_comments((1, "other"), (2, pc.MARKER + "\nbody"))) + "\n"))
+    assert pc.main(["comment-id"]) == 0
+    assert capsys.readouterr().out == "2\n"
+
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+    assert pc.main(["comment-id"]) == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_the_comment_id_command_fails_on_input_that_is_no_comment(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "stdin", io.StringIO("[1, \"x\"]\n"))
+    assert pc.main(["comment-id"]) == 1
+    assert capsys.readouterr().err.startswith("error: ")
 
 
 def test_the_comment_has_one_row_per_benchmark_with_both_times_and_the_change(tmp_path):
