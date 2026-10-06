@@ -61,8 +61,10 @@ QStringList logLineTexts( int nbLogLines = NbLogLines )
 }
 
 // A Log File in memory that counts how QuickFind reads it: Log Line by Log
-// Line or in blocks, and whether a reader stays attached while it does.
-class CountingLogData : public FakeLogData {
+// Line or in blocks, and whether a reader stays attached while it does. Not
+// the shared CountingLogData (#761): QuickFind reads on a worker thread, in
+// blocks, and these counts are what it is checked by.
+class QuickFindReadsLogData : public FakeLogData {
 public:
     using FakeLogData::FakeLogData;
 
@@ -306,7 +308,7 @@ SCENARIO( "QuickFind over some Log Lines finds only those, in any block", "[quic
 
 SCENARIO( "QuickFind reads Log Lines in blocks, with a reader attached", "[quickfind]" )
 {
-    const CountingLogData logFile{ logLineTexts() };
+    const QuickFindReadsLogData logFile{ logLineTexts() };
     QuickFindRun quickFind( [ & ]() { return QuickFindLines::everyLogLine( logFile ); } );
 
     const auto noHit = GENERATE( true, false );
@@ -351,7 +353,7 @@ SCENARIO( "QuickFind reports the progress of a long search in intermediate perce
           "[quickfind]" )
 {
     constexpr int ManyLogLines = 20000;
-    CountingLogData logFile{ logLineTexts( ManyLogLines ) };
+    QuickFindReadsLogData logFile{ logLineTexts( ManyLogLines ) };
     // Twenty blocks: a search without a match takes about two seconds, and
     // QuickFind reports its progress after the first one.
     logFile.blockReadTime = std::chrono::milliseconds( 100 );
