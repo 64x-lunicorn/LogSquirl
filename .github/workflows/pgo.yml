@@ -330,7 +330,9 @@ jobs:
               python3 .github/scripts/pgo.py measure "$@" --results pgo-run/results \
                 --benchmark-samples "$BENCHMARK_SAMPLES" --log-file-mb "$LOG_FILE_MB" \
                 --e2e-runs "$E2E_RUNS" || status=$?
-              chmod -R a+rX pgo-run/results
+              # The Compare step after this one writes its report into
+              # results, as the runner user, not the container root (#730).
+              chmod -R a+rwX pgo-run/results
               exit "$status"
             ' measure $SIDES
         continue-on-error: true

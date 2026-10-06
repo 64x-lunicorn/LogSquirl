@@ -632,13 +632,16 @@
   directory. The `bolt` action now installs `libbolt-18-dev`, and `pgo.py`
   instruments with the real `llvm-bolt`, beside which the runtime is. (#732)
 
-- **The PGO workflow measures Windows**: a Windows build with
+- **The PGO workflow reports Windows and Linux**: a Windows build with
   `-DLOGSQUIRL_PGO=USE` failed to link its first micro-benchmark, as MSVC
   looked for a profile of that executable, which only the trained executables
   `logsquirl` and `logsquirl_grep` have (LNK1266). Their links alone read a
   profile now, and the micro-benchmarks are built as without PGO, which on
   Windows is what they get from it: MSVC optimizes each binary from its own
-  profile. (#730)
+  profile. On Linux, every benchmark ran, but the comparison could not write
+  its report into the results the build container had left read-only, so the
+  `pgo-report` said "Not measured" for Linux; the container leaves them
+  writable now. (#730)
 
 - **The benchmark mode saves the Filtered View, and the PGO training with
   it**: the new scenario `save` searches a loaded Log File, marks 200 of its
