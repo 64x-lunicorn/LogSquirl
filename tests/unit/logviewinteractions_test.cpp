@@ -33,7 +33,6 @@
 #include <QAbstractEventDispatcher>
 #include <QClipboard>
 #include <QCoreApplication>
-#include <QCursor>
 #include <QFontInfo>
 #include <QGuiApplication>
 #include <QMouseEvent>
@@ -44,6 +43,7 @@
 #include "clipboard.h"
 #include "fake_log_data.h"
 #include "painting_test_font.h"
+#include "placed_cursor.h"
 #include "quickfindpattern.h"
 #include "shown_widget.h"
 #include "viewportlayout.h"
@@ -312,9 +312,7 @@ SCENARIO( "Selecting, hovering, marking and autoscrolling through the log view",
                 const QPoint below{ static_cast<int>( onText( 0, 2 ).x() ), ViewHeight + 8 };
                 const auto belowGlobal = view.viewport()->mapToGlobal( below );
                 // Autoscroll reads where the mouse is from the cursor.
-                QCursor::setPos( belowGlobal );
-                INFO( "This platform does not let the test place the cursor" );
-                REQUIRE( QCursor::pos() == belowGlobal );
+                placeCursorOrSkip( belowGlobal );
                 dragTo( view, below );
 
                 tickAutoscroll( view, timersBeforeDrag );

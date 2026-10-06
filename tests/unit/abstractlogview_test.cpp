@@ -24,7 +24,6 @@
 #include <functional>
 #include <thread>
 
-#include <QCursor>
 #include <QFile>
 #include <QFont>
 #include <QProgressDialog>
@@ -39,6 +38,7 @@
 #include "log_view_scrolling.h"
 #include "logdata.h"
 #include "overview.h"
+#include "placed_cursor.h"
 #include "qfnotifications.h"
 #include "quickfindpattern.h"
 #include "shown_widget.h"
@@ -760,7 +760,8 @@ SCENARIO( "Selection autoscroll moves a wrapped text view in Visual Lines",
         QCoreApplication::sendEvent( view.viewport(), &press );
 
         const QPointF below{ onText.x(), static_cast<qreal>( view.viewport()->height() + 8 ) };
-        QCursor::setPos( view.viewport()->mapToGlobal( below.toPoint() ) );
+        // Autoscroll reads where the mouse is from the cursor.
+        placeCursorOrSkip( view.viewport()->mapToGlobal( below.toPoint() ) );
         QMouseEvent move( QEvent::MouseMove, below, view.viewport()->mapToGlobal( below ),
                           Qt::NoButton, Qt::LeftButton, Qt::NoModifier );
         QCoreApplication::sendEvent( view.viewport(), &move );

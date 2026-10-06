@@ -73,6 +73,7 @@
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
 #include "configuration.h"
+#include "counting_log_data.h"
 #include "fake_log_data.h"
 #include "highlighterset.h"
 #include "painting_test_font.h"
@@ -690,33 +691,6 @@ SCENARIO( "The log view subdues exactly the Log Lines outside the Search Limits"
     }
 }
 
-namespace {
-
-// A FakeLogData that counts how often Log Lines are fetched.
-class CountingLogData : public FakeLogData {
-public:
-    using FakeLogData::FakeLogData;
-
-    // Every fetch of Log Lines.
-    mutable int linesFetched = 0;
-    // The fetches of the Log Lines at the top of the Log File, where the
-    // views these tests count stand. Scrolling reads Log Lines of its own at
-    // the end of the Log File, to find its bottom.
-    mutable int topLinesFetched = 0;
-
-protected:
-    logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount count ) const override
-    {
-        ++linesFetched;
-        if ( first == 0_lnum ) {
-            ++topLinesFetched;
-        }
-        return FakeLogData::doGetLines( first, count );
-    }
-};
-
-} // namespace
-
 SCENARIO( "The log view expands and wraps a viewport once per change", "[logviewpainting]" )
 {
     const PinnedPaintingSettings settings;
@@ -737,7 +711,7 @@ SCENARIO( "The log view expands and wraps a viewport once per change", "[logview
 
             WHEN( "the Log File changes, and the view is painted and hovered over" )
             {
-                logData.linesFetched = 0;
+                logData.fetches = 0;
                 view.rereadLogLines();
                 view.viewport()->grab();
 
@@ -749,7 +723,7 @@ SCENARIO( "The log view expands and wraps a viewport once per change", "[logview
 
                 THEN( "painting and hit testing read the Log Lines of one expansion" )
                 {
-                    REQUIRE( logData.linesFetched == 1 );
+                    REQUIRE( logData.fetches == 1 );
                 }
             }
         }
@@ -776,8 +750,11 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
             PaintingLogView view( &logData, &quickFindPattern, textWrap );
             showForPainting( view, logData, font, { .textWrap = textWrap } );
             const auto before = grabViewport( view );
-            logData.linesFetched = 0;
-            logData.topLinesFetched = 0;
+            // The view stands at the top of the Log File. Scrolling reads Log
+            // Lines of its own at the end of the Log File, to find its bottom,
+            // so some of these Scenarios count only the fetches at the top.
+            logData.fetches = 0;
+            logData.fetchesFromFirstLogLine = 0;
 
             WHEN( "a QuickFind pattern is typed character by character" )
             {
@@ -790,7 +767,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "each keystroke is painted from the Log Lines already read" )
                 {
-                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( logData.fetches == 0 );
                     REQUIRE( painted != before );
                 }
             }
@@ -802,7 +779,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "it is painted from the Log Lines already read" )
                 {
-                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( logData.fetches == 0 );
                     REQUIRE( painted != before );
                 }
             }
@@ -816,7 +793,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "they are painted from the Log Lines already read" )
                 {
-                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( logData.fetches == 0 );
                 }
             }
 
@@ -827,7 +804,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "it is painted from the Log Lines already read" )
                 {
-                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( logData.fetches == 0 );
                 }
             }
 
@@ -838,7 +815,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "they are painted from the Log Lines already read" )
                 {
-                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( logData.fetches == 0 );
                 }
             }
 
@@ -849,7 +826,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "they are painted from the Log Lines already read" )
                 {
-                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( logData.fetches == 0 );
                 }
             }
 
@@ -860,7 +837,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "the Log Lines in the Viewport are read again, once" )
                 {
-                    REQUIRE( logData.topLinesFetched == 1 );
+                    REQUIRE( logData.fetchesFromFirstLogLine == 1 );
                 }
             }
 
@@ -871,7 +848,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "the Log Lines in the Viewport are read again, once" )
                 {
-                    REQUIRE( logData.topLinesFetched == 1 );
+                    REQUIRE( logData.fetchesFromFirstLogLine == 1 );
                 }
             }
 
@@ -883,7 +860,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
                 THEN( "the Log Lines in the Viewport are read again, once" )
                 {
-                    REQUIRE( logData.topLinesFetched == 1 );
+                    REQUIRE( logData.fetchesFromFirstLogLine == 1 );
                 }
             }
         }
