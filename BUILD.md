@@ -1177,6 +1177,13 @@ throwaway directory that is deleted once Qt is in the image), `.github/requireme
 the `uv pip compile --generate-hashes --universal` command in its header; after editing a `.in` file, rerun that
 command. Renovate bumps the pins and reruns the command, and re-locks the dependencies below them once a month.
 
+**Website npm overrides.** `website/package.json` cannot carry comments, so each entry of its `overrides` is listed
+here. Dependabot keeps an override when it updates the lockfile, but never proposes removing one.
+
+- `postcss-nested` → `postcss-selector-parser` `^7.1.6` (#768): GHSA-rj75-hqrm-r3gf has no patched 6.x, and
+  `@expressive-code/core` 0.44.2 still asks for `postcss-nested` `^6`. The built site was byte-identical with 7.1.6.
+  Remove the override once `@expressive-code/core` asks for `postcss-nested` 7 or later.
+
 Both wait until a release is seven days old and run weekly; Renovate lists everything it tracks on its
 **Dependency Dashboard** issue. Renovate's grouping:
 
