@@ -74,6 +74,8 @@ jobs:
               # The app embeds it, and the website builds its Documentation
               # pages from it (#587).
               DOCUMENTATION.md) build=true; website=true ;;
+              # The Website job checks the lockfile with them (#772).
+              scripts/sbom/logsquirl_vulns.py | scripts/sbom/vuln-ignore.yml) build=true; website=true ;;
               BUILD.md | CODE_OF_CONDUCT.md | CONTRIBUTING.md | README.md | latest.json | .gitignore) ;;
               *) build=true ;;
             esac
