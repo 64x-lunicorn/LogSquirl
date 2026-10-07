@@ -15,6 +15,10 @@ See `docs/agents/issue-tracker.md`.
 The five canonical triage roles, each label string equal to its name.
 See `docs/agents/triage-labels.md`.
 
+### Cleaning up branches
+
+`.github/scripts/stale-branches.sh` says which branches and worktrees are merged and prints the commands to remove them.
+
 ### Domain docs
 
 Single-context: `CONTEXT.md` at the repo root, ADRs under `docs/adr/`.
