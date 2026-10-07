@@ -11,8 +11,8 @@
     "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.42.3",
-    "astro": "^7.3.4",
+    "@astrojs/starlight": "^0.42.4",
+    "astro": "^7.3.5",
     "github-slugger": "^2.0.0",
     "sharp": "^0.35.4",
     "starlight-links-validator": "^0.26.0"
