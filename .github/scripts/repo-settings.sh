@@ -2,7 +2,9 @@
 # The repository settings the workflows rely on but cannot declare themselves
 # (#201): read-only GITHUB_TOKEN by default, no pull requests created or
 # approved by workflows, an explicit allowlist of third-party actions, SHA
-# pinning required (#202), and protected release tags.
+# pinning required (#202), and protected release tags; plus the head branch
+# of a pull request deleted when it is merged (#773), which nothing else
+# cleans up. .github/scripts/stale-branches.sh lists what is left over.
 #
 # Usage:
 #   .github/scripts/repo-settings.sh check    # report drift, exit 1 on any
@@ -83,6 +85,8 @@ check() {
     report "actions sha_pinning_required" true "$(jq -r .sha_pinning_required <<<"$perms")"
   fi
 
+  report "delete_branch_on_merge" true "$(gh api "repos/$REPO" --jq .delete_branch_on_merge)"
+
   workflow=$(gh api "repos/$REPO/actions/permissions/workflow")
   report "default_workflow_permissions" read "$(jq -r .default_workflow_permissions <<<"$workflow")"
   report "can_approve_pull_request_reviews" false "$(jq -r .can_approve_pull_request_reviews <<<"$workflow")"
@@ -120,6 +124,7 @@ apply() {
     gh api -X PUT "repos/$REPO/actions/permissions/selected-actions" --input - > /dev/null
   gh api -X PUT "repos/$REPO/actions/permissions/workflow" \
     -f default_workflow_permissions=read -F can_approve_pull_request_reviews=false > /dev/null
+  gh api -X PATCH "repos/$REPO" -F delete_branch_on_merge=true > /dev/null
 
   # Only repository admins (role id 5) may create release tags; nobody may move
   # or delete one, so a published release keeps pointing at what was attested.

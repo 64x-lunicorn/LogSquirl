@@ -654,6 +654,13 @@
   never runs is laid out as cold, and the micro-benchmark that saves displayed
   lines was 45 % slower with the profile on macOS. (#730)
 
+- **Merged branches are cleaned up**: GitHub now deletes a pull request's
+  branch when it is merged, and `repo-settings.sh` keeps it that way. The new
+  `.github/scripts/stale-branches.sh` lists every worktree, local branch and
+  branch on origin with its pull request, calls one merged only when its tip
+  is the head that was merged, and prints the commands that remove those; it
+  deletes nothing itself. (#773)
+
 - **A test shows a widget and waits until it is exposed, and CI rejects a new
   test that does not wait**: a test that measures painting or geometry right
   after `show()` reads what Qt defers until the window is exposed, and fails
