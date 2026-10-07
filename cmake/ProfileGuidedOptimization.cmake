@@ -20,7 +20,9 @@
 #   <target>!<n>.pgc beside it (with VCPROFILE_PATH pointing there);
 #   `pgomgr /merge <target>.pgd` merges them, and the USE link reads the .pgd.
 #   MSVC's PGO is a property of link time code generation, so it needs
-#   LOGSQUIRL_USE_LTO, and covers the targets LTO covers.
+#   LOGSQUIRL_USE_LTO, and covers the targets LTO covers. A binary's profile
+#   is its own, so the micro-benchmarks' code gets none of logsquirl's: on
+#   Windows, a USE build's micro-benchmarks are built as without PGO.
 #
 # Clang and GCC instrument and optimize every C and C++ target of the build,
 # the third-party libraries included: Vectorscan's and oneTBB's hot loops are
@@ -86,9 +88,8 @@ function(logsquirl_pgo_flags compile_out link_out)
   set(dir "${ARG_DIRECTORY}")
   # For a USE build's compile options: a library, or a trained executable.
   list(JOIN LOGSQUIRL_PGO_TRAINED_EXECUTABLES "$<SEMICOLON>" trained)
-  set(profiled
-      "$<OR:$<NOT:$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>>,$<IN_LIST:$<TARGET_PROPERTY:NAME>,${trained}>>"
-  )
+  set(trained_executable "$<IN_LIST:$<TARGET_PROPERTY:NAME>,${trained}>")
+  set(profiled "$<OR:$<NOT:$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>>,${trained_executable}>")
 
   if(ARG_IS_MSVC)
     set(ipo "$<BOOL:$<TARGET_PROPERTY:INTERPROCEDURAL_OPTIMIZATION>>")
@@ -96,7 +97,10 @@ function(logsquirl_pgo_flags compile_out link_out)
     if(ARG_MODE STREQUAL "GENERATE")
       list(APPEND link "$<${ipo}:/GENPROFILE:PGD=${pgd}>")
     elseif(ARG_MODE STREQUAL "USE")
-      list(APPEND link "$<${ipo}:/USEPROFILE:PGD=${pgd}>")
+      # Each linked binary has a profile of its own, and only the trained
+      # executables have one: the USE link of any other, a micro-benchmark's,
+      # would fail on its missing .pgd (LNK1266, #730).
+      list(APPEND link "$<$<AND:${ipo},${trained_executable}>:/USEPROFILE:PGD=${pgd}>")
     endif()
   elseif(ARG_COMPILER_ID MATCHES "Clang")
     if(ARG_MODE STREQUAL "GENERATE")

@@ -119,7 +119,11 @@ set(_ipo "$<BOOL:$<TARGET_PROPERTY:INTERPROCEDURAL_OPTIMIZATION>>")
 expect_flags(compile "" MODE GENERATE ${_msvc})
 expect_flags(link "$<${_ipo}:/GENPROFILE:PGD=${D}/$<TARGET_PROPERTY:NAME>.pgd>" MODE GENERATE ${_msvc})
 expect_flags(compile "" MODE USE ${_msvc})
-expect_flags(link "$<${_ipo}:/USEPROFILE:PGD=${D}/$<TARGET_PROPERTY:NAME>.pgd>" MODE USE ${_msvc})
+# Only the trained executables have a .pgd to read: the link of any other
+# executable that LTCG covers, a micro-benchmark's, would fail on the missing
+# file (LNK1266, #730).
+set(_trained "$<IN_LIST:$<TARGET_PROPERTY:NAME>,logsquirl$<SEMICOLON>logsquirl_grep>")
+expect_flags(link "$<$<AND:${_ipo},${_trained}>:/USEPROFILE:PGD=${D}/$<TARGET_PROPERTY:NAME>.pgd>" MODE USE ${_msvc})
 
 # --- BOLT: relocations kept; GCC leaves the hot/cold split to BOLT ----------
 expect_flags(compile "-fno-reorder-blocks-and-partition" MODE OFF COMPILER_ID GNU IS_MSVC OFF DIRECTORY ${D} BOLT ON)

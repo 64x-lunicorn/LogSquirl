@@ -353,6 +353,51 @@ def test_quickfind_reports_the_latency_of_each_keystroke(isolated_gui, performan
     assert report["results"]["log_line_count"] == GENERATED_LOG_LINES
 
 
+def test_save_writes_the_matches_and_the_marks_of_the_filtered_view(isolated_gui, performance_log,
+                                                                    tmp_path):
+    marks = 50
+    run = run_benchmark(isolated_gui, "save", [performance_log], tmp_path / "report.json",
+                        options={"pattern": "slow response", "marks": str(marks)})
+
+    assert run.process.returncode == EXIT_PASSED, run.process.stdout + run.process.stderr
+    report = run.report
+    assert report is not None and report["scenario"] == "save"
+    events = [e["name"] for e in report["events"]]
+    assert events == ["marks_added", "saved", "marks_removed"]
+
+    # The Filtered View displays the WARN Log Lines, every 13th but the
+    # ERROR ones, and the Marks spread evenly over the Log File; a Mark on a
+    # Match adds nothing. Counted from how the generator numbers its Log Lines.
+    warnings = {n for n in range(GENERATED_LOG_LINES) if n % 13 == 0 and n % 101 != 0}
+    marked = {mark * GENERATED_LOG_LINES // marks for mark in range(marks)}
+    results = report["results"]
+    assert results["match_count"] == len(warnings)
+    assert results["mark_count"] == marks
+    assert results["saved_line_count"] == len(warnings | marked)
+    assert results["saved_bytes"] > 0
+    assert results["log_line_count"] == GENERATED_LOG_LINES
+
+
+def test_save_with_more_marks_than_log_lines_reports_why(isolated_gui, performance_log,
+                                                         tmp_path):
+    # Two Marks on one Log Line would remove each other.
+    run = run_benchmark(isolated_gui, "save", [performance_log], tmp_path / "report.json",
+                        options={"pattern": "slow response",
+                                 "marks": str(GENERATED_LOG_LINES + 1)})
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert "more than the" in run.report["failure"]
+
+
+def test_save_without_a_pattern_reports_why(isolated_gui, performance_log, tmp_path):
+    run = run_benchmark(isolated_gui, "save", [performance_log], tmp_path / "report.json")
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert "pattern" in run.report["failure"]
+
+
 # A short script: 20 line steps, 5 page steps and the jump to the end.
 SCROLL_SCRIPT = {"line_steps": "20", "page_steps": "5"}
 

@@ -632,6 +632,28 @@
   directory. The `bolt` action now installs `libbolt-18-dev`, and `pgo.py`
   instruments with the real `llvm-bolt`, beside which the runtime is. (#732)
 
+- **The PGO workflow reports Windows and Linux**: a Windows build with
+  `-DLOGSQUIRL_PGO=USE` failed to link its first micro-benchmark, as MSVC
+  looked for a profile of that executable, which only the trained executables
+  `logsquirl` and `logsquirl_grep` have (LNK1266). Their links alone read a
+  profile now, and the micro-benchmarks are built as without PGO, which on
+  Windows is what they get from it: MSVC optimizes each binary from its own
+  profile. On Linux, every benchmark ran, but the comparison could not write
+  its report into the results the build container had left read-only, so the
+  `pgo-report` said "Not measured" for Linux; the container leaves them
+  writable now. (#730)
+
+- **The benchmark mode saves the Filtered View, and the PGO training with
+  it**: the new scenario `save` searches a loaded Log File, marks 200 of its
+  Log Lines one at a time with the Text View's Mark action, saves the Filtered
+  View's Matches and Marks with *Save selected to file* and removes the Marks
+  again. The e2e performance suite times each step on the 100 MB Log File
+  (`gui_save_log_100mb_marks_added`, `_saved`, `_marks_removed`), and so the
+  training of a profile-guided build now runs Marks and saving displayed
+  lines, which no scenario reached before: under Clang, code the training
+  never runs is laid out as cold, and the micro-benchmark that saves displayed
+  lines was 45 % slower with the profile on macOS. (#730)
+
 - **A test shows a widget and waits until it is exposed, and CI rejects a new
   test that does not wait**: a test that measures painting or geometry right
   after `show()` reads what Qt defers until the window is exposed, and fails

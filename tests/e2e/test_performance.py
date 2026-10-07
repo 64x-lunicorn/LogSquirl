@@ -10,7 +10,9 @@ each frame of a scripted scroll took to paint in the Text View and the Table
 View (#669), how long a Log Line appended to a followed Log File took to be
 displayed and charted, how long a Session of several tabs took to restore
 (#670), and how long the UI thread's reads of a Log File took while it was
-indexed, with the wall and CPU time of the indexing (#686); the grep cases run
+indexed, with the wall and CPU time of the indexing (#686), and how long
+Marks took to set and remove and the Filtered View's Log Lines to save
+(#730); the grep cases run
 logsquirl_grep with a benchmark report and time its Search from the open of
 the Log File to the last match written. Neither
 contains the process startup or a fixed wait; the startup is a case of its own
@@ -793,6 +795,69 @@ def test_perf_gui_read_while_indexing(
 
 
 # ---------------------------------------------------------------------------
+# GUI: the benchmark mode's save scenario, Marks and the Filtered View saved
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SaveCase(ScenarioCase):
+    # The benchmarks are gui_save_<label>_marks_added, _saved and
+    # _marks_removed: the Marks set, the Filtered View's Log Lines saved after
+    # them, and the Marks removed after that. It is also what a profile-guided
+    # build trains Marks and saving on (#730).
+    SCENARIO: ClassVar[str] = "save"
+    TICKET: ClassVar[str] = "#730"
+
+    log_file: str  # in test_data/, generated
+    pattern: str
+    marks: int = 200
+    timeout: float = 900
+
+    def options(self) -> dict[str, str]:
+        return {"pattern": self.pattern, "marks": str(self.marks)}
+
+    def benchmark_names(self) -> set[str]:
+        return {f"{self.name}_marks_added", f"{self.name}_saved", f"{self.name}_marks_removed"}
+
+
+# "slow response" is in every WARN Log Line, one in 13: about 100,000 of the
+# 100 MB Log File, as many as the micro-benchmark saves.
+SAVE_CASES = [SaveCase("log_100mb", GENERATED_LOG_FILES["log_100mb"][0], "slow response")]
+
+
+@pytest.mark.performance
+@pytest.mark.parametrize("case", _cases(SAVE_CASES))
+def test_perf_gui_save(
+    case: SaveCase, isolated_gui_module, test_data_dir, tmp_path, baseline,
+    collected_results, bench_config, request,
+):
+    """The GUI marks Log Lines, saves the Filtered View's Log Lines and removes the Marks."""
+    filepath = _log_file(test_data_dir, case.log_file, case.generated)
+    report_path = tmp_path / "save.json"
+    added, saved, removed = (f"{case.name}_marks_added", f"{case.name}_saved",
+                             f"{case.name}_marks_removed")
+
+    def mark_and_save() -> dict[str, float]:
+        report = case.run(isolated_gui_module, [filepath], report_path)
+        assert report["results"]["saved_line_count"] >= report["results"]["match_count"] > 0
+        marked = seconds_since_scenario_start(report, "marks_added")
+        written = seconds_since_scenario_start(report, "saved")
+        return {added: marked, saved: written - marked,
+                removed: seconds_since_scenario_start(report, "marks_removed") - written}
+
+    results = measure_events(mark_and_save, **_runs(bench_config, False))
+    what = f"Searched for '{case.pattern}' in {case.log_file}, Search finished before"
+    results[added]["measures"] = (
+        f"{what}: {case.marks} Marks set, each with the Text View's Mark action"
+    )
+    results[saved]["measures"] = (
+        f"{what}: the Filtered View's Matches and Marks selected and saved to a file"
+    )
+    results[removed]["measures"] = f"{what}: the {case.marks} Marks removed again"
+    _record(results, collected_results, baseline, request)
+
+
+# ---------------------------------------------------------------------------
 # Startup: the one case timed around a whole process
 # ---------------------------------------------------------------------------
 
@@ -820,7 +885,7 @@ def all_benchmark_names() -> set[str]:
     for case in GUI_OPEN_CASES:
         names |= {f"{case.name}_first_line", f"{case.name}_indexed"}
     for case in [*SEARCH_CASES, *QUICKFIND_CASES, *SCROLL_CASES, *FOLLOW_CASES,
-                 *SESSION_RESTORE_CASES, *READ_WHILE_INDEXING_CASES]:
+                 *SESSION_RESTORE_CASES, *READ_WHILE_INDEXING_CASES, *SAVE_CASES]:
         names |= case.benchmark_names()
     names.add("gui_startup_version")
     return names
