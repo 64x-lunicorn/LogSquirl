@@ -74,6 +74,8 @@ jobs:
               # The app embeds it, and the website builds its Documentation
               # pages from it (#587).
               DOCUMENTATION.md) build=true; website=true ;;
+              # The Website job checks the lockfile with them (#772).
+              scripts/sbom/logsquirl_vulns.py | scripts/sbom/vuln-ignore.yml) build=true; website=true ;;
               BUILD.md | CODE_OF_CONDUCT.md | CONTRIBUTING.md | README.md | latest.json | .gitignore) ;;
               *) build=true ;;
             esac
@@ -966,6 +968,19 @@ jobs:
 
       - name: Install dependencies
         run: cd website && npm ci
+
+      # Scorecard counts every OSV advisory in the lockfile, and Dependabot
+      # only bumps the direct dependencies, so a transitive package with an
+      # advisory fails here, on the pull request that can fix it (#772).
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Check the lockfile for known vulnerabilities
+        run: |
+          pip install --require-hashes -r scripts/sbom/requirements.txt
+          python scripts/sbom/logsquirl_vulns.py lockfile \
+            --lockfile website/package-lock.json --ignore scripts/sbom/vuln-ignore.yml
 
       - name: Test the website's scripts
         run: cd website && npm test

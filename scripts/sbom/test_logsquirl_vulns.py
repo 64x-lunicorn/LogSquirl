@@ -380,6 +380,90 @@ def test_cli_tooling_errors_fail_even_when_not_gating(scan_inputs, capsys):
     assert "::error::" in capsys.readouterr().err
 
 
+# ── npm lockfile (#772) ─────────────────────────────────────────────────────
+
+
+def lockfile() -> dict:
+    return {"name": "site", "lockfileVersion": 3, "packages": {
+        "": {"name": "site", "version": "0.0.1", "dependencies": {"astro": "^7.3.0"}},
+        "node_modules/astro": {"version": "7.3.4"},
+        "node_modules/@img/sharp-darwin-arm64": {"version": "0.35.5", "optional": True},
+        "node_modules/postcss-nested/node_modules/postcss-selector-parser": {"version": "6.1.4"},
+        "node_modules/postcss-selector-parser": {"version": "7.1.6"},
+        "node_modules/astro/node_modules/postcss-selector-parser": {"version": "7.1.6"},
+        "node_modules/local-plugin": {"resolved": "plugins/local", "link": True},
+    }}
+
+
+def npm(name: str, version: str) -> str:
+    return key({"package": {"ecosystem": "npm", "name": name}, "version": version})
+
+
+def test_every_installed_npm_package_is_read_once_per_version():
+    assert sorted((p["name"], p["version"]) for p in vs.lockfile_packages(lockfile())) == [
+        ("@img/sharp-darwin-arm64", "0.35.5"),
+        ("astro", "7.3.4"),
+        ("postcss-selector-parser", "6.1.4"),
+        ("postcss-selector-parser", "7.1.6"),
+    ]
+
+
+def test_a_lockfile_before_version_2_is_a_tooling_error():
+    with pytest.raises(vs.VulnScanError, match="lockfileVersion"):
+        vs.lockfile_packages({"lockfileVersion": 1, "dependencies": {}})
+
+
+def test_the_website_lockfile_is_readable():
+    lock = json.loads((REPO / "website/package-lock.json").read_text())
+    assert any(p["name"] == "astro" for p in vs.lockfile_packages(lock))
+
+
+def test_npm_packages_are_asked_by_name_and_version():
+    fake = FakeOsv(
+        by_query={npm("postcss-selector-parser", "6.1.4"): [["GHSA-rj75-hqrm-r3gf"]]},
+        records={"GHSA-rj75-hqrm-r3gf": {
+            "id": "GHSA-rj75-hqrm-r3gf", "aliases": ["CVE-2026-104844"], "summary": "Quadratic selector parsing",
+            "database_specific": {"severity": "MODERATE"}}})
+    found = vs.scan_lockfile(lockfile(), fake)
+    assert [(f.ref, f.component, f.version, f.id, f.severity) for f in found] == [
+        ("pkg:npm/postcss-selector-parser@6.1.4", "postcss-selector-parser", "6.1.4", "GHSA-rj75-hqrm-r3gf",
+         "MEDIUM")]
+
+
+def run_lockfile_cli(tmp_path, ignore_text="ignore: []\n", http=None):
+    lock = tmp_path / "package-lock.json"
+    lock.write_text(json.dumps(lockfile()))
+    ignore = tmp_path / "vuln-ignore.yml"
+    ignore.write_text(ignore_text)
+    fake = http or FakeOsv(by_query={npm("astro", "7.3.4"): [["GHSA-aaaa-bbbb-cccc"]]},
+                           records={"GHSA-aaaa-bbbb-cccc": {"id": "GHSA-aaaa-bbbb-cccc", "summary": "XSS"}})
+    return vs.main(["lockfile", "--lockfile", str(lock), "--ignore", str(ignore)], http=fake, today=TODAY)
+
+
+def test_lockfile_cli_fails_on_any_advisory_whatever_its_severity(tmp_path, capsys):
+    assert run_lockfile_cli(tmp_path) == 1
+    out = capsys.readouterr().out
+    assert "::error::astro 7.3.4: GHSA-aaaa-bbbb-cccc" in out
+    assert "| UNKNOWN | astro 7.3.4 | GHSA-aaaa-bbbb-cccc |" in out
+
+
+def test_lockfile_cli_passes_when_the_advisory_is_ignored(tmp_path):
+    ignore = "ignore:\n  - {id: GHSA-aaaa-bbbb-cccc, component: astro, reason: no fix yet, expires: 2026-10-01}\n"
+    assert run_lockfile_cli(tmp_path, ignore) == 0
+
+
+def test_lockfile_cli_passes_without_advisories(tmp_path):
+    assert run_lockfile_cli(tmp_path, http=FakeOsv({}, {})) == 0
+
+
+def test_lockfile_cli_fails_as_a_tooling_error_when_osv_is_unreachable(tmp_path, capsys):
+    def broken(method, url, body):
+        raise OSError("timeout")
+
+    assert run_lockfile_cli(tmp_path, http=broken) == 2
+    assert "::error::" in capsys.readouterr().err
+
+
 # ── Qt advisories (#252) ────────────────────────────────────────────────────
 
 

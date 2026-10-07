@@ -36,6 +36,11 @@ ignore file (id, component, reason, expiry), written as one SARIF run for code
 scanning and, with ``--fail-on critical``, fail the scan when a critical
 finding is not ignored (``scan``).
 
+``lockfile`` checks an npm lockfile (the website's, #772) against OSV by
+package name and version, with the same ignore file, and fails on any
+advisory not ignored: nothing of the website ships, but Scorecard counts every
+one, and Dependabot only bumps the direct dependencies.
+
 Code scanning ignores the suppressions of an uploaded SARIF, so an accepted
 risk would still sit on the board as an open alert; ``dismiss`` reconciles the
 alerts with the ignore file after the upload (#415).
@@ -151,8 +156,12 @@ def _batch_ids(http: Http, queries: list[dict]) -> list[set[str]]:
 
 
 def scan_osv(bom: dict, http: Http) -> list[Finding]:
-    comps = {c["bom-ref"]: c for c in shipped_components(bom)}
-    queries = osv_queries(bom)
+    return _osv_findings({c["bom-ref"]: c for c in shipped_components(bom)}, osv_queries(bom), http)
+
+
+def _osv_findings(comps: dict[str, dict], queries: list[tuple[str, dict]], http: Http) -> list[Finding]:
+    """The findings of ``queries``, each asked for the component ``comps``
+    holds under its ref; every record is fetched once."""
     try:
         per_query = _batch_ids(http, [q for _, q in queries])
         records: dict[str, dict] = {}
@@ -181,6 +190,32 @@ def _osv_finding(comp: dict, record: dict) -> Finding:
                    aliases=frozenset(record.get("aliases", [])), severity=sev, score=score,
                    summary=record.get("summary") or _first_sentence(record.get("details", "")),
                    sources=frozenset({"osv"}))
+
+
+# ── npm lockfile (#772) ─────────────────────────────────────────────────────
+
+
+def lockfile_packages(lock: dict) -> list[dict]:
+    """Every package an npm lockfile installs, once per name and version, as
+    a component (bom-ref, name, version). The root project and linked local
+    packages are not from the registry, so OSV knows nothing about them."""
+    if not isinstance(lock.get("lockfileVersion"), int) or lock["lockfileVersion"] < 2:
+        raise VulnScanError("npm lockfile: lockfileVersion 2 or later expected, with its 'packages' map")
+    comps = {}
+    for path, entry in lock.get("packages", {}).items():
+        if not path or entry.get("link") or not entry.get("version"):
+            continue
+        name = entry.get("name") or path.rsplit("node_modules/", 1)[-1]
+        ref = f"pkg:npm/{name}@{entry['version']}"
+        comps[ref] = {"bom-ref": ref, "name": name, "version": entry["version"]}
+    return list(comps.values())
+
+
+def scan_lockfile(lock: dict, http: Http) -> list[Finding]:
+    comps = {c["bom-ref"]: c for c in lockfile_packages(lock)}
+    queries = [(ref, {"package": {"ecosystem": "npm", "name": c["name"]}, "version": c["version"]})
+               for ref, c in comps.items()]
+    return _osv_findings(comps, queries, http)
 
 
 def _first_sentence(text: str) -> str:
@@ -1001,6 +1036,42 @@ def _qt_page(saved: Path | None, fetch_page: Callable[[str], str]) -> str:
         raise VulnScanError(f"Qt advisory page could not be read: {e}") from e
 
 
+def _lockfile(args: argparse.Namespace, http: Http, today: _dt.date) -> int:
+    """Any advisory blocks, whatever its severity: Scorecard counts every one,
+    and nothing of the website ships, so updating is the only remedy (#772)."""
+    try:
+        try:
+            lock = json.loads(args.lockfile.read_text(encoding="utf-8"))
+            ignore_text = args.ignore.read_text(encoding="utf-8")
+        except (OSError, ValueError) as e:
+            raise VulnScanError(f"cannot read the scan input: {e}") from e
+        entries = parse_ignore_file(ignore_text)
+        packages = lockfile_packages(lock)
+        findings, ignore_warnings = apply_ignores(scan_lockfile(lock, http), entries, today)
+    except VulnScanError as e:
+        print(f"::error::{e}", file=sys.stderr)
+        return 2
+
+    for w in ignore_warnings:
+        print(f"::warning file={args.ignore}::{w}")
+    open_ = [f for f in findings if not f.suppressed]
+    lines = [f"### npm lockfile vulnerability scan (#772)", "",
+             f"{len(findings)} known vulnerabilities ({len(open_)} open, {len(findings) - len(open_)} ignored) "
+             f"in {len(packages)} packages of {args.lockfile}", ""]
+    if findings:
+        lines += _table(findings)
+    print("\n".join(lines))
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as out:
+            out.write("\n".join(lines) + "\n")
+    for f in open_:
+        print(f"::error::{f.component} {f.version}: {f.id} ({_url(f.id)}); update the package, with an npm "
+              "override when its parent pins it (BUILD.md, Dependency updates), or record an accepted risk in "
+              "scripts/sbom/vuln-ignore.yml")
+    return 1 if open_ else 0
+
+
 def _dismiss(args: argparse.Namespace, api: GitHubApi, today: _dt.date) -> int:
     """The ``dismiss`` command: the accepted risks of the ignore file, applied
     to the code scanning alerts the upload has just raised (#415)."""
@@ -1041,11 +1112,16 @@ def main(argv: list[str] | None = None, *, http: Http = urllib_http, nvd: NvdFet
     dismiss = sub.add_parser("dismiss", help="reconcile the code scanning alerts with the ignore file")
     dismiss.add_argument("--ignore", type=Path, required=True, help="accepted risks (vuln-ignore.yml)")
     dismiss.add_argument("--repo", required=True, help="owner/name of the repository to reconcile")
+    lock = sub.add_parser("lockfile", help="gate the known vulnerabilities of an npm lockfile (the website)")
+    lock.add_argument("--lockfile", type=Path, required=True, help="package-lock.json, lockfileVersion 2 or later")
+    lock.add_argument("--ignore", type=Path, required=True, help="accepted risks (vuln-ignore.yml)")
     args = parser.parse_args(argv)
     today = today or _dt.datetime.now(_dt.timezone.utc).date()
 
     if args.command == "dismiss":
         return _dismiss(args, api, today)
+    if args.command == "lockfile":
+        return _lockfile(args, http, today)
 
     try:
         try:
