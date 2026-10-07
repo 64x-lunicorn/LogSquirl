@@ -1,12 +1,15 @@
-# Accepted vulnerability risks of the components LogSquirl ships (#213).
+# Accepted vulnerability risks of the components LogSquirl ships (#213) and of
+# the website's npm packages (#772).
 #
 # scripts/sbom/logsquirl_vulns.py marks a finding as ignored while an entry
 # here matches it: no release failure for a critical one, and the daily scan
 # dismisses its code scanning alert with the reason below and reopens it once
-# the entry expires (#415). Every entry needs all four keys:
+# the entry expires (#415); for the website, no failure of CI's Website job.
+# Every entry needs all four keys:
 #
 #   id         CVE, GHSA or OSV id; aliases of a finding match too
-#   component  component name as in the SBOM (qt, openssl, zstd, ...)
+#   component  component name as in the SBOM (qt, openssl, zstd, ...), or the
+#              npm package name (postcss-selector-parser, @img/sharp-wasm32)
 #   reason     why the risk is accepted: not reachable, fix not released, ...
 #   expires    YYYY-MM-DD; after that day the entry stops suppressing the
 #              finding and the scan warns, so the decision is taken again

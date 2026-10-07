@@ -663,6 +663,13 @@
   `.github/scripts/check-shown-widget-wait.py` names the file and line of any
   `show()` under `tests/` that no checked wait follows. (#754, #758)
 
+- **CI checks the website's lockfile for known vulnerabilities**: twice a
+  transitive npm package of the website carried an advisory that only
+  Scorecard reported, without naming the package (#738, #768). CI's Website
+  job now asks OSV about every package in `website/package-lock.json` and
+  fails on any advisory not accepted in `scripts/sbom/vuln-ignore.yml`, naming
+  the package, its version and the advisory. (#772)
+
 # v26.10.0 (2026-09-29)
 
 The stable release of 26.10. It contains everything from

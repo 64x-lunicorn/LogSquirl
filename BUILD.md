@@ -1177,6 +1177,12 @@ throwaway directory that is deleted once Qt is in the image), `.github/requireme
 the `uv pip compile --generate-hashes --universal` command in its header; after editing a `.in` file, rerun that
 command. Renovate bumps the pins and reruns the command, and re-locks the dependencies below them once a month.
 
+**Website advisories.** CI's Website job checks every package in `website/package-lock.json` against OSV, the source
+Scorecard reads, and fails on any advisory (`scripts/sbom/logsquirl_vulns.py lockfile`, #772). Dependabot only bumps the
+direct dependencies, so a transitive package with an advisory is updated by hand: `npm update <package>` when its
+parent's range allows the fixed version, an override below when it does not. An advisory without a fix is recorded in
+`scripts/sbom/vuln-ignore.yml` under its npm package name.
+
 **Website npm overrides.** `website/package.json` cannot carry comments, so each entry of its `overrides` is listed
 here. Dependabot keeps an override when it updates the lockfile, but never proposes removing one.
 
