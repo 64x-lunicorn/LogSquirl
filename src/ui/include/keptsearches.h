@@ -117,7 +117,9 @@ public:
     // not run. Only the first Search may be shown so far, and an empty list
     // rebuilds nothing. Returns the Filtered Views of the Searches, in their
     // order; restoredSearchesFinished() tells once every one with a pattern
-    // has finished.
+    // has finished. One the Open Log File holds beyond the first load
+    // (OpenLogFile::holdWaitingSearches(), #779) has not, until it was
+    // released and ran, or is held no longer.
     std::vector<FilteredView*> restore( const Requested& saved );
 
 Q_SIGNALS:

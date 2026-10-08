@@ -193,9 +193,13 @@ std::vector<FilteredView*> KeptSearches::restore( const Requested& saved )
     }
 
     // A first load that does not succeed drops the Searches waiting for it,
-    // which stay idle: none of them tells of it.
+    // which stay idle: none of them tells of it. Nor does a held Search that
+    // is held no longer and does not run (#779).
     restoredRunConnections_.push_back(
         connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this,
+                 [ this ] { tellWhenRestoredSearchesFinished(); } ) );
+    restoredRunConnections_.push_back(
+        connect( openLogFile_.get(), &OpenLogFile::heldSearchesChanged, this,
                  [ this ] { tellWhenRestoredSearchesFinished(); } ) );
 
     // Told once the caller has had them: also when none runs.
@@ -215,11 +219,14 @@ void KeptSearches::tellWhenRestoredSearchesFinished()
         if ( !search ) {
             continue;
         }
-        // Idle: waiting for the first load, until it has finished; then
-        // dropped, as a load that did not succeed drops it.
+        // Idle: waiting for the first load, until it has finished, or held
+        // beyond it until released (#779); then dropped, as a load that did
+        // not succeed drops it.
         const auto phase = search->searchState().phase;
         if ( phase == SearchSessionPhase::Running
-             || ( phase == SearchSessionPhase::Idle && !openLogFile_->hasFirstLoadFinished() ) ) {
+             || ( phase == SearchSessionPhase::Idle
+                  && ( !openLogFile_->hasFirstLoadFinished()
+                       || openLogFile_->isSearchHeld( search ) ) ) ) {
             return;
         }
     }

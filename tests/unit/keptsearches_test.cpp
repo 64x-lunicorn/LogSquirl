@@ -555,6 +555,115 @@ SCENARIO( "The Searches a Session saved are dropped when the first load does not
                     REQUIRE( openLogFile->searchState().phase == SearchSessionPhase::Idle );
                 }
             }
+
+            WHEN( "they are held, and the load ends" )
+            {
+                openLogFile->holdWaitingSearches();
+                REQUIRE( waitUiState( [ & ] { return loaded.has_value(); }, 30000 ) );
+                REQUIRE( loaded == LoadingStatus::Interrupted );
+
+                THEN( "they are dropped as unheld ones are: neither runs, and the end is told" )
+                {
+                    REQUIRE( waitUiState( [ & ] { return finished; }, 5000 ) );
+                    REQUIRE_FALSE( openLogFile->isSearchHeld( openLogFile->filteredData() ) );
+                    REQUIRE( openLogFile->searchState().phase == SearchSessionPhase::Idle );
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "The Searches a Session saved, held beyond the first load, are told finished once "
+          "released and run",
+          "[keptsearches][session]" )
+{
+    QTemporaryFile file{ "keptsearches_test_XXXXXX" };
+    REQUIRE( file.open() );
+    for ( int line = 0; line < 100; ++line ) {
+        file.write( ( numberedLine( line ) + '\n' ).toUtf8() );
+    }
+    file.flush();
+
+    auto policies = testSettingsPolicies();
+    auto openLogFile = std::make_shared<OpenLogFile>(
+        policies.indexing, policies.search, policies.fileAccess, policies.decoding,
+        policies.recognition, std::make_shared<LogFormatCatalog>(), nullptr );
+    QuickFindPattern quickFindPattern;
+    ViewSet viewSet;
+    std::vector<std::unique_ptr<FilteredView>> views;
+    KeptSearches keptSearches{ openLogFile, viewSet, [ & ]( LogFilteredData* search ) {
+                                  views.push_back( std::make_unique<FilteredView>(
+                                      search, &quickFindPattern, false ) );
+                                  return views.back().get();
+                              } };
+    // Filtered Views read their Searches: they go first.
+    struct ViewsGoFirst {
+        std::vector<std::unique_ptr<FilteredView>>& views;
+        ~ViewsGoFirst()
+        {
+            views.clear();
+        }
+    } viewsGoFirst{ views };
+    keptSearches.showCurrentSearch();
+
+    bool finished = false;
+    QObject::connect( &keptSearches, &KeptSearches::restoredSearchesFinished,
+                      [ &finished ] { finished = true; } );
+
+    GIVEN( "two saved Searches restored and held before the first load, the second current" )
+    {
+        const KeptSearches::Requested saved{ { RegularExpressionPattern( "line 00001" ),
+                                               RegularExpressionPattern( "line 00002" ) },
+                                             1 };
+        const auto restored = keptSearches.restore( saved );
+        keptSearches.requestCurrent( saved.patterns[ 1 ] );
+        openLogFile->holdWaitingSearches();
+        const auto current = openLogFile->filteredData();
+
+        WHEN( "the Log File has loaded" )
+        {
+            openLogFile->open( file.fileName() );
+            REQUIRE( waitUiState( [ & ] { return openLogFile->hasFirstLoadFinished(); }, 30000 ) );
+
+            THEN( "neither runs, and the end is not told" )
+            {
+                REQUIRE_FALSE( waitUiState( [ & ] { return finished; }, 300 ) );
+                REQUIRE( current->searchState().phase == SearchSessionPhase::Idle );
+            }
+
+            AND_WHEN( "they are released" )
+            {
+                openLogFile->releaseHeldSearches();
+
+                THEN( "both run, and the end is told once they have finished" )
+                {
+                    REQUIRE( waitUiState( [ & ] { return finished; }, 30000 ) );
+                    REQUIRE( current->searchState().phase == SearchSessionPhase::Complete );
+                    REQUIRE( current->getNbMatches() == 10_lcount );
+                    keptSearches.makeCurrent( restored[ 0 ] );
+                    REQUIRE( openLogFile->searchState().phase == SearchSessionPhase::Complete );
+                    REQUIRE( openLogFile->matchCount() == 10_lcount );
+                }
+            }
+
+            AND_WHEN( "the user requests the current one" )
+            {
+                keptSearches.requestCurrent( RegularExpressionPattern( "line 00003" ) );
+
+                THEN( "it runs at once, and the end waits for the one still held" )
+                {
+                    REQUIRE( waitUiState(
+                        [ & ] {
+                            return current->searchState().phase == SearchSessionPhase::Complete;
+                        },
+                        30000 ) );
+                    REQUIRE( current->getNbMatches() == 10_lcount );
+                    REQUIRE_FALSE( waitUiState( [ & ] { return finished; }, 300 ) );
+
+                    openLogFile->releaseHeldSearches();
+                    REQUIRE( waitUiState( [ & ] { return finished; }, 30000 ) );
+                }
+            }
         }
     }
 }

@@ -1394,6 +1394,16 @@ SCENARIO( "Kept Searches requested while the Log File loads run once it has load
         }
     }
 
+    GIVEN( "a Search requested before the first load, nothing held" )
+    {
+        openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+
+        THEN( "it is not held" )
+        {
+            REQUIRE_FALSE( openLogFile.isSearchHeld( openLogFile.filteredData() ) );
+        }
+    }
+
     GIVEN( "a kept Search requested before the first load and dropped before it" )
     {
         std::weak_ptr<LogFilteredData> dropped;
@@ -1414,6 +1424,205 @@ SCENARIO( "Kept Searches requested while the Log File loads run once it has load
             }
         }
     }
+}
+
+SCENARIO( "The Searches waiting for the first load can be held beyond it until released",
+          "[openlogfile][pendingsearch][session]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "held.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    auto& openLogFile = logFile.openLogFile;
+
+    int heldChanges = 0;
+    QObject::connect( &openLogFile, &OpenLogFile::heldSearchesChanged,
+                      [ &heldChanges ] { ++heldChanges; } );
+
+    const auto settled = []( const std::shared_ptr<LogFilteredData>& search ) {
+        return waitUiState( [ & ] { return search->searchState().phase == Phase::Complete; },
+                            30000 );
+    };
+    // Long enough for a Search over 30 Log Lines to have run, had it started.
+    const auto staysIdle = []( const std::shared_ptr<LogFilteredData>& search ) {
+        return !waitUiState( [ & ] { return search->searchState().phase != Phase::Idle; }, 300 );
+    };
+
+    GIVEN( "three Searches, as a restored Session rebuilds them, the second one current, held" )
+    {
+        const auto fizz = openLogFile.filteredData();
+        const auto buzz = openLogFile.startAnotherSearch();
+        const auto line = openLogFile.startAnotherSearch();
+        openLogFile.makeSearchCurrent( buzz );
+        openLogFile.requestKeptSearch( fizz, RegularExpressionPattern( "fizz" ) );
+        openLogFile.requestKeptSearch( line, RegularExpressionPattern( "line 00001" ) );
+        openLogFile.requestSearch( RegularExpressionPattern( "buzz" ) );
+
+        openLogFile.holdWaitingSearches();
+
+        THEN( "each one is held" )
+        {
+            REQUIRE( openLogFile.isSearchHeld( fizz ) );
+            REQUIRE( openLogFile.isSearchHeld( buzz ) );
+            REQUIRE( openLogFile.isSearchHeld( line ) );
+        }
+
+        WHEN( "the Log File has loaded" )
+        {
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+            THEN( "none runs, and each one is still held" )
+            {
+                REQUIRE( staysIdle( fizz ) );
+                REQUIRE( staysIdle( buzz ) );
+                REQUIRE( staysIdle( line ) );
+                REQUIRE( openLogFile.isSearchHeld( fizz ) );
+                REQUIRE( openLogFile.isSearchHeld( buzz ) );
+                REQUIRE( openLogFile.isSearchHeld( line ) );
+            }
+
+            AND_WHEN( "they are released" )
+            {
+                heldChanges = 0;
+                openLogFile.releaseHeldSearches();
+
+                THEN( "every one runs over the whole Log File, the second one still current" )
+                {
+                    REQUIRE( heldChanges == 1 );
+                    REQUIRE( settled( fizz ) );
+                    REQUIRE( settled( buzz ) );
+                    REQUIRE( settled( line ) );
+                    REQUIRE( fizz->searchState().matchCount == fizzCount( FirstLineCount ) );
+                    REQUIRE( buzz->searchState().matchCount
+                             == LinesCount( FirstLineCount ) - fizzCount( FirstLineCount ) );
+                    REQUIRE( line->searchState().matchCount == 10_lcount );
+                    REQUIRE( openLogFile.filteredData() == buzz );
+                    REQUIRE( openLogFile.searchAutoRefresh().state()
+                             != AutoRefreshState::NoSearch );
+                    REQUIRE_FALSE( openLogFile.isSearchHeld( fizz ) );
+                    REQUIRE_FALSE( openLogFile.isSearchHeld( buzz ) );
+                    REQUIRE_FALSE( openLogFile.isSearchHeld( line ) );
+                }
+            }
+
+            AND_WHEN( "the user requests the current Search and one of the kept ones again" )
+            {
+                heldChanges = 0;
+                openLogFile.requestSearch( RegularExpressionPattern( "line 00002" ) );
+                openLogFile.requestKeptSearch( line, RegularExpressionPattern( "line 00001" ) );
+
+                THEN( "both run at once, the other kept one is still held" )
+                {
+                    REQUIRE( heldChanges == 2 );
+                    REQUIRE( settled( buzz ) );
+                    REQUIRE( settled( line ) );
+                    REQUIRE( buzz->searchState().matchCount == 10_lcount );
+                    REQUIRE( line->searchState().matchCount == 10_lcount );
+                    REQUIRE_FALSE( openLogFile.isSearchHeld( buzz ) );
+                    REQUIRE_FALSE( openLogFile.isSearchHeld( line ) );
+                    REQUIRE( staysIdle( fizz ) );
+                    REQUIRE( openLogFile.isSearchHeld( fizz ) );
+                }
+            }
+
+            AND_WHEN( "a held kept Search is made current, and they are released" )
+            {
+                openLogFile.makeSearchCurrent( fizz );
+                openLogFile.releaseHeldSearches();
+
+                THEN( "it runs as the current Search, and the one current before runs kept" )
+                {
+                    REQUIRE( settled( fizz ) );
+                    REQUIRE( settled( buzz ) );
+                    REQUIRE( openLogFile.filteredData() == fizz );
+                    REQUIRE( openLogFile.matchCount() == fizzCount( FirstLineCount ) );
+                    REQUIRE( openLogFile.searchAutoRefresh().state()
+                             != AutoRefreshState::NoSearch );
+                }
+            }
+
+            AND_WHEN( "the user clears the current Search" )
+            {
+                openLogFile.clearSearch();
+                openLogFile.releaseHeldSearches();
+
+                THEN( "it is held no longer and does not run when the others are released" )
+                {
+                    REQUIRE_FALSE( openLogFile.isSearchHeld( buzz ) );
+                    REQUIRE( settled( fizz ) );
+                    REQUIRE( staysIdle( buzz ) );
+                }
+            }
+        }
+    }
+
+    GIVEN( "a Search the user requests after the waiting ones were held, before the first load" )
+    {
+        const auto kept = openLogFile.filteredData();
+        const auto current = openLogFile.startAnotherSearch();
+        openLogFile.requestKeptSearch( kept, RegularExpressionPattern( "fizz" ) );
+        openLogFile.holdWaitingSearches();
+        openLogFile.requestSearch( RegularExpressionPattern( "buzz" ) );
+
+        WHEN( "the Log File has loaded" )
+        {
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+            THEN( "the user's Search runs, the held one waits" )
+            {
+                REQUIRE_FALSE( openLogFile.isSearchHeld( current ) );
+                REQUIRE( settled( current ) );
+                REQUIRE( openLogFile.isSearchHeld( kept ) );
+                REQUIRE( staysIdle( kept ) );
+            }
+        }
+    }
+
+    GIVEN( "a Search started after the waiting one was held, before the first load" )
+    {
+        const auto held = openLogFile.filteredData();
+        openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+        openLogFile.holdWaitingSearches();
+        const auto another = openLogFile.startAnotherSearch();
+
+        WHEN( "the Log File has loaded, and the held one is released" )
+        {
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+            REQUIRE( staysIdle( held ) );
+            REQUIRE( openLogFile.isSearchHeld( held ) );
+            openLogFile.releaseHeldSearches();
+
+            THEN( "it runs, kept beside the new current one" )
+            {
+                REQUIRE( settled( held ) );
+                REQUIRE( held->searchState().matchCount == fizzCount( FirstLineCount ) );
+                REQUIRE( openLogFile.filteredData() == another );
+                REQUIRE( another->searchState().phase == Phase::Idle );
+            }
+        }
+    }
+}
+
+SCENARIO( "Holding the waiting Searches after the first load holds nothing",
+          "[openlogfile][pendingsearch][session]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "loaded.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+    auto& openLogFile = logFile.openLogFile;
+
+    openLogFile.holdWaitingSearches();
+    openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+
+    REQUIRE_FALSE( openLogFile.isSearchHeld( openLogFile.filteredData() ) );
+    REQUIRE( logFile.waitSearchSettled() );
+    REQUIRE( logFile.searchState().matchCount == fizzCount( FirstLineCount ) );
 }
 
 namespace {
