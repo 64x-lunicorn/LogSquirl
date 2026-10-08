@@ -104,17 +104,18 @@ around a process and never with a fixed wait:
   are read from one clock, and a Python writer would add its own scheduling. Both latencies
   contain the file watch's (the native one by default): on macOS that is most of them.
 - **Session restore cases** (`gui_session_restore_*`, #670) run the `session-restore` scenario:
-  it generates a Session of one tab per Log File, each with 10 Marks and 3 Kept Searches, in
-  the run's own data location (never the instance's, which `test_benchmark_mode.py` checks),
-  and restores it as a start does. `_current_tab_usable` is the restore to the end of the first
-  paint of the tab in front that shows Log Lines after its Index finished; the window being
-  built is part of it.
+  it generates a Session of one tab per Log File, each with 10 Marks, in the run's own data
+  location (never the instance's, which `test_benchmark_mode.py` checks), and restores it as a
+  start does. `_current_tab_usable` is the restore to the end of the first paint of the tab in
+  front that shows Log Lines after its Index finished; the window being built is part of it.
   `_all_tabs_indexed` is the restore to the last tab's Index finished; restored tabs load one
-  after another behind the tab in front (#300). Each tab's Kept Searches run again once its Log
-  File has loaded (#704), beside the Indexes of the tabs still loading, so both benchmarks
-  include what they cost there; their numbers before #704 were of a restore without Searches.
-  The report's `all_tabs_restored` is the restore to the last of them finished. No benchmark
-  reads it: it has no baseline entry yet, and a case without one skips.
+  after another behind the tab in front (#300).
+  `small` and `log_220mb` save no Kept Searches (`searches=0`): their Budgets were derived from
+  a restore without them, and the Searches would spread the runs from about 1 % to 6 % on the
+  4-core runner. `log_220mb_kept_searches` saves 3 per tab, which run again once their Log
+  File has loaded (#704), beside the Indexes of the tabs still loading, so its two benchmarks
+  include what they cost there (#776); its `_all_tabs_restored` is the restore to the last of
+  them finished.
 - **Save cases** (`gui_save_*`, #730) run the `save` scenario: on the loaded Log File, a Search
   for `slow response` (the WARN Log Lines, about 100,000) runs to its end, unmeasured; then 200
   Log Lines spread over the Log File are marked one at a time with the Text View's Mark action,

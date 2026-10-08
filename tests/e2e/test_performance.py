@@ -651,20 +651,29 @@ def test_perf_gui_follow(
 class SessionRestoreCase:
     # The benchmarks are gui_session_restore_<label>_current_tab_usable, the
     # restore to the tab in front usable, and _all_tabs_indexed, to the Index
-    # of the last tab finished.
+    # of the last tab finished; with Kept Searches also _all_tabs_restored, to
+    # the last of them finished.
     label: str
     log_files: tuple[str, ...]  # in test_data/, a tab each, in order
     current: int
     description: str
     generated: bool = False
     timeout: float = 300
+    # Kept Searches saved with each tab, which run again beside the Indexes of
+    # the tabs still loading (#704). The cases without them measure what their
+    # Budgets were derived from, so their spread stays that of the restore
+    # alone (#776).
+    searches: int = 0
 
     @property
     def name(self) -> str:
         return f"gui_session_restore_{self.label}"
 
     def benchmark_names(self) -> set[str]:
-        return {f"{self.name}_current_tab_usable", f"{self.name}_all_tabs_indexed"}
+        names = {f"{self.name}_current_tab_usable", f"{self.name}_all_tabs_indexed"}
+        if self.searches:
+            names.add(f"{self.name}_all_tabs_restored")
+        return names
 
 
 SESSION_RESTORE_CASES = [
@@ -674,6 +683,10 @@ SESSION_RESTORE_CASES = [
     SessionRestoreCase("log_220mb", (SCROLL_ANSI_LOG_FILE, "generated_100Mb.log", SCROLL_LOG_FILE), 1,
                        "3 tabs of 20 to 100 MB, a 100 MB Log File in front", generated=True,
                        timeout=600),
+    SessionRestoreCase("log_220mb_kept_searches",
+                       (SCROLL_ANSI_LOG_FILE, "generated_100Mb.log", SCROLL_LOG_FILE), 1,
+                       "3 tabs of 20 to 100 MB, a 100 MB Log File in front, each with 3 Kept Searches",
+                       generated=True, timeout=600, searches=3),
 ]
 
 
@@ -687,19 +700,26 @@ def test_perf_gui_session_restore(
     log_files = [_log_file(test_data_dir, name, case.generated) for name in case.log_files]
     report_path = tmp_path / "session-restore.json"
     usable, indexed = f"{case.name}_current_tab_usable", f"{case.name}_all_tabs_indexed"
+    restored = f"{case.name}_all_tabs_restored"
 
     def restore() -> dict[str, float]:
         report = _scenario_report(isolated_gui_module, "session-restore", "#670", log_files,
-                                  report_path, options={"current": str(case.current)},
+                                  report_path, options={"current": str(case.current),
+                                                        "searches": str(case.searches)},
                                   timeout=case.timeout)
         assert report["results"]["tab_count"] == len(log_files)
-        return {usable: seconds_since_scenario_start(report, "current_tab_usable"),
-                indexed: seconds_since_scenario_start(report, "all_tabs_indexed")}
+        seconds = {usable: seconds_since_scenario_start(report, "current_tab_usable"),
+                   indexed: seconds_since_scenario_start(report, "all_tabs_indexed")}
+        if case.searches:
+            seconds[restored] = seconds_since_scenario_start(report, "all_tabs_restored")
+        return seconds
 
     results = measure_events(restore, **_runs(bench_config, large=case.generated))
     what = f"A Session of {case.description}, restored"
     results[usable]["measures"] = f"{what}: to the tab in front indexed and painted"
     results[indexed]["measures"] = f"{what}: to the Index of every tab finished"
+    if case.searches:
+        results[restored]["measures"] = f"{what}: to the last Kept Search of every tab finished"
     _record(results, collected_results, baseline, request)
 
 
