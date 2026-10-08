@@ -661,6 +661,15 @@
   is the head that was merged, and prints the commands that remove those; it
   deletes nothing itself. (#773)
 
+- **The session-restore Budgets measure the restore without Kept Searches,
+  and a case of its own measures them**: since #736 the scenario saved 3 Kept
+  Searches per tab, which run beside the Indexes of the tabs still loading,
+  and the nightly run reported `gui_session_restore_log_220mb_all_tabs_indexed`
+  at 0.32 s against its Budget of 0.26 s, which was derived without them. The
+  restore itself had not changed. The budgeted cases run without Kept
+  Searches again, and `gui_session_restore_log_220mb_kept_searches_*` measures
+  the restore with them, with Budgets of its own (ADR 0018). (#776)
+
 - **A test shows a widget and waits until it is exposed, and CI rejects a new
   test that does not wait**: a test that measures painting or geometry right
   after `show()` reads what Qt defers until the window is exposed, and fails

@@ -85,6 +85,8 @@ The earlier runs on `perf-data` (36336158447, 36408027284, 36956982426) predate 
 | session-restore | `gui_session_restore_small_all_tabs_indexed` | 3 tabs: 1 MB (in front), 1.5 MB and 512 KB random blocks | 162.8 ms / 144.8 ms / 149.9 ms | 210 ms | 29 % | 25 % |
 | session-restore | `gui_session_restore_log_220mb_current_tab_usable` | 3 tabs: 100 MB Log File (in front), 100 MB scroll Log File, 20 MB scroll Log File with ANSI colors | 161.3 ms / 151.6 ms / 152.3 ms | 210 ms | 30 % | 10 % |
 | session-restore | `gui_session_restore_log_220mb_all_tabs_indexed` | 3 tabs: 100 MB Log File (in front), 100 MB scroll Log File, 20 MB scroll Log File with ANSI colors | 201.1 ms / 191.4 ms / 190.9 ms | 260 ms | 29 % | 10 % |
+| session-restore | `gui_session_restore_log_220mb_kept_searches_current_tab_usable` ² | the same 3 tabs, 3 Kept Searches each | 184.8 ms / 178 ms / 188.2 ms | 240 ms | 28 % | 20 % |
+| session-restore | `gui_session_restore_log_220mb_kept_searches_all_tabs_indexed` ² | the same 3 tabs, 3 Kept Searches each | 328.5 ms / 318.6 ms / 322.3 ms | 420 ms | 28 % | 15 % |
 | read-while-indexing | `gui_read_while_indexing_log_100mb_nb_line_p50` | 100 MB Log File | 0 µs / 0 µs / 0 µs | 5 µs | – | 0 % |
 | read-while-indexing | `gui_read_while_indexing_log_100mb_line_string_p50` | 100 MB Log File | 20 µs / 18 µs / 19 µs | 25 µs | 25 % | 60 % |
 | read-while-indexing | `gui_read_while_indexing_log_100mb_line_string_p99` | 100 MB Log File | 34 µs / 32 µs / 30 µs | 43 µs | 26 % | 90 % |
@@ -98,6 +100,8 @@ The earlier runs on `perf-data` (36336158447, 36408027284, 36956982426) predate 
 | memory | `index_memory_per_million_log_lines` ¹ | 2 million Log Lines' positions, in memory | 3.24 MB | 4.10 MB | 26 % | 0 % |
 
 ¹ From the instruction counts of CI Build run [36961939625](https://github.com/64x-lunicorn/LogSquirl/actions/runs/36961939625) (ba28414b, `instruction-counts/after.json`): the peak heap of `logsquirl_linepositionarray_benchmark` / *append, line by line*, 6,489,088 bytes for 2 million Log Lines, per million. Counted under Valgrind, so it is deterministic and machine independent. It is the Index's line positions only. **Process memory per million Log Lines is not measured** by any scenario, so it has no Budget. A scenario that reports the resident memory after `open-and-index` would give it one.
+
+² Added by #776. #736 made the Session keep Kept Searches (#704) and the `session-restore` scenario save 3 per tab, which run again beside the Indexes of the tabs still loading. The two Budgets above it were derived from a restore without them; on the runner the Searches made `_all_tabs_indexed` 75 % slower and spread its runs from about 1 % to 6 %, without the restore itself changing (locally, master without Searches measured what e1543c7c did). So `small` and `log_220mb` run without Kept Searches and keep their Budgets, and the case with them has its own, derived the same way from the three nightly Performance runs that measured it under the old name: [37291185901](https://github.com/64x-lunicorn/LogSquirl/actions/runs/37291185901), [37442838466](https://github.com/64x-lunicorn/LogSquirl/actions/runs/37442838466) and [37599481111](https://github.com/64x-lunicorn/LogSquirl/actions/runs/37599481111), all on an EPYC 7763. Its `_all_tabs_restored` has no Budget until three runs have measured it.
 
 The frame Budgets are far below the 16.7 ms of a frame at 60 Hz, which the scroll scenario counts separately (*Frames Over Budget*). A Budget holds what was measured, not what would still be acceptable.
 

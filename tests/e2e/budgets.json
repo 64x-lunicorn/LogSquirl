@@ -58,6 +58,36 @@
       "tool": "Valgrind (deterministic), artifact instruction-counts/after.json",
       "date": "2026-10-02",
       "url": "https://github.com/64x-lunicorn/LogSquirl/actions/runs/36961939625"
+    },
+    "perf-37291185901": {
+      "workflow": "Performance",
+      "run": 37291185901,
+      "event": "schedule",
+      "commit": "6d65d530c5959d5020ab94d467f44516e5249a59",
+      "ref": "refs/heads/master",
+      "cpu": "AMD EPYC 7763",
+      "date": "2026-10-05",
+      "url": "https://github.com/64x-lunicorn/LogSquirl/actions/runs/37291185901"
+    },
+    "perf-37442838466": {
+      "workflow": "Performance",
+      "run": 37442838466,
+      "event": "schedule",
+      "commit": "c20d75261b5a65f84fe330ace57d9d226c08ec19",
+      "ref": "refs/heads/master",
+      "cpu": "AMD EPYC 7763",
+      "date": "2026-10-06",
+      "url": "https://github.com/64x-lunicorn/LogSquirl/actions/runs/37442838466"
+    },
+    "perf-37599481111": {
+      "workflow": "Performance",
+      "run": 37599481111,
+      "event": "schedule",
+      "commit": "3e634961231becc9ada40fae2e9b4a35bdcedce0",
+      "ref": "refs/heads/master",
+      "cpu": "AMD EPYC 7763",
+      "date": "2026-10-07",
+      "url": "https://github.com/64x-lunicorn/LogSquirl/actions/runs/37599481111"
     }
   },
   "budgets": {
@@ -818,6 +848,52 @@
         "bench-36938651506",
         "bench-36955768456",
         "perf-36962491329"
+      ]
+    },
+    "gui_session_restore_log_220mb_kept_searches_current_tab_usable": {
+      "scenario": "session-restore",
+      "file": "3 tabs: 100 MB Log File (in front), 100 MB scroll Log File, 20 MB scroll Log File with ANSI colors; 3 Kept Searches each",
+      "metric": "restore to the tab in front painted with its Index finished, each tab with 3 Kept Searches, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_session_restore_log_220mb_kept_searches_current_tab_usable",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.24,
+      "measured": {
+        "perf-37291185901": 0.18482203,
+        "perf-37442838466": 0.178031038,
+        "perf-37599481111": 0.188242507
+      },
+      "worst": 0.188242507,
+      "headroom_percent": 27.5,
+      "noise_margin_percent": 20,
+      "source": [
+        "perf-37291185901",
+        "perf-37442838466",
+        "perf-37599481111"
+      ]
+    },
+    "gui_session_restore_log_220mb_kept_searches_all_tabs_indexed": {
+      "scenario": "session-restore",
+      "file": "3 tabs: 100 MB Log File (in front), 100 MB scroll Log File, 20 MB scroll Log File with ANSI colors; 3 Kept Searches each",
+      "metric": "restore to every tab's Index finished, each tab with 3 Kept Searches, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_session_restore_log_220mb_kept_searches_all_tabs_indexed",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.42,
+      "measured": {
+        "perf-37291185901": 0.328460954,
+        "perf-37442838466": 0.3186193,
+        "perf-37599481111": 0.322253246
+      },
+      "worst": 0.328460954,
+      "headroom_percent": 27.9,
+      "noise_margin_percent": 15,
+      "source": [
+        "perf-37291185901",
+        "perf-37442838466",
+        "perf-37599481111"
       ]
     },
     "gui_read_while_indexing_log_100mb_nb_line_p50": {
