@@ -20,6 +20,7 @@
 #ifndef SESSION_H
 #define SESSION_H
 
+#include <cstdint>
 #include <deque>
 #include <functional>
 #include <memory>
@@ -428,6 +429,11 @@ private:
     // counts: a Log File growing or reloaded later holds nobody up.
     enum class FirstLoad { Queued, Loading, Finished };
 
+    // Where the Searches a restore rebuilt for a Log File stand (#780): held
+    // until no first load is queued or loading, then running, one Log File's
+    // at a time. None once they have finished, or when none were held.
+    enum class RestoredSearches { None, Held, Running };
+
     struct OpenFile {
         QString fileName;
         std::shared_ptr<OpenLogFile> openLogFile;
@@ -436,6 +442,9 @@ private:
         // one is saved with its archive and member.
         LogFileOrigin origin;
         FirstLoad firstLoad = FirstLoad::Queued;
+        // How many first loads the Session had started before this one's.
+        uint64_t firstLoadOrder = 0;
+        RestoredSearches restoredSearches = RestoredSearches::None;
         // Hears of the end of the first load; disconnected once it did.
         QMetaObject::Connection firstLoadFinished;
         // Hears a Log File with none attached yet ask to be loaded, because
@@ -450,6 +459,18 @@ private:
     // Starts the Log File first in the queue, if no first load is running
     // and the queue is not held.
     void startNextQueuedLoad();
+
+    // Holds the Searches the views of this restored Log File rebuilt, which
+    // wait for its first load, beyond it (#780): see releaseNextRestoredSearches().
+    void holdRestoredSearches( const ViewInterface* view );
+    // Once no first load is queued or loading, and the restored Searches of
+    // no Log File are running, releases those of the Log File whose first
+    // load started first: the tab in front's, which a restore loads first,
+    // then the others' one after another, in the order they loaded.
+    void releaseNextRestoredSearches();
+    // The views of openLogFile told that every Search they restored has
+    // finished, or none had a pattern to run.
+    void finishRestoredSearches( const OpenLogFile* openLogFile );
 
     void applySettingsChange();
     void applyFontChange();
@@ -499,6 +520,11 @@ private:
     // the queue: the current tab's has to start first, whatever its place in
     // the window.
     int queueHolds_ = 0;
+    // How many first loads were started.
+    uint64_t firstLoadsStarted_ = 0;
+    // Expires with the Session: the views, which may outlive it, tell it of
+    // their restored Searches only while it is there.
+    std::shared_ptr<const bool> alive_ = std::make_shared<const bool>( true );
 
     bool exitRequested_ = false;
 

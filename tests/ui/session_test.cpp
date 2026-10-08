@@ -101,6 +101,7 @@ SCENARIO( "A Log File's views are built from one value", "[ui][session]" )
             REQUIRE( build.savedSearches == &session.savedSearches() );
             REQUIRE( build.viewContext.isEmpty() );
             REQUIRE( build.changeReport );
+            REQUIRE( build.restoredSearchesReport );
         }
 
         THEN( "nothing is handed to them afterwards" )

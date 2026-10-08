@@ -283,6 +283,13 @@
   `all_tabs_restored`. As those Searches run beside the Indexes of the tabs
   still loading, the `gui_session_restore_*` benchmarks measure more than
   before and their numbers move. (#704)
+- **A restore runs its Kept Searches once every Log File has loaded, the tab
+  in front's first**: the Searches of a restored Session no longer run beside
+  the Indexes of the tabs still loading. Once the last Log File has loaded,
+  the tab in front's Searches run, then each other tab's once the tab before
+  has finished, in the order their Log Files loaded. The tab in front is
+  usable and every tab indexed as fast as in a restore without Searches; the
+  Searches of the tabs behind finish later. (#780)
 
 ## Bug fixes
 

@@ -3260,6 +3260,139 @@ SCENARIO( "A restored tab runs every Kept Search again once its Log File has loa
 
 namespace {
 
+// What a restored window's tabs did, in the order they did it: a first load
+// finished, the current Search started, or every restored Search finished.
+struct RestoreSteps {
+    enum class Step { Loaded, SearchStarted, SearchesFinished };
+    std::vector<CrawlerWidgetVisitor> tabs;
+    std::vector<std::pair<Step, int>> steps;
+
+    // Takes the tabs of the restored window, which it outlives.
+    explicit RestoreSteps( RestoredWindow& restored )
+        : tabs( restored.tabs.size() )
+    {
+        for ( auto tab = 0; tab < logsquirl::isize( tabs ); ++tab ) {
+            auto& visitor = tabs[ static_cast<size_t>( tab ) ];
+            visitor.crawler = std::move( restored.tabs[ static_cast<size_t>( tab ) ] );
+            QObject::connect( &visitor.openLogFile(), &OpenLogFile::loadingFinished,
+                              [ this, tab ] { once( Step::Loaded, tab ); } );
+            QObject::connect( &visitor.openLogFile(), &OpenLogFile::searchUpdated,
+                              [ this, tab ]( const SearchSessionState& state ) {
+                                  if ( state.phase != SearchSession::Phase::Idle ) {
+                                      once( Step::SearchStarted, tab );
+                                  }
+                              } );
+            QObject::connect( visitor.crawler.get(), &CrawlerWidget::restoredSearchesFinished,
+                              [ this, tab ] { once( Step::SearchesFinished, tab ); } );
+        }
+    }
+
+    // Where step was taken for tab, or -1.
+    int at( Step step, int tab ) const
+    {
+        const auto found = std::ranges::find( steps, std::pair{ step, tab } );
+        return found == steps.end() ? -1 : static_cast<int>( found - steps.begin() );
+    }
+
+    int count( Step step ) const
+    {
+        return static_cast<int>(
+            std::ranges::count_if( steps, [ step ]( const auto& s ) { return s.first == step; } ) );
+    }
+
+private:
+    void once( Step step, int tab )
+    {
+        if ( at( step, tab ) < 0 ) {
+            steps.emplace_back( step, tab );
+        }
+    }
+};
+
+} // namespace
+
+SCENARIO( "A restore runs its Kept Searches once every queued first load has finished, the tab "
+          "in front's first",
+          "[ui][session][keptsearches]" )
+{
+    using Step = RestoreSteps::Step;
+    const auto windowId = QStringLiteral( "crawlerwidget_test_window_780" );
+    QTemporaryFile first{ "crawler_test_first_XXXXXX" };
+    QTemporaryFile second{ "crawler_test_second_XXXXXX" };
+    QTemporaryFile front{ "crawler_test_front_XXXXXX" };
+    REQUIRE( generateDataFiles( first ) );
+    REQUIRE( generateDataFiles( second ) );
+    REQUIRE( generateDataFiles( front ) );
+
+    // Three Searches of ten Matches each, the second one current.
+    ViewState saved;
+    saved.searches
+        = { KeptSearchState{ .pattern = "line 00001" }, KeptSearchState{ .pattern = "line 00002" },
+            KeptSearchState{ .pattern = "line 00004" } };
+    saved.currentSearch = 1;
+    const auto context = encodeViewState( saved );
+
+    GIVEN( "three tabs with Kept Searches, the last one in front" )
+    {
+        RestoredWindow restored{ windowId,
+                                 { { first.fileName(), context },
+                                   { second.fileName(), context },
+                                   { front.fileName(), context } } };
+        RestoreSteps steps{ restored };
+        REQUIRE( waitUiState( [ & ] { return steps.count( Step::SearchesFinished ) == 3; } ) );
+
+        THEN( "the Log Files load as before: the tab in front first, then the others in order" )
+        {
+            REQUIRE( steps.at( Step::Loaded, 2 ) < steps.at( Step::Loaded, 0 ) );
+            REQUIRE( steps.at( Step::Loaded, 0 ) < steps.at( Step::Loaded, 1 ) );
+        }
+
+        THEN( "no Search starts before the last first load has finished" )
+        {
+            REQUIRE( steps.at( Step::Loaded, 1 ) >= 0 );
+            for ( auto tab = 0; tab < 3; ++tab ) {
+                REQUIRE( steps.at( Step::SearchStarted, tab ) > steps.at( Step::Loaded, 1 ) );
+            }
+        }
+
+        THEN( "the tab in front's Searches run first, then each tab's once the one before has "
+              "finished, in the order their Log Files loaded" )
+        {
+            REQUIRE( steps.at( Step::SearchStarted, 2 ) < steps.at( Step::SearchesFinished, 2 ) );
+            REQUIRE( steps.at( Step::SearchesFinished, 2 ) < steps.at( Step::SearchStarted, 0 ) );
+            REQUIRE( steps.at( Step::SearchesFinished, 0 ) < steps.at( Step::SearchStarted, 1 ) );
+        }
+
+        THEN( "every tab's Searches found their Matches" )
+        {
+            for ( auto& tab : steps.tabs ) {
+                REQUIRE( tab.openLogFile().matchCount() == 10_lcount );
+            }
+        }
+    }
+
+    GIVEN( "three tabs with Kept Searches, the first one's Log File gone" )
+    {
+        const auto gone = first.fileName();
+        first.remove();
+        RestoredWindow restored{
+            windowId,
+            { { gone, context }, { second.fileName(), context }, { front.fileName(), context } }
+        };
+        RestoreSteps steps{ restored };
+
+        THEN( "every tab tells its Searches finished, and the tab after the gone one runs its "
+              "own" )
+        {
+            REQUIRE( waitUiState( [ & ] { return steps.count( Step::SearchesFinished ) == 3; } ) );
+            REQUIRE( steps.at( Step::SearchStarted, 1 ) > steps.at( Step::SearchesFinished, 2 ) );
+            REQUIRE( steps.tabs[ 1 ].openLogFile().matchCount() == 10_lcount );
+        }
+    }
+}
+
+namespace {
+
 // Log Lines holding a word with quotes in it: 5 read alpha say "hi", 5 read
 // beta say "hi", and 10 read alpha say hi, without the quotes.
 bool generateQuotedWordFile( QTemporaryFile& file )

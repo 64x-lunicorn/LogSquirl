@@ -582,8 +582,10 @@ for each on the next start. The position is part of the view state: the Log Line
 view's Scroll Position, where the Log File stands again once its first load is done. So
 are the tab's Searches: every one its Kept Searches hold, in their order, with its pattern and
 how the Search Line read it, and which one is current. A restore rebuilds them, each in its
-Filtered View, and runs every one with a pattern again once the first load is done; their
-results are never saved.
+Filtered View, and runs every one with a pattern again once no first load the restore queued
+is waiting or loading any longer: the tab in front's first, then each other tab's once the
+tab before has finished its own, in the order their Log Files loaded. Their results are never
+saved.
 It builds the views of every Log File it opens in one call, from one value: the Open Log
 File, the QuickFind pattern, the Policies, the saved Searches and the view state to restore,
 if any — opening a Log File by hand and restoring it on start take the same path. After that

@@ -231,6 +231,9 @@ public:
     void releaseHeldSearches();
     // Whether search is held, waiting for releaseHeldSearches().
     bool isSearchHeld( const std::shared_ptr<LogFilteredData>& search ) const;
+    // Whether any Search is held, as a restored Session holds them until it
+    // releases them (#780).
+    bool holdsSearches() const;
 
     // Requests the current Search for pattern over the Search Limits. It
     // supersedes the Search before it; an invalid pattern leaves no Search

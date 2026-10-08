@@ -354,6 +354,16 @@ bool OpenLogFile::isSearchHeld( const std::shared_ptr<LogFilteredData>& search )
               } );
 }
 
+bool OpenLogFile::holdsSearches() const
+{
+    // A Search dropped since is not.
+    const auto alive = []( const std::weak_ptr<LogFilteredData>& held ) { return !held.expired(); };
+    return std::ranges::any_of( heldBeforeLoad_, alive )
+           || std::ranges::any_of( heldAfterLoad_, [ &alive ]( const WaitingSearch& held ) {
+                  return alive( held.search );
+              } );
+}
+
 void OpenLogFile::stopHolding( const std::shared_ptr<LogFilteredData>& search )
 {
     const auto erasedBeforeLoad = std::erase_if(
