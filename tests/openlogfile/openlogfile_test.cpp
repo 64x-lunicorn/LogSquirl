@@ -1438,7 +1438,7 @@ SCENARIO( "The Searches waiting for the first load can be held beyond it until r
     auto& openLogFile = logFile.openLogFile;
 
     int heldChanges = 0;
-    QObject::connect( &openLogFile, &OpenLogFile::heldSearchesChanged,
+    QObject::connect( &openLogFile, &OpenLogFile::searchesHeldNoLonger,
                       [ &heldChanges ] { ++heldChanges; } );
 
     const auto settled = []( const std::shared_ptr<LogFilteredData>& search ) {
@@ -1554,6 +1554,32 @@ SCENARIO( "The Searches waiting for the first load can be held beyond it until r
                     REQUIRE( settled( fizz ) );
                     REQUIRE( staysIdle( buzz ) );
                 }
+            }
+        }
+    }
+
+    GIVEN( "a waiting Search held and released again before the first load has finished" )
+    {
+        const auto search = openLogFile.filteredData();
+        openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+        openLogFile.holdWaitingSearches();
+        heldChanges = 0;
+        openLogFile.releaseHeldSearches();
+
+        THEN( "it is held no longer, which is told" )
+        {
+            REQUIRE( heldChanges == 1 );
+            REQUIRE_FALSE( openLogFile.isSearchHeld( search ) );
+        }
+
+        WHEN( "the Log File has loaded" )
+        {
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+            THEN( "it runs as though it was never held" )
+            {
+                REQUIRE( settled( search ) );
+                REQUIRE( search->searchState().matchCount == fizzCount( FirstLineCount ) );
             }
         }
     }

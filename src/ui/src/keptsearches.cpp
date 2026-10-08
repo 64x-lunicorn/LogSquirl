@@ -117,6 +117,15 @@ bool KeptSearches::drop( FilteredView* view )
     auto search = std::move( found->search );
     searches_.erase( found );
 
+    // A restored Search dropped has done its part in the restore, held or
+    // not (#779).
+    if ( std::erase_if( restoredRuns_,
+                        [ &search ]( const auto& run ) { return run.lock() == search; } )
+         > 0 ) {
+        QMetaObject::invokeMethod(
+            this, [ this ] { tellWhenRestoredSearchesFinished(); }, Qt::QueuedConnection );
+    }
+
     // The view reads the Search until it is gone.
     connect( view, &QObject::destroyed, [ keptUntilGone = std::move( search ) ]() {} );
     view->deleteLater();
@@ -199,7 +208,7 @@ std::vector<FilteredView*> KeptSearches::restore( const Requested& saved )
         connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this,
                  [ this ] { tellWhenRestoredSearchesFinished(); } ) );
     restoredRunConnections_.push_back(
-        connect( openLogFile_.get(), &OpenLogFile::heldSearchesChanged, this,
+        connect( openLogFile_.get(), &OpenLogFile::searchesHeldNoLonger, this,
                  [ this ] { tellWhenRestoredSearchesFinished(); } ) );
 
     // Told once the caller has had them: also when none runs.

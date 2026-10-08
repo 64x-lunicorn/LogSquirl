@@ -54,11 +54,15 @@ QString numberedLine( int line )
     return QStringLiteral( "this is line %1" ).arg( line, 6, 10, QChar( '0' ) );
 }
 
-// An Open Log File of 100 loaded Log Lines, its View Set and its Kept
-// Searches, whose Filtered Views nothing else owns.
+// An Open Log File of 100 Log Lines, its View Set and its Kept Searches,
+// whose Filtered Views nothing else owns.
 struct LogFile {
+    enum class Load { Now, Later };
+
     // Each Log Line reads as lineText says, by default "this is line 000042".
-    explicit LogFile( const std::function<QString( int )>& lineText = numberedLine )
+    // Loaded later, the Log File is not opened until load().
+    explicit LogFile( const std::function<QString( int )>& lineText = numberedLine,
+                      Load when = Load::Now )
     {
         REQUIRE( file.open() );
         for ( int line = 0; line < 100; ++line ) {
@@ -66,6 +70,13 @@ struct LogFile {
         }
         file.flush();
 
+        if ( when == Load::Now ) {
+            load();
+        }
+    }
+
+    void load()
+    {
         openLogFile->open( file.fileName() );
         REQUIRE( waitUiState(
             [ this ] { return openLogFile->logData()->getNbLine() == 100_lcount; }, 30000 ) );
@@ -574,36 +585,12 @@ SCENARIO( "The Searches a Session saved are dropped when the first load does not
 }
 
 SCENARIO( "The Searches a Session saved, held beyond the first load, are told finished once "
-          "released and run",
+          "released and run, or dropped",
           "[keptsearches][session]" )
 {
-    QTemporaryFile file{ "keptsearches_test_XXXXXX" };
-    REQUIRE( file.open() );
-    for ( int line = 0; line < 100; ++line ) {
-        file.write( ( numberedLine( line ) + '\n' ).toUtf8() );
-    }
-    file.flush();
-
-    auto policies = testSettingsPolicies();
-    auto openLogFile = std::make_shared<OpenLogFile>(
-        policies.indexing, policies.search, policies.fileAccess, policies.decoding,
-        policies.recognition, std::make_shared<LogFormatCatalog>(), nullptr );
-    QuickFindPattern quickFindPattern;
-    ViewSet viewSet;
-    std::vector<std::unique_ptr<FilteredView>> views;
-    KeptSearches keptSearches{ openLogFile, viewSet, [ & ]( LogFilteredData* search ) {
-                                  views.push_back( std::make_unique<FilteredView>(
-                                      search, &quickFindPattern, false ) );
-                                  return views.back().get();
-                              } };
-    // Filtered Views read their Searches: they go first.
-    struct ViewsGoFirst {
-        std::vector<std::unique_ptr<FilteredView>>& views;
-        ~ViewsGoFirst()
-        {
-            views.clear();
-        }
-    } viewsGoFirst{ views };
+    LogFile logFile( numberedLine, LogFile::Load::Later );
+    auto& keptSearches = logFile.keptSearches;
+    const auto& openLogFile = logFile.openLogFile;
     keptSearches.showCurrentSearch();
 
     bool finished = false;
@@ -622,8 +609,7 @@ SCENARIO( "The Searches a Session saved, held beyond the first load, are told fi
 
         WHEN( "the Log File has loaded" )
         {
-            openLogFile->open( file.fileName() );
-            REQUIRE( waitUiState( [ & ] { return openLogFile->hasFirstLoadFinished(); }, 30000 ) );
+            logFile.load();
 
             THEN( "neither runs, and the end is not told" )
             {
@@ -660,9 +646,24 @@ SCENARIO( "The Searches a Session saved, held beyond the first load, are told fi
                     REQUIRE( current->getNbMatches() == 10_lcount );
                     REQUIRE_FALSE( waitUiState( [ & ] { return finished; }, 300 ) );
 
-                    openLogFile->releaseHeldSearches();
-                    REQUIRE( waitUiState( [ & ] { return finished; }, 30000 ) );
+                    AND_THEN( "dropping the one still held tells the end, nothing released" )
+                    {
+                        REQUIRE( keptSearches.drop( restored[ 0 ] ) );
+                        REQUIRE( waitUiState( [ & ] { return finished; }, 5000 ) );
+                    }
                 }
+            }
+        }
+
+        WHEN( "they are released before the Log File has loaded" )
+        {
+            openLogFile->releaseHeldSearches();
+            logFile.load();
+
+            THEN( "both run once it has, and the end is told" )
+            {
+                REQUIRE( waitUiState( [ & ] { return finished; }, 30000 ) );
+                REQUIRE( current->getNbMatches() == 10_lcount );
             }
         }
     }

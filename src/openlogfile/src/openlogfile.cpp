@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <mutex>
+#include <tuple>
 #include <utility>
 
 namespace {
@@ -261,14 +262,12 @@ void OpenLogFile::makeSearchCurrent( std::shared_ptr<LogFilteredData> search )
             waitingKeptSearches_.begin(), waitingKeptSearches_.end(),
             [ this ]( const WaitingSearch& kept ) { return kept.search.lock() == filteredData_; } );
         if ( waiting != waitingKeptSearches_.end() ) {
-            const auto pattern = waiting->pattern;
+            // Requested as requestSearch() requests one before the first
+            // load, but held on when it was held: this is no request of the
+            // user's.
+            searchPattern_ = waiting->pattern;
             waitingKeptSearches_.erase( waiting );
-            // Held, it is held on: this is no request of the user's.
-            const auto held = stopHolding( filteredData_ );
-            requestSearch( pattern );
-            if ( held ) {
-                heldWaiting_.push_back( filteredData_ );
-            }
+            std::ignore = loadRule_.searchRequested();
         }
     }
 }
@@ -283,9 +282,7 @@ void OpenLogFile::requestKeptSearch( const std::shared_ptr<LogFilteredData>& sea
         requestSearch( pattern );
         return;
     }
-    if ( stopHolding( search ) ) {
-        Q_EMIT heldSearchesChanged();
-    }
+    stopHolding( search );
 
     // Requested again, it waits with the pattern requested last.
     std::erase_if( waitingKeptSearches_, [ &search ]( const WaitingSearch& kept ) {
@@ -305,18 +302,20 @@ void OpenLogFile::holdWaitingSearches()
     if ( loadRule_.hasLoadFinished() ) {
         return;
     }
-    heldWaiting_.clear();
+    heldBeforeLoad_.clear();
     if ( loadRule_.searchWaitsForLoad() ) {
-        heldWaiting_.push_back( filteredData_ );
+        heldBeforeLoad_.push_back( filteredData_ );
     }
     for ( const auto& waiting : waitingKeptSearches_ ) {
-        heldWaiting_.push_back( waiting.search );
+        heldBeforeLoad_.push_back( waiting.search );
     }
 }
 
 void OpenLogFile::releaseHeldSearches()
 {
-    const auto held = std::exchange( heldSearches_, {} );
+    // Before the first load they only wait for it, as any waiting Search.
+    const auto heldBeforeLoad = std::exchange( heldBeforeLoad_, {} );
+    const auto held = std::exchange( heldAfterLoad_, {} );
     for ( const auto& waiting : held ) {
         const auto search = waiting.search.lock();
         if ( !search ) {
@@ -329,31 +328,43 @@ void OpenLogFile::releaseHeldSearches()
             search->request( waiting.pattern, searchLimits_.start, searchLimits_.end );
         }
     }
-    if ( !held.empty() ) {
-        Q_EMIT heldSearchesChanged();
+    if ( !heldBeforeLoad.empty() || !held.empty() ) {
+        Q_EMIT searchesHeldNoLonger();
     }
 }
+
+namespace {
+// Whether held, one of a list of held Searches or Waiting Searches, is search.
+bool isOf( const std::weak_ptr<LogFilteredData>& held,
+           const std::shared_ptr<LogFilteredData>& search )
+{
+    return held.lock() == search;
+}
+} // namespace
 
 bool OpenLogFile::isSearchHeld( const std::shared_ptr<LogFilteredData>& search ) const
 {
     if ( !search ) {
         return false;
     }
-    return std::any_of( heldWaiting_.begin(), heldWaiting_.end(),
-                        [ &search ]( const auto& held ) { return held.lock() == search; } )
-           || std::any_of(
-               heldSearches_.begin(), heldSearches_.end(),
-               [ &search ]( const WaitingSearch& held ) { return held.search.lock() == search; } );
+    return std::ranges::any_of( heldBeforeLoad_,
+                                [ &search ]( const auto& held ) { return isOf( held, search ); } )
+           || std::ranges::any_of( heldAfterLoad_, [ &search ]( const WaitingSearch& held ) {
+                  return isOf( held.search, search );
+              } );
 }
 
-bool OpenLogFile::stopHolding( const std::shared_ptr<LogFilteredData>& search )
+void OpenLogFile::stopHolding( const std::shared_ptr<LogFilteredData>& search )
 {
-    const auto waiting = std::erase_if(
-        heldWaiting_, [ &search ]( const auto& held ) { return held.lock() == search; } );
-    const auto loaded = std::erase_if( heldSearches_, [ &search ]( const WaitingSearch& held ) {
-        return held.search.lock() == search;
-    } );
-    return waiting + loaded > 0;
+    const auto erasedBeforeLoad = std::erase_if(
+        heldBeforeLoad_, [ &search ]( const auto& held ) { return isOf( held, search ); } );
+    const auto erasedAfterLoad
+        = std::erase_if( heldAfterLoad_, [ &search ]( const WaitingSearch& held ) {
+              return isOf( held.search, search );
+          } );
+    if ( erasedBeforeLoad + erasedAfterLoad > 0 ) {
+        Q_EMIT searchesHeldNoLonger();
+    }
 }
 
 void OpenLogFile::keepWaitingSearch()
@@ -366,9 +377,7 @@ void OpenLogFile::keepWaitingSearch()
 SearchSessionState OpenLogFile::requestSearch( const RegularExpressionPattern& pattern )
 {
     searchPattern_ = pattern;
-    if ( stopHolding( filteredData_ ) ) {
-        Q_EMIT heldSearchesChanged();
-    }
+    stopHolding( filteredData_ );
 
     if ( loadRule_.searchRequested() ) {
         // Nothing to search yet: it runs over the Log Lines once they have
@@ -411,9 +420,7 @@ LinesCount OpenLogFile::displayedLineCount() const
 
 void OpenLogFile::clearSearch()
 {
-    if ( stopHolding( filteredData_ ) ) {
-        Q_EMIT heldSearchesChanged();
-    }
+    stopHolding( filteredData_ );
     loadRule_.searchCleared();
     filteredData_->request();
     autoRefresh_.resetState();
@@ -421,9 +428,7 @@ void OpenLogFile::clearSearch()
 
 void OpenLogFile::stopSearch()
 {
-    if ( stopHolding( filteredData_ ) ) {
-        Q_EMIT heldSearchesChanged();
-    }
+    stopHolding( filteredData_ );
     loadRule_.waitingSearchDropped();
     filteredData_->stop();
     autoRefresh_.stopSearch();
@@ -604,16 +609,16 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
 
     // The Searches held when they waited for this load wait on, until they
     // are released; a load that did not succeed drops them with the others.
-    const auto heldWaiting = std::exchange( heldWaiting_, {} );
-    const auto isHeld = [ &heldWaiting ]( const std::shared_ptr<LogFilteredData>& search ) {
-        return std::any_of( heldWaiting.begin(), heldWaiting.end(),
-                            [ &search ]( const auto& held ) { return held.lock() == search; } );
+    const auto heldBeforeLoad = std::exchange( heldBeforeLoad_, {} );
+    const auto isHeld = [ &heldBeforeLoad ]( const std::shared_ptr<LogFilteredData>& search ) {
+        return std::ranges::any_of(
+            heldBeforeLoad, [ &search ]( const auto& held ) { return isOf( held, search ); } );
     };
     const auto succeeded = status == LoadingStatus::Successful;
 
     if ( decision.runWaitingSearch ) {
         if ( succeeded && isHeld( filteredData_ ) ) {
-            heldSearches_.push_back( WaitingSearch{ filteredData_, searchPattern_ } );
+            heldAfterLoad_.push_back( WaitingSearch{ filteredData_, searchPattern_ } );
         }
         else {
             // The Search requested while the Log File loaded runs over the
@@ -629,14 +634,14 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
             continue;
         }
         if ( isHeld( search ) ) {
-            heldSearches_.push_back( waiting );
+            heldAfterLoad_.push_back( waiting );
         }
         else {
             search->request( waiting.pattern, searchLimits_.start, searchLimits_.end );
         }
     }
-    if ( !succeeded && !heldWaiting.empty() ) {
-        Q_EMIT heldSearchesChanged();
+    if ( !succeeded && !heldBeforeLoad.empty() ) {
+        Q_EMIT searchesHeldNoLonger();
     }
 
     if ( decision.recognizeFormat ) {
