@@ -73,6 +73,12 @@ struct ViewBuild {
     // open Log File, and not only this one. Empty when the views are not
     // opened through a Session.
     std::function<void( Changed )> changeReport;
+
+    // Whom the views tell, once, that every Search restored with viewContext
+    // has finished, or none had a pattern to run: the Session, which releases
+    // the Searches of a restore one tab after another (#780). Empty when
+    // nobody waits for them.
+    std::function<void()> restoredSearchesReport;
 };
 
 // What changed for the views of an open Log File, handed to them in one

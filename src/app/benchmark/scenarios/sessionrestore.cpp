@@ -26,8 +26,9 @@
 // reads it -- never the user's (a Benchmark Run, CONTEXT.md). Each tab is
 // saved with the view state a user leaves: marks Marks (on Log Lines 0, 10,
 // 20 ...), applied once its Log File has loaded, and searches Kept Searches
-// (#704), the last one current, each of which runs again once its Log File
-// has loaded. Their patterns are words a log often holds -- error, warn,
+// (#704), the last one current, which run again once every Log File has
+// loaded: the tab in front's first, then each other tab's in turn (#780).
+// Their patterns are words a log often holds -- error, warn,
 // info, debug, fatal, then again -- read as fixed strings, ignoring case. The
 // tab in front is the one at current.
 //

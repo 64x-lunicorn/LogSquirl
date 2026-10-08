@@ -1464,6 +1464,7 @@ SCENARIO( "The Searches waiting for the first load can be held beyond it until r
 
         THEN( "each one is held" )
         {
+            REQUIRE( openLogFile.holdsSearches() );
             REQUIRE( openLogFile.isSearchHeld( fizz ) );
             REQUIRE( openLogFile.isSearchHeld( buzz ) );
             REQUIRE( openLogFile.isSearchHeld( line ) );
@@ -1478,6 +1479,7 @@ SCENARIO( "The Searches waiting for the first load can be held beyond it until r
                 REQUIRE( staysIdle( fizz ) );
                 REQUIRE( staysIdle( buzz ) );
                 REQUIRE( staysIdle( line ) );
+                REQUIRE( openLogFile.holdsSearches() );
                 REQUIRE( openLogFile.isSearchHeld( fizz ) );
                 REQUIRE( openLogFile.isSearchHeld( buzz ) );
                 REQUIRE( openLogFile.isSearchHeld( line ) );
@@ -1504,6 +1506,7 @@ SCENARIO( "The Searches waiting for the first load can be held beyond it until r
                     REQUIRE_FALSE( openLogFile.isSearchHeld( fizz ) );
                     REQUIRE_FALSE( openLogFile.isSearchHeld( buzz ) );
                     REQUIRE_FALSE( openLogFile.isSearchHeld( line ) );
+                    REQUIRE_FALSE( openLogFile.holdsSearches() );
                 }
             }
 
@@ -1524,6 +1527,7 @@ SCENARIO( "The Searches waiting for the first load can be held beyond it until r
                     REQUIRE_FALSE( openLogFile.isSearchHeld( line ) );
                     REQUIRE( staysIdle( fizz ) );
                     REQUIRE( openLogFile.isSearchHeld( fizz ) );
+                    REQUIRE( openLogFile.holdsSearches() );
                 }
             }
 
@@ -1570,6 +1574,7 @@ SCENARIO( "The Searches waiting for the first load can be held beyond it until r
         {
             REQUIRE( heldChanges == 1 );
             REQUIRE_FALSE( openLogFile.isSearchHeld( search ) );
+            REQUIRE_FALSE( openLogFile.holdsSearches() );
         }
 
         WHEN( "the Log File has loaded" )
@@ -1647,6 +1652,7 @@ SCENARIO( "Holding the waiting Searches after the first load holds nothing",
     openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
 
     REQUIRE_FALSE( openLogFile.isSearchHeld( openLogFile.filteredData() ) );
+    REQUIRE_FALSE( openLogFile.holdsSearches() );
     REQUIRE( logFile.waitSearchSettled() );
     REQUIRE( logFile.searchState().matchCount == fizzCount( FirstLineCount ) );
 }

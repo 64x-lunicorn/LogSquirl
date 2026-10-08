@@ -112,10 +112,10 @@ around a process and never with a fixed wait:
   after another behind the tab in front (#300).
   `small` and `log_220mb` save no Kept Searches (`searches=0`): their Budgets were derived from
   a restore without them, and the Searches would spread the runs from about 1 % to 6 % on the
-  4-core runner. `log_220mb_kept_searches` saves 3 per tab, which run again once their Log
-  File has loaded (#704), beside the Indexes of the tabs still loading, so its two benchmarks
-  include what they cost there (#776); its `_all_tabs_restored` is the restore to the last of
-  them finished.
+  4-core runner. `log_220mb_kept_searches` saves 3 per tab (#704, #776), which run again once
+  every tab's Log File has loaded, the tab in front's first, then each other tab's in turn
+  (#780): its two budgeted benchmarks measure what a restore with Kept Searches leaves of them
+  before they run, and its `_all_tabs_restored` is the restore to the last of them finished.
 - **Save cases** (`gui_save_*`, #730) run the `save` scenario: on the loaded Log File, a Search
   for `slow response` (the WARN Log Lines, about 100,000) runs to its end, unmeasured; then 200
   Log Lines spread over the Log File are marked one at a time with the Text View's Mark action,

@@ -144,10 +144,26 @@ ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFa
         // What the views change themselves -- a Highlighter Set ticked in
         // their menu, a zoom -- comes back here, to reach every open Log File.
         .changeReport = [ this ]( Changed change ) { applyChange( change ); },
+        .restoredSearchesReport =
+            [ this, alive = std::weak_ptr<const bool>( alive_ ),
+              file = std::weak_ptr<OpenLogFile>( openLogFile ) ] {
+                const auto told = file.lock();
+                if ( !alive.expired() && told ) {
+                    finishRestoredSearches( told.get() );
+                }
+            },
     } );
 
     // Insert in the hash
-    OpenFile entry{ fileName, openLogFile, view, origin, FirstLoad::Queued, {}, {} };
+    OpenFile entry{ .fileName = fileName,
+                    .openLogFile = openLogFile,
+                    .view = view,
+                    .origin = origin,
+                    .firstLoad = FirstLoad::Queued,
+                    .firstLoadOrder = 0,
+                    .restoredSearches = RestoredSearches::None,
+                    .firstLoadFinished = {},
+                    .loadRequested = {} };
     auto& openFile = openFiles_.insert( { view, std::move( entry ) } ).first->second;
 
     // A Log File reloaded before it was ever loaded asks to be loaded, and
@@ -191,6 +207,7 @@ bool Session::isLoadQueued( const ViewInterface* view ) const
 void Session::startFirstLoad( OpenFile& file )
 {
     file.firstLoad = FirstLoad::Loading;
+    file.firstLoadOrder = firstLoadsStarted_++;
 
     // Bound to the Open Log File, which the views may keep beyond this
     // Session: the destructor and close() disconnect it first.
@@ -212,8 +229,9 @@ void Session::finishFirstLoad( const ViewInterface* view )
     it->second.firstLoad = FirstLoad::Finished;
 
     // Whether it loaded, failed or was interrupted, the next Log File in the
-    // queue has its turn.
+    // queue has its turn; after the last one, the restored Searches.
     startNextQueuedLoad();
+    releaseNextRestoredSearches();
 }
 
 void Session::startNextQueuedLoad()
@@ -234,6 +252,53 @@ void Session::startNextQueuedLoad()
     startFirstLoad( openFiles_.at( view ) );
 }
 
+void Session::holdRestoredSearches( const ViewInterface* view )
+{
+    auto& file = openFiles_.at( view );
+    file.openLogFile->holdWaitingSearches();
+    if ( file.openLogFile->holdsSearches() ) {
+        file.restoredSearches = RestoredSearches::Held;
+    }
+}
+
+void Session::releaseNextRestoredSearches()
+{
+    const auto holdsUp = []( const auto& open ) {
+        return open.second.firstLoad != FirstLoad::Finished
+               || open.second.restoredSearches == RestoredSearches::Running;
+    };
+    if ( std::ranges::any_of( openFiles_, holdsUp ) ) {
+        return;
+    }
+
+    OpenFile* next = nullptr;
+    for ( auto& [ view, file ] : openFiles_ ) {
+        Q_UNUSED( view );
+        if ( file.restoredSearches == RestoredSearches::Held
+             && ( !next || file.firstLoadOrder < next->firstLoadOrder ) ) {
+            next = &file;
+        }
+    }
+    if ( next ) {
+        next->restoredSearches = RestoredSearches::Running;
+        next->openLogFile->releaseHeldSearches();
+    }
+}
+
+void Session::finishRestoredSearches( const OpenLogFile* openLogFile )
+{
+    const auto it = std::ranges::find_if( openFiles_, [ openLogFile ]( const auto& open ) {
+        return open.second.openLogFile.get() == openLogFile;
+    } );
+    if ( it == openFiles_.end() ) {
+        return;
+    }
+    // Told while they were held still, the user dropped every one of them or
+    // asked for them again: none is left to release.
+    it->second.restoredSearches = RestoredSearches::None;
+    releaseNextRestoredSearches();
+}
+
 void Session::close( const ViewInterface* view )
 {
     const auto it = openFiles_.find( view );
@@ -244,8 +309,10 @@ void Session::close( const ViewInterface* view )
                             queuedLoads_.end() );
         openFiles_.erase( it );
 
-        // A Log File closed while it loaded no longer holds up the queue.
+        // A Log File closed while it loaded no longer holds up the queue, nor
+        // do its restored Searches the others'.
         startNextQueuedLoad();
+        releaseNextRestoredSearches();
     }
     else {
         LOG_WARNING << "Session::close: view not found in open files";
@@ -722,6 +789,7 @@ OpenedFilesList WindowSession::restore( const WindowSnapshot& snapshot,
                 file.fileName, viewFactory, file.viewContext,
                 i == currentFile ? Session::Loading::Now : Session::Loading::Queued,
                 LogFileOrigin::fromArchive( file.archiveMember ) );
+            appSession_->holdRestoredSearches( view );
             result.emplace_back( file.fileName, view );
             openedFiles_.emplace_back( file.fileName );
             if ( deferred ) {
@@ -775,6 +843,7 @@ WindowSession::openDeferred( int id, const QString& fileName, const ViewFactory&
         = appSession_->open( fileName, viewFactory, saved.viewContext,
                              opened.inFront ? Session::Loading::Now : Session::Loading::Queued,
                              LogFileOrigin::fromArchive( saved.archiveMember ) );
+    appSession_->holdRestoredSearches( opened.view );
     openedFiles_.push_back( fileName );
 
     slot->view = opened.view;

@@ -157,6 +157,10 @@ CrawlerWidget::CrawlerWidget( const ViewBuild& build, QWidget* parent )
 
     setup();
 
+    if ( build.restoredSearchesReport ) {
+        connect( &keptSearches_, &KeptSearches::restoredSearchesFinished, this,
+                 build.restoredSearchesReport );
+    }
     if ( !build.viewContext.isEmpty() ) {
         restoreViewContext( build.viewContext );
     }
