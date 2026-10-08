@@ -356,7 +356,7 @@ bool OpenLogFile::isSearchHeld( const std::shared_ptr<LogFilteredData>& search )
 
 bool OpenLogFile::holdsSearches() const
 {
-    // A Search dropped since is not.
+    // A Search dropped since it was held is held no longer.
     const auto alive = []( const std::weak_ptr<LogFilteredData>& held ) { return !held.expired(); };
     return std::ranges::any_of( heldBeforeLoad_, alive )
            || std::ranges::any_of( heldAfterLoad_, [ &alive ]( const WaitingSearch& held ) {

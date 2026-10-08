@@ -156,7 +156,7 @@ ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFa
 
     // Insert in the hash
     OpenFile entry{
-        fileName, openLogFile, view, origin, FirstLoad::Queued, 0, RestoredSearches::None, {}, {}
+        .fileName = fileName, .openLogFile = openLogFile, .view = view, .origin = origin
     };
     auto& openFile = openFiles_.insert( { view, std::move( entry ) } ).first->second;
 
@@ -287,7 +287,8 @@ void Session::finishRestoredSearches( const OpenLogFile* openLogFile )
     if ( it == openFiles_.end() ) {
         return;
     }
-    // Held still, they were all dropped or asked for again by the user.
+    // Told while they were held still, the user dropped every one of them or
+    // asked for them again: none is left to release.
     it->second.restoredSearches = RestoredSearches::None;
     releaseNextRestoredSearches();
 }

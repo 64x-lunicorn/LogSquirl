@@ -3262,18 +3262,23 @@ namespace {
 
 // What a restored window's tabs did, in the order they did it: a first load
 // finished, the current Search started, or every restored Search finished.
+// With each step, which tabs still held their Searches then: a held Search,
+// current or kept, has not started (#779).
 struct RestoreSteps {
     enum class Step { Loaded, SearchStarted, SearchesFinished };
     std::vector<CrawlerWidgetVisitor> tabs;
     std::vector<std::pair<Step, int>> steps;
+    std::vector<std::vector<bool>> holding;
 
-    // Takes the tabs of the restored window, which it outlives.
+    // Takes over the tabs of the restored window, and lets them go before it
+    // goes: declared after it.
     explicit RestoreSteps( RestoredWindow& restored )
         : tabs( restored.tabs.size() )
     {
         for ( auto tab = 0; tab < logsquirl::isize( tabs ); ++tab ) {
-            auto& visitor = tabs[ static_cast<size_t>( tab ) ];
-            visitor.crawler = std::move( restored.tabs[ static_cast<size_t>( tab ) ] );
+            const auto index = static_cast<size_t>( tab );
+            auto& visitor = tabs[ index ];
+            visitor.crawler = std::move( restored.tabs[ index ] );
             QObject::connect( &visitor.openLogFile(), &OpenLogFile::loadingFinished,
                               [ this, tab ] { once( Step::Loaded, tab ); } );
             QObject::connect( &visitor.openLogFile(), &OpenLogFile::searchUpdated,
@@ -3294,6 +3299,14 @@ struct RestoreSteps {
         return found == steps.end() ? -1 : static_cast<int>( found - steps.begin() );
     }
 
+    // Whether tab still held its Searches when step was taken for tab `taken`.
+    bool heldAt( Step step, int taken, int tab ) const
+    {
+        const auto index = at( step, taken );
+        REQUIRE( index >= 0 );
+        return holding[ static_cast<size_t>( index ) ][ static_cast<size_t>( tab ) ];
+    }
+
     int count( Step step ) const
     {
         return static_cast<int>(
@@ -3305,6 +3318,10 @@ private:
     {
         if ( at( step, tab ) < 0 ) {
             steps.emplace_back( step, tab );
+            auto& held = holding.emplace_back();
+            for ( auto& visitor : tabs ) {
+                held.push_back( visitor.openLogFile().holdsSearches() );
+            }
         }
     }
 };
@@ -3343,14 +3360,15 @@ SCENARIO( "A restore runs its Kept Searches once every queued first load has fin
 
         THEN( "the Log Files load as before: the tab in front first, then the others in order" )
         {
+            REQUIRE( steps.at( Step::Loaded, 2 ) >= 0 );
             REQUIRE( steps.at( Step::Loaded, 2 ) < steps.at( Step::Loaded, 0 ) );
             REQUIRE( steps.at( Step::Loaded, 0 ) < steps.at( Step::Loaded, 1 ) );
         }
 
         THEN( "no Search starts before the last first load has finished" )
         {
-            REQUIRE( steps.at( Step::Loaded, 1 ) >= 0 );
             for ( auto tab = 0; tab < 3; ++tab ) {
+                REQUIRE( steps.heldAt( Step::Loaded, 1, tab ) );
                 REQUIRE( steps.at( Step::SearchStarted, tab ) > steps.at( Step::Loaded, 1 ) );
             }
         }
@@ -3358,9 +3376,15 @@ SCENARIO( "A restore runs its Kept Searches once every queued first load has fin
         THEN( "the tab in front's Searches run first, then each tab's once the one before has "
               "finished, in the order their Log Files loaded" )
         {
+            REQUIRE( steps.at( Step::SearchStarted, 2 ) >= 0 );
             REQUIRE( steps.at( Step::SearchStarted, 2 ) < steps.at( Step::SearchesFinished, 2 ) );
             REQUIRE( steps.at( Step::SearchesFinished, 2 ) < steps.at( Step::SearchStarted, 0 ) );
             REQUIRE( steps.at( Step::SearchesFinished, 0 ) < steps.at( Step::SearchStarted, 1 ) );
+            // The kept ones too: those of the tabs behind are held still.
+            REQUIRE( steps.heldAt( Step::SearchStarted, 2, 0 ) );
+            REQUIRE( steps.heldAt( Step::SearchStarted, 2, 1 ) );
+            REQUIRE( steps.heldAt( Step::SearchStarted, 0, 1 ) );
+            REQUIRE( steps.heldAt( Step::SearchesFinished, 0, 1 ) );
         }
 
         THEN( "every tab's Searches found their Matches" )
@@ -3385,6 +3409,7 @@ SCENARIO( "A restore runs its Kept Searches once every queued first load has fin
               "own" )
         {
             REQUIRE( waitUiState( [ & ] { return steps.count( Step::SearchesFinished ) == 3; } ) );
+            REQUIRE( steps.at( Step::SearchesFinished, 2 ) >= 0 );
             REQUIRE( steps.at( Step::SearchStarted, 1 ) > steps.at( Step::SearchesFinished, 2 ) );
             REQUIRE( steps.tabs[ 1 ].openLogFile().matchCount() == 10_lcount );
         }

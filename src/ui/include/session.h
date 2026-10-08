@@ -523,7 +523,8 @@ private:
     // How many first loads were started.
     uint64_t firstLoadsStarted_ = 0;
     // Expires with the Session: the views, which may outlive it, tell it of
-    // their restored Searches only while it is there.
+    // their restored Searches only while it is there. Not weak_from_this():
+    // a Session need not be owned by a shared_ptr.
     std::shared_ptr<const bool> alive_ = std::make_shared<const bool>( true );
 
     bool exitRequested_ = false;
