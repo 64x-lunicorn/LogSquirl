@@ -1,5 +1,5 @@
-<!-- Allow GitHub's presentation markup and a logo before the main heading. -->
-<!-- markdownlint-configure-file {"MD033": {"allowed_elements": ["div", "img"]}, "MD041": false} -->
+<!-- Allow GitHub's presentation markup, a logo before the main heading, and collapsible sections. -->
+<!-- markdownlint-configure-file {"MD033": {"allowed_elements": ["div", "img", "details", "summary", "b", "a"]}, "MD041": false} -->
 
 <div align="center">
 
@@ -23,7 +23,8 @@ Search huge files, follow live logs, and turn noisy output into something you ca
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/64x-lunicorn/LogSquirl/badge)](https://scorecard.dev/viewer/?uri=github.com/64x-lunicorn/LogSquirl)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](COPYING)
 
-[Why LogSquirl?](#why-logsquirl) · [Get started](#get-started) · [Features](#features) · [Plugins](#plugins) · [Contribute](#contributing)
+[Why LogSquirl?](#why-logsquirl) · [Get started](#get-started) · [Features](#features) · [Plugins](#plugins) ·
+[Building](#building) · [Help](#how-to-get-help) · [Contributing](#contributing) · [About](#about-the-project)
 
 </div>
 
@@ -48,30 +49,45 @@ without losing the context.
 
 ## Get started
 
-### 1. Grab your build
+### 1. Install LogSquirl
 
 **[Download the latest release](https://github.com/64x-lunicorn/LogSquirl/releases/latest)**
-and choose the package for your platform.
+and choose the package for your platform, or add a package source and let your system keep it up to date.
 
-| Windows | macOS | Linux |
+| Platform | Download | Package source |
 | :--- | :--- | :--- |
-| NSIS installer | DMG (Apple Silicon) | AppImage, DEB, or RPM |
+| Windows | NSIS installer | – |
+| macOS (Apple Silicon, macOS 15+) | DMG | Homebrew |
+| Ubuntu 24.04 (amd64) | DEB or AppImage | APT repository |
+| Fedora 44, Oracle Linux 10 | RPM or AppImage | DNF repository |
+| Other Linux | AppImage | – |
 
-The Windows installer also installs silently for all users with `/S` (`/D=<dir>` as the last argument sets the
-directory), for deployment through Intune or similar tools; the
-[user guide](https://logsquirl.lunicorn-lab.de/docs/getting-started/#installing) says what it installs and how to detect it.
+The DEB and RPM packages use your distribution's Qt and install only when it is at least the Qt
+version LogSquirl was built with; on other distributions, use the AppImage, which brings its own Qt.
+There is no build for Intel Macs. The release notes have the package details and platform requirements.
 
-On a Mac, you can also install it with [Homebrew](https://brew.sh/) and keep it up to date with
-`brew upgrade`:
+<details>
+<summary><b>Windows:</b> deploy the installer silently (Intune and similar tools)</summary>
+
+The installer installs silently for all users with `/S`; `/D=<dir>` as the last argument sets the
+directory. The [user guide](https://logsquirl.lunicorn-lab.de/docs/getting-started/#installing) says
+what it installs and how to detect it.
+
+</details>
+
+<details>
+<summary><b>macOS:</b> install with <a href="https://brew.sh/">Homebrew</a></summary>
 
 ```sh
 brew install --cask 64x-lunicorn/tap/logsquirl
 ```
 
-The macOS build needs Apple Silicon and macOS 15 or later; there is no build for Intel Macs.
+Later releases arrive with `brew upgrade`.
 
-On Ubuntu 24.04 (amd64), you can also add the LogSquirl APT repository once and keep LogSquirl up to date
-with `apt upgrade`:
+</details>
+
+<details>
+<summary><b>Ubuntu 24.04:</b> add the APT repository</summary>
 
 ```sh
 sudo install -d -m 0755 /etc/apt/keyrings
@@ -81,36 +97,40 @@ sudo apt update
 sudo apt install logsquirl
 ```
 
-The repository holds the last three stable releases, signed with the key
-`51ABA6432D0407ED62E8EC403169E5DF85C9A3A3`; it has no betas.
+Later releases arrive with `apt upgrade`. The repository holds the last three stable releases and no
+betas, signed with the key `51ABA6432D0407ED62E8EC403169E5DF85C9A3A3`.
 
-On Fedora 44 and Oracle Linux 10, add the LogSquirl DNF repository once and keep LogSquirl up to date with
-`dnf upgrade`:
+</details>
+
+<details>
+<summary><b>Fedora 44 and Oracle Linux 10:</b> add the DNF repository</summary>
 
 ```sh
 sudo curl -fsSL https://packages.lunicorn-lab.de/logsquirl-fedora.repo -o /etc/yum.repos.d/logsquirl.repo
 sudo dnf install logsquirl
 ```
 
-On Oracle Linux 10 (and EL10 clones), fetch `logsquirl-el10.repo` instead of `logsquirl-fedora.repo`. Updates arrive
-with `sudo dnf upgrade`. The Fedora package is built against Fedora 44 and supported there only; a newer Fedora that
-changes its Qt may need a newer LogSquirl build, so use the AppImage until then. The repositories hold the last three
+On Oracle Linux 10 (and EL10 clones), fetch `logsquirl-el10.repo` instead of `logsquirl-fedora.repo`.
+Later releases arrive with `sudo dnf upgrade`.
+
+The Fedora package is built against Fedora 44 and supported there only; a newer Fedora that changes its
+Qt may need a newer LogSquirl build, so use the AppImage until then. The repositories hold the last three
 stable releases and no betas. The repository metadata is signed with the key
-`51ABA6432D0407ED62E8EC403169E5DF85C9A3A3` (`repo_gpgcheck=1`); the RPMs themselves are unsigned, exactly the
-release assets, and dnf verifies them through the signed metadata.
+`51ABA6432D0407ED62E8EC403169E5DF85C9A3A3` (`repo_gpgcheck=1`); the RPMs themselves are unsigned,
+exactly the release assets, and dnf verifies them through the signed metadata.
 
-See the release notes for package details and platform requirements. The DEB and
-RPM packages use your distribution's Qt and install only when it is at least the Qt
-version LogSquirl was built with; on other distributions, use the AppImage, which
-brings its own Qt.
+</details>
 
-Want to be sure a download is genuine? Every release has a
-`logsquirl-<version>-sha256.txt` checksum file signed with Sigstore, and every
+<details>
+<summary><b>Any platform:</b> verify that a download is genuine</summary>
+
+Every release has a `logsquirl-<version>-sha256.txt` checksum file signed with Sigstore, and every
 asset carries a GitHub build provenance attestation. The CycloneDX SBOM
-`logsquirl-<version>-sbom.cdx.json` lists the third-party components a release
-contains. The **Verifying downloads**
-section of the release notes has the `cosign verify-blob`, `sha256sum -c` and
-`gh attestation verify` commands.
+`logsquirl-<version>-sbom.cdx.json` lists the third-party components a release contains.
+The **Verifying downloads** section of the release notes has the `cosign verify-blob`,
+`sha256sum -c` and `gh attestation verify` commands.
+
+</details>
 
 ### 2. Find your first clue
 
@@ -125,24 +145,17 @@ The [user guide](https://logsquirl.lunicorn-lab.de/docs/) covers filters, charts
 
 ## Features
 
-### Fast where it matters
-
-Multi-threaded, SIMD-optimized search. Persistent index caching for reopening files.
-Automatic encoding detection. Direct support for `.gz`, `.bz2`, `.xz`, `.zst`, `.lz4`,
-and tarballs.
-Master is measured every night against its own history and Budgets; the
-[performance trend](https://logsquirl.lunicorn-lab.de/performance/) shows each scenario over time.
-
-### Make the important parts stand out
-
-Save and group filters, pin them across sessions, and switch between color highlighter sets.
-Browse supported formats as structured tables, or chart values and jump from a data point
-straight to its log line. Reuse chart templates and share presets as JSON.
-
-### Keep your investigation in one place
-
-Dark mode, configurable shortcuts, and a Command Palette (`Ctrl+Shift+P`) for quick access.
-A Scratchpad for notes, data transformations, and JWT decoding.
+- **Fast where it matters.** Multi-threaded, SIMD-optimized search. Persistent index caching for
+  reopening files. Automatic encoding detection. Direct support for `.gz`, `.bz2`, `.xz`, `.zst`,
+  `.lz4`, and tarballs. Master is measured every night against its own history and budgets; the
+  [performance trend](https://logsquirl.lunicorn-lab.de/performance/) shows each scenario over time.
+- **Make the important parts stand out.** Save and group filters, pin them across sessions, and
+  switch between color highlighter sets. Browse supported formats as structured tables, or chart
+  values and jump from a data point straight to its log line. Reuse chart templates and share
+  presets as JSON.
+- **Keep your investigation in one place.** Dark mode, configurable shortcuts, and a Command
+  Palette (`Ctrl+Shift+P`) for quick access. A Scratchpad for notes, data transformations, and
+  JWT decoding.
 
 **Go deeper:** [Log formats](https://logsquirl.lunicorn-lab.de/docs/exploring-log-files/#auto-log-format-detection-table-view) ·
 [Chart Panel](https://logsquirl.lunicorn-lab.de/docs/exploring-log-files/#chart-panel) · [Full user guide](https://logsquirl.lunicorn-lab.de/docs/)
@@ -171,7 +184,6 @@ plugins.
 
 LogSquirl is built with **C++23** and **Qt6**, using **CMake** and
 [CPM](https://github.com/cpm-cmake/CPM.cmake) for dependency management.
-
 You will need a C++23 compiler (GCC 13+, Clang 17+, or MSVC 19.36+), Qt 6.5+,
 and CMake 3.16+, along with the platform-specific dependencies.
 
@@ -206,6 +218,9 @@ Free code signing provided by [SignPath.io](https://signpath.io), certificate by
 ([#445](https://github.com/64x-lunicorn/LogSquirl/issues/445)). Until it is in place, the
 Windows releases are not signed.
 
+<details>
+<summary>What is signed, and who approves a release</summary>
+
 What is signed: `logsquirl.exe`, `logsquirl_portable.exe`, `logsquirl_grep.exe` and the
 Windows installer, built by this repository's GitHub Actions workflows and never on a
 developer's computer. The components LogSquirl ships but does not develop (Qt, OpenSSL,
@@ -219,7 +234,9 @@ Team roles:
 - **Approvers:** [64x-lunicorn](https://github.com/64x-lunicorn). A release is signed only
   after an approver has approved its signing request.
 
-Privacy: LogSquirl checks for updates on its own when it starts, at most once a week (at
+</details>
+
+**Privacy:** LogSquirl checks for updates on its own when it starts, at most once a week (at
 every start with beta updates on), with a request that carries nothing about you; the
 Windows installer and the Options turn it off. Crash reports are sent
 only if you agree, for each crash. Nothing else is sent unless you ask for it. See the
@@ -229,13 +246,12 @@ only if you agree, for each crash. Nothing else is sent unless you ask for it. S
 
 LogSquirl is a fork of [klogg](https://github.com/variar/klogg), which itself started as a fork of
 [glogg](https://github.com/nickbnf/glogg) - the fast, smart log explorer.
-
 Since the original klogg project is no longer actively maintained, LogSquirl continues
 development under a new name, building on the excellent foundation laid by both glogg and klogg.
-
 LogSquirl is standing on the shoulders of giants.
 
-### Differences from klogg
+<details>
+<summary><b>Differences from klogg</b></summary>
 
 klogg's last stable release is 22.06, from June 2022. LogSquirl picks up from
 there and should still feel like klogg: open, search, filter, follow. New
@@ -264,7 +280,10 @@ capabilities are meant to come as optional plugins, so you choose what you add.
 
 The [changelog](CHANGELOG.md) has the details.
 
-### Acknowledgements
+</details>
+
+<details>
+<summary><b>Acknowledgements and license</b></summary>
 
 **[LogSquirl](https://github.com/64x-lunicorn/LogSquirl)** is built by
 [64x-Lunicorn](https://github.com/64x-lunicorn) on the work of:
@@ -276,10 +295,10 @@ The [changelog](CHANGELOG.md) has the details.
 
 See [NOTICE](NOTICE) for third-party components and their licenses.
 
-### License
-
-Free and open source under the **GNU General Public License v3.0 or later**.
+LogSquirl is free and open source under the **GNU General Public License v3.0 or later**.
 See [COPYING](COPYING) for the full license.
+
+</details>
 
 ---
 
