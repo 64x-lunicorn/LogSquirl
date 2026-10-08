@@ -287,9 +287,10 @@
   in front's first**: the Searches of a restored Session no longer run beside
   the Indexes of the tabs still loading. Once the last Log File has loaded,
   the tab in front's Searches run, then each other tab's once the tab before
-  has finished, in the order their Log Files loaded. The tab in front is
-  usable and every tab indexed as fast as in a restore without Searches; the
-  Searches of the tabs behind finish later. (#780)
+  has finished, in the order their Log Files loaded. On the 4-core runner a
+  restore of three tabs of 20 to 100 MB with 3 Kept Searches each has every
+  tab indexed in 0.21 s instead of 0.33 s and the tab in front usable in
+  0.17 s instead of 0.19 s; the last Search finishes about 10 ms later. (#780)
 
 ## Bug fixes
 
