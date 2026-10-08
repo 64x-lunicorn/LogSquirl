@@ -584,8 +584,12 @@ are the tab's Searches: every one its Kept Searches hold, in their order, with i
 how the Search Line read it, and which one is current. A restore rebuilds them, each in its
 Filtered View, and runs every one with a pattern again once no first load the restore queued
 is waiting or loading any longer: the tab in front's first, then each other tab's once the
-tab before has finished its own, in the order their Log Files loaded. Their results are never
-saved.
+tab before has finished its own, in the order their Log Files were queued. What the user does
+meanwhile comes first: a tab they activate loads at once and runs its Searches as soon as it
+has loaded, a Search they start runs at once, and a closed tab's waiting Searches are dropped.
+A Session File opened into a new window, and a Log File from an archive opened after the
+restore, join that order as the restore at start does; a Log File opened by hand waits for
+nothing but its own first load. Their results are never saved.
 It builds the views of every Log File it opens in one call, from one value: the Open Log
 File, the QuickFind pattern, the Policies, the saved Searches and the view state to restore,
 if any — opening a Log File by hand and restoring it on start take the same path. After that

@@ -272,6 +272,15 @@ public:
     // (#332).
     void startLoading( const ViewInterface* view );
 
+    // The user brought the tab of these views to the front (#781): its Log
+    // File loads now if it was still queued, as startLoading() does, and the
+    // Searches a restore rebuilt for it and still holds run at once -- once
+    // its first load has finished, when that is still under way -- ahead of
+    // every tab whose Searches wait still. Those of another tab already
+    // running run on beside them; the tabs still waiting wait for both.
+    // Nothing for a tab whose Searches are not held.
+    void activate( const ViewInterface* view );
+
     // Whether the Log File of these views is still waiting in the queue for
     // its first load, as a restored tab that is not the current one does
     // until its turn comes or its tab is activated (#300). False for a Log
@@ -442,9 +451,12 @@ private:
         // one is saved with its archive and member.
         LogFileOrigin origin;
         FirstLoad firstLoad = FirstLoad::Queued;
-        // How many first loads the Session had started before this one's.
-        uint64_t firstLoadOrder = 0;
         RestoredSearches restoredSearches = RestoredSearches::None;
+        // Where its held Searches stand among every Log File's: the lowest
+        // runs first. A tab in front is below every tab behind, the latest
+        // put in front lowest; the tabs behind follow in the order they were
+        // held, which is the order their first loads were queued.
+        int64_t restoredSearchOrder = 0;
         // Hears of the end of the first load; disconnected once it did.
         QMetaObject::Connection firstLoadFinished;
         // Hears a Log File with none attached yet ask to be loaded, because
@@ -461,12 +473,15 @@ private:
     void startNextQueuedLoad();
 
     // Holds the Searches the views of this restored Log File rebuilt, which
-    // wait for its first load, beyond it (#780): see releaseNextRestoredSearches().
-    void holdRestoredSearches( const ViewInterface* view );
+    // wait for its first load, beyond it (#780): see
+    // releaseNextRestoredSearches(). A Log File restored in front goes ahead
+    // of every one held before it; one restored behind goes after them.
+    enum class Restored { InFront, Behind };
+    void holdRestoredSearches( const ViewInterface* view, Restored restored );
     // Once no first load is queued or loading, and the restored Searches of
-    // no Log File are running, releases those of the Log File whose first
-    // load started first: the tab in front's, which a restore loads first,
-    // then the others' one after another, in the order they loaded.
+    // no Log File are running, releases those of the Log File lowest in the
+    // order: the tab in front's, then the others' one after another, in the
+    // order their first loads were queued, which is the order they loaded.
     void releaseNextRestoredSearches();
     // The views of openLogFile told that every Search they restored has
     // finished, or none had a pattern to run.
@@ -520,8 +535,11 @@ private:
     // the queue: the current tab's has to start first, whatever its place in
     // the window.
     int queueHolds_ = 0;
-    // How many first loads were started.
-    uint64_t firstLoadsStarted_ = 0;
+    // How many Log Files were held behind, and how many in front: the next
+    // one held behind goes after every one before it, the next one in front
+    // ahead of every one before it (see OpenFile::restoredSearchOrder).
+    int64_t heldBehind_ = 0;
+    int64_t heldInFront_ = 0;
     // Expires with the Session: the views, which may outlive it, tell it of
     // their restored Searches only while it is there. Not weak_from_this():
     // a Session need not be owned by a shared_ptr.
@@ -795,6 +813,14 @@ public:
     void startLoading( const ViewInterface* view )
     {
         appSession_->startLoading( view );
+    }
+
+    // The user brought this tab to the front: its Log File loads now if it
+    // was still queued, and its restored Searches run at once (#781). See
+    // the Session's own.
+    void activate( const ViewInterface* view )
+    {
+        appSession_->activate( view );
     }
 
     // Get the geometry string from persistent storage for this session.

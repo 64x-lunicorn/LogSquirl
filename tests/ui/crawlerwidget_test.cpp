@@ -269,6 +269,13 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         }
     }
 
+    // The click alone: the Search starts, and nothing is waited for.
+    void clickSearch()
+    {
+        QTest::mouseClick( SearchLineAccess::searchButton( *crawler->searchLine_ ),
+                           Qt::LeftButton );
+    }
+
     void runSearch()
     {
         QTest::mouseClick( SearchLineAccess::searchButton( *crawler->searchLine_ ),
@@ -3022,23 +3029,58 @@ struct RestoredWindow {
     std::unique_ptr<WindowSession> window;
     std::vector<std::unique_ptr<CrawlerWidget>> tabs;
 
+    // The Log Files from an archive the restore left to be decompressed
+    // (#610); none unless asked for.
+    std::vector<WindowSession::DeferredArchiveFile> deferred;
+
     // Restores the window with these Log Files and view contexts, the last one
     // its current tab.
     RestoredWindow( const QString& windowId,
                     const std::vector<std::pair<QString, QString>>& openFiles )
+        : RestoredWindow( windowId, toOpenFiles( openFiles ), -1, false )
+    {
+        REQUIRE( tabs.size() == openFiles.size() );
+    }
+
+    // Restores the window with these stored Log Files, the one at currentFile
+    // in front; with deferArchives, those from an archive are left to
+    // openDeferred().
+    RestoredWindow( const QString& windowId, const std::vector<SessionInfo::OpenFile>& openFiles,
+                    int currentFile, bool deferArchives )
         : appSession( std::make_shared<Session>( testSettingsPolicies(),
                                                  std::make_shared<LogFormatCatalog>() ) )
-        , stored( windowId, toOpenFiles( openFiles ) )
+        , stored( windowId, openFiles, currentFile )
     {
         window = std::make_unique<WindowSession>( appSession, windowId, 0 );
         int currentFileIndex = -1;
-        window->restore(
-            [ this ]( const ViewBuild& build ) {
-                tabs.emplace_back( new CrawlerWidget( build ) );
-                return tabs.back().get();
-            },
-            &currentFileIndex );
-        REQUIRE( tabs.size() == openFiles.size() );
+        window->restore( factory(), &currentFileIndex, {}, deferArchives ? &deferred : nullptr );
+    }
+
+    // Opens the deferred Log File `id`, decompressed to fileName, among the
+    // tabs open now with `current` in front, as the window does (#610).
+    WindowSession::DeferredOpen openDeferred( int id, const QString& fileName,
+                                              const ViewInterface* current )
+    {
+        std::vector<const ViewInterface*> open;
+        for ( const auto& tab : tabs ) {
+            open.push_back( tab.get() );
+        }
+        return window->openDeferred( id, fileName, factory(), open, current );
+    }
+
+    // Opens a Log File by hand, as the window does: with the view context
+    // stored for it, if any.
+    ViewInterface* open( const QString& fileName )
+    {
+        return window->open( fileName, factory() );
+    }
+
+    ViewFactory factory()
+    {
+        return [ this ]( const ViewBuild& build ) {
+            tabs.emplace_back( new CrawlerWidget( build ) );
+            return tabs.back().get();
+        };
     }
 
     ~RestoredWindow()
@@ -3269,16 +3311,18 @@ struct RestoreSteps {
     std::vector<CrawlerWidgetVisitor> tabs;
     std::vector<std::pair<Step, int>> steps;
     std::vector<std::vector<bool>> holding;
+    // What the user does at a step, right as it is recorded (#781).
+    std::function<void( Step, int )> onStep;
 
-    // Takes over the tabs of the restored window, and lets them go before it
+    // Takes over these tabs of a restored window, and lets them go before it
     // goes: declared after it.
-    explicit RestoreSteps( RestoredWindow& restored )
-        : tabs( restored.tabs.size() )
+    explicit RestoreSteps( std::vector<std::unique_ptr<CrawlerWidget>>& restoredTabs )
+        : tabs( restoredTabs.size() )
     {
         for ( auto tab = 0; tab < logsquirl::isize( tabs ); ++tab ) {
             const auto index = static_cast<size_t>( tab );
             auto& visitor = tabs[ index ];
-            visitor.crawler = std::move( restored.tabs[ index ] );
+            visitor.crawler = std::move( restoredTabs[ index ] );
             QObject::connect( &visitor.openLogFile(), &OpenLogFile::loadingFinished,
                               [ this, tab ] { once( Step::Loaded, tab ); } );
             QObject::connect( &visitor.openLogFile(), &OpenLogFile::searchUpdated,
@@ -3313,6 +3357,14 @@ struct RestoreSteps {
             std::ranges::count_if( steps, [ step ]( const auto& s ) { return s.first == step; } ) );
     }
 
+    // Closes this tab in the window: its Log File and views are gone.
+    void close( WindowSession& window, int tab )
+    {
+        auto& crawler = tabs[ static_cast<size_t>( tab ) ].crawler;
+        window.close( crawler.get() );
+        crawler.reset();
+    }
+
 private:
     void once( Step step, int tab )
     {
@@ -3320,7 +3372,11 @@ private:
             steps.emplace_back( step, tab );
             auto& held = holding.emplace_back();
             for ( auto& visitor : tabs ) {
-                held.push_back( visitor.openLogFile().holdsSearches() );
+                // A closed tab holds nothing.
+                held.push_back( visitor.crawler && visitor.openLogFile().holdsSearches() );
+            }
+            if ( onStep ) {
+                onStep( step, tab );
             }
         }
     }
@@ -3355,7 +3411,7 @@ SCENARIO( "A restore runs its Kept Searches once every queued first load has fin
                                  { { first.fileName(), context },
                                    { second.fileName(), context },
                                    { front.fileName(), context } } };
-        RestoreSteps steps{ restored };
+        RestoreSteps steps{ restored.tabs };
         REQUIRE( waitUiState( [ & ] { return steps.count( Step::SearchesFinished ) == 3; } ) );
 
         THEN( "the Log Files load as before: the tab in front first, then the others in order" )
@@ -3403,7 +3459,7 @@ SCENARIO( "A restore runs its Kept Searches once every queued first load has fin
             windowId,
             { { gone, context }, { second.fileName(), context }, { front.fileName(), context } }
         };
-        RestoreSteps steps{ restored };
+        RestoreSteps steps{ restored.tabs };
 
         THEN( "every tab tells its Searches finished, and the tab after the gone one runs its "
               "own" )
@@ -3412,6 +3468,312 @@ SCENARIO( "A restore runs its Kept Searches once every queued first load has fin
             REQUIRE( steps.at( Step::SearchesFinished, 2 ) >= 0 );
             REQUIRE( steps.at( Step::SearchStarted, 1 ) > steps.at( Step::SearchesFinished, 2 ) );
             REQUIRE( steps.tabs[ 1 ].openLogFile().matchCount() == 10_lcount );
+        }
+    }
+}
+
+SCENARIO( "What the user does during a restore runs ahead of the Kept Searches it holds",
+          "[ui][session][keptsearches]" )
+{
+    using Step = RestoreSteps::Step;
+    const auto windowId = QStringLiteral( "crawlerwidget_test_window_781" );
+    QTemporaryFile first{ "crawler_test_first_XXXXXX" };
+    QTemporaryFile second{ "crawler_test_second_XXXXXX" };
+    QTemporaryFile front{ "crawler_test_front_XXXXXX" };
+    REQUIRE( generateDataFiles( first ) );
+    REQUIRE( generateDataFiles( second ) );
+    REQUIRE( generateDataFiles( front ) );
+
+    // Three Searches of ten Matches each, the second one current.
+    ViewState saved;
+    saved.searches
+        = { KeptSearchState{ .pattern = "line 00001" }, KeptSearchState{ .pattern = "line 00002" },
+            KeptSearchState{ .pattern = "line 00004" } };
+    saved.currentSearch = 1;
+    const auto context = encodeViewState( saved );
+
+    GIVEN( "three tabs with Kept Searches, the last one in front" )
+    {
+        RestoredWindow restored{ windowId,
+                                 { { first.fileName(), context },
+                                   { second.fileName(), context },
+                                   { front.fileName(), context } } };
+        RestoreSteps steps{ restored.tabs };
+
+        WHEN( "the user activates the first tab, still queued, as the restore starts" )
+        {
+            restored.window->activate( steps.tabs[ 0 ].crawler.get() );
+            REQUIRE( waitUiState( [ & ] { return steps.count( Step::SearchesFinished ) == 3; } ) );
+
+            THEN( "it loads at once, and its Searches run as it has loaded, before the queued "
+                  "tab has" )
+            {
+                REQUIRE( steps.at( Step::Loaded, 0 ) >= 0 );
+                REQUIRE( steps.at( Step::Loaded, 0 ) < steps.at( Step::Loaded, 1 ) );
+                REQUIRE( steps.at( Step::SearchStarted, 0 ) >= 0 );
+                REQUIRE( steps.at( Step::SearchStarted, 0 ) < steps.at( Step::Loaded, 1 ) );
+                REQUIRE( steps.heldAt( Step::SearchStarted, 0, 1 ) );
+                REQUIRE( steps.heldAt( Step::SearchStarted, 0, 2 ) );
+            }
+
+            THEN( "the tab in front's Searches follow once every tab has loaded, then the other's" )
+            {
+                REQUIRE( steps.at( Step::SearchStarted, 2 ) > steps.at( Step::Loaded, 1 ) );
+                REQUIRE( steps.at( Step::SearchStarted, 2 )
+                         > steps.at( Step::SearchesFinished, 0 ) );
+                REQUIRE( steps.at( Step::SearchStarted, 1 )
+                         > steps.at( Step::SearchesFinished, 2 ) );
+                for ( auto& tab : steps.tabs ) {
+                    REQUIRE( tab.openLogFile().matchCount() == 10_lcount );
+                }
+            }
+        }
+
+        WHEN( "the user activates the second tab, loaded and waiting, while the tab in front's "
+              "Searches run" )
+        {
+            steps.onStep = [ & ]( Step step, int tab ) {
+                if ( step == Step::SearchStarted && tab == 2 ) {
+                    restored.window->activate( steps.tabs[ 1 ].crawler.get() );
+                }
+            };
+            REQUIRE( waitUiState( [ & ] { return steps.count( Step::SearchesFinished ) == 3; } ) );
+
+            THEN( "its Searches run at once, beside the tab in front's, and the first tab's "
+                  "wait for both" )
+            {
+                REQUIRE( steps.at( Step::SearchStarted, 1 ) >= 0 );
+                REQUIRE( steps.at( Step::SearchStarted, 1 )
+                         < steps.at( Step::SearchesFinished, 2 ) );
+                REQUIRE( steps.heldAt( Step::SearchStarted, 1, 0 ) );
+                REQUIRE( steps.at( Step::SearchStarted, 0 )
+                         > steps.at( Step::SearchesFinished, 1 ) );
+                REQUIRE( steps.at( Step::SearchStarted, 0 )
+                         > steps.at( Step::SearchesFinished, 2 ) );
+                for ( auto& tab : steps.tabs ) {
+                    REQUIRE( tab.openLogFile().matchCount() == 10_lcount );
+                }
+            }
+        }
+
+        WHEN( "the user starts a Search in the first tab, waiting, while the tab in front's "
+              "Searches run" )
+        {
+            steps.onStep = [ & ]( Step step, int tab ) {
+                if ( step == Step::SearchStarted && tab == 2 ) {
+                    auto& waiting = steps.tabs[ 0 ];
+                    waiting.clearSearchPattern();
+                    waiting.setSearchPattern( "line 000" );
+                    waiting.clickSearch();
+                }
+            };
+            REQUIRE( waitUiState( [ & ] { return steps.count( Step::SearchesFinished ) == 3; } ) );
+
+            THEN( "it runs at once, and the tab's Kept Searches wait their turn" )
+            {
+                REQUIRE( steps.at( Step::SearchStarted, 0 ) >= 0 );
+                REQUIRE( steps.at( Step::SearchStarted, 0 )
+                         < steps.at( Step::SearchesFinished, 2 ) );
+                // The kept ones are held still as the user's runs.
+                REQUIRE( steps.heldAt( Step::SearchStarted, 0, 0 ) );
+                REQUIRE( steps.at( Step::SearchesFinished, 0 )
+                         > steps.at( Step::SearchesFinished, 2 ) );
+                REQUIRE( steps.at( Step::SearchStarted, 1 )
+                         > steps.at( Step::SearchesFinished, 0 ) );
+                // All hundred Log Lines, as the user asked.
+                REQUIRE( steps.tabs[ 0 ].openLogFile().matchCount() == 100_lcount );
+            }
+        }
+
+        WHEN( "the user closes the first tab, waiting, while the tab in front's Searches run" )
+        {
+            steps.onStep = [ & ]( Step step, int tab ) {
+                if ( step == Step::SearchStarted && tab == 2 ) {
+                    steps.close( *restored.window, 0 );
+                }
+            };
+            REQUIRE( waitUiState( [ & ] { return steps.count( Step::SearchesFinished ) == 2; } ) );
+
+            THEN( "nothing runs for it, and the second tab's Searches follow the tab in front's" )
+            {
+                REQUIRE( steps.at( Step::SearchStarted, 0 ) < 0 );
+                REQUIRE( steps.at( Step::SearchStarted, 1 )
+                         > steps.at( Step::SearchesFinished, 2 ) );
+                REQUIRE( steps.at( Step::SearchesFinished, 1 ) >= 0 );
+                REQUIRE( steps.tabs[ 1 ].openLogFile().matchCount() == 10_lcount );
+            }
+        }
+    }
+}
+
+SCENARIO(
+    "Every way a set of tabs is restored holds its Kept Searches as the restore at start does",
+    "[ui][session][keptsearches]" )
+{
+    using Step = RestoreSteps::Step;
+    const auto windowId = QStringLiteral( "crawlerwidget_test_window_782" );
+    QTemporaryFile first{ "crawler_test_first_XXXXXX" };
+    QTemporaryFile second{ "crawler_test_second_XXXXXX" };
+    QTemporaryFile front{ "crawler_test_front_XXXXXX" };
+    QTemporaryFile alone{ "crawler_test_alone_XXXXXX" };
+    REQUIRE( generateDataFiles( first ) );
+    REQUIRE( generateDataFiles( second ) );
+    REQUIRE( generateDataFiles( front ) );
+    REQUIRE( generateDataFiles( alone ) );
+
+    // Three Searches of ten Matches each, the second one current.
+    ViewState saved;
+    saved.searches
+        = { KeptSearchState{ .pattern = "line 00001" }, KeptSearchState{ .pattern = "line 00002" },
+            KeptSearchState{ .pattern = "line 00004" } };
+    saved.currentSearch = 1;
+    const auto context = encodeViewState( saved );
+
+    GIVEN( "a Session File with three tabs and Kept Searches, opened into a new window beside a "
+           "loaded one" )
+    {
+        RestoredWindow restored{ windowId, { { alone.fileName(), QString{} } } };
+        CrawlerWidgetVisitor loaded;
+        loaded.crawler = std::move( restored.tabs.front() );
+        restored.tabs.clear();
+        REQUIRE( waitUiState( [ & ] { return loaded.isLoadingFinished(); } ) );
+
+        // What opening a Session File does in a new window (#576): the
+        // snapshot read from it, restored by the window it opens.
+        WindowSnapshot snapshot;
+        snapshot.files = { { first.fileName(), context },
+                           { second.fileName(), context },
+                           { front.fileName(), context } };
+        snapshot.currentFile = 2;
+        WindowSession other{ restored.appSession, windowId + "_other", 1 };
+        int currentFileIndex = -1;
+        other.restore( snapshot, restored.factory(), &currentFileIndex );
+        REQUIRE( restored.tabs.size() == 3 );
+        RestoreSteps steps{ restored.tabs };
+        REQUIRE( waitUiState( [ & ] { return steps.count( Step::SearchesFinished ) == 3; } ) );
+
+        THEN( "its Log Files load as the restore at start loads them, the tab in front first" )
+        {
+            REQUIRE( steps.at( Step::Loaded, 2 ) >= 0 );
+            REQUIRE( steps.at( Step::Loaded, 2 ) < steps.at( Step::Loaded, 0 ) );
+            REQUIRE( steps.at( Step::Loaded, 0 ) < steps.at( Step::Loaded, 1 ) );
+        }
+
+        THEN( "no Search starts before the last of its first loads has finished, and the tab in "
+              "front's run first, then each tab's in turn" )
+        {
+            for ( auto tab = 0; tab < 3; ++tab ) {
+                REQUIRE( steps.heldAt( Step::Loaded, 1, tab ) );
+            }
+            REQUIRE( steps.at( Step::SearchStarted, 2 ) > steps.at( Step::Loaded, 1 ) );
+            REQUIRE( steps.at( Step::SearchesFinished, 2 ) < steps.at( Step::SearchStarted, 0 ) );
+            REQUIRE( steps.at( Step::SearchesFinished, 0 ) < steps.at( Step::SearchStarted, 1 ) );
+            for ( auto& tab : steps.tabs ) {
+                REQUIRE( tab.openLogFile().matchCount() == 10_lcount );
+            }
+        }
+    }
+
+    GIVEN( "a Session whose archive tab, carrying Kept Searches, is decompressed after the "
+           "restore, behind the tab in front" )
+    {
+        const auto member = ArchiveMember{ "/logs/app.log.gz", { QString{} } };
+        RestoredWindow restored{ windowId,
+                                 { { first.fileName(), context },
+                                   { "/tmp/app.log.gz.AbCdEf", context, member },
+                                   { front.fileName(), context } },
+                                 2,
+                                 true };
+        REQUIRE( restored.tabs.size() == 2 );
+        REQUIRE( restored.deferred.size() == 1 );
+        // Decompressed while the tab in front still is: it goes behind.
+        const auto opened = restored.openDeferred( restored.deferred.front().id, second.fileName(),
+                                                   restored.tabs[ 1 ].get() );
+        REQUIRE( opened.view != nullptr );
+        REQUIRE_FALSE( opened.inFront );
+        // Tabs as they were built: first, front, then the one decompressed.
+        RestoreSteps steps{ restored.tabs };
+        REQUIRE( waitUiState( [ & ] { return steps.count( Step::SearchesFinished ) == 3; } ) );
+
+        THEN( "it loads after the tabs restored before it, and every Search waits for it" )
+        {
+            REQUIRE( steps.at( Step::Loaded, 1 ) < steps.at( Step::Loaded, 0 ) );
+            REQUIRE( steps.at( Step::Loaded, 0 ) < steps.at( Step::Loaded, 2 ) );
+            for ( auto tab = 0; tab < 3; ++tab ) {
+                REQUIRE( steps.heldAt( Step::Loaded, 2, tab ) );
+            }
+        }
+
+        THEN( "its Searches run last, after the tab in front's and the first tab's" )
+        {
+            REQUIRE( steps.at( Step::SearchStarted, 1 ) > steps.at( Step::Loaded, 2 ) );
+            REQUIRE( steps.at( Step::SearchesFinished, 1 ) < steps.at( Step::SearchStarted, 0 ) );
+            REQUIRE( steps.at( Step::SearchesFinished, 0 ) < steps.at( Step::SearchStarted, 2 ) );
+            for ( auto& tab : steps.tabs ) {
+                REQUIRE( tab.openLogFile().matchCount() == 10_lcount );
+            }
+        }
+    }
+
+    GIVEN( "a Session whose archive tab, carrying Kept Searches, was the tab in front and is "
+           "decompressed after the restore" )
+    {
+        const auto member = ArchiveMember{ "/logs/app.log.gz", { QString{} } };
+        RestoredWindow restored{ windowId,
+                                 { { first.fileName(), context },
+                                   { "/tmp/app.log.gz.AbCdEf", context, member },
+                                   { second.fileName(), context } },
+                                 1,
+                                 true };
+        REQUIRE( restored.tabs.size() == 2 );
+        REQUIRE( restored.deferred.size() == 1 );
+        // The restore put the tab before it in front; decompressed while
+        // that one still is, it takes the front.
+        const auto opened = restored.openDeferred( restored.deferred.front().id, front.fileName(),
+                                                   restored.tabs[ 0 ].get() );
+        REQUIRE( opened.view != nullptr );
+        REQUIRE( opened.inFront );
+        // Tabs as they were built: first, second, then the one in front.
+        RestoreSteps steps{ restored.tabs };
+        REQUIRE( waitUiState( [ & ] { return steps.count( Step::SearchesFinished ) == 3; } ) );
+
+        THEN( "its Searches run first, once every tab has loaded, then the others' in order" )
+        {
+            for ( auto tab = 0; tab < 3; ++tab ) {
+                REQUIRE( steps.heldAt( Step::Loaded, 1, tab ) );
+                REQUIRE( steps.at( Step::SearchStarted, tab ) > steps.at( Step::Loaded, 1 ) );
+            }
+            REQUIRE( steps.at( Step::SearchesFinished, 2 ) < steps.at( Step::SearchStarted, 0 ) );
+            REQUIRE( steps.at( Step::SearchesFinished, 0 ) < steps.at( Step::SearchStarted, 1 ) );
+            for ( auto& tab : steps.tabs ) {
+                REQUIRE( tab.openLogFile().matchCount() == 10_lcount );
+            }
+        }
+    }
+
+    GIVEN( "a Log File with Kept Searches opened by hand while a restore still loads its tabs" )
+    {
+        RestoredWindow restored{ windowId,
+                                 { { first.fileName(), context },
+                                   { second.fileName(), context },
+                                   { front.fileName(), context } } };
+        // Its Kept Searches: the view context stored for it, from another window.
+        const StoredSessionWindow aloneStored{ windowId + "_alone",
+                                               { { alone.fileName(), context } } };
+        restored.open( alone.fileName() );
+        REQUIRE( restored.tabs.size() == 4 );
+        RestoreSteps steps{ restored.tabs };
+        REQUIRE( waitUiState( [ & ] { return steps.count( Step::SearchesFinished ) == 4; } ) );
+
+        THEN( "its Searches run right after its first load, while the restore's wait" )
+        {
+            REQUIRE( steps.at( Step::SearchStarted, 3 ) >= 0 );
+            REQUIRE( steps.at( Step::SearchStarted, 3 ) < steps.at( Step::Loaded, 1 ) );
+            REQUIRE_FALSE( steps.heldAt( Step::SearchStarted, 3, 3 ) );
+            for ( auto tab = 0; tab < 3; ++tab ) {
+                REQUIRE( steps.heldAt( Step::SearchStarted, 3, tab ) );
+            }
+            REQUIRE( steps.tabs[ 3 ].openLogFile().matchCount() == 10_lcount );
         }
     }
 }

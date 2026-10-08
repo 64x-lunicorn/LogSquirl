@@ -2952,9 +2952,10 @@ void MainWindow::currentTabChanged( int index )
             return;
         }
         // A restored Log File still waiting for its turn loads now that the
-        // user looks at its tab (#300).
+        // user looks at its tab (#300), and its restored Searches run at
+        // once (#781).
         if ( !restoringSession_ ) {
-            session_.startLoading( crawler_widget );
+            session_.activate( crawler_widget );
         }
 
         connectFrontTab( crawler_widget );
