@@ -209,8 +209,7 @@ void Session::activate( const ViewInterface* view )
     // What the user looks at goes first: released while its first load is
     // under way still, they wait for it as any Search does, and run as it
     // finishes. The tabs still held wait until these have finished too.
-    it->second.restoredSearches = RestoredSearches::Running;
-    it->second.openLogFile->releaseHeldSearches();
+    runRestoredSearches( it->second );
 }
 
 bool Session::isLoadQueued( const ViewInterface* view ) const
@@ -296,9 +295,14 @@ void Session::releaseNextRestoredSearches()
         }
     }
     if ( next ) {
-        next->restoredSearches = RestoredSearches::Running;
-        next->openLogFile->releaseHeldSearches();
+        runRestoredSearches( *next );
     }
+}
+
+void Session::runRestoredSearches( OpenFile& file )
+{
+    file.restoredSearches = RestoredSearches::Running;
+    file.openLogFile->releaseHeldSearches();
 }
 
 void Session::finishRestoredSearches( const OpenLogFile* openLogFile )

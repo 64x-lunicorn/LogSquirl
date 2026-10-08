@@ -483,6 +483,9 @@ private:
     // order: the tab in front's, then the others' one after another, in the
     // order their first loads were queued, which is the order they loaded.
     void releaseNextRestoredSearches();
+    // Releases the held Searches of this Log File, which run now, or once its
+    // first load has finished.
+    void runRestoredSearches( OpenFile& file );
     // The views of openLogFile told that every Search they restored has
     // finished, or none had a pattern to run.
     void finishRestoredSearches( const OpenLogFile* openLogFile );

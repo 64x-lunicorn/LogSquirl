@@ -3305,7 +3305,9 @@ namespace {
 // What a restored window's tabs did, in the order they did it: a first load
 // finished, the current Search started, or every restored Search finished.
 // With each step, which tabs still held their Searches then: a held Search,
-// current or kept, has not started (#779).
+// current or kept, has not started (#779). The order of the steps is exact:
+// a first load's end and a Search's start are told from the main thread, as
+// they happen, never queued behind another step.
 struct RestoreSteps {
     enum class Step { Loaded, SearchStarted, SearchesFinished };
     std::vector<CrawlerWidgetVisitor> tabs;
@@ -3758,8 +3760,8 @@ SCENARIO(
                                    { second.fileName(), context },
                                    { front.fileName(), context } } };
         // Its Kept Searches: the view context stored for it, from another window.
-        const StoredSessionWindow aloneStored{ windowId + "_alone",
-                                               { { alone.fileName(), context } } };
+        const StoredSessionWindow aloneContextStored{ windowId + "_alone",
+                                                      { { alone.fileName(), context } } };
         restored.open( alone.fileName() );
         REQUIRE( restored.tabs.size() == 4 );
         RestoreSteps steps{ restored.tabs };
