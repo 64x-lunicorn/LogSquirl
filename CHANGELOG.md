@@ -476,6 +476,14 @@
 
 ## Internal
 
+- **A pull request's changed C++ files are compiled with GCC within
+  minutes**: the new CI job *GCC / changed files* compiles the sources under
+  `src/` and `tests/` a pull request changes in the Ubuntu 24.04 container,
+  each with the compile command of the release build, before any dependency
+  is built; a diagnostic only GCC reports fails the pull request about two
+  minutes after the run starts instead of a quarter of an hour in. (#759,
+  #760)
+
 - **A Portion past the end of a Log Line covers no Named Value**: the
   whole-value covering cut a Portion lying wholly after the end of a Log Line
   to its last character, so on a Log Line ending in a Named Value it took in
