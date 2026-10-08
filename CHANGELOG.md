@@ -677,6 +677,15 @@
   fails on any advisory not accepted in `scripts/sbom/vuln-ignore.yml`, naming
   the package, its version and the advisory. (#772)
 
+## Documentation
+
+- **The README is easier to skim**: a platform table says which package and
+  package source each platform has, and the long parts -- the install commands
+  for Homebrew, APT and DNF, the silent Windows install, verifying a download,
+  the signing details, the differences from klogg and the acknowledgements --
+  are collapsible, so the page shows the overview first and the detail on
+  request. Nothing was removed.
+
 # v26.10.0 (2026-09-29)
 
 The stable release of 26.10. It contains everything from
