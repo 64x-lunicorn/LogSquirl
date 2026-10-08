@@ -213,6 +213,25 @@ public:
     void requestKeptSearch( const std::shared_ptr<LogFilteredData>& search,
                             const RegularExpressionPattern& pattern );
 
+    // Holds the Searches that wait for the first load now, the current one
+    // and the kept ones, beyond it: once it has loaded they wait on, idle,
+    // until releaseHeldSearches(). A restored Session's wait so until the Log
+    // Files queued with them have loaded (#777, #779).
+    //
+    // What is asked for after this is the user's, and never held: a held
+    // Search requested again, cleared or stopped is held no longer. A first
+    // load that does not succeed drops the held Searches with the other
+    // waiting ones. Once the first load has finished nothing waits, and this
+    // holds nothing.
+    void holdWaitingSearches();
+    // Holds nothing any longer. A held Search still kept runs over the Search
+    // Limits, as the first load would have run it: the current one as
+    // requestSearch() does, the others beside it. Released before the first
+    // load has finished, they wait for it as though never held.
+    void releaseHeldSearches();
+    // Whether search is held, waiting for releaseHeldSearches().
+    bool isSearchHeld( const std::shared_ptr<LogFilteredData>& search ) const;
+
     // Requests the current Search for pattern over the Search Limits. It
     // supersedes the Search before it; an invalid pattern leaves no Search
     // active. Returns the Search's state right after the request.
@@ -314,6 +333,10 @@ Q_SIGNALS:
     // After stopWatching(): the Log File, as it was on disk then, is loaded.
     // Told once.
     void watchingStopped();
+    // Fewer Searches are held than before: they were released, requested
+    // again, cleared or stopped, or dropped with a first load that did not
+    // succeed. Holding them tells nothing.
+    void searchesHeldNoLonger();
 
 private:
     void handleLoadingFinished( LoadingStatus status, const QString& failure );
@@ -335,6 +358,9 @@ private:
     // The current Search, about to be no longer current: when it waits for
     // the first load, it waits on, kept.
     void keepWaitingSearch();
+    // Holds search no longer, and tells it when it was held: the user asked
+    // for it.
+    void stopHolding( const std::shared_ptr<LogFilteredData>& search );
 
     // Held for as long as the Log File may be watched: the destructor stops
     // watching it through this port before anything else goes.
@@ -361,6 +387,11 @@ private:
         RegularExpressionPattern pattern;
     };
     std::vector<WaitingSearch> waitingKeptSearches_;
+    // Held by holdWaitingSearches(), current or kept: until the first load
+    // has finished, the Searches waiting for it that are held; once it has,
+    // each one with the pattern it runs with when released.
+    std::vector<std::weak_ptr<LogFilteredData>> heldBeforeLoad_;
+    std::vector<WaitingSearch> heldAfterLoad_;
     // As set, and as the Load Rule settles them after every load.
     LoadRule::SearchLimits searchLimits_;
     // The Search Limits last told, once they were.

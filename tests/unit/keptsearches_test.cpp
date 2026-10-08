@@ -54,11 +54,15 @@ QString numberedLine( int line )
     return QStringLiteral( "this is line %1" ).arg( line, 6, 10, QChar( '0' ) );
 }
 
-// An Open Log File of 100 loaded Log Lines, its View Set and its Kept
-// Searches, whose Filtered Views nothing else owns.
+// An Open Log File of 100 Log Lines, its View Set and its Kept Searches,
+// whose Filtered Views nothing else owns.
 struct LogFile {
+    enum class Load { Now, Later };
+
     // Each Log Line reads as lineText says, by default "this is line 000042".
-    explicit LogFile( const std::function<QString( int )>& lineText = numberedLine )
+    // Loaded later, the Log File is not opened until load().
+    explicit LogFile( const std::function<QString( int )>& lineText = numberedLine,
+                      Load when = Load::Now )
     {
         REQUIRE( file.open() );
         for ( int line = 0; line < 100; ++line ) {
@@ -66,6 +70,13 @@ struct LogFile {
         }
         file.flush();
 
+        if ( when == Load::Now ) {
+            load();
+        }
+    }
+
+    void load()
+    {
         openLogFile->open( file.fileName() );
         REQUIRE( waitUiState(
             [ this ] { return openLogFile->logData()->getNbLine() == 100_lcount; }, 30000 ) );
@@ -554,6 +565,105 @@ SCENARIO( "The Searches a Session saved are dropped when the first load does not
                     REQUIRE( waitUiState( [ & ] { return finished; }, 5000 ) );
                     REQUIRE( openLogFile->searchState().phase == SearchSessionPhase::Idle );
                 }
+            }
+
+            WHEN( "they are held, and the load ends" )
+            {
+                openLogFile->holdWaitingSearches();
+                REQUIRE( waitUiState( [ & ] { return loaded.has_value(); }, 30000 ) );
+                REQUIRE( loaded == LoadingStatus::Interrupted );
+
+                THEN( "they are dropped as unheld ones are: neither runs, and the end is told" )
+                {
+                    REQUIRE( waitUiState( [ & ] { return finished; }, 5000 ) );
+                    REQUIRE_FALSE( openLogFile->isSearchHeld( openLogFile->filteredData() ) );
+                    REQUIRE( openLogFile->searchState().phase == SearchSessionPhase::Idle );
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "The Searches a Session saved, held beyond the first load, are told finished once "
+          "released and run, or dropped",
+          "[keptsearches][session]" )
+{
+    LogFile logFile( numberedLine, LogFile::Load::Later );
+    auto& keptSearches = logFile.keptSearches;
+    const auto& openLogFile = logFile.openLogFile;
+    keptSearches.showCurrentSearch();
+
+    bool finished = false;
+    QObject::connect( &keptSearches, &KeptSearches::restoredSearchesFinished,
+                      [ &finished ] { finished = true; } );
+
+    GIVEN( "two saved Searches restored and held before the first load, the second current" )
+    {
+        const KeptSearches::Requested saved{ { RegularExpressionPattern( "line 00001" ),
+                                               RegularExpressionPattern( "line 00002" ) },
+                                             1 };
+        const auto restored = keptSearches.restore( saved );
+        keptSearches.requestCurrent( saved.patterns[ 1 ] );
+        openLogFile->holdWaitingSearches();
+        const auto current = openLogFile->filteredData();
+
+        WHEN( "the Log File has loaded" )
+        {
+            logFile.load();
+
+            THEN( "neither runs, and the end is not told" )
+            {
+                REQUIRE_FALSE( waitUiState( [ & ] { return finished; }, 300 ) );
+                REQUIRE( current->searchState().phase == SearchSessionPhase::Idle );
+            }
+
+            AND_WHEN( "they are released" )
+            {
+                openLogFile->releaseHeldSearches();
+
+                THEN( "both run, and the end is told once they have finished" )
+                {
+                    REQUIRE( waitUiState( [ & ] { return finished; }, 30000 ) );
+                    REQUIRE( current->searchState().phase == SearchSessionPhase::Complete );
+                    REQUIRE( current->getNbMatches() == 10_lcount );
+                    keptSearches.makeCurrent( restored[ 0 ] );
+                    REQUIRE( openLogFile->searchState().phase == SearchSessionPhase::Complete );
+                    REQUIRE( openLogFile->matchCount() == 10_lcount );
+                }
+            }
+
+            AND_WHEN( "the user requests the current one" )
+            {
+                keptSearches.requestCurrent( RegularExpressionPattern( "line 00003" ) );
+
+                THEN( "it runs at once, and the end waits for the one still held" )
+                {
+                    REQUIRE( waitUiState(
+                        [ & ] {
+                            return current->searchState().phase == SearchSessionPhase::Complete;
+                        },
+                        30000 ) );
+                    REQUIRE( current->getNbMatches() == 10_lcount );
+                    REQUIRE_FALSE( waitUiState( [ & ] { return finished; }, 300 ) );
+
+                    AND_THEN( "dropping the one still held tells the end, nothing released" )
+                    {
+                        REQUIRE( keptSearches.drop( restored[ 0 ] ) );
+                        REQUIRE( waitUiState( [ & ] { return finished; }, 5000 ) );
+                    }
+                }
+            }
+        }
+
+        WHEN( "they are released before the Log File has loaded" )
+        {
+            openLogFile->releaseHeldSearches();
+            logFile.load();
+
+            THEN( "both run once it has, and the end is told" )
+            {
+                REQUIRE( waitUiState( [ & ] { return finished; }, 30000 ) );
+                REQUIRE( current->getNbMatches() == 10_lcount );
             }
         }
     }
