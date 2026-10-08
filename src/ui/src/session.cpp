@@ -155,9 +155,15 @@ ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFa
     } );
 
     // Insert in the hash
-    OpenFile entry{
-        .fileName = fileName, .openLogFile = openLogFile, .view = view, .origin = origin
-    };
+    OpenFile entry{ .fileName = fileName,
+                    .openLogFile = openLogFile,
+                    .view = view,
+                    .origin = origin,
+                    .firstLoad = FirstLoad::Queued,
+                    .firstLoadOrder = 0,
+                    .restoredSearches = RestoredSearches::None,
+                    .firstLoadFinished = {},
+                    .loadRequested = {} };
     auto& openFile = openFiles_.insert( { view, std::move( entry ) } ).first->second;
 
     // A Log File reloaded before it was ever loaded asks to be loaded, and
