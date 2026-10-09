@@ -1,0 +1,2516 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-09T10:17:48Z",
+  "commit": "cfca99a91c71ecce8f58c67bc67b75be3d1bc573",
+  "ref": "refs/heads/master",
+  "run_id": "37912569529-1",
+  "version": "26.10.0.730",
+  "accepted": false,
+  "system": {
+    "os": "Linux 6.17.0-1022-azure",
+    "os_version": "#22-Ubuntu SMP Mon Jul 27 17:24:03 UTC 2026",
+    "architecture": "x86_64",
+    "python_version": "3.12.3",
+    "cpu": "AMD EPYC 7763 64-Core Processor",
+    "cpu_cores": 4,
+    "ram_gb": 15.6
+  },
+  "config": {
+    "warmup": 3,
+    "runs": 21,
+    "outlier_method": "iqr_1.5"
+  },
+  "median_cv_percent": 2.855,
+  "usable": true,
+  "benchmarks": {
+    "grep_100mb_simple": {
+      "median_seconds": 0.094578428,
+      "mean_seconds": 0.094889776,
+      "std_seconds": 0.001766918,
+      "cv_percent": 1.86,
+      "p5_seconds": 0.092479912,
+      "p95_seconds": 0.09800182,
+      "iqr_seconds": 0.00201205,
+      "min_seconds": 0.092313609,
+      "max_seconds": 0.098513194,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 104857623,
+        "file_size_mb": 100.0,
+        "mb_per_sec": 1057.32,
+        "lines_per_sec": 1057.0
+      },
+      "measures": "Simple pattern, 1 MB Log Lines: open to last match written, startup excluded"
+    },
+    "grep_10mb_regex": {
+      "median_seconds": 0.028884746,
+      "mean_seconds": 0.029039813,
+      "std_seconds": 0.000792167,
+      "cv_percent": 2.73,
+      "p5_seconds": 0.027886049,
+      "p95_seconds": 0.030383995,
+      "iqr_seconds": 0.001195927,
+      "min_seconds": 0.027770484,
+      "max_seconds": 0.030383995,
+      "filtered_count": 20,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 10485783,
+        "file_size_mb": 10.0,
+        "mb_per_sec": 346.2,
+        "lines_per_sec": 346.0
+      },
+      "measures": "Complex regex, 1 MB Log Lines: open to last match written, startup excluded"
+    },
+    "grep_10mb_simple": {
+      "median_seconds": 0.012944075,
+      "mean_seconds": 0.013376178,
+      "std_seconds": 0.001031612,
+      "cv_percent": 7.71,
+      "p5_seconds": 0.012420545,
+      "p95_seconds": 0.016031159,
+      "iqr_seconds": 0.001368423,
+      "min_seconds": 0.012149633,
+      "max_seconds": 0.016031159,
+      "filtered_count": 20,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 10485783,
+        "file_size_mb": 10.0,
+        "mb_per_sec": 772.56,
+        "lines_per_sec": 773.0
+      },
+      "measures": "Simple pattern, 1 MB Log Lines: open to last match written, startup excluded"
+    },
+    "grep_1_5mb_simple": {
+      "median_seconds": 0.008760715,
+      "mean_seconds": 0.00868827,
+      "std_seconds": 0.000696178,
+      "cv_percent": 8.01,
+      "p5_seconds": 0.007776463,
+      "p95_seconds": 0.010063983,
+      "iqr_seconds": 0.000942128,
+      "min_seconds": 0.007776463,
+      "max_seconds": 0.010063983,
+      "filtered_count": 19,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 1572864,
+        "file_size_mb": 1.5,
+        "mb_per_sec": 171.22,
+        "lines_per_sec": 228.0
+      },
+      "measures": "Simple pattern search: open to last match written, startup excluded"
+    },
+    "grep_1mb_alternation": {
+      "median_seconds": 0.005859296,
+      "mean_seconds": 0.00585135,
+      "std_seconds": 0.000357223,
+      "cv_percent": 6.1,
+      "p5_seconds": 0.005268679,
+      "p95_seconds": 0.006348317,
+      "iqr_seconds": 0.000577554,
+      "min_seconds": 0.005179783,
+      "max_seconds": 0.006348317,
+      "filtered_count": 20,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 1048576,
+        "file_size_mb": 1.0,
+        "mb_per_sec": 170.67,
+        "lines_per_sec": 171.0
+      },
+      "measures": "Regex alternation: open to last match written, startup excluded"
+    },
+    "grep_1mb_case_insensitive": {
+      "median_seconds": 0.006970153,
+      "mean_seconds": 0.007075364,
+      "std_seconds": 0.000370246,
+      "cv_percent": 5.23,
+      "p5_seconds": 0.006483879,
+      "p95_seconds": 0.007938499,
+      "iqr_seconds": 0.00059024,
+      "min_seconds": 0.006483879,
+      "max_seconds": 0.007938499,
+      "filtered_count": 17,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 1048576,
+        "file_size_mb": 1.0,
+        "mb_per_sec": 143.47,
+        "lines_per_sec": 143.0
+      },
+      "measures": "Case-insensitive regex: open to last match written, startup excluded"
+    },
+    "grep_1mb_no_match": {
+      "median_seconds": 0.004986192,
+      "mean_seconds": 0.005190073,
+      "std_seconds": 0.000815907,
+      "cv_percent": 15.72,
+      "p5_seconds": 0.004281795,
+      "p95_seconds": 0.006868961,
+      "iqr_seconds": 0.001121181,
+      "min_seconds": 0.004094356,
+      "max_seconds": 0.007152269,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 1048576,
+        "file_size_mb": 1.0,
+        "mb_per_sec": 200.55,
+        "lines_per_sec": 201.0
+      },
+      "measures": "No-match scan-only overhead: open to last match written, startup excluded"
+    },
+    "grep_1mb_regex": {
+      "median_seconds": 0.009090732,
+      "mean_seconds": 0.00887883,
+      "std_seconds": 0.000605395,
+      "cv_percent": 6.82,
+      "p5_seconds": 0.00792471,
+      "p95_seconds": 0.009651868,
+      "iqr_seconds": 0.00095922,
+      "min_seconds": 0.0076495,
+      "max_seconds": 0.009786381,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 1048576,
+        "file_size_mb": 1.0,
+        "mb_per_sec": 110.0,
+        "lines_per_sec": 110.0
+      },
+      "measures": "Complex regex search: open to last match written, startup excluded"
+    },
+    "grep_1mb_simple": {
+      "median_seconds": 0.005129316,
+      "mean_seconds": 0.005245538,
+      "std_seconds": 0.000505401,
+      "cv_percent": 9.63,
+      "p5_seconds": 0.004524631,
+      "p95_seconds": 0.006062072,
+      "iqr_seconds": 0.000731225,
+      "min_seconds": 0.00439713,
+      "max_seconds": 0.006117159,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 1048576,
+        "file_size_mb": 1.0,
+        "mb_per_sec": 194.96,
+        "lines_per_sec": 195.0
+      },
+      "measures": "Simple pattern search: open to last match written, startup excluded"
+    },
+    "grep_50mb_simple": {
+      "median_seconds": 0.049830347,
+      "mean_seconds": 0.050184007,
+      "std_seconds": 0.001650856,
+      "cv_percent": 3.29,
+      "p5_seconds": 0.048203969,
+      "p95_seconds": 0.053130331,
+      "iqr_seconds": 0.002376101,
+      "min_seconds": 0.04788329,
+      "max_seconds": 0.053716852,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 52428823,
+        "file_size_mb": 50.0,
+        "mb_per_sec": 1003.41,
+        "lines_per_sec": 1003.0
+      },
+      "measures": "Simple pattern, 1 MB Log Lines: open to last match written, startup excluded"
+    },
+    "grep_log_100mb_regex": {
+      "median_seconds": 0.145176834,
+      "mean_seconds": 0.145606211,
+      "std_seconds": 0.001447035,
+      "cv_percent": 0.99,
+      "p5_seconds": 0.143254522,
+      "p95_seconds": 0.148245888,
+      "iqr_seconds": 0.002059118,
+      "min_seconds": 0.143254522,
+      "max_seconds": 0.148245888,
+      "filtered_count": 19,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 104857579,
+        "file_size_mb": 100.0,
+        "mb_per_sec": 688.81,
+        "lines_per_sec": 9319187.0
+      },
+      "measures": "Regex over a 100 MB Log File: open to last match written, startup excluded"
+    },
+    "grep_log_100mb_simple": {
+      "median_seconds": 0.137693478,
+      "mean_seconds": 0.137153645,
+      "std_seconds": 0.002024259,
+      "cv_percent": 1.48,
+      "p5_seconds": 0.134290411,
+      "p95_seconds": 0.139530441,
+      "iqr_seconds": 0.002807332,
+      "min_seconds": 0.134250979,
+      "max_seconds": 0.142371075,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 104857579,
+        "file_size_mb": 100.0,
+        "mb_per_sec": 726.25,
+        "lines_per_sec": 9825665.0
+      },
+      "measures": "The ERROR Log Lines (1 in 101) of a 100 MB Log File: open to last match written, startup excluded"
+    },
+    "grep_log_1gb_simple": {
+      "median_seconds": 1.231555591,
+      "mean_seconds": 1.232773107,
+      "std_seconds": 0.003203238,
+      "cv_percent": 0.26,
+      "p5_seconds": 1.229164065,
+      "p95_seconds": 1.237986178,
+      "iqr_seconds": 0.005197328,
+      "min_seconds": 1.229164065,
+      "max_seconds": 1.237986178,
+      "filtered_count": 7,
+      "total_count": 7,
+      "throughput": {
+        "file_size_bytes": 1073741758,
+        "file_size_mb": 1024.0,
+        "mb_per_sec": 831.47,
+        "lines_per_sec": 11141524.0
+      },
+      "measures": "The ERROR Log Lines (1 in 101) of a 1 GB Log File: open to last match written, startup excluded"
+    },
+    "grep_utf16_10mb": {
+      "median_seconds": 0.014157043,
+      "mean_seconds": 0.01394757,
+      "std_seconds": 0.000890705,
+      "cv_percent": 6.39,
+      "p5_seconds": 0.012776252,
+      "p95_seconds": 0.016133366,
+      "iqr_seconds": 0.001234159,
+      "min_seconds": 0.012668287,
+      "max_seconds": 0.016133366,
+      "filtered_count": 20,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 10485760,
+        "file_size_mb": 10.0,
+        "mb_per_sec": 706.36,
+        "lines_per_sec": 424.0
+      },
+      "measures": "UTF-16LE encoding at scale: open to last match written, startup excluded"
+    },
+    "grep_utf16_1mb": {
+      "median_seconds": 0.008131743,
+      "mean_seconds": 0.00806305,
+      "std_seconds": 0.001030188,
+      "cv_percent": 12.78,
+      "p5_seconds": 0.006830918,
+      "p95_seconds": 0.009566812,
+      "iqr_seconds": 0.001411189,
+      "min_seconds": 0.006471299,
+      "max_seconds": 0.010267595,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 1048576,
+        "file_size_mb": 1.0,
+        "mb_per_sec": 122.97,
+        "lines_per_sec": 246.0
+      },
+      "measures": "UTF-16LE encoding overhead: open to last match written, startup excluded"
+    },
+    "gui_follow_1000_per_s_chart_p99": {
+      "median_seconds": 0.516536502,
+      "mean_seconds": 0.516220975,
+      "std_seconds": 0.001563767,
+      "cv_percent": 0.3,
+      "p5_seconds": 0.514198936,
+      "p95_seconds": 0.518218045,
+      "iqr_seconds": 0.003069892,
+      "min_seconds": 0.514198936,
+      "max_seconds": 0.518218045,
+      "filtered_count": 6,
+      "total_count": 7,
+      "measures": "A Log File growing by 1000 Log Lines a second for 5 s, followed, with a chart: from the append of a Log Line to the chart showing it; 99th percentile of a run",
+      "chart_following": {
+        "budget_ms": 1000,
+        "kept_up_runs": 7,
+        "runs": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "behind_display_p99_ms_median": 263.23846000000003,
+        "behind_display_p99_ms_max": 265.126132
+      }
+    },
+    "gui_follow_1000_per_s_display_p50": {
+      "median_seconds": 0.134069039,
+      "mean_seconds": 0.134103644,
+      "std_seconds": 0.000215554,
+      "cv_percent": 0.16,
+      "p5_seconds": 0.13382937,
+      "p95_seconds": 0.134488853,
+      "iqr_seconds": 0.000302729,
+      "min_seconds": 0.13382937,
+      "max_seconds": 0.134488853,
+      "filtered_count": 6,
+      "total_count": 7,
+      "measures": "A Log File growing by 1000 Log Lines a second for 5 s, followed, with a chart: from the append of a Log Line to its display in the Text View; median of a run"
+    },
+    "gui_follow_1000_per_s_display_p99": {
+      "median_seconds": 0.257167152,
+      "mean_seconds": 0.257344691,
+      "std_seconds": 0.000919048,
+      "cv_percent": 0.36,
+      "p5_seconds": 0.255821216,
+      "p95_seconds": 0.258689169,
+      "iqr_seconds": 0.001226028,
+      "min_seconds": 0.255821216,
+      "max_seconds": 0.258689169,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Log File growing by 1000 Log Lines a second for 5 s, followed, with a chart: from the append of a Log Line to its display in the Text View; 99th percentile of a run"
+    },
+    "gui_follow_10_per_s_chart_p99": {
+      "median_seconds": 0.530488746,
+      "mean_seconds": 0.53048535,
+      "std_seconds": 0.000162676,
+      "cv_percent": 0.03,
+      "p5_seconds": 0.530253914,
+      "p95_seconds": 0.530730512,
+      "iqr_seconds": 0.000297511,
+      "min_seconds": 0.530253914,
+      "max_seconds": 0.530730512,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Log File growing by 10 Log Lines a second for 5 s, followed, with a chart: from the append of a Log Line to the chart showing it; 99th percentile of a run",
+      "chart_following": {
+        "budget_ms": 1000,
+        "kept_up_runs": 7,
+        "runs": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "behind_display_p99_ms_median": 265.366933,
+        "behind_display_p99_ms_max": 265.92530300000004
+      }
+    },
+    "gui_follow_10_per_s_display_p50": {
+      "median_seconds": 0.142188847,
+      "mean_seconds": 0.14195783,
+      "std_seconds": 0.000599583,
+      "cv_percent": 0.42,
+      "p5_seconds": 0.141180627,
+      "p95_seconds": 0.142580442,
+      "iqr_seconds": 0.00133782,
+      "min_seconds": 0.141180627,
+      "max_seconds": 0.142580442,
+      "filtered_count": 6,
+      "total_count": 7,
+      "measures": "A Log File growing by 10 Log Lines a second for 5 s, followed, with a chart: from the append of a Log Line to its display in the Text View; median of a run"
+    },
+    "gui_follow_10_per_s_display_p99": {
+      "median_seconds": 0.265634768,
+      "mean_seconds": 0.265809623,
+      "std_seconds": 0.00040666,
+      "cv_percent": 0.15,
+      "p5_seconds": 0.265420052,
+      "p95_seconds": 0.266266597,
+      "iqr_seconds": 0.000801592,
+      "min_seconds": 0.265420052,
+      "max_seconds": 0.266266597,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Log File growing by 10 Log Lines a second for 5 s, followed, with a chart: from the append of a Log Line to its display in the Text View; 99th percentile of a run"
+    },
+    "gui_open_1mb_first_line": {
+      "median_seconds": 0.041065842,
+      "mean_seconds": 0.04120604,
+      "std_seconds": 0.001649201,
+      "cv_percent": 4.0,
+      "p5_seconds": 0.039176846,
+      "p95_seconds": 0.043318057,
+      "iqr_seconds": 0.003021124,
+      "min_seconds": 0.03860711,
+      "max_seconds": 0.043830385,
+      "filtered_count": 21,
+      "total_count": 21,
+      "measures": "A 1 MB Log File of one Log Line: open to first Log Line displayed, startup excluded"
+    },
+    "gui_open_1mb_indexed": {
+      "median_seconds": 0.044771124,
+      "mean_seconds": 0.044971792,
+      "std_seconds": 0.001933651,
+      "cv_percent": 4.3,
+      "p5_seconds": 0.042258584,
+      "p95_seconds": 0.047913015,
+      "iqr_seconds": 0.002934934,
+      "min_seconds": 0.041892037,
+      "max_seconds": 0.047935101,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 1048576,
+        "file_size_mb": 1.0,
+        "mb_per_sec": 22.34,
+        "lines_per_sec": 22.0
+      },
+      "measures": "A 1 MB Log File of one Log Line: open to Index finished, startup excluded"
+    },
+    "gui_open_log_100mb_first_line": {
+      "median_seconds": 0.044983869,
+      "mean_seconds": 0.045426409,
+      "std_seconds": 0.001987548,
+      "cv_percent": 4.38,
+      "p5_seconds": 0.043401914,
+      "p95_seconds": 0.051476594,
+      "iqr_seconds": 0.002989896,
+      "min_seconds": 0.043334802,
+      "max_seconds": 0.051476594,
+      "filtered_count": 20,
+      "total_count": 21,
+      "measures": "A 100 MB Log File: open to first Log Line displayed, startup excluded"
+    },
+    "gui_open_log_100mb_indexed": {
+      "median_seconds": 0.063160407,
+      "mean_seconds": 0.062711948,
+      "std_seconds": 0.003293999,
+      "cv_percent": 5.25,
+      "p5_seconds": 0.05853118,
+      "p95_seconds": 0.066784867,
+      "iqr_seconds": 0.005105395,
+      "min_seconds": 0.057314172,
+      "max_seconds": 0.069037997,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 104857579,
+        "file_size_mb": 100.0,
+        "mb_per_sec": 1583.27,
+        "lines_per_sec": 21420540.0
+      },
+      "measures": "A 100 MB Log File: open to Index finished, startup excluded"
+    },
+    "gui_open_log_1gb_first_line": {
+      "median_seconds": 0.052272969,
+      "mean_seconds": 0.062741958,
+      "std_seconds": 0.02573158,
+      "cv_percent": 41.01,
+      "p5_seconds": 0.043727565,
+      "p95_seconds": 0.10381031,
+      "iqr_seconds": 0.05181106,
+      "min_seconds": 0.043727565,
+      "max_seconds": 0.10381031,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A 1 GB Log File: open to first Log Line displayed, startup excluded"
+    },
+    "gui_open_log_1gb_indexed": {
+      "median_seconds": 0.226232506,
+      "mean_seconds": 0.226321501,
+      "std_seconds": 0.000762327,
+      "cv_percent": 0.34,
+      "p5_seconds": 0.225575258,
+      "p95_seconds": 0.227168742,
+      "iqr_seconds": 0.001593484,
+      "min_seconds": 0.225575258,
+      "max_seconds": 0.227168742,
+      "filtered_count": 5,
+      "total_count": 7,
+      "throughput": {
+        "file_size_bytes": 1073741758,
+        "file_size_mb": 1024.0,
+        "mb_per_sec": 4526.32,
+        "lines_per_sec": 60651788.0
+      },
+      "measures": "A 1 GB Log File: open to Index finished, startup excluded"
+    },
+    "gui_quickfind_log_100mb_keystroke_p50": {
+      "median_seconds": 0.002842813,
+      "mean_seconds": 0.002836518,
+      "std_seconds": 4.176e-05,
+      "cv_percent": 1.47,
+      "p5_seconds": 0.002767971,
+      "p95_seconds": 0.002889329,
+      "iqr_seconds": 6.0954e-05,
+      "min_seconds": 0.002732938,
+      "max_seconds": 0.00290051,
+      "filtered_count": 21,
+      "total_count": 21,
+      "measures": "QuickFind typing 'slow response' in generated_100Mb.log, a keystroke to its Matches marked: the median keystroke of a run"
+    },
+    "gui_quickfind_log_100mb_keystroke_p99": {
+      "median_seconds": 0.004197299,
+      "mean_seconds": 0.004220424,
+      "std_seconds": 0.000434804,
+      "cv_percent": 10.3,
+      "p5_seconds": 0.003572122,
+      "p95_seconds": 0.004776619,
+      "iqr_seconds": 0.000712018,
+      "min_seconds": 0.003546906,
+      "max_seconds": 0.004907163,
+      "filtered_count": 21,
+      "total_count": 21,
+      "measures": "QuickFind typing 'slow response' in generated_100Mb.log, a keystroke to its Matches marked: the 99th percentile keystroke of a run"
+    },
+    "gui_quickfind_log_1gb_keystroke_p50": {
+      "median_seconds": 0.002797468,
+      "mean_seconds": 0.002814809,
+      "std_seconds": 4.8475e-05,
+      "cv_percent": 1.72,
+      "p5_seconds": 0.002763705,
+      "p95_seconds": 0.002901452,
+      "iqr_seconds": 6.8798e-05,
+      "min_seconds": 0.002763705,
+      "max_seconds": 0.002901452,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "QuickFind typing 'slow response' in generated_1Gb.log, a keystroke to its Matches marked: the median keystroke of a run"
+    },
+    "gui_quickfind_log_1gb_keystroke_p99": {
+      "median_seconds": 0.003359882,
+      "mean_seconds": 0.003369226,
+      "std_seconds": 3.4344e-05,
+      "cv_percent": 1.02,
+      "p5_seconds": 0.003330873,
+      "p95_seconds": 0.003429046,
+      "iqr_seconds": 7.7835e-05,
+      "min_seconds": 0.003330873,
+      "max_seconds": 0.003429046,
+      "filtered_count": 6,
+      "total_count": 7,
+      "measures": "QuickFind typing 'slow response' in generated_1Gb.log, a keystroke to its Matches marked: the 99th percentile keystroke of a run"
+    },
+    "gui_read_while_indexing_log_100mb_expanded_lines_max": {
+      "median_seconds": 2.2638e-05,
+      "mean_seconds": 2.2828e-05,
+      "std_seconds": 2.203e-06,
+      "cv_percent": 9.65,
+      "p5_seconds": 2.0409e-05,
+      "p95_seconds": 2.9786e-05,
+      "iqr_seconds": 7.735e-06,
+      "min_seconds": 2.0409e-05,
+      "max_seconds": 2.9786e-05,
+      "filtered_count": 16,
+      "total_count": 21,
+      "measures": "While generated_100Mb.log is indexed, read from the UI thread every 2 ms: getExpandedLines of 60 Log Lines, the longest of a run"
+    },
+    "gui_read_while_indexing_log_100mb_expanded_lines_p50": {
+      "median_seconds": 2.0434e-05,
+      "mean_seconds": 2.1114e-05,
+      "std_seconds": 1.518e-06,
+      "cv_percent": 7.19,
+      "p5_seconds": 1.9717e-05,
+      "p95_seconds": 2.5137e-05,
+      "iqr_seconds": 2.465e-06,
+      "min_seconds": 1.9686e-05,
+      "max_seconds": 2.5137e-05,
+      "filtered_count": 20,
+      "total_count": 21,
+      "measures": "While generated_100Mb.log is indexed, read from the UI thread every 2 ms: getExpandedLines of 60 Log Lines, the median of a run"
+    },
+    "gui_read_while_indexing_log_100mb_expanded_lines_p99": {
+      "median_seconds": 2.2638e-05,
+      "mean_seconds": 2.2828e-05,
+      "std_seconds": 2.203e-06,
+      "cv_percent": 9.65,
+      "p5_seconds": 2.0409e-05,
+      "p95_seconds": 2.9786e-05,
+      "iqr_seconds": 7.735e-06,
+      "min_seconds": 2.0409e-05,
+      "max_seconds": 2.9786e-05,
+      "filtered_count": 16,
+      "total_count": 21,
+      "measures": "While generated_100Mb.log is indexed, read from the UI thread every 2 ms: getExpandedLines of 60 Log Lines, the 99th percentile of a run"
+    },
+    "gui_read_while_indexing_log_100mb_index_cpu": {
+      "median_seconds": 0.107072502,
+      "mean_seconds": 0.107756391,
+      "std_seconds": 0.003645994,
+      "cv_percent": 3.38,
+      "p5_seconds": 0.100495305,
+      "p95_seconds": 0.115322883,
+      "iqr_seconds": 0.004742258,
+      "min_seconds": 0.100495305,
+      "max_seconds": 0.115322883,
+      "filtered_count": 18,
+      "total_count": 21,
+      "measures": "While generated_100Mb.log is indexed, read from the UI thread every 2 ms: the process's CPU time during the indexing, every thread together"
+    },
+    "gui_read_while_indexing_log_100mb_index_wall": {
+      "median_seconds": 0.046800121,
+      "mean_seconds": 0.046159446,
+      "std_seconds": 0.00250609,
+      "cv_percent": 5.43,
+      "p5_seconds": 0.041993834,
+      "p95_seconds": 0.049716474,
+      "iqr_seconds": 0.0034684,
+      "min_seconds": 0.041146497,
+      "max_seconds": 0.049716474,
+      "filtered_count": 20,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 104857579,
+        "file_size_mb": 100.0,
+        "mb_per_sec": 2136.75,
+        "lines_per_sec": 28908686.0
+      },
+      "measures": "While generated_100Mb.log is indexed, read from the UI thread every 2 ms: the indexing, from the request to open it to its Index finished",
+      "indexing_parallelism": {
+        "median": 2.2980513773699056,
+        "min": 2.0307374842714885,
+        "max": 2.6028759386248606,
+        "runs": [
+          2.3033550592213135,
+          2.4393465206642233,
+          2.2971511380153466,
+          2.3090853783130676,
+          2.6028759386248606,
+          2.2834785461795835,
+          2.1698731405692206,
+          2.296935852493692,
+          2.3773994267980396,
+          2.343156959050125,
+          2.2885466237520826,
+          2.327256533798493,
+          2.4208653489037264,
+          2.3196110609131293,
+          2.2954286027119313,
+          2.2405042465276623,
+          2.0307374842714885,
+          2.2980513773699056,
+          2.2724251814725362,
+          2.1531861805883343,
+          2.3536762693403874
+        ]
+      }
+    },
+    "gui_read_while_indexing_log_100mb_line_string_max": {
+      "median_seconds": 3.202e-05,
+      "mean_seconds": 3.1759e-05,
+      "std_seconds": 1.543e-06,
+      "cv_percent": 4.86,
+      "p5_seconds": 2.9365e-05,
+      "p95_seconds": 3.5417e-05,
+      "iqr_seconds": 1.804e-06,
+      "min_seconds": 2.9365e-05,
+      "max_seconds": 3.5417e-05,
+      "filtered_count": 19,
+      "total_count": 21,
+      "measures": "While generated_100Mb.log is indexed, read from the UI thread every 2 ms: getLineString of one Log Line, the longest of a run"
+    },
+    "gui_read_while_indexing_log_100mb_line_string_p50": {
+      "median_seconds": 2.0944e-05,
+      "mean_seconds": 2.1014e-05,
+      "std_seconds": 2.751e-06,
+      "cv_percent": 13.09,
+      "p5_seconds": 1.7132e-05,
+      "p95_seconds": 2.6369e-05,
+      "iqr_seconds": 2.916e-06,
+      "min_seconds": 1.622e-05,
+      "max_seconds": 2.6369e-05,
+      "filtered_count": 20,
+      "total_count": 21,
+      "measures": "While generated_100Mb.log is indexed, read from the UI thread every 2 ms: getLineString of one Log Line, the median of a run"
+    },
+    "gui_read_while_indexing_log_100mb_line_string_p99": {
+      "median_seconds": 3.202e-05,
+      "mean_seconds": 3.1759e-05,
+      "std_seconds": 1.543e-06,
+      "cv_percent": 4.86,
+      "p5_seconds": 2.9365e-05,
+      "p95_seconds": 3.5417e-05,
+      "iqr_seconds": 1.804e-06,
+      "min_seconds": 2.9365e-05,
+      "max_seconds": 3.5417e-05,
+      "filtered_count": 19,
+      "total_count": 21,
+      "measures": "While generated_100Mb.log is indexed, read from the UI thread every 2 ms: getLineString of one Log Line, the 99th percentile of a run"
+    },
+    "gui_read_while_indexing_log_100mb_nb_line_max": {
+      "median_seconds": 5.21e-07,
+      "mean_seconds": 6.62e-07,
+      "std_seconds": 3.33e-07,
+      "cv_percent": 50.31,
+      "p5_seconds": 3.61e-07,
+      "p95_seconds": 1.473e-06,
+      "iqr_seconds": 9.72e-07,
+      "min_seconds": 3.61e-07,
+      "max_seconds": 1.473e-06,
+      "filtered_count": 17,
+      "total_count": 21,
+      "measures": "While generated_100Mb.log is indexed, read from the UI thread every 2 ms: getNbLine, the longest of a run"
+    },
+    "gui_read_while_indexing_log_100mb_nb_line_p50": {
+      "median_seconds": 2.6e-07,
+      "mean_seconds": 3.17e-07,
+      "std_seconds": 1.23e-07,
+      "cv_percent": 38.88,
+      "p5_seconds": 1.7e-07,
+      "p95_seconds": 6.11e-07,
+      "iqr_seconds": 1.89e-07,
+      "min_seconds": 1.7e-07,
+      "max_seconds": 6.11e-07,
+      "filtered_count": 19,
+      "total_count": 21,
+      "measures": "While generated_100Mb.log is indexed, read from the UI thread every 2 ms: getNbLine, the median of a run"
+    },
+    "gui_read_while_indexing_log_100mb_nb_line_p99": {
+      "median_seconds": 5.21e-07,
+      "mean_seconds": 6.62e-07,
+      "std_seconds": 3.33e-07,
+      "cv_percent": 50.31,
+      "p5_seconds": 3.61e-07,
+      "p95_seconds": 1.473e-06,
+      "iqr_seconds": 9.72e-07,
+      "min_seconds": 3.61e-07,
+      "max_seconds": 1.473e-06,
+      "filtered_count": 17,
+      "total_count": 21,
+      "measures": "While generated_100Mb.log is indexed, read from the UI thread every 2 ms: getNbLine, the 99th percentile of a run"
+    },
+    "gui_read_while_indexing_log_1gb_expanded_lines_max": {
+      "median_seconds": 0.000473894,
+      "mean_seconds": 0.000633296,
+      "std_seconds": 0.000590605,
+      "cv_percent": 93.26,
+      "p5_seconds": 6.0693e-05,
+      "p95_seconds": 0.001797393,
+      "iqr_seconds": 0.000786316,
+      "min_seconds": 6.0693e-05,
+      "max_seconds": 0.001797393,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "While generated_1Gb.log is indexed, read from the UI thread every 2 ms: getExpandedLines of 60 Log Lines, the longest of a run"
+    },
+    "gui_read_while_indexing_log_1gb_expanded_lines_p50": {
+      "median_seconds": 2.146e-05,
+      "mean_seconds": 2.1506e-05,
+      "std_seconds": 5.5e-07,
+      "cv_percent": 2.56,
+      "p5_seconds": 2.0799e-05,
+      "p95_seconds": 2.2202e-05,
+      "iqr_seconds": 1.212e-06,
+      "min_seconds": 2.0799e-05,
+      "max_seconds": 2.2202e-05,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "While generated_1Gb.log is indexed, read from the UI thread every 2 ms: getExpandedLines of 60 Log Lines, the median of a run"
+    },
+    "gui_read_while_indexing_log_1gb_expanded_lines_p99": {
+      "median_seconds": 0.000473894,
+      "mean_seconds": 0.000633296,
+      "std_seconds": 0.000590605,
+      "cv_percent": 93.26,
+      "p5_seconds": 6.0693e-05,
+      "p95_seconds": 0.001797393,
+      "iqr_seconds": 0.000786316,
+      "min_seconds": 6.0693e-05,
+      "max_seconds": 0.001797393,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "While generated_1Gb.log is indexed, read from the UI thread every 2 ms: getExpandedLines of 60 Log Lines, the 99th percentile of a run"
+    },
+    "gui_read_while_indexing_log_1gb_index_cpu": {
+      "median_seconds": 0.638334914,
+      "mean_seconds": 0.642348395,
+      "std_seconds": 0.013948066,
+      "cv_percent": 2.17,
+      "p5_seconds": 0.626200401,
+      "p95_seconds": 0.66891593,
+      "iqr_seconds": 0.017979871,
+      "min_seconds": 0.626200401,
+      "max_seconds": 0.66891593,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "While generated_1Gb.log is indexed, read from the UI thread every 2 ms: the process's CPU time during the indexing, every thread together"
+    },
+    "gui_read_while_indexing_log_1gb_index_wall": {
+      "median_seconds": 0.205867389,
+      "mean_seconds": 0.20490672,
+      "std_seconds": 0.004146401,
+      "cv_percent": 2.02,
+      "p5_seconds": 0.199055272,
+      "p95_seconds": 0.209585544,
+      "iqr_seconds": 0.008446031,
+      "min_seconds": 0.199055272,
+      "max_seconds": 0.209585544,
+      "filtered_count": 7,
+      "total_count": 7,
+      "throughput": {
+        "file_size_bytes": 1073741758,
+        "file_size_mb": 1024.0,
+        "mb_per_sec": 4974.08,
+        "lines_per_sec": 66651674.0
+      },
+      "measures": "While generated_1Gb.log is indexed, read from the UI thread every 2 ms: the indexing, from the request to open it to its Index finished",
+      "indexing_parallelism": {
+        "median": 3.1485008520538034,
+        "min": 3.054496922013937,
+        "max": 3.191612919639152,
+        "runs": [
+          3.150843076605466,
+          3.1002897646892484,
+          3.054496922013937,
+          3.1458619242197217,
+          3.1485008520538034,
+          3.153600083962295,
+          3.191612919639152
+        ]
+      }
+    },
+    "gui_read_while_indexing_log_1gb_line_string_max": {
+      "median_seconds": 0.000100723,
+      "mean_seconds": 0.000109543,
+      "std_seconds": 6.3436e-05,
+      "cv_percent": 57.91,
+      "p5_seconds": 3.2771e-05,
+      "p95_seconds": 0.000205213,
+      "iqr_seconds": 0.000142346,
+      "min_seconds": 3.2771e-05,
+      "max_seconds": 0.000205213,
+      "filtered_count": 6,
+      "total_count": 7,
+      "measures": "While generated_1Gb.log is indexed, read from the UI thread every 2 ms: getLineString of one Log Line, the longest of a run"
+    },
+    "gui_read_while_indexing_log_1gb_line_string_p50": {
+      "median_seconds": 1.3205e-05,
+      "mean_seconds": 1.3466e-05,
+      "std_seconds": 1.115e-06,
+      "cv_percent": 8.28,
+      "p5_seconds": 1.1903e-05,
+      "p95_seconds": 1.4748e-05,
+      "iqr_seconds": 2.245e-06,
+      "min_seconds": 1.1903e-05,
+      "max_seconds": 1.4748e-05,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "While generated_1Gb.log is indexed, read from the UI thread every 2 ms: getLineString of one Log Line, the median of a run"
+    },
+    "gui_read_while_indexing_log_1gb_line_string_p99": {
+      "median_seconds": 0.000100723,
+      "mean_seconds": 0.000109543,
+      "std_seconds": 6.3436e-05,
+      "cv_percent": 57.91,
+      "p5_seconds": 3.2771e-05,
+      "p95_seconds": 0.000205213,
+      "iqr_seconds": 0.000142346,
+      "min_seconds": 3.2771e-05,
+      "max_seconds": 0.000205213,
+      "filtered_count": 6,
+      "total_count": 7,
+      "measures": "While generated_1Gb.log is indexed, read from the UI thread every 2 ms: getLineString of one Log Line, the 99th percentile of a run"
+    },
+    "gui_read_while_indexing_log_1gb_nb_line_max": {
+      "median_seconds": 0.000982753,
+      "mean_seconds": 0.00103879,
+      "std_seconds": 0.000309081,
+      "cv_percent": 29.75,
+      "p5_seconds": 0.000640544,
+      "p95_seconds": 0.001410952,
+      "iqr_seconds": 0.000634953,
+      "min_seconds": 0.000640544,
+      "max_seconds": 0.001410952,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "While generated_1Gb.log is indexed, read from the UI thread every 2 ms: getNbLine, the longest of a run"
+    },
+    "gui_read_while_indexing_log_1gb_nb_line_p50": {
+      "median_seconds": 4.61e-07,
+      "mean_seconds": 4.75e-07,
+      "std_seconds": 6.5e-08,
+      "cv_percent": 13.69,
+      "p5_seconds": 4.01e-07,
+      "p95_seconds": 6.02e-07,
+      "iqr_seconds": 7e-08,
+      "min_seconds": 4.01e-07,
+      "max_seconds": 6.02e-07,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "While generated_1Gb.log is indexed, read from the UI thread every 2 ms: getNbLine, the median of a run"
+    },
+    "gui_read_while_indexing_log_1gb_nb_line_p99": {
+      "median_seconds": 0.000982753,
+      "mean_seconds": 0.00103879,
+      "std_seconds": 0.000309081,
+      "cv_percent": 29.75,
+      "p5_seconds": 0.000640544,
+      "p95_seconds": 0.001410952,
+      "iqr_seconds": 0.000634953,
+      "min_seconds": 0.000640544,
+      "max_seconds": 0.001410952,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "While generated_1Gb.log is indexed, read from the UI thread every 2 ms: getNbLine, the 99th percentile of a run"
+    },
+    "gui_save_log_100mb_marks_added": {
+      "median_seconds": 0.005943287,
+      "mean_seconds": 0.00612793,
+      "std_seconds": 0.000549802,
+      "cv_percent": 8.97,
+      "p5_seconds": 0.005650472,
+      "p95_seconds": 0.007451662,
+      "iqr_seconds": 0.001056881,
+      "min_seconds": 0.005650472,
+      "max_seconds": 0.007451662,
+      "filtered_count": 19,
+      "total_count": 21,
+      "measures": "Searched for 'slow response' in generated_100Mb.log, Search finished before: 200 Marks set, each with the Text View's Mark action"
+    },
+    "gui_save_log_100mb_marks_removed": {
+      "median_seconds": 0.005390086,
+      "mean_seconds": 0.005371945,
+      "std_seconds": 9.8821e-05,
+      "cv_percent": 1.84,
+      "p5_seconds": 0.005222453,
+      "p95_seconds": 0.005496715,
+      "iqr_seconds": 0.000151032,
+      "min_seconds": 0.0051993,
+      "max_seconds": 0.005575148,
+      "filtered_count": 21,
+      "total_count": 21,
+      "measures": "Searched for 'slow response' in generated_100Mb.log, Search finished before: the 200 Marks removed again"
+    },
+    "gui_save_log_100mb_saved": {
+      "median_seconds": 0.087304556,
+      "mean_seconds": 0.087380142,
+      "std_seconds": 0.002130193,
+      "cv_percent": 2.44,
+      "p5_seconds": 0.08435315,
+      "p95_seconds": 0.091405086,
+      "iqr_seconds": 0.003024669,
+      "min_seconds": 0.083186343,
+      "max_seconds": 0.091405086,
+      "filtered_count": 20,
+      "total_count": 21,
+      "measures": "Searched for 'slow response' in generated_100Mb.log, Search finished before: the Filtered View's Matches and Marks selected and saved to a file"
+    },
+    "gui_scroll_table_frame_max": {
+      "median_seconds": 0.003169822,
+      "mean_seconds": 0.003484767,
+      "std_seconds": 0.00066771,
+      "cv_percent": 19.16,
+      "p5_seconds": 0.00277144,
+      "p95_seconds": 0.004475007,
+      "iqr_seconds": 0.001314863,
+      "min_seconds": 0.00277144,
+      "max_seconds": 0.004475007,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Table View (generated_scroll_100Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the longest frame of a run"
+    },
+    "gui_scroll_table_frame_p50": {
+      "median_seconds": 0.002222836,
+      "mean_seconds": 0.002238149,
+      "std_seconds": 2.8618e-05,
+      "cv_percent": 1.28,
+      "p5_seconds": 0.002210643,
+      "p95_seconds": 0.00227863,
+      "iqr_seconds": 5.2809e-05,
+      "min_seconds": 0.002210643,
+      "max_seconds": 0.00227863,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Table View (generated_scroll_100Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the median frame of a run"
+    },
+    "gui_scroll_table_frame_p99": {
+      "median_seconds": 0.002849235,
+      "mean_seconds": 0.002984602,
+      "std_seconds": 0.000326243,
+      "cv_percent": 10.93,
+      "p5_seconds": 0.0026641,
+      "p95_seconds": 0.003464763,
+      "iqr_seconds": 0.000689175,
+      "min_seconds": 0.0026641,
+      "max_seconds": 0.003464763,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Table View (generated_scroll_100Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the 99th percentile frame of a run",
+      "frames_over_budget": {
+        "budget_ms": 16.666666666666668,
+        "median": 0.0,
+        "max": 0,
+        "runs": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "frame_count_median": 241.0
+      }
+    },
+    "gui_scroll_table_highlighters_frame_max": {
+      "median_seconds": 0.003426501,
+      "mean_seconds": 0.003456412,
+      "std_seconds": 0.00014357,
+      "cv_percent": 4.15,
+      "p5_seconds": 0.003319131,
+      "p95_seconds": 0.003745607,
+      "iqr_seconds": 0.000168195,
+      "min_seconds": 0.003319131,
+      "max_seconds": 0.003745607,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Table View with a Highlighter Set of 5 (generated_scroll_100Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the longest frame of a run"
+    },
+    "gui_scroll_table_highlighters_frame_p50": {
+      "median_seconds": 0.002702601,
+      "mean_seconds": 0.002709646,
+      "std_seconds": 3.7495e-05,
+      "cv_percent": 1.38,
+      "p5_seconds": 0.002651626,
+      "p95_seconds": 0.002760259,
+      "iqr_seconds": 6.6945e-05,
+      "min_seconds": 0.002651626,
+      "max_seconds": 0.002760259,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Table View with a Highlighter Set of 5 (generated_scroll_100Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the median frame of a run"
+    },
+    "gui_scroll_table_highlighters_frame_p99": {
+      "median_seconds": 0.003360568,
+      "mean_seconds": 0.003338147,
+      "std_seconds": 7.6371e-05,
+      "cv_percent": 2.29,
+      "p5_seconds": 0.003238631,
+      "p95_seconds": 0.003434015,
+      "iqr_seconds": 0.00016117,
+      "min_seconds": 0.003238631,
+      "max_seconds": 0.003434015,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Table View with a Highlighter Set of 5 (generated_scroll_100Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the 99th percentile frame of a run",
+      "frames_over_budget": {
+        "budget_ms": 16.666666666666668,
+        "median": 0.0,
+        "max": 0,
+        "runs": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "frame_count_median": 241.0
+      }
+    },
+    "gui_scroll_text_ansi_colors_frame_max": {
+      "median_seconds": 0.002256719,
+      "mean_seconds": 0.003197254,
+      "std_seconds": 0.001822313,
+      "cv_percent": 57.0,
+      "p5_seconds": 0.002190689,
+      "p95_seconds": 0.006952027,
+      "iqr_seconds": 0.0020748,
+      "min_seconds": 0.002190689,
+      "max_seconds": 0.006952027,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Text View, ANSI colors shown (generated_scroll_ansi_20Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the longest frame of a run"
+    },
+    "gui_scroll_text_ansi_colors_frame_p50": {
+      "median_seconds": 0.000384969,
+      "mean_seconds": 0.000384884,
+      "std_seconds": 1.0728e-05,
+      "cv_percent": 2.79,
+      "p5_seconds": 0.000368347,
+      "p95_seconds": 0.000400938,
+      "iqr_seconds": 1.59e-05,
+      "min_seconds": 0.000368347,
+      "max_seconds": 0.000400938,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Text View, ANSI colors shown (generated_scroll_ansi_20Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the median frame of a run"
+    },
+    "gui_scroll_text_ansi_colors_frame_p99": {
+      "median_seconds": 0.002188542,
+      "mean_seconds": 0.002612313,
+      "std_seconds": 0.000770328,
+      "cv_percent": 29.49,
+      "p5_seconds": 0.002145121,
+      "p95_seconds": 0.004061375,
+      "iqr_seconds": 0.001158287,
+      "min_seconds": 0.002145121,
+      "max_seconds": 0.004061375,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Text View, ANSI colors shown (generated_scroll_ansi_20Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the 99th percentile frame of a run",
+      "frames_over_budget": {
+        "budget_ms": 16.666666666666668,
+        "median": 0.0,
+        "max": 0,
+        "runs": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "frame_count_median": 241.0
+      }
+    },
+    "gui_scroll_text_ansi_hidden_frame_max": {
+      "median_seconds": 0.00155477,
+      "mean_seconds": 0.001555675,
+      "std_seconds": 2.7329e-05,
+      "cv_percent": 1.76,
+      "p5_seconds": 0.001506139,
+      "p95_seconds": 0.001584576,
+      "iqr_seconds": 4.0967e-05,
+      "min_seconds": 0.001506139,
+      "max_seconds": 0.001584576,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Text View, ANSI color sequences hidden (generated_scroll_ansi_20Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the longest frame of a run"
+    },
+    "gui_scroll_text_ansi_hidden_frame_p50": {
+      "median_seconds": 0.000324805,
+      "mean_seconds": 0.000327237,
+      "std_seconds": 9.381e-06,
+      "cv_percent": 2.87,
+      "p5_seconds": 0.000315889,
+      "p95_seconds": 0.000339634,
+      "iqr_seconds": 1.598e-05,
+      "min_seconds": 0.000315889,
+      "max_seconds": 0.000339634,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Text View, ANSI color sequences hidden (generated_scroll_ansi_20Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the median frame of a run"
+    },
+    "gui_scroll_text_ansi_hidden_frame_p99": {
+      "median_seconds": 0.001526216,
+      "mean_seconds": 0.00151858,
+      "std_seconds": 2.1431e-05,
+      "cv_percent": 1.41,
+      "p5_seconds": 0.001476104,
+      "p95_seconds": 0.00153851,
+      "iqr_seconds": 2.7221e-05,
+      "min_seconds": 0.001476104,
+      "max_seconds": 0.00153851,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Text View, ANSI color sequences hidden (generated_scroll_ansi_20Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the 99th percentile frame of a run",
+      "frames_over_budget": {
+        "budget_ms": 16.666666666666668,
+        "median": 0.0,
+        "max": 0,
+        "runs": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "frame_count_median": 241.0
+      }
+    },
+    "gui_scroll_text_frame_max": {
+      "median_seconds": 0.001556593,
+      "mean_seconds": 0.001569178,
+      "std_seconds": 4.3236e-05,
+      "cv_percent": 2.76,
+      "p5_seconds": 0.001526677,
+      "p95_seconds": 0.001642784,
+      "iqr_seconds": 7.5882e-05,
+      "min_seconds": 0.001526677,
+      "max_seconds": 0.001642784,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Text View (generated_scroll_100Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the longest frame of a run"
+    },
+    "gui_scroll_text_frame_p50": {
+      "median_seconds": 0.000333362,
+      "mean_seconds": 0.000327872,
+      "std_seconds": 1.1657e-05,
+      "cv_percent": 3.56,
+      "p5_seconds": 0.000311451,
+      "p95_seconds": 0.000339863,
+      "iqr_seconds": 2.4987e-05,
+      "min_seconds": 0.000311451,
+      "max_seconds": 0.000339863,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Text View (generated_scroll_100Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the median frame of a run"
+    },
+    "gui_scroll_text_frame_p99": {
+      "median_seconds": 0.001522891,
+      "mean_seconds": 0.00152357,
+      "std_seconds": 1.4561e-05,
+      "cv_percent": 0.96,
+      "p5_seconds": 0.001503545,
+      "p95_seconds": 0.001545292,
+      "iqr_seconds": 2.5588e-05,
+      "min_seconds": 0.001503545,
+      "max_seconds": 0.001545292,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Text View (generated_scroll_100Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the 99th percentile frame of a run",
+      "frames_over_budget": {
+        "budget_ms": 16.666666666666668,
+        "median": 0.0,
+        "max": 0,
+        "runs": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "frame_count_median": 241.0
+      }
+    },
+    "gui_scroll_text_highlighters_frame_max": {
+      "median_seconds": 0.001912888,
+      "mean_seconds": 0.001997294,
+      "std_seconds": 0.000157958,
+      "cv_percent": 7.91,
+      "p5_seconds": 0.00182347,
+      "p95_seconds": 0.002206792,
+      "iqr_seconds": 0.000322051,
+      "min_seconds": 0.00182347,
+      "max_seconds": 0.002206792,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Text View with a Highlighter Set of 5 (generated_scroll_100Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the longest frame of a run"
+    },
+    "gui_scroll_text_highlighters_frame_p50": {
+      "median_seconds": 0.000357647,
+      "mean_seconds": 0.000353992,
+      "std_seconds": 1.0038e-05,
+      "cv_percent": 2.84,
+      "p5_seconds": 0.000339593,
+      "p95_seconds": 0.000366313,
+      "iqr_seconds": 1.9797e-05,
+      "min_seconds": 0.000339593,
+      "max_seconds": 0.000366313,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Text View with a Highlighter Set of 5 (generated_scroll_100Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the median frame of a run"
+    },
+    "gui_scroll_text_highlighters_frame_p99": {
+      "median_seconds": 0.001864097,
+      "mean_seconds": 0.001847376,
+      "std_seconds": 3.3405e-05,
+      "cv_percent": 1.81,
+      "p5_seconds": 0.001802372,
+      "p95_seconds": 0.001894283,
+      "iqr_seconds": 4.855e-05,
+      "min_seconds": 0.001802372,
+      "max_seconds": 0.001894283,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Text View with a Highlighter Set of 5 (generated_scroll_100Mb.log): a paint of its Viewport while scrolling by line, by page and to the end, Log File loaded before; the 99th percentile frame of a run",
+      "frames_over_budget": {
+        "budget_ms": 16.666666666666668,
+        "median": 0.0,
+        "max": 0,
+        "runs": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "frame_count_median": 241.0
+      }
+    },
+    "gui_search_log_100mb_alternation_finished": {
+      "median_seconds": 0.09954313,
+      "mean_seconds": 0.099351893,
+      "std_seconds": 0.002209853,
+      "cv_percent": 2.22,
+      "p5_seconds": 0.095901882,
+      "p95_seconds": 0.102145192,
+      "iqr_seconds": 0.003042805,
+      "min_seconds": 0.094675004,
+      "max_seconds": 0.103661716,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 104857579,
+        "file_size_mb": 100.0,
+        "mb_per_sec": 1004.59,
+        "lines_per_sec": 13591395.0
+      },
+      "measures": "An alternation, the ERROR and WARN Log Lines (generated_100Mb.log): Search requested to Search finished, Log File loaded before"
+    },
+    "gui_search_log_100mb_alternation_first_match": {
+      "median_seconds": 0.101870874,
+      "mean_seconds": 0.101738842,
+      "std_seconds": 0.002273219,
+      "cv_percent": 2.23,
+      "p5_seconds": 0.098580037,
+      "p95_seconds": 0.105193978,
+      "iqr_seconds": 0.003083037,
+      "min_seconds": 0.096940218,
+      "max_seconds": 0.105740694,
+      "filtered_count": 21,
+      "total_count": 21,
+      "measures": "An alternation, the ERROR and WARN Log Lines (generated_100Mb.log): Search requested to first Match displayed, Log File loaded before"
+    },
+    "gui_search_log_100mb_case_insensitive_finished": {
+      "median_seconds": 0.062237535,
+      "mean_seconds": 0.062252,
+      "std_seconds": 0.00107751,
+      "cv_percent": 1.73,
+      "p5_seconds": 0.060787534,
+      "p95_seconds": 0.063978956,
+      "iqr_seconds": 0.001225025,
+      "min_seconds": 0.059822455,
+      "max_seconds": 0.064043306,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 104857579,
+        "file_size_mb": 100.0,
+        "mb_per_sec": 1606.75,
+        "lines_per_sec": 21738168.0
+      },
+      "measures": "Plain text, case ignored, the ERROR Log Lines (generated_100Mb.log): Search requested to Search finished, Log File loaded before"
+    },
+    "gui_search_log_100mb_case_insensitive_first_match": {
+      "median_seconds": 0.064437842,
+      "mean_seconds": 0.064491427,
+      "std_seconds": 0.001204178,
+      "cv_percent": 1.87,
+      "p5_seconds": 0.062923688,
+      "p95_seconds": 0.066320099,
+      "iqr_seconds": 0.001596348,
+      "min_seconds": 0.061817155,
+      "max_seconds": 0.066437771,
+      "filtered_count": 21,
+      "total_count": 21,
+      "measures": "Plain text, case ignored, the ERROR Log Lines (generated_100Mb.log): Search requested to first Match displayed, Log File loaded before"
+    },
+    "gui_search_log_100mb_no_match_finished": {
+      "median_seconds": 0.055467373,
+      "mean_seconds": 0.055636426,
+      "std_seconds": 0.001677223,
+      "cv_percent": 3.01,
+      "p5_seconds": 0.053075251,
+      "p95_seconds": 0.057978056,
+      "iqr_seconds": 0.002191403,
+      "min_seconds": 0.052574866,
+      "max_seconds": 0.058835465,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 104857579,
+        "file_size_mb": 100.0,
+        "mb_per_sec": 1802.86,
+        "lines_per_sec": 24391456.0
+      },
+      "measures": "Plain text without a Match (generated_100Mb.log): Search requested to Search finished, Log File loaded before"
+    },
+    "gui_search_log_100mb_plain_finished": {
+      "median_seconds": 0.057261865,
+      "mean_seconds": 0.057171528,
+      "std_seconds": 0.001382407,
+      "cv_percent": 2.42,
+      "p5_seconds": 0.055704808,
+      "p95_seconds": 0.058840912,
+      "iqr_seconds": 0.001906232,
+      "min_seconds": 0.053426765,
+      "max_seconds": 0.059315989,
+      "filtered_count": 21,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 104857579,
+        "file_size_mb": 100.0,
+        "mb_per_sec": 1746.36,
+        "lines_per_sec": 23627068.0
+      },
+      "measures": "Plain text, the ERROR Log Lines (generated_100Mb.log): Search requested to Search finished, Log File loaded before"
+    },
+    "gui_search_log_100mb_plain_first_match": {
+      "median_seconds": 0.059974599,
+      "mean_seconds": 0.059561253,
+      "std_seconds": 0.001152437,
+      "cv_percent": 1.93,
+      "p5_seconds": 0.057823128,
+      "p95_seconds": 0.061374826,
+      "iqr_seconds": 0.001895584,
+      "min_seconds": 0.057781695,
+      "max_seconds": 0.061374826,
+      "filtered_count": 20,
+      "total_count": 21,
+      "measures": "Plain text, the ERROR Log Lines (generated_100Mb.log): Search requested to first Match displayed, Log File loaded before"
+    },
+    "gui_search_log_100mb_regex_finished": {
+      "median_seconds": 0.069320528,
+      "mean_seconds": 0.069442147,
+      "std_seconds": 0.001392188,
+      "cv_percent": 2.0,
+      "p5_seconds": 0.067140262,
+      "p95_seconds": 0.072158515,
+      "iqr_seconds": 0.001606727,
+      "min_seconds": 0.067140262,
+      "max_seconds": 0.072158515,
+      "filtered_count": 19,
+      "total_count": 21,
+      "throughput": {
+        "file_size_bytes": 104857579,
+        "file_size_mb": 100.0,
+        "mb_per_sec": 1442.57,
+        "lines_per_sec": 19517018.0
+      },
+      "measures": "A regular expression, the ERROR Log Lines (generated_100Mb.log): Search requested to Search finished, Log File loaded before"
+    },
+    "gui_search_log_100mb_regex_first_match": {
+      "median_seconds": 0.071449558,
+      "mean_seconds": 0.071423996,
+      "std_seconds": 0.000937557,
+      "cv_percent": 1.31,
+      "p5_seconds": 0.069581785,
+      "p95_seconds": 0.073658999,
+      "iqr_seconds": 0.001149412,
+      "min_seconds": 0.069581785,
+      "max_seconds": 0.073658999,
+      "filtered_count": 17,
+      "total_count": 21,
+      "measures": "A regular expression, the ERROR Log Lines (generated_100Mb.log): Search requested to first Match displayed, Log File loaded before"
+    },
+    "gui_search_log_1gb_alternation_finished": {
+      "median_seconds": 0.703676005,
+      "mean_seconds": 0.703393184,
+      "std_seconds": 0.000634825,
+      "cv_percent": 0.09,
+      "p5_seconds": 0.702338613,
+      "p95_seconds": 0.704019653,
+      "iqr_seconds": 0.001106971,
+      "min_seconds": 0.702338613,
+      "max_seconds": 0.704019653,
+      "filtered_count": 6,
+      "total_count": 7,
+      "throughput": {
+        "file_size_bytes": 1073741758,
+        "file_size_mb": 1024.0,
+        "mb_per_sec": 1455.22,
+        "lines_per_sec": 19499608.0
+      },
+      "measures": "An alternation, the ERROR and WARN Log Lines (generated_1Gb.log): Search requested to Search finished, Log File loaded before"
+    },
+    "gui_search_log_1gb_alternation_first_match": {
+      "median_seconds": 0.113677749,
+      "mean_seconds": 0.114904775,
+      "std_seconds": 0.005305028,
+      "cv_percent": 4.62,
+      "p5_seconds": 0.107435171,
+      "p95_seconds": 0.122030597,
+      "iqr_seconds": 0.00996369,
+      "min_seconds": 0.107435171,
+      "max_seconds": 0.122030597,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "An alternation, the ERROR and WARN Log Lines (generated_1Gb.log): Search requested to first Match displayed, Log File loaded before"
+    },
+    "gui_search_log_1gb_case_insensitive_finished": {
+      "median_seconds": 0.435395767,
+      "mean_seconds": 0.435741124,
+      "std_seconds": 0.001686202,
+      "cv_percent": 0.39,
+      "p5_seconds": 0.433883199,
+      "p95_seconds": 0.438892717,
+      "iqr_seconds": 0.002387275,
+      "min_seconds": 0.433883199,
+      "max_seconds": 0.438892717,
+      "filtered_count": 7,
+      "total_count": 7,
+      "throughput": {
+        "file_size_bytes": 1073741758,
+        "file_size_mb": 1024.0,
+        "mb_per_sec": 2351.88,
+        "lines_per_sec": 31514790.0
+      },
+      "measures": "Plain text, case ignored, the ERROR Log Lines (generated_1Gb.log): Search requested to Search finished, Log File loaded before"
+    },
+    "gui_search_log_1gb_case_insensitive_first_match": {
+      "median_seconds": 0.11677153,
+      "mean_seconds": 0.1161091,
+      "std_seconds": 0.005325973,
+      "cv_percent": 4.59,
+      "p5_seconds": 0.107815052,
+      "p95_seconds": 0.122742724,
+      "iqr_seconds": 0.009556258,
+      "min_seconds": 0.107815052,
+      "max_seconds": 0.122742724,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "Plain text, case ignored, the ERROR Log Lines (generated_1Gb.log): Search requested to first Match displayed, Log File loaded before"
+    },
+    "gui_search_log_1gb_no_match_finished": {
+      "median_seconds": 0.372116311,
+      "mean_seconds": 0.371355061,
+      "std_seconds": 0.002122693,
+      "cv_percent": 0.57,
+      "p5_seconds": 0.36736433,
+      "p95_seconds": 0.373315681,
+      "iqr_seconds": 0.003071133,
+      "min_seconds": 0.36736433,
+      "max_seconds": 0.373315681,
+      "filtered_count": 7,
+      "total_count": 7,
+      "throughput": {
+        "file_size_bytes": 1073741758,
+        "file_size_mb": 1024.0,
+        "mb_per_sec": 2751.83,
+        "lines_per_sec": 36873971.0
+      },
+      "measures": "Plain text without a Match (generated_1Gb.log): Search requested to Search finished, Log File loaded before"
+    },
+    "gui_search_log_1gb_plain_finished": {
+      "median_seconds": 0.407584575,
+      "mean_seconds": 0.43678899,
+      "std_seconds": 0.051364065,
+      "cv_percent": 11.76,
+      "p5_seconds": 0.405514624,
+      "p95_seconds": 0.529531294,
+      "iqr_seconds": 0.08460911,
+      "min_seconds": 0.405514624,
+      "max_seconds": 0.529531294,
+      "filtered_count": 7,
+      "total_count": 7,
+      "throughput": {
+        "file_size_bytes": 1073741758,
+        "file_size_mb": 1024.0,
+        "mb_per_sec": 2512.36,
+        "lines_per_sec": 33665175.0
+      },
+      "measures": "Plain text, the ERROR Log Lines (generated_1Gb.log): Search requested to Search finished, Log File loaded before"
+    },
+    "gui_search_log_1gb_plain_first_match": {
+      "median_seconds": 0.110504992,
+      "mean_seconds": 0.111064265,
+      "std_seconds": 0.002415409,
+      "cv_percent": 2.17,
+      "p5_seconds": 0.108364365,
+      "p95_seconds": 0.114406152,
+      "iqr_seconds": 0.005159191,
+      "min_seconds": 0.108364365,
+      "max_seconds": 0.114406152,
+      "filtered_count": 6,
+      "total_count": 7,
+      "measures": "Plain text, the ERROR Log Lines (generated_1Gb.log): Search requested to first Match displayed, Log File loaded before"
+    },
+    "gui_search_log_1gb_regex_finished": {
+      "median_seconds": 0.485973771,
+      "mean_seconds": 0.485551303,
+      "std_seconds": 0.001315989,
+      "cv_percent": 0.27,
+      "p5_seconds": 0.483142074,
+      "p95_seconds": 0.486641179,
+      "iqr_seconds": 0.001585429,
+      "min_seconds": 0.483142074,
+      "max_seconds": 0.486641179,
+      "filtered_count": 6,
+      "total_count": 7,
+      "throughput": {
+        "file_size_bytes": 1073741758,
+        "file_size_mb": 1024.0,
+        "mb_per_sec": 2107.11,
+        "lines_per_sec": 28234869.0
+      },
+      "measures": "A regular expression, the ERROR Log Lines (generated_1Gb.log): Search requested to Search finished, Log File loaded before"
+    },
+    "gui_search_log_1gb_regex_first_match": {
+      "median_seconds": 0.114750252,
+      "mean_seconds": 0.115647064,
+      "std_seconds": 0.006244789,
+      "cv_percent": 5.4,
+      "p5_seconds": 0.109032598,
+      "p95_seconds": 0.124731655,
+      "iqr_seconds": 0.012174113,
+      "min_seconds": 0.109032598,
+      "max_seconds": 0.124731655,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A regular expression, the ERROR Log Lines (generated_1Gb.log): Search requested to first Match displayed, Log File loaded before"
+    },
+    "gui_session_restore_log_220mb_all_tabs_indexed": {
+      "median_seconds": 0.190421656,
+      "mean_seconds": 0.19009456,
+      "std_seconds": 0.004857026,
+      "cv_percent": 2.56,
+      "p5_seconds": 0.184647713,
+      "p95_seconds": 0.196519705,
+      "iqr_seconds": 0.009222231,
+      "min_seconds": 0.184647713,
+      "max_seconds": 0.196519705,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Session of 3 tabs of 20 to 100 MB, a 100 MB Log File in front, restored: to the Index of every tab finished"
+    },
+    "gui_session_restore_log_220mb_current_tab_usable": {
+      "median_seconds": 0.152944603,
+      "mean_seconds": 0.154236824,
+      "std_seconds": 0.00305877,
+      "cv_percent": 1.98,
+      "p5_seconds": 0.151331255,
+      "p95_seconds": 0.159094659,
+      "iqr_seconds": 0.005909269,
+      "min_seconds": 0.151331255,
+      "max_seconds": 0.159094659,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Session of 3 tabs of 20 to 100 MB, a 100 MB Log File in front, restored: to the tab in front indexed and painted"
+    },
+    "gui_session_restore_log_220mb_kept_searches_all_tabs_indexed": {
+      "median_seconds": 0.195286527,
+      "mean_seconds": 0.195539731,
+      "std_seconds": 0.003593629,
+      "cv_percent": 1.84,
+      "p5_seconds": 0.191797597,
+      "p95_seconds": 0.202167044,
+      "iqr_seconds": 0.004536209,
+      "min_seconds": 0.191797597,
+      "max_seconds": 0.202167044,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Session of 3 tabs of 20 to 100 MB, a 100 MB Log File in front, each with 3 Kept Searches, restored: to the Index of every tab finished"
+    },
+    "gui_session_restore_log_220mb_kept_searches_all_tabs_restored": {
+      "median_seconds": 0.475000377,
+      "mean_seconds": 0.474672392,
+      "std_seconds": 0.003322942,
+      "cv_percent": 0.7,
+      "p5_seconds": 0.470086108,
+      "p95_seconds": 0.479527425,
+      "iqr_seconds": 0.006322386,
+      "min_seconds": 0.470086108,
+      "max_seconds": 0.479527425,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Session of 3 tabs of 20 to 100 MB, a 100 MB Log File in front, each with 3 Kept Searches, restored: to the last Kept Search of every tab finished"
+    },
+    "gui_session_restore_log_220mb_kept_searches_current_tab_usable": {
+      "median_seconds": 0.159481528,
+      "mean_seconds": 0.160782732,
+      "std_seconds": 0.003459653,
+      "cv_percent": 2.15,
+      "p5_seconds": 0.156320995,
+      "p95_seconds": 0.166674884,
+      "iqr_seconds": 0.004754309,
+      "min_seconds": 0.156320995,
+      "max_seconds": 0.166674884,
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Session of 3 tabs of 20 to 100 MB, a 100 MB Log File in front, each with 3 Kept Searches, restored: to the tab in front indexed and painted"
+    },
+    "gui_session_restore_small_all_tabs_indexed": {
+      "median_seconds": 0.148794916,
+      "mean_seconds": 0.150153041,
+      "std_seconds": 0.003830328,
+      "cv_percent": 2.55,
+      "p5_seconds": 0.145823071,
+      "p95_seconds": 0.157770095,
+      "iqr_seconds": 0.004324808,
+      "min_seconds": 0.145096978,
+      "max_seconds": 0.157770095,
+      "filtered_count": 20,
+      "total_count": 21,
+      "measures": "A Session of 3 tabs of 0.5 to 1.5 MB, the 1 MB one in front, restored: to the Index of every tab finished"
+    },
+    "gui_session_restore_small_current_tab_usable": {
+      "median_seconds": 0.140349593,
+      "mean_seconds": 0.141314944,
+      "std_seconds": 0.003974073,
+      "cv_percent": 2.81,
+      "p5_seconds": 0.137043404,
+      "p95_seconds": 0.149555092,
+      "iqr_seconds": 0.005403342,
+      "min_seconds": 0.136544895,
+      "max_seconds": 0.149555092,
+      "filtered_count": 20,
+      "total_count": 21,
+      "measures": "A Session of 3 tabs of 0.5 to 1.5 MB, the 1 MB one in front, restored: to the tab in front indexed and painted"
+    },
+    "gui_startup_version": {
+      "median_seconds": 0.013045613,
+      "mean_seconds": 0.013209137,
+      "std_seconds": 0.000551278,
+      "cv_percent": 4.17,
+      "p5_seconds": 0.012517062,
+      "p95_seconds": 0.014366372,
+      "iqr_seconds": 0.000639522,
+      "min_seconds": 0.012509869,
+      "max_seconds": 0.014366372,
+      "filtered_count": 20,
+      "total_count": 21,
+      "measures": "Process start to exit of `logsquirl --version` (wall-clock)"
+    }
+  },
+  "reference": {
+    "tag": "v26.10.0",
+    "commit": "387d39cbada2621b71015c43aa00eeb55ce4ded1",
+    "median_cv_percent": 3.49,
+    "usable": true,
+    "benchmarks": {
+      "gui_startup_version": {
+        "median_seconds": 0.012568123,
+        "mean_seconds": 0.0126402,
+        "std_seconds": 0.000440821,
+        "cv_percent": 3.49,
+        "p5_seconds": 0.011985296,
+        "p95_seconds": 0.013708161,
+        "iqr_seconds": 0.000631107,
+        "min_seconds": 0.011985296,
+        "max_seconds": 0.013708161,
+        "filtered_count": 19,
+        "total_count": 21,
+        "measures": "Process start to exit of `logsquirl --version` (wall-clock)"
+      }
+    }
+  },
+  "ratios": {
+    "gui_startup_version": 1.0379921488674162
+  },
+  "instruction_counts": {
+    "cpu": "AMD EPYC 7763 64-Core Processor",
+    "log_file_mb": 32,
+    "failed_binaries": [],
+    "benchmarks": {
+      "logsquirl_ansicolorsequences_benchmark / ANSI color sequence parser benchmarks / a screen of colored Log Lines: parsed": {
+        "instructions": 224686,
+        "allocations": 180,
+        "peak_heap_bytes": 328
+      },
+      "logsquirl_ansicolorsequences_benchmark / ANSI color sequence parser benchmarks / a screen of colored Log Lines: sequences removed": {
+        "instructions": 1133179,
+        "allocations": 1740,
+        "peak_heap_bytes": 944
+      },
+      "logsquirl_ansicolorsequences_benchmark / ANSI color sequence parser benchmarks / a screen of long 256-color and truecolor Log Lines: parsed": {
+        "instructions": 1243130,
+        "allocations": 420,
+        "peak_heap_bytes": 2072
+      },
+      "logsquirl_ansicolorsequences_benchmark / ANSI color sequence parser benchmarks / a screen of long 256-color and truecolor Log Lines: sequences removed": {
+        "instructions": 7799680,
+        "allocations": 12060,
+        "peak_heap_bytes": 1744
+      },
+      "logsquirl_ansicolorsequences_benchmark / ANSI color sequence parser benchmarks / a screen of Log Lines without an escape character: parsed": {
+        "instructions": 11483,
+        "allocations": 0,
+        "peak_heap_bytes": 0
+      },
+      "logsquirl_ansicolorsequences_benchmark / ANSI color sequence parser benchmarks / a screen of Log Lines without an escape character: sequences removed": {
+        "instructions": 11778,
+        "allocations": 0,
+        "peak_heap_bytes": 0
+      },
+      "logsquirl_chart_follow_benchmark / A chart following a growing Log File / append 20 Log Lines, chart updated": {
+        "instructions": 128763631,
+        "allocations": 1320,
+        "peak_heap_bytes": 51366608
+      },
+      "logsquirl_chart_follow_benchmark / A chart following a growing Log File / 10 appends of 20 Log Lines in quick succession, chart updated": {
+        "instructions": 1233564462,
+        "allocations": 12026,
+        "peak_heap_bytes": 52455408
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / paint, all 10k": {
+        "instructions": 1094983416,
+        "allocations": 1124,
+        "peak_heap_bytes": 7944
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / pan 2 px, paint, all 10k": {
+        "instructions": 1096066950,
+        "allocations": 1176,
+        "peak_heap_bytes": 163864
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / pan 2 px, paint, 1 % of 10k": {
+        "instructions": 1907685772,
+        "allocations": 245,
+        "peak_heap_bytes": 70752
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / hover, paint, 1 % of 10k": {
+        "instructions": 1907665707,
+        "allocations": 236,
+        "peak_heap_bytes": 70752
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / hover, 1 % of 10k": {
+        "instructions": 5217,
+        "allocations": 4,
+        "peak_heap_bytes": 336
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / paint, all 1M": {
+        "instructions": 1259981087,
+        "allocations": 1184,
+        "peak_heap_bytes": 7944
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / pan 2 px, paint, all 1M": {
+        "instructions": 1284766981,
+        "allocations": 1231,
+        "peak_heap_bytes": 163864
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / pan 2 px, paint, 1 % of 1M": {
+        "instructions": 988556782,
+        "allocations": 10589,
+        "peak_heap_bytes": 163864
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / hover, paint, 1 % of 1M": {
+        "instructions": 987574628,
+        "allocations": 10547,
+        "peak_heap_bytes": 15840
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / hover, 1 % of 1M": {
+        "instructions": 14175,
+        "allocations": 4,
+        "peak_heap_bytes": 336
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / paint, all 5M": {
+        "instructions": 1260033230,
+        "allocations": 1184,
+        "peak_heap_bytes": 7944
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / pan 2 px, paint, all 5M": {
+        "instructions": 1380835737,
+        "allocations": 1231,
+        "peak_heap_bytes": 163864
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / pan 2 px, paint, 1 % of 5M": {
+        "instructions": 908062010,
+        "allocations": 11238,
+        "peak_heap_bytes": 163864
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / hover, paint, 1 % of 5M": {
+        "instructions": 905976115,
+        "allocations": 11196,
+        "peak_heap_bytes": 15840
+      },
+      "logsquirl_chart_paint_benchmark / Painting and hovering a chart of millions of points / hover, 1 % of 5M": {
+        "instructions": 14796,
+        "allocations": 4,
+        "peak_heap_bytes": 336
+      },
+      "logsquirl_crawlerwidget_restore_benchmark / Building the views of a restored tab / a tab with three Kept Searches: the Crawler Widget and its Filtered Views": {
+        "instructions": 24002970,
+        "allocations": 13890,
+        "peak_heap_bytes": 7830432
+      },
+      "logsquirl_crawlerwidget_restore_benchmark / Building the views of a restored tab / a tab without Kept Searches: the Crawler Widget": {
+        "instructions": 13885218,
+        "allocations": 8650,
+        "peak_heap_bytes": 2837368
+      },
+      "logsquirl_decoration_benchmark / decoration path benchmarks / common no-match line": {
+        "instructions": 564553,
+        "allocations": 702,
+        "peak_heap_bytes": 69264
+      },
+      "logsquirl_decoration_benchmark / decoration path benchmarks / very long line": {
+        "instructions": 648399,
+        "allocations": 701,
+        "peak_heap_bytes": 92632
+      },
+      "logsquirl_decoration_benchmark / decoration path benchmarks / many highlighters, one whole-line match": {
+        "instructions": 32281442,
+        "allocations": 45103,
+        "peak_heap_bytes": 1021280
+      },
+      "logsquirl_decoration_benchmark / decoration path benchmarks / word-only highlighters with capture groups": {
+        "instructions": 926729,
+        "allocations": 538,
+        "peak_heap_bytes": 24576
+      },
+      "logsquirl_decoration_benchmark / decoration path benchmarks / a screen of different lines": {
+        "instructions": 3759364,
+        "allocations": 5565,
+        "peak_heap_bytes": 161192
+      },
+      "logsquirl_decoration_benchmark / decoration path benchmarks / many matches on one line": {
+        "instructions": 148303278,
+        "allocations": 16773,
+        "peak_heap_bytes": 291360
+      },
+      "logsquirl_decoration_benchmark / decoration path benchmarks / tab-heavy line": {
+        "instructions": 538386,
+        "allocations": 700,
+        "peak_heap_bytes": 69296
+      },
+      "logsquirl_decoration_benchmark / decoration path benchmarks / translate to display space: old per-match re-expansion": {
+        "instructions": 198759577,
+        "allocations": 8000,
+        "peak_heap_bytes": 212536
+      },
+      "logsquirl_decoration_benchmark / decoration path benchmarks / translate to display space: rawToDisplayColumns": {
+        "instructions": 351599,
+        "allocations": 2,
+        "peak_heap_bytes": 233472
+      },
+      "logsquirl_decoration_benchmark / decoration path benchmarks / long line, one early match: old per-match re-expansion": {
+        "instructions": 1209,
+        "allocations": 3,
+        "peak_heap_bytes": 104
+      },
+      "logsquirl_decoration_benchmark / decoration path benchmarks / long line, one early match: Decoration::inDisplayColumns": {
+        "instructions": 931,
+        "allocations": 2,
+        "peak_heap_bytes": 256
+      },
+      "logsquirl_decoration_benchmark / decoration path benchmarks / long line, one early match: rawToDisplayColumns (limited)": {
+        "instructions": 826,
+        "allocations": 2,
+        "peak_heap_bytes": 128
+      },
+      "logsquirl_displayedlines_benchmark / Displayed Lines of a Search with a million Matches / progress ticks: 100 batches of 10,000 Matches": {
+        "instructions": 26015135,
+        "allocations": 5228,
+        "peak_heap_bytes": 3755184
+      },
+      "logsquirl_displayedlines_benchmark / Displayed Lines of a Search with a million Matches / completion after the progress ticks": {
+        "instructions": 532389568,
+        "allocations": 5964,
+        "peak_heap_bytes": 3825376
+      },
+      "logsquirl_displayedlines_benchmark / Displayed Lines of a Search with a million Matches / continuation over 100,000 appended Log Lines": {
+        "instructions": 6546370,
+        "allocations": 362,
+        "peak_heap_bytes": 109664
+      },
+      "logsquirl_displayedlines_benchmark / Displayed Lines of a Search with a million Matches / toggling a Mark on and off next to a Match": {
+        "instructions": 89157,
+        "allocations": 118,
+        "peak_heap_bytes": 1344
+      },
+      "logsquirl_filteredview_read_benchmark / The Filtered View reading the rows it paints / getLines, a screen at each of 200 Scroll Positions": {
+        "instructions": 25728686,
+        "allocations": 15200,
+        "peak_heap_bytes": 64848
+      },
+      "logsquirl_filteredview_read_benchmark / Saving displayed lines / the first 100,000 displayed lines, as UTF-8": {
+        "instructions": 153309507,
+        "allocations": 139303,
+        "peak_heap_bytes": 9832656
+      },
+      "logsquirl_filteredview_read_benchmark / Removing the longest of many Marks / remove the longest Mark and add it back": {
+        "instructions": 13382,
+        "allocations": 17,
+        "peak_heap_bytes": 16720
+      },
+      "logsquirl_linepositionarray_benchmark / Line positions of an Index / append, line by line": {
+        "instructions": 56232403,
+        "allocations": 37,
+        "peak_heap_bytes": 6489088
+      },
+      "logsquirl_linepositionarray_benchmark / Line positions of an Index / append_list, a block of Log Lines at a time": {
+        "instructions": 28710715,
+        "allocations": 30,
+        "peak_heap_bytes": 6489088
+      },
+      "logsquirl_linepositionarray_benchmark / Line positions of an Index / at, random Log Lines": {
+        "instructions": 40700062,
+        "allocations": 0,
+        "peak_heap_bytes": 0
+      },
+      "logsquirl_linepositionarray_benchmark / Line positions of an Index / range, the whole Index": {
+        "instructions": 14519514,
+        "allocations": 1,
+        "peak_heap_bytes": 16777216
+      },
+      "logsquirl_logdata_benchmark / Indexing a Log File / short lines: whole Log File": {
+        "instructions": 103486073,
+        "allocations": 390,
+        "peak_heap_bytes": 19037736
+      },
+      "logsquirl_logdata_benchmark / Indexing a Log File / tabs and long lines: whole Log File": {
+        "instructions": 236564855,
+        "allocations": 353,
+        "peak_heap_bytes": 17251256
+      },
+      "logsquirl_logdata_benchmark / Reading a contiguous range of Log Lines / short lines: getLines, one call": {
+        "instructions": 11322342,
+        "allocations": 10006,
+        "peak_heap_bytes": 3482808
+      },
+      "logsquirl_logdata_benchmark / Reading a contiguous range of Log Lines / short lines: getLineString, line by line": {
+        "instructions": 45259262,
+        "allocations": 70057,
+        "peak_heap_bytes": 16888
+      },
+      "logsquirl_logdata_benchmark / Reading a contiguous range of Log Lines / tabs and long lines: getLines, one call": {
+        "instructions": 23763116,
+        "allocations": 10006,
+        "peak_heap_bytes": 29007528
+      },
+      "logsquirl_logdata_benchmark / Reading a contiguous range of Log Lines / tabs and long lines: getLineString, line by line": {
+        "instructions": 61803883,
+        "allocations": 70573,
+        "peak_heap_bytes": 75352
+      },
+      "logsquirl_logdata_benchmark / Reading a sparse set of Log Lines / short lines: getLineString, line by line": {
+        "instructions": 18534419,
+        "allocations": 27728,
+        "peak_heap_bytes": 16720
+      },
+      "logsquirl_logdata_benchmark / Reading a sparse set of Log Lines / short lines: getLinesSparse": {
+        "instructions": 11866702,
+        "allocations": 12960,
+        "peak_heap_bytes": 1112720
+      },
+      "logsquirl_logdata_benchmark / Reading a sparse set of Log Lines / short lines: getUtf8LinesSparse": {
+        "instructions": 15892382,
+        "allocations": 16669,
+        "peak_heap_bytes": 876448
+      },
+      "logsquirl_logdata_benchmark / Reading a sparse set of Log Lines / short lines: getExpandedLineString, line by line": {
+        "instructions": 21415284,
+        "allocations": 27728,
+        "peak_heap_bytes": 16720
+      },
+      "logsquirl_logdata_benchmark / Reading a sparse set of Log Lines / short lines: getExpandedLinesSparse": {
+        "instructions": 14498309,
+        "allocations": 12960,
+        "peak_heap_bytes": 1112720
+      },
+      "logsquirl_logdata_benchmark / Reading a sparse set of Log Lines / tabs and long lines: getLineString, line by line": {
+        "instructions": 2510469,
+        "allocations": 2864,
+        "peak_heap_bytes": 21840
+      },
+      "logsquirl_logdata_benchmark / Reading a sparse set of Log Lines / tabs and long lines: getLinesSparse": {
+        "instructions": 1589446,
+        "allocations": 1452,
+        "peak_heap_bytes": 711384
+      },
+      "logsquirl_logdata_benchmark / Reading a sparse set of Log Lines / tabs and long lines: getUtf8LinesSparse": {
+        "instructions": 3439232,
+        "allocations": 1820,
+        "peak_heap_bytes": 649312
+      },
+      "logsquirl_logdata_benchmark / Reading a sparse set of Log Lines / tabs and long lines: getExpandedLineString, line by line": {
+        "instructions": 13048952,
+        "allocations": 3219,
+        "peak_heap_bytes": 24312
+      },
+      "logsquirl_logdata_benchmark / Reading a sparse set of Log Lines / tabs and long lines: getExpandedLinesSparse": {
+        "instructions": 12108501,
+        "allocations": 1807,
+        "peak_heap_bytes": 861056
+      },
+      "logsquirl_logdata_benchmark / Walking the Displayed Lines from a position / lineAtPosition, position by position": {
+        "instructions": 180254678,
+        "allocations": 0,
+        "peak_heap_bytes": 0
+      },
+      "logsquirl_logdata_benchmark / Walking the Displayed Lines from a position / DisplayedLinesCursor, takeForward": {
+        "instructions": 1104095,
+        "allocations": 1,
+        "peak_heap_bytes": 81920
+      },
+      "logsquirl_logdata_benchmark / Following a growing Log File / short lines: append, check and index the appended Log Lines": {
+        "instructions": 9755437,
+        "allocations": 87,
+        "peak_heap_bytes": 1137344
+      },
+      "logsquirl_logdata_benchmark / Following a growing Log File / short lines: check with nothing appended": {
+        "instructions": 9670905,
+        "allocations": 15,
+        "peak_heap_bytes": 1049592
+      },
+      "logsquirl_logdata_benchmark / Following a growing Log File / tabs and long lines: append, check and index the appended Log Lines": {
+        "instructions": 10083080,
+        "allocations": 87,
+        "peak_heap_bytes": 1136560
+      },
+      "logsquirl_logdata_benchmark / Following a growing Log File / tabs and long lines: check with nothing appended": {
+        "instructions": 9687257,
+        "allocations": 15,
+        "peak_heap_bytes": 1049608
+      },
+      "logsquirl_logdata_benchmark / Following a growing Log File / short lines: append, check and index the appended Log Lines, fast modification detection": {
+        "instructions": 9755065,
+        "allocations": 83,
+        "peak_heap_bytes": 1136368
+      },
+      "logsquirl_logdata_benchmark / Following a growing Log File / short lines: check with nothing appended, fast modification detection": {
+        "instructions": 9672145,
+        "allocations": 15,
+        "peak_heap_bytes": 1049592
+      },
+      "logsquirl_logdata_benchmark / Following a growing Log File / tabs and long lines: append, check and index the appended Log Lines, fast modification detection": {
+        "instructions": 10061861,
+        "allocations": 85,
+        "peak_heap_bytes": 1136368
+      },
+      "logsquirl_logdata_benchmark / Following a growing Log File / tabs and long lines: check with nothing appended, fast modification detection": {
+        "instructions": 9703622,
+        "allocations": 15,
+        "peak_heap_bytes": 1049608
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / one Log Line at a time, hiding ANSI color sequences": {
+        "instructions": 11612829,
+        "allocations": 16633,
+        "peak_heap_bytes": 30152
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / a block of Log Lines, hiding ANSI color sequences": {
+        "instructions": 43907117,
+        "allocations": 46006,
+        "peak_heap_bytes": 6464544
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / a block's UTF-8 view for a Search, hiding ANSI color sequences": {
+        "instructions": 26993907,
+        "allocations": 30007,
+        "peak_heap_bytes": 3769936
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / one Log Line at a time, showing ANSI color sequences": {
+        "instructions": 9226626,
+        "allocations": 14010,
+        "peak_heap_bytes": 16736
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / a block of Log Lines, showing ANSI color sequences": {
+        "instructions": 23367302,
+        "allocations": 20006,
+        "peak_heap_bytes": 6464544
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / a block's UTF-8 view for a Search, showing ANSI color sequences": {
+        "instructions": 4450646,
+        "allocations": 6,
+        "peak_heap_bytes": 3405888
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / one Log Line at a time, UTF-16LE, hiding ANSI color sequences": {
+        "instructions": 11122036,
+        "allocations": 16620,
+        "peak_heap_bytes": 17616
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / a block of Log Lines, UTF-16LE, hiding ANSI color sequences": {
+        "instructions": 44505877,
+        "allocations": 46006,
+        "peak_heap_bytes": 8234016
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / a block's UTF-8 view for a Search, UTF-16LE, hiding ANSI color sequences": {
+        "instructions": 39274601,
+        "allocations": 16016,
+        "peak_heap_bytes": 10383792
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / one Log Line at a time, UTF-16LE, showing ANSI color sequences": {
+        "instructions": 9064058,
+        "allocations": 14020,
+        "peak_heap_bytes": 16752
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / a block of Log Lines, UTF-16LE, showing ANSI color sequences": {
+        "instructions": 23973986,
+        "allocations": 20006,
+        "peak_heap_bytes": 8234032
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / a block's UTF-8 view for a Search, UTF-16LE, showing ANSI color sequences": {
+        "instructions": 7121447,
+        "allocations": 7,
+        "peak_heap_bytes": 10604584
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / one Log Line at a time, ISO-8859-1, hiding ANSI color sequences": {
+        "instructions": 11011640,
+        "allocations": 16610,
+        "peak_heap_bytes": 17600
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / a block of Log Lines, ISO-8859-1, hiding ANSI color sequences": {
+        "instructions": 42782969,
+        "allocations": 46006,
+        "peak_heap_bytes": 6464544
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / a block's UTF-8 view for a Search, ISO-8859-1, hiding ANSI color sequences": {
+        "instructions": 35869337,
+        "allocations": 30007,
+        "peak_heap_bytes": 5171912
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / one Log Line at a time, ISO-8859-1, showing ANSI color sequences": {
+        "instructions": 8955906,
+        "allocations": 14010,
+        "peak_heap_bytes": 16736
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / a block of Log Lines, ISO-8859-1, showing ANSI color sequences": {
+        "instructions": 22202452,
+        "allocations": 20006,
+        "peak_heap_bytes": 6464592
+      },
+      "logsquirl_logdata_read_benchmark / Reading Log Lines / a block's UTF-8 view for a Search, ISO-8859-1, showing ANSI color sequences": {
+        "instructions": 5625080,
+        "allocations": 7,
+        "peak_heap_bytes": 5641488
+      },
+      "logsquirl_overview_selection_benchmark / The overview with a million Matches / recompute after the Search changed, 1000 rows": {
+        "instructions": 19586,
+        "allocations": 0,
+        "peak_heap_bytes": 0
+      },
+      "logsquirl_overview_selection_benchmark / The overview with a million Matches / paint, nothing changed, 10 times": {
+        "instructions": 28310745,
+        "allocations": 160,
+        "peak_heap_bytes": 1840
+      },
+      "logsquirl_overview_selection_benchmark / The overview with a million Matches / 10 Search ticks, each painted": {
+        "instructions": 28505935,
+        "allocations": 160,
+        "peak_heap_bytes": 1840
+      },
+      "logsquirl_overview_selection_benchmark / Extending a selection of 100,000 Log Lines / Shift+Down 20 times and Shift+Up 20 times": {
+        "instructions": 2389025,
+        "allocations": 1950,
+        "peak_heap_bytes": 2672
+      },
+      "logsquirl_quickfind_benchmark / QuickFind without a match, the Log File kept open / file kept open, every Log Line, forwards": {
+        "instructions": 1678199798,
+        "allocations": 1486637,
+        "peak_heap_bytes": 356920
+      },
+      "logsquirl_quickfind_benchmark / QuickFind without a match, the Log File kept open / file kept open, every Log Line, backwards": {
+        "instructions": 2058698131,
+        "allocations": 2595565,
+        "peak_heap_bytes": 352176
+      },
+      "logsquirl_quickfind_benchmark / QuickFind without a match, the Log File kept open / file kept open, every tenth Log Line, forwards": {
+        "instructions": 204053365,
+        "allocations": 148708,
+        "peak_heap_bytes": 1225504
+      },
+      "logsquirl_quickfind_benchmark / QuickFind without a match, the Log File kept open / file kept open, every tenth Log Line, backwards": {
+        "instructions": 243785970,
+        "allocations": 259983,
+        "peak_heap_bytes": 1225072
+      },
+      "logsquirl_regex_matcher_benchmark / Searching a block of Log Lines / lookahead, Vectorscan": {
+        "instructions": 99272120,
+        "allocations": 98004,
+        "peak_heap_bytes": 3208
+      },
+      "logsquirl_regex_matcher_benchmark / Searching a block of Log Lines / boolean expression of four sub-patterns, Vectorscan": {
+        "instructions": 40147163,
+        "allocations": 430,
+        "peak_heap_bytes": 1023864
+      },
+      "logsquirl_regex_matcher_benchmark / Searching a block of Log Lines / boolean expression with a lookahead, Vectorscan": {
+        "instructions": 239752155,
+        "allocations": 248138,
+        "peak_heap_bytes": 1023848
+      },
+      "logsquirl_regex_matcher_benchmark / Searching a block of Log Lines / lookahead, QRegularExpression": {
+        "instructions": 90385874,
+        "allocations": 98002,
+        "peak_heap_bytes": 840
+      },
+      "logsquirl_regex_matcher_benchmark / Searching a block of Log Lines / boolean expression of four sub-patterns, QRegularExpression": {
+        "instructions": 244017574,
+        "allocations": 317858,
+        "peak_heap_bytes": 1021504
+      },
+      "logsquirl_regex_matcher_benchmark / Searching a block of Log Lines / boolean expression with a lookahead, QRegularExpression": {
+        "instructions": 213063074,
+        "allocations": 255853,
+        "peak_heap_bytes": 1021440
+      },
+      "logsquirl_regex_matcher_benchmark / Highlighting Log Lines / three Highlighters, one with a lookahead, a matcher per Log Line": {
+        "instructions": 30143324,
+        "allocations": 32000,
+        "peak_heap_bytes": 3752
+      },
+      "logsquirl_session_restore_benchmark / Restoring a Session of several large Log Files / large Log Files: restore until the current tab has loaded": {
+        "instructions": 103242680,
+        "allocations": 1049,
+        "peak_heap_bytes": 2115624
+      },
+      "logsquirl_session_restore_benchmark / Restoring a Session of several large Log Files / large Log Files: restore until every tab has loaded": {
+        "instructions": 411456730,
+        "allocations": 1755,
+        "peak_heap_bytes": 3854536
+      },
+      "logsquirl_session_restore_benchmark / Restoring a Session of 20 tabs at startup / 20-tab Session: build, restore windows and Log Files, add tabs": {
+        "instructions": 13581612,
+        "allocations": 7409,
+        "peak_heap_bytes": 1583096
+      },
+      "logsquirl_session_restore_benchmark / Restoring a Session of 20 tabs at startup / 20-tab Session: add and style the tabs only": {
+        "instructions": 8341439,
+        "allocations": 2630,
+        "peak_heap_bytes": 75464
+      },
+      "logsquirl_tableview_paint_benchmark / table view paint benchmarks / paint: a viewport of 50 Rows and 6 columns": {
+        "instructions": 45622297,
+        "allocations": 12749,
+        "peak_heap_bytes": 21512
+      },
+      "logsquirl_tableview_paint_benchmark / table view paint benchmarks / hover: the mouse moves to the next Row and back, each painted": {
+        "instructions": 3816997,
+        "allocations": 1198,
+        "peak_heap_bytes": 8984
+      },
+      "logsquirl_tableview_paint_benchmark / table view paint benchmarks / hit test: a character in the middle and at the end of a 4000 character cell": {
+        "instructions": 90528091,
+        "allocations": 389,
+        "peak_heap_bytes": 365496
+      },
+      "logsquirl_textview_ansi_benchmark / text view ANSI color benchmarks / one screen: Viewport content computed and painted, Hide, unwrapped": {
+        "instructions": 21674946,
+        "allocations": 4352,
+        "peak_heap_bytes": 48512
+      },
+      "logsquirl_textview_ansi_benchmark / text view ANSI color benchmarks / keys: 20 Visual Lines down and 20 up one at a time, each painted, Hide, unwrapped": {
+        "instructions": 190467382,
+        "allocations": 19494,
+        "peak_heap_bytes": 27872
+      },
+      "logsquirl_textview_ansi_benchmark / text view ANSI color benchmarks / one screen: Viewport content computed and painted, Hide, wrapped": {
+        "instructions": 17407500,
+        "allocations": 5485,
+        "peak_heap_bytes": 43560
+      },
+      "logsquirl_textview_ansi_benchmark / text view ANSI color benchmarks / keys: 20 Visual Lines down and 20 up one at a time, each painted, Hide, wrapped": {
+        "instructions": 575417816,
+        "allocations": 59913,
+        "peak_heap_bytes": 33936
+      },
+      "logsquirl_textview_ansi_benchmark / text view ANSI color benchmarks / one screen: Viewport content computed and painted, Show colors, unwrapped": {
+        "instructions": 29197569,
+        "allocations": 8934,
+        "peak_heap_bytes": 58000
+      },
+      "logsquirl_textview_ansi_benchmark / text view ANSI color benchmarks / keys: 20 Visual Lines down and 20 up one at a time, each painted, Show colors, unwrapped": {
+        "instructions": 212634740,
+        "allocations": 36298,
+        "peak_heap_bytes": 28640
+      },
+      "logsquirl_textview_ansi_benchmark / text view ANSI color benchmarks / one screen: Viewport content computed and painted, Show colors, wrapped": {
+        "instructions": 20901735,
+        "allocations": 6944,
+        "peak_heap_bytes": 53480
+      },
+      "logsquirl_textview_ansi_benchmark / text view ANSI color benchmarks / keys: 20 Visual Lines down and 20 up one at a time, each painted, Show colors, wrapped": {
+        "instructions": 747349880,
+        "allocations": 196638,
+        "peak_heap_bytes": 39664
+      },
+      "logsquirl_textview_scroll_benchmark / text view scroll benchmarks / wheel: 20 notches down and 20 up": {
+        "instructions": 5873901,
+        "allocations": 3975,
+        "peak_heap_bytes": 59144
+      },
+      "logsquirl_textview_scroll_benchmark / text view scroll benchmarks / wheel: 20 notches down and 20 up, each painted": {
+        "instructions": 600982178,
+        "allocations": 44469,
+        "peak_heap_bytes": 59256
+      },
+      "logsquirl_textview_scroll_benchmark / text view scroll benchmarks / keys: 5 pages down and 5 up": {
+        "instructions": 5577422,
+        "allocations": 3583,
+        "peak_heap_bytes": 69992
+      },
+      "logsquirl_textview_scroll_benchmark / text view scroll benchmarks / scrollbar: dragged over 200 values": {
+        "instructions": 112023189,
+        "allocations": 73741,
+        "peak_heap_bytes": 76856
+      },
+      "logsquirl_textview_scroll_benchmark / text view scroll benchmarks / data changed: a Log Line appended": {
+        "instructions": 173175,
+        "allocations": 102,
+        "peak_heap_bytes": 5168
+      },
+      "logsquirl_textview_scroll_benchmark / text view scroll benchmarks / width changed: narrower and wider again, each painted": {
+        "instructions": 28980626,
+        "allocations": 3087,
+        "peak_heap_bytes": 2308096
+      },
+      "logsquirl_textview_scroll_benchmark / text view one-line scroll benchmarks / keys: 20 Visual Lines down and 20 up one at a time, each painted, unwrapped": {
+        "instructions": 186225779,
+        "allocations": 16585,
+        "peak_heap_bytes": 31792
+      },
+      "logsquirl_textview_scroll_benchmark / text view one-line scroll benchmarks / keys: 20 Visual Lines down and 20 up one at a time, each painted, wrapped": {
+        "instructions": 602714354,
+        "allocations": 41705,
+        "peak_heap_bytes": 54560
+      },
+      "logsquirl_textview_scroll_benchmark / text view refresh benchmarks / QuickFind: 7 keystrokes typed, each painted": {
+        "instructions": 187102892,
+        "allocations": 69304,
+        "peak_heap_bytes": 43728
+      },
+      "logsquirl_textview_scroll_benchmark / text view refresh benchmarks / Search pattern: changed 7 times, each painted": {
+        "instructions": 183856509,
+        "allocations": 68444,
+        "peak_heap_bytes": 13392
+      },
+      "logsquirl_textview_scroll_benchmark / text view refresh benchmarks / Search Limits: changed 7 times, each painted": {
+        "instructions": 185491784,
+        "allocations": 71131,
+        "peak_heap_bytes": 13392
+      },
+      "logsquirl_textview_scroll_benchmark / text view refresh benchmarks / Log Lines read again: updateData() 7 times, each painted": {
+        "instructions": 192423022,
+        "allocations": 77389,
+        "peak_heap_bytes": 94736
+      },
+      "logsquirl_textview_valuenames_benchmark / text view Value Names interaction benchmarks / drag: a Selection along a Log Line with Named Values, 200 mouse moves": {
+        "instructions": 4826686,
+        "allocations": 3150,
+        "peak_heap_bytes": 1776
+      },
+      "logsquirl_textview_valuenames_benchmark / text view Value Names interaction benchmarks / drag: a Selection along a Log Line with Named Values, 20 mouse moves, each painted": {
+        "instructions": 727904652,
+        "allocations": 140590,
+        "peak_heap_bytes": 11544
+      },
+      "logsquirl_textview_valuenames_benchmark / text view Value Names interaction benchmarks / double-click: a Named Value on each of 20 Log Lines": {
+        "instructions": 954227,
+        "allocations": 591,
+        "peak_heap_bytes": 2000
+      },
+      "logsquirl_textviewscrolling_benchmark / text view scrolling benchmarks / wheel: 20 notches down and 20 up, wrapped": {
+        "instructions": 1139452,
+        "allocations": 640,
+        "peak_heap_bytes": 3456
+      },
+      "logsquirl_textviewscrolling_benchmark / text view scrolling benchmarks / keys: 5 pages down and 5 up, wrapped": {
+        "instructions": 2683501,
+        "allocations": 1557,
+        "peak_heap_bytes": 11640
+      },
+      "logsquirl_textviewscrolling_benchmark / text view scrolling benchmarks / scrollbar: dragged over 200 values": {
+        "instructions": 39445,
+        "allocations": 0,
+        "peak_heap_bytes": 0
+      },
+      "logsquirl_textviewscrolling_benchmark / text view scrolling benchmarks / scrollbar: to its maximum and back": {
+        "instructions": 440,
+        "allocations": 0,
+        "peak_heap_bytes": 0
+      },
+      "logsquirl_textviewscrolling_benchmark / text view scrolling benchmarks / data changed: a Log Line appended": {
+        "instructions": 277206,
+        "allocations": 162,
+        "peak_heap_bytes": 7280
+      },
+      "logsquirl_textviewscrolling_benchmark / text view scrolling benchmarks / width changed: narrower and wider again": {
+        "instructions": 865515,
+        "allocations": 473,
+        "peak_heap_bytes": 8232
+      }
+    }
+  }
+}
