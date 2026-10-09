@@ -57,6 +57,16 @@ add_executable(logsquirl_session_restore_benchmark
 target_link_libraries(logsquirl_session_restore_benchmark logsquirl_ui Catch2::Catch2 test_utils)
 set_target_properties(logsquirl_session_restore_benchmark PROPERTIES AUTOMOC ON)
 
+# Building the views of a restored tab with three Kept Searches and with
+# none (#786): the Crawler Widget, its Filtered Views, their tabs and
+# shortcuts, before any Log File loads. Uses only what the Crawler Widget and
+# the view state codec offered before #786 (see README.md).
+add_executable(logsquirl_crawlerwidget_restore_benchmark
+    crawlerwidget_restore_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_crawlerwidget_restore_benchmark logsquirl_ui Catch2::Catch2 test_utils)
+
 # Matching a block of Log Lines with patterns Vectorscan rejects and with
 # boolean expressions, on both regex engines (#279). Links logsquirl_regex
 # only; uses only what the regex module offered before #279, so the same file

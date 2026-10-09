@@ -295,6 +295,13 @@
   run as soon as it has loaded, ahead of every tab still waiting; a Search the
   user starts or changes in any tab runs at once; a closed tab's waiting
   Searches are dropped, and the tabs after it are not held up. (#781)
+- **A restored tab with Kept Searches registers its shortcuts once**: restoring
+  a tab with Kept Searches no longer deletes and registers again every shortcut
+  of the tab and of its views while the Session's Log Files index; each kept
+  Search's Filtered View brings its own. A tab with three Kept Searches builds
+  in 2.1 ms instead of 2.3 ms on an M-series Mac, and the new
+  `logsquirl_crawlerwidget_restore_benchmark` counts what a restored tab costs
+  before any Log File loads. (#786)
 - **A Session File opened into a new window, and a tab decompressed after the
   restore, hold their Kept Searches as the restore at start does**: the window's
   tab in front first, once its queued Log Files have loaded; a Log File from an
