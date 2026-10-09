@@ -86,6 +86,10 @@ struct TabBuild {
             .policies = policies,
             .savedSearches = &SavedSearches::getSynced(),
             .viewContext = viewContext,
+            // Nobody hears of a change or of the restored Searches: as GCC
+            // requires, every member is initialized by name.
+            .changeReport = {},
+            .restoredSearchesReport = {},
         } );
     }
 };
