@@ -160,8 +160,8 @@ ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFa
                     .view = view,
                     .origin = origin,
                     .firstLoad = FirstLoad::Queued,
-                    .firstLoadOrder = 0,
                     .restoredSearches = RestoredSearches::None,
+                    .restoredSearchOrder = 0,
                     .firstLoadFinished = {},
                     .loadRequested = {} };
     auto& openFile = openFiles_.insert( { view, std::move( entry ) } ).first->second;
@@ -198,6 +198,20 @@ void Session::startLoading( const ViewInterface* view )
     startFirstLoad( it->second );
 }
 
+void Session::activate( const ViewInterface* view )
+{
+    startLoading( view );
+
+    const auto it = openFiles_.find( view );
+    if ( it == openFiles_.end() || it->second.restoredSearches != RestoredSearches::Held ) {
+        return;
+    }
+    // What the user looks at goes first: released while its first load is
+    // under way still, they wait for it as any Search does, and run as it
+    // finishes. The tabs still held wait until these have finished too.
+    runRestoredSearches( it->second );
+}
+
 bool Session::isLoadQueued( const ViewInterface* view ) const
 {
     const auto it = openFiles_.find( view );
@@ -207,7 +221,6 @@ bool Session::isLoadQueued( const ViewInterface* view ) const
 void Session::startFirstLoad( OpenFile& file )
 {
     file.firstLoad = FirstLoad::Loading;
-    file.firstLoadOrder = firstLoadsStarted_++;
 
     // Bound to the Open Log File, which the views may keep beyond this
     // Session: the destructor and close() disconnect it first.
@@ -252,12 +265,14 @@ void Session::startNextQueuedLoad()
     startFirstLoad( openFiles_.at( view ) );
 }
 
-void Session::holdRestoredSearches( const ViewInterface* view )
+void Session::holdRestoredSearches( const ViewInterface* view, Restored restored )
 {
     auto& file = openFiles_.at( view );
     file.openLogFile->holdWaitingSearches();
     if ( file.openLogFile->holdsSearches() ) {
         file.restoredSearches = RestoredSearches::Held;
+        file.restoredSearchOrder
+            = restored == Restored::InFront ? -( ++heldInFront_ ) : ++heldBehind_;
     }
 }
 
@@ -275,14 +290,19 @@ void Session::releaseNextRestoredSearches()
     for ( auto& [ view, file ] : openFiles_ ) {
         Q_UNUSED( view );
         if ( file.restoredSearches == RestoredSearches::Held
-             && ( !next || file.firstLoadOrder < next->firstLoadOrder ) ) {
+             && ( !next || file.restoredSearchOrder < next->restoredSearchOrder ) ) {
             next = &file;
         }
     }
     if ( next ) {
-        next->restoredSearches = RestoredSearches::Running;
-        next->openLogFile->releaseHeldSearches();
+        runRestoredSearches( *next );
     }
+}
+
+void Session::runRestoredSearches( OpenFile& file )
+{
+    file.restoredSearches = RestoredSearches::Running;
+    file.openLogFile->releaseHeldSearches();
 }
 
 void Session::finishRestoredSearches( const OpenLogFile* openLogFile )
@@ -789,7 +809,8 @@ OpenedFilesList WindowSession::restore( const WindowSnapshot& snapshot,
                 file.fileName, viewFactory, file.viewContext,
                 i == currentFile ? Session::Loading::Now : Session::Loading::Queued,
                 LogFileOrigin::fromArchive( file.archiveMember ) );
-            appSession_->holdRestoredSearches( view );
+            appSession_->holdRestoredSearches( view, i == currentFile ? Session::Restored::InFront
+                                                                      : Session::Restored::Behind );
             result.emplace_back( file.fileName, view );
             openedFiles_.emplace_back( file.fileName );
             if ( deferred ) {
@@ -843,7 +864,10 @@ WindowSession::openDeferred( int id, const QString& fileName, const ViewFactory&
         = appSession_->open( fileName, viewFactory, saved.viewContext,
                              opened.inFront ? Session::Loading::Now : Session::Loading::Queued,
                              LogFileOrigin::fromArchive( saved.archiveMember ) );
-    appSession_->holdRestoredSearches( opened.view );
+    // It joins the order of the window's restored Searches where it arrives:
+    // in front, or behind every tab held before it (#782).
+    appSession_->holdRestoredSearches( opened.view, opened.inFront ? Session::Restored::InFront
+                                                                   : Session::Restored::Behind );
     openedFiles_.push_back( fileName );
 
     slot->view = opened.view;

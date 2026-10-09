@@ -374,6 +374,114 @@ SCENARIO( "A restored window shows the tab that was in front", "[ui][session]" )
     mainWindow.reset();
 }
 
+// The restore brings the window back to the tab that was in front once every
+// tab is added. That is the restore's own tab change, not the user activating
+// the tab, which would run its Kept Searches at once (#781): they stay held
+// until the queued Log Files have loaded, as #780 holds them (#787).
+SCENARIO( "The window's own restore holds the tab in front's Kept Searches until the queued Log "
+          "Files have loaded",
+          "[ui][session][keptsearches]" )
+{
+    const auto windowId = QStringLiteral( "mainwindow_load_test_window_787" );
+
+    QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_restore_first_XXXXXX" ) };
+    QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_restore_second_XXXXXX" ) };
+    QTemporaryFile thirdFile{ QDir::temp().filePath( "mainwindow_restore_third_XXXXXX" ) };
+    for ( auto* file : { &firstFile, &secondFile, &thirdFile } ) {
+        REQUIRE( file->open() );
+        file->write( "first Log Line\nsecond Log Line\n" );
+        file->flush();
+    }
+
+    // One Kept Search of two Matches in every tab.
+    ViewState saved;
+    saved.searches = { KeptSearchState{ .pattern = "Log Line" } };
+    saved.currentSearch = 0;
+    const auto context = encodeViewState( saved );
+
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    // The first tab in front: the last tab added is current until the restore
+    // brings the window back to it.
+    const StoredSessionWindow stored{ windowId,
+                                      { { QFileInfo( firstFile ).absoluteFilePath(), context },
+                                        { QFileInfo( secondFile ).absoluteFilePath(), context },
+                                        { QFileInfo( thirdFile ).absoluteFilePath(), context } },
+                                      0 };
+    WindowSession windowSession{ appSession, windowId, 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    showUntilExposed( *mainWindow );
+
+    WHEN( "the window's Session is restored" )
+    {
+        mainWindow->reloadSession();
+
+        auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+        REQUIRE( tabArea != nullptr );
+        // The tabs in the order they were saved, found by their Log Files.
+        std::vector<CrawlerWidget*> crawlers;
+        for ( auto* file : { &firstFile, &secondFile, &thirdFile } ) {
+            const auto path = QFileInfo( *file ).absoluteFilePath();
+            for ( auto* crawler : tabArea->findChildren<CrawlerWidget*>() ) {
+                if ( windowSession.getFilename( crawler ) == path ) {
+                    crawlers.push_back( crawler );
+                }
+            }
+        }
+        REQUIRE( crawlers.size() == 3 );
+        auto* front = qobject_cast<CrawlerWidget*>( tabArea->currentWidget() );
+        REQUIRE( front == crawlers.front() );
+
+        // What each tab did, in order: "loaded" or "searched".
+        std::vector<std::pair<QString, int>> steps;
+        for ( auto tab = 0; tab < 3; ++tab ) {
+            auto& openLogFile = LoadAccess::openLogFile( *crawlers[ static_cast<size_t>( tab ) ] );
+            QObject::connect( &openLogFile, &OpenLogFile::loadingFinished, mainWindow.get(),
+                              [ &steps, tab ] { steps.emplace_back( "loaded", tab ); } );
+            QObject::connect(
+                &openLogFile, &OpenLogFile::searchUpdated, mainWindow.get(),
+                [ &steps, tab ]( const SearchSessionState& state ) {
+                    if ( state.phase != SearchSession::Phase::Idle
+                         && std::ranges::find( steps, std::pair{ QString( "searched" ), tab } )
+                                == steps.end() ) {
+                        steps.emplace_back( "searched", tab );
+                    }
+                } );
+        }
+
+        THEN( "the tab in front's Kept Search is held still as the restore returns" )
+        {
+            REQUIRE( LoadAccess::openLogFile( *front ).holdsSearches() );
+        }
+
+        THEN( "it starts only once the last queued Log File has loaded" )
+        {
+            REQUIRE( waitUiState( [ & ] {
+                return std::ranges::count_if(
+                           steps, []( const auto& step ) { return step.first == "searched"; } )
+                       == 3;
+            } ) );
+            const auto at = [ &steps ]( const char* step, int tab ) {
+                const auto found = std::ranges::find( steps, std::pair{ QString( step ), tab } );
+                REQUIRE( found != steps.end() );
+                return found - steps.begin();
+            };
+            REQUIRE( at( "searched", 0 ) > at( "loaded", 1 ) );
+            REQUIRE( at( "searched", 0 ) > at( "loaded", 2 ) );
+            REQUIRE( at( "searched", 0 ) < at( "searched", 1 ) );
+            REQUIRE( at( "searched", 1 ) < at( "searched", 2 ) );
+        }
+    }
+
+    mainWindow.reset();
+}
+
 // A restored Log File shows the Log Line that was at the top of its Viewport
 // when the Session was saved, once its first load is done; one still waiting
 // for its turn keeps that Scroll Position for the next save (#559).

@@ -471,8 +471,9 @@ std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
         &currentFileIndex, {}, &fromArchives );
 
     // Only the current tab's Log File loads now, the others after it (#300).
-    // Adding a tab makes it current for a moment, which is not the user
-    // activating it.
+    // Adding a tab makes it current for a moment, and returning to the tab
+    // that was in front is the restore's doing too: neither is the user
+    // activating a tab, which would run its Kept Searches at once (#787).
     restoringSession_ = true;
     std::vector<QString> tabsAdded;
     for ( size_t i = 0; i < crawlers.size() && i < openedFiles.size(); ++i ) {
@@ -488,12 +489,12 @@ std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
             followOnOpen( crawlerWidget );
         }
     }
-    restoringSession_ = false;
 
     if ( currentFileIndex >= 0 && static_cast<size_t>( currentFileIndex ) < crawlers.size() ) {
         // By widget: the dashboard tab, if any, comes before the Log Files.
         mainTabWidget_.setCurrentWidget( crawlers[ static_cast<size_t>( currentFileIndex ) ] );
     }
+    restoringSession_ = false;
 
     mainTabWidget_.refreshAllTabGroupAppearances();
 
@@ -556,16 +557,17 @@ void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& m
                                                   : logFileTabs.back() + 1;
 
     // Adding a tab makes it current for a moment, which is neither the user
-    // activating it nor the tab in front changing.
+    // activating it nor the tab in front changing; nor is returning to the
+    // tab in front, whose Kept Searches the restore may hold still (#787).
     auto* front = mainTabWidget_.currentWidget();
     restoringSession_ = true;
     // Its name and group are found by its archive (#609).
     mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary, member.key(),
                                tabIndex );
-    restoringSession_ = false;
     if ( !opened.inFront && front ) {
         mainTabWidget_.setCurrentWidget( front );
     }
+    restoringSession_ = false;
 
     const auto& config = Configuration::get();
     if ( config.followFileOnLoad() && session_.watchPolicy().anyWatchEnabled() ) {
@@ -2952,9 +2954,10 @@ void MainWindow::currentTabChanged( int index )
             return;
         }
         // A restored Log File still waiting for its turn loads now that the
-        // user looks at its tab (#300).
+        // user looks at its tab (#300), and its restored Searches run at
+        // once (#781).
         if ( !restoringSession_ ) {
-            session_.startLoading( crawler_widget );
+            session_.activate( crawler_widget );
         }
 
         connectFrontTab( crawler_widget );

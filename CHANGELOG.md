@@ -290,6 +290,17 @@
   has finished, in the order their Log Files loaded. The tab in front is
   usable and every tab indexed as fast as in a restore without Searches; the
   Searches of the tabs behind finish later. (#780)
+- **What the user does during a restore comes first**: a tab activated while
+  a restore holds its Kept Searches loads at once, as before, and its Searches
+  run as soon as it has loaded, ahead of every tab still waiting; a Search the
+  user starts or changes in any tab runs at once; a closed tab's waiting
+  Searches are dropped, and the tabs after it are not held up. (#781)
+- **A Session File opened into a new window, and a tab decompressed after the
+  restore, hold their Kept Searches as the restore at start does**: the window's
+  tab in front first, once its queued Log Files have loaded; a Log File from an
+  archive that opens after the restore joins the order where it arrives, in
+  front or behind. A Log File opened by hand runs its Kept Searches once it has
+  loaded, as before. (#782)
 
 ## Bug fixes
 
@@ -464,6 +475,14 @@
   those numbers show a clear gain there. (#682)
 
 ## Internal
+
+- **A pull request's changed C++ files are compiled with GCC within
+  minutes**: the new CI job *GCC / changed files* compiles the sources under
+  `src/` and `tests/` a pull request changes in the Ubuntu 24.04 container,
+  each with the compile command of the release build, before any dependency
+  is built; a diagnostic only GCC reports fails the pull request about two
+  minutes after the run starts instead of a quarter of an hour in. (#759,
+  #760)
 
 - **A Portion past the end of a Log Line covers no Named Value**: the
   whole-value covering cut a Portion lying wholly after the end of a Log Line

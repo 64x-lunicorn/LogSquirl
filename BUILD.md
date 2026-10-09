@@ -1138,6 +1138,17 @@ runs the *Website* job only when the website changed: `npm test`, then `npm run 
 internal link) twice, as is and as deployed without the pages of unpublished releases. The *Format* job checks the
 update feed on every run (`.github/scripts/release-feed.py check`).
 
+The *GCC / changed files* job runs for a pull request that changes C++ sources under `src/` or `tests/`. It
+compiles those sources with GCC in the Ubuntu 24.04 container, each with the compile command the Linux noble
+job's configuration writes for it (`compile_commands.json`), so the warning flags are the release build's and
+cannot drift from it; nothing is linked and no dependency is built, only the version header and the Qt code
+generators run first. A diagnostic only GCC reports (AppleClang and MSVC say nothing about
+`-Wrange-loop-construct`, which broke every Linux job of #752 a quarter of an hour in) fails the pull request
+about two minutes after the run starts (#759, #760). A changed header selects the sources of its module and
+every source that includes it by name; what a header reaches through another header is left to the full build.
+`.github/scripts/compile-changed-files.sh` does the selection and the compiling, and a run started by hand
+compiles every source; run it locally on a Ninja build with `.github/scripts/compile-changed-files.sh <build-dir>`.
+
 ### Action pinning
 
 Every third-party action in `.github/workflows/` and `.github/actions/` is pinned to the full commit SHA of a

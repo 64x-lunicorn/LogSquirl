@@ -123,7 +123,9 @@ request changes; run the same locally (CI uses clang-tidy 19, hash-locked in `.g
 Ninja build, or with `-DENABLE_CLANG_TIDY=ON`. A finding is fixed; when it is wrong, silence it
 at the line with `// NOLINT(<check>)` and say why. The build enables `-Wall -Wextra -Wpedantic` (and the MSVC equivalents) and treats
 warnings as errors (`WARNINGS_AS_ERRORS`, `cmake/CompilerWarnings.cmake`), so a pull request
-that adds a compiler warning does not build in CI. Static analysis (CodeQL) runs on every
+that adds a compiler warning does not build in CI; the *GCC / changed files* job compiles the
+files a pull request changes with GCC first, so a diagnostic only GCC reports is on the pull
+request within about two minutes (BUILD.md, *Workflows*). Static analysis (CodeQL) runs on every
 pull request, and CI builds the test suites with AddressSanitizer and UndefinedBehaviorSanitizer,
 and with ThreadSanitizer. Findings of these tools are fixed rather than suppressed. The
 exceptions are TSan's view of a library CI cannot build with it (glibc; Qt is built with TSan for

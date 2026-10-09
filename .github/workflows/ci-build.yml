@@ -39,7 +39,8 @@ jobs:
   # -----------------------------------------------------------------------
   # Changes — what a pull request changes: `build` unless it changes only the
   # files a push ignores (paths-ignore above, keep both lists equal), `website`
-  # when it changes the website. A push or dispatch always builds and leaves
+  # when it changes the website, `cxx` when it changes C++ sources under src/
+  # or tests/ (the GCC job, #760). A push or dispatch always builds and leaves
   # the website to Deploy Website, so a website problem cannot block the
   # release candidate (#310, #311).
   # -----------------------------------------------------------------------
@@ -50,6 +51,7 @@ jobs:
     outputs:
       build: ${{ steps.changes.outputs.build }}
       website: ${{ steps.changes.outputs.website }}
+      cxx: ${{ steps.changes.outputs.cxx }}
     steps:
       # The pull request's merge commit and its first parent, the base branch.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -63,11 +65,12 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
-            printf 'build=true\nwebsite=false\n' >> "$GITHUB_OUTPUT"
+            printf 'build=true\nwebsite=false\ncxx=false\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           build=false
           website=false
+          cxx=false
           while IFS= read -r file; do
             case "$file" in
               website/*) website=true ;;
@@ -76,12 +79,16 @@ jobs:
               DOCUMENTATION.md) build=true; website=true ;;
               # The Website job checks the lockfile with them (#772).
               scripts/sbom/logsquirl_vulns.py | scripts/sbom/vuln-ignore.yml) build=true; website=true ;;
+              # The sources the GCC job compiles, and the script that selects
+              # them (#760).
+              src/*.cpp | src/*.h | src/*.hpp | tests/*.cpp | tests/*.h | tests/*.hpp | \
+              .github/scripts/compile-changed-files.sh) build=true; cxx=true ;;
               BUILD.md | CODE_OF_CONDUCT.md | CONTRIBUTING.md | README.md | latest.json | .gitignore) ;;
               *) build=true ;;
             esac
           done < <(git diff --name-only HEAD^1 HEAD)
-          echo "build=$build website=$website"
-          printf 'build=%s\nwebsite=%s\n' "$build" "$website" >> "$GITHUB_OUTPUT"
+          echo "build=$build website=$website cxx=$cxx"
+          printf 'build=%s\nwebsite=%s\ncxx=%s\n' "$build" "$website" "$cxx" >> "$GITHUB_OUTPUT"
 
   SaveVersion:
     needs: [Changes]
@@ -604,6 +611,100 @@ jobs:
           if-no-files-found: warn
 
   # -----------------------------------------------------------------------
+  # GCC — the C++ sources under src/ and tests/ that a pull request changes,
+  # compiled with GCC in the Noble container, each with the compile command
+  # the noble job's configuration writes for it (compile_commands.json), so
+  # the flags are the release build's and cannot drift from it (#759, #760).
+  # Nothing is linked and no dependency is built: a diagnostic only GCC
+  # reports (AppleClang said nothing about #752's -Werror=range-loop-construct,
+  # and the Linux jobs reported it a quarter of an hour in) fails the pull
+  # request about two minutes after the run starts. A changed header selects
+  # the sources of its module and the ones that include it by name; the full
+  # build still catches what a header reaches through another header
+  # (.github/scripts/compile-changed-files.sh). Only for a pull request that
+  # changes C++ sources, since a push builds everything anyway; a run started
+  # by hand compiles every source.
+  # -----------------------------------------------------------------------
+  Gcc:
+    name: GCC / changed files
+    needs: [Changes]
+    if: "needs.Changes.outputs.cxx == 'true' || github.event_name == 'workflow_dispatch'"
+    strategy:
+      matrix:
+        config:
+          # Single-entry matrix so the shared composite actions (which read
+          # matrix.config.*) work unchanged. The noble job's container and
+          # options, so the compile commands are that job's.
+          - arch: x64
+            artifacts_id: gcc-changed
+            container_root: docker/ubuntu24.04
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            cmake_opts:
+
+    runs-on: ubuntu-24.04
+    # Measured for #759: 1.5 minutes for a few files, under 2 minutes for the
+    # 103 files a changed header of the ui module selects, 10 minutes for
+    # every source, with the CPM cache restored; a cache miss adds 80 seconds
+    # of configuring (#218).
+    timeout-minutes: 30
+    steps:
+      # Depth 2: the pull request's merge commit and its base, which say
+      # what changed.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/docker-pull-or-build
+        with:
+          image: ${{ matrix.config.image }}
+          container_root: ${{ matrix.config.container_root }}
+
+      # The noble job's CPM cache already holds every dependency the configure
+      # step fetches (#219); configuring takes 10 seconds with it, 85 without.
+      - name: Restore CPM cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cpm_cache
+          key: cpm-Linux-noble-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
+          restore-keys: |
+            cpm-Linux-noble-
+
+      - uses: ./.github/actions/logsquirl-version
+      - uses: ./.github/actions/prepare-workspace-env
+
+      - name: Compile the changed files with GCC
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          mode=changed
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            mode=all
+          fi
+          docker run --rm \
+            --env LOGSQUIRL_VERSION="$LOGSQUIRL_VERSION" \
+            --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
+            --env LOGSQUIRL_CMAKE_OPTS="$LOGSQUIRL_CMAKE_OPTS" \
+            --env MODE="$mode" \
+            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" \
+            /bin/bash -c '
+              set -euo pipefail
+              # The checkout belongs to the runner user, not to root.
+              git config --global --add safe.directory /usr/local
+              cd /usr/local
+              cmake -B "$LOGSQUIRL_BUILD_ROOT" $LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache .
+              .github/scripts/compile-changed-files.sh "$LOGSQUIRL_BUILD_ROOT" "$MODE"
+            '
+
+  # -----------------------------------------------------------------------
   # Tidy — clang-tidy with the bugprone, clang-analyzer and performance
   # checks of .clang-tidy over the C++ sources under src/ that a pull request
   # changes (a changed header selects its whole module), and any finding
@@ -1093,7 +1194,7 @@ jobs:
   ci-passed:
     name: CI passed
     needs:
-      [Changes, SaveVersion, Format, SBOM, Linux, Sanitizers, Tidy, Windows, WindowsInstaller, Mac, Website,
+      [Changes, SaveVersion, Format, SBOM, Gcc, Linux, Sanitizers, Tidy, Windows, WindowsInstaller, Mac, Website,
        InstructionCounts, InstructionCountsGate]
     if: ${{ always() && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
@@ -1101,9 +1202,10 @@ jobs:
     steps:
       # A job may be skipped only when Changes found nothing for it to check:
       # the build jobs for a pull request without code changes, Website for
-      # one without website changes (#310, #311); and when there is nothing to
-      # compare: the instruction counts for a dispatch, their gate for anything
-      # but a pull request (#672).
+      # one without website changes (#310, #311), GCC for a run without
+      # changed C++ sources (#760); and when there is nothing to compare: the
+      # instruction counts for a dispatch, their gate for anything but a pull
+      # request (#672).
       - name: Require every needed job to have succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
@@ -1113,10 +1215,12 @@ jobs:
           if echo "$NEEDS" | jq -e --arg event "$GITHUB_EVENT_NAME" '
               (.Changes.outputs.build == "true") as $build
               | (.Changes.outputs.website == "true") as $website
+              | (.Changes.outputs.cxx == "true") as $cxx
               | to_entries | all(
                   .value.result == "success"
                   or (.value.result == "skipped" and (
                         (.key == "Website" and ($website | not))
+                        or (.key == "Gcc" and ($cxx | not))
                         or (.key == "InstructionCounts" and $event == "workflow_dispatch")
                         or (.key == "InstructionCountsGate" and $event != "pull_request")
                         or (.key != "Changes" and .key != "Format" and .key != "Website" and ($build | not)))))' > /dev/null; then
