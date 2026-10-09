@@ -86,6 +86,10 @@
     {
       "version": "26.10.0",
       "description": "Portable data beside the executable, plugins install into the user folder, Sessions restore Log Files from archives, spdlog recognized, 13 bug fixes"
+    },
+    {
+      "version": "26.11.0-beta1",
+      "description": "Value Names, Regex Lab, File Associations on all platforms, Open Command Output, Session files and Kept Searches, CSV export, ANSI colors, 18 bug fixes"
     }
   ],
   "stable_version": "26.10.0",

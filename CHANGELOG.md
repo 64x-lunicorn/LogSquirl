@@ -1,4 +1,4 @@
-# Unreleased
+# v26.11.0-beta1 (2026-10-09)
 
 ## Changes
 
