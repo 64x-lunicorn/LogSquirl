@@ -230,6 +230,9 @@ public:
     const WatchPolicy& watchPolicy() const;
 
     void registerShortcuts();
+    // Adds the Filtered View of a kept Search as a tab named text, connected
+    // and with its shortcuts; returns the tab's index.
+    int addFilteredViewTab( FilteredView* view, const QString& text );
 
 public Q_SLOTS:
     // Stop the asynchoronous loading of the file if one is in progress

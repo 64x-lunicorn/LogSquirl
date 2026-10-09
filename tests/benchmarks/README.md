@@ -360,6 +360,32 @@ For the before side, copy `session_restore_benchmark.cpp` and
 `generated_log_file.h` into a worktree of origin/master and add the target as in `CMakeLists.txt` here, as described for
 the scrolling benchmarks above.
 
+# Crawler Widget restore benchmark
+
+`logsquirl_crawlerwidget_restore_benchmark` (#786) builds the views of a
+restored tab from the view state a Session saved for it, as a restore does for
+every tab while the Log Files load. The Log File is never opened, so the count
+is the main-thread work a tab costs a restore before any Log File loads.
+
+- **a tab with three Kept Searches: the Crawler Widget and its Filtered
+  Views**: the widget, the Filtered View of each kept Search, their tabs and
+  their shortcuts. Before #786 the restore registered every shortcut of the
+  widget and of every view a second time here.
+- **a tab without Kept Searches: the Crawler Widget**: the widget alone, the
+  baseline the first case is compared against.
+
+The file uses only what the Crawler Widget and the view state codec offered
+before #786, so it builds unchanged on origin/master:
+
+```bash
+cmake --build build-release --target logsquirl_crawlerwidget_restore_benchmark
+./build-release/output/logsquirl_crawlerwidget_restore_benchmark --benchmark-samples 50 > after.txt
+```
+
+For the before side, copy `crawlerwidget_restore_benchmark.cpp` into a
+worktree of origin/master and add the target as in `CMakeLists.txt` here, as
+described for the scrolling benchmarks above.
+
 # Regex matcher benchmark
 
 `logsquirl_regex_matcher_benchmark` (#279) matches a block of 20,000 Log

@@ -652,12 +652,7 @@ void CrawlerWidget::restoreSearches( const ViewState& state )
         tabbedFilteredView_->setTabText( 0, searchTabText( saved.patterns.front().pattern ) );
     }
     for ( std::size_t index = 1; index < views.size(); ++index ) {
-        connectAllFilteredViewSlots( views[ index ] );
-        tabbedFilteredView_->addTab( views[ index ],
-                                     searchTabText( saved.patterns[ index ].pattern ) );
-    }
-    if ( views.size() > 1 ) {
-        registerShortcuts();
+        addFilteredViewTab( views[ index ], searchTabText( saved.patterns[ index ].pattern ) );
     }
     // Already current in the Kept Searches: showing its tab changes nothing.
     tabbedFilteredView_->setCurrentWidget( keptSearches_.currentView() );
@@ -676,6 +671,18 @@ void CrawlerWidget::restoreSearches( const ViewState& state )
         searchLine_->apply( current );
         replaceCurrentSearch();
     }
+}
+
+int CrawlerWidget::addFilteredViewTab( FilteredView* view, const QString& text )
+{
+    connectAllFilteredViewSlots( view );
+    // The View Set handed the new Filtered View its font; its shortcuts it
+    // registers itself. Only its own: registering the widget's again would
+    // delete and recreate every shortcut of the widget and of every view,
+    // which a restore of three Kept Searches did while the Log Files
+    // indexed (#786).
+    view->registerShortcuts();
+    return tabbedFilteredView_->addTab( view, text );
 }
 
 QString CrawlerWidget::searchTabText( const QString& pattern )
@@ -726,15 +733,7 @@ void CrawlerWidget::startNewSearch( bool keepResults )
         // The current Search is kept, and a new one current in every view: its
         // Filtered View starts with everything the others show.
         auto* view = keptSearches_.startAnother();
-
-        connectAllFilteredViewSlots( view );
-
-        auto index = tabbedFilteredView_->addTab( view, "" );
-        tabbedFilteredView_->setCurrentIndex( index );
-
-        // The View Set handed the new Filtered View its font; its shortcuts
-        // are registered here.
-        registerShortcuts();
+        tabbedFilteredView_->setCurrentIndex( addFilteredViewTab( view, "" ) );
     }
 
     tabbedFilteredView_->setTabText( tabbedFilteredView_->currentIndex(),

@@ -70,6 +70,7 @@
 #include "theme.h"
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -461,6 +462,11 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     int filteredViewTabCount() const
     {
         return crawler->tabbedFilteredView_->count();
+    }
+
+    QWidget* filteredViewTab( int index ) const
+    {
+        return crawler->tabbedFilteredView_->widget( index );
     }
 
     // The current Search, held no longer than the Log File holds it.
@@ -3470,6 +3476,113 @@ SCENARIO( "A restore runs its Kept Searches once every queued first load has fin
             REQUIRE( steps.at( Step::SearchesFinished, 2 ) >= 0 );
             REQUIRE( steps.at( Step::SearchStarted, 1 ) > steps.at( Step::SearchesFinished, 2 ) );
             REQUIRE( steps.tabs[ 1 ].openLogFile().matchCount() == 10_lcount );
+        }
+    }
+}
+
+namespace {
+
+// The shortcuts each widget under crawler holds, by widget, counting those
+// deleted later still: a shortcut registered a second time leaves its first
+// one behind until the event loop deletes it.
+std::map<const QObject*, int> shortcutsByWidget( const QObject& crawler )
+{
+    std::map<const QObject*, int> counts;
+    for ( const auto* shortcut : crawler.findChildren<QShortcut*>() ) {
+        ++counts[ shortcut->parent() ];
+    }
+    return counts;
+}
+
+// How many shortcuts each widget under crawler leaves to be deleted later:
+// a key two actions share leaves one per view by design, the last registered
+// wins; registering a widget's shortcuts again leaves every one of them.
+std::map<const QObject*, int> staleShortcutsByWidget( const QObject& crawler )
+{
+    auto stale = shortcutsByWidget( crawler );
+    QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+    for ( const auto& [ widget, live ] : shortcutsByWidget( crawler ) ) {
+        stale[ widget ] -= live;
+    }
+    return stale;
+}
+
+} // namespace
+
+// A tab with Kept Searches registers each Filtered View's shortcuts once,
+// its own once: nothing is deleted and registered again while the Log Files
+// of a restore index (#786).
+SCENARIO( "A tab's shortcuts are registered once, and each kept Search's Filtered View brings its "
+          "own",
+          "[ui][session][keptsearches][shortcuts]" )
+{
+    const auto windowId = QStringLiteral( "crawlerwidget_test_window_786" );
+    QTemporaryFile file{ "crawler_test_file_XXXXXX" };
+    REQUIRE( generateDataFiles( file ) );
+
+    ViewState saved;
+    saved.searches
+        = { KeptSearchState{ .pattern = "line 00001" }, KeptSearchState{ .pattern = "line 00002" },
+            KeptSearchState{ .pattern = "line 00004" } };
+    saved.currentSearch = 1;
+
+    // What a tab without Kept Searches leaves to be deleted later: its own,
+    // its main view's and its one Filtered View's shared keys.
+    RestoredWindow plain{ windowId + "_plain", { { file.fileName(), QString{} } } };
+    CrawlerWidgetVisitor plainTab;
+    plainTab.crawler = std::move( plain.tabs.front() );
+    const auto plainStale = staleShortcutsByWidget( *plainTab.crawler );
+    const auto ownStale = plainStale.at( plainTab.crawler.get() );
+    const auto mainViewStale = plainStale.at( plainTab.textView() );
+    const auto filteredViewStale = plainStale.at( plainTab.filteredViewTab( 0 ) );
+    const auto filteredViewLive
+        = shortcutsByWidget( *plainTab.crawler ).at( plainTab.filteredViewTab( 0 ) );
+    REQUIRE( filteredViewLive > 0 );
+
+    GIVEN( "a tab restored with three Kept Searches" )
+    {
+        RestoredWindow restored{ windowId, { { file.fileName(), encodeViewState( saved ) } } };
+        CrawlerWidgetVisitor tab;
+        tab.crawler = std::move( restored.tabs.front() );
+        REQUIRE( tab.filteredViewTabCount() == 3 );
+        const auto stale = staleShortcutsByWidget( *tab.crawler );
+
+        THEN( "neither its own shortcuts nor a view's were registered twice" )
+        {
+            REQUIRE( stale.at( tab.crawler.get() ) == ownStale );
+            REQUIRE( stale.at( tab.textView() ) == mainViewStale );
+            for ( auto index = 0; index < 3; ++index ) {
+                REQUIRE( stale.at( tab.filteredViewTab( index ) ) == filteredViewStale );
+            }
+        }
+
+        THEN( "every Filtered View has its shortcuts" )
+        {
+            const auto live = shortcutsByWidget( *tab.crawler );
+            for ( auto index = 0; index < 3; ++index ) {
+                REQUIRE( live.at( tab.filteredViewTab( index ) ) == filteredViewLive );
+            }
+        }
+
+        WHEN( "the user keeps the results and starts another Search" )
+        {
+            restored.window->activate( tab.crawler.get() );
+            REQUIRE( waitUiState( [ & ] { return tab.isLoadingFinished(); } ) );
+            tab.keepSearchResults();
+            tab.clearSearchPattern();
+            tab.setSearchPattern( "line 00003" );
+            tab.runSearch();
+            REQUIRE( tab.filteredViewTabCount() == 4 );
+
+            THEN( "the new Filtered View brings its shortcuts, and no other is registered again" )
+            {
+                const auto live = shortcutsByWidget( *tab.crawler );
+                REQUIRE( live.at( tab.filteredViewTab( 3 ) ) == filteredViewLive );
+                const auto again = staleShortcutsByWidget( *tab.crawler );
+                REQUIRE( again.at( tab.crawler.get() ) == 0 );
+                REQUIRE( again.at( tab.textView() ) == 0 );
+                REQUIRE( again.at( tab.filteredViewTab( 0 ) ) == 0 );
+            }
         }
     }
 }
