@@ -718,3 +718,54 @@ def test_read_while_indexing_opens_exactly_one_log_file(isolated_gui, tmp_path):
     assert run.process.returncode == EXIT_FAILED
     assert run.report is not None
     assert "exactly one Log File" in run.report["failure"]
+
+
+# ---------------------------------------------------------------------------
+# sort (#797): the Table View sorted by a column
+# ---------------------------------------------------------------------------
+
+SORT_NUMERIC_FORMAT = Path(__file__).resolve().parent / "formats" / "java_log.json"
+
+
+def test_sort_reports_the_rows_switched_to_the_sort_order(isolated_gui, scroll_log, tmp_path):
+    # The scroll Log File has a Log Format the Catalog knows, so a Table View.
+    run = run_benchmark(isolated_gui, "sort", [scroll_log], tmp_path / "report.json",
+                        options={"column": "class", "direction": "desc"})
+
+    assert run.process.returncode == EXIT_PASSED, run.process.stdout + run.process.stderr
+    report = run.report
+    assert report is not None and report["scenario"] == "sort"
+    assert [e["name"] for e in report["events"]] == ["sorted"]
+    assert event(report, "sorted")["since_scenario_start_ms"] > 0
+    assert event(report, "sorted")["data"]["row_count"] == SCROLL_LOG_LINES
+    results = report["results"]
+    assert results["column"] == "class" and results["direction"] == "desc"
+    assert results["row_count"] == results["log_line_count"] == SCROLL_LOG_LINES
+    assert results["log_file_bytes"] == scroll_log.stat().st_size
+
+
+def test_sort_takes_a_log_format_of_its_own(isolated_gui, scroll_log, tmp_path):
+    # The ms column exists only under the benchmark's own Java Log Format,
+    # which replaces the built-in one for the run.
+    run = run_benchmark(isolated_gui, "sort", [scroll_log], tmp_path / "report.json",
+                        options={"column": "ms", "format": str(SORT_NUMERIC_FORMAT)})
+
+    assert run.process.returncode == EXIT_PASSED, run.process.stdout + run.process.stderr
+    assert run.report is not None and run.report["results"]["column"] == "ms"
+
+
+def test_sort_without_the_column_reports_why(isolated_gui, scroll_log, tmp_path):
+    run = run_benchmark(isolated_gui, "sort", [scroll_log], tmp_path / "report.json")
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert "column" in run.report["failure"]
+
+
+def test_sort_by_a_column_the_table_view_lacks_reports_why(isolated_gui, scroll_log, tmp_path):
+    run = run_benchmark(isolated_gui, "sort", [scroll_log], tmp_path / "report.json",
+                        options={"column": "no_such_column"})
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert "no column 'no_such_column'" in run.report["failure"]

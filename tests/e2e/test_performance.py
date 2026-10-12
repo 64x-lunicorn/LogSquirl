@@ -845,6 +845,83 @@ class SaveCase(ScenarioCase):
 SAVE_CASES = [SaveCase("log_100mb", GENERATED_LOG_FILES["log_100mb"][0], "slow response")]
 
 
+# ---------------------------------------------------------------------------
+# GUI: the benchmark mode's sort scenario, the Table View's Sort Order
+# ---------------------------------------------------------------------------
+
+
+# The Log Format of the sort cases' numeric column: the scroll Log File's Log
+# Lines with the milliseconds of a message as an integer field, replacing the
+# built-in Java Log Format for the run (#797).
+SORT_FORMATS_DIR = Path(__file__).resolve().parent / "formats"
+SORT_NUMERIC_FORMAT = SORT_FORMATS_DIR / "java_log.json"
+
+
+@dataclass(frozen=True)
+class SortCase(ScenarioCase):
+    # The benchmark is gui_sort_<label>_sorted: the click on the column's
+    # header to the Rows switched to the Sort Order, keys read and sorted.
+    SCENARIO: ClassVar[str] = "sort"
+    TICKET: ClassVar[str] = "#797"
+
+    log_file: str  # in test_data/, generated
+    column: str  # the header of the column sorted by
+    description: str
+    # A Log Format file the run copies into its own formats folder, replacing
+    # the Catalog's of the same name; none uses the Catalog as it is.
+    format: Path | None = None
+    timeout: float = 900
+
+    def options(self) -> dict[str, str]:
+        options = {"column": self.column, "direction": "asc"}
+        if self.format is not None:
+            options["format"] = str(self.format)
+        return options
+
+    def benchmark_names(self) -> set[str]:
+        return {f"{self.name}_sorted"}
+
+
+# One column of each kind of key on the scroll Log File (#669), which the
+# built-in Java Log Format recognizes: the message text, with about as many
+# values as Log Lines; the Timestamp; and a number, which needs a Log Format
+# with an integer field.
+SORT_CASES = [
+    SortCase("log_100mb_text", SCROLL_LOG_FILE, "body", "the body column, text"),
+    SortCase("log_100mb_timestamp", SCROLL_LOG_FILE, "timestamp",
+             "the timestamp column, Timestamps"),
+    SortCase("log_100mb_numeric", SCROLL_LOG_FILE, "ms", "the ms column, integers",
+             format=SORT_NUMERIC_FORMAT),
+]
+
+
+@pytest.mark.performance
+@pytest.mark.parametrize("case", _cases(SORT_CASES))
+def test_perf_gui_sort(
+    case: SortCase, isolated_gui_module, test_data_dir, tmp_path, baseline,
+    collected_results, bench_config, request,
+):
+    """The GUI sorts the Table View of a loaded Log File by a column: the Rows switched."""
+    filepath = _log_file(test_data_dir, case.log_file, case.generated)
+    report_path = tmp_path / "sort.json"
+    sorted_name = f"{case.name}_sorted"
+
+    def sort() -> dict[str, float]:
+        report = case.run(isolated_gui_module, [filepath], report_path)
+        results = report["results"]
+        assert results["column"] == case.column
+        assert results["row_count"] == results["log_line_count"] > 0
+        return {sorted_name: seconds_since_scenario_start(report, "sorted")}
+
+    # Each run reads and keys every Log Line: as few runs as a 1 GB case.
+    results = measure_events(sort, **_runs(bench_config, large=True))
+    results[sorted_name]["measures"] = (
+        f"The Table View of {case.log_file} sorted by {case.description}: the click on the "
+        f"header to the Rows switched to the Sort Order, Log File loaded and shown before"
+    )
+    _record(results, collected_results, baseline, request)
+
+
 @pytest.mark.performance
 @pytest.mark.parametrize("case", _cases(SAVE_CASES))
 def test_perf_gui_save(
@@ -905,7 +982,8 @@ def all_benchmark_names() -> set[str]:
     for case in GUI_OPEN_CASES:
         names |= {f"{case.name}_first_line", f"{case.name}_indexed"}
     for case in [*SEARCH_CASES, *QUICKFIND_CASES, *SCROLL_CASES, *FOLLOW_CASES,
-                 *SESSION_RESTORE_CASES, *READ_WHILE_INDEXING_CASES, *SAVE_CASES]:
+                 *SESSION_RESTORE_CASES, *READ_WHILE_INDEXING_CASES, *SAVE_CASES,
+                 *SORT_CASES]:
         names |= case.benchmark_names()
     names.add("gui_startup_version")
     return names

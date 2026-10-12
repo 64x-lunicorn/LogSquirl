@@ -27,6 +27,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pathline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linemapping.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logmainview.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/tablesorter.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecount.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecountmodel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecounttab.h
@@ -136,6 +137,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pathline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logmainview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logtableview.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tablesorter.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecount.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecountmodel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecounttab.cpp

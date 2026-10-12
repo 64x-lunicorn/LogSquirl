@@ -33,6 +33,8 @@
 #include "test_utils.h"
 
 #include "logdata.h"
+#include "logformattablemodel.h"
+#include "logtableview.h"
 
 #include "crawlerwidget.h"
 
@@ -142,6 +144,10 @@ struct CrawlerWidget::access_by<FormatRecognitionAccess> {
     bool isTableViewToggled() const
     {
         return crawler->tableViewToggle_->isChecked();
+    }
+    LogTableView* tableView() const
+    {
+        return crawler->logTableView_;
     }
 
     void reload()
@@ -387,6 +393,83 @@ SCENARIO( "A truncated Log File is recognized exactly once when it has loaded ag
                 REQUIRE( logFile->logFormat()
                          == catalog->formatByName( "recognition_test_log" ).get() );
                 REQUIRE( logFile->isTableViewToggled() );
+            }
+        }
+    }
+}
+
+SCENARIO( "A truncated Log File keeps the Table View's Sort Order once it has loaded again",
+          "[ui][formatrecognition][sortorder]" )
+{
+    auto policies = recognitionEnabled();
+    policies.presentation.autoShowTableView = true;
+
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto userFormats = directory.filePath( "formats" );
+    REQUIRE( QDir().mkpath( userFormats ) );
+    writeUserFormat( userFormats, "Recognition Test" );
+
+    const auto path = directory.filePath( "truncated.log" );
+    REQUIRE( writeLogFile( path ) );
+
+    auto catalog = std::make_shared<LogFormatCatalog>( userFormats );
+    catalog->rebuild();
+
+    const auto fileWatch = std::make_shared<FakeFileWatch>();
+    Session session{ policies, catalog, fileWatch };
+    session.savedSearches().clear();
+
+    GIVEN( "a recognized Log File shown as a Table View, sorted by its body column, descending" )
+    {
+        auto logFile = openLogFile( session, path );
+        REQUIRE( logFile->waitLoaded( LinesCount( LineCount ) ) );
+        REQUIRE( waitUiState( [ & ] { return logFile->isTableViewToggled(); } ) );
+        auto* table = logFile->tableView();
+        REQUIRE( waitUiState( [ & ] {
+            return table->model() != nullptr && table->model()->rowCount() == LineCount;
+        } ) );
+        table->sortBy( LogTableView::NamedSortOrder{ "body", Qt::DescendingOrder } );
+        REQUIRE( waitUiState( [ & ] { return table->sortOrder().has_value(); } ) );
+        // "this is line 9" sorts last of the texts, "this is line 0" first.
+        const auto* model = qobject_cast<const LogFormatTableModel*>( table->model() );
+        REQUIRE( model->rowMapping().logLineAt( 0 ) == 9_lnum );
+        REQUIRE( model->rowMapping().logLineAt( LineCount - 1 ) == 0_lnum );
+
+        WHEN( "the Log File is truncated and then written again" )
+        {
+            {
+                QFile file( path );
+                REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Truncate ) );
+            }
+            REQUIRE( fileWatch->reportChange( path ) );
+            REQUIRE( waitUiState( [ & ] { return logFile->nbLines() == 0_lcount; } ) );
+            REQUIRE( logFile->logFormat() == nullptr );
+            REQUIRE_FALSE( table->sortOrder().has_value() );
+
+            {
+                QFile file( path );
+                REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Append ) );
+                writeLogLines( file );
+            }
+            REQUIRE( fileWatch->reportChange( path ) );
+            REQUIRE( logFile->waitLoaded( LinesCount( LineCount ) ) );
+            REQUIRE( waitUiState( [ & ] { return logFile->logFormat() != nullptr; } ) );
+
+            THEN( "the Rows are sorted by the body column again, descending" )
+            {
+                REQUIRE( waitUiState( [ & ] {
+                    return table->sortOrder().has_value() && !table->sortInProgress().has_value()
+                           && table->model()->rowCount() == LineCount;
+                } ) );
+                const auto named = table->namedSortOrder();
+                REQUIRE( named.has_value() );
+                REQUIRE( named->column == "body" );
+                REQUIRE( named->order == Qt::DescendingOrder );
+                const auto* sortedModel
+                    = qobject_cast<const LogFormatTableModel*>( table->model() );
+                REQUIRE( sortedModel->rowMapping().logLineAt( 0 ) == 9_lnum );
+                REQUIRE( sortedModel->rowMapping().logLineAt( LineCount - 1 ) == 0_lnum );
             }
         }
     }

@@ -59,6 +59,7 @@ add_executable(logsquirl_tests
     logtablehighlightdelegate_test.cpp
     logtableview_test.cpp
     logtableview_columnlayout_test.cpp
+    logtableview_sort_test.cpp
     logviewinteractions_test.cpp
     logviewpainting_test.cpp
     logviewvaluenames_test.cpp
@@ -100,6 +101,7 @@ add_executable(logsquirl_tests
     tabbarstyle_test.cpp
     textencoding_test.cpp
     tableviewselection_test.cpp
+    tablesortkeys_test.cpp
     theme_test.cpp
     keptsearches_test.cpp
     latestresultrunner_test.cpp

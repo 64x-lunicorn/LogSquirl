@@ -27,17 +27,20 @@
 #include <QAction>
 #include <QFileDialog>
 #include <QHeaderView>
+#include <QItemSelection>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPointer>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QTimer>
 
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
 #include "clipboard.h"
 #include "columnlayout.h"
+#include "configuration.h"
 #include "csvexport.h"
 #include "linessaver.h"
 #include "logfiltereddata.h"
@@ -49,6 +52,7 @@
 #include "quickfind.h"
 #include "quickfindpattern.h"
 #include "regularexpression.h"
+#include "shortcuts.h"
 #include "theme.h"
 #include "wordrule.h"
 
@@ -56,6 +60,9 @@ namespace {
 
 // What a column is wide until auto-sizing has measured it.
 constexpr int StartingColumnWidth = 120;
+
+// How often the header shows how far a sort got.
+constexpr int SortProgressIntervalMs = 100;
 
 } // namespace
 
@@ -67,6 +74,7 @@ LogTableView::LogTableView( QWidget* parent )
 LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* parent )
     : QTableView( parent )
     , rows_( std::move( rows ) )
+    , baseRows_( rows_ )
 {
     setSelectionBehavior( QAbstractItemView::SelectRows );
     setAlternatingRowColors( true );
@@ -85,6 +93,18 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
             saveColumnLayout();
         }
     } );
+    // A click on a header, as the header tells a click from a drag (Sort
+    // Order); the indicator is the Table View's to set, so the table does
+    // not sort through its model.
+    horizontalHeader()->setSectionsClickable( true );
+    horizontalHeader()->setSortIndicatorShown( false );
+    connect( horizontalHeader(), &QHeaderView::sectionClicked, this,
+             &LogTableView::cycleSortOrder );
+
+    sorter_ = std::make_unique<TableSorter>();
+    connect( sorter_.get(), &TableSorter::finished, this, &LogTableView::onSortFinished );
+    sortProgressTimer_.setInterval( SortProgressIntervalMs );
+    connect( &sortProgressTimer_, &QTimer::timeout, this, &LogTableView::showSortProgress );
     setHorizontalScrollBarPolicy( Qt::ScrollBarAsNeeded );
     setHorizontalScrollMode( QAbstractItemView::ScrollPerPixel );
     horizontalScrollBar()->setSingleStep( 10 );
@@ -154,12 +174,26 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
 LogTableView::~LogTableView()
 {
     quickFind_->stopSearch();
+    // No worker outlives the Log File it reads.
+    sorter_->stopAndWait();
 }
 
 void LogTableView::setLogFormat( const LogFormatDefinition* format, AbstractLogData* logData )
 {
     // A Find next or previous under way searches the Log Lines about to go
     quickFind_->stopSearch();
+    // So does a sort; and the Sort Order was the Log Format's columns'.
+    sorter_->stopAndWait();
+    sortProgressTimer_.stop();
+    sorting_.reset();
+    merging_ = false;
+    sortOrder_.reset();
+    sortKeys_.reset();
+    sortedRows_.reset();
+    resortOnUpdate_ = false;
+    rows_ = baseRows_;
+    delegate_->setRowMapping( rows_ );
+    horizontalHeader()->setSortIndicatorShown( false );
 
     if ( model_ ) {
         // The header loses its sections with the model: not a layout to save.
@@ -208,7 +242,26 @@ void LogTableView::updateData( bool follow, const QDate& modificationDate )
         = static_cast<int>( std::min( lineCount, static_cast<uint64_t>( INT_MAX ) ) );
     modificationDate_ = modificationDate;
     model_->setModificationDate( modificationDate );
-    model_->setLineCount( lineCountInt );
+
+    // Under a Sort Order, a Log File loaded from its start again, or one
+    // with fewer Rows than sorted, is sorted anew from Log Line order; one
+    // with more has them merged in, once no sort is under way.
+    const auto sortedCount = sortedRows_ ? sortedRows_->rowCount( LinesCount( lineCount ) ) : 0;
+    const auto baseCount = baseRows_->rowCount( LinesCount( lineCount ) );
+    const auto wanted = sorting_ ? sorting_ : sortOrder_;
+    if ( wanted && ( resortOnUpdate_ || ( sortedRows_ && baseCount < sortedCount ) ) ) {
+        resortOnUpdate_ = false;
+        dropSortOrder();
+        model_->setLineCount( lineCountInt );
+        startSort( *wanted );
+    }
+    else {
+        resortOnUpdate_ = false;
+        model_->setLineCount( lineCountInt );
+        if ( sortedRows_ && !sorting_ && baseCount > sortedCount ) {
+            startMerge();
+        }
+    }
     // New Log Lines may match where QuickFind last found nothing more.
     quickFind_->resetLimits();
     const bool hasRows = model_->rowCount() > 0;
@@ -334,9 +387,84 @@ void LogTableView::updateFont( const QFont& font )
     horizontalHeader()->setFont( font );
 }
 
+void LogTableView::registerShortcut( const std::string& action, std::function<void()> func )
+{
+    const auto& config = Configuration::get();
+    ShortcutAction::registerShortcut( config.shortcuts(), shortcuts_, this, Qt::WidgetShortcut,
+                                      action, func );
+}
+
 void LogTableView::registerShortcuts()
 {
-    // The Table View has no shortcuts of its own: its keys are the table's.
+    for ( auto& shortcut : shortcuts_ ) {
+        shortcut.second->deleteLater();
+    }
+    shortcuts_.clear();
+
+    // The keys of the table do the rest. Next Mark goes down the Rows and
+    // previous Mark up, as in the Text View (#233), in the order shown.
+    registerShortcut( ShortcutAction::LogViewNextMark, [ this ]() { selectNextMark(); } );
+    registerShortcut( ShortcutAction::LogViewPrevMark, [ this ]() { selectPreviousMark(); } );
+}
+
+void LogTableView::selectNextMark()
+{
+    selectNeighbour( AbstractLogData::LineTypeFlags::Mark, true );
+}
+
+void LogTableView::selectPreviousMark()
+{
+    selectNeighbour( AbstractLogData::LineTypeFlags::Mark, false );
+}
+
+void LogTableView::selectNextMatch()
+{
+    selectNeighbour( AbstractLogData::LineTypeFlags::Match, true );
+}
+
+void LogTableView::selectPreviousMatch()
+{
+    selectNeighbour( AbstractLogData::LineTypeFlags::Match, false );
+}
+
+// The Marks and Matches are Log Lines; the nearest in the direction given
+// is the one whose Row is nearest, whatever the Sort Order. Without a
+// current Row, the first one below the top, or above the bottom.
+void LogTableView::selectNeighbour( AbstractLogData::LineTypeFlags type, bool below )
+{
+    if ( !model_ || state_.currentSearch == nullptr ) {
+        return;
+    }
+    const auto current = currentIndex();
+    const int from = current.isValid() ? current.row() : ( below ? -1 : model_->rowCount() );
+
+    std::optional<int> nearest;
+    const auto consider = [ & ]( LineNumber logLine ) {
+        const auto row = rows_->rowOf( logLine );
+        if ( !row || *row >= model_->rowCount() || ( below ? *row <= from : *row >= from ) ) {
+            return;
+        }
+        if ( !nearest || ( below ? *row < *nearest : *row > *nearest ) ) {
+            nearest = row;
+        }
+    };
+    const auto* search = state_.currentSearch;
+    if ( type == AbstractLogData::LineTypeFlags::Mark ) {
+        for ( const auto mark : search->getMarks() ) {
+            consider( mark );
+        }
+    }
+    else {
+        const auto matches = search->getNbMatches().get();
+        for ( uint64_t index = 0; index < matches; ++index ) {
+            consider( search->getMatchingLineNumber( LineNumber( index ) ) );
+        }
+    }
+
+    if ( nearest ) {
+        scrollTo( model_->index( *nearest, 0 ), QAbstractItemView::PositionAtCenter );
+        selectRow( *nearest );
+    }
 }
 
 void LogTableView::updateDecorations()
@@ -352,6 +480,267 @@ void LogTableView::rereadLogLines()
     if ( model_ ) {
         model_->rereadRows();
     }
+}
+
+void LogTableView::reloaded()
+{
+    if ( model_ ) {
+        model_->rereadRows();
+    }
+    if ( sortOrder_ || sorting_ ) {
+        // A sort under way reads Log Lines that are no more.
+        sorter_->cancel();
+        resortOnUpdate_ = true;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Sort Order
+// ---------------------------------------------------------------------------
+
+void LogTableView::cycleSortOrder( int column )
+{
+    if ( !model_ || column < 0 || column >= model_->columnCount() ) {
+        return;
+    }
+    // A click on the header being sorted by stops the sort; a click on
+    // another header abandons the sort and goes on from the Sort Order the
+    // Rows are in. A merge of appended Log Lines is not a sort to stop: the
+    // click goes on from the Sort Order, which the merge keeps.
+    if ( sorting_ && !merging_ && sorting_->column == column ) {
+        stopSorting();
+        return;
+    }
+    if ( !sortOrder_ || sortOrder_->column != column ) {
+        sortBy( SortOrder{ column, Qt::AscendingOrder } );
+    }
+    else if ( sortOrder_->order == Qt::AscendingOrder ) {
+        sortBy( SortOrder{ column, Qt::DescendingOrder } );
+    }
+    else {
+        sortBy( std::nullopt );
+    }
+}
+
+void LogTableView::sortBy( std::optional<SortOrder> order )
+{
+    if ( !model_ || !format_ || !logData_ ) {
+        return;
+    }
+    if ( !order ) {
+        stopSorting();
+        if ( sortOrder_ ) {
+            dropSortOrder();
+            model_->setLineCount( static_cast<int>(
+                std::min( logData_->getNbLine().get(), static_cast<uint64_t>( INT_MAX ) ) ) );
+            Q_EMIT sortOrderChanged();
+        }
+        return;
+    }
+    if ( order->column < 0 || order->column >= model_->columnCount() ) {
+        return;
+    }
+    // The Rows are in that order, or a merge keeps them in it.
+    if ( sortOrder_ == order && ( !sorting_ || merging_ ) ) {
+        return;
+    }
+    startSort( *order );
+}
+
+std::optional<LogTableView::NamedSortOrder> LogTableView::namedSortOrder() const
+{
+    if ( !sortOrder_ || !model_ ) {
+        return std::nullopt;
+    }
+    return NamedSortOrder{ model_->columnName( sortOrder_->column ), sortOrder_->order };
+}
+
+void LogTableView::sortBy( const NamedSortOrder& order )
+{
+    if ( !model_ ) {
+        return;
+    }
+    for ( int column = 0; column < model_->columnCount(); ++column ) {
+        if ( model_->columnName( column ) == order.column ) {
+            sortBy( SortOrder{ column, order.order } );
+            return;
+        }
+    }
+}
+
+TableSortRequest LogTableView::sortRequest( const SortOrder& order ) const
+{
+    TableSortRequest request;
+    request.logData = logData_;
+    request.format = std::make_shared<const LogFormatDefinition>( *format_ );
+    request.modificationDate = modificationDate_;
+    request.column = order.column;
+    request.order = order.order;
+    request.lineCount
+        = LinesCount( std::min( logData_->getNbLine().get(), static_cast<uint64_t>( INT_MAX ) ) );
+    request.base = baseRows_;
+    // The keys read for the column are read again only if Log Lines went.
+    if ( sortOrder_ && sortOrder_->column == order.column && sortKeys_
+         && sortKeys_->size() <= request.lineCount.get() ) {
+        request.keys = sortKeys_;
+    }
+    return request;
+}
+
+void LogTableView::startSort( const SortOrder& order )
+{
+    sorting_ = order;
+    merging_ = false;
+    sorter_->start( sortRequest( order ) );
+    showSortIndicator();
+    showSortProgress();
+    sortProgressTimer_.start();
+}
+
+void LogTableView::startMerge()
+{
+    if ( !sortOrder_ || !sortKeys_ || !sortedRows_ ) {
+        return;
+    }
+    auto request = sortRequest( *sortOrder_ );
+    request.rows = sortedRows_;
+    sorting_ = sortOrder_;
+    merging_ = true;
+    sorter_->start( std::move( request ) );
+    showSortProgress();
+    sortProgressTimer_.start();
+}
+
+void LogTableView::stopSorting()
+{
+    if ( !sorting_ ) {
+        return;
+    }
+    sorter_->cancel();
+    sorting_.reset();
+    merging_ = false;
+    sortProgressTimer_.stop();
+    if ( model_ ) {
+        model_->setHeaderNote( -1, std::nullopt );
+    }
+    showSortIndicator();
+}
+
+void LogTableView::showSortProgress()
+{
+    if ( !model_ || !sorting_ ) {
+        return;
+    }
+    model_->setHeaderNote( sorting_->column, tr( "%1 (sorting %2%)" )
+                                                 .arg( model_->columnName( sorting_->column ) )
+                                                 .arg( sorter_->progress() ) );
+}
+
+void LogTableView::showSortIndicator()
+{
+    auto* header = horizontalHeader();
+    const auto shown = sorting_ ? sorting_ : sortOrder_;
+    if ( shown ) {
+        header->setSortIndicator( shown->column, shown->order );
+        header->setSortIndicatorShown( true );
+    }
+    else {
+        header->setSortIndicatorShown( false );
+    }
+}
+
+void LogTableView::onSortFinished( const TableSortResult& result )
+{
+    if ( !model_ || !sorting_ || sorting_->column != result.column
+         || sorting_->order != result.order ) {
+        return;
+    }
+    sorting_.reset();
+    merging_ = false;
+    sortProgressTimer_.stop();
+    model_->setHeaderNote( -1, std::nullopt );
+
+    sortKeys_ = result.keys;
+    sortedRows_ = result.rows;
+    sortOrder_ = SortOrder{ result.column, result.order };
+    if ( result.merged ) {
+        rows_ = result.rows;
+        delegate_->setRowMapping( rows_ );
+        model_->mergeRows( rows_, result.inserted );
+        // Following sticks to the last Row of the Sort Order.
+        if ( follow_ ) {
+            scrollToBottom();
+        }
+    }
+    else {
+        swapRowMapping( result.rows );
+    }
+    showSortIndicator();
+    Q_EMIT sortOrderChanged();
+
+    // Log Lines appended while the sort ran are merged in next.
+    const auto lineCount = logData_ != nullptr ? logData_->getNbLine() : LinesCount( 0 );
+    if ( sortedRows_->rowCount( lineCount ) < baseRows_->rowCount( lineCount ) ) {
+        startMerge();
+    }
+}
+
+void LogTableView::dropSortOrder()
+{
+    sortOrder_.reset();
+    sortKeys_.reset();
+    sortedRows_.reset();
+    if ( model_ ) {
+        swapRowMapping( baseRows_ );
+    }
+    else {
+        rows_ = baseRows_;
+        delegate_->setRowMapping( rows_ );
+    }
+    showSortIndicator();
+}
+
+void LogTableView::swapRowMapping( std::shared_ptr<const RowMapping> rows )
+{
+    // What is selected, as Log Lines: the Rows are about to move.
+    const auto current = currentIndex();
+    const auto currentLogLine
+        = current.isValid() ? std::optional( rows_->logLineAt( current.row() ) ) : std::nullopt;
+    const auto selected = selectedLogLines( LinesCount( SelectionKept ) );
+    // Every Row selected is every Row selected afterwards, however many.
+    int selectedRows = 0;
+    for ( const auto& range : selectionModel()->selection() ) {
+        selectedRows += range.bottom() - range.top() + 1;
+    }
+    const bool allSelected = model_->rowCount() > 0 && selectedRows >= model_->rowCount();
+    state_.selection.clearInCell();
+
+    rows_ = std::move( rows );
+    delegate_->setRowMapping( rows_ );
+    model_->setRowMapping( rows_ );
+
+    if ( allSelected ) {
+        selectAll();
+    }
+    QItemSelection selection;
+    const int lastColumn = model_->columnCount() - 1;
+    for ( const auto logLine : selected ) {
+        const auto row = rows_->rowOf( logLine );
+        if ( row && *row < model_->rowCount() ) {
+            selection.select( model_->index( *row, 0 ), model_->index( *row, lastColumn ) );
+        }
+    }
+    if ( !selection.isEmpty() && !allSelected ) {
+        selectionModel()->select( selection, QItemSelectionModel::ClearAndSelect );
+    }
+    if ( currentLogLine ) {
+        if ( const auto row = rows_->rowOf( *currentLogLine ); row && *row < model_->rowCount() ) {
+            selectionModel()->setCurrentIndex( model_->index( *row, 0 ),
+                                               QItemSelectionModel::NoUpdate );
+            scrollTo( model_->index( *row, 0 ), QAbstractItemView::PositionAtCenter );
+        }
+    }
+    updateOverview();
 }
 
 void LogTableView::repaintIfActive()
@@ -455,6 +844,8 @@ TableViewSelection LogTableView::selection() const
         for ( const auto& index : indexes ) {
             rows.push_back( index.row() );
         }
+        // In the order shown, not the order they were selected in.
+        std::ranges::sort( rows );
     }
     selection.setRows( std::move( rows ) );
     return selection;
@@ -645,6 +1036,12 @@ void LogTableView::keyPressEvent( QKeyEvent* event )
 
         if ( event->matches( QKeySequence::Copy ) ) {
             copySelection();
+            return;
+        }
+        // Esc stops a sort under way, the Rows staying as they are; not a
+        // merge of appended Log Lines, which keeps the Sort Order.
+        if ( event->key() == Qt::Key_Escape && sorting_ && !merging_ ) {
+            stopSorting();
             return;
         }
         // 'm' to mark/unmark lines (same as text view)
@@ -1203,11 +1600,8 @@ void LogTableView::exportCsvTo( const CsvExportDialog::Choices& choices )
     // off it.
     CsvExport csvExport;
     if ( choices.selectedRowsOnly ) {
+        // In the order shown, as selectedLogLines() lists them.
         csvExport.logLines = selectedLogLines();
-        std::sort( csvExport.logLines.begin(), csvExport.logLines.end() );
-        csvExport.logLines.erase(
-            std::unique( csvExport.logLines.begin(), csvExport.logLines.end() ),
-            csvExport.logLines.end() );
     }
     else {
         const auto rowCount = model_->rowCount();

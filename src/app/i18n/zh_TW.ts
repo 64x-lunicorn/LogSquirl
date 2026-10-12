@@ -911,12 +911,12 @@ Pattern: %2</source>
 <context>
     <name>CrawlerWidget</name>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="783"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="789"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="784"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="790"/>
         <source>Search history:</source>
         <translation>搜尋歷史：</translation>
     </message>
@@ -936,27 +936,27 @@ Pattern: %2</source>
         <translation> 到目前為止已找到 %1 個符合項目</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1365"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1383"/>
         <source>Marks and matches</source>
         <translation>標記和符合項目</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1371"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1389"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>標記、符合項目 + 前後文行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1376"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1394"/>
         <source>Matches + breadcrumbs</source>
         <translation>符合項目 + 前後文行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1381"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1399"/>
         <source>Marks</source>
         <translation>僅標記</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1385"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1403"/>
         <source>Matches</source>
         <translation>僅符合項目</translation>
     </message>
@@ -1000,32 +1000,32 @@ Pattern: %2</source>
         <translation>搜尋模式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1427"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1445"/>
         <source>Clear search history</source>
         <translation>清除搜尋歷史</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1428"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1446"/>
         <source>Edit search history</source>
         <translation>編輯搜尋歷史</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1429"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1447"/>
         <source>Save as Filter</source>
         <translation>儲存為篩選器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1430"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1448"/>
         <source>Open in Regex Lab...</source>
         <translation>在正規表示式實驗室中開啟...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1432"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1450"/>
         <source>Try out the pattern and its options on Log Lines in the Regex Lab</source>
         <translation>在正規表示式實驗室中以日誌行試用此模式及其選項</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1438"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1456"/>
         <source>Count values of capture group</source>
         <translation>計算擷取群組的值</translation>
     </message>
@@ -1050,32 +1050,32 @@ Pattern: %2</source>
         <translation>保留這些結果，並在新視窗中顯示後續結果</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1453"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1471"/>
         <source>Toggle table/text view</source>
         <translation>切換表格/文字檢視</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1454"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1472"/>
         <source>Toggle table view</source>
         <translation>切換表格檢視</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1856"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1874"/>
         <source>Group %1</source>
         <translation>群組 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1857"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1875"/>
         <source>Group %1 (%2)</source>
         <translation>群組 %1（%2）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1885"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1903"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>「%2」的群組 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2270"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2290"/>
         <source>Toggle table/text view (%1)</source>
         <translation>切換表格/文字檢視（%1）</translation>
     </message>
@@ -1115,12 +1115,12 @@ Pattern: %2</source>
         <translation>磁碟上的檔案已被截斷</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2147"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2165"/>
         <source>Displayed as %1</source>
         <translation>顯示為 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2147"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2165"/>
         <source>Detected as %1</source>
         <translation>偵測為 %1</translation>
     </message>
@@ -1745,17 +1745,22 @@ Do you want to replace it?</source>
 <context>
     <name>LogTableView</name>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="773"/>
+        <location filename="../../ui/src/logtableview.cpp" line="634"/>
+        <source>%1 (sorting %2%)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/logtableview.cpp" line="1170"/>
         <source>Count values</source>
         <translation>計算值</translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="796"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1193"/>
         <source>Reset columns</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="1166"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1563"/>
         <source>Line</source>
         <translation>行號</translation>
     </message>

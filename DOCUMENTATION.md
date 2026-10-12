@@ -940,6 +940,36 @@ shown order. The *Export as CSV* dialog, in the table view and in the
 filtered view, lists the columns in the shown order with the hidden ones
 unchecked; check one to export it anyway.
 
+#### Sorting the rows
+
+Click a column header to sort the rows by that column, ascending; click it
+again for descending, and a third time for the order of the file again. The
+header shows the sort indicator. Fields the format declares `integer` or
+`float` sort by their number, the timestamp field by its timestamp, the
+**Δt** column by its duration, and every other field by its text, ignoring
+case. Rows with the same value keep their order in the file, and rows without
+a value in that column, the lines the format does not match among them, come
+last in both directions.
+
+The sort reads the column of every line in the background: the header reads
+*sorting* with the progress meanwhile, the rows stay as they are, and they
+switch to the new order at once when it is done. Click the header again or
+press Esc to stop a sort under way and keep the previous order. There is no
+limit on the size of the file; the time grows with it.
+
+A row stays its line of the file, sorted or not: the selection, marks,
+matches, *Go to line*, *Go to timestamp*, QuickFind and the chart's *Show
+this line* all land on the same line. `[` and `]` go to the previous and
+the next marked row in the order shown, that is up and down the table. *Copy*
+copies the selected rows in the order shown, and so does the CSV export's
+*Selected rows*. A followed file keeps its sort order: appended lines are
+placed where they belong, keyed alone, and follow sticks to the last row of
+the sorted table. A reload or a truncation sorts the rows again once the file
+has loaded. The sort order lives with the tab while it is open: it is not
+kept per format or in the session, a new tab of the same format opens in
+file order, and it is not part of the Column Layout. Hiding the sorted
+column keeps the sort order; the indicator comes back with the column.
+
 #### Column sizing
 
 Columns are auto-sized by measuring the actual text content of up to 2000
@@ -978,8 +1008,8 @@ Without a recognized format there is no table view and no export. A dialog
 chooses what is written:
 
 - **Rows**: *All rows*, every row the table shows, in its order, or
-  *Selected rows*, the selected ones in line order. *Selected rows* can only
-  be chosen while rows are selected, and is then chosen at first.
+  *Selected rows*, the selected ones in the order shown. *Selected rows* can
+  only be chosen while rows are selected, and is then chosen at first.
 - **Columns**: *Line*, the 1-based line number as *Copy with line numbers*
   writes it (unchecked at first), then every column of the table, **Δt**
   included (all checked). At least one column must be checked.

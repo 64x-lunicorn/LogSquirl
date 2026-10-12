@@ -231,7 +231,7 @@ def test_the_budgets_of_the_adr_load():
     assert (REPO_BUDGETS.parents[2] / data["adr"]).is_file()
     scenarios = {e["scenario"] for e in data["budgets"].values()}
     assert scenarios == {"startup", "open-and-index", "search", "grep", "quickfind", "scroll",
-                         "follow", "session-restore", "read-while-indexing", "memory"}
+                         "follow", "session-restore", "read-while-indexing", "memory", "sort"}
 
 
 def test_every_budget_holds_what_it_was_derived_from():

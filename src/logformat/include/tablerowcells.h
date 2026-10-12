@@ -22,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include <QDate>
 #include <QDateTime>
@@ -103,6 +104,12 @@ public:
         // One per column, as the Table View shows it.
         QStringList cells;
         std::optional<QDateTime> timestamp;
+        // The elapsed time the elapsed cell shows, before it is formatted;
+        // none when that cell is empty.
+        std::optional<qint64> elapsedMilliseconds;
+        // Whether the Log Format matched the Log Line: when not, the last
+        // field shows the Log Line whole, and no field has a value.
+        bool matchesFormat = false;
     };
     // The Row showing Log Line logLine, whose text is line. Its elapsed time
     // is measured from the nearest earlier Log Line of the Log File within
@@ -111,6 +118,32 @@ public:
     // A Log Line the Log Format does not match shows whole in the last field.
     Row rowOf( LineNumber logLine, const QString& line,
                const TimestampOfLogLine& earlierTimestamp ) const;
+
+    // What the cells of a column sort by (Sort Order): a field the Log
+    // Format declares `integer` or `float` by its number, the timestamp
+    // field by its Timestamp, the elapsed column by its duration, every
+    // other field by its text, ordinal and case-insensitive.
+    enum class SortKeyKind { Text, Number, Timestamp, Elapsed };
+    SortKeyKind sortKeyKindOf( int column ) const;
+
+    // The key a Row sorts by in a column. A Row without a value in the
+    // column has none, a Log Line the Log Format does not match among them,
+    // whatever its last cell shows.
+    struct SortKey {
+        bool hasValue = false;
+        // By the column's kind: the text, case-folded; the number; the
+        // Timestamp as milliseconds since the epoch; the elapsed milliseconds.
+        QString text;
+        double number = 0.0;
+        qint64 milliseconds = 0;
+    };
+    // The key of the Row showing Log Line logLine, whose text is line, in
+    // column: read from the Row rowOf() computes, so it agrees with the cell
+    // shown. earlierTimestamp is what rowOf() takes.
+    SortKey sortKeyOf( int column, LineNumber logLine, const QString& line,
+                       const TimestampOfLogLine& earlierTimestamp ) const;
+    // The key a Row computed by rowOf() has in column.
+    SortKey sortKeyOf( int column, const Row& row ) const;
 
 private:
     LogFieldExtractor extractor_;
@@ -122,4 +155,6 @@ private:
     int elapsedColumn_ = -1;
     // The field with the Timestamp, -1 when there is none.
     int timestampField_ = -1;
+    // What each column sorts by.
+    std::vector<SortKeyKind> sortKeyKinds_;
 };

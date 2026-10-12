@@ -168,6 +168,12 @@ CrawlerWidget::CrawlerWidget( const ViewBuild& build, QWidget* parent )
 
 CrawlerWidget::~CrawlerWidget()
 {
+    // A sort of the Table View reads the Log File until it is stopped: it is
+    // stopped here, before the Log File goes with the members, while the
+    // Table View, a child, would go only after them.
+    if ( logTableView_ != nullptr ) {
+        logTableView_->setLogFormat( nullptr, nullptr );
+    }
     // A Filtered View reads its Search until it is gone, so the tabs go
     // before the Kept Searches let the Searches go, and ask nothing of them
     // as they go.
@@ -1160,6 +1166,12 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     lastLoadStatus_ = load.status;
     lastLoadFailure_ = load.failure;
 
+    // A load from the start (a reload, a truncation) sorts the Table View's
+    // Rows anew once it is brought up to date below.
+    if ( load.fromStart ) {
+        logTableView_->reloaded();
+    }
+
     if ( load.formatRecognized ) {
         showRecognizedFormat();
     }
@@ -1186,6 +1198,12 @@ void CrawlerWidget::truncatedHandler( const QString& failure )
         nbMatches_ = 0_lcount;
     }
 
+    // The Sort Order goes with the Log Format; the Table View sorts by it
+    // again once the truncated Log File has loaded and is recognized.
+    sortOrderAcrossTruncation_.reset();
+    if ( const auto sortOrder = logTableView_->namedSortOrder() ) {
+        sortOrderAcrossTruncation_ = std::make_pair( sortOrder->column, sortOrder->order );
+    }
     resetLogFormat();
 }
 
@@ -2249,6 +2267,7 @@ void CrawlerWidget::showRecognizedFormat()
         if ( recognizedFormat_ ) {
             resetLogFormat();
         }
+        sortOrderAcrossTruncation_.reset();
         return;
     }
 
@@ -2256,6 +2275,7 @@ void CrawlerWidget::showRecognizedFormat()
         // Still the very same Log Format: nothing to switch, only the Table
         // View to bring up to date with what was loaded.
         logTableView_->updateData( isFollowEnabled(), openLogFile_->lastModified().date() );
+        sortOrderAcrossTruncation_.reset();
         return;
     }
 
@@ -2275,6 +2295,13 @@ void CrawlerWidget::showRecognizedFormat()
     // A reload that recognized a different Log Format while the Table View
     // was shown keeps it shown, with the new columns.
     logTableView_->updateData( isFollowEnabled(), openLogFile_->lastModified().date() );
+    // Truncated under a Sort Order: sorted by that column again, if the Log
+    // Format recognized now has it.
+    if ( sortOrderAcrossTruncation_ ) {
+        const auto [ column, order ] = *sortOrderAcrossTruncation_;
+        sortOrderAcrossTruncation_.reset();
+        logTableView_->sortBy( LogTableView::NamedSortOrder{ column, order } );
+    }
     if ( viewSet_.presentationPolicy().autoShowTableView && !tableViewToggle_->isChecked() ) {
         // Automatically activate table view if the user opted in
         tableViewToggle_->setChecked( true );

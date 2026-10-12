@@ -20,14 +20,18 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
+#include <map>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include <QDate>
 #include <QStringList>
 #include <QTableView>
+#include <QTimer>
 
 #include "colorlabelsmanager.h"
 #include "columnlayout.h"
@@ -43,6 +47,8 @@
 #include "regularexpressionpattern.h"
 #include "rowmapping.h"
 #include "settingspolicies.h"
+#include "tablesorter.h"
+#include "tablesortkeys.h"
 #include "tableviewselection.h"
 #include "tableviewstate.h"
 
@@ -54,6 +60,7 @@ class OverviewWidget;
 class Portion;
 class QFNotification;
 class QMenu;
+class QShortcut;
 class QuickFind;
 class QuickFindPattern;
 class Selection;
@@ -77,7 +84,18 @@ class Selection;
 // shown.
 //
 // Which Log Line each Row shows is its RowMapping's to say; everything the
-// Table View hands out is a Log Line obtained through it.
+// Table View hands out is a Log Line obtained through it. A click on a column
+// header gives the Rows a Sort Order: the Rows sorted by that column, then
+// the other way round, then Log Line order again. The sort reads the column's
+// keys off the UI thread (TableSorter), the header showing its progress with
+// the indicator, and the Rows switch to the new order at once when it is
+// done; a second click on the header or Esc stops it, the Rows staying as
+// they were. A Row keeps being its Log Line, so the selection, Marks, Matches
+// and QuickFind land on the same Log Lines sorted or not. A followed Log
+// File keeps its Sort Order: the Log Lines it appends are keyed alone and
+// merged in at their place. The Sort Order lives with the tab and is saved
+// nowhere; a Column Layout does not hold it, and hiding the sorted column
+// keeps it.
 //
 // Shown, it is what the window's QuickFind bar searches, as the Text View is:
 // QuickFind runs from the characters selected in a cell of the current Row, or
@@ -108,8 +126,69 @@ public:
     // Row is scrolled into view. The Marks and Matches are the current
     // Search's, handed over by setCurrentSearch(). Timestamps without a year
     // take the year of modificationDate, when the Log File was last written
-    // (ADR 0010); without one, the current year.
+    // (ADR 0010); without one, the current year. Under a Sort Order, Log
+    // Lines appended since are merged in at their place, in the background;
+    // fewer Log Lines than sorted (a truncation) sort the Rows anew.
     void updateData( bool follow, const QDate& modificationDate = {} );
+    // The Log File was loaded from its start again (a reload, a truncation):
+    // the Rows read so far are stale, and a Sort Order is sorted anew once
+    // the next updateData() brings the new Log Lines.
+    void reloaded();
+
+    // Sort Order
+    struct SortOrder {
+        // A logical column of the model.
+        int column = 0;
+        Qt::SortOrder order = Qt::AscendingOrder;
+
+        bool operator==( const SortOrder& ) const = default;
+    };
+    // The Sort Order the Rows are in; none in Log Line order. A sort under
+    // way has not changed it yet.
+    std::optional<SortOrder> sortOrder() const
+    {
+        return sortOrder_;
+    }
+    // Starts sorting the Rows by column in that direction, as a click on its
+    // header does; the Rows switch once the sort is done. None is Log Line
+    // order, taken at once.
+    void sortBy( std::optional<SortOrder> order );
+    // A Sort Order by the name of its column: what survives the Log Format
+    // being set anew, as a truncation sets it.
+    struct NamedSortOrder {
+        QString column;
+        Qt::SortOrder order = Qt::AscendingOrder;
+    };
+    // The Sort Order with its column's name; none in Log Line order.
+    std::optional<NamedSortOrder> namedSortOrder() const;
+    // Starts sorting by the column of that name; nothing without one.
+    void sortBy( const NamedSortOrder& order );
+    // What a click on the header of column does: by that column ascending,
+    // a second click descending, a third Log Line order; a click on the
+    // header of the column being sorted stops the sort.
+    void cycleSortOrder( int column );
+    // The sort under way, none without one: a sort of every Row, or the
+    // merge of appended Log Lines into the Sort Order.
+    std::optional<SortOrder> sortInProgress() const
+    {
+        return sorting_;
+    }
+    // Whether the sort under way is a merge of appended Log Lines, which a
+    // click or Esc does not stop.
+    bool isMerging() const
+    {
+        return merging_;
+    }
+    // Stops the sort under way; the Rows stay as they are.
+    void stopSorting();
+
+    // Selects the Row of the next Mark below the current Row, or the next
+    // above it, in the order the Rows are shown; nothing when there is none.
+    void selectNextMark();
+    void selectPreviousMark();
+    // The same for the Matches of the current Search.
+    void selectNextMatch();
+    void selectPreviousMatch();
 
     // The Table View positions overviewWidget over its right edge itself, and
     // shows a clicked Log Line.
@@ -172,7 +251,7 @@ public:
     // order the Column Layout shows them, the hidden ones unchecked.
     CsvExportDialog::Setup csvExportSetup() const;
     // Exports the Rows to a CSV file as chosen in that dialog: every Row in
-    // its order, or the selected ones in Log Line order.
+    // its order, or the selected ones in the order shown.
     void exportCsvTo( const CsvExportDialog::Choices& choices );
 
     // SearchableWidgetInterface: QuickFind from quickFindStart(), over every
@@ -185,8 +264,10 @@ public:
     void incrementalSearchStop() override;
     void incrementalSearchAbort() override;
 
+    // The selected Rows in the order shown, and the characters selected in
+    // a cell.
     TableViewSelection selection() const;
-    // The Log Lines of the selected Rows.
+    // The Log Lines of the selected Rows, in the order the Rows are shown.
     logsquirl::vector<LineNumber> selectedLogLines() const;
     // The first at most limit of them (#663).
     logsquirl::vector<LineNumber> selectedLogLines( LinesCount limit ) const;
@@ -233,6 +314,10 @@ Q_SIGNALS:
     // The user asked to count the values of a Log Format field, from the
     // context menu of its column header.
     void countValuesRequested( const QString& fieldName );
+
+    // The Rows changed their order: a sort finished, appended Log Lines were
+    // merged in, or the Rows are back in Log Line order.
+    void sortOrderChanged();
 
     // What a searchable tells the QuickFind bar, as the Text View does: a new
     // pattern and direction ("Find next / previous" of the context menu), a
@@ -394,7 +479,36 @@ private:
     // from the bottom: the user moved them there.
     void leaveFollowAwayFromBottom( int position );
 
+    // Sort Order
+    // What every sort reads: the Log File, the Log Format and its Rows.
+    TableSortRequest sortRequest( const SortOrder& order ) const;
+    // Starts the sort of every Log Line by order, superseding one under way.
+    void startSort( const SortOrder& order );
+    // Starts merging the Log Lines appended since the Rows were sorted.
+    void startMerge();
+    void onSortFinished( const TableSortResult& result );
+    // Shows the sort's progress in the header, with the indicator.
+    void showSortProgress();
+    // The header's indicator for the Sort Order, or the sort under way.
+    void showSortIndicator();
+    // The Rows now show the Log Lines rows maps them onto: the model and the
+    // delegate are told, the Log Lines selected before stay selected (every
+    // Row when every Row was, else the first SelectionKept of them) and the
+    // current one is shown.
+    void swapRowMapping( std::shared_ptr<const RowMapping> rows );
+    // Back to Log Line order at once, the keys and Rows of the Sort Order
+    // dropped.
+    void dropSortOrder();
+    // Selects the Row nearest to the current one in the direction given
+    // whose Log Line is of the type: a Mark, or a Match.
+    void selectNeighbour( AbstractLogData::LineTypeFlags type, bool below );
+    void registerShortcut( const std::string& action, std::function<void()> func );
+    static constexpr int SelectionKept = 10'000;
+
+    // Which Log Line each Row shows: baseRows_, as the Table View was built
+    // with, in Log Line order, or the Sort Order's Rows over them.
     std::shared_ptr<const RowMapping> rows_;
+    std::shared_ptr<const RowMapping> baseRows_;
     // Not owned: the coordinator holds the Log Format for as long as it is set
     const LogFormatDefinition* format_ = nullptr;
     AbstractLogData* logData_ = nullptr;
@@ -422,4 +536,21 @@ private:
     // Whether the Table View is changing the header itself (see
     // ApplyingLayout).
     bool applyingColumnLayout_ = false;
+
+    // Sort Order: the one the Rows are in, and the one being sorted for;
+    // whether that sort merges appended Log Lines into the Rows.
+    std::optional<SortOrder> sortOrder_;
+    std::optional<SortOrder> sorting_;
+    bool merging_ = false;
+    // The keys of the sorted column, for the Log Lines keyed so far, and the
+    // Rows in the Sort Order; none in Log Line order.
+    std::shared_ptr<const TableSortKeys> sortKeys_;
+    std::shared_ptr<const SortedRows> sortedRows_;
+    std::unique_ptr<TableSorter> sorter_;
+    QTimer sortProgressTimer_;
+    // The Log File was loaded from its start: the Sort Order is sorted anew
+    // on the next updateData().
+    bool resortOnUpdate_ = false;
+
+    std::map<QString, QShortcut*> shortcuts_;
 };

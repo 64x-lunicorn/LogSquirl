@@ -45,6 +45,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -619,6 +620,10 @@ private:
     // this tab is brought to the front (#540): none while a load is under way,
     // whose progress is kept instead, and the failure of a Failed one.
     std::optional<LoadingStatus> lastLoadStatus_;
+    // The Table View's Sort Order when the Log File was truncated, which
+    // forgot the Log Format, as the column's name and the direction: sorted
+    // by again once a Log Format is recognized.
+    std::optional<std::pair<QString, Qt::SortOrder>> sortOrderAcrossTruncation_;
     QString lastLoadFailure_;
     bool hasLoaded_ = false;
     int loadingProgress_ = 0;

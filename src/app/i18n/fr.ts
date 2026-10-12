@@ -911,12 +911,12 @@ Motif : %2</translation>
 <context>
     <name>CrawlerWidget</name>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="783"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="789"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="784"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="790"/>
         <source>Search history:</source>
         <translation>Historique de recherche :</translation>
     </message>
@@ -936,27 +936,27 @@ Motif : %2</translation>
         <translation> %1 correspondance trouvée jusqu&apos;à présent.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1365"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1383"/>
         <source>Marks and matches</source>
         <translation>Marquages et correspondances</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1371"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1389"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>Marquages, correspondances + contexte</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1376"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1394"/>
         <source>Matches + breadcrumbs</source>
         <translation>Correspondances + contexte</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1381"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1399"/>
         <source>Marks</source>
         <translation>Marquages</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1385"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1403"/>
         <source>Matches</source>
         <translation>Correspondances</translation>
     </message>
@@ -1000,32 +1000,32 @@ Motif : %2</translation>
         <translation>Motif de recherche</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1427"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1445"/>
         <source>Clear search history</source>
         <translation>Effacer l&apos;historique de recherche</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1428"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1446"/>
         <source>Edit search history</source>
         <translation>Modifier l&apos;historique de recherche</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1429"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1447"/>
         <source>Save as Filter</source>
         <translation>Enregistrer comme filtre</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1430"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1448"/>
         <source>Open in Regex Lab...</source>
         <translation>Ouvrir dans le Labo regex...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1432"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1450"/>
         <source>Try out the pattern and its options on Log Lines in the Regex Lab</source>
         <translation>Essayer le motif et ses options sur des lignes du journal dans le Labo regex</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1438"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1456"/>
         <source>Count values of capture group</source>
         <translation>Compter les valeurs du groupe de capture</translation>
     </message>
@@ -1050,32 +1050,32 @@ Motif : %2</translation>
         <translation>Conserver ces résultats et afficher les résultats suivants dans une nouvelle fenêtre</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1453"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1471"/>
         <source>Toggle table/text view</source>
         <translation>Basculer entre vue tableau et vue texte</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1454"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1472"/>
         <source>Toggle table view</source>
         <translation>Basculer la vue tableau</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1856"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1874"/>
         <source>Group %1</source>
         <translation>Groupe %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1857"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1875"/>
         <source>Group %1 (%2)</source>
         <translation>Groupe %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1885"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1903"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>groupe %1 de &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2270"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2290"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Basculer entre vue tableau et vue texte (%1)</translation>
     </message>
@@ -1115,12 +1115,12 @@ Motif : %2</translation>
         <translation>Fichier tronqué sur le disque</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2147"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2165"/>
         <source>Displayed as %1</source>
         <translation>Affiché en %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2147"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2165"/>
         <source>Detected as %1</source>
         <translation>Détecté en %1</translation>
     </message>
@@ -1745,17 +1745,22 @@ Voulez-vous le remplacer ?</translation>
 <context>
     <name>LogTableView</name>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="773"/>
+        <location filename="../../ui/src/logtableview.cpp" line="634"/>
+        <source>%1 (sorting %2%)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/logtableview.cpp" line="1170"/>
         <source>Count values</source>
         <translation>Compter les valeurs</translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="796"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1193"/>
         <source>Reset columns</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="1166"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1563"/>
         <source>Line</source>
         <translation>Ligne</translation>
     </message>

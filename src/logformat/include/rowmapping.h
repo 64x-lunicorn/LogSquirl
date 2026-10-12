@@ -21,7 +21,9 @@
 
 #include <algorithm>
 #include <climits>
+#include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "abstractlogdata.h"
 #include "linetypes.h"
@@ -70,4 +72,38 @@ public:
         }
         return static_cast<int>( logLine.get() );
     }
+};
+
+// The Rows in a Sort Order: Row n shows the n-th Log Line of the order it was
+// built with, and a Log Line finds its Row through a reverse index. The order
+// is whatever it is handed, so the set of Rows and their order are separate
+// concerns, both the builder's: the Rows of a base mapping (every Log Line,
+// or the ones a mapping narrows them to, as Matches Only would) sorted by a
+// column's keys (sortedLogLines() in tablesortkeys.h). How many Log Lines the
+// Log File has makes no difference: a Log Line not in the order has no Row
+// until it is merged in.
+class SortedRows : public RowMapping {
+public:
+    // Row n shows logLines[n]; a Log Line at most once.
+    explicit SortedRows( std::vector<uint32_t> logLines );
+
+    int rowCount( LinesCount ) const override
+    {
+        return static_cast<int>( logLines_.size() );
+    }
+
+    // The Log Line of a Row; for a Row beyond the last, the last Row's.
+    LineNumber logLineAt( int row ) const override;
+    std::optional<int> rowOf( LineNumber logLine ) const override;
+
+    // The Log Lines in Row order.
+    const std::vector<uint32_t>& logLines() const
+    {
+        return logLines_;
+    }
+
+private:
+    std::vector<uint32_t> logLines_;
+    // By Log Line, the Row showing it; -1 for none.
+    std::vector<int32_t> rowOfLogLine_;
 };

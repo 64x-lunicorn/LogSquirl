@@ -15,6 +15,25 @@
   progress and poll for cancellation, both convert entry points run on a host
   worker thread, and any plugin exporting the converter entry points converts,
   whatever its manifest `type`. (#795)
+- **The Table View sorts its Rows by a column (Sort Order)**: a click on a
+  column header sorts the Rows by that column, a second click the other way
+  round, a third restores Log Line order; the header shows the indicator.
+  Fields the Log Format declares `integer` or `float` sort by number, the
+  timestamp field by its Timestamp, the Δt column by its duration, every
+  other field by its text ignoring case; ties keep Log Line order and Rows
+  without a value come last in both directions. The sort reads the column
+  off the UI thread, the header showing its progress; a second click or Esc
+  stops it and keeps the previous order. A Row stays its Log Line: the
+  selection, Marks, Matches, Go to line, Go to timestamp and QuickFind land
+  on the same Log Lines, and `[` and `]` go to the previous and next Mark up
+  and down the sorted table. *Copy* and the CSV export's *Selected rows*
+  follow the order shown. A followed Log File keeps its Sort Order, appended
+  Log Lines merged in at their place and follow sticking to the last Row; a
+  reload or truncation sorts again. The Sort Order lives with the tab: it is
+  not saved per Log Format, in the Session or in the Column Layout, and
+  hiding the sorted column keeps it. The benchmark mode's new `sort` scenario
+  times a sort of the 100 MB scroll Log File by a text, a numeric and a
+  timestamp column, with Budgets proposed in ADR 0018. (#797)
 - **A log file too short to be recognized is recognized as it grows**: while
   a file has fewer than 50 lines and no log format matched them,
   auto-detection runs again after each load that brings more lines,
