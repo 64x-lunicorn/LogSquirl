@@ -1967,6 +1967,98 @@
       "filtered_count": 7,
       "total_count": 7,
       "measures": "The Table View of generated_scroll_100Mb.log sorted by the ms column, integers: the click on the header to the Rows switched to the Sort Order, Log File loaded and shown before"
+    },
+    "gui_search_log_100mb_field_first_match": {
+      "median_seconds": 0.145517958,
+      "mean_seconds": 0.146017047,
+      "std_seconds": 0.006175022,
+      "cv_percent": 4.23,
+      "p5_seconds": 0.137545458,
+      "p95_seconds": 0.15393725,
+      "iqr_seconds": 0.012899875,
+      "min_seconds": 0.137545458,
+      "max_seconds": 0.15393725,
+      "runs": [
+        0.137545458,
+        0.139645083,
+        0.144181416,
+        0.145517958,
+        0.148747209,
+        0.152544958,
+        0.15393725
+      ],
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Field Term, the Log Lines whose level field is ERROR (generated_scroll_100Mb.log): Search requested to first Match displayed, Log File loaded before"
+    },
+    "gui_search_log_100mb_field_finished": {
+      "median_seconds": 0.435593458,
+      "mean_seconds": 0.437422619,
+      "std_seconds": 0.053342824,
+      "cv_percent": 12.19,
+      "p5_seconds": 0.364646875,
+      "p95_seconds": 0.529466708,
+      "iqr_seconds": 0.067020333,
+      "min_seconds": 0.364646875,
+      "max_seconds": 0.529466708,
+      "runs": [
+        0.364646875,
+        0.393073625,
+        0.41940275,
+        0.435593458,
+        0.459680958,
+        0.460093958,
+        0.529466708
+      ],
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Field Term, the Log Lines whose level field is ERROR (generated_scroll_100Mb.log): Search requested to Search finished, Log File loaded before"
+    },
+    "gui_search_log_100mb_field_and_text_first_match": {
+      "median_seconds": 0.146992125,
+      "mean_seconds": 0.14733272,
+      "std_seconds": 0.005152403,
+      "cv_percent": 3.5,
+      "p5_seconds": 0.141103958,
+      "p95_seconds": 0.156684125,
+      "iqr_seconds": 0.007592416,
+      "min_seconds": 0.141103958,
+      "max_seconds": 0.156684125,
+      "runs": [
+        0.141103958,
+        0.1431975,
+        0.145370875,
+        0.146992125,
+        0.147190542,
+        0.150789916,
+        0.156684125
+      ],
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Field Term and a plain sub-pattern, the WARN Log Lines (generated_scroll_100Mb.log): Search requested to first Match displayed, Log File loaded before"
+    },
+    "gui_search_log_100mb_field_and_text_finished": {
+      "median_seconds": 0.448921875,
+      "mean_seconds": 0.431552357,
+      "std_seconds": 0.045943208,
+      "cv_percent": 10.65,
+      "p5_seconds": 0.378070417,
+      "p95_seconds": 0.490351166,
+      "iqr_seconds": 0.086745707,
+      "min_seconds": 0.378070417,
+      "max_seconds": 0.490351166,
+      "runs": [
+        0.378070417,
+        0.385848959,
+        0.390061833,
+        0.448921875,
+        0.455017584,
+        0.472594666,
+        0.490351166
+      ],
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Field Term and a plain sub-pattern, the WARN Log Lines (generated_scroll_100Mb.log): Search requested to Search finished, Log File loaded before"
     }
   }
 }

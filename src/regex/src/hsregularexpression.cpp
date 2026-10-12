@@ -304,10 +304,10 @@ QString HsRegularExpression::errorString() const
     return errorMessage_;
 }
 
-MatcherVariant HsRegularExpression::createMatcher() const
+LineMatcherVariant HsRegularExpression::createMatcher() const
 {
     if ( !isHsValid() ) {
-        return MatcherVariant{ DefaultRegularExpressionMatcher( regexps_ ) };
+        return LineMatcherVariant{ DefaultRegularExpressionMatcher( regexps_ ) };
     }
 
     if ( !database_ || !scratch_ ) {

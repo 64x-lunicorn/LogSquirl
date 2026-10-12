@@ -87,6 +87,8 @@ public:
     // the caller asks for it with requestSearch() once this has returned.
     bool add( const QString& word );
     bool exclude( const QString& word );
+    // Narrows the Search to the Log Lines whose field has the value (#798).
+    bool addFieldTerm( const QString& field, const QString& value );
     bool replace( const QString& word );
     bool useFilters( const QList<PredefinedFilter>& filters );
     // A pattern applied from the Regex Lab (#661), as the Search Line takes

@@ -158,6 +158,25 @@ Following logic operations are supported:
 |`&`             |Similar to AND but with left to right expression short circuiting optimization  |
 |`\|`             |Similar to OR but with left to right expression short circuiting optimization   |
 |`not`           |Logical NOT, Negate the logical sense of the input. Input must be enclosed in `()` (eg: `not("x")`)|
+|`Name:"x"`      |A **field term**: `x` is matched against the field `Name` of the tab's log format only, not the whole line (eg: `Protocol:"DNS" and not(Source:"10\.0\.0\.5")`)|
+
+A field term narrows a sub-pattern to one field of the [log format](#auto-log-format-detection-table-view)
+recognized for the file: write the column's name as the table view's header
+shows it, a colon and the quoted pattern, as in `Protocol:"DNS"`. The
+quoted part is read like every other sub-pattern, as a regular expression or
+as text and with or without case as the buttons say, and matches anywhere in
+the field's text (`Protocol:"DNS"` also matches `MDNS`; anchor it with `^`
+and `$` when the whole field must match). Sub-patterns without a field keep
+matching the whole line, so `level:"ERROR" and "timed out"` finds the ERROR
+lines that say *timed out* anywhere. A line the log format does not parse
+has no fields: no field term matches it, and `not(level:"ERROR")` does. The
+Δt column is no field. A field term naming a field the log format lacks, or
+any field term in a tab without a recognized log format, is a pattern error
+shown in the search line, naming the field; the search does not run. A
+reload that recognizes another log format reads the search again under it.
+A field whose name has a space, a colon, a quote, a parenthesis or an
+operator character (`! & |`) cannot be named in a field term. Outside the
+logical combination a colon is text: `a:b` finds `a:b`.
 
 #### The search bar
 
@@ -515,7 +534,12 @@ pattern of the selected filter, on the Log Lines of the tab in front (or on
 pasted text while no file is open). The Lab reads the pattern exactly as the search
 line of the tab in front reads it once the filter is used there: with the
 search engine and that search line's *Match case*, as one pattern, not a
-logical combination. A search line with *Use regex* on reads the filter as a
+logical combination. A filter written with field terms (`level:"ERROR" and
+not("retry")`) is a logical combination of its own: used from the Filters
+Panel it switches the search line's logical combination on and joins the
+pattern as written, in parentheses, its sub-patterns read as the search
+line's buttons say; it needs the tab's log format to have the fields it
+names. A search line with *Use regex* on reads the filter as a
 regular expression or as plain text, as the filter says; one with *Use regex*
 off reads every filter as plain text. So *Use regex* can be changed in the Lab
 only while the search line uses regular expressions; *Match case*, which a
@@ -573,7 +597,10 @@ While you type, the Lab shows after a short pause:
   and in their colors, and beside each line the numbers of those that match
   it -- a negated one included, since it is its match that `not(...)` turns
   round. Whether the line matches is the combination's verdict, as a search
-  decides it. Hovering the numbers says them in words;
+  decides it. Hovering the numbers says them in words. A field term is listed
+  with its field (`level:"ERROR"`), matches against the field's text alone,
+  and is marked where the line shows the field (a JSON or logfmt log format
+  places its fields nowhere in the line, so nothing is marked for it);
 - for the line with the cursor, the capture groups of its first match,
   numbered and with their names (`(?<name>...)`); for a logical combination
   they are numbered *sub-pattern.group*, as in `2.1`;
@@ -916,9 +943,10 @@ determined, columns fall back to alphabetical order. The elapsed-time column
 
 #### The header menu and the Column Layout
 
-Right-click a column header for the header menu. It starts with *Count
-values*, which counts the values of that column's field (not offered for the
-Δt column, which is no field), then lists every column with a check mark, the
+Right-click a column header for the header menu. It starts with [*Matches
+Only*](#matches-only), then *Count values*, which counts the values of that
+column's field (not offered for the Δt column, which is no field), then lists
+every column with a check mark, the
 Δt column among them: uncheck a column to hide it, check it to show it again.
 One column always stays shown, so the last checked entry is disabled. Drag a
 column header to move the column to another place. *Reset columns* restores
@@ -969,6 +997,33 @@ has loaded. The sort order lives with the tab while it is open: it is not
 kept per format or in the session, a new tab of the same format opens in
 file order, and it is not part of the Column Layout. Hiding the sorted
 column keeps the sort order; the indicator comes back with the column.
+
+#### Matches Only
+
+*Matches Only*, in the *View* menu and in the header menu, narrows the table
+to the rows whose line is a match of the current search: a marked line or a
+context line has a row only when it is a match. It follows the search as it
+runs, as *Auto-refresh* finds matches in a growing file and as another search
+replaces it, and it turns itself off when the search is cleared; without a
+search there is nothing to narrow to, and it stays off. It composes with the
+sort order: Matches Only decides which rows there are, the sort order their
+order, and switching either does not touch the other. A row stays its line
+of the file: the selection, *Go to line*, QuickFind, *Copy* and the next and
+previous match (and mark) address the lines shown. Matches Only belongs to
+the table view of the tab, for as long as the tab is open: it is not kept
+per format or in the session, and switching it on from the *View* menu shows
+the table view.
+
+#### Search this value in a column
+
+Right-click a cell that shows a value of a field for *Search this value in
+<column>* (not offered on the Δt column, or on an empty cell). It appends
+`and <column>:"<value>"` to the search pattern as a
+[field term](#exploring-log-files), the value escaped when the search line
+reads regular expressions, switches the logical combination on if it was off,
+and runs the search: the quickest way to narrow a search to the lines whose
+field has the value under the cursor. *Add to search* on selected text stays
+as it is.
 
 #### Column sizing
 

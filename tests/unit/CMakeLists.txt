@@ -27,6 +27,7 @@ add_executable(logsquirl_tests
     encodingdetector_test.cpp
     fileassociations_test.cpp
     fileassociationchoice_test.cpp
+    fieldterm_test.cpp
     macfileassociations_test.cpp
     windowsfileassociations_test.cpp
     fileholder_test.cpp
@@ -60,6 +61,8 @@ add_executable(logsquirl_tests
     logtableview_test.cpp
     logtableview_columnlayout_test.cpp
     logtableview_sort_test.cpp
+    logtableview_matchesonly_test.cpp
+    logformatfieldreader_test.cpp
     logviewinteractions_test.cpp
     logviewpainting_test.cpp
     logviewvaluenames_test.cpp
@@ -90,6 +93,7 @@ add_executable(logsquirl_tests
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
     regexlab_test.cpp
+    rowmapping_test.cpp
     highlighter_colorline_test.cpp
     runnable_lambda_test.cpp
     searchdata_test.cpp

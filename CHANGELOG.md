@@ -2,6 +2,24 @@
 
 ## Changes
 
+- **A search narrows by column with field terms, and the table view shows
+  Matches Only**: in the logical combination a sub-pattern written
+  `Protocol:"DNS"` matches the text of that field of the tab's log format
+  alone, not the whole line; it is read as the *Use regex* and *Match case*
+  buttons say, matches anywhere in the field, and combines with plain
+  sub-patterns and `not(...)`. A line the log format does not parse has no
+  fields and matches no field term. A field the log format lacks, or a field
+  term in a tab without a recognized log format, is a pattern error in the
+  search line naming the field. Field terms work in Predefined Filters and in
+  the Regex Lab, which lists them with their field and marks what they
+  matched in the field. The table view's cell menu offers *Search this value
+  in <column>*, which appends the field term and runs the search. *Matches
+  Only* in the *View* menu and the header menu narrows the table to the rows
+  of the current search's matches; it follows the search, composes with the
+  sort order and turns off when the search is cleared. A search without field
+  terms runs as fast as before; the benchmark mode's `search` scenario gets
+  the options `logical` and `format` and two Budgets for field term Searches
+  (ADR 0018). (#798)
 - **A converter plugin runs in the background with progress and Cancel**:
   opening a file a converter plugin handles no longer freezes the window
   while it converts. A conversion that takes a while shows a non-modal

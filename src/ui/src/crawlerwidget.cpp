@@ -362,6 +362,8 @@ CrawlerWidget::State CrawlerWidget::state() const
     state.follows = isFollowEnabled();
     state.textWrap = isTextWrapEnabled();
     state.valueNamesShown = isValueNamesShownSet();
+    state.hasTableView = recognizedFormat_ != nullptr;
+    state.matchesOnly = logTableView_->matchesOnly();
     state.encodingMib = encodingMib();
     state.goToTimestampUnavailable = goToTimestampUnavailableReason();
     state.searchLimitsByTimeUnavailable = searchLimitsByTimeUnavailableReason();
@@ -813,7 +815,7 @@ void CrawlerWidget::openSearchInRegexLab()
         // A pattern not yet edited in the Lab follows the Search Line; one
         // the user edited there stays.
         if ( searchRegexLab_->pattern() == searchRegexLabOpenedWith_ ) {
-            searchRegexLabOpenedWith_ = searchLine_->request();
+            searchRegexLabOpenedWith_ = openLogFile_->withFieldReader( searchLine_->request() );
             searchRegexLab_->setPattern( searchRegexLabOpenedWith_ );
         }
         searchRegexLab_->raise();
@@ -823,7 +825,7 @@ void CrawlerWidget::openSearchInRegexLab()
 
     // The pattern exactly as the Search Line requests a Search: a Wildcard
     // or Fixed String reading comes to the Lab as plain text.
-    searchRegexLabOpenedWith_ = searchLine_->request();
+    searchRegexLabOpenedWith_ = openLogFile_->withFieldReader( searchLine_->request() );
 
     // A window of its own, destroyed with this tab: the Search Line it would
     // write back into goes with it. Cancel changes nothing: only applied() is
@@ -883,6 +885,12 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
                         || state.phase == SearchSession::Phase::Interrupted
                         || state.phase == SearchSession::Phase::InvalidPattern;
 
+    // A pattern found invalid by a Search requested again without the user
+    // -- a Field Term under the Log Format recognized anew (#798) -- is told
+    // here, as the request told it when the user asked.
+    if ( state.phase == SearchSession::Phase::InvalidPattern ) {
+        searchLine_->requested( state );
+    }
     // The Search Line tells the progress, the Matches found or the failure.
     searchLine_->progressed( state, openLogFile_->searchAutoRefresh().state() );
     if ( const auto failure = searchLine_->display().offerIssueReport; !failure.isEmpty() ) {
@@ -1550,6 +1558,11 @@ void CrawlerWidget::setup()
     connectPresentation( logTableView_ );
     connect( logTableView_, &LogTableView::countValuesRequested, this,
              &CrawlerWidget::countFieldValues );
+    // Matches Only and the Field Term of a cell (#798)
+    connect( logTableView_, &LogTableView::matchesOnlyChanged, this,
+             &CrawlerWidget::matchesOnlyChanged );
+    connect( logTableView_, &LogTableView::searchValueInColumn, this,
+             &CrawlerWidget::searchValueInColumn );
 
     // Leaving following by moving away from the bottom, which both
     // Presentations let the user do (#543), asks the View Set, which owns
@@ -2323,4 +2336,22 @@ void CrawlerWidget::resetLogFormat()
         tableViewToggle_->setChecked( false );
         tableViewToggle_->setVisible( false );
     }
+}
+
+void CrawlerWidget::setMatchesOnly( bool on )
+{
+    // Matches Only is the Table View's: switched on, the Table View is what
+    // the user sees.
+    if ( on && recognizedFormat_ && tableViewToggle_ && !tableViewToggle_->isChecked() ) {
+        tableViewToggle_->setChecked( true );
+    }
+    logTableView_->setMatchesOnly( on );
+}
+
+void CrawlerWidget::searchValueInColumn( const QString& column, const QString& value )
+{
+    // The Field Term joins the pattern as the user would write it, and the
+    // Search runs as the user asked for.
+    searchLine_->addFieldTerm( column, value );
+    runEditedPattern( true );
 }

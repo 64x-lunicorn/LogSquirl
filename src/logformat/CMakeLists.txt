@@ -8,6 +8,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/jsonlogline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfmtlogline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logformattablemodel.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/logformatfieldreader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/rowmapping.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tablerowcells.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tablesortkeys.h
@@ -20,6 +21,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/jsonlogline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfmtlogline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logformattablemodel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/logformatfieldreader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/rowmapping.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tablerowcells.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tablesortkeys.cpp

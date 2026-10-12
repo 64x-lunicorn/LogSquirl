@@ -530,3 +530,132 @@ SCENARIO( "A Regex Lab evaluation keeps to its bounds and says where it stopped"
         }
     }
 }
+
+namespace {
+
+// Reads the sample's Log Lines as fields: the date, the time, the level and
+// the rest as the message (#798).
+class SampleFields : public FieldReader {
+public:
+    QString identity() const override
+    {
+        return QStringLiteral( "sample" );
+    }
+    QStringList fieldNames() const override
+    {
+        return { QStringLiteral( "date" ), QStringLiteral( "time" ), QStringLiteral( "level" ),
+                 QStringLiteral( "message" ) };
+    }
+    std::optional<int> fieldIndex( const QString& name ) const override
+    {
+        const auto index = fieldNames().indexOf( name );
+        return index < 0 ? std::nullopt : std::optional<int>( static_cast<int>( index ) );
+    }
+    bool readFields( const QString& line, QStringList& fields ) const override
+    {
+        const auto words = line.split( QChar( ' ' ), Qt::SkipEmptyParts );
+        if ( words.size() < 4 ) {
+            return false;
+        }
+        fields = { words[ 0 ], words[ 1 ], words[ 2 ],
+                   QStringList( words.mid( 3 ) ).join( QChar( ' ' ) ) };
+        return true;
+    }
+    std::optional<std::pair<qsizetype, qsizetype>> fieldSpan( const QString& line,
+                                                              int field ) const override
+    {
+        QStringList fields;
+        if ( !readFields( line, fields ) || field < 0 || field >= fields.size() ) {
+            return std::nullopt;
+        }
+        // The level is the third word; the message follows it.
+        const auto start = line.indexOf( fields[ field ], field == 3 ? 20 : 0 );
+        return std::make_pair( start, start + fields[ field ].size() );
+    }
+};
+
+} // namespace
+
+SCENARIO( "The Regex Lab shows what a Field Term matched in the field's text", "[regexlab]" )
+{
+    const auto engine = GENERATE( RegexpEngine::Vectorscan, RegexpEngine::QRegularExpression );
+
+    GIVEN( "a combination of a Field Term on the level and a plain sub-pattern" )
+    {
+        auto searched = pattern( R"(level:"ERROR" or "db-2")", true, false, true, false );
+        searched.fieldReader = std::make_shared<SampleFields>();
+        const auto result = evaluate( searched, Sample, engine );
+        REQUIRE_FALSE( result.error.has_value() );
+
+        THEN( "the sub-patterns are listed with the field each reads" )
+        {
+            REQUIRE( result.subPatterns
+                     == QStringList{ QStringLiteral( "ERROR" ), QStringLiteral( "db-2" ) } );
+            REQUIRE( result.subPatternFields
+                     == QStringList{ QStringLiteral( "level" ), QString{} } );
+        }
+
+        THEN( "a line matches by its level field, as the Search decides" )
+        {
+            using Matches = logsquirl::vector<bool>;
+            REQUIRE( result.lines[ 0 ].subPatternMatches == Matches{ false, false } );
+            REQUIRE( result.lines[ 1 ].subPatternMatches == Matches{ true, false } );
+            REQUIRE( result.lines[ 1 ].isMatch );
+            REQUIRE_FALSE( result.lines[ 0 ].isMatch );
+        }
+
+        THEN( "the Field Term's match is marked where the line shows the field" )
+        {
+            const auto& marks = result.lines[ 1 ].matches;
+            REQUIRE( marks.size() == 1 );
+            REQUIRE( marks[ 0 ].subPattern == 0 );
+            REQUIRE( Sample[ 1 ].mid( marks[ 0 ].start, marks[ 0 ].length )
+                     == QStringLiteral( "ERROR" ) );
+            REQUIRE( marks[ 0 ].start == Sample[ 1 ].indexOf( QStringLiteral( "ERROR" ) ) );
+        }
+    }
+
+    GIVEN( "a Field Term that would match elsewhere in the line but not in its field" )
+    {
+        auto searched = pattern( R"(level:"db-1")", true, false, true, false );
+        searched.fieldReader = std::make_shared<SampleFields>();
+        const auto result = evaluate( searched, Sample, engine );
+        REQUIRE_FALSE( result.error.has_value() );
+
+        THEN( "no line matches and nothing is marked" )
+        {
+            REQUIRE( result.matchingLines == 0 );
+            for ( const auto& line : result.lines ) {
+                REQUIRE( line.matches.empty() );
+            }
+        }
+    }
+
+    GIVEN( "a Field Term naming a field the Log Format lacks" )
+    {
+        auto searched = pattern( R"("x" and port:"53")", true, false, true, false );
+        searched.fieldReader = std::make_shared<SampleFields>();
+        const auto result = evaluate( searched, Sample, engine );
+
+        THEN( "the error names the field, at the Field Term" )
+        {
+            REQUIRE( result.error.has_value() );
+            REQUIRE( result.error->message.contains( QStringLiteral( "\"port\"" ) ) );
+            REQUIRE( result.error->position
+                     == searched.pattern.indexOf( QStringLiteral( "port" ) ) );
+        }
+    }
+
+    GIVEN( "a Field Term in a pattern without a Log Format" )
+    {
+        const auto searched = pattern( R"(level:"ERROR")", true, false, true, false );
+        const auto result = evaluate( searched, Sample, engine );
+
+        THEN( "the error names the field, at the Field Term" )
+        {
+            REQUIRE( result.error.has_value() );
+            REQUIRE( result.error->message.contains( QStringLiteral( "\"level\"" ) ) );
+            REQUIRE( result.error->position == 0 );
+        }
+    }
+}

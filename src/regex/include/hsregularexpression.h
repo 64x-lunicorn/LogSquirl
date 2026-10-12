@@ -198,8 +198,8 @@ private:
     mutable bool gaveUp_ = false;
 };
 
-using MatcherVariant = std::variant<DefaultRegularExpressionMatcher, HsNoopMatcher, HsSingleMatcher,
-                                    HsMultiMatcher, HsPrefilterMatcher>;
+using LineMatcherVariant = std::variant<DefaultRegularExpressionMatcher, HsNoopMatcher,
+                                        HsSingleMatcher, HsMultiMatcher, HsPrefilterMatcher>;
 
 class HsRegularExpression {
 public:
@@ -216,7 +216,7 @@ public:
     bool isValid() const;
     QString errorString() const;
 
-    MatcherVariant createMatcher() const;
+    LineMatcherVariant createMatcher() const;
 
 private:
     bool isHsValid() const;
@@ -237,7 +237,7 @@ private:
 };
 #else
 
-using MatcherVariant = std::variant<DefaultRegularExpressionMatcher>;
+using LineMatcherVariant = std::variant<DefaultRegularExpressionMatcher>;
 
 class HsRegularExpression {
 public:
@@ -270,9 +270,9 @@ public:
         return errorString_;
     }
 
-    MatcherVariant createMatcher() const
+    LineMatcherVariant createMatcher() const
     {
-        return MatcherVariant{ DefaultRegularExpressionMatcher( regexps_ ) };
+        return LineMatcherVariant{ DefaultRegularExpressionMatcher( regexps_ ) };
     }
 
 private:

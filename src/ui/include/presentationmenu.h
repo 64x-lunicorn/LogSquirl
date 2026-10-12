@@ -70,6 +70,10 @@ public:
         // Whether the Presentation shows Value Names now: only then does Copy
         // as Shown copy anything the Copy entry does not (#647).
         bool showsValueNames = false;
+        // The column of the Log Format whose cell is under the cursor, when
+        // the cell shows a value of a field (the Table View, #798); empty
+        // elsewhere, and the menu offers no Search this value in <column>.
+        QString columnUnderCursor;
     };
 
     // What each entry does, on the Presentation the menu was opened on.
@@ -91,6 +95,11 @@ public:
         std::function<void()> replaceSearch;
         std::function<void()> addToSearch;
         std::function<void()> excludeFromSearch;
+        // Narrow the Search to the Log Lines whose field, the column under
+        // the cursor, has the value of the cell there (#798). Only for a
+        // Presentation that reports columnUnderCursor; left empty, the menu
+        // offers no such entry.
+        std::function<void()> searchValueInColumn;
         // Set the Search Limits to start or end at a Log Line.
         std::function<void( LineNumber )> setSearchStart;
         std::function<void( LineNumber )> setSearchEnd;

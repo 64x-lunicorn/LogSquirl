@@ -191,6 +191,8 @@ void LogTableView::setLogFormat( const LogFormatDefinition* format, AbstractLogD
     sortKeys_.reset();
     sortedRows_.reset();
     resortOnUpdate_ = false;
+    // Matches Only stays, over the Matches as they are now.
+    matchRows_.reset();
     rows_ = baseRows_;
     delegate_->setRowMapping( rows_ );
     horizontalHeader()->setSortIndicatorShown( false );
@@ -213,6 +215,7 @@ void LogTableView::setLogFormat( const LogFormatDefinition* format, AbstractLogD
     if ( overviewWidget_ ) {
         overviewWidget_->hide();
     }
+    refreshMatchRows();
 }
 
 void LogTableView::updateData( bool follow, const QDate& modificationDate )
@@ -247,7 +250,7 @@ void LogTableView::updateData( bool follow, const QDate& modificationDate )
     // with fewer Rows than sorted, is sorted anew from Log Line order; one
     // with more has them merged in, once no sort is under way.
     const auto sortedCount = sortedRows_ ? sortedRows_->rowCount( LinesCount( lineCount ) ) : 0;
-    const auto baseCount = baseRows_->rowCount( LinesCount( lineCount ) );
+    const auto baseCount = narrowedRows()->rowCount( LinesCount( lineCount ) );
     const auto wanted = sorting_ ? sorting_ : sortOrder_;
     if ( wanted && ( resortOnUpdate_ || ( sortedRows_ && baseCount < sortedCount ) ) ) {
         resortOnUpdate_ = false;
@@ -303,6 +306,10 @@ void LogTableView::setActive( bool active )
     if ( !active_ && overviewWidget_ ) {
         overviewWidget_->hide();
     }
+    // The Matches may have changed while the Text View was shown.
+    if ( active_ ) {
+        refreshMatchRows();
+    }
 }
 
 void LogTableView::setQuickFindPattern( std::shared_ptr<QuickFindPattern> pattern )
@@ -325,6 +332,8 @@ void LogTableView::setSearchPattern( const RegularExpressionPattern& pattern )
 void LogTableView::setCurrentSearch( const LogFilteredData* search )
 {
     state_.currentSearch = search;
+    // Matches Only follows the Search now current.
+    refreshMatchRows();
     repaintIfActive();
 }
 
@@ -469,6 +478,8 @@ void LogTableView::selectNeighbour( AbstractLogData::LineTypeFlags type, bool be
 
 void LogTableView::updateDecorations()
 {
+    // The Matches or Marks changed: Matches Only follows the Matches.
+    refreshMatchRows();
     if ( active_ ) {
         viewport()->update();
         updateOverview();
@@ -578,7 +589,9 @@ TableSortRequest LogTableView::sortRequest( const SortOrder& order ) const
     request.order = order.order;
     request.lineCount
         = LinesCount( std::min( logData_->getNbLine().get(), static_cast<uint64_t>( INT_MAX ) ) );
-    request.base = baseRows_;
+    // Matches Only narrows, the Sort Order orders: the Rows sorted are the
+    // narrowed ones.
+    request.base = narrowedRows();
     // The keys read for the column are read again only if Log Lines went.
     if ( sortOrder_ && sortOrder_->column == order.column && sortKeys_
          && sortKeys_->size() <= request.lineCount.get() ) {
@@ -680,7 +693,7 @@ void LogTableView::onSortFinished( const TableSortResult& result )
 
     // Log Lines appended while the sort ran are merged in next.
     const auto lineCount = logData_ != nullptr ? logData_->getNbLine() : LinesCount( 0 );
-    if ( sortedRows_->rowCount( lineCount ) < baseRows_->rowCount( lineCount ) ) {
+    if ( sortedRows_->rowCount( lineCount ) < narrowedRows()->rowCount( lineCount ) ) {
         startMerge();
     }
 }
@@ -691,13 +704,114 @@ void LogTableView::dropSortOrder()
     sortKeys_.reset();
     sortedRows_.reset();
     if ( model_ ) {
-        swapRowMapping( baseRows_ );
+        swapRowMapping( narrowedRows() );
     }
     else {
-        rows_ = baseRows_;
+        rows_ = narrowedRows();
         delegate_->setRowMapping( rows_ );
     }
     showSortIndicator();
+}
+
+// ---------------------------------------------------------------------------
+// Matches Only
+// ---------------------------------------------------------------------------
+
+bool LogTableView::hasSearchToNarrowTo() const
+{
+    return state_.currentSearch != nullptr
+           && state_.currentSearch->searchState().phase != SearchSession::Phase::Idle;
+}
+
+void LogTableView::setMatchesOnly( bool on )
+{
+    if ( on == matchesOnly_ ) {
+        return;
+    }
+    if ( on ) {
+        if ( !hasSearchToNarrowTo() ) {
+            // Nothing to narrow to: stays off, and whoever asked is told.
+            Q_EMIT matchesOnlyChanged( false );
+            return;
+        }
+        matchesOnly_ = true;
+        refreshMatchRows();
+    }
+    else {
+        matchesOnly_ = false;
+        matchRows_.reset();
+        if ( !model_ ) {
+            rows_ = baseRows_;
+            delegate_->setRowMapping( rows_ );
+        }
+        else if ( const auto wanted = sorting_ ? sorting_ : sortOrder_ ) {
+            // Every Row again, in the Sort Order: the keys are read already.
+            startSort( *wanted );
+        }
+        else {
+            swapRowMapping( baseRows_ );
+        }
+    }
+    Q_EMIT matchesOnlyChanged( matchesOnly_ );
+}
+
+void LogTableView::refreshMatchRows()
+{
+    if ( !matchesOnly_ ) {
+        return;
+    }
+    if ( !hasSearchToNarrowTo() ) {
+        // The Search was cleared: Matches Only is off.
+        setMatchesOnly( false );
+        return;
+    }
+
+    // Told of every change of the Matches or Marks: the Matches are compared
+    // with the Rows shown in place, and copied only when they differ.
+    static const std::vector<uint32_t> NoRows;
+    const auto& previous = matchRows_ ? matchRows_->logLines() : NoRows;
+    const auto& matches = state_.currentSearch->matches();
+    if ( matchRows_ && matches.cardinality() == previous.size()
+         && std::equal( previous.begin(), previous.end(), matches.begin() ) ) {
+        return;
+    }
+    auto rows = std::make_shared<const MatchRows>( *state_.currentSearch );
+    // Matches found since are appended after the ones shown: the Rows
+    // shown stay, as a Sort Order's merge keeps them.
+    const bool appended
+        = matchRows_ && rows->logLines().size() > previous.size()
+          && std::equal( previous.begin(), previous.end(), rows->logLines().begin() );
+    const auto previousCount = static_cast<int>( previous.size() );
+    matchRows_ = std::move( rows );
+
+    if ( !model_ ) {
+        rows_ = narrowedRows();
+        delegate_->setRowMapping( rows_ );
+        return;
+    }
+    if ( const auto wanted = sorting_ ? sorting_ : sortOrder_ ) {
+        if ( appended && sortedRows_ && !sorting_ ) {
+            startMerge();
+        }
+        else {
+            // The Rows stay as they are until the sort is done.
+            startSort( *wanted );
+        }
+        return;
+    }
+    if ( appended ) {
+        rows_ = matchRows_;
+        delegate_->setRowMapping( rows_ );
+        const auto added = static_cast<int>( matchRows_->logLines().size() ) - previousCount;
+        model_->mergeRows( rows_, { RowRun{ previousCount, added } } );
+        if ( follow_ ) {
+            scrollToBottom();
+        }
+        updateOverview();
+    }
+    else {
+        swapRowMapping( matchRows_ );
+    }
 }
 
 void LogTableView::swapRowMapping( std::shared_ptr<const RowMapping> rows )
@@ -1151,12 +1265,25 @@ std::unique_ptr<QMenu> LogTableView::createHeaderMenu( int column )
     if ( !model_ ) {
         return menu;
     }
+    addMatchesOnlyEntry( *menu );
+    menu->addSeparator();
     addCountValuesEntry( *menu, column );
     menu->addSeparator();
     addColumnEntries( *menu );
     menu->addSeparator();
     addResetColumnsEntry( *menu );
     return menu;
+}
+
+// Matches Only, checked while it is on; without a Search to narrow to, only
+// an entry that is on can be switched (off).
+void LogTableView::addMatchesOnlyEntry( QMenu& menu )
+{
+    auto* entry = menu.addAction( tr( "Matches Only" ) );
+    entry->setCheckable( true );
+    entry->setChecked( matchesOnly_ );
+    entry->setEnabled( matchesOnly_ || hasSearchToNarrowTo() );
+    connect( entry, &QAction::toggled, this, &LogTableView::setMatchesOnly );
 }
 
 // Count values counts the field of the column, wherever the layout shows it.
@@ -1250,6 +1377,22 @@ std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
     entries.replaceSearch = [ this ]() { Q_EMIT replaceSearch( selectedText() ); };
     entries.addToSearch = [ this ]() { Q_EMIT addToSearch( selectedText() ); };
     entries.excludeFromSearch = [ this ]() { Q_EMIT excludeFromSearch( selectedText() ); };
+    // The cell under the cursor, when it shows a value of a field: the
+    // Search narrowed to the Log Lines whose field has it (#798). The
+    // elapsed time is no field, a Log Line the Log Format does not parse has
+    // none (its last cell shows it whole), and a column whose name a Field
+    // Term cannot write is not offered.
+    if ( const auto cell = indexAt( pos ); model_ && cell.isValid()
+                                           && !model_->isElapsedColumn( cell.column() )
+                                           && model_->rowMatchesFormat( cell.row() ) ) {
+        const auto value = cell.data( Qt::DisplayRole ).toString();
+        const auto column = model_->columnName( cell.column() );
+        if ( !value.isEmpty() && isFieldName( column ) ) {
+            report.columnUnderCursor = column;
+            entries.searchValueInColumn
+                = [ this, column, value ]() { Q_EMIT searchValueInColumn( column, value ); };
+        }
+    }
     entries.setSearchStart = [ this ]( LineNumber logLine ) {
         const auto end = state_.searchEnd.value_or(
             LineNumber( logData_ != nullptr ? logData_->getNbLine().get() : 0 ) );

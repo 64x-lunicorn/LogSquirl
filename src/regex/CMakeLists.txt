@@ -7,6 +7,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/regexlab.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/include/regularexpressionpattern.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/regularexpression.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/fieldreader.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/fieldtermmatcher.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/hsregularexpression.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/hyperscanruntime.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/booleanevaluator.h

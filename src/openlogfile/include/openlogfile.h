@@ -46,6 +46,7 @@ class TextEncoding;
 class LogData;
 class LogFilteredData;
 class LogFormatCatalog;
+class LogFormatFieldReader;
 
 // A Log File from the moment it is opened until it is closed, together with
 // what follows it as it changes on disk: its log data, its Searches and their
@@ -285,6 +286,13 @@ public:
     // How many times Format Recognition was taken.
     int formatRecognitionCount() const;
 
+    // The pattern carrying the reader of the Log Format's fields, for the
+    // Field Terms of a logical combination (#798); a pattern that is no
+    // logical combination, or a Log File without a Log Format, gets none.
+    // Every Search of this Log File is requested with it: the one requested
+    // here, a kept one, and one requested again as the Log File loads anew.
+    RegularExpressionPattern withFieldReader( RegularExpressionPattern pattern );
+
     // Chooses the Encoding the Log File is read in, by its MIB; none reads it
     // in the one detected. The one the File Access Policy forces is chosen
     // from the start. Only an Encoding this build knows is chosen -- the menu
@@ -405,6 +413,9 @@ private:
     std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;
     int formatRecognitionCount_ = 0;
     std::shared_ptr<const LogFormatDefinition> logFormat_;
+    // Reads logFormat_'s fields for Field Terms, built once per Log Format
+    // recognized and shared with every pattern requested under it.
+    std::shared_ptr<const LogFormatFieldReader> fieldReader_;
 
     std::optional<int> chosenEncoding_;
     // The Encoding the log data was last told to read in, once it was.

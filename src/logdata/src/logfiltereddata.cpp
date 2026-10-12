@@ -141,6 +141,11 @@ LinesCount LogFilteredData::getNbMatches() const
     return LinesCount( session_.matches().cardinality() );
 }
 
+const SearchResultArray& LogFilteredData::matches() const
+{
+    return session_.matches();
+}
+
 SearchResultArray LogFilteredData::copyDisplayedLines() const
 {
     return displayedLines_.lines();

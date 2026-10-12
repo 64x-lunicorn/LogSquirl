@@ -561,7 +561,7 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
 
             THEN( "both offer the same entries in the same order, only the Text View lets a "
                   "selection start and end be set and copies as shown, and only the Table View "
-                  "exports as CSV" )
+                  "searches a cell's value in its column and exports as CSV" )
             {
                 QStringList tableEntries = {
                     "Highlighters",
@@ -588,6 +588,9 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
                 const auto beforeSplitter = textEntries.indexOf( "Save splitter position" );
                 textEntries.insert( beforeSplitter, "Set selection end" );
                 textEntries.insert( beforeSplitter, "Set selection start" );
+                // The menu opened on the timestamp cell of the first Row (#798).
+                tableEntries.insert( tableEntries.indexOf( "Set search start" ),
+                                     "Search this value in timestamp" );
                 tableEntries << "Export as CSV...";
 
                 REQUIRE( entriesOf( *tableMenu ) == tableEntries );

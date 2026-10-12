@@ -103,6 +103,10 @@ public:
     LinesCount getNbTotalLines() const;
     // Returns the number of matches (independently of the visibility)
     LinesCount getNbMatches() const;
+    // The Matches of the current Search, as Log Lines in order, whatever the
+    // visibility: what the Search Session keeps. Read on the thread this
+    // object lives on; they change only with a searchStateChanged().
+    const SearchResultArray& matches() const;
 
     LineType lineTypeByLine( LineNumber lineNumber ) const;
 

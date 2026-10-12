@@ -134,6 +134,9 @@ public:
     {
         return column >= 0 && column < columnCount() ? cells_->columnName( column ) : QString{};
     }
+    // Whether the Log Format matched the Row's Log Line: when not, no field
+    // has a value, and the last field's cell shows the Log Line whole.
+    bool rowMatchesFormat( int row ) const;
 
     // Return the raw logData pointer so callers can detect stale references.
     const AbstractLogData* logDataPtr() const
@@ -176,6 +179,7 @@ private:
     struct CachedRow {
         QString rawLine;
         QStringList cells;
+        bool matchesFormat = false;
     };
 
     // LRU cache for extracted rows, by Log Line (mutable because data() is

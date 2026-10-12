@@ -55,19 +55,35 @@ RegularExpressionPattern subPattern( const RegularExpressionPattern& combination
                                      combination.isPlainText );
 }
 
+// What marks the matches of one (sub-)pattern in a line: a Field Term
+// (#798) marks within the text of its field, where the Log Format places
+// it in the line; a sub-pattern matched on the whole line marks anywhere.
+struct Marking {
+    QRegularExpression regexp;
+    // The field read, -1 for the whole line.
+    int field = -1;
+};
+
 // What marks the matches in a line: the pattern, or each sub-pattern of a
 // logical combination in the order written.
-logsquirl::vector<QRegularExpression> markingRegexps( const RegularExpressionPattern& pattern )
+logsquirl::vector<Marking> markings( const RegularExpressionPattern& pattern )
 {
-    logsquirl::vector<QRegularExpression> regexps;
+    logsquirl::vector<Marking> marking;
     if ( !pattern.isBoolean ) {
-        regexps.push_back( capturing( pattern ) );
-        return regexps;
+        marking.push_back( { capturing( pattern ), -1 } );
+        return marking;
     }
+    const auto fields = logicalFieldTerms( pattern.pattern );
+    qsizetype index = 0;
     for ( const auto& text : logicalSubPatterns( pattern.pattern ) ) {
-        regexps.push_back( capturing( subPattern( pattern, text ) ) );
+        int field = -1;
+        if ( index < fields.size() && !fields[ index ].isEmpty() && pattern.fieldReader ) {
+            field = pattern.fieldReader->fieldIndex( fields[ index ] ).value_or( -1 );
+        }
+        marking.push_back( { capturing( subPattern( pattern, text ) ), field } );
+        ++index;
     }
-    return regexps;
+    return marking;
 }
 
 // Where a message of the regex engines names the index of the error: Vectorscan
@@ -103,6 +119,21 @@ bool isEscapedQuote( const QString& text, qsizetype quote )
         ++backslashes;
     }
     return backslashes % 2 == 1;
+}
+
+// The length of the field name and colon of a Field Term written at index
+// (`Name:"...`, #798), 0 when none is written there.
+qsizetype fieldTermAt( const QString& text, qsizetype index )
+{
+    auto end = index;
+    while ( end < text.size() && isFieldNameChar( text[ end ] ) ) {
+        ++end;
+    }
+    if ( end == index || end + 1 >= text.size() || text[ end ] != QChar( ':' )
+         || text[ end + 1 ] != QChar( '"' ) ) {
+        return 0;
+    }
+    return end + 1 - index;
 }
 
 // The length of the operator the combination has at index, 0 when it has none.
@@ -171,7 +202,9 @@ qsizetype combinationErrorPosition( const RegularExpressionPattern& combination 
             ++index;
             continue;
         }
-        const auto length = operatorAt( text, index );
+        // A Field Term's field name is no operator: the quote after its
+        // colon opens its sub-pattern.
+        const auto length = std::max( fieldTermAt( text, index ), operatorAt( text, index ) );
         if ( length == 0 ) {
             return index;
         }
@@ -203,15 +236,39 @@ qsizetype combinationErrorPosition( const RegularExpressionPattern& combination 
     return -1;
 }
 
-PatternError errorOf( const RegularExpressionPattern& pattern, const QString& message )
+// Where the Field Term the message names begins, -1 when it names none: a
+// Field Term's error names its field in quotes (#798).
+qsizetype fieldTermErrorPosition( const RegularExpressionPattern& combination,
+                                  const QString& message )
 {
-    return PatternError{ message, pattern.isBoolean ? combinationErrorPosition( pattern )
-                                                    : regexpErrorPosition( pattern, message ) };
+    for ( const auto& field : logicalFieldTerms( combination.pattern ) ) {
+        if ( field.isEmpty() || !message.contains( QChar( '"' ) + field + QChar( '"' ) ) ) {
+            continue;
+        }
+        const auto position = combination.pattern.indexOf( field + QStringLiteral( ":\"" ) );
+        if ( position >= 0 ) {
+            return position;
+        }
+    }
+    return -1;
 }
 
-// The capture groups of the first match of a (sub-)pattern.
+PatternError errorOf( const RegularExpressionPattern& pattern, const QString& message )
+{
+    if ( !pattern.isBoolean ) {
+        return PatternError{ message, regexpErrorPosition( pattern, message ) };
+    }
+    auto position = combinationErrorPosition( pattern );
+    if ( position < 0 ) {
+        position = fieldTermErrorPosition( pattern, message );
+    }
+    return PatternError{ message, position };
+}
+
+// The capture groups of the first match of a (sub-)pattern; offset is where
+// in the line the text matched starts (a Field Term's field).
 void addGroups( const QRegularExpression& regexp, const QRegularExpressionMatch& match,
-                int subPatternIndex, logsquirl::vector<CaptureGroup>& groups )
+                int subPatternIndex, qsizetype offset, logsquirl::vector<CaptureGroup>& groups )
 {
     const auto names = regexp.namedCaptureGroups();
     for ( int number = 0; number <= regexp.captureCount(); ++number ) {
@@ -223,6 +280,7 @@ void addGroups( const QRegularExpression& regexp, const QRegularExpressionMatch&
         }
         group.start = match.capturedStart( number );
         if ( group.start >= 0 ) {
+            group.start += offset;
             group.text = match.captured( number );
         }
         groups.push_back( std::move( group ) );
@@ -247,10 +305,10 @@ bool addMark( LineResult& result, MatchSpan span, const Bounds& bounds, MarkBudg
     return true;
 }
 
-LineResult evaluateLine( const PatternMatcher& matcher,
-                         const logsquirl::vector<QRegularExpression>& marking,
-                         const LineDecision& decision, qsizetype subPatternCount,
-                         const QString& wholeLine, const Bounds& bounds, MarkBudget& marks )
+LineResult evaluateLine( const PatternMatcher& matcher, const logsquirl::vector<Marking>& marking,
+                         const FieldReader* fieldReader, const LineDecision& decision,
+                         qsizetype subPatternCount, const QString& wholeLine, const Bounds& bounds,
+                         MarkBudget& marks )
 {
     const auto started = Clock::now();
     LineResult result;
@@ -285,14 +343,29 @@ LineResult evaluateLine( const PatternMatcher& matcher,
     result.isCut = line.size() < wholeLine.size();
 
     for ( std::size_t index = 0; index < marking.size(); ++index ) {
-        const auto& regexp = marking[ index ];
+        const auto& regexp = marking[ index ].regexp;
         const auto subPatternIndex = static_cast<int>( index );
-        auto matches = regexp.globalMatch( line );
+        // A Field Term is matched on its field's text, where the line shows
+        // it; a field the Log Format places nowhere in the line (JSON,
+        // logfmt), or a line it does not parse, marks nothing.
+        qsizetype offset = 0;
+        QString text = line;
+        if ( marking[ index ].field >= 0 ) {
+            const auto span = fieldReader != nullptr
+                                  ? fieldReader->fieldSpan( wholeLine, marking[ index ].field )
+                                  : std::nullopt;
+            if ( !span.has_value() || span->first >= line.size() ) {
+                continue;
+            }
+            offset = span->first;
+            text = line.mid( span->first, span->second - span->first );
+        }
+        auto matches = regexp.globalMatch( text );
         bool isFirst = true;
         while ( matches.hasNext() ) {
             const auto match = matches.next();
             if ( isFirst ) {
-                addGroups( regexp, match, subPatternIndex, result.groups );
+                addGroups( regexp, match, subPatternIndex, offset, result.groups );
                 isFirst = false;
             }
             if ( decision ) {
@@ -301,9 +374,10 @@ LineResult evaluateLine( const PatternMatcher& matcher,
                 break;
             }
             if ( match.capturedLength() > 0
-                 && !addMark( result,
-                              { match.capturedStart(), match.capturedLength(), subPatternIndex },
-                              bounds, marks ) ) {
+                 && !addMark(
+                     result,
+                     { match.capturedStart() + offset, match.capturedLength(), subPatternIndex },
+                     bounds, marks ) ) {
                 break;
             }
         }
@@ -362,9 +436,10 @@ Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
         return result;
     }
     const auto matcher = expression.createMatcher();
-    const auto marking = markingRegexps( pattern );
+    const auto marking = markings( pattern );
     if ( pattern.isBoolean ) {
         result.subPatterns = logicalSubPatterns( pattern.pattern );
+        result.subPatternFields = logicalFieldTerms( pattern.pattern );
     }
     MarkBudget marks{ bounds.maxMarks };
 
@@ -378,9 +453,9 @@ Result evaluate( const RegularExpressionPattern& pattern, RegexpEngine engine,
             result.stop = Stop::TimeLimit;
             break;
         }
-        result.lines.push_back( evaluateLine( *matcher, marking, decision,
-                                              result.subPatterns.size(), sample[ index ], bounds,
-                                              marks ) );
+        result.lines.push_back( evaluateLine( *matcher, marking, pattern.fieldReader.get(),
+                                              decision, result.subPatterns.size(), sample[ index ],
+                                              bounds, marks ) );
         const auto& line = result.lines.back();
         result.matchingLines += line.isMatch ? 1 : 0;
         result.slowLines += line.isSlow ? 1 : 0;

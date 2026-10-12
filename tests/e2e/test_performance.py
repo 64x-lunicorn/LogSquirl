@@ -48,6 +48,7 @@ import pytest
 
 from benchmark_mode import (
     EXIT_PASSED,
+    FIELD_SEARCH_VARIANTS,
     SEARCH_VARIANTS,
     ScenarioUnknown,
     SearchVariant,
@@ -383,6 +384,14 @@ SEARCH_CASES = [
     for variant in SEARCH_VARIANTS
 ]
 
+# The Searches with Field Terms (#798) run on the scroll Log File, whose Log
+# Lines the Log Format of the variant parses; each run reads every Log Line
+# through it, so a case takes as few runs as a 1 GB one.
+SEARCH_CASES += [
+    SearchCase(f"log_100mb_{variant.label}", SCROLL_LOG_FILE, variant, large=True, timeout=900)
+    for variant in FIELD_SEARCH_VARIANTS
+]
+
 
 @pytest.mark.performance
 @pytest.mark.parametrize("case", _cases(SEARCH_CASES))
@@ -400,6 +409,11 @@ def test_perf_gui_search(
 
     def search() -> dict[str, float]:
         report = case.run(isolated_gui_module, [filepath], report_path)
+        # A logsquirl from before Field Terms runs a logical pattern as text
+        # and reports no "logical" result: the before side of the Benchmarks
+        # workflow, which skips the case like one of an unknown scenario.
+        if case.variant.logical and not report["results"].get("logical"):
+            pytest.skip("this logsquirl's search scenario has no logical combination (#798)")
         assert report["results"]["match_count"] == known, (
             f"the Search found {report['results']['match_count']} Matches, not {known}"
         )

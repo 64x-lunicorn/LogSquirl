@@ -297,6 +297,9 @@ private Q_SLOTS:
     // Mirrors in the follow action whether the current Log File is followed,
     // as its View Set, the owner of follow, holds it (#558).
     void changeFollowMode( bool follow );
+    // Mirrors in the Matches Only action whether the current Log File's
+    // Table View shows Matches Only, as it holds it (#798).
+    void changeMatchesOnly( bool on );
 
     // Update the selection information displayed in the status bar.
     // Must be passed as the internal (starts at 0) line number.
@@ -342,6 +345,9 @@ Q_SIGNALS:
     void textWrapSet( bool checked );
     // Is emitted when Show Value Names is switched for the tab in front.
     void valueNamesShownSet( bool shown );
+    // The user switched the Matches Only action: asks the current Log
+    // File's Table View, which says back what it holds (#798).
+    void matchesOnlySet( bool on );
     // Is emitted before the QuickFind box is activated,
     // to allow crawlers to get search in the right view.
     void enteringQuickFind();
@@ -540,6 +546,7 @@ private:
     QAction* followAction;
     QAction* textWrapAction;
     QAction* showValueNamesAction;
+    QAction* matchesOnlyAction;
     QAction* copyAsShownAction;
     QAction* reloadAction;
     QAction* stopAction;

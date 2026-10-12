@@ -141,6 +141,9 @@ struct Result {
     // The sub-patterns of a logical combination, in the order written, as
     // the Search reads them; empty for any other pattern.
     QStringList subPatterns;
+    // Per sub-pattern, the field a Field Term reads (#798), empty for a
+    // sub-pattern matched on the whole line; empty for any other pattern.
+    QStringList subPatternFields;
     // One per sample line evaluated, in order: fewer than the sample when
     // the evaluation stopped.
     logsquirl::vector<LineResult> lines;

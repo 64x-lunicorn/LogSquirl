@@ -121,6 +121,14 @@ void LogFormatTableModel::rereadRows()
     }
 }
 
+bool LogFormatTableModel::rowMatchesFormat( int row ) const
+{
+    if ( row < 0 || row >= lineCount_ ) {
+        return false;
+    }
+    return cachedRow( row ).matchesFormat;
+}
+
 int LogFormatTableModel::rowCount( const QModelIndex& parent ) const
 {
     if ( parent.isValid() ) {
@@ -304,7 +312,7 @@ const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) 
         rowCacheList_.pop_back();
     }
 
-    CachedRow entry{ std::move( line ), std::move( computed.cells ) };
+    CachedRow entry{ std::move( line ), std::move( computed.cells ), computed.matchesFormat };
     rowCacheList_.emplace_front( logLine.get(), std::move( entry ) );
     rowCacheMap_[ logLine.get() ] = rowCacheList_.begin();
     return rowCacheList_.front().second;

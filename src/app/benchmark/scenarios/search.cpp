@@ -29,6 +29,13 @@
 //   regex       "true": the pattern is a regular expression; plain text
 //               otherwise (the Search Line's regular expression button)
 //   match_case  "false": case is ignored; it is matched otherwise
+//   logical     "true": the pattern is a logical combination of quoted
+//               sub-patterns, Field Terms among them (#798); plain otherwise
+//   format      a Log Format file copied into the run's own formats folder
+//               before the Catalog reads it, where it replaces a Log Format
+//               of the same name, and Log Formats are recognized: for a
+//               Search with Field Terms, which reads the fields of the Log
+//               Format recognized for the Log File
 //
 // Events:
 //   first_match_displayed  the first paint of the Filtered View's Viewport
@@ -38,6 +45,12 @@
 //                          data: match_count
 // Results:
 //   match_count            the Matches of the Search
+//   logical                whether the pattern was a logical combination
+//                          (#798). A build from before that option ran the
+//                          pattern as text and reports no such result, which
+//                          the performance suite reads to skip its Field Term
+//                          cases on that build, the before side of the
+//                          Benchmarks workflow.
 //   undecided_count        the Log Lines whose match the regex engine could
 //                          not decide (#689)
 //   log_line_count         Log Lines of the Log File
@@ -47,13 +60,18 @@
 
 #include <memory>
 
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QJsonObject>
 #include <QPointer>
 
 #include "benchmarkscenario.h"
+#include "configuration.h"
 #include "crawlerwidget.h"
 #include "filteredview.h"
 #include "loadedlogfile.h"
+#include "logformatcatalog.h"
 #include "paintprobe.h"
 #include "regularexpressionpattern.h"
 #include "scenariorun.h"
@@ -65,9 +83,37 @@ namespace {
 
 class Search : public Scenario {
 public:
+    void prepare( ScenarioRun& run ) override
+    {
+        // A Log Format of the scenario's own, in the run's formats folder
+        // before the Catalog reads it; the run's folder goes with the run.
+        // Only then are Log Formats recognized: the Searches without one run
+        // as they always did.
+        const auto format = run.option( "format" );
+        if ( format.isEmpty() ) {
+            return;
+        }
+        const auto folder = LogFormatCatalog::defaultUserFormatsDirectory();
+        if ( folder.isEmpty() || !QDir().mkpath( folder )
+             || !QFile::copy( format,
+                              QDir( folder ).filePath( QFileInfo( format ).fileName() ) ) ) {
+            failure_ = QStringLiteral( "the Log Format %1 could not be copied into %2" )
+                           .arg( format, folder );
+            return;
+        }
+        auto& config = Configuration::getSynced();
+        config.setAutoDetectLogFormats( true );
+        config.setAutoShowTableView( false );
+        config.save();
+    }
+
     void start( ScenarioRun& run ) override
     {
         run_ = &run;
+        if ( !failure_.isEmpty() ) {
+            run.fail( failure_ );
+            return;
+        }
         const auto pattern = run.option( "pattern" );
         if ( pattern.isEmpty() ) {
             run.fail( QStringLiteral( "search needs the option pattern=<what is searched for>" ) );
@@ -75,12 +121,15 @@ public:
         }
         const auto useRegexp = run.option( "regex", "false" ) == "true";
         const auto matchCase = run.option( "match_case", "true" ) != "false";
+        const auto logical = run.option( "logical", "false" ) == "true";
+        logical_ = logical;
 
         logFile_ = std::make_unique<LoadedLogFile>(
             run, QStringLiteral( "search" ),
-            [ this, pattern, useRegexp, matchCase ]( MainWindow&, CrawlerWidget& crawler ) {
-                search( crawler,
-                        RegularExpressionPattern( pattern, matchCase, false, false, !useRegexp ) );
+            [ this, pattern, useRegexp, matchCase, logical ]( MainWindow&,
+                                                              CrawlerWidget& crawler ) {
+                search( crawler, RegularExpressionPattern( pattern, matchCase, false, logical,
+                                                           !useRegexp ) );
             } );
         logFile_->open();
     }
@@ -145,6 +194,7 @@ private:
 
         auto& report = run_->report();
         report.setResult( "match_count", matchCount_ );
+        report.setResult( "logical", logical_ );
         report.setResult( "undecided_count", static_cast<qint64>( state.undecidedCount.get() ) );
         report.setResult( "log_line_count", logFile_->logLineCount() );
         report.setResult( "log_file_bytes", logFile_->bytes() );
@@ -166,6 +216,8 @@ private:
     }
 
     ScenarioRun* run_ = nullptr;
+    QString failure_;
+    bool logical_ = false;
     std::unique_ptr<LoadedLogFile> logFile_;
     QPointer<FilteredView> filteredView_;
     std::unique_ptr<PaintProbe> displayProbe_;

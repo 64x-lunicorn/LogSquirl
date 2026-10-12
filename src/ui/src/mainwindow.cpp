@@ -847,6 +847,8 @@ void MainWindow::reTranslateUI()
     textWrapAction->setText( transAction( action::wrapText ) );
     showValueNamesAction->setText( transAction( action::showValueNamesText ) );
     showValueNamesAction->setStatusTip( transAction( action::showValueNamesStatusTip ) );
+    matchesOnlyAction->setText( transAction( action::matchesOnlyText ) );
+    matchesOnlyAction->setStatusTip( transAction( action::matchesOnlyStatusTip ) );
     reloadAction->setText( transAction( action::reloadText ) );
     stopAction->setText( transAction( action::stopText ) );
 
@@ -1114,6 +1116,14 @@ void MainWindow::createActions()
     showValueNamesAction->setStatusTip( tr( action::showValueNamesStatusTip ) );
     showValueNamesAction->setCheckable( true );
     connect( showValueNamesAction, &QAction::toggled, this, &MainWindow::valueNamesShownSet );
+
+    // Matches Only (#798): the Table View's, enabled for a tab that has one.
+    matchesOnlyAction = new QAction( tr( action::matchesOnlyText ), this );
+    matchesOnlyAction->setObjectName( "matchesOnlyAction" );
+    matchesOnlyAction->setStatusTip( tr( action::matchesOnlyStatusTip ) );
+    matchesOnlyAction->setCheckable( true );
+    matchesOnlyAction->setEnabled( false );
+    connect( matchesOnlyAction, &QAction::toggled, this, &MainWindow::matchesOnlySet );
 
     reloadAction = new QAction( tr( action::reloadText ), this );
 
@@ -1430,6 +1440,7 @@ void MainWindow::createMenus()
     viewMenu->addSeparator();
     viewMenu->addAction( textWrapAction );
     viewMenu->addAction( showValueNamesAction );
+    viewMenu->addAction( matchesOnlyAction );
     viewMenu->addSeparator();
     viewMenu->addAction( followAction );
     viewMenu->addSeparator();
@@ -2699,6 +2710,15 @@ void MainWindow::changeFollowMode( bool follow )
     followAction->setChecked( follow );
 }
 
+// The one place the Matches Only action is written: from what the Table
+// View of the Log File in front holds, as it says it or as it is read when
+// the tab comes to the front (#798).
+void MainWindow::changeMatchesOnly( bool on )
+{
+    const QSignalBlocker blocker( matchesOnlyAction );
+    matchesOnlyAction->setChecked( on );
+}
+
 void MainWindow::lineNumberHandler( LineNumber startLine, LinesCount nLines, LineColumn startCol,
                                     LineLength nSymbols )
 {
@@ -2798,7 +2818,10 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
         lineNumberHandler( 0_lnum, LinesCount( 0 ), LineColumn( 0 ), LineLength( 0 ) );
 
         // The Log Format is recognized once the load has finished.
-        updateGoToTimestampAction( crawler->state() );
+        const auto state = crawler->state();
+        updateGoToTimestampAction( state );
+        matchesOnlyAction->setEnabled( state.hasTableView );
+        changeMatchesOnly( state.matchesOnly );
 
         // Now everything is ready, we can finally show the file!
         crawler->show();
@@ -3052,6 +3075,7 @@ void MainWindow::connectFrontTab( CrawlerWidget* crawler )
         connect( this, &MainWindow::textWrapSet, crawler, &CrawlerWidget::textWrapSet ),
         connect( this, &MainWindow::valueNamesShownSet, crawler,
                  &CrawlerWidget::valueNamesShownSet ),
+        connect( this, &MainWindow::matchesOnlySet, crawler, &CrawlerWidget::setMatchesOnly ),
         connect( this, &MainWindow::enteringQuickFind, crawler, &CrawlerWidget::enteringQuickFind ),
         connect( &quickFindWidget_, &QuickFindWidget::close, crawler,
                  &CrawlerWidget::exitingQuickFind ),
@@ -3066,6 +3090,8 @@ void MainWindow::connectFrontTab( CrawlerWidget* crawler )
 
         // What the Log File in front tells the window
         connect( crawler, &CrawlerWidget::followModeChanged, this, &MainWindow::changeFollowMode ),
+        connect( crawler, &CrawlerWidget::matchesOnlyChanged, this,
+                 &MainWindow::changeMatchesOnly ),
         connect( crawler, &CrawlerWidget::newSelection, this, &MainWindow::lineNumberHandler ),
         connect( crawler, &CrawlerWidget::saveCurrentSearchAsPredefinedFilter, this,
                  &MainWindow::newPredefinedFilterHandler ),
@@ -3804,6 +3830,8 @@ void MainWindow::updateMenuBarFromDocument( const CrawlerWidget::State& state )
     changeFollowMode( state.follows );
     textWrapAction->setChecked( state.textWrap );
     showValueNamesAction->setChecked( state.valueNamesShown );
+    matchesOnlyAction->setEnabled( state.hasTableView );
+    changeMatchesOnly( state.matchesOnly );
     updateGoToTimestampAction( state );
 }
 

@@ -272,10 +272,12 @@ SCENARIO( "The header menu of the Table View hides and shows columns, one always
     {
         const auto menu = view.createHeaderMenu( host );
 
-        THEN( "it offers Count values, every column checked and enabled, then Reset columns" )
+        THEN( "it offers Matches Only, Count values, every column checked and enabled, then "
+              "Reset columns" )
         {
             REQUIRE( entriesOf( *menu )
-                     == QStringList{ "Count values" } + names + QStringList{ "Reset columns" } );
+                     == QStringList{ "Matches Only", "Count values" } + names
+                            + QStringList{ "Reset columns" } );
             for ( const auto& name : names ) {
                 INFO( "column " << name.toStdString() );
                 REQUIRE( entryOf( *menu, name )->isCheckable() );
@@ -287,7 +289,7 @@ SCENARIO( "The header menu of the Table View hides and shows columns, one always
         THEN( "the menu of the elapsed-time column, no field of the Log Format, counts nothing" )
         {
             REQUIRE( entriesOf( *view.createHeaderMenu( columnOf( view, "Δt" ) ) )
-                     == names + QStringList{ "Reset columns" } );
+                     == QStringList{ "Matches Only" } + names + QStringList{ "Reset columns" } );
         }
 
         WHEN( "host is unchecked" )

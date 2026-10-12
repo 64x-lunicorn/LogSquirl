@@ -50,6 +50,7 @@ from benchmark_mode import (
     EXIT_FAILED,
     EXIT_PASSED,
     EXIT_USAGE,
+    FIELD_SEARCH_VARIANTS,
     SEARCH_VARIANTS,
     SearchVariant,
     event,
@@ -299,6 +300,51 @@ def test_the_known_matches_are_those_the_generator_wrote(performance_log):
         "case_insensitive": errors,
         "alternation": errors + warnings,
     }
+
+
+@pytest.mark.parametrize("variant", FIELD_SEARCH_VARIANTS, ids=lambda variant: variant.label)
+def test_a_field_term_search_finds_the_known_matches_of_the_scroll_log_file(
+    isolated_gui, scroll_log, tmp_path, variant: SearchVariant
+):
+    # The Field Terms read the level field through the Log Format the run
+    # copies into its own formats folder (#798).
+    run = run_benchmark(isolated_gui, "search", [scroll_log], tmp_path / "report.json",
+                        options=variant.options())
+
+    assert run.process.returncode == EXIT_PASSED, run.process.stdout + run.process.stderr
+    report = run.report
+    assert report is not None and report["scenario"] == "search"
+    assert report["options"] == variant.options()
+
+    known = variant.known_match_count(scroll_log)
+    assert known > 0
+    assert report["results"]["match_count"] == known
+    assert report["results"]["logical"] is True
+    assert report["results"]["undecided_count"] == 0
+    assert event(report, "search_finished")["data"]["match_count"] == known
+    assert event(report, "first_match_displayed")["since_scenario_start_ms"] > 0
+
+
+def test_the_known_matches_of_a_field_term_search_are_those_the_generator_wrote(scroll_log):
+    errors = len(range(0, SCROLL_LOG_LINES, 101))
+    warnings = sum(1 for n in range(SCROLL_LOG_LINES) if n % 13 == 0 and n % 101 != 0)
+    known = {variant.label: variant.known_match_count(scroll_log) for variant in FIELD_SEARCH_VARIANTS}
+
+    assert known == {"field": errors, "field_and_text": warnings}
+
+
+def test_a_field_term_search_without_a_log_format_reports_why(isolated_gui, performance_log, tmp_path):
+    # No format option: no Log Format is recognized, and a Field Term is a
+    # pattern error naming the field.
+    variant = SearchVariant("no_format", 'level:"ERROR"', logical=True)
+    run = run_benchmark(isolated_gui, "search", [performance_log], tmp_path / "report.json",
+                        options=variant.options())
+
+    assert run.process.returncode == EXIT_FAILED
+    assert run.report is not None
+    assert run.report["outcome"] == "failed"
+    assert "Search failed" in run.report["failure"]
+    assert '"level"' in run.report["failure"]
 
 
 def test_a_search_with_an_invalid_pattern_reports_why(isolated_gui, performance_log, tmp_path):

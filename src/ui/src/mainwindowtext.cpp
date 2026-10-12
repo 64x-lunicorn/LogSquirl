@@ -91,6 +91,9 @@ const char* action::wrapText = QT_TR_NOOP( "&Wrap text" );
 const char* action::showValueNamesText = QT_TR_NOOP( "Show &Value Names" );
 const char* action::showValueNamesStatusTip
     = QT_TR_NOOP( "Show values of the Log Lines with their names from the Name Tables" );
+const char* action::matchesOnlyText = QT_TR_NOOP( "&Matches Only" );
+const char* action::matchesOnlyStatusTip = QT_TR_NOOP(
+    "Show only the Rows of the Table View whose Log Line is a Match of the current Search" );
 const char* action::reloadText = QT_TR_NOOP( "&Reload" );
 const char* action::stopText = QT_TR_NOOP( "&Stop" );
 const char* action::optionsText = QT_TR_NOOP( "&Preferences..." );

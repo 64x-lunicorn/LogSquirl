@@ -107,3 +107,31 @@ private:
     // By Log Line, the Row showing it; -1 for none.
     std::vector<int32_t> rowOfLogLine_;
 };
+
+// The Rows narrowed to some Log Lines, in Log Line order (Matches Only,
+// #798): Row n shows the n-th of the Log Lines given, which are the current
+// Search's Matches. The set of Rows is this mapping's concern alone, their
+// order a Sort Order's: SortedRows is built over the Rows of this mapping
+// when both apply. A Log Line beyond the Log File's end has no Row.
+class MatchRows : public RowMapping {
+public:
+    // Row n shows logLines[n]; the Log Lines ascending, each at most once.
+    explicit MatchRows( std::vector<uint32_t> logLines );
+    // The Rows of the Matches of a Search: its Matches as the Search Session
+    // keeps them, in Log Line order.
+    explicit MatchRows( const LogFilteredData& search );
+
+    int rowCount( LinesCount logLines ) const override;
+    // The Log Line of a Row; for a Row beyond the last, the last Row's.
+    LineNumber logLineAt( int row ) const override;
+    std::optional<int> rowOf( LineNumber logLine ) const override;
+
+    // The Log Lines in Row order.
+    const std::vector<uint32_t>& logLines() const
+    {
+        return logLines_;
+    }
+
+private:
+    std::vector<uint32_t> logLines_;
+};

@@ -97,6 +97,16 @@ class Selection;
 // nowhere; a Column Layout does not hold it, and hiding the sorted column
 // keeps it.
 //
+// Matches Only (#798) narrows the Rows to the Log Lines that are Matches of
+// the current Search: a Mark or a Context Line has a Row only when it is a
+// Match. It follows the Search as it runs, as auto-refresh adds Matches and
+// as another Search replaces it, and turns itself off when the Search is
+// cleared. It composes with the Sort Order: Matches Only says which Rows
+// there are (MatchRows), the Sort Order orders them (SortedRows over them).
+// A Row stays its Log Line, so the selection, Go to Log Line, QuickFind and
+// Copy address the right Log Lines. It is the Table View's alone, per tab,
+// and saved nowhere.
+//
 // Shown, it is what the window's QuickFind bar searches, as the Text View is:
 // QuickFind runs from the characters selected in a cell of the current Row, or
 // else from its whole Log Line, and its match is shown as that Log Line's Row,
@@ -181,6 +191,17 @@ public:
     }
     // Stops the sort under way; the Rows stay as they are.
     void stopSorting();
+
+    // Matches Only: whether only the Rows of the current Search's Matches
+    // are shown.
+    bool matchesOnly() const
+    {
+        return matchesOnly_;
+    }
+    // Shows only the Matches' Rows, or every Row again; matchesOnlyChanged()
+    // says what it is now. Without a current Search there is nothing to
+    // narrow to: it stays off, and says so.
+    void setMatchesOnly( bool on );
 
     // Selects the Row of the next Mark below the current Row, or the next
     // above it, in the order the Rows are shown; nothing when there is none.
@@ -318,6 +339,13 @@ Q_SIGNALS:
     // The Rows changed their order: a sort finished, appended Log Lines were
     // merged in, or the Rows are back in Log Line order.
     void sortOrderChanged();
+    // Matches Only was switched on or off, by whoever asked or by the Search
+    // being cleared; also sent, with false, when it was asked for and there
+    // is no Search to narrow to.
+    void matchesOnlyChanged( bool on );
+    // The user asked, from a cell's context menu, to narrow the Search to
+    // the Log Lines whose field named column has the cell's value (#798).
+    void searchValueInColumn( const QString& column, const QString& value );
 
     // What a searchable tells the QuickFind bar, as the Text View does: a new
     // pattern and direction ("Find next / previous" of the context menu), a
@@ -333,9 +361,9 @@ protected:
     // coordinates; built by PresentationMenu, and not yet shown.
     std::unique_ptr<QMenu> createContextMenu( const QPoint& pos );
     // The context menu of the header of a column (a logical column of the
-    // model; -1 for none): Count values for that column, a separator, the
-    // check list of the columns in the shown order, a separator, Reset
-    // columns. Not yet shown.
+    // model; -1 for none): Matches Only, a separator, Count values for that
+    // column, a separator, the check list of the columns in the shown order,
+    // a separator, Reset columns. Not yet shown.
     std::unique_ptr<QMenu> createHeaderMenu( int column );
 
     void mousePressEvent( QMouseEvent* event ) override;
@@ -358,6 +386,7 @@ private:
     void showHeaderContextMenu( const QPoint& pos );
     // The entries of the header menu, each kind in a method of its own, so
     // that more can join them.
+    void addMatchesOnlyEntry( QMenu& menu );
     void addCountValuesEntry( QMenu& menu, int column );
     void addColumnEntries( QMenu& menu );
     void addResetColumnsEntry( QMenu& menu );
@@ -505,10 +534,29 @@ private:
     void registerShortcut( const std::string& action, std::function<void()> func );
     static constexpr int SelectionKept = 10'000;
 
+    // Matches Only
+    // The Rows before a Sort Order orders them: the Matches' Rows under
+    // Matches Only, else every Log Line's.
+    std::shared_ptr<const RowMapping> narrowedRows() const
+    {
+        return matchRows_ ? matchRows_ : baseRows_;
+    }
+    // Follows the current Search under Matches Only: the Rows are the
+    // Matches as they are now, Matches found since appended, others
+    // replaced; a Sort Order is kept over them. Off once the Search is
+    // cleared.
+    void refreshMatchRows();
+    // Whether a current Search has a pattern to narrow the Rows to.
+    bool hasSearchToNarrowTo() const;
+
     // Which Log Line each Row shows: baseRows_, as the Table View was built
-    // with, in Log Line order, or the Sort Order's Rows over them.
+    // with, in Log Line order, narrowed by Matches Only to matchRows_, or
+    // the Sort Order's Rows over either.
     std::shared_ptr<const RowMapping> rows_;
     std::shared_ptr<const RowMapping> baseRows_;
+    bool matchesOnly_ = false;
+    // The Matches' Rows, while Matches Only is on.
+    std::shared_ptr<const MatchRows> matchRows_;
     // Not owned: the coordinator holds the Log Format for as long as it is set
     const LogFormatDefinition* format_ = nullptr;
     AbstractLogData* logData_ = nullptr;
