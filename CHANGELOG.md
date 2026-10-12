@@ -10,6 +10,16 @@
   recognized format stays as before; a file whose first 50 lines matched
   nothing is not matched again until it is reloaded or truncated. (#794)
 
+## Bug fixes
+
+- **A plugin opens a file from any thread**: `open_file` called from a
+  plugin's worker thread now opens the file on the UI thread once its event
+  loop turns, instead of opening a tab off the UI thread, and a call a plugin
+  queued before it was unloaded is dropped. `get_active_file_path` is UI-thread
+  only, like `open_regex_lab`, `go_to_log_line` and `get_selected_log_lines`:
+  called elsewhere it logs a warning and answers an empty string, as without a
+  file. The plugin SDK guide and the header state the same thread rules. (#796)
+
 # v26.11.0-beta1 (2026-10-09)
 
 ## Changes

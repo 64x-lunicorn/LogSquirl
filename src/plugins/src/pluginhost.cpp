@@ -135,6 +135,7 @@ QString PluginHost::loadPlugin( const QString& pluginId )
         new PluginContext{ std::move( loadResult.value() ), {}, {}, {}, nullptr, this } );
     ctx->hostApi = buildHostApi();
     ctx->answerContext = std::make_unique<QObject>();
+    ctx->loadSerial = ++loadsSoFar_;
 
     // Create plugin-private config directory, next to the user plugin
     // directory: beside the executable in a portable run (#602).
@@ -586,9 +587,32 @@ void PluginHost::hostOpenFile( void* handle, const char* filePath, int follow )
     if ( !ctx || !ctx->host ) {
         return;
     }
-    if ( ctx->host->openFileCallback_ ) {
-        ctx->host->openFileCallback_( QString::fromUtf8( filePath ), follow != 0 );
+    auto* host = ctx->host;
+    if ( QThread::currentThread() == host->thread() ) {
+        if ( host->openFileCallback_ ) {
+            host->openFileCallback_( QString::fromUtf8( filePath ), follow != 0 );
+        }
+        return;
     }
+    // A plugin may call from a thread of its own; the file opens in a tab,
+    // on the UI thread only. The plugin may be unloaded before the queued
+    // call runs, and loaded again: then nothing of that load is opened any
+    // more.
+    QMetaObject::invokeMethod(
+        host,
+        [ host, loadSerial = ctx->loadSerial, pluginId = ctx->handle.metadata().id(),
+          path = QString::fromUtf8( filePath ), following = follow != 0 ] {
+            const auto* loaded = host->loadedContext( pluginId );
+            if ( !loaded || loaded->loadSerial != loadSerial ) {
+                LOG_INFO << "Plugin " << pluginId
+                         << " was unloaded; dropping its queued open_file call";
+                return;
+            }
+            if ( host->openFileCallback_ ) {
+                host->openFileCallback_( path, following );
+            }
+        },
+        Qt::QueuedConnection );
 }
 
 auto PluginHost::uiPortFor( void* handle ) -> std::pair<PluginUiPort*, QString>
@@ -672,7 +696,19 @@ void PluginHost::hostUnregisterFooterWidget( void* handle, void* qwidgetPtr )
 const char* PluginHost::hostGetActiveFilePath( void* handle )
 {
     auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->host || !ctx->host->activeFilePathCallback_ ) {
+    if ( !ctx || !ctx->host ) {
+        return "";
+    }
+    // Checked first: the tab in front is only read, and the cache only
+    // written, on the UI thread. Not dispatched with a blocking call: a
+    // worker waiting for the UI thread while it waits for the worker would
+    // deadlock. The answer is the one without a file.
+    if ( QThread::currentThread() != ctx->host->thread() ) {
+        LOG_WARNING << "Plugin " << ctx->handle.metadata().id()
+                    << " asked for the active file path off the UI thread; none answered";
+        return "";
+    }
+    if ( !ctx->host->activeFilePathCallback_ ) {
         return "";
     }
     // Cache the UTF-8 bytes so the returned pointer remains valid

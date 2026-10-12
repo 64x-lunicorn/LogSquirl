@@ -31,6 +31,7 @@
 #include <QLibrary>
 #include <QPointer>
 #include <QTemporaryDir>
+#include <QThread>
 
 #include <cstdint>
 #include <cstring>
@@ -627,6 +628,25 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
             }
         }
 
+        WHEN( "The plugin asks for the active file path off the UI thread" )
+        {
+            int asked = 0;
+            host.setActiveFilePathCallback( [ & ] {
+                ++asked;
+                return QStringLiteral( "/logs/current.log" );
+            } );
+            const char* path = nullptr;
+            std::thread( [ & ] { path = api->get_active_file_path( handle ); } ).join();
+
+            THEN( "It gets an empty string, as without a file, and the host's callback is "
+                  "not asked" )
+            {
+                REQUIRE( path != nullptr );
+                REQUIRE( QString::fromUtf8( path ).isEmpty() );
+                REQUIRE( asked == 0 );
+            }
+        }
+
         WHEN( "The plugin asks the host to open a file" )
         {
             QString openedPath;
@@ -641,6 +661,59 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
             {
                 REQUIRE( openedPath == "/logs/opened.log" );
                 REQUIRE( openedFollowing );
+            }
+        }
+
+        WHEN( "The plugin asks the host to open a file off the UI thread" )
+        {
+            // Written on the thread the callback runs on, read after the
+            // join or after the event loop turned: never at the same time.
+            int opened = 0;
+            QThread* openedOn = nullptr;
+            QString openedPath;
+            bool openedFollowing = false;
+            host.setOpenFileCallback( [ & ]( const QString& path, bool follow ) {
+                ++opened;
+                openedOn = QThread::currentThread();
+                openedPath = path;
+                openedFollowing = follow;
+            } );
+            std::thread( [ & ] { api->open_file( handle, "/logs/opened.log", 1 ); } ).join();
+
+            THEN( "The host's open-file callback runs on the host's thread once the event "
+                  "loop turns, with the path and the follow flag" )
+            {
+                REQUIRE( opened == 0 );
+
+                QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+                REQUIRE( opened == 1 );
+                REQUIRE( openedOn == host.thread() );
+                REQUIRE( openedPath == "/logs/opened.log" );
+                REQUIRE( openedFollowing );
+            }
+
+            AND_WHEN( "The plugin is unloaded before the event loop turns" )
+            {
+                host.unloadPlugin( ProbeId );
+                QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+                THEN( "The callback never runs" )
+                {
+                    REQUIRE( opened == 0 );
+                }
+            }
+
+            AND_WHEN( "The plugin is unloaded and loaded again before the event loop turns" )
+            {
+                host.unloadPlugin( ProbeId );
+                REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+                QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+                THEN( "The callback never runs: the call was the unloaded plugin's" )
+                {
+                    REQUIRE( opened == 0 );
+                }
             }
         }
 

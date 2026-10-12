@@ -152,8 +152,11 @@ typedef enum {
  * was passed to logsquirl_plugin_init() — it identifies the plugin instance.
  *
  * **Lifetime**: the struct is valid from init until shutdown.
- * **Thread safety**: all functions are safe to call from any thread, unless
- * their comment says they must be called on the UI thread.
+ * **Thread safety**: all functions are safe to call from any thread, except
+ * open_regex_lab, go_to_log_line, get_selected_log_lines and
+ * get_active_file_path, which must be called on the UI thread; a call that
+ * changes the user interface, open_file included, is dispatched to the UI
+ * thread by the host.
  * **Growth**: functions added later are appended at the end, below "Added
  * later"; nothing is reordered, removed or changed in size, and only function
  * pointers are appended.  A host older than a function passes a shorter
@@ -196,7 +199,10 @@ typedef struct {
     void ( *show_notification )( void* handle, const char* message );
 
     /**
-     * Open a file in the main viewer.
+     * Open a file in the main viewer.  May be called from any thread: the
+     * file opens on the UI thread, at once when called there, else once the
+     * host's event loop turns; a call queued by a plugin that is unloaded
+     * before then is dropped.
      * @param file_path  Absolute UTF-8 path to the file.
      * @param follow     Non-zero to open in follow/tail mode.
      */
@@ -254,6 +260,8 @@ typedef struct {
      * Return the file path of the currently active (focused) log tab.
      * Returns an empty string if no file is open.
      * The returned pointer is valid until the next host API call.
+     * Call on the UI thread only: called on another thread, it returns an
+     * empty string, as without a file.
      */
     const char* ( *get_active_file_path )( void* handle );
 

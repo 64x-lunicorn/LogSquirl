@@ -393,8 +393,8 @@ come from `plugin.json`.
 
 The function-pointer table the host passes to `init`. It is valid from `init`
 until `shutdown`, and its functions are safe to call from any thread, but for
-`open_regex_lab`, `go_to_log_line` and `get_selected_log_lines`, which are
-called on the UI thread only.
+`open_regex_lab`, `go_to_log_line`, `get_selected_log_lines` and
+`get_active_file_path`, which are called on the UI thread only.
 
 ```c
 typedef struct {
@@ -616,6 +616,11 @@ api->open_file( handle, "/tmp/converted.log", 0 /* follow = false */ );
 api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
 ```
 
+`open_file` may be called from any thread: the file opens in the most recently
+active LogSquirl window on its UI thread, at once when called there, else once
+that window's event loop turns, and the call returns at once. A call queued by
+a plugin that is unloaded before then is dropped.
+
 `menu_path` names the submenus of the `Plugins` menu the item goes into,
 separated by `/`: `"My Plugin/Sub"` puts `label` into
 `Plugins` → `My Plugin` → `Sub`. An empty path, or `"Plugins"`, puts the item
@@ -642,7 +647,8 @@ api->register_active_file_callback( handle, &onActiveFile, userData );
 ```
 
 The string `get_active_file_path` returns is valid until the next host API
-call.
+call. Call it on the UI thread only: called on another thread, it touches no
+window and returns an empty string, as without a file.
 
 ### Regex Lab
 
@@ -752,9 +758,10 @@ window the plugin keeps open outlives the dialog.
 ## Guidelines
 
 - **Thread safety**: Host API calls are safe from any thread, but for
-  `open_regex_lab`, `go_to_log_line` and `get_selected_log_lines`, which are
-  called on the UI thread only. The host
-  dispatches UI-modifying calls to the main thread internally.
+  `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines` and
+  `get_active_file_path`, which are called on the UI thread only. The host
+  dispatches UI-modifying calls, `open_file` included, to the UI thread
+  internally.
 - **String lifetime**: All `const char*` strings you pass to host API functions
   are copied immediately — you may free them after the call returns.
 - **Error reporting**: Return non-zero from `init` on failure; the host logs
@@ -779,8 +786,11 @@ A: No. Most plugins don't need Qt at all. Only a plugin that hands widgets to
 the host or shows a Qt dialog links against `Qt6::Widgets`.
 
 **Q: My plugin needs a background thread. Is that safe?**
-A: Yes. Create threads as needed. All host API functions are thread-safe. Call
-`signal_eos` or `signal_error` when your thread is done.
+A: Yes. Create threads as needed. All host API functions are safe from any
+thread, but for `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`
+and `get_active_file_path`, which are called on the UI thread only; `open_file`
+from a worker thread opens the file on the UI thread. Call `signal_eos` or
+`signal_error` when your thread is done.
 
 **Q: How do I handle plugin-specific configuration?**
 A: Use `get_config_dir()` to obtain your private directory, then read/write

@@ -29,6 +29,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <cstdint>
 #include <functional>
 #include <list>
 #include <map>
@@ -75,7 +76,10 @@ struct PluginAutoLoadResult {
  *
  * Must be created on the main (GUI) thread.  Host API callbacks may be called
  * from any thread: the PluginUiPort is called on the plugin's thread and moves
- * widget work to the GUI thread itself, signals use queued connections.
+ * widget work to the GUI thread itself, signals use queued connections, and
+ * open_file is queued to the GUI thread.  The functions documented as
+ * UI-thread-only (the Regex Lab, the Log Lines, the active file path) refuse
+ * a call from another thread.
  */
 class PluginHost : public QObject {
     Q_OBJECT
@@ -154,13 +158,16 @@ public:
 
     /**
      * Set the callback used by open_file host API.
-     * MainWindow connects this to its own loadFile slot.
+     * MainWindow connects this to its own loadFile slot. It is called on the
+     * host's thread only: at once when the plugin calls from there, else from
+     * the event loop, unless the plugin was unloaded meanwhile.
      */
     void setOpenFileCallback( std::function<void( const QString&, bool )> callback );
 
     /**
      * Set the callback used by get_active_file_path host API.
-     * MainWindow connects this to return the current tab's file path.
+     * MainWindow connects this to return the current tab's file path. It is
+     * called on the host's thread only.
      */
     void setActiveFilePathCallback( std::function<QString()> callback );
 
@@ -250,6 +257,10 @@ private:
         std::unique_ptr<StreamWriter> stream;
         // Back-pointer to the owning PluginHost (for static trampolines)
         PluginHost* host = nullptr;
+        // Which load of the plugin this is, from any thread: a call queued to
+        // the host's thread is dropped when the plugin was unloaded meanwhile,
+        // also when it was loaded again since.
+        std::uint64_t loadSerial = 0;
         // Active-file-change callback registered by plugin (optional)
         void ( *activeFileCallback )( void* user_data, const char* file_path ) = nullptr;
         void* activeFileUserData = nullptr;
@@ -301,6 +312,7 @@ private:
 
     const PluginCatalog& catalog_;
     std::map<QString, std::unique_ptr<PluginContext>> loaded_;
+    std::uint64_t loadsSoFar_ = 0;
 
     PluginUiPort* uiPort_ = nullptr;
 
