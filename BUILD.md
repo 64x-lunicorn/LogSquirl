@@ -104,8 +104,17 @@ workload is the benchmark mode's scenarios, run by the e2e performance suite; `s
 Filtered View's Log Lines, which no other scenario reaches (#730). Code the training never runs is laid out as cold by
 Clang, so a micro-benchmark of it can be slower with the profile. `-DLOGSQUIRL_BOLT=ON` (Linux) links
 the executables so that `llvm-bolt` can rewrite them afterwards. All three are off by default, and a release build
-uses them only behind its job's `pgo` (and `bolt`) switch in `ci-build.yml`, false until the A/B numbers show a clear
-gain on that platform (#682). No profile is checked in: CI builds, trains and uses it in one run.
+uses them only behind its job's `pgo` (and `bolt`) switch in `ci-build.yml`, which is turned on only when the A/B
+numbers show a clear gain on the scenarios of that platform and no case the compare script calls slower (#682).
+Decided on 2026-10-12 from run [37583820995](https://github.com/64x-lunicorn/LogSquirl/actions/runs/37583820995)
+(master, 3e634961): every switch stays false. Of the 97 scenario cases, PGO made 23 faster and 10 slower on Linux
+(GCC 13), 33 faster and 12 slower on macOS (AppleClang), 35 faster and 3 slower on Windows (MSVC); Search cases were
+faster on every platform (up to -27 % on Linux, -42 % on macOS, -34 % on Windows), while reading during indexing
+(Linux, up to +27 %), Text View scroll frames (macOS, up to +59 %) and opening a Log File (macOS, +22 %) got slower.
+BOLT on top of PGO on Linux made 10 cases faster and 29 slower than PGO alone. Windows came closest; a second run
+without a slower case would turn its switch on. The build with PGO took 41 % longer on Linux, 2 % on macOS and 64 %
+on Windows, from scratch, and 69 % with BOLT. The numbers and the per-platform reasons are on #682. No profile is
+checked in: CI builds, trains and uses it in one run.
 
 `.github/scripts/pgo.py` runs each step and records its wall time. On a developer machine (here macOS):
 
