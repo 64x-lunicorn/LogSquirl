@@ -22,12 +22,15 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include <QDate>
+#include <QStringList>
 #include <QTableView>
 
 #include "colorlabelsmanager.h"
+#include "columnlayout.h"
 #include "containers.h"
 #include "csvexport.h"
 #include "csvexportdialog.h"
@@ -58,10 +61,20 @@ class Selection;
 // The Table View: the Presentation of a Log File as one column per field of
 // its Log Format. It owns its model, its highlight delegate, its selection
 // (whole Rows and characters inside a cell), its context menu and its
-// Overview strip, and remembers column widths per Log Format.
+// Overview strip, and keeps a Column Layout per Log Format.
 //
 // Which Log Format applies is decided by whoever holds the Table View, and
 // handed to it through setLogFormat().
+//
+// The model keeps the Log Format's columns in the Log Format's order; which
+// of them are shown, in which order and how wide is the Column Layout, which
+// the header holds (its visual order of the model's logical columns) and the
+// user changes from the header: a column header dragged to another place
+// moves the column, and the header's context menu hides and shows columns,
+// one always staying shown, and resets them. The layout is saved per Log
+// Format as it changes, and applied when a Log File of the Log Format opens.
+// A Row is unchanged by its layout: its cells are the model's, whichever are
+// shown.
 //
 // Which Log Line each Row shows is its RowMapping's to say; everything the
 // Table View hands out is a Log Line obtained through it.
@@ -144,10 +157,19 @@ public:
     // Saves the Log Lines of the selected Rows, in Log Line order.
     void saveSelectedTo( const QString& filename ) override;
 
+    // The Column Layout the Table View shows its Log Format with, as its
+    // header holds it; empty without a Log Format.
+    ColumnLayout columnLayout() const;
+    // Restores the Log Format's order, shows every column and drops the
+    // saved widths, so the default widths apply again; the layout saved for
+    // the Log Format is dropped.
+    void resetColumns();
+
     // The Log File shown, whose name the CSV export proposes.
     void setLogFilePath( const QString& path );
     // What the dialog Export as CSV starts with: every Row or the selected
-    // ones, the Line column (unchecked) and every column of the table.
+    // ones, the Line column (unchecked) and every column of the table in the
+    // order the Column Layout shows them, the hidden ones unchecked.
     CsvExportDialog::Setup csvExportSetup() const;
     // Exports the Rows to a CSV file as chosen in that dialog: every Row in
     // its order, or the selected ones in Log Line order.
@@ -225,6 +247,11 @@ protected:
     // The context menu for the current selection, opened at pos in viewport
     // coordinates; built by PresentationMenu, and not yet shown.
     std::unique_ptr<QMenu> createContextMenu( const QPoint& pos );
+    // The context menu of the header of a column (a logical column of the
+    // model; -1 for none): Count values for that column, a separator, the
+    // check list of the columns in the shown order, a separator, Reset
+    // columns. Not yet shown.
+    std::unique_ptr<QMenu> createHeaderMenu( int column );
 
     void mousePressEvent( QMouseEvent* event ) override;
     void mouseMoveEvent( QMouseEvent* event ) override;
@@ -244,6 +271,11 @@ private:
     void showContextMenu( const QPoint& pos );
     // The context menu of a column header, opened at pos in header coordinates.
     void showHeaderContextMenu( const QPoint& pos );
+    // The entries of the header menu, each kind in a method of its own, so
+    // that more can join them.
+    void addCountValuesEntry( QMenu& menu, int column );
+    void addColumnEntries( QMenu& menu );
+    void addResetColumnsEntry( QMenu& menu );
     void copySelection();
     void copySelectionWithLineNumbers();
     void markSelection();
@@ -253,12 +285,48 @@ private:
     void saveToFile();
     // Opens the dialog Export as CSV, and exports as chosen there.
     void exportAsCsv();
-    // The columns the CSV export offers: Line, then every column of the table.
+    // The columns the CSV export offers: Line, then every column of the table
+    // as the Column Layout shows them.
     std::vector<CsvColumn> csvColumns() const;
 
-    // Column widths
-    void saveColumnWidths();
-    bool applySavedColumnWidths();
+    // Column Layout
+    // Shows or hides a column, and saves the layout; the last column shown
+    // stays shown.
+    void setColumnShown( int column, bool shown );
+    // Saves the layout the header holds for the Log Format, unless the Table
+    // View is applying one.
+    void saveColumnLayout();
+    // Applies the layout saved for the Log Format; false when none is, or the
+    // Log Format's columns changed since.
+    bool applySavedColumnLayout();
+    void applyColumnLayout( const ColumnLayout& layout );
+    // The Log Format's order, every column shown, a width to start from.
+    void applyDefaultColumns();
+    // While one lives, the layout changes the Table View makes are its own,
+    // not the user's: none of them is saved. The header stretches its last
+    // section in a posted resize, which its getters run, so what reads the
+    // header right after a change holds one too.
+    class ApplyingLayout {
+    public:
+        explicit ApplyingLayout( LogTableView& view )
+            : view_( view )
+            , was_( std::exchange( view.applyingColumnLayout_, true ) )
+        {
+        }
+        ~ApplyingLayout()
+        {
+            view_.applyingColumnLayout_ = was_;
+        }
+        ApplyingLayout( const ApplyingLayout& ) = delete;
+        ApplyingLayout& operator=( const ApplyingLayout& ) = delete;
+
+    private:
+        LogTableView& view_;
+        bool was_;
+    };
+    QStringList columnNames() const;
+    // The column shown last, -1 without one.
+    int lastShownColumn() const;
     void autoSizeColumns();
     void stretchLastColumn();
 
@@ -311,10 +379,10 @@ private:
     using QuickFindSearch = void ( QuickFind::* )( Selection, QuickFindMatcher );
     void searchUsing( QuickFindSearch search );
     // Selects the Row of the Log Line QuickFind found, and the matching
-    // characters in the cell holding them. A match spanning two cells, or in
-    // text no cell shows, selects no characters. A JSON or logfmt Log Format
-    // places no cell in the Log Line: the first cell the pattern matches is
-    // taken for it.
+    // characters in the cell holding them. A match spanning two cells, in
+    // text no cell shows or in a hidden column selects no characters. A JSON
+    // or logfmt Log Format places no cell in the Log Line: the first shown
+    // cell the pattern matches is taken for it.
     void showQuickFindResult( bool hasMatch, const Portion& logLinePortion );
     // Selects the characters of logLinePortion in the cell of the Row that
     // holds them all, if a cell does.
@@ -351,5 +419,7 @@ private:
 
     bool active_ = false;
     bool columnsNeedSizing_ = false;
-    bool programmaticColumnResize_ = false;
+    // Whether the Table View is changing the header itself (see
+    // ApplyingLayout).
+    bool applyingColumnLayout_ = false;
 };

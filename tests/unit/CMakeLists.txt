@@ -58,6 +58,7 @@ add_executable(logsquirl_tests
     logformattablemodel_test.cpp
     logtablehighlightdelegate_test.cpp
     logtableview_test.cpp
+    logtableview_columnlayout_test.cpp
     logviewinteractions_test.cpp
     logviewpainting_test.cpp
     logviewvaluenames_test.cpp

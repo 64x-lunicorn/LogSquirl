@@ -911,16 +911,44 @@ nothing is not matched again as it grows.
 Columns appear in the order their corresponding named capture groups are
 defined in the format's regex pattern. This means the table layout matches
 the structure of the original log line. If no explicit order can be
-determined, columns fall back to alphabetical order.
+determined, columns fall back to alphabetical order. The elapsed-time column
+**Δt** follows the timestamp.
+
+#### The header menu and the Column Layout
+
+Right-click a column header for the header menu. It starts with *Count
+values*, which counts the values of that column's field (not offered for the
+Δt column, which is no field), then lists every column with a check mark, the
+Δt column among them: uncheck a column to hide it, check it to show it again.
+One column always stays shown, so the last checked entry is disabled. Drag a
+column header to move the column to another place. *Reset columns* restores
+the format's order, shows every column and drops the saved widths, so the
+default widths apply again.
+
+Which columns are shown, in which order and how wide is the **Column
+Layout**. It is kept per log format in your own settings and applied to every
+file that format opens, also after a restart. When a format's columns change
+(a field added, removed or renamed), the layout is dropped and the defaults
+apply. A layout does not travel with the format, a Team Folder or a plugin: a
+plugin that wants a default order declares its fields in that order.
+
+A row is unchanged by its layout: *Copy* copies every cell of the row, hidden
+ones included, a row stays a match or a mark when the matched text sits in a
+hidden column, *Count values* counts the field of the column clicked wherever
+it is placed, and selecting text in a cell works on the shown columns in the
+shown order. The *Export as CSV* dialog, in the table view and in the
+filtered view, lists the columns in the shown order with the hidden ones
+unchecked; check one to export it anyway.
 
 #### Column sizing
 
 Columns are auto-sized by measuring the actual text content of up to 2000
 rows using the view's font metrics. This ensures that cell content — including
 very long body messages — is never clipped. When the total column width is
-narrower than the viewport, the last column stretches to fill the remaining
-space. A horizontal scrollbar appears automatically when columns exceed the
-viewport width.
+narrower than the viewport, the last shown column stretches to fill the
+remaining space. A horizontal scrollbar appears automatically when columns
+exceed the viewport width. A width you set is part of the Column Layout and
+kept for the format.
 
 #### Highlighting in the table view
 

@@ -9,6 +9,20 @@
   only a header line shows its table view once its first log lines arrive. A
   recognized format stays as before; a file whose first 50 lines matched
   nothing is not matched again until it is reloaded or truncated. (#794)
+- **The Table View hides and reorders its columns, kept per Log Format (Column
+  Layout)**: the header's context menu lists every column with a check mark,
+  the Δt column among them; unchecking hides a column, checking shows it
+  again, and one column always stays shown. A column header dragged to
+  another place moves the column, and *Reset columns* restores the Log
+  Format's order, shows every column and drops the saved widths. Which columns
+  are shown, in which order and how wide is kept per Log Format beside the
+  widths and applied to every Log File of that Log Format, also after a
+  restart; a Log Format whose columns changed gets the defaults. A Row is
+  unchanged by its layout: *Copy* copies every cell, a Row stays a Match or
+  Mark when the matched text sits in a hidden column, and *Count values*
+  counts the field of the column clicked. The *Export as CSV* dialog of the
+  Table View and of the Filtered View lists the columns in the shown order
+  with the hidden ones unchecked. (#792)
 
 - **A plugin ships Log Formats**: a plugin names Log Format files in its
   manifest (`"formats": ["formats/tcpdump_log.json"]`), and they are part of

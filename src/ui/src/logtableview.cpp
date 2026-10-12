@@ -24,6 +24,7 @@
 #include <numeric>
 #include <utility>
 
+#include <QAction>
 #include <QFileDialog>
 #include <QHeaderView>
 #include <QKeyEvent>
@@ -31,12 +32,12 @@
 #include <QMouseEvent>
 #include <QPointer>
 #include <QScrollBar>
-#include <QSettings>
 #include <QTimer>
 
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
 #include "clipboard.h"
+#include "columnlayout.h"
 #include "csvexport.h"
 #include "linessaver.h"
 #include "logfiltereddata.h"
@@ -44,7 +45,6 @@
 #include "logtablehighlightdelegate.h"
 #include "overview.h"
 #include "overviewwidget.h"
-#include "persistentinfo.h"
 #include "presentationmenu.h"
 #include "quickfind.h"
 #include "quickfindpattern.h"
@@ -54,19 +54,8 @@
 
 namespace {
 
-// A Log Format name safe for use as a QSettings group key.
-QString sanitizedFormatName( const QString& name )
-{
-    QString safe = name;
-    safe.replace( '/', '_' );
-    safe.replace( '\\', '_' );
-    return safe;
-}
-
-QString columnWidthsGroup( const LogFormatDefinition& format )
-{
-    return "logformat/columns/" + sanitizedFormatName( format.name() );
-}
+// What a column is wide until auto-sizing has measured it.
+constexpr int StartingColumnWidth = 120;
 
 } // namespace
 
@@ -83,6 +72,19 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     setAlternatingRowColors( true );
     setShowGrid( false );
     horizontalHeader()->setStretchLastSection( true );
+    // A column header dragged to another place moves the column (Column
+    // Layout); the layout is saved as the user moves and resizes columns.
+    horizontalHeader()->setSectionsMovable( true );
+    connect( horizontalHeader(), &QHeaderView::sectionMoved, this,
+             &LogTableView::saveColumnLayout );
+    // The column shown last is stretched over the remaining width by the
+    // header itself, also in a resize it posts for later, whatever the user
+    // gives it: a resize of that column is not a layout the user chose.
+    connect( horizontalHeader(), &QHeaderView::sectionResized, this, [ this ]( int column ) {
+        if ( column != lastShownColumn() ) {
+            saveColumnLayout();
+        }
+    } );
     setHorizontalScrollBarPolicy( Qt::ScrollBarAsNeeded );
     setHorizontalScrollMode( QAbstractItemView::ScrollPerPixel );
     horizontalScrollBar()->setSingleStep( 10 );
@@ -160,10 +162,8 @@ void LogTableView::setLogFormat( const LogFormatDefinition* format, AbstractLogD
     quickFind_->stopSearch();
 
     if ( model_ ) {
-        // Disconnect header signals before removing the model to prevent
-        // duplicate connections when updateData() reconnects.
-        disconnect( horizontalHeader(), &QHeaderView::sectionResized, this,
-                    &LogTableView::saveColumnWidths );
+        // The header loses its sections with the model: not a layout to save.
+        const ApplyingLayout applying( *this );
         setModel( nullptr );
         delete model_;
         model_ = nullptr;
@@ -190,16 +190,16 @@ void LogTableView::updateData( bool follow, const QDate& modificationDate )
 
     if ( !model_ ) {
         model_ = new LogFormatTableModel( *format_, logData_, rows_, this );
-        setModel( model_ );
-
-        // Save column widths when the user resizes a column
-        connect( horizontalHeader(), &QHeaderView::sectionResized, this,
-                 &LogTableView::saveColumnWidths );
+        // The header gets its sections from the model: not a layout to save.
+        {
+            const ApplyingLayout applying( *this );
+            setModel( model_ );
+        }
 
         connect( selectionModel(), &QItemSelectionModel::selectionChanged, this,
                  [ this ]() { rowSelectionChanged(); } );
 
-        // Column widths need sizing once the first data has arrived
+        // The Column Layout is applied once the first data has arrived
         columnsNeedSizing_ = true;
     }
 
@@ -216,16 +216,11 @@ void LogTableView::updateData( bool follow, const QDate& modificationDate )
     if ( columnsNeedSizing_ && hasRows ) {
         columnsNeedSizing_ = false;
 
-        // Widths the user saved for this Log Format win; auto-sizing them
-        // afterwards would throw the user's widths away.
-        if ( !applySavedColumnWidths() ) {
-            // No saved widths — use a reasonable default until auto-sizing finishes
-            programmaticColumnResize_ = true;
-            for ( int col = 0; col < model_->columnCount(); ++col ) {
-                setColumnWidth( col, 120 );
-            }
-            programmaticColumnResize_ = false;
-
+        // The Column Layout the user saved for this Log Format wins;
+        // auto-sizing the columns afterwards would throw the user's widths
+        // away.
+        if ( !applySavedColumnLayout() ) {
+            applyDefaultColumns();
             // Defer the expensive auto-sizing so the UI stays responsive
             QTimer::singleShot( 0, this, &LogTableView::autoSizeColumns );
         }
@@ -747,21 +742,82 @@ void LogTableView::showHeaderContextMenu( const QPoint& pos )
         return;
     }
     const auto* header = horizontalHeader();
-    const auto column = header->logicalIndexAt( pos );
+    // Chosen entries may destroy the Table View, and the menu with it.
+    QPointer<QMenu> menu = createHeaderMenu( header->logicalIndexAt( pos ) ).release();
+    menu->exec( header->mapToGlobal( pos ) );
+    delete menu;
+}
+
+std::unique_ptr<QMenu> LogTableView::createHeaderMenu( int column )
+{
+    auto menu = std::make_unique<QMenu>( this );
+    if ( !model_ ) {
+        return menu;
+    }
+    addCountValuesEntry( *menu, column );
+    menu->addSeparator();
+    addColumnEntries( *menu );
+    menu->addSeparator();
+    addResetColumnsEntry( *menu );
+    return menu;
+}
+
+// Count values counts the field of the column, wherever the layout shows it.
+void LogTableView::addCountValuesEntry( QMenu& menu, int column )
+{
     const auto fieldName = model_->headerData( column, Qt::Horizontal ).toString();
     // The elapsed time is no field of the Log Format: there is nothing to count.
     if ( fieldName.isEmpty() || model_->isElapsedColumn( column ) ) {
         return;
     }
+    auto* count = menu.addAction( tr( "Count values" ) );
+    connect( count, &QAction::triggered, this,
+             [ this, fieldName ] { Q_EMIT countValuesRequested( fieldName ); } );
+}
 
-    QPointer<QMenu> menu = new QMenu( this );
-    const auto* countAction = menu->addAction( tr( "Count values" ) );
-    const auto* chosen = menu->exec( header->mapToGlobal( pos ) );
-    const bool count = chosen == countAction;
-    delete menu;
-    if ( count ) {
-        Q_EMIT countValuesRequested( fieldName );
+// Every column with a check mark, in the shown order; one column always
+// stays shown, so the last checked entry is disabled.
+void LogTableView::addColumnEntries( QMenu& menu )
+{
+    const auto layout = columnLayout();
+    const bool oneShown = layout.shownColumns().size() == 1;
+    for ( const auto column : layout.order ) {
+        auto* entry = menu.addAction( model_->headerData( column, Qt::Horizontal ).toString() );
+        entry->setCheckable( true );
+        entry->setChecked( !layout.isHidden( column ) );
+        entry->setEnabled( !( oneShown && entry->isChecked() ) );
+        connect( entry, &QAction::toggled, this,
+                 [ this, column ]( bool shown ) { setColumnShown( column, shown ); } );
     }
+}
+
+void LogTableView::addResetColumnsEntry( QMenu& menu )
+{
+    auto* reset = menu.addAction( tr( "Reset columns" ) );
+    connect( reset, &QAction::triggered, this, &LogTableView::resetColumns );
+}
+
+void LogTableView::setColumnShown( int column, bool shown )
+{
+    if ( !model_ || column < 0 || column >= model_->columnCount()
+         || isColumnHidden( column ) == !shown ) {
+        return;
+    }
+    // One column always stays shown.
+    if ( !shown && columnLayout().shownColumns().size() <= 1 ) {
+        return;
+    }
+    if ( !shown ) {
+        // The column's width is kept for when it is shown again: a hidden
+        // column's section is 0 wide.
+        saveColumnLayout();
+    }
+    {
+        const ApplyingLayout applying( *this );
+        setColumnHidden( column, !shown );
+        stretchLastColumn();
+    }
+    saveColumnLayout();
 }
 
 std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
@@ -953,6 +1009,9 @@ void LogTableView::showQuickFindResult( bool hasMatch, const Portion& logLinePor
         // Line: the first cell the pattern matches holds the match.
         const auto matcher = state_.quickFindPattern->getMatcher();
         for ( int column = 0; column < model_->columnCount(); ++column ) {
+            if ( isColumnHidden( column ) ) {
+                continue;
+            }
             const auto cellText = model_->index( *row, column ).data( Qt::DisplayRole ).toString();
             if ( matcher.isLineMatching( cellText ) ) {
                 const auto [ start, end ] = matcher.getLastMatch();
@@ -974,7 +1033,8 @@ void LogTableView::selectCellHolding( int row, const CellsInLogLine& cells,
     const auto matchEnd = logLinePortion.endColumn().get<int>() + 1;
     for ( int column = 0; column < model_->columnCount(); ++column ) {
         const auto* span = cells.spanOf( column );
-        if ( span == nullptr || cells.displayColumnOf( span->start ) > matchStart
+        if ( span == nullptr || isColumnHidden( column )
+             || cells.displayColumnOf( span->start ) > matchStart
              || matchEnd > cells.displayColumnOf( span->end ) ) {
             continue;
         }
@@ -1105,7 +1165,7 @@ std::vector<CsvColumn> LogTableView::csvColumns() const
 {
     std::vector<CsvColumn> columns{ CsvColumn::lineNumber( tr( "Line" ) ) };
     if ( format_ ) {
-        const auto tableColumns = CsvColumn::ofTable( *format_ );
+        const auto tableColumns = CsvColumn::ofTable( *format_, columnLayout() );
         columns.insert( columns.end(), tableColumns.begin(), tableColumns.end() );
     }
     return columns;
@@ -1182,99 +1242,150 @@ void LogTableView::markSelection()
     viewport()->update();
 }
 
-// Save column widths for the Log Format to QSettings.
-void LogTableView::saveColumnWidths()
+ColumnLayout LogTableView::columnLayout() const
 {
-    if ( programmaticColumnResize_ || !format_ || !model_ ) {
-        return;
+    ColumnLayout layout;
+    if ( !model_ ) {
+        return layout;
     }
-
-    auto& settings = PersistentInfo::getSettings( app_settings{} );
-    settings.beginGroup( columnWidthsGroup( *format_ ) );
-
     const auto* header = horizontalHeader();
-    const int colCount = model_->columnCount();
-
-    // Save column count and a layout fingerprint so stale widths can be detected
-    settings.setValue( "_columnCount", colCount );
-    QStringList colNames;
-    for ( int i = 0; i < colCount; ++i ) {
-        colNames << model_->headerData( i, Qt::Horizontal ).toString();
+    const int columnCount = model_->columnCount();
+    const auto count = static_cast<size_t>( columnCount );
+    layout.order.reserve( count );
+    layout.hidden.assign( count, false );
+    layout.widths.assign( count, 0 );
+    for ( int visual = 0; visual < columnCount; ++visual ) {
+        layout.order.push_back( header->logicalIndex( visual ) );
     }
-    settings.setValue( "_columnNames", colNames.join( "|" ) );
-
-    for ( int i = 0; i < colCount; ++i ) {
-        settings.setValue( QString::number( i ), header->sectionSize( i ) );
+    for ( int column = 0; column < columnCount; ++column ) {
+        const auto index = static_cast<size_t>( column );
+        layout.hidden[ index ] = isColumnHidden( column );
+        // A hidden column's section is 0 wide: its width is not known here.
+        layout.widths[ index ] = header->sectionSize( column );
     }
-
-    settings.endGroup();
+    return layout;
 }
 
-// Apply column widths saved for the Log Format, if they match its columns.
-bool LogTableView::applySavedColumnWidths()
+QStringList LogTableView::columnNames() const
+{
+    QStringList names;
+    if ( model_ ) {
+        const int columnCount = model_->columnCount();
+        names.reserve( columnCount );
+        for ( int column = 0; column < columnCount; ++column ) {
+            names << model_->headerData( column, Qt::Horizontal ).toString();
+        }
+    }
+    return names;
+}
+
+void LogTableView::saveColumnLayout()
+{
+    if ( applyingColumnLayout_ || !format_ || !model_ ) {
+        return;
+    }
+    storeColumnLayout( *format_, columnNames(), columnLayout() );
+}
+
+bool LogTableView::applySavedColumnLayout()
 {
     if ( !format_ || !model_ ) {
         return false;
     }
-
-    auto& settings = PersistentInfo::getSettings( app_settings{} );
-    settings.beginGroup( columnWidthsGroup( *format_ ) );
-
-    const int savedColCount = settings.value( "_columnCount", -1 ).toInt();
-    const int currentColCount = model_->columnCount();
-    if ( savedColCount != currentColCount ) {
-        settings.endGroup();
+    const auto saved = loadColumnLayout( *format_, columnNames() );
+    if ( !saved ) {
         return false;
     }
-
-    // Verify layout fingerprint matches current columns
-    QStringList currentNames;
-    for ( int i = 0; i < currentColCount; ++i ) {
-        currentNames << model_->headerData( i, Qt::Horizontal ).toString();
-    }
-    if ( settings.value( "_columnNames" ).toString() != currentNames.join( "|" ) ) {
-        settings.endGroup();
-        return false;
-    }
-
-    programmaticColumnResize_ = true;
-    for ( int i = 0; i < currentColCount; ++i ) {
-        const int w = settings.value( QString::number( i ), -1 ).toInt();
-        if ( w > 0 ) {
-            setColumnWidth( i, w );
-        }
-    }
-    programmaticColumnResize_ = false;
-    stretchLastColumn();
-
-    settings.endGroup();
+    applyColumnLayout( *saved );
     return true;
 }
 
-// Stretch the last column to fill any remaining viewport space.
-void LogTableView::stretchLastColumn()
+void LogTableView::applyColumnLayout( const ColumnLayout& layout )
+{
+    if ( !model_ || layout.columnCount() != model_->columnCount() ) {
+        return;
+    }
+    const ApplyingLayout applying( *this );
+    auto* header = horizontalHeader();
+    const int columnCount = layout.columnCount();
+    // The widths first: a column hidden afterwards keeps the width it was
+    // given for when it is shown again.
+    for ( int column = 0; column < columnCount; ++column ) {
+        const int width = layout.widths[ static_cast<size_t>( column ) ];
+        if ( width > 0 ) {
+            setColumnWidth( column, width );
+        }
+    }
+    // One column always stays shown.
+    const bool leavesOneShown = !layout.shownColumns().empty();
+    for ( int column = 0; column < columnCount; ++column ) {
+        setColumnHidden( column, leavesOneShown && layout.isHidden( column ) );
+    }
+    for ( int visual = 0; visual < columnCount; ++visual ) {
+        const int from = header->visualIndex( layout.order[ static_cast<size_t>( visual ) ] );
+        if ( from != visual ) {
+            header->moveSection( from, visual );
+        }
+    }
+    stretchLastColumn();
+}
+
+void LogTableView::applyDefaultColumns()
 {
     if ( !model_ ) {
         return;
     }
+    auto layout = ColumnLayout::defaultsFor( model_->columnCount() );
+    std::ranges::fill( layout.widths, StartingColumnWidth );
+    applyColumnLayout( layout );
+}
 
-    const int colCount = model_->columnCount();
-    const int lastCol = colCount - 1;
+void LogTableView::resetColumns()
+{
+    if ( !model_ || !format_ ) {
+        return;
+    }
+    const ApplyingLayout applying( *this );
+    dropColumnLayout( *format_ );
+    applyDefaultColumns();
+    autoSizeColumns();
+}
+
+int LogTableView::lastShownColumn() const
+{
+    if ( !model_ ) {
+        return -1;
+    }
+    const auto* header = horizontalHeader();
+    for ( int visual = model_->columnCount() - 1; visual >= 0; --visual ) {
+        const int column = header->logicalIndex( visual );
+        if ( !isColumnHidden( column ) ) {
+            return column;
+        }
+    }
+    return -1;
+}
+
+// Stretch the column shown last to fill any remaining viewport space.
+void LogTableView::stretchLastColumn()
+{
+    const int lastCol = lastShownColumn();
     if ( lastCol < 0 ) {
         return;
     }
 
+    const ApplyingLayout applying( *this );
     const auto* header = horizontalHeader();
+    const int colCount = model_->columnCount();
     int usedWidth = 0;
     for ( int i = 0; i < colCount; ++i ) {
+        // A hidden column's section is 0 wide
         usedWidth += header->sectionSize( i );
     }
     const int viewportWidth = viewport()->width();
     if ( usedWidth < viewportWidth ) {
         const int currentLast = header->sectionSize( lastCol );
-        programmaticColumnResize_ = true;
         setColumnWidth( lastCol, currentLast + ( viewportWidth - usedWidth ) );
-        programmaticColumnResize_ = false;
     }
 }
 
@@ -1326,11 +1437,11 @@ void LogTableView::autoSizeColumns()
         }
     }
 
-    programmaticColumnResize_ = true;
+    // A hidden column takes its width for when it is shown again.
+    const ApplyingLayout applying( *this );
     for ( int col = 0; col < colCount; ++col ) {
         setColumnWidth( col, maxWidths[ col ] );
     }
-    programmaticColumnResize_ = false;
 
     stretchLastColumn();
 }

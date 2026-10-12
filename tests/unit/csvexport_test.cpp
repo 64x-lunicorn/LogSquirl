@@ -29,6 +29,7 @@
 #include <QTemporaryDir>
 #include <QTimer>
 
+#include "columnlayout.h"
 #include "csv.h"
 #include "csvexport.h"
 #include "fake_log_data.h"
@@ -222,7 +223,8 @@ SCENARIO( "a CSV export offers the Table View's columns and takes the dialog's c
 
     GIVEN( "the columns of the Table View for a Log Format" )
     {
-        const auto columns = CsvColumn::ofTable( format );
+        const auto columns
+            = CsvColumn::ofTable( format, ColumnLayout::defaultsFor( model.columnCount() ) );
 
         THEN( "they are the table's columns, in its order and headed as it heads them" )
         {
@@ -236,10 +238,51 @@ SCENARIO( "a CSV export offers the Table View's columns and takes the dialog's c
         }
     }
 
+    GIVEN( "a Column Layout showing the body first and hiding the level" )
+    {
+        auto layout = ColumnLayout::defaultsFor( model.columnCount() );
+        layout.order = { 3, 0, 1, 2 };
+        layout.hidden[ 2 ] = true;
+
+        THEN( "the columns are offered in the layout's order, the level marked hidden, and the "
+              "dialog lists it unchecked" )
+        {
+            const auto columns = CsvColumn::ofTable( format, layout );
+            QStringList names;
+            std::vector<int> tableColumns;
+            std::vector<bool> hidden;
+            for ( const auto& column : columns ) {
+                names << column.name;
+                tableColumns.push_back( column.tableColumn );
+                hidden.push_back( column.hidden );
+            }
+            REQUIRE( names == QStringList{ "body", "timestamp", "Δt", "level" } );
+            REQUIRE( tableColumns == std::vector<int>{ 3, 0, 1, 2 } );
+            REQUIRE( hidden == std::vector<bool>{ false, false, false, true } );
+
+            std::vector<bool> checked;
+            for ( const auto& column : csvDialogColumns( columns, 0 ) ) {
+                checked.push_back( column.checked );
+            }
+            REQUIRE( checked == std::vector<bool>{ true, true, true, false } );
+        }
+
+        THEN( "a layout of other columns than the Log Format's is left aside" )
+        {
+            auto other = ColumnLayout::defaultsFor( model.columnCount() + 1 );
+            other.hidden[ 0 ] = true;
+            const auto columns = CsvColumn::ofTable( format, other );
+            REQUIRE( columns.size() == static_cast<size_t>( model.columnCount() ) );
+            REQUIRE( columns.front().tableColumn == 0 );
+            REQUIRE_FALSE( columns.front().hidden );
+        }
+    }
+
     GIVEN( "a Line column of its own before them" )
     {
         std::vector<CsvColumn> offered{ CsvColumn::lineNumber( "Line" ) };
-        const auto tableColumns = CsvColumn::ofTable( format );
+        const auto tableColumns
+            = CsvColumn::ofTable( format, ColumnLayout::defaultsFor( model.columnCount() ) );
         offered.insert( offered.end(), tableColumns.begin(), tableColumns.end() );
 
         THEN( "the dialog lists them all, the Line column unchecked" )
