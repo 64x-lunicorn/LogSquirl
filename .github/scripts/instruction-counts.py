@@ -137,6 +137,25 @@ THRESHOLD_PERCENT: dict[tuple[str, str], float] = {
      "Extending a selection of 100,000 Log Lines / Shift+Down 20 times and Shift+Up 20 times"): 4.0,
     # 1.34 %
     ("logsquirl_textview_scroll_benchmark", "text view scroll benchmarks / keys: 5 pages down and 5 up"): 3.0,
+    # The three micro-benchmarks of one early match on a long line cost a few
+    # hundred instructions each and allocate once or twice. Whether such an
+    # allocation takes mimalloc's fast path or its page allocation (about 1,900
+    # instructions: _mi_heap_collect_retired, mi_page_fresh_alloc,
+    # mi_segment_span_allocate, ...) depends on the heap the benchmarks before
+    # them left behind, not on the code counted: in CI Build run 38295100102
+    # (#800) "rawToDisplayColumns (limited)" counted 826 on the base and 2,746
+    # on the pull request, twice, with the benchmark's own lambda at 482 on both
+    # sides and the whole difference inside mimalloc. Twice that spread,
+    # 232.45 %, for it; for its two siblings the same 1,920 instructions are
+    # 206 % and 159 % of their counts, twice that. A regression that maps the
+    # whole 24,000-character line again would cost a hundred times more and is
+    # still caught.
+    ("logsquirl_decoration_benchmark",
+     "decoration path benchmarks / long line, one early match: rawToDisplayColumns (limited)"): 465.0,
+    ("logsquirl_decoration_benchmark",
+     "decoration path benchmarks / long line, one early match: Decoration::inDisplayColumns"): 413.0,
+    ("logsquirl_decoration_benchmark",
+     "decoration path benchmarks / long line, one early match: old per-match re-expansion"): 318.0,
 }
 MAX_THRESHOLD_PERCENT = 1000.0
 # The most counts of one benchmark on the after side: the first and its recounts.
