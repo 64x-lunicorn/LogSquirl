@@ -656,6 +656,9 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
 
     if ( decision.recognizeFormat ) {
         load.formatRecognized = recognizeFormat();
+        // Whether it is taken again as the Log File grows the rule decides
+        // from what was found (#794).
+        loadRule_.formatRecognitionTaken( logFormat_ != nullptr, lineCount );
     }
 
     Q_EMIT loadingFinished( load );

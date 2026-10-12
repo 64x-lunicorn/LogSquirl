@@ -19,6 +19,7 @@
 
 #include "loadrule.h"
 
+#include "formatrecognition.h"
 #include "searchautorefresh.h"
 
 #include <algorithm>
@@ -45,6 +46,7 @@ LoadRule::ReloadDecision LoadRule::reload()
     // A reload recognizes the Log Format again, so an edited user Log Format
     // is picked up by reloading.
     formatRecognitionPending_ = true;
+    recognizedFromLineCount_ = {};
 
     // A reload is loaded from its start, like the first load. The saved Marks
     // stay: a reload asked for before the first load finished leaves them to
@@ -71,6 +73,7 @@ LoadRule::ChangeDecision LoadRule::changedOnDisk( MonitoredFileStatus status )
         // Recognized again once the truncated Log File has loaded.
         decision.forgetLogFormat = true;
         formatRecognitionPending_ = true;
+        recognizedFromLineCount_ = {};
         break;
     case MonitoredFileStatus::DataAdded:
         grewSinceLoad_ = true;
@@ -165,9 +168,10 @@ LoadRule::LoadDecision LoadRule::loadFinished( LoadingStatus status, LinesCount 
     }
 
     // A Log File with no Log Lines yet has nothing to recognize from, so it
-    // waits for a load that brings some.
-    if ( formatRecognitionPending_ && lineCount.get() > 0 ) {
-        formatRecognitionPending_ = false;
+    // waits for a load that brings some; one nothing was recognized from yet
+    // waits for a load that brings more. Whether it stays pending the outcome
+    // tells, through formatRecognitionTaken.
+    if ( formatRecognitionPending_ && lineCount > recognizedFromLineCount_ ) {
         decision.recognizeFormat = true;
     }
 
@@ -185,6 +189,21 @@ LoadRule::LoadDecision LoadRule::loadFinished( LoadingStatus status, LinesCount 
     }
 
     return decision;
+}
+
+void LoadRule::formatRecognitionTaken( bool recognized, LinesCount lineCount )
+{
+    // A recognized Log Format stays until a reload or a truncation. A Log
+    // File that had as many Log Lines as Format Recognition looks at and
+    // matched nothing is not looked at again as it grows: the sample it
+    // takes stays the same. A shorter one is looked at again once it has
+    // more.
+    recognizedFromLineCount_ = lineCount;
+    const auto sampleDepth
+        = LinesCount( static_cast<LinesCount::UnderlyingType>( FormatRecognition::SampleDepth ) );
+    if ( recognized || lineCount >= sampleDepth ) {
+        formatRecognitionPending_ = false;
+    }
 }
 
 LoadRule::SearchLimits LoadRule::settleSearchLimits( SearchLimits limits,

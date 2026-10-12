@@ -1,3 +1,15 @@
+# Unreleased
+
+## Changes
+
+- **A log file too short to be recognized is recognized as it grows**: while
+  a file has fewer than 50 lines and no log format matched them,
+  auto-detection runs again after each load that brings more lines,
+  until a format is recognized or 50 lines have been seen. A file opened with
+  only a header line shows its table view once its first log lines arrive. A
+  recognized format stays as before; a file whose first 50 lines matched
+  nothing is not matched again until it is reloaded or truncated. (#794)
+
 # v26.11.0-beta1 (2026-10-09)
 
 ## Changes

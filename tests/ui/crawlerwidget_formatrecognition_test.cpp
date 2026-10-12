@@ -37,7 +37,8 @@
 #include "crawlerwidget.h"
 
 // Format Recognition as the coordinator of a Log File runs it (#104): once
-// per first load, manual reload or truncation, against the one Log Format
+// per first load, manual reload or truncation, and again as a Log File too
+// short to recognize anything from grows (#794), against the one Log Format
 // Catalog the Session hands every view.
 
 namespace {
@@ -382,6 +383,71 @@ SCENARIO( "A truncated Log File is recognized exactly once when it has loaded ag
             }
 
             THEN( "the Log Format is recognized again and shown as a Table View" )
+            {
+                REQUIRE( logFile->logFormat()
+                         == catalog->formatByName( "recognition_test_log" ).get() );
+                REQUIRE( logFile->isTableViewToggled() );
+            }
+        }
+    }
+}
+
+SCENARIO( "A Log File too short to recognize a Log Format from shows the Table View once it "
+          "has grown",
+          "[ui][formatrecognition]" )
+{
+    auto policies = recognitionEnabled();
+    policies.presentation.autoShowTableView = true;
+
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto userFormats = directory.filePath( "formats" );
+    REQUIRE( QDir().mkpath( userFormats ) );
+    writeUserFormat( userFormats, "Recognition Test" );
+
+    // A header line matches no Log Format; nothing is recognized from it.
+    const auto path = directory.filePath( "header.log" );
+    {
+        QFile file( path );
+        REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Truncate ) );
+        file.write( "log of the recognition test\n" );
+    }
+
+    auto catalog = std::make_shared<LogFormatCatalog>( userFormats );
+    catalog->rebuild();
+
+    const auto fileWatch = std::make_shared<FakeFileWatch>();
+    Session session{ policies, catalog, fileWatch };
+    session.savedSearches().clear();
+
+    GIVEN( "a Log File of one header line, open and watched" )
+    {
+        auto logFile = openLogFile( session, path );
+        REQUIRE( logFile->waitLoaded( 1_lcount ) );
+        REQUIRE( logFile->recognitionCount() == 1 );
+        REQUIRE( logFile->logFormat() == nullptr );
+        REQUIRE_FALSE( logFile->isTableViewToggled() );
+
+        WHEN( "Log Lines of the user Log Format are written to it" )
+        {
+            {
+                QFile file( path );
+                REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Append ) );
+                writeLogLines( file );
+            }
+            REQUIRE( fileWatch->reportChange( path ) );
+            REQUIRE( logFile->waitLoaded( LinesCount( LineCount + 1 ) ) );
+            REQUIRE( waitUiState( [ & ] { return logFile->recognitionCount() >= 2; } ) );
+
+            // Anything the Table View's toggle set off would have run by now.
+            QTest::qWait( 500 );
+
+            THEN( "Format Recognition ran exactly once more" )
+            {
+                REQUIRE( logFile->recognitionCount() == 2 );
+            }
+
+            THEN( "the Log Format is recognized and shown as a Table View" )
             {
                 REQUIRE( logFile->logFormat()
                          == catalog->formatByName( "recognition_test_log" ).get() );

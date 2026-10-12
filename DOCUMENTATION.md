@@ -884,7 +884,12 @@ executable instead (see [Installing](#installing)).
 Format definitions are read when *logsquirl* starts and again whenever the
 Options dialog is applied. A file that is already open keeps the format it
 was recognized with; reload it (or reopen it) to have an added or edited
-user format picked up.
+user format picked up. The one exception is a file that was too short to be
+recognized: while it has fewer than 50 lines and no format matched them, it
+is matched again after each load that brings more lines, so a file opened
+with only a header line gets its table view once its first log lines arrive.
+Once a format is recognized it stays, and a file whose first 50 lines matched
+nothing is not matched again as it grows.
 
 #### Column order
 

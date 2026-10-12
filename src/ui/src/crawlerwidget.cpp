@@ -2238,7 +2238,9 @@ std::array<LogPresentation*, 2> CrawlerWidget::presentations() const
 }
 
 // Show the Log Format the Open Log File recognized. Called from the
-// load-finished path only, once per first load, manual reload or truncation.
+// load-finished path only, after each load that took Format Recognition:
+// the first load, a manual reload, a truncation, and a growth of a Log File
+// that was too short to recognize anything from (#794).
 void CrawlerWidget::showRecognizedFormat()
 {
     auto recognized = openLogFile_->logFormat();

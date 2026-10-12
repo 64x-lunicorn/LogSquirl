@@ -59,7 +59,8 @@ class LogFormatCatalog;
 // follow its end. Marks do not survive a truncation or a reload; the Marks
 // saved with the Session are applied once, after the first load. Format
 // Recognition is taken after the first load, and again after a reload or a
-// truncation, never on growth.
+// truncation; on growth only while nothing was recognized from fewer Log
+// Lines than it looks at (#794).
 //
 // It tells its users what happened -- the Log File loaded, grew or was
 // truncated, the Search updated -- and they only show it. It knows no widget:
