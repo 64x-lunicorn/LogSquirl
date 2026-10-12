@@ -1336,7 +1336,14 @@ widgets or panels. How to write one is described in the
 
 A file a converter plugin turns into text is opened from a temporary copy of
 that text. It is not restored with the session; the recent files keep the file
-you opened, which is converted again when you open it from there.
+you opened, which is converted again when you open it from there. The
+conversion runs in the background: the window stays usable, and one that takes
+a while shows a progress dialog beside the window, named after the file and
+the plugin, with a *Cancel* button. A plugin converts one file at a time, so
+a second file for the same plugin waits its turn; files for different plugins
+convert at the same time. A cancelled conversion opens no tab, and a failed
+one tells you which plugin could not convert which file. Any plugin that
+offers a converter converts, whatever its kind.
 
 `Plugins->Plugin Management...` opens the Plugin Management dialog. It lists the
 plugins in the catalog and the ones installed on your machine under the tabs

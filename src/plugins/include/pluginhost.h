@@ -30,12 +30,14 @@
 #include <QStringList>
 
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <list>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <thread>
 #include <utility>
 
 namespace logsquirl::plugins {
@@ -63,6 +65,36 @@ struct PluginAutoLoadResult {
     std::optional<QStringList> enabledOnFirstRun;
 };
 
+/** Names a Conversion the Plugin Host started; 0 names none. */
+using ConversionId = std::uint64_t;
+
+/** How a Conversion ended. */
+enum class ConversionOutcome {
+    Succeeded, ///< The converter returned 0: the output is the Log File.
+    Failed,    ///< The converter returned non-zero.
+    Cancelled  ///< Cancelled, or its plugin was unloaded; what it wrote is discarded.
+};
+
+struct ConversionEnd {
+    ConversionOutcome outcome = ConversionOutcome::Failed;
+    /** What the converter returned: 0 when it succeeded; 0 when it never ran. */
+    int returnCode = 0;
+};
+
+/**
+ * What the caller of PluginHost::startConversion() hears of its Conversion,
+ * each on the host's thread: started once its call into the plugin begins
+ * (within startConversion() when nothing of the plugin's is running, else
+ * later, from the event loop); progress as the converter reports it, done of
+ * total units, a total of 0 meaning unknown (a plain convert reports none);
+ * finished once, last. Each may be empty.
+ */
+struct ConversionReport {
+    std::function<void()> started;
+    std::function<void( std::uint64_t done, std::uint64_t total )> progress;
+    std::function<void( const ConversionEnd& end )> finished;
+};
+
 /**
  * The Plugin Host: loads the plugins the Plugin Catalog lists and serves them.
  *
@@ -79,7 +111,8 @@ struct PluginAutoLoadResult {
  * widget work to the GUI thread itself, signals use queued connections, and
  * open_file is queued to the GUI thread.  The functions documented as
  * UI-thread-only (the Regex Lab, the Log Lines, the active file path) refuse
- * a call from another thread.
+ * a call from another thread.  A Conversion runs the converter on a worker
+ * thread of the host's and reports on the GUI thread (#795).
  */
 class PluginHost : public QObject {
     Q_OBJECT
@@ -128,7 +161,8 @@ public:
      * Asked for while the host's call into that plugin is still running -- a
      * menu action of the plugin's that shows a modal dialog, say -- the
      * plugin counts as unloaded at once, and nothing calls into it any more;
-     * it is shut down once that call has returned (#691).
+     * it is shut down once that call has returned (#691). Its Conversions
+     * are cancelled first, the one under way waited for (#795).
      */
     void unloadPlugin( const QString& pluginId );
 
@@ -204,11 +238,27 @@ public:
     QStringList converterFileFilters() const;
 
     /**
-     * Run a converter plugin.
-     * @return 0 on success, non-zero on failure.
+     * Starts a Conversion: the converter plugin writes inputPath as plain
+     * text to outputPath on a worker thread of the host's, never on this
+     * one (#795). A plugin converts one file at a time: a Conversion started
+     * while one of the plugin's runs waits its turn; those of different
+     * plugins run at the same time. The caller hears of it through report,
+     * on the host's thread. A converter exporting convert_ex is called with
+     * it and hears a cancellation through it; a plain convert runs to its
+     * end and its result is discarded when cancelled. The caller removes
+     * outputPath when the Conversion did not succeed.
+     * @return The Conversion's ID, or 0 when the plugin is not loaded or is
+     *         no converter: then nothing is reported.
      */
-    int runConverter( const QString& pluginId, const QString& inputPath,
-                      const QString& outputPath );
+    ConversionId startConversion( const QString& pluginId, const QString& inputPath,
+                                  const QString& outputPath, ConversionReport report );
+
+    /**
+     * Cancels a Conversion: one waiting its turn finishes cancelled at once;
+     * one under way once its call has returned, which this does not wait
+     * for. Nothing for a Conversion that has finished.
+     */
+    void cancelConversion( ConversionId id );
 
 Q_SIGNALS:
     /** Emitted when a plugin is loaded and initialised successfully. */
@@ -235,6 +285,23 @@ private:
     LogSquirlHostApi buildHostApi();
 
     struct PluginContext;
+
+    /**
+     * What the worker thread of a Conversion shares with the host: the control
+     * handed to convert_ex, the cancellation flag and the latest progress.
+     */
+    struct ConversionControl;
+
+    /** A Conversion asked for: queued until its turn, then under way. */
+    struct Conversion {
+        ConversionId id = 0;
+        QString inputPath;
+        QString outputPath;
+        ConversionReport report;
+        // Set while it is under way.
+        std::shared_ptr<ConversionControl> control;
+        std::thread thread;
+    };
 
     /**
      * A menu action's callback as the plugin registered it. The host hands
@@ -272,12 +339,18 @@ private:
         // Cached UTF-8 so the get_selected_log_lines text stays valid until
         // the plugin's next call of it (#663).
         QByteArray selectedLogLinesUtf8{};
-        // The host's calls into the plugin running on the UI thread, nested
-        // ones included: one of them may run an event loop -- a modal dialog
-        // -- in which the user unloads the plugin. Its unload then waits until
-        // the outermost one has returned (#691). UI thread only.
+        // The host's calls into the plugin, nested ones on the UI thread and
+        // a Conversion under way on its worker thread included: one of them
+        // may run an event loop -- a modal dialog -- in which the user unloads
+        // the plugin. Its unload then waits until the outermost one has
+        // returned (#691); a Conversion under way is cancelled and waited for
+        // first (#795). UI thread only.
         int callsRunning = 0;
         bool unloadPending = false;
+        // The plugin's Conversions: at most one under way, the others in the
+        // order asked. UI thread only.
+        std::deque<std::unique_ptr<Conversion>> queuedConversions{};
+        std::unique_ptr<Conversion> runningConversion{};
         // The menu actions the plugin registered, from any thread; their
         // addresses are the user data of the host's callbacks, so they stay
         // until the context goes, after the actions are removed.
@@ -298,6 +371,30 @@ private:
     /** Shuts the plugin down and lets its context go. */
     void unloadNow( const QString& pluginId );
 
+    /** Starts the plugin's next queued Conversion, unless one is under way. */
+    void startNextConversion( PluginContext& context );
+
+    /**
+     * Finishes the Conversion under way, whose call has returned: joins its
+     * thread, reports its end last, and starts the next one.
+     */
+    void finishRunningConversion( PluginContext& context );
+
+    /**
+     * Cancels every Conversion of the plugin and waits for the one under
+     * way to return; each is reported as cancelled.
+     */
+    void cancelConversionsOf( PluginContext& context );
+
+    /** Reports a Conversion that never ran, or whose result is discarded, as cancelled. */
+    static void reportCancelled( Conversion& conversion );
+
+    /** The context whose Conversion under way is id, or nullptr. */
+    PluginContext* contextConverting( ConversionId id );
+
+    /** The Conversion under way with control, if it still is, on the host's thread. */
+    void reportConversionProgress( const std::shared_ptr<ConversionControl>& control );
+
     /** The callback the host hands the Plugin UI Port for a plugin's menu action. */
     static void runMenuAction( void* menuActionCall );
 
@@ -313,6 +410,7 @@ private:
     const PluginCatalog& catalog_;
     std::map<QString, std::unique_ptr<PluginContext>> loaded_;
     std::uint64_t loadsSoFar_ = 0;
+    ConversionId conversionsSoFar_ = 0;
 
     PluginUiPort* uiPort_ = nullptr;
 
@@ -350,6 +448,12 @@ private:
     static int hostGoToLogLine( void* handle, uint64_t lineNumber );
     static int hostGetSelectedLogLines( void* handle, const char** text, size_t* length,
                                         size_t* lineCount );
+
+    // The functions of the LogSquirlConvertControl handed to convert_ex,
+    // called on the Conversion's worker thread.
+    static void hostReportProgress( const LogSquirlConvertControl* control, uint64_t done,
+                                    uint64_t total );
+    static int hostIsCancelled( const LogSquirlConvertControl* control );
 };
 
 } // namespace logsquirl::plugins

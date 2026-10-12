@@ -79,17 +79,33 @@ public:
     /** Open the plugin's configuration dialog with the given parent widget. */
     void configure( void* parentWidget );
 
-    /** True if this is a converter plugin with extension/convert entry points. */
+    /**
+     * True if the plugin exports the converter entry points: the extensions
+     * and convert or convert_ex, whatever kind its manifest names (#795).
+     */
     bool isConverter() const;
 
     /** Get converter file extensions (semicolon-separated).  Empty if not a converter. */
     QString converterExtensions() const;
 
     /**
-     * Run the converter on a file.
-     * @return 0 on success, non-zero on failure.
+     * Run the converter on a file through its plain entry point.
+     * @return 0 on success, non-zero on failure; -1 without the entry point.
      */
     int convert( const QString& inputPath, const QString& outputPath ) const;
+
+    /** True if the plugin exports convert_ex, which reports progress and hears Cancel. */
+    bool hasConvertEx() const
+    {
+        return converterConvertExFn_ != nullptr;
+    }
+
+    /**
+     * Run the converter on a file through convert_ex, handing it control.
+     * @return 0 on success, non-zero on failure; -1 without the entry point.
+     */
+    int convertEx( const QString& inputPath, const QString& outputPath,
+                   const LogSquirlConvertControl* control ) const;
 
 private:
     friend class PluginLoader;
@@ -99,7 +115,8 @@ private:
                   LogSquirlPluginInitExFn initExFn, LogSquirlPluginShutdownFn shutdownFn,
                   LogSquirlPluginConfigureFn configureFn,
                   LogSquirlConverterGetExtsFn converterGetExtsFn,
-                  LogSquirlConverterConvertFn converterConvertFn );
+                  LogSquirlConverterConvertFn converterConvertFn,
+                  LogSquirlConverterConvertExFn converterConvertExFn );
 
     PluginMetadata metadata_;
     std::unique_ptr<QLibrary> library_;
@@ -112,6 +129,8 @@ private:
     LogSquirlPluginConfigureFn configureFn_ = nullptr;
     LogSquirlConverterGetExtsFn converterGetExtsFn_ = nullptr;
     LogSquirlConverterConvertFn converterConvertFn_ = nullptr;
+    /// Optional: preferred over converterConvertFn_ when the plugin exports it.
+    LogSquirlConverterConvertExFn converterConvertExFn_ = nullptr;
 
     bool initialised_ = false;
 };

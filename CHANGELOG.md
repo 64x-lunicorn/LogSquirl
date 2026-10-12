@@ -2,6 +2,19 @@
 
 ## Changes
 
+- **A converter plugin runs in the background with progress and Cancel**:
+  opening a file a converter plugin handles no longer freezes the window
+  while it converts. A conversion that takes a while shows a non-modal
+  progress dialog beside the window, named after the file and the plugin,
+  with a *Cancel* button; cancelling opens no tab, and a failed conversion
+  says which plugin could not convert which file instead of opening the raw
+  file. A plugin converts one file at a time, files for different plugins
+  convert at the same time, and disabling a plugin cancels its conversions.
+  For plugin authors: the new optional entry point
+  `logsquirl_converter_convert_ex` gets a `LogSquirlConvertControl` to report
+  progress and poll for cancellation, both convert entry points run on a host
+  worker thread, and any plugin exporting the converter entry points converts,
+  whatever its manifest `type`. (#795)
 - **A log file too short to be recognized is recognized as it grows**: while
   a file has fewer than 50 lines and no log format matched them,
   auto-detection runs again after each load that brings more lines,

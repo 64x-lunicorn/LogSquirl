@@ -192,6 +192,22 @@ foreach(variant IN ITEMS
 endforeach()
 # A CONVERTER fixture that is otherwise complete also stands for a good plugin.
 
+# A converter plugin whose Conversion the tests hold, watch, cancel and unload
+# meanwhile (#795): once with convert_ex, as a plugin of kind "ui" that
+# converts all the same, and once with the plain convert only. The UI tests
+# load the same two libraries.
+foreach(probe_target IN ITEMS logsquirl_convert_probe logsquirl_convert_probe_plain)
+  add_library(${probe_target} MODULE plugins/convertprobe.cpp)
+  target_link_libraries(${probe_target} PRIVATE project_options project_warnings)
+  target_include_directories(${probe_target} PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+  set_target_properties(${probe_target} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+  add_dependencies(logsquirl_tests ${probe_target})
+endforeach()
+target_compile_definitions(logsquirl_convert_probe_plain PRIVATE CONVERT_PROBE_PLAIN=1)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_CONVERT_PROBE_PATH="$<TARGET_FILE:logsquirl_convert_probe>"
+    LOGSQUIRL_CONVERT_PROBE_PLAIN_PATH="$<TARGET_FILE:logsquirl_convert_probe_plain>")
+
 # On Windows a plugin finds the libraries it ships next to it. The fixture
 # imports a library that is built into a directory of its own, so neither the
 # test's directory nor PATH has it; the test copies both into a plugin

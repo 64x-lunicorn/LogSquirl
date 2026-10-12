@@ -429,11 +429,70 @@ typedef const char* ( *LogSquirlConverterGetExtsFn )( void );
 
 /**
  * Convert a file from a proprietary format to plain-text logs.
+ * Called on a host worker thread, never on the UI thread, and never while
+ * another conversion of the same plugin runs: a plugin's conversions run one
+ * after the other, those of different plugins at the same time.  The host
+ * API may be called from inside, under its thread rules.
  * @param input_path   Absolute UTF-8 path to source file.
  * @param output_path  Absolute UTF-8 path where plain text must be written.
  * @return 0 on success, non-zero on failure.
  */
 typedef int ( *LogSquirlConverterConvertFn )( const char* input_path, const char* output_path );
+
+/**
+ * What the host hands a conversion that reports progress and can be cancelled
+ * (see LogSquirlConverterConvertExFn).  The host owns it: it is valid for the
+ * duration of the convert_ex call, and its functions are called on the
+ * thread convert_ex runs on only, each with the control itself as the first
+ * argument.  It grows by appending members, and size says how many of them
+ * the running host filled: check LOGSQUIRL_CONVERT_CONTROL_HAS before reading
+ * a member added later.  Keep the pointer the host passes and never copy the
+ * struct.
+ */
+typedef struct LogSquirlConvertControl {
+    /** sizeof( LogSquirlConvertControl ) in the host's build: how far the host filled it. */
+    size_t size;
+
+    /** The host's own; never dereference or interpret it. */
+    void* host;
+
+    /**
+     * Report how far the conversion is: done of total units of the plugin's
+     * choosing (bytes, lines, records).  A total of 0 means unknown; the host
+     * then shows the conversion as busy, without a share done.
+     */
+    void ( *report_progress )( const struct LogSquirlConvertControl* control, uint64_t done,
+                               uint64_t total );
+
+    /**
+     * Non-zero once the user cancelled the conversion: return as soon as
+     * possible then, with any code; what was written is discarded.
+     */
+    int ( *is_cancelled )( const struct LogSquirlConvertControl* control );
+} LogSquirlConvertControl;
+
+/**
+ * Non-zero when the control the host passed holds the whole member, i.e.
+ * the running host filled it; the members above are always there.
+ */
+#define LOGSQUIRL_CONVERT_CONTROL_HAS( control, member )                                           \
+    ( offsetof( LogSquirlConvertControl, member )                                                  \
+          + sizeof( ( (const LogSquirlConvertControl*)0 )->member )                                \
+      <= ( control )->size )
+
+/**
+ * Convert a file, reporting progress and polling for cancellation through
+ * control (optional).  A host that knows this entry point calls it instead of
+ * convert, on a host worker thread and under the same rules; an older host
+ * calls convert, so a plugin that exports convert_ex still exports convert.
+ * A plugin may export either one, or both.
+ * @param input_path   Absolute UTF-8 path to source file.
+ * @param output_path  Absolute UTF-8 path where plain text must be written.
+ * @param control      Progress out, cancellation in; valid during the call.
+ * @return 0 on success, non-zero on failure or once cancelled.
+ */
+typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const char* output_path,
+                                                const LogSquirlConvertControl* control );
 
 /* ── Canonical exported symbol names ─────────────────────────────────────── */
 
@@ -451,6 +510,11 @@ typedef int ( *LogSquirlConverterConvertFn )( const char* input_path, const char
  * FileConverter plugins additionally export:
  *   LOGSQUIRL_PLUGIN_EXPORT const char* logsquirl_converter_get_extensions( void );
  *   LOGSQUIRL_PLUGIN_EXPORT int         logsquirl_converter_convert( const char*, const char* );
+ *
+ * A converter that reports progress and hears a cancellation also exports
+ * (optional):
+ *   LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert_ex( const char*, const char*,
+ *                                                               const LogSquirlConvertControl* );
  */
 
 #define LOGSQUIRL_PLUGIN_ENTRY_GET_INFO "logsquirl_plugin_get_info"
@@ -460,6 +524,7 @@ typedef int ( *LogSquirlConverterConvertFn )( const char* input_path, const char
 #define LOGSQUIRL_PLUGIN_ENTRY_INIT_EX "logsquirl_plugin_init_ex"
 #define LOGSQUIRL_CONVERTER_ENTRY_GET_EXTS "logsquirl_converter_get_extensions"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT "logsquirl_converter_convert"
+#define LOGSQUIRL_CONVERTER_ENTRY_CONVERT_EX "logsquirl_converter_convert_ex"
 
 #ifdef __cplusplus
 } /* extern "C" */

@@ -611,6 +611,9 @@ SCENARIO( "Opening a Log File open in another window shows its tab there",
         REQUIRE( tabsB != nullptr );
 
         windowB->loadInitialFile( convertedPath, false );
+        // Its tab comes once the Conversion in the background is done (#795):
+        // before the others open, so that the last opened is in front.
+        REQUIRE( waitUiState( [ & ] { return tabsB->logFileTabs().size() == 1; }, 10000 ) );
         windowB->loadInitialFile( plainPath, false );
         windowB->loadInitialFile( frontPath, false );
         REQUIRE( waitUiState( [ & ] { return tabsB->logFileTabs().size() == 3; }, 10000 ) );
