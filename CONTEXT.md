@@ -121,6 +121,14 @@ _Avoid_: first line, top line, anchor
 A pattern applied to a whole Log File, producing the set of lines shown in the Filtered View.
 _Avoid_: query, grep
 
+**Field Term**:
+A sub-pattern of a Search's logical combination restricted to one field of the tab's Log
+Format, written as the field's name, a colon and the quoted pattern (`Protocol:"DNS"`). It
+is read like any other sub-pattern and applied to that field's text only; a Log Line the Log
+Format does not parse has no fields and matches no Field Term. In a tab whose Log Format
+lacks the field, or has no Log Format, a Field Term is a pattern error.
+_Avoid_: column filter, field filter, qualified search
+
 **Background Run**:
 The one way a Search or an index job runs off the UI thread: one run at a time on a
 thread of its own. Starting a run supersedes the one in flight; each run gets a copy of
@@ -354,8 +362,8 @@ _Avoid_: variable, constant, design value
 
 **Log Format**:
 A description of how a Log Line is composed of named fields, used to present the file as
-columns. Either built in or supplied by the user; which one applies to a Log File is decided
-by Format Recognition. A Log Format is of one kind: **regex**, whose fields are the named
+columns. Built in, supplied by the user or supplied by an enabled plugin (its Source); which
+one applies to a Log File is decided by Format Recognition. A Log Format is of one kind: **regex**, whose fields are the named
 capture groups of its patterns, **JSON** (`"file-type": "json"`), for Log Files whose Log
 Lines are JSON objects and whose fields are members addressed by path (`src/file`), or
 **logfmt** (`"file-type": "logfmt"`, our own extension of the lnav schema), for Log Files
@@ -365,15 +373,24 @@ cell.
 _Avoid_: schema, parser, layout
 
 **Log Format Catalog**:
-Every Log Format available to choose from, built in and supplied by the user. A user's
-Log Format replaces a built-in one of the same name. One Catalog serves the whole application.
+Every Log Format available to choose from, built in, supplied by enabled plugins and
+supplied by the user. By name, a user's Log Format replaces a plugin's, and a plugin's a
+built-in one. One Catalog serves the whole application.
 _Avoid_: registry, library
+
+**Source** (of a Log Format):
+Where a Log Format in the Catalog came from: **Built-in**, shipped with LogSquirl; **User**,
+a file in the user's Log Formats folder; or **Plugin**, a file an enabled plugin names in its
+manifest, shown with the plugin's name. A Log File knows only its Log Format, not its Source.
+_Avoid_: origin, provider, owner
 
 **Format Recognition**:
 The decision which Log Format, if any, applies to a Log File, taken from its first Log
 Lines against the Log Format Catalog. Taken when a Log File has loaded, and again after it
-is reloaded or truncated; in between, the Log File keeps the Log Format it was recognized
-with, even when the Catalog changes. The Log Format matching the most of those Log Lines
+is reloaded or truncated; while nothing was recognized from fewer than 50 Log Lines, taken
+again after each load that brings more, until a Log Format is recognized or 50 Log Lines have
+been seen. In between, the Log File keeps the Log Format it was recognized with, even when the
+Catalog changes. The Log Format matching the most of those Log Lines
 wins; among equals, the more specific one (a rival accepts the example lines it carries, it
 accepts none of the rival's), then the one capturing more fields of the Log Lines, then the first by name
 (ADR-0011). The kinds of Log Format are scored apart: a sample Log
@@ -411,6 +428,27 @@ _Avoid_: grid, structured view
 One Log Line as shown in the Table View. A Row is always addressed through its Log Line,
 never through its position in the table.
 _Avoid_: record, entry
+
+**Column Layout**:
+Which columns of the Table View are shown, in which order and how wide, kept per Log
+Format in the user's own settings and applied to every Log File that Log Format opens.
+The elapsed-time column is a column like any other in it. A Column Layout changes
+nothing about a Row: a hidden column's text is still part of the Log Line a Copy copies
+and a Search matches.
+_Avoid_: column settings, view layout, column config
+
+**Sort Order**:
+The column and direction the Table View orders its Rows by; none means Log Line order. A
+Row keeps being its Log Line whatever the Sort Order, so Marks, Matches, the selection and
+Go to Log Line point at the same Log Line sorted or not. Kept for the tab while it is open,
+not per Log Format and not in the Session.
+_Avoid_: sorting mode, sort state, ordering
+
+**Matches Only**:
+The Table View showing only the Rows whose Log Line is a Match of the current Search; Marks
+and Context Lines appear only when they are Matches. The Table View's alone, per tab, for as
+long as it is open, and off once the Search is cleared. Composes with the Sort Order.
+_Avoid_: filtered table, table filter, match mode
 
 **Chart Preset**:
 A saved configuration of which Log Format fields to plot and how.
@@ -459,6 +497,15 @@ window, and it moves to another window when that one closes; a Regex Lab opens i
 recently active window too, whose tab in front is the one a plugin goes to a Log Line of. Every contribution belongs to
 one plugin, and all of them are taken away again when that plugin is unloaded.
 _Avoid_: plugin UI bridge, widget signals, UI host
+
+**Conversion**:
+A converter plugin turning a file the user opened, by one of the extensions the plugin
+claims, into the Transient Log File that is shown. It runs in the background with progress
+and Cancel; the user sees the Log File it was converted from, never the conversion's output
+path. A cancelled or failed Conversion opens no tab. A plugin converts one file at a time;
+different plugins convert at the same time. Any plugin that exports the converter entry
+points converts, whatever its kind.
+_Avoid_: import, transcoding, pre-processing
 
 ### Updates
 
