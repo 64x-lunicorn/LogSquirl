@@ -44,6 +44,18 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/plugins_no_qt_widgets.cmake
 )
 
+# The Log Format Catalog reads the Log Formats of enabled plugins without
+# knowing plugins (#793): no file of the logformat library may include a
+# header of the plugin layer, and the library may not link it.
+add_test(
+    NAME logformat_no_plugins
+    COMMAND ${CMAKE_COMMAND}
+            -DSOURCES_DIR=${CMAKE_SOURCE_DIR}/src/logformat
+            -DPLUGINS_INCLUDE_DIR=${CMAKE_SOURCE_DIR}/src/plugins/include
+            "-DLINK_LIBRARIES=$<JOIN:$<TARGET_PROPERTY:logsquirl_logformat,LINK_LIBRARIES>,|>"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/logformat_no_plugins.cmake
+)
+
 # The plugin developer guide shows the plugin API as its header declares it,
 # and its example plugin as the files the unit tests build and load (#598).
 add_test(

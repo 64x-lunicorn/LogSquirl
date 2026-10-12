@@ -36,3 +36,6 @@ target_link_libraries(
 )
 # Where the user's Log Formats are (#602).
 target_link_libraries(logsquirl_logformat PUBLIC logsquirl_datalocation)
+# The Catalog logs a plugin's Log Format file it cannot read (#793). It never
+# links the plugin layer: the plugins' files are handed to it.
+target_link_libraries(logsquirl_logformat PUBLIC logsquirl_logging)

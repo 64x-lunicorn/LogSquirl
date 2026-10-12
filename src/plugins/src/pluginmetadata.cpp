@@ -22,6 +22,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 
@@ -42,6 +43,36 @@ std::expected<LogSquirlPluginType, QString> parsePluginType( const QString& type
         return LOGSQUIRL_PLUGIN_UI;
     }
     return std::unexpected( QString( "Unknown plugin type: '%1'" ).arg( typeStr ) );
+}
+
+// The optional "formats" list: the Log Format files the plugin ships, as
+// paths relative to the plugin directory that stay inside it (#793).
+std::expected<QStringList, QString> parseFormats( const QJsonObject& obj )
+{
+    if ( !obj.contains( "formats" ) ) {
+        return QStringList{};
+    }
+    if ( !obj[ "formats" ].isArray() ) {
+        return std::unexpected( QStringLiteral( "'formats' is not a list" ) );
+    }
+
+    QStringList formats;
+    for ( const auto& entry : obj[ "formats" ].toArray() ) {
+        if ( !entry.isString() || entry.toString().isEmpty() ) {
+            return std::unexpected( QStringLiteral( "'formats' entry is not a path" ) );
+        }
+        const auto path = entry.toString();
+        // A leading slash counts as leaving it on every platform: on Windows
+        // Qt holds such a path for relative, the drive being left out.
+        const auto clean = QDir::cleanPath( QDir::fromNativeSeparators( path ) );
+        if ( QDir::isAbsolutePath( path ) || clean.startsWith( QLatin1Char( '/' ) )
+             || clean == QLatin1String( ".." ) || clean.startsWith( QLatin1String( "../" ) ) ) {
+            return std::unexpected(
+                QString( "'formats' entry '%1' leaves the plugin directory" ).arg( path ) );
+        }
+        formats.append( path );
+    }
+    return formats;
 }
 
 } // namespace
@@ -105,6 +136,11 @@ std::expected<PluginMetadata, QString> PluginMetadata::fromJson( const QByteArra
         return std::unexpected( QString( "%1: %2" ).arg( context, typeResult.error() ) );
     }
 
+    auto formatsResult = parseFormats( obj );
+    if ( !formatsResult.has_value() ) {
+        return std::unexpected( QString( "%1: %2" ).arg( context, formatsResult.error() ) );
+    }
+
     PluginMetadata meta;
     meta.id_ = obj[ "id" ].toString();
     meta.name_ = obj[ "name" ].toString();
@@ -114,6 +150,7 @@ std::expected<PluginMetadata, QString> PluginMetadata::fromJson( const QByteArra
     meta.license_ = obj[ "license" ].toString();
     meta.library_ = obj[ "library" ].toString();
     meta.icon_ = obj[ "icon" ].toString();
+    meta.formats_ = std::move( formatsResult.value() );
     meta.type_ = typeResult.value();
     meta.apiVersion_ = apiVer;
 
@@ -134,6 +171,19 @@ QString PluginMetadata::iconPath() const
         return {};
     }
     return QDir( directory_ ).filePath( icon_ );
+}
+
+QStringList PluginMetadata::formatPaths() const
+{
+    if ( directory_.isEmpty() ) {
+        return {};
+    }
+    QStringList paths;
+    const QDir directory( directory_ );
+    for ( const auto& format : formats_ ) {
+        paths.append( directory.filePath( format ) );
+    }
+    return paths;
 }
 
 } // namespace logsquirl::plugins

@@ -24,6 +24,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QFontDatabase>
 #include <QLocale>
 #include <QMessageBox>
@@ -31,6 +32,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QTreeWidget>
 #include <QUrl>
 
 #include "configuration.h"
@@ -998,6 +1000,61 @@ TEST_CASE( "The File Associations page adds Open with LogSquirl to every file's 
         dialog.showFileAssociations( associations );
         CHECK_FALSE( checkBox->isVisibleTo( dialog.fileAssociationsTab ) );
     }
+}
+
+// Every Log Format in the Catalog carries its Source, and the Log Formats
+// page shows it: Built-in, User, or the name of the plugin that ships it (#793).
+TEST_CASE( "The Log Formats page shows each Log Format's Source", "[optionsdialog][logformat]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+
+    const auto formatFile = []( const QString& name ) {
+        return QStringLiteral( R"({ "%1": {
+            "title": "%1",
+            "regex": { "basic": { "pattern": "^(?<timestamp>[^ ]+) (?<body>.*)$" } },
+            "sample": [{ "line": "2024-01-01 hello" }]
+        } })" )
+            .arg( name )
+            .toUtf8();
+    };
+    const auto writeFile = []( const QString& path, const QByteArray& content ) {
+        REQUIRE( QDir().mkpath( QFileInfo( path ).absolutePath() ) );
+        QFile file( path );
+        REQUIRE( file.open( QIODevice::WriteOnly ) );
+        file.write( content );
+        return path;
+    };
+
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    writeFile( directory.filePath( "formats/user.json" ), formatFile( "user_only_log" ) );
+    const auto pluginFile
+        = writeFile( directory.filePath( "plugin/own.json" ), formatFile( "plugin_only_log" ) );
+
+    LogFormatCatalog catalog{ directory.filePath( "formats" ) };
+    catalog.setPluginFormats( { { "io.example.plugin", "Example Plugin", { pluginFile } } } );
+    catalog.rebuild();
+
+    OptionsDialog dialog( catalog );
+    auto* tree = dialog.formatsTreeWidget;
+    REQUIRE( tree->columnCount() == 3 );
+    CHECK( tree->headerItem()->text( 2 ) == "Source" );
+
+    // The Source column of the Log Format with the name, its row's tooltip.
+    const auto sourceOf = [ tree ]( const QString& name ) -> QString {
+        for ( int i = 0; i < tree->topLevelItemCount(); ++i ) {
+            if ( tree->topLevelItem( i )->toolTip( 0 ) == name ) {
+                return tree->topLevelItem( i )->text( 2 );
+            }
+        }
+        return {};
+    };
+    CHECK( sourceOf( "syslog_log" ) == "Built-in" );
+    CHECK( sourceOf( "user_only_log" ) == "User" );
+    CHECK( sourceOf( "plugin_only_log" ) == "Example Plugin" );
 }
 
 #include "optionsdialog_test.moc"

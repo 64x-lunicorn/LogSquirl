@@ -22,6 +22,7 @@
 #include "logsquirl_plugin_api.h"
 
 #include <QString>
+#include <QStringList>
 
 #include <expected>
 
@@ -104,6 +105,23 @@ public:
     /** Absolute path to the icon file (directory + icon), empty if none. */
     QString iconPath() const;
 
+    /**
+     * The Log Format files the plugin ships, as the manifest's optional
+     * `formats` list names them: paths relative to the plugin directory, in
+     * the manifest's order (#793). A path leaving the plugin directory is
+     * rejected when the manifest is parsed. Empty when the plugin ships none.
+     */
+    const QStringList& formats() const
+    {
+        return formats_;
+    }
+
+    /**
+     * Absolute paths to the Log Format files (directory + each of formats()),
+     * empty when the metadata was not read from a file.
+     */
+    QStringList formatPaths() const;
+
 private:
     PluginMetadata() = default;
 
@@ -115,6 +133,7 @@ private:
     QString license_;
     QString library_;
     QString icon_;
+    QStringList formats_;
     QString directory_;
     LogSquirlPluginType type_ = LOGSQUIRL_PLUGIN_DATASOURCE;
     int apiVersion_ = 0;

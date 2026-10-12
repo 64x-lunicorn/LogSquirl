@@ -344,3 +344,194 @@ SCENARIO( "Every built-in format can be recognized", "[logformat][catalog]" )
         }
     }
 }
+
+namespace {
+
+// A Log Format file holding one regex Log Format of the given name and title.
+QByteArray formatFile( const QString& name, const QString& title )
+{
+    return QStringLiteral( R"({
+        "%1": {
+            "title": "%2",
+            "regex": { "basic": { "pattern": "^(?<timestamp>[^ ]+) (?<body>.*)$" } },
+            "sample": [{ "line": "2024-01-01 hello" }]
+        }
+    })" )
+        .arg( name, title )
+        .toUtf8();
+}
+
+QString writeFile( const QDir& dir, const QString& fileName, const QByteArray& content )
+{
+    REQUIRE( dir.mkpath( "." ) );
+    QFile file( dir.filePath( fileName ) );
+    REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Truncate ) );
+    file.write( content );
+    return file.fileName();
+}
+
+using Source = LogFormatSource;
+
+} // namespace
+
+// A plugin ships Log Formats, named in its manifest; whoever knows the
+// enabled plugins hands their files to the Catalog, which reads them between
+// the built-in Log Formats and the user's (#793).
+SCENARIO( "Enabled plugins supply Log Formats between the built-in ones and the user's",
+          "[logformat][catalog][plugins]" )
+{
+    QTemporaryDir root;
+    REQUIRE( root.isValid() );
+    const QDir alphaDir( root.filePath( "alpha" ) );
+    const QDir betaDir( root.filePath( "beta" ) );
+    const QDir userDir( root.filePath( "user" ) );
+    REQUIRE( userDir.mkpath( "." ) );
+
+    GIVEN( "two enabled plugins and the user's folder, all naming Log Formats" )
+    {
+        // Alpha replaces a built-in Log Format, ships one of its own and one
+        // the user replaces; alpha and beta both ship "shared_log".
+        const LogFormatCatalog::PluginFormats alpha{
+            "io.example.alpha",
+            "Alpha Plugin",
+            { writeFile( alphaDir, "access.json", formatFile( "access_log", "Alpha Access" ) ),
+              writeFile( alphaDir, "own.json", formatFile( "alpha_only_log", "Alpha Only" ) ),
+              writeFile( alphaDir, "syslog.json", formatFile( "syslog_log", "Alpha Syslog" ) ),
+              writeFile( alphaDir, "shared.json", formatFile( "shared_log", "Alpha Shared" ) ),
+              writeFile( alphaDir, "twice.json", formatFile( "alpha_only_log", "Alpha Twice" ) ) },
+        };
+        const LogFormatCatalog::PluginFormats beta{
+            "io.example.beta",
+            "Beta Plugin",
+            { writeFile( betaDir, "shared.json", formatFile( "shared_log", "Beta Shared" ) ),
+              writeFile( betaDir, "own.json", formatFile( "beta_only_log", "Beta Only" ) ) },
+        };
+        writeFile( userDir, "syslog.json", formatFile( "syslog_log", "User Syslog" ) );
+
+        LogFormatCatalog catalog{ userDir.path() };
+        // Beta first: the order handed in does not decide.
+        catalog.setPluginFormats( { beta, alpha } );
+
+        WHEN( "the Catalog is rebuilt" )
+        {
+            catalog.rebuild();
+
+            THEN( "a plugin's Log Format replaces a built-in one of the same name" )
+            {
+                const auto access = catalog.formatByName( "access_log" );
+                REQUIRE( access != nullptr );
+                CHECK( access->title() == "Alpha Access" );
+                CHECK( access->source() == Source::plugin( "Alpha Plugin" ) );
+            }
+
+            THEN( "the user's Log Format replaces a plugin's of the same name" )
+            {
+                const auto syslog = catalog.formatByName( "syslog_log" );
+                REQUIRE( syslog != nullptr );
+                CHECK( syslog->title() == "User Syslog" );
+                CHECK( syslog->source() == Source::user() );
+            }
+
+            THEN( "a plugin's own Log Format is in the Catalog with the plugin as its Source, "
+                  "the later of its own files winning without a warning" )
+            {
+                const auto own = catalog.formatByName( "alpha_only_log" );
+                REQUIRE( own != nullptr );
+                CHECK( own->title() == "Alpha Twice" );
+                CHECK( own->source() == Source::plugin( "Alpha Plugin" ) );
+                CHECK( catalog.pluginFormatWarnings( "io.example.alpha" ).isEmpty() );
+                const auto betaOwn = catalog.formatByName( "beta_only_log" );
+                REQUIRE( betaOwn != nullptr );
+                CHECK( betaOwn->source() == Source::plugin( "Beta Plugin" ) );
+            }
+
+            THEN( "a built-in Log Format nobody replaced keeps the Built-in Source" )
+            {
+                const auto dpkg = catalog.formatByName( "dpkg_log" );
+                REQUIRE( dpkg != nullptr );
+                CHECK( dpkg->source() == Source::builtIn() );
+                CHECK( dpkg->source().pluginName.isEmpty() );
+            }
+
+            THEN( "of two plugins shipping one Log Format, the one whose id sorts first wins, "
+                  "with a warning naming both plugins and the Log Format" )
+            {
+                const auto shared = catalog.formatByName( "shared_log" );
+                REQUIRE( shared != nullptr );
+                CHECK( shared->title() == "Alpha Shared" );
+                CHECK( shared->source() == Source::plugin( "Alpha Plugin" ) );
+
+                REQUIRE( catalog.pluginFormatWarnings().size() == 1 );
+                const auto& warning = catalog.pluginFormatWarnings().front();
+                CHECK( warning.pluginId == "io.example.beta" );
+                CHECK( warning.message.contains( "shared_log" ) );
+                CHECK( warning.message.contains( "io.example.alpha" ) );
+                CHECK( catalog.pluginFormatWarnings( "io.example.beta" )
+                       == QStringList{ warning.message } );
+                CHECK( catalog.pluginFormatWarnings( "io.example.alpha" ).isEmpty() );
+            }
+
+            AND_WHEN( "no plugin supplies Log Formats any more and the Catalog is rebuilt" )
+            {
+                const auto held = catalog.formatByName( "alpha_only_log" );
+                catalog.setPluginFormats( {} );
+                catalog.rebuild();
+
+                THEN( "the plugins' Log Formats are gone and the built-in ones are back" )
+                {
+                    CHECK( catalog.formatByName( "alpha_only_log" ) == nullptr );
+                    CHECK( catalog.formatByName( "beta_only_log" ) == nullptr );
+                    const auto access = catalog.formatByName( "access_log" );
+                    REQUIRE( access != nullptr );
+                    CHECK( access->source() == Source::builtIn() );
+                    CHECK( catalog.pluginFormatWarnings().empty() );
+                }
+
+                THEN( "a Log Format handed out before is still valid" )
+                {
+                    REQUIRE( held != nullptr );
+                    CHECK( held->title() == "Alpha Twice" );
+                }
+            }
+        }
+    }
+
+    GIVEN( "a plugin whose Log Format files are missing, invalid, empty of Log Formats or fine" )
+    {
+        const auto missing = alphaDir.filePath( "missing.json" );
+        const auto invalid = writeFile( alphaDir, "invalid.json", "{ not json" );
+        const auto empty = writeFile( alphaDir, "empty.json", "{ \"$schema\": \"x\" }" );
+        const auto fine = writeFile( alphaDir, "fine.json", formatFile( "fine_log", "Fine" ) );
+
+        LogFormatCatalog catalog;
+        catalog.setPluginFormats(
+            { { "io.example.alpha", "Alpha Plugin", { missing, invalid, empty, fine } } } );
+
+        WHEN( "the Catalog is rebuilt" )
+        {
+            catalog.rebuild();
+
+            THEN( "the fine file's Log Format is in the Catalog" )
+            {
+                const auto fineFormat = catalog.formatByName( "fine_log" );
+                REQUIRE( fineFormat != nullptr );
+                CHECK( fineFormat->source() == Source::plugin( "Alpha Plugin" ) );
+            }
+
+            THEN( "each other file is skipped with a warning naming the file" )
+            {
+                const auto warnings = catalog.pluginFormatWarnings( "io.example.alpha" );
+                REQUIRE( warnings.size() == 3 );
+                CHECK( warnings[ 0 ].contains( "missing.json" ) );
+                CHECK( warnings[ 0 ].contains( "does not exist" ) );
+                CHECK( warnings[ 1 ].contains( "invalid.json" ) );
+                CHECK( warnings[ 1 ].contains( "JSON parse error" ) );
+                CHECK( warnings[ 2 ].contains( "empty.json" ) );
+                CHECK( warnings[ 2 ].contains( "no Log Format" ) );
+                for ( const auto& warning : catalog.pluginFormatWarnings() ) {
+                    CHECK( warning.pluginId == "io.example.alpha" );
+                }
+            }
+        }
+    }
+}

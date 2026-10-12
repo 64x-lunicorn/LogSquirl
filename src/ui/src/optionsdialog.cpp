@@ -416,6 +416,21 @@ void OptionsDialog::updateTeamFolderStatus()
                                       && !teamFolder_->isSyncing() );
 }
 
+// The Source column of the Log Formats page: where a Log Format came from,
+// a plugin's by the plugin's name (#793).
+QString OptionsDialog::sourceText( const LogFormatSource& source )
+{
+    switch ( source.kind ) {
+    case LogFormatSource::Kind::BuiltIn:
+        return tr( "Built-in" );
+    case LogFormatSource::Kind::User:
+        return tr( "User" );
+    case LogFormatSource::Kind::Plugin:
+        return source.pluginName;
+    }
+    return {};
+}
+
 // Populate the Log Formats tab from the application's Log Format Catalog
 // and wire the "Open Formats Folder" button.
 void OptionsDialog::setupLogFormats( const LogFormatCatalog& logFormatCatalog )
@@ -433,10 +448,12 @@ void OptionsDialog::setupLogFormats( const LogFormatCatalog& logFormatCatalog )
         const auto title = fmt->title().isEmpty() ? name : fmt->title();
         item->setText( 0, title );
         item->setText( 1, fmt->description() );
+        item->setText( 2, sourceText( fmt->source() ) );
         item->setToolTip( 0, name );
     }
 
     formatsTreeWidget->resizeColumnToContents( 0 );
+    formatsTreeWidget->resizeColumnToContents( 2 );
 
     connect( openFormatsFolderButton, &QPushButton::clicked, this, []() {
         const auto formatsDir = LogFormatCatalog::defaultUserFormatsDirectory();

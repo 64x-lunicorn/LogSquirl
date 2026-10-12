@@ -2327,7 +2327,10 @@ void MainWindow::servePluginCallbacks()
 
 void MainWindow::showPluginDialog()
 {
-    PluginDialog dialog( plugins_->catalog(), plugins_->host(), this );
+    PluginDialog dialog( *plugins_, this );
+    // What the Log Format Catalog could not read of a plugin's Log Formats
+    // shows on the plugin's card (#793).
+    dialog.showLogFormatWarnings( session_.logFormatCatalog() );
     dialog.exec();
     updateSourcesMenu();
 }

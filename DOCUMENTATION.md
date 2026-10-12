@@ -825,8 +825,23 @@ level, body, and any custom fields defined by the format).
 
 Enable auto-detection in **Options → Log Formats → "Auto-detect log format
 (table view)"**. The same tab shows a scrollable list of all available format
-definitions (built-in and user-defined) and provides an "Open Formats Folder…"
-button to quickly access the user formats directory.
+definitions and provides an "Open Formats Folder…" button to quickly access
+the user formats directory. The list's *Source* column tells where each
+format comes from: *Built-in* for one shipped with *logsquirl*, *User* for a
+file in your formats folder, or the name of the plugin that ships it.
+
+A plugin can ship format definitions of its own; they are available while the
+plugin is enabled in Plugin Management, whether or not it is loaded. Formats
+are read in the order built-in, then enabled plugins, then your formats
+folder, and the later one wins by name: a plugin's format replaces a built-in
+one of the same name, and one of yours replaces a plugin's. Should two
+enabled plugins ship a format of the same name, the plugin whose id sorts
+first wins, and the log says so. A format file of a plugin that cannot be
+read is skipped; the plugin still loads, and its card in Plugin Management
+shows what was wrong. Plugins are discovered shortly after *logsquirl* has
+started, so a file opened before that -- one restored from the last session,
+say -- is recognized without the plugins' formats and keeps the format it was
+recognized with until it is reloaded.
 
 When enabled, *logsquirl* samples the first lines of each
 opened file and matches them against its library of format definitions. If a

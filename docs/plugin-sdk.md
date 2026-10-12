@@ -78,6 +78,7 @@ my_plugin/
 | `author`       | no       | Author name or organisation.                                    |
 | `license`      | no       | SPDX identifier of the plugin's licence.                        |
 | `icon`         | no       | File name of an icon next to `plugin.json`.                     |
+| `formats`      | no       | Log Format files the plugin ships, see [Shipping Log Formats](#shipping-log-formats). |
 
 `library` is resolved relative to the directory containing `plugin.json`. It
 may leave out the platform's prefix and extension: `my_plugin` finds
@@ -267,6 +268,71 @@ looked for in the usual places only, so load it by its full path.
 LogSquirl reads the manifests when it starts. If two directories hold a plugin
 with the same `id`, the one found first is used. Plugins are enabled and
 disabled in `Plugins` → `Plugin Management...`.
+
+---
+
+## Shipping Log Formats
+
+A plugin can ship Log Formats: the JSON definitions LogSquirl recognizes a
+log file by and shows it as a table with (see the user documentation's *Log
+Formats* section for the file format, which is the same as for a file in the
+user's Log Formats folder). This is declarative: the plugin names the files
+in its manifest and LogSquirl reads them. No host function is involved, the
+plugin's library does not need to run for its Log Formats to be known, and
+the files travel in the plugin's release archive beside the library.
+
+Add the optional `formats` key to `plugin.json`, a list of paths relative to
+the plugin directory:
+
+```json
+{
+    "id": "com.example.tcpdump",
+    "name": "tcpdump",
+    "version": "1.0.0",
+    "type": "converter",
+    "library": "tcpdump_plugin",
+    "api_version": 1,
+    "formats": [ "formats/tcpdump_log.json" ]
+}
+```
+
+```
+~/.local/share/logsquirl/plugins/
+└── com.example.tcpdump/
+    ├── plugin.json
+    ├── libtcpdump_plugin.so
+    └── formats/
+        └── tcpdump_log.json
+```
+
+Each file may hold one or more Log Formats, keyed by name as in a user's file.
+A path that leaves the plugin directory (`../x.json`, an absolute path) makes
+the manifest invalid, and the plugin is not listed at all. A manifest without
+the key, or with an empty list, ships no Log Format and the plugin behaves as
+before.
+
+**When the Log Formats are read.** The Log Format Catalog, one per running
+LogSquirl, is rebuilt as soon as the plugin manifests have been read after
+start-up, whenever a plugin is enabled or disabled in Plugin Management, and
+on every settings change. It reads the Log Formats of every *enabled* plugin,
+whether or not the plugin's library is loaded (for example with auto-load
+off). A log file opened before the plugins were discovered keeps the Log
+Format it was recognized with until it is reloaded.
+
+**Precedence.** The Catalog reads the built-in Log Formats first, then the
+enabled plugins', then the user's folder, and the later one wins by name: a
+plugin's Log Format replaces a built-in one of the same name, and a user's
+replaces a plugin's. Between two enabled plugins that name the same Log
+Format, the plugin whose `id` sorts first wins and a warning naming both
+plugins and the Log Format is logged. Choose names unlikely to collide, such
+as `tcpdump_log` rather than `log`.
+
+**A file that cannot be read.** A missing file, one that is not JSON, or one
+without a Log Format in it is skipped with a logged warning naming the plugin
+and the file. The plugin's other Log Format files and the plugin itself are
+unaffected: it still loads. Plugin Management shows the warning on the
+plugin's card, and the Options dialog's Log Formats page shows every Log
+Format with its Source: *Built-in*, *User*, or the plugin's name.
 
 ---
 

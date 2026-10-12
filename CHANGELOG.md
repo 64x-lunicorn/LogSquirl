@@ -10,6 +10,19 @@
   recognized format stays as before; a file whose first 50 lines matched
   nothing is not matched again until it is reloaded or truncated. (#794)
 
+- **A plugin ships Log Formats**: a plugin names Log Format files in its
+  manifest (`"formats": ["formats/tcpdump_log.json"]`), and they are part of
+  the Log Format Catalog while the plugin is enabled in Plugin Management,
+  loaded or not. The Catalog reads the built-in formats, then the enabled
+  plugins', then your formats folder, and the later one wins by name; between
+  two plugins shipping one format, the plugin whose id sorts first wins and
+  the log says so. A format file that cannot be read is skipped, the plugin
+  still loads, and its card in Plugin Management shows what was wrong. The
+  Options dialog's Log Formats page gets a *Source* column reading
+  *Built-in*, *User* or the plugin's name. A file opened before the plugins
+  were discovered keeps the format it was recognized with until it is
+  reloaded. (#793)
+
 ## Bug fixes
 
 - **A plugin opens a file from any thread**: `open_file` called from a

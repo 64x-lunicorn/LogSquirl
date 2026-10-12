@@ -50,6 +50,7 @@
 
 #include "configuration.h"
 #include "fileassociations.h"
+#include "logformatdefinition.h"
 #include "teamfolder.h"
 
 #include "ui_optionsdialog.h"
@@ -148,6 +149,8 @@ private:
     void setupEncodings();
     void setupLanguageList();
     void setupLogFormats( const LogFormatCatalog& logFormatCatalog );
+    // What the Source column of the Log Formats page reads for a Source.
+    static QString sourceText( const LogFormatSource& source );
     void setupFileAssociations();
     // Reads the states again and shows them, with every check as its state
     // but those the user changed since the last reset.

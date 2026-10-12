@@ -102,9 +102,23 @@ public:
      */
     void whenLoaded( const QObject* context, std::function<void()> work );
 
+    /**
+     * Tell that the configuration enabled or disabled a plugin. The plugin
+     * layer reads no settings, so whoever writes them says so here; what
+     * follows the enabled plugins, such as the Log Formats they ship, hears
+     * it through enabledPluginsChanged() (#793).
+     */
+    void notifyEnabledPluginsChanged()
+    {
+        Q_EMIT enabledPluginsChanged();
+    }
+
 Q_SIGNALS:
     /** Emitted once, when the plugins have been loaded. */
     void loaded();
+
+    /** Emitted when notifyEnabledPluginsChanged() said a plugin was enabled or disabled. */
+    void enabledPluginsChanged();
 
 private:
     enum class State { NotAsked, Asked, Loaded };
