@@ -398,6 +398,84 @@ SCENARIO( "A truncated Log File is recognized exactly once when it has loaded ag
     }
 }
 
+SCENARIO( "A Sort Order is saved nowhere: a new tab and a restored one open in Log Line order",
+          "[ui][formatrecognition][sortorder]" )
+{
+    auto policies = recognitionEnabled();
+    policies.presentation.autoShowTableView = true;
+
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto userFormats = directory.filePath( "formats" );
+    REQUIRE( QDir().mkpath( userFormats ) );
+    writeUserFormat( userFormats, "Recognition Test" );
+
+    const auto path = directory.filePath( "sorted.log" );
+    const auto otherPath = directory.filePath( "other.log" );
+    REQUIRE( writeLogFile( path ) );
+    REQUIRE( writeLogFile( otherPath ) );
+
+    auto catalog = std::make_shared<LogFormatCatalog>( userFormats );
+    catalog->rebuild();
+
+    Session session{ policies, catalog };
+    session.savedSearches().clear();
+
+    // The Table View of a Log File once it shows every Row.
+    const auto tableOf = [ & ]( CrawlerAccess& logFile ) {
+        REQUIRE( logFile.waitLoaded( LinesCount( LineCount ) ) );
+        REQUIRE( waitUiState( [ & ] { return logFile.isTableViewToggled(); } ) );
+        auto* table = logFile.tableView();
+        REQUIRE( waitUiState( [ & ] {
+            return table->model() != nullptr && table->model()->rowCount() == LineCount;
+        } ) );
+        return table;
+    };
+    const auto inLogLineOrder = []( const LogTableView& table ) {
+        const auto* model = qobject_cast<const LogFormatTableModel*>( table.model() );
+        return !table.sortOrder().has_value() && model->rowMapping().logLineAt( 0 ) == 0_lnum
+               && model->rowMapping().logLineAt( LineCount - 1 ) == LineNumber( LineCount - 1 );
+    };
+
+    GIVEN( "a recognized Log File shown as a Table View, sorted by its body column, descending" )
+    {
+        auto logFile = openLogFile( session, path );
+        auto* table = tableOf( *logFile );
+        table->sortBy( LogTableView::NamedSortOrder{ "body", Qt::DescendingOrder } );
+        REQUIRE( waitUiState( [ & ] { return table->sortOrder().has_value(); } ) );
+        REQUIRE_FALSE( inLogLineOrder( *table ) );
+
+        WHEN( "another Log File of the same Log Format is opened" )
+        {
+            auto other = openLogFile( session, otherPath );
+            auto* otherTable = tableOf( *other );
+
+            THEN( "its Table View is in Log Line order" )
+            {
+                REQUIRE( other->logFormat()->name() == logFile->logFormat()->name() );
+                REQUIRE( inLogLineOrder( *otherTable ) );
+            }
+        }
+
+        WHEN( "the tab is closed and restored from what the Session saves of it" )
+        {
+            const auto saved = logFile->crawler->context()->toString();
+            session.close( logFile->crawler.get() );
+            logFile.reset();
+
+            auto restored = std::make_unique<CrawlerAccess>( session.open(
+                path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); },
+                saved ) );
+            auto* restoredTable = tableOf( *restored );
+
+            THEN( "its Table View is in Log Line order" )
+            {
+                REQUIRE( inLogLineOrder( *restoredTable ) );
+            }
+        }
+    }
+}
+
 SCENARIO( "A truncated Log File keeps the Table View's Sort Order once it has loaded again",
           "[ui][formatrecognition][sortorder]" )
 {

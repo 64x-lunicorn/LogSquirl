@@ -42,6 +42,7 @@
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QUrl>
 
@@ -67,6 +68,8 @@
 #include "highlightersdialog.h"
 #include "highlighterset.h"
 #include "logformatcatalog.h"
+#include "logformattablemodel.h"
+#include "logtableview.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
 #include "modal_answers.h"
@@ -1093,6 +1096,45 @@ TEST_CASE( "The time dialogs move to a time and limit the search to it", "[ui][m
         // Two minutes are twelve lines, each way.
         CHECK( state.searchStart().get() == 138 );
     }
+}
+
+TEST_CASE( "Go to timestamp in a sorted Table View selects the Row of the Log Line",
+           "[ui][modal][time][sortorder]" )
+{
+    TimedLogFile file;
+    WindowFixture window;
+    auto* crawler = window.open( file.path );
+    waitForTimeActions( *window.mainWindow );
+    CrawlerState state{ *crawler };
+    ModalAnswers modals;
+
+    auto* toggle = crawler->findChild<QToolButton*>( "tableViewToggle" );
+    REQUIRE( toggle != nullptr );
+    toggle->setChecked( true );
+    auto* table = crawler->findChild<LogTableView*>();
+    REQUIRE( table != nullptr );
+    REQUIRE( waitUiState( [ & ] { return table->model() != nullptr && table->isVisible(); } ) );
+
+    // The first column descending: the Log Lines in another order than
+    // their own.
+    table->sortBy( LogTableView::SortOrder{ 0, Qt::DescendingOrder } );
+    REQUIRE( waitUiState( [ & ] { return table->sortOrder().has_value(); }, 30'000 ) );
+    const auto& rows = qobject_cast<const LogFormatTableModel*>( table->model() )->rowMapping();
+    const auto rowOf60 = rows.rowOf( 60_lnum );
+    REQUIRE( rowOf60.has_value() );
+    REQUIRE( *rowOf60 != 60 );
+
+    modals.inputText( "12:10:00" );
+    auto* goTo
+        = actionNamed( *window.mainWindow, logsquirl::mainwindow::action::goToTimestampText );
+    REQUIRE( goTo != nullptr );
+    goTo->trigger();
+
+    // 12:10:00 is line 60 (ten seconds a line, from 12:00:00).
+    REQUIRE( waitUiState( [ & ] { return state.currentLine().get() == 60; }, 10'000 ) );
+    CHECK( modals.unexpectedMessageBoxes() == 0 );
+    CHECK( table->selectedLogLines() == logsquirl::vector<LineNumber>{ 60_lnum } );
+    CHECK( table->currentIndex().row() == *rowOf60 );
 }
 
 TEST_CASE( "A Log File truncated while a time dialog is open is not read through what it held",
