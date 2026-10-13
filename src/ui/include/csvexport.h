@@ -34,6 +34,7 @@
 #include "linessaver.h"
 #include "linetypes.h"
 
+struct ColumnLayout;
 class LogFormatDefinition;
 class QWidget;
 
@@ -49,6 +50,9 @@ struct CsvColumn {
     // export (0 is the first Log Line exported). It is called off the UI
     // thread, so it may read only what it holds, never live state of a view.
     std::function<QString( size_t position, LineNumber logLine )> value;
+    // Whether the Column Layout hides the column of the Table View: the
+    // dialog lists it unchecked at first.
+    bool hidden = false;
 
     // The column tableColumn of the Table View, headed name.
     static CsvColumn ofTable( int tableColumn, const QString& name );
@@ -59,9 +63,11 @@ struct CsvColumn {
     // copied on the UI thread.
     static CsvColumn lineTypes( const QString& name,
                                 logsquirl::vector<AbstractLogData::LineType> types );
-    // Every column of the Table View for format, in its order, headed as the
-    // Table View heads them.
-    static std::vector<CsvColumn> ofTable( const LogFormatDefinition& format );
+    // Every column of the Table View for format in the order layout shows
+    // them, headed as the Table View heads them, a hidden one marked so; in
+    // the Log Format's order when layout is not one of format's columns.
+    static std::vector<CsvColumn> ofTable( const LogFormatDefinition& format,
+                                           const ColumnLayout& layout );
 
     // "Match", "Mark", "Match+Mark" or "Context", never translated, so a
     // spreadsheet can filter on it; empty for a plain Log Line.
@@ -89,7 +95,8 @@ struct CsvExport {
 };
 
 // The columns of the dialog Export as CSV for the columns a view offers, in
-// their order: the first unchecked ones unchecked, every other one checked.
+// their order: the first unchecked ones and the hidden ones unchecked, every
+// other one checked.
 std::vector<CsvExportDialog::Column> csvDialogColumns( const std::vector<CsvColumn>& offered,
                                                        size_t unchecked );
 

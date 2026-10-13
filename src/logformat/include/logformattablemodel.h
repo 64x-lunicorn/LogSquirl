@@ -22,6 +22,7 @@
 #include "logformatdefinition.h"
 #include "rowmapping.h"
 #include "tablerowcells.h"
+#include "tablesortkeys.h"
 
 #include <QAbstractTableModel>
 #include <QDate>
@@ -109,6 +110,34 @@ public:
     // Log Lines read differently now, though there are as many of them.
     void rereadRows();
 
+    // The Rows now show the Log Lines rows maps them onto (a Sort Order
+    // taken or dropped): every Row may have moved, so the views are reset.
+    // The Rows read so far are kept: a Log Line reads the same wherever its
+    // Row is.
+    void setRowMapping( std::shared_ptr<const RowMapping> rows );
+    // The Rows now show the Log Lines rows maps them onto, which are the
+    // ones shown so far plus the Log Lines at the Rows of inserted, in order
+    // of their first Row (a followed Log File's appended Log Lines merged
+    // into the Sort Order): the views are told of each run inserted, not
+    // reset, so the selection and the scroll position stay.
+    void mergeRows( std::shared_ptr<const RowMapping> rows, const std::vector<RowRun>& inserted );
+    const RowMapping& rowMapping() const
+    {
+        return *rows_;
+    }
+
+    // What the header of column reads instead of its name, while the Table
+    // View sorts by it; none shows the name again.
+    void setHeaderNote( int column, const std::optional<QString>& note );
+    // The name of a column, whatever its header reads.
+    QString columnName( int column ) const
+    {
+        return column >= 0 && column < columnCount() ? cells_->columnName( column ) : QString{};
+    }
+    // Whether the Log Format matched the Row's Log Line: when not, no field
+    // has a value, and the last field's cell shows the Log Line whole.
+    bool rowMatchesFormat( int row ) const;
+
     // Return the raw logData pointer so callers can detect stale references.
     const AbstractLogData* logDataPtr() const
     {
@@ -139,18 +168,25 @@ private:
     std::shared_ptr<const RowMapping> rows_;
     // The number of Rows
     int lineCount_ = 0;
+    // The number of Log Lines, as setLineCount() was told last.
+    int logLineCount_ = 0;
+    // The column whose header reads a note, -1 for none.
+    int headerNoteColumn_ = -1;
+    QString headerNote_;
 
     // Cached row entry: stores both the raw line (for RawLineRole) and
     // the extracted columns (for DisplayRole) to avoid repeated disk I/O.
     struct CachedRow {
         QString rawLine;
         QStringList cells;
+        bool matchesFormat = false;
     };
 
-    // LRU cache for extracted rows (mutable because data() is const)
+    // LRU cache for extracted rows, by Log Line (mutable because data() is
+    // const): what a Row shows is its Log Line's, wherever the Row is.
     static constexpr int RowCacheCapacity = 2000;
-    mutable std::list<std::pair<int, CachedRow>> rowCacheList_;
-    mutable QHash<int, std::list<std::pair<int, CachedRow>>::iterator> rowCacheMap_;
+    mutable std::list<std::pair<uint64_t, CachedRow>> rowCacheList_;
+    mutable QHash<uint64_t, std::list<std::pair<uint64_t, CachedRow>>::iterator> rowCacheMap_;
 
     // Look up or extract a row, caching the result.
     const CachedRow& cachedRow( int row ) const;

@@ -23,9 +23,11 @@
 #include <QRegularExpression>
 #include <QString>
 #include <cstdint>
+#include <memory>
 #include <qregularexpression.h>
 #include <string>
 
+#include "fieldreader.h"
 #include "uuid.h"
 
 // Whether a pattern refers back to one of its own groups: \1..\9 and \g...,
@@ -105,6 +107,12 @@ struct RegularExpressionPattern {
     bool isBoolean = false;
     bool isPlainText = false;
     bool isPrefilter = false;
+    // Reads the fields the Field Terms of a logical combination name
+    // (#798): handed in by whoever requests the Search, over the tab's Log
+    // Format; none in a tab without one. Never consulted by a pattern without
+    // Field Terms. Shared and immutable, so a copy of the pattern on a worker
+    // thread reads it safely.
+    std::shared_ptr<const FieldReader> fieldReader;
 
     RegularExpressionPattern() = default;
 
@@ -153,11 +161,20 @@ struct RegularExpressionPattern {
         return QRegularExpression( finalPattern, patternOptions );
     }
 
+    // What tells the field reader's Log Format: empty without a reader. Part
+    // of the pattern's identity, since the same text reads differently under
+    // another Log Format.
+    QString fieldReaderIdentity() const
+    {
+        return fieldReader ? fieldReader->identity() : QString{};
+    }
+
     bool operator==( const RegularExpressionPattern& other ) const
     {
         return std::tie( pattern, isCaseSensitive, isExclude, isBoolean, isPlainText, isPrefilter )
-               == std::tie( other.pattern, other.isCaseSensitive, other.isExclude, other.isBoolean,
-                            other.isPlainText, other.isPrefilter );
+                   == std::tie( other.pattern, other.isCaseSensitive, other.isExclude,
+                                other.isBoolean, other.isPlainText, other.isPrefilter )
+               && fieldReaderIdentity() == other.fieldReaderIdentity();
     }
 
 private:

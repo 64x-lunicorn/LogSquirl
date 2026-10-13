@@ -45,6 +45,7 @@
 
 #include "filteredview.h"
 
+#include "columnlayout.h"
 #include "logformatdefinition.h"
 
 FilteredView::FilteredView( LogFilteredData* newLogData,
@@ -99,7 +100,8 @@ FilteredView::csvColumns( const LogFormatDefinition* format,
     std::vector<CsvColumn> columns{ CsvColumn::lineNumber( tr( "Line" ) ),
                                     CsvColumn::lineTypes( tr( "Type" ), std::move( types ) ) };
     if ( format != nullptr ) {
-        const auto tableColumns = CsvColumn::ofTable( *format );
+        // As the Table View lays its columns out for the Log Format.
+        const auto tableColumns = CsvColumn::ofTable( *format, columnLayoutOf( *format ) );
         columns.insert( columns.end(), tableColumns.begin(), tableColumns.end() );
     }
     return columns;

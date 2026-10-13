@@ -26,7 +26,44 @@
 #include <QDir>
 #include <QThread>
 
+#include <atomic>
+#include <utility>
+
 namespace logsquirl::plugins {
+
+// ── Conversions ─────────────────────────────────────────────────────────────
+
+/**
+ * What the worker thread of a Conversion shares with the host (#795): the
+ * control handed to convert_ex, whose host pointer leads back here, the
+ * cancellation flag, the latest progress reported and what the converter
+ * returned. Owned by the Conversion and by the worker thread, which may
+ * outlive the Conversion's record for a moment.
+ */
+struct PluginHost::ConversionControl : std::enable_shared_from_this<PluginHost::ConversionControl> {
+    ConversionControl( PluginHost* host, ConversionId conversionId )
+        : pluginHost( host )
+        , id( conversionId )
+    {
+        table.size = sizeof( LogSquirlConvertControl );
+        table.host = this;
+        table.report_progress = &PluginHost::hostReportProgress;
+        table.is_cancelled = &PluginHost::hostIsCancelled;
+    }
+
+    LogSquirlConvertControl table{};
+    PluginHost* pluginHost;
+    ConversionId id;
+    std::atomic<bool> cancelled{ false };
+    // The latest progress, as one pair, and whether a report of it is
+    // already queued to the host's thread: reports arriving faster than that
+    // thread takes them fold into the latest one.
+    std::mutex progressMutex{};
+    std::pair<std::uint64_t, std::uint64_t> progress{ 0, 0 };
+    std::atomic<bool> progressQueued{ false };
+    // What the converter returned, once its call has.
+    std::atomic<int> returnCode{ 0 };
+};
 
 // ── Construction / destruction ──────────────────────────────────────────────
 
@@ -135,6 +172,7 @@ QString PluginHost::loadPlugin( const QString& pluginId )
         new PluginContext{ std::move( loadResult.value() ), {}, {}, {}, nullptr, this } );
     ctx->hostApi = buildHostApi();
     ctx->answerContext = std::make_unique<QObject>();
+    ctx->loadSerial = ++loadsSoFar_;
 
     // Create plugin-private config directory, next to the user plugin
     // directory: beside the executable in a portable run (#602).
@@ -176,14 +214,20 @@ void PluginHost::unloadPlugin( const QString& pluginId )
         return;
     }
 
+    auto& context = *it->second;
+    // Nothing calls into the plugin from now on, not even from what its
+    // Conversions report as they are cancelled: the one under way is waited
+    // for, so the plugin is never shut down under its call (#795).
+    context.unloadPending = true;
+    cancelConversionsOf( context );
+
     // A call into the plugin is still on the stack, below the event loop
     // this unload came from: shutting the plugin down now would pull its
     // state from under that call, and taking its menu action away would
     // delete the action whose signal is being delivered. It goes once the
     // call has returned.
-    if ( it->second->callsRunning > 0 ) {
+    if ( context.callsRunning > 0 ) {
         LOG_INFO << "Unloading plugin " << pluginId << " once its running call has returned";
-        it->second->unloadPending = true;
         Q_EMIT pluginUnloaded( pluginId );
         return;
     }
@@ -200,6 +244,11 @@ void PluginHost::unloadNow( const QString& pluginId )
     }
 
     LOG_INFO << "Unloading plugin: " << pluginId;
+
+    // A Conversion still under way -- the host is going -- returns first, and
+    // nothing its report asks for starts.
+    it->second->unloadPending = true;
+    cancelConversionsOf( *it->second );
 
     // Stop any active data source stream
     if ( it->second->stream ) {
@@ -441,18 +490,217 @@ QStringList PluginHost::converterFileFilters() const
     return filters;
 }
 
-int PluginHost::runConverter( const QString& pluginId, const QString& inputPath,
-                              const QString& outputPath )
+ConversionId PluginHost::startConversion( const QString& pluginId, const QString& inputPath,
+                                          const QString& outputPath, ConversionReport report )
 {
     auto* ctx = loadedContext( pluginId );
     if ( !ctx || !ctx->handle.isConverter() ) {
-        return -1;
+        LOG_WARNING << "No converter plugin " << pluginId << " to convert " << inputPath;
+        return 0;
     }
-    int result = -1;
-    callIntoPlugin( *ctx, [ ctx, &result, &inputPath, &outputPath ] {
-        result = ctx->handle.convert( inputPath, outputPath );
-    } );
-    return result;
+    const auto id = ++conversionsSoFar_;
+    // Assigned one by one: GCC 13 warns of a designated initializer that
+    // leaves members to their defaults (-Wmissing-field-initializers).
+    auto conversion = std::make_unique<Conversion>();
+    conversion->id = id;
+    conversion->inputPath = inputPath;
+    conversion->outputPath = outputPath;
+    conversion->report = std::move( report );
+    ctx->queuedConversions.push_back( std::move( conversion ) );
+    startNextConversion( *ctx );
+    return id;
+}
+
+void PluginHost::cancelConversion( ConversionId id )
+{
+    for ( auto& [ pluginId, ctx ] : loaded_ ) {
+        if ( ctx->runningConversion && ctx->runningConversion->id == id ) {
+            // The call returns when it polls, or at its end; it is finished
+            // from the event loop then.
+            ctx->runningConversion->control->cancelled.store( true );
+            return;
+        }
+        auto& queued = ctx->queuedConversions;
+        for ( auto it = queued.begin(); it != queued.end(); ++it ) {
+            if ( ( *it )->id == id ) {
+                auto conversion = std::move( *it );
+                queued.erase( it );
+                reportCancelled( *conversion );
+                return;
+            }
+        }
+    }
+}
+
+void PluginHost::startNextConversion( PluginContext& context )
+{
+    if ( context.runningConversion || context.queuedConversions.empty() || context.unloadPending ) {
+        return;
+    }
+    context.runningConversion = std::move( context.queuedConversions.front() );
+    context.queuedConversions.pop_front();
+
+    auto& conversion = *context.runningConversion;
+    conversion.control = std::make_shared<ConversionControl>( this, conversion.id );
+    ++context.callsRunning;
+    LOG_INFO << "Converting " << conversion.inputPath << " with plugin "
+             << context.handle.metadata().id();
+
+    // The call runs on a thread of its own and reports its return to the
+    // host's thread. The handle stays: the context goes only after this
+    // thread was joined.
+    conversion.thread
+        = std::thread( [ handle = &context.handle, control = conversion.control,
+                         input = conversion.inputPath, output = conversion.outputPath ] {
+              const int rc = handle->hasConvertEx()
+                                 ? handle->convertEx( input, output, &control->table )
+                                 : handle->convert( input, output );
+              control->returnCode.store( rc );
+              auto* host = control->pluginHost;
+              QMetaObject::invokeMethod(
+                  host,
+                  [ host, id = control->id ] {
+                      // Finished from here unless an unload finished it meanwhile.
+                      if ( auto* converting = host->contextConverting( id ) ) {
+                          host->finishRunningConversion( *converting );
+                      }
+                  },
+                  Qt::QueuedConnection );
+          } );
+
+    if ( conversion.report.started ) {
+        conversion.report.started();
+    }
+}
+
+void PluginHost::finishRunningConversion( PluginContext& context )
+{
+    auto conversion = std::move( context.runningConversion );
+    if ( !conversion ) {
+        return;
+    }
+    if ( conversion->thread.joinable() ) {
+        conversion->thread.join();
+    }
+    --context.callsRunning;
+
+    const int rc = conversion->control->returnCode.load();
+    ConversionEnd end;
+    if ( conversion->control->cancelled.load() ) {
+        end = ConversionEnd{ .outcome = ConversionOutcome::Cancelled, .returnCode = rc };
+    }
+    else if ( rc == 0 ) {
+        end = ConversionEnd{ .outcome = ConversionOutcome::Succeeded, .returnCode = 0 };
+    }
+    else {
+        LOG_ERROR << "Converter plugin " << context.handle.metadata().id()
+                  << " failed with rc=" << rc << " converting " << conversion->inputPath;
+        end = ConversionEnd{ .outcome = ConversionOutcome::Failed, .returnCode = rc };
+    }
+
+    startNextConversion( context );
+
+    if ( context.callsRunning == 0 && context.unloadPending ) {
+        // As callIntoPlugin finishes a pending unload: from the event loop.
+        const auto pluginId = context.handle.metadata().id();
+        QMetaObject::invokeMethod(
+            this,
+            [ this, pluginId ] {
+                const auto it = loaded_.find( pluginId );
+                if ( it != loaded_.end() && it->second->unloadPending
+                     && it->second->callsRunning == 0 ) {
+                    unloadNow( pluginId );
+                }
+            },
+            Qt::QueuedConnection );
+    }
+
+    // Last: the report may do anything, even unload the plugin.
+    if ( conversion->report.finished ) {
+        conversion->report.finished( end );
+    }
+}
+
+void PluginHost::cancelConversionsOf( PluginContext& context )
+{
+    auto queued = std::move( context.queuedConversions );
+    context.queuedConversions.clear();
+    if ( context.runningConversion ) {
+        context.runningConversion->control->cancelled.store( true );
+        // Waits for the call: a convert_ex returns once it polls, a plain
+        // convert at its end. Its report comes before the queued ones'.
+        finishRunningConversion( context );
+    }
+    for ( auto& conversion : queued ) {
+        reportCancelled( *conversion );
+    }
+}
+
+void PluginHost::reportCancelled( Conversion& conversion )
+{
+    if ( conversion.report.finished ) {
+        conversion.report.finished(
+            ConversionEnd{ .outcome = ConversionOutcome::Cancelled, .returnCode = 0 } );
+    }
+}
+
+PluginHost::PluginContext* PluginHost::contextConverting( ConversionId id )
+{
+    for ( auto& [ pluginId, ctx ] : loaded_ ) {
+        if ( ctx->runningConversion && ctx->runningConversion->id == id ) {
+            return ctx.get();
+        }
+    }
+    return nullptr;
+}
+
+void PluginHost::reportConversionProgress( const std::shared_ptr<ConversionControl>& control )
+{
+    // Cleared before the values are read: a report arriving after the read
+    // queues a report of its own.
+    control->progressQueued.store( false );
+    const auto [ done, total ] = [ & ] {
+        const std::lock_guard<std::mutex> lock( control->progressMutex );
+        return control->progress;
+    }();
+    auto* ctx = contextConverting( control->id );
+    if ( !ctx || ctx->runningConversion->control != control ) {
+        return;
+    }
+    if ( ctx->runningConversion->report.progress ) {
+        ctx->runningConversion->report.progress( done, total );
+    }
+}
+
+void PluginHost::hostReportProgress( const LogSquirlConvertControl* control, uint64_t done,
+                                     uint64_t total )
+{
+    if ( !control || !control->host ) {
+        return;
+    }
+    auto* conversion = static_cast<ConversionControl*>( control->host );
+    {
+        const std::lock_guard<std::mutex> lock( conversion->progressMutex );
+        conversion->progress = { done, total };
+    }
+    if ( conversion->progressQueued.exchange( true ) ) {
+        return;
+    }
+    auto* host = conversion->pluginHost;
+    QMetaObject::invokeMethod(
+        host,
+        [ host, shared = conversion->shared_from_this() ] {
+            host->reportConversionProgress( shared );
+        },
+        Qt::QueuedConnection );
+}
+
+int PluginHost::hostIsCancelled( const LogSquirlConvertControl* control )
+{
+    if ( !control || !control->host ) {
+        return 0;
+    }
+    return static_cast<ConversionControl*>( control->host )->cancelled.load() ? 1 : 0;
 }
 
 // ── Host API construction ───────────────────────────────────────────────────
@@ -586,9 +834,32 @@ void PluginHost::hostOpenFile( void* handle, const char* filePath, int follow )
     if ( !ctx || !ctx->host ) {
         return;
     }
-    if ( ctx->host->openFileCallback_ ) {
-        ctx->host->openFileCallback_( QString::fromUtf8( filePath ), follow != 0 );
+    auto* host = ctx->host;
+    if ( QThread::currentThread() == host->thread() ) {
+        if ( host->openFileCallback_ ) {
+            host->openFileCallback_( QString::fromUtf8( filePath ), follow != 0 );
+        }
+        return;
     }
+    // A plugin may call from a thread of its own; the file opens in a tab,
+    // on the UI thread only. The plugin may be unloaded before the queued
+    // call runs, and loaded again: then nothing of that load is opened any
+    // more.
+    QMetaObject::invokeMethod(
+        host,
+        [ host, loadSerial = ctx->loadSerial, pluginId = ctx->handle.metadata().id(),
+          path = QString::fromUtf8( filePath ), following = follow != 0 ] {
+            const auto* loaded = host->loadedContext( pluginId );
+            if ( !loaded || loaded->loadSerial != loadSerial ) {
+                LOG_INFO << "Plugin " << pluginId
+                         << " was unloaded; dropping its queued open_file call";
+                return;
+            }
+            if ( host->openFileCallback_ ) {
+                host->openFileCallback_( path, following );
+            }
+        },
+        Qt::QueuedConnection );
 }
 
 auto PluginHost::uiPortFor( void* handle ) -> std::pair<PluginUiPort*, QString>
@@ -672,7 +943,19 @@ void PluginHost::hostUnregisterFooterWidget( void* handle, void* qwidgetPtr )
 const char* PluginHost::hostGetActiveFilePath( void* handle )
 {
     auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->host || !ctx->host->activeFilePathCallback_ ) {
+    if ( !ctx || !ctx->host ) {
+        return "";
+    }
+    // Checked first: the tab in front is only read, and the cache only
+    // written, on the UI thread. Not dispatched with a blocking call: a
+    // worker waiting for the UI thread while it waits for the worker would
+    // deadlock. The answer is the one without a file.
+    if ( QThread::currentThread() != ctx->host->thread() ) {
+        LOG_WARNING << "Plugin " << ctx->handle.metadata().id()
+                    << " asked for the active file path off the UI thread; none answered";
+        return "";
+    }
+    if ( !ctx->host->activeFilePathCallback_ ) {
         return "";
     }
     // Cache the UTF-8 bytes so the returned pointer remains valid

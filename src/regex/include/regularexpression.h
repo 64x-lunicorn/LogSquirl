@@ -31,6 +31,8 @@
 #include "containers.h"
 #include "regexpengine.h"
 
+#include "fieldreader.h"
+#include "fieldtermmatcher.h"
 #include "hsregularexpression.h"
 #include "regularexpressionpattern.h"
 
@@ -57,7 +59,17 @@ private:
     RegexpEngine engine_;
 
     QString expression_;
+    // Every sub-pattern of a logical combination in the order written, the
+    // Field Terms included: what the combination's evaluator reads.
     logsquirl::vector<RegularExpressionPattern> subPatterns_;
+    // The sub-patterns matched on the whole line: all of them for a
+    // combination without Field Terms.
+    logsquirl::vector<RegularExpressionPattern> lineSubPatterns_;
+    // The Field Terms (#798), compiled, and for each sub-pattern -1 for a
+    // plain one or its index into fieldTerms_. Empty without Field Terms.
+    std::vector<CompiledFieldTerm> fieldTerms_;
+    std::vector<int> fieldOfSubPattern_;
+    std::shared_ptr<const FieldReader> fieldReader_;
 
     bool isValid_ = false;
     QString errorString_;
@@ -71,9 +83,30 @@ private:
 };
 
 // The sub-patterns of a logical combination, in the order written, read the
-// way the Search reads them: unescaped, the negated ones included. Empty when
-// the pattern is no valid logical combination.
+// way the Search reads them: unescaped, the negated ones included, a Field
+// Term's without the field it names. Empty when the pattern is no valid
+// logical combination.
 QStringList logicalSubPatterns( const QString& combination );
+
+// The field each sub-pattern of a logical combination names (#798), in the
+// order written: empty for a sub-pattern that is no Field Term. Empty when
+// the pattern is no valid logical combination.
+QStringList logicalFieldTerms( const QString& combination );
+
+// Whether a logical combination has a Field Term: false for a pattern that
+// is no valid logical combination.
+bool hasFieldTerms( const QString& combination );
+
+// Whether a character may be part of a Field Term's field name: anything
+// but a quote, a parenthesis, an operator character or whitespace, which
+// separate the terms of a combination.
+bool isFieldNameChar( QChar character );
+// Whether a field can be named in a Field Term: a name of such characters.
+bool isFieldName( const QString& name );
+
+// The Field Term written for a logical combination: the field's name, a
+// colon and the sub-pattern as quoteSubPattern() writes it.
+QString writeFieldTerm( const QString& field, const QString& subPattern );
 
 // The sub-pattern written for a logical combination, the way
 // logicalSubPatterns() and the Search read it back: enclosed in quotes, a
@@ -113,6 +146,9 @@ public:
     logsquirl::vector<bool> subPatternMatches( std::string_view line ) const;
 
 private:
+    // The engine's matcher, or one with Field Terms around it (#798).
+    static MatcherVariant createMatcherVariant( const RegularExpression& expression );
+
     using MatchFunc
         = bool ( * )( const MatchedPatterns& matched, BooleanExpressionEvaluator* evaluator );
     MatchFunc hasMatchImpl_;
@@ -156,7 +192,7 @@ public:
     match( std::string_view line ) const;
 
 private:
-    MatcherVariant matcher_;
+    LineMatcherVariant matcher_;
     logsquirl::vector<RegularExpressionPattern> patterns_;
 };
 

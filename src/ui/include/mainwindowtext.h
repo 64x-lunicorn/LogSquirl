@@ -80,6 +80,8 @@ extern const char* reloadText;
 extern const char* wrapText;
 extern const char* showValueNamesText;
 extern const char* showValueNamesStatusTip;
+extern const char* matchesOnlyText;
+extern const char* matchesOnlyStatusTip;
 extern const char* stopText;
 extern const char* optionsText;
 extern const char* optionsStatusTip;

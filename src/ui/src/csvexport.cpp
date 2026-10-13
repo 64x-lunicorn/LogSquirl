@@ -22,6 +22,7 @@
 #include <QHash>
 #include <QStringList>
 
+#include "columnlayout.h"
 #include "csv.h"
 #include "logformatdefinition.h"
 #include "tablerowcells.h"
@@ -56,13 +57,19 @@ CsvColumn CsvColumn::lineTypes( const QString& name,
     return column;
 }
 
-std::vector<CsvColumn> CsvColumn::ofTable( const LogFormatDefinition& format )
+std::vector<CsvColumn> CsvColumn::ofTable( const LogFormatDefinition& format,
+                                           const ColumnLayout& layout )
 {
     const TableRowCells cells( format );
+    const auto shownAs = layout.columnCount() == cells.columnCount()
+                             ? layout
+                             : ColumnLayout::defaultsFor( cells.columnCount() );
     std::vector<CsvColumn> columns;
-    columns.reserve( static_cast<size_t>( cells.columnCount() ) );
-    for ( int column = 0; column < cells.columnCount(); ++column ) {
-        columns.push_back( ofTable( column, cells.columnName( column ) ) );
+    columns.reserve( shownAs.order.size() );
+    for ( const auto column : shownAs.order ) {
+        auto csvColumn = ofTable( column, cells.columnName( column ) );
+        csvColumn.hidden = shownAs.isHidden( column );
+        columns.push_back( std::move( csvColumn ) );
     }
     return columns;
 }
@@ -93,7 +100,8 @@ std::vector<CsvExportDialog::Column> csvDialogColumns( const std::vector<CsvColu
     std::vector<CsvExportDialog::Column> listed;
     listed.reserve( offered.size() );
     for ( size_t index = 0; index < offered.size(); ++index ) {
-        listed.push_back( { offered[ index ].name, index >= unchecked } );
+        listed.push_back(
+            { offered[ index ].name, index >= unchecked && !offered[ index ].hidden } );
     }
     return listed;
 }

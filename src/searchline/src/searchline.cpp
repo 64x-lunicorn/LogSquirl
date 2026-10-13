@@ -19,6 +19,8 @@
 
 #include "searchline.h"
 
+#include <algorithm>
+
 #include <QCoreApplication>
 #include <QRegularExpression>
 
@@ -139,16 +141,42 @@ bool SearchLine::replace( const QString& word )
 
 bool SearchLine::useFilters( const QList<PredefinedFilter>& filters )
 {
+    // A filter with Field Terms is a logical combination, and so is the
+    // pattern that uses it (#798).
+    const auto withFieldTerms
+        = []( const PredefinedFilter& filter ) { return hasFieldTerms( filter.pattern ); };
+    const bool anyFieldTerms = std::any_of( filters.cbegin(), filters.cend(), withFieldTerms );
+
     // Several filters are alternatives, which a fixed string has not (#408).
-    if ( isPlain() && filters.size() > 1 ) {
+    if ( ( isPlain() && filters.size() > 1 ) || anyFieldTerms ) {
         flags_.booleanCombination = true;
     }
 
     QString pattern;
     for ( const auto& filter : filters ) {
-        combine( pattern, escaped( filter.pattern, filter.useRegex ) );
+        if ( withFieldTerms( filter ) ) {
+            // As written: its sub-patterns are read as the buttons say.
+            combine( pattern, QChar( '(' ) + filter.pattern + QChar( ')' ) );
+        }
+        else {
+            combine( pattern, escaped( filter.pattern, filter.useRegex ) );
+        }
     }
     pattern_ = std::move( pattern );
+    return autoRun_;
+}
+
+bool SearchLine::addFieldTerm( const QString& field, const QString& value )
+{
+    switchToLogicalCombination();
+
+    if ( !pattern_.isEmpty() ) {
+        pattern_.append( " and " );
+    }
+    // The value is escaped for a regexp as the button says, and written as a
+    // Field Term's sub-pattern.
+    pattern_.append(
+        writeFieldTerm( field, flags_.useRegexp ? QRegularExpression::escape( value ) : value ) );
     return autoRun_;
 }
 

@@ -22,10 +22,15 @@
 #include "fake_log_data.h"
 #include "logformatdefinition.h"
 #include "logformattablemodel.h"
+#include "rowmapping.h"
 
 #include <QAbstractItemModelTester>
 #include <QApplication>
 #include <QFontMetrics>
+#include <QSignalSpy>
+
+#include <memory>
+#include <vector>
 
 namespace {
 
@@ -332,6 +337,98 @@ SCENARIO( "LogFormatTableModel passes Qt model tester", "[logformat][tablemodel]
             QAbstractItemModelTester tester(
                 &model, QAbstractItemModelTester::FailureReportingMode::Fatal );
             REQUIRE( true );
+        }
+    }
+}
+
+SCENARIO( "The table model takes a Sort Order's Row Mapping and merges Rows into it",
+          "[logformat][tablemodel][sortorder]" )
+{
+    auto format = makeTestFormat();
+    FakeLogData logData;
+    logData.setLines( {
+        "Jan  1 00:00:01 hostC first message",
+        "Jan  1 00:00:02 hostA second message",
+        "Jan  1 00:00:03 hostB third message",
+    } );
+    LogFormatTableModel model( format, &logData );
+    model.setLineCount( 3 );
+    QAbstractItemModelTester tester( &model,
+                                     QAbstractItemModelTester::FailureReportingMode::Fatal );
+    const int host = 3;
+    REQUIRE( model.headerData( host, Qt::Horizontal ).toString() == "host" );
+    REQUIRE( model.index( 0, host ).data().toString() == "hostC" );
+
+    GIVEN( "the Rows mapped onto Log Lines 1, 2, 0" )
+    {
+        QSignalSpy reset( &model, &QAbstractItemModel::modelReset );
+        model.setRowMapping( std::make_shared<SortedRows>( std::vector<uint32_t>{ 1, 2, 0 } ) );
+
+        THEN( "the views were reset, and each Row shows its Log Line" )
+        {
+            REQUIRE( reset.count() == 1 );
+            REQUIRE( model.rowCount() == 3 );
+            REQUIRE( model.index( 0, host ).data().toString() == "hostA" );
+            REQUIRE( model.index( 1, host ).data().toString() == "hostB" );
+            REQUIRE( model.index( 2, host ).data().toString() == "hostC" );
+            REQUIRE( model.rowMapping().rowOf( 0_lnum ) == 2 );
+        }
+
+        WHEN( "two appended Log Lines are merged in, one at the top and one at the end" )
+        {
+            logData.setLines( {
+                "Jan  1 00:00:01 hostC first message",
+                "Jan  1 00:00:02 hostA second message",
+                "Jan  1 00:00:03 hostB third message",
+                "Jan  1 00:00:04 host0 fourth message",
+                "Jan  1 00:00:05 hostZ fifth message",
+            } );
+            model.setLineCount( 5 );
+            REQUIRE( model.rowCount() == 3 );
+            QSignalSpy inserted( &model, &QAbstractItemModel::rowsInserted );
+            model.mergeRows( std::make_shared<SortedRows>( std::vector<uint32_t>{ 3, 1, 2, 0, 4 } ),
+                             { RowRun{ 0, 1 }, RowRun{ 4, 1 } } );
+
+            THEN( "the views were told of each run inserted, not reset, and the Rows show the "
+                  "Log Lines in the new order" )
+            {
+                REQUIRE( reset.count() == 1 );
+                REQUIRE( inserted.count() == 2 );
+                REQUIRE( inserted[ 0 ][ 1 ].toInt() == 0 );
+                REQUIRE( inserted[ 1 ][ 1 ].toInt() == 4 );
+                REQUIRE( model.rowCount() == 5 );
+                REQUIRE( model.index( 0, host ).data().toString() == "host0" );
+                REQUIRE( model.index( 3, host ).data().toString() == "hostC" );
+                REQUIRE( model.index( 4, host ).data().toString() == "hostZ" );
+            }
+        }
+
+        WHEN( "the Rows are mapped back onto their Log Lines" )
+        {
+            model.setRowMapping( std::make_shared<OneRowPerLogLine>() );
+
+            THEN( "they are in Log Line order again" )
+            {
+                REQUIRE( reset.count() == 2 );
+                REQUIRE( model.index( 0, host ).data().toString() == "hostC" );
+            }
+        }
+    }
+
+    GIVEN( "a note on a header" )
+    {
+        QSignalSpy headerChanged( &model, &QAbstractItemModel::headerDataChanged );
+        model.setHeaderNote( host, QStringLiteral( "host (sorting 40%)" ) );
+
+        THEN( "the header reads the note, the name stays known, and dropping the note shows "
+              "the name again" )
+        {
+            REQUIRE( headerChanged.count() == 1 );
+            REQUIRE( model.headerData( host, Qt::Horizontal ).toString() == "host (sorting 40%)" );
+            REQUIRE( model.columnName( host ) == "host" );
+            model.setHeaderNote( -1, std::nullopt );
+            REQUIRE( headerChanged.count() == 2 );
+            REQUIRE( model.headerData( host, Qt::Horizontal ).toString() == "host" );
         }
     }
 }

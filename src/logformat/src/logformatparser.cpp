@@ -364,20 +364,31 @@ static bool parseSingleFormat( const QString& name, const QJsonObject& obj,
 
 QVector<LogFormatDefinition> LogFormatParser::parseJsonString( const char* jsonString )
 {
-    QVector<LogFormatDefinition> results;
+    if ( !jsonString ) {
+        return {};
+    }
+    return parseJsonText( QByteArray( jsonString ) ).value_or( QVector<LogFormatDefinition>{} );
+}
 
-    if ( !jsonString || jsonString[ 0 ] == '\0' ) {
-        return results;
+std::expected<QVector<LogFormatDefinition>, QString>
+LogFormatParser::parseJsonText( const QByteArray& text )
+{
+    if ( text.isEmpty() ) {
+        return std::unexpected( QStringLiteral( "the file is empty" ) );
     }
 
     QJsonParseError error;
-    auto doc = QJsonDocument::fromJson( QByteArray( jsonString ), &error );
-
-    if ( error.error != QJsonParseError::NoError || !doc.isObject() ) {
-        return results;
+    auto doc = QJsonDocument::fromJson( text, &error );
+    if ( error.error != QJsonParseError::NoError ) {
+        return std::unexpected( QStringLiteral( "JSON parse error at offset %1: %2" )
+                                    .arg( error.offset )
+                                    .arg( error.errorString() ) );
+    }
+    if ( !doc.isObject() ) {
+        return std::unexpected( QStringLiteral( "the JSON root is not an object" ) );
     }
 
-    const QByteArray text( jsonString );
+    QVector<LogFormatDefinition> results;
     const auto rootObj = doc.object();
     for ( auto it = rootObj.begin(); it != rootObj.end(); ++it ) {
         if ( isMetaKey( it.key() ) ) {

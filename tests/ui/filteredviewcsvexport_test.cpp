@@ -21,6 +21,7 @@
 // of the recognized Log Format, with the values the Table View shows for them
 // (#577).
 
+#include "columnlayout.h"
 #include "configuration.h"
 #include "csv.h"
 #include "filteredview.h"
@@ -32,6 +33,7 @@
 #include "regularexpressionpattern.h"
 #include "shortcuts.h"
 #include "shown_widget.h"
+#include "tablerowcells.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
@@ -368,6 +370,88 @@ SCENARIO( "The Filtered View exports the Matches of a Search as the Table View s
                 REQUIRE( withoutContext == Lines{ "Line,Type", "2,Match" } );
                 REQUIRE( withContext == Lines{ "Line,Type", "2,Match", "3,Context", "5,Context" } );
             }
+        }
+    }
+}
+
+namespace {
+
+// A Column Layout kept for a Log Format for as long as this lives, as the
+// Table View keeps one: the body first, the level hidden.
+struct KeptLayout {
+    explicit KeptLayout( const LogFormatDefinition& layoutFormat )
+        : format( layoutFormat )
+    {
+        const auto columnNames = TableRowCells( format ).columnNames();
+        REQUIRE( columnNames == QStringList{ "timestamp", "Δt", "level", "body" } );
+        auto layout = ColumnLayout::defaultsFor( static_cast<int>( columnNames.size() ) );
+        layout.order = { 3, 0, 1, 2 };
+        layout.hidden[ 2 ] = true;
+        storeColumnLayout( format, columnNames, layout );
+    }
+    ~KeptLayout()
+    {
+        dropColumnLayout( format );
+    }
+    KeptLayout( const KeptLayout& ) = delete;
+    KeptLayout& operator=( const KeptLayout& ) = delete;
+
+    const LogFormatDefinition& format;
+};
+
+} // namespace
+
+SCENARIO( "The Filtered View's CSV export follows the Column Layout kept for the Log Format",
+          "[filteredview][csvexport][columnlayout]" )
+{
+    ExportLogFile logFile;
+    QuickFindPattern quickFindPattern;
+    ExportingFilteredView view( logFile.filteredData.get(), &quickFindPattern, false );
+    view.resize( 400, 200 );
+    showUntilExposed( view );
+    view.registerShortcuts();
+    const auto format = std::make_shared<const LogFormatDefinition>( makeFormat() );
+    view.setRecognizedFormat(
+        [ format ]() { return FilteredView::RecognizedFormat{ format, {}, {} }; } );
+    view.setVisibility( LogFilteredData::VisibilityFlags::Matches
+                        | LogFilteredData::VisibilityFlags::Marks );
+    const KeptLayout kept( *format );
+
+    const QTemporaryDir dir;
+    REQUIRE( dir.isValid() );
+
+    WHEN( "the dialog is set up" )
+    {
+        const auto setup = view.csvExportSetup();
+
+        THEN( "the Table View's columns are listed in the shown order, the hidden level "
+              "unchecked" )
+        {
+            QStringList names;
+            std::vector<bool> checked;
+            for ( const auto& column : setup.columns ) {
+                names << column.name;
+                checked.push_back( column.checked );
+            }
+            REQUIRE( names == QStringList{ "Line", "Type", "body", "timestamp", "Δt", "level" } );
+            REQUIRE( checked == std::vector<bool>{ false, false, true, true, true, false } );
+        }
+    }
+
+    WHEN( "the hidden level column is checked and exported with the body" )
+    {
+        CsvExportDialog::Choices choices;
+        choices.fileName = dir.filePath( "export.csv" );
+        choices.rowOptions = { false };
+        choices.header = true;
+        choices.columns = { 5, 2 };
+        view.exportCsvTo( choices );
+
+        THEN( "the file holds the level of every Match and Mark" )
+        {
+            REQUIRE( csvLinesOf( choices.fileName )
+                     == Lines{ "level,body", R"(ERROR,"disk ""sda"" full")", "ERROR,failed; again",
+                               "INFO,idle", "ERROR,last" } );
         }
     }
 }

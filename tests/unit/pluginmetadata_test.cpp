@@ -22,6 +22,10 @@
 #include "pluginmetadata.h"
 
 #include <QByteArray>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTemporaryDir>
 
 using logsquirl::plugins::PluginMetadata;
 
@@ -272,6 +276,143 @@ SCENARIO( "PluginMetadata::libraryPath combines directory and library", "[plugin
         THEN( "libraryPath is empty when no directory is set" )
         {
             REQUIRE( result->libraryPath().isEmpty() );
+        }
+    }
+}
+
+// A plugin ships Log Formats by naming their files in its manifest (#793):
+// paths relative to the plugin directory, which they may not leave.
+SCENARIO( "A plugin manifest names the Log Format files the plugin ships", "[pluginmetadata]" )
+{
+    GIVEN( "a manifest without the formats key" )
+    {
+        const auto result = PluginMetadata::fromJson( validManifest(), "test" );
+        REQUIRE( result.has_value() );
+
+        THEN( "the plugin ships no Log Format" )
+        {
+            REQUIRE( result->formats().isEmpty() );
+            REQUIRE( result->formatPaths().isEmpty() );
+        }
+    }
+
+    GIVEN( "a manifest naming two Log Format files" )
+    {
+        const char* json = R"({
+            "id": "com.example.test",
+            "name": "Test Plugin",
+            "version": "1.0.0",
+            "type": "ui",
+            "library": "libtest.dylib",
+            "api_version": 1,
+            "formats": [ "formats/first.json", "second.json" ]
+        })";
+
+        WHEN( "it is parsed from text" )
+        {
+            const auto result = PluginMetadata::fromJson( QByteArray( json ), "test" );
+            REQUIRE( result.has_value() );
+
+            THEN( "the files are kept in the manifest's order, relative to the plugin directory" )
+            {
+                REQUIRE( result->formats() == QStringList{ "formats/first.json", "second.json" } );
+            }
+
+            THEN( "without a plugin directory there is no absolute path to them" )
+            {
+                REQUIRE( result->formatPaths().isEmpty() );
+            }
+        }
+
+        WHEN( "it is read from a plugin directory" )
+        {
+            QTemporaryDir pluginDir;
+            REQUIRE( pluginDir.isValid() );
+            const auto manifestPath = QDir( pluginDir.path() ).filePath( "plugin.json" );
+            {
+                QFile manifest( manifestPath );
+                REQUIRE( manifest.open( QIODevice::WriteOnly ) );
+                manifest.write( json );
+            }
+            const auto result = PluginMetadata::fromJsonFile( manifestPath );
+            REQUIRE( result.has_value() );
+
+            THEN( "the files are resolved against the plugin directory" )
+            {
+                const auto directory = QFileInfo( manifestPath ).absolutePath();
+                REQUIRE( result->formatPaths()
+                         == QStringList{ QDir( directory ).filePath( "formats/first.json" ),
+                                         QDir( directory ).filePath( "second.json" ) } );
+            }
+        }
+    }
+
+    GIVEN( "manifests whose formats key is not a list of paths inside the plugin directory" )
+    {
+        const auto manifestWithFormats = []( const char* formats ) {
+            return QStringLiteral( R"({
+                "id": "com.example.test",
+                "name": "Test Plugin",
+                "version": "1.0.0",
+                "type": "ui",
+                "library": "libtest.dylib",
+                "api_version": 1,
+                "formats": %1
+            })" )
+                .arg( formats )
+                .toUtf8();
+        };
+
+        THEN( "a formats key that is not a list is rejected" )
+        {
+            const auto result
+                = PluginMetadata::fromJson( manifestWithFormats( R"("formats/x.json")" ), "test" );
+            REQUIRE_FALSE( result.has_value() );
+            REQUIRE( result.error().contains( "formats" ) );
+        }
+
+        THEN( "an entry that is not a string is rejected" )
+        {
+            const auto result
+                = PluginMetadata::fromJson( manifestWithFormats( R"([ "x.json", 3 ])" ), "test" );
+            REQUIRE_FALSE( result.has_value() );
+            REQUIRE( result.error().contains( "formats" ) );
+        }
+
+        THEN( "an empty path is rejected" )
+        {
+            const auto result
+                = PluginMetadata::fromJson( manifestWithFormats( R"([ "" ])" ), "test" );
+            REQUIRE_FALSE( result.has_value() );
+            REQUIRE( result.error().contains( "formats" ) );
+        }
+
+        THEN( "a path that leaves the plugin directory is rejected" )
+        {
+            for ( const auto* formats :
+                  { R"([ "../x.json" ])", R"([ "formats/../../x.json" ])", R"([ ".." ])" } ) {
+                INFO( formats );
+                const auto result
+                    = PluginMetadata::fromJson( manifestWithFormats( formats ), "test" );
+                REQUIRE_FALSE( result.has_value() );
+                REQUIRE( result.error().contains( "leaves the plugin directory" ) );
+            }
+        }
+
+        THEN( "an absolute path is rejected" )
+        {
+            const auto result
+                = PluginMetadata::fromJson( manifestWithFormats( R"([ "/etc/x.json" ])" ), "test" );
+            REQUIRE_FALSE( result.has_value() );
+            REQUIRE( result.error().contains( "leaves the plugin directory" ) );
+        }
+
+        THEN( "a path that stays inside the plugin directory is kept as written" )
+        {
+            const auto result = PluginMetadata::fromJson(
+                manifestWithFormats( R"([ "formats/../x.json", "./y.json" ])" ), "test" );
+            REQUIRE( result.has_value() );
+            REQUIRE( result->formats() == QStringList{ "formats/../x.json", "./y.json" } );
         }
     }
 }

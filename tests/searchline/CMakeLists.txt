@@ -3,6 +3,7 @@
 add_executable(logsquirl_searchline_tests
     searchline_tests_main.cpp
     searchline_test.cpp
+    fieldterm_line_test.cpp
 )
 
 target_link_libraries(logsquirl_searchline_tests logsquirl_searchline Catch2::Catch2 test_utils)

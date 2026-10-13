@@ -19,27 +19,37 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "convert_probe.h"
 #include "logsquirl_plugin_api.h"
 #include "plugincatalog.h"
 #include "pluginhost.h"
 #include "pluginuiport.h"
+#include "test_utils.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QEvent>
+#include <QEventLoop>
 #include <QFile>
 #include <QLibrary>
 #include <QPointer>
 #include <QTemporaryDir>
+#include <QThread>
+#include <QTimer>
 
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <optional>
 #include <string>
 #include <thread>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
+using logsquirl::plugins::ConversionEnd;
+using logsquirl::plugins::ConversionOutcome;
+using logsquirl::plugins::ConversionReport;
 using logsquirl::plugins::PluginCallbackFn;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
@@ -627,6 +637,25 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
             }
         }
 
+        WHEN( "The plugin asks for the active file path off the UI thread" )
+        {
+            int asked = 0;
+            host.setActiveFilePathCallback( [ & ] {
+                ++asked;
+                return QStringLiteral( "/logs/current.log" );
+            } );
+            const char* path = nullptr;
+            std::thread( [ & ] { path = api->get_active_file_path( handle ); } ).join();
+
+            THEN( "It gets an empty string, as without a file, and the host's callback is "
+                  "not asked" )
+            {
+                REQUIRE( path != nullptr );
+                REQUIRE( QString::fromUtf8( path ).isEmpty() );
+                REQUIRE( asked == 0 );
+            }
+        }
+
         WHEN( "The plugin asks the host to open a file" )
         {
             QString openedPath;
@@ -641,6 +670,59 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
             {
                 REQUIRE( openedPath == "/logs/opened.log" );
                 REQUIRE( openedFollowing );
+            }
+        }
+
+        WHEN( "The plugin asks the host to open a file off the UI thread" )
+        {
+            // Written on the thread the callback runs on, read after the
+            // join or after the event loop turned: never at the same time.
+            int opened = 0;
+            QThread* openedOn = nullptr;
+            QString openedPath;
+            bool openedFollowing = false;
+            host.setOpenFileCallback( [ & ]( const QString& path, bool follow ) {
+                ++opened;
+                openedOn = QThread::currentThread();
+                openedPath = path;
+                openedFollowing = follow;
+            } );
+            std::thread( [ & ] { api->open_file( handle, "/logs/opened.log", 1 ); } ).join();
+
+            THEN( "The host's open-file callback runs on the host's thread once the event "
+                  "loop turns, with the path and the follow flag" )
+            {
+                REQUIRE( opened == 0 );
+
+                QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+                REQUIRE( opened == 1 );
+                REQUIRE( openedOn == host.thread() );
+                REQUIRE( openedPath == "/logs/opened.log" );
+                REQUIRE( openedFollowing );
+            }
+
+            AND_WHEN( "The plugin is unloaded before the event loop turns" )
+            {
+                host.unloadPlugin( ProbeId );
+                QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+                THEN( "The callback never runs" )
+                {
+                    REQUIRE( opened == 0 );
+                }
+            }
+
+            AND_WHEN( "The plugin is unloaded and loaded again before the event loop turns" )
+            {
+                host.unloadPlugin( ProbeId );
+                REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+                QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+                THEN( "The callback never runs: the call was the unloaded plugin's" )
+                {
+                    REQUIRE( opened == 0 );
+                }
             }
         }
 
@@ -1421,5 +1503,350 @@ SCENARIO( "A plugin goes to a Log Line and reads the selected Log Lines through 
 
         host.unloadAll();
         probe.library.unload();
+    }
+}
+
+// ── Conversions in the background (#795) ───────────────────────────────────
+
+namespace {
+
+/// Writes content into a new file at path.
+void writeInput( const QString& path, const QByteArray& content )
+{
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::WriteOnly ) );
+    file.write( content );
+}
+
+/// The whole of the file at path.
+QByteArray readAll( const QString& path )
+{
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::ReadOnly ) );
+    return file.readAll();
+}
+
+/// Turns the event loop for ms milliseconds.
+void turnFor( int ms )
+{
+    QEventLoop loop;
+    QTimer::singleShot( ms, &loop, &QEventLoop::quit );
+    loop.exec();
+}
+
+/// What a test heard of a Conversion; written on the host's thread only.
+struct ConversionHeard {
+    int started = 0;
+    std::vector<std::pair<std::uint64_t, std::uint64_t>> progress;
+    std::optional<ConversionEnd> end;
+    QThread* endedOn = nullptr;
+
+    ConversionReport report()
+    {
+        return ConversionReport{
+            .started = [ this ] { ++started; },
+            .progress = [ this ]( std::uint64_t done,
+                                  std::uint64_t total ) { progress.emplace_back( done, total ); },
+            .finished =
+                [ this ]( const ConversionEnd& ended ) {
+                    end = ended;
+                    endedOn = QThread::currentThread();
+                },
+        };
+    }
+
+    bool ended() const
+    {
+        return end.has_value();
+    }
+};
+
+using Progress = std::pair<std::uint64_t, std::uint64_t>;
+
+} // namespace
+
+SCENARIO( "The Plugin Host converts in the background, with progress and Cancel",
+          "[pluginhost][plugins][conversion]" )
+{
+    GIVEN( "A Plugin Host with a convert probe of kind \"ui\" loaded, and a file to convert" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installConvertProbe( pluginRoot.path() );
+        installPlainConvertProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        auto host = std::make_unique<PluginHost>( catalog );
+        host->setUiPort( &port );
+        REQUIRE( host->loadPlugin( ConvertProbeId ).isEmpty() );
+
+        ConvertProbe probe( QStringLiteral( LOGSQUIRL_CONVERT_PROBE_PATH ) );
+
+        QTemporaryDir files;
+        REQUIRE( files.isValid() );
+        const auto input = files.filePath( "capture.cvx" );
+        writeInput( input, "one\ntwo\nthree\n" );
+        const auto output = files.filePath( "capture.cvx.txt" );
+        const auto secondInput = files.filePath( "second.cvx" );
+        writeInput( secondInput, "four\n" );
+        const auto secondOutput = files.filePath( "second.cvx.txt" );
+
+        ConversionHeard heard;
+        ConversionHeard secondHeard;
+
+        WHEN( "A Conversion is started and the converter holds after its first line" )
+        {
+            // Counts how often the event loop turned meanwhile.
+            int ticks = 0;
+            QTimer ticker;
+            QObject::connect( &ticker, &QTimer::timeout, [ &ticks ] { ++ticks; } );
+            ticker.start( 1 );
+
+            const auto id = host->startConversion( ConvertProbeId, input, output, heard.report() );
+            REQUIRE( id != 0 );
+            REQUIRE( heard.started == 1 );
+            REQUIRE( waitUiState( [ & ] { return !heard.progress.empty(); }, 10000 ) );
+
+            THEN( "It started at once, the call runs on another thread while this one turns, "
+                  "and the progress reported arrives on the host's thread" )
+            {
+                REQUIRE( heard.progress.front() == Progress{ 1, 3 } );
+                REQUIRE( probe.running() == 1 );
+                REQUIRE_FALSE( heard.ended() );
+                REQUIRE( ticks > 0 );
+                REQUIRE( host->isLoaded( ConvertProbeId ) );
+            }
+
+            AND_WHEN( "The converter runs through" )
+            {
+                probe.openGate();
+
+                THEN( "The Conversion finishes successfully on the host's thread, with every "
+                      "line converted and the last progress reported" )
+                {
+                    REQUIRE( waitUiState( [ & ] { return heard.ended(); }, 10000 ) );
+                    REQUIRE( heard.end->outcome == ConversionOutcome::Succeeded );
+                    REQUIRE( heard.end->returnCode == 0 );
+                    REQUIRE( heard.endedOn == host->thread() );
+                    REQUIRE( heard.progress.back() == Progress{ 3, 3 } );
+                    REQUIRE( readAll( output )
+                             == "converted: one\nconverted: two\nconverted: three\n" );
+                    REQUIRE( probe.conversionsReturned() == 1 );
+                    REQUIRE( probe.running() == 0 );
+                }
+            }
+
+            AND_WHEN( "The Conversion is cancelled" )
+            {
+                host->cancelConversion( id );
+
+                THEN( "The converter hears it through is_cancelled, returns, and the Conversion "
+                      "finishes cancelled once the call has returned" )
+                {
+                    REQUIRE( waitUiState( [ & ] { return heard.ended(); }, 10000 ) );
+                    REQUIRE( heard.end->outcome == ConversionOutcome::Cancelled );
+                    REQUIRE( probe.cancellationsSeen() == 1 );
+                    REQUIRE( probe.conversionsReturned() == 1 );
+                    REQUIRE( probe.running() == 0 );
+                    REQUIRE( host->isLoaded( ConvertProbeId ) );
+                }
+            }
+
+            AND_WHEN( "A second Conversion of the same plugin is started meanwhile" )
+            {
+                const auto secondId = host->startConversion( ConvertProbeId, secondInput,
+                                                             secondOutput, secondHeard.report() );
+                REQUIRE( secondId != 0 );
+                REQUIRE( secondId != id );
+                turnFor( 100 );
+
+                THEN( "It waits its turn: one call into the plugin at a time, in the order "
+                      "started" )
+                {
+                    REQUIRE( secondHeard.started == 0 );
+                    REQUIRE( probe.conversionsStarted() == 1 );
+                    REQUIRE( probe.running() == 1 );
+
+                    probe.openGate();
+                    REQUIRE( waitUiState( [ & ] { return heard.ended() && secondHeard.ended(); },
+                                          10000 ) );
+                    REQUIRE( heard.end->outcome == ConversionOutcome::Succeeded );
+                    REQUIRE( secondHeard.started == 1 );
+                    REQUIRE( secondHeard.end->outcome == ConversionOutcome::Succeeded );
+                    REQUIRE( probe.mostRunningAtOnce() == 1 );
+                    REQUIRE( readAll( secondOutput ) == "converted: four\n" );
+                }
+
+                AND_WHEN( "The queued one is cancelled before its turn" )
+                {
+                    host->cancelConversion( secondId );
+
+                    THEN( "It finishes cancelled at once, without a call into the plugin, and "
+                          "the first one runs on" )
+                    {
+                        REQUIRE( secondHeard.ended() );
+                        REQUIRE( secondHeard.end->outcome == ConversionOutcome::Cancelled );
+                        REQUIRE( secondHeard.started == 0 );
+                        REQUIRE_FALSE( heard.ended() );
+
+                        probe.openGate();
+                        REQUIRE( waitUiState( [ & ] { return heard.ended(); }, 10000 ) );
+                        REQUIRE( heard.end->outcome == ConversionOutcome::Succeeded );
+                        REQUIRE( probe.conversionsStarted() == 1 );
+                    }
+                }
+            }
+
+            AND_WHEN( "The plugin is unloaded with that Conversion under way and another queued" )
+            {
+                REQUIRE( host->startConversion( ConvertProbeId, secondInput, secondOutput,
+                                                secondHeard.report() )
+                         != 0 );
+                host->unloadPlugin( ConvertProbeId );
+
+                THEN( "Both are cancelled, the running call had returned before the plugin was "
+                      "shut down, and nothing calls into the plugin any more" )
+                {
+                    REQUIRE( heard.ended() );
+                    REQUIRE( heard.end->outcome == ConversionOutcome::Cancelled );
+                    REQUIRE( secondHeard.ended() );
+                    REQUIRE( secondHeard.end->outcome == ConversionOutcome::Cancelled );
+                    REQUIRE( secondHeard.started == 0 );
+                    REQUIRE( probe.cancellationsSeen() == 1 );
+                    REQUIRE( probe.conversionsReturned() == 1 );
+                    REQUIRE( probe.conversionsStarted() == 1 );
+                    REQUIRE( probe.shutdownCalls() == 1 );
+                    REQUIRE_FALSE( host->isLoaded( ConvertProbeId ) );
+                    REQUIRE( host->loadedPluginIds().isEmpty() );
+
+                    // Whatever the worker posted before it returned changes nothing.
+                    QCoreApplication::sendPostedEvents( host.get(), QEvent::MetaCall );
+                    REQUIRE( probe.conversionsStarted() == 1 );
+                    REQUIRE( probe.shutdownCalls() == 1 );
+                }
+
+                AND_THEN( "Loaded again, the plugin converts as before" )
+                {
+                    REQUIRE( host->loadPlugin( ConvertProbeId ).isEmpty() );
+                    ConversionHeard again;
+                    probe.openGate();
+                    REQUIRE( host->startConversion( ConvertProbeId, secondInput, secondOutput,
+                                                    again.report() )
+                             != 0 );
+                    REQUIRE( again.started == 1 );
+                    REQUIRE( waitUiState( [ & ] { return again.ended(); }, 10000 ) );
+                    REQUIRE( again.end->outcome == ConversionOutcome::Succeeded );
+                    REQUIRE( readAll( secondOutput ) == "converted: four\n" );
+                }
+            }
+
+            AND_WHEN( "The Plugin Host goes with that Conversion under way" )
+            {
+                host.reset();
+
+                THEN( "It cancelled the Conversion and waited for the call to return" )
+                {
+                    REQUIRE( heard.ended() );
+                    REQUIRE( heard.end->outcome == ConversionOutcome::Cancelled );
+                    REQUIRE( probe.cancellationsSeen() == 1 );
+                    REQUIRE( probe.running() == 0 );
+                    REQUIRE( probe.shutdownCalls() == 1 );
+                }
+            }
+        }
+
+        WHEN( "The converter fails" )
+        {
+            probe.openGate();
+            const auto failing = files.filePath( "failing.cvx" );
+            writeInput( failing, "fail\n" );
+            REQUIRE( host->startConversion( ConvertProbeId, failing, output, heard.report() )
+                     != 0 );
+
+            THEN( "The Conversion finishes failed with what the converter returned" )
+            {
+                REQUIRE( waitUiState( [ & ] { return heard.ended(); }, 10000 ) );
+                REQUIRE( heard.end->outcome == ConversionOutcome::Failed );
+                REQUIRE( heard.end->returnCode == 3 );
+            }
+        }
+
+        WHEN( "Conversions of two plugins are started" )
+        {
+            REQUIRE( host->loadPlugin( PlainConvertProbeId ).isEmpty() );
+            ConvertProbe plain( QStringLiteral( LOGSQUIRL_CONVERT_PROBE_PLAIN_PATH ) );
+            const auto plainInput = files.filePath( "capture.cvxplain" );
+            writeInput( plainInput, "five\nsix\n" );
+            const auto plainOutput = files.filePath( "capture.cvxplain.txt" );
+
+            REQUIRE( host->startConversion( ConvertProbeId, input, output, heard.report() ) != 0 );
+            const auto plainId = host->startConversion( PlainConvertProbeId, plainInput,
+                                                        plainOutput, secondHeard.report() );
+            REQUIRE( plainId != 0 );
+            REQUIRE( waitUiState( [ & ] { return probe.running() == 1 && plain.running() == 1; },
+                                  10000 ) );
+
+            THEN( "They run at the same time" )
+            {
+                REQUIRE( secondHeard.started == 1 );
+                REQUIRE_FALSE( heard.ended() );
+                REQUIRE_FALSE( secondHeard.ended() );
+
+                probe.openGate();
+                plain.openGate();
+                REQUIRE(
+                    waitUiState( [ & ] { return heard.ended() && secondHeard.ended(); }, 10000 ) );
+                REQUIRE( heard.end->outcome == ConversionOutcome::Succeeded );
+                REQUIRE( secondHeard.end->outcome == ConversionOutcome::Succeeded );
+                REQUIRE( readAll( plainOutput ) == "converted: five\nconverted: six\n" );
+                // A plain convert reports no progress.
+                REQUIRE( secondHeard.progress.empty() );
+            }
+
+            AND_WHEN( "The plain one, which cannot hear a cancellation, is cancelled" )
+            {
+                host->cancelConversion( plainId );
+                plain.openGate();
+                probe.openGate();
+
+                THEN( "Its result is discarded when the call returns: the Conversion finishes "
+                      "cancelled" )
+                {
+                    REQUIRE( waitUiState( [ & ] { return heard.ended() && secondHeard.ended(); },
+                                          10000 ) );
+                    REQUIRE( secondHeard.end->outcome == ConversionOutcome::Cancelled );
+                    REQUIRE( plain.conversionsReturned() == 1 );
+                    REQUIRE( heard.end->outcome == ConversionOutcome::Succeeded );
+                }
+            }
+        }
+
+        WHEN( "The host is asked which converter handles the probe's extension" )
+        {
+            THEN( "The probe is it, though its kind is \"ui\", and its filter is offered" )
+            {
+                REQUIRE( host->converterForExtension( "cvx" ) == ConvertProbeId );
+                REQUIRE( host->converterForExtension( ".CVX" ) == ConvertProbeId );
+                REQUIRE( host->converterFileFilters()
+                         == QStringList{ QStringLiteral( "Convert Probe (*.cvx)" ) } );
+            }
+        }
+
+        WHEN( "A Conversion is asked of a plugin that is not loaded" )
+        {
+            THEN( "None starts" )
+            {
+                REQUIRE( host->startConversion( PlainConvertProbeId, input, output, heard.report() )
+                         == 0 );
+                REQUIRE( heard.started == 0 );
+            }
+        }
+
+        if ( host ) {
+            host->unloadAll();
+        }
     }
 }

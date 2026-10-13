@@ -27,6 +27,7 @@ add_executable(logsquirl_tests
     encodingdetector_test.cpp
     fileassociations_test.cpp
     fileassociationchoice_test.cpp
+    fieldterm_test.cpp
     macfileassociations_test.cpp
     windowsfileassociations_test.cpp
     fileholder_test.cpp
@@ -58,6 +59,10 @@ add_executable(logsquirl_tests
     logformattablemodel_test.cpp
     logtablehighlightdelegate_test.cpp
     logtableview_test.cpp
+    logtableview_columnlayout_test.cpp
+    logtableview_sort_test.cpp
+    logtableview_matchesonly_test.cpp
+    logformatfieldreader_test.cpp
     logviewinteractions_test.cpp
     logviewpainting_test.cpp
     logviewvaluenames_test.cpp
@@ -88,6 +93,7 @@ add_executable(logsquirl_tests
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
     regexlab_test.cpp
+    rowmapping_test.cpp
     highlighter_colorline_test.cpp
     runnable_lambda_test.cpp
     searchdata_test.cpp
@@ -99,6 +105,7 @@ add_executable(logsquirl_tests
     tabbarstyle_test.cpp
     textencoding_test.cpp
     tableviewselection_test.cpp
+    tablesortkeys_test.cpp
     theme_test.cpp
     keptsearches_test.cpp
     latestresultrunner_test.cpp
@@ -190,6 +197,22 @@ foreach(variant IN ITEMS
       LOGSQUIRL_LOADER_FIXTURE_${variant}_PATH="$<TARGET_FILE:${fixture_target}>")
 endforeach()
 # A CONVERTER fixture that is otherwise complete also stands for a good plugin.
+
+# A converter plugin whose Conversion the tests hold, watch, cancel and unload
+# meanwhile (#795): once with convert_ex, as a plugin of kind "ui" that
+# converts all the same, and once with the plain convert only. The UI tests
+# load the same two libraries.
+foreach(probe_target IN ITEMS logsquirl_convert_probe logsquirl_convert_probe_plain)
+  add_library(${probe_target} MODULE plugins/convertprobe.cpp)
+  target_link_libraries(${probe_target} PRIVATE project_options project_warnings)
+  target_include_directories(${probe_target} PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+  set_target_properties(${probe_target} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+  add_dependencies(logsquirl_tests ${probe_target})
+endforeach()
+target_compile_definitions(logsquirl_convert_probe_plain PRIVATE CONVERT_PROBE_PLAIN=1)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_CONVERT_PROBE_PATH="$<TARGET_FILE:logsquirl_convert_probe>"
+    LOGSQUIRL_CONVERT_PROBE_PLAIN_PATH="$<TARGET_FILE:logsquirl_convert_probe_plain>")
 
 # On Windows a plugin finds the libraries it ships next to it. The fixture
 # imports a library that is built into a directory of its own, so neither the

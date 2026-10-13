@@ -32,9 +32,17 @@
 #include <QHBoxLayout>
 #include <QMessageBox>
 
+using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
 using logsquirl::plugins::PluginRepository;
+
+namespace {
+
+// The height of a card without Log Format warnings.
+constexpr int CardHeight = 135;
+
+} // namespace
 
 // ── PluginCard ────────────────────────────────────────────────────────
 
@@ -44,7 +52,8 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
 {
     setFrameShape( QFrame::StyledPanel );
     setLineWidth( 1 );
-    setFixedHeight( 135 );
+    setMinimumHeight( CardHeight );
+    setMaximumHeight( CardHeight );
     setObjectName( "PluginCard" );
     setStyleSheet( "#PluginCard { background: palette(base); border: 1px solid palette(mid); "
                    "border-radius: 8px; }" );
@@ -99,6 +108,17 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     descriptionLabel->setMaximumHeight( 40 );
     centerLayout->addWidget( descriptionLabel );
 
+    // What the Log Format Catalog could not read of the plugin's Log Format
+    // files (#793); hidden while there is nothing to say.
+    formatWarningLabel = new QLabel( this );
+    formatWarningLabel->setObjectName( "formatWarningLabel" );
+    formatWarningLabel->setWordWrap( true );
+    formatWarningLabel->setStyleSheet(
+        QStringLiteral( "font-size: 11px; color: %1;" )
+            .arg( Theme::active().color( ColorToken::StatusWarning ).name( QColor::HexRgb ) ) );
+    formatWarningLabel->setVisible( false );
+    centerLayout->addWidget( formatWarningLabel );
+
     centerLayout->addStretch();
     mainLayout->addLayout( centerLayout, 1 );
 
@@ -111,6 +131,7 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     rightLayout->addWidget( actionButton );
 
     toggleButton = new QPushButton( this );
+    toggleButton->setObjectName( "toggleButton" );
     toggleButton->setFixedWidth( 90 );
     rightLayout->addWidget( toggleButton );
 
@@ -153,6 +174,11 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
     licenseLabel->setText( plugin.license.isEmpty() ? QString()
                                                     : tr( "License: %1" ).arg( plugin.license ) );
     licenseLabel->setVisible( !plugin.license.isEmpty() );
+
+    // Log Format warnings: a card with some grows to hold them.
+    formatWarningLabel->setText( plugin.formatWarnings.join( QChar( '\n' ) ) );
+    formatWarningLabel->setVisible( !plugin.formatWarnings.isEmpty() );
+    setMaximumHeight( plugin.formatWarnings.isEmpty() ? CardHeight : QWIDGETSIZE_MAX );
 
     // Status badge
     statusBadge->setText( badgeText( plugin.state ) );
@@ -206,10 +232,11 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
 
 // ── PluginDialog ──────────────────────────────────────────────────────
 
-PluginDialog::PluginDialog( PluginCatalog& catalog, PluginHost& host, QWidget* parent )
+PluginDialog::PluginDialog( ApplicationPlugins& plugins, QWidget* parent )
     : QDialog( parent )
-    , catalog_( catalog )
-    , host_( host )
+    , plugins_( plugins )
+    , catalog_( plugins.catalog() )
+    , host_( plugins.host() )
 {
     setWindowTitle( tr( "Plugin Management" ) );
     resize( 750, 550 );
@@ -335,9 +362,15 @@ PluginDialog::PluginDialog( PluginCatalog& catalog, PluginHost& host, QWidget* p
 
     // A card's status badge is styled with Tokens when the card is built.
     Theme::whenApplied( this, [ this ] { rebuildCards(); } );
+}
 
-    // Start fetching the remote catalog
-    repository_.fetchCatalog();
+void PluginDialog::showEvent( QShowEvent* event )
+{
+    QDialog::showEvent( event );
+    if ( !catalogFetched_ ) {
+        catalogFetched_ = true;
+        repository_.fetchCatalog();
+    }
 }
 
 // ── Slots ─────────────────────────────────────────────────────────────
@@ -437,6 +470,9 @@ void PluginDialog::rebuildMergedList()
         const auto* handle = host_.pluginHandle( meta.id() );
         mp.loaded = handle != nullptr;
         mp.configurable = handle != nullptr && handle->hasConfigureUi();
+        if ( logFormatCatalog_ ) {
+            mp.formatWarnings = logFormatCatalog_->pluginFormatWarnings( meta.id() );
+        }
 
         if ( enabledIds.contains( meta.id() ) ) {
             mp.state = PluginState::Installed;
@@ -514,9 +550,11 @@ void PluginDialog::rebuildMergedList()
 
 void PluginDialog::rebuildCards()
 {
-    // Remove existing cards
+    // Remove existing cards. Detached at once, so that no card of the last
+    // build shows among the dialog's children until its deferred deletion.
     for ( auto& [ id, card ] : cards_ ) {
         cardLayout_->removeWidget( card );
+        card->setParent( nullptr );
         card->deleteLater();
     }
     cards_.clear();
@@ -684,6 +722,17 @@ void PluginDialog::togglePlugin( const QString& pluginId )
         }
     }
 
+    // Before the cards are rebuilt: the Log Formats the plugin ships come or
+    // go with it, and what the Catalog says of them shows on its card.
+    plugins_.notifyEnabledPluginsChanged();
+
+    rebuildMergedList();
+    rebuildCards();
+}
+
+void PluginDialog::showLogFormatWarnings( std::shared_ptr<const LogFormatCatalog> logFormatCatalog )
+{
+    logFormatCatalog_ = std::move( logFormatCatalog );
     rebuildMergedList();
     rebuildCards();
 }
@@ -758,6 +807,7 @@ bool PluginDialog::extractAndInstall( const QString& archivePath, const QString&
         enabled.append( pluginId );
         config.setEnabledPlugins( enabled );
         config.save();
+        plugins_.notifyEnabledPluginsChanged();
     }
 
     return true;

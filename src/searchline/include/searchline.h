@@ -101,7 +101,14 @@ public:
     bool replace( const QString& word );
     // The Predefined Filters, as alternatives, become the pattern; several of
     // them switch a pattern read as a fixed string to a logical combination.
+    // A filter with Field Terms (#798) is a logical combination of its own:
+    // it switches the combination on and joins as written, in parentheses.
     bool useFilters( const QList<PredefinedFilter>& filters );
+    // Narrows the Search to the Log Lines whose field has the value (#798):
+    // appends `and <field>:"<value>"`, the value escaped as the buttons say,
+    // and switches the logical combination on. True when the Search is to
+    // run now (auto-run).
+    bool addFieldTerm( const QString& field, const QString& value );
 
     // The Search the pattern and the buttons ask for.
     RegularExpressionPattern request() const;

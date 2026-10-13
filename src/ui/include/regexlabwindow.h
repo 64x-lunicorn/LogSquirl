@@ -258,6 +258,10 @@ private:
     regexlab::Result result_;
     // The pattern and options the result shown was evaluated with.
     RegularExpressionPattern evaluatedPattern_;
+    // Reads the fields the Field Terms name (#798), as the pattern set last
+    // carried it: the tab's Log Format. Every pattern read from the widgets
+    // carries it on.
+    std::shared_ptr<const FieldReader> fieldReader_;
     DecisionFor decisionFor_;
     bool hasPattern_ = false;
     bool isApplyOffered_ = false;

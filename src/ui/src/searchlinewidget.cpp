@@ -245,6 +245,12 @@ bool SearchLineWidget::exclude( const QString& word )
     return showEditedPattern( previous, searchLine_.exclude( word ) );
 }
 
+bool SearchLineWidget::addFieldTerm( const QString& field, const QString& value )
+{
+    const auto previous = searchLine_.flags();
+    return showEditedPattern( previous, searchLine_.addFieldTerm( field, value ) );
+}
+
 bool SearchLineWidget::replace( const QString& word )
 {
     const auto previous = searchLine_.flags();

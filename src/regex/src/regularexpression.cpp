@@ -88,8 +88,28 @@ QString unescapeSubPattern( const QString& written )
     return subPattern;
 }
 
-logsquirl::vector<RegularExpressionPattern>
-parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainText )
+// The field name written right before the quote at leftQuote, as
+// `Name:"..."`: where it starts, or leftQuote when there is none.
+qsizetype fieldNameStart( const QString& pattern, qsizetype leftQuote )
+{
+    if ( leftQuote < 1 || pattern[ leftQuote - 1 ] != QChar( ':' ) ) {
+        return leftQuote;
+    }
+    auto start = leftQuote - 1;
+    while ( start > 0 && isFieldNameChar( pattern[ start - 1 ] ) ) {
+        --start;
+    }
+    // A colon alone names no field: the quote is an ordinary sub-pattern's.
+    return start == leftQuote - 1 ? leftQuote : start;
+}
+
+// The sub-patterns of the combination in the order written, each replaced
+// in pattern by its id; fieldNames gets, per sub-pattern, the field a Field
+// Term names, or nothing (#798).
+logsquirl::vector<RegularExpressionPattern> parseBooleanExpressions( QString& pattern,
+                                                                     bool isCaseSensitive,
+                                                                     bool isPlainText,
+                                                                     QStringList& fieldNames )
 {
     if ( !pattern.contains( '"' ) ) {
         throw std::runtime_error( "Patterns must be enclosed in quotes" );
@@ -97,6 +117,7 @@ parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainTex
 
     logsquirl::vector<RegularExpressionPattern> subPatterns;
     subPatterns.reserve( static_cast<size_t>( pattern.size() ) );
+    fieldNames.clear();
 
     int currentIndex = 0;
     int leftQuote = -1;
@@ -139,7 +160,13 @@ parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainTex
 
         subPatterns.emplace_back( subPattern, isCaseSensitive, false, false, isPlainText );
 
-        pattern.replace( leftQuote, subPatternLength + 2,
+        // A Field Term is replaced with its field: `Name:"..."` as a whole.
+        const auto termStart = fieldNameStart( pattern, leftQuote );
+        fieldNames.append( termStart < leftQuote
+                               ? pattern.mid( termStart, leftQuote - 1 - termStart )
+                               : QString{} );
+
+        pattern.replace( termStart, rightQuote + 1 - termStart,
                          QString::fromStdString( subPatterns.back().id() ) );
 
         currentIndex = 0;
@@ -166,14 +193,53 @@ QStringList logicalSubPatterns( const QString& combination )
 {
     auto expression = combination;
     QStringList subPatterns;
+    QStringList fieldNames;
     try {
-        for ( const auto& subPattern : parseBooleanExpressions( expression, true, false ) ) {
+        for ( const auto& subPattern :
+              parseBooleanExpressions( expression, true, false, fieldNames ) ) {
             subPatterns.append( subPattern.pattern );
         }
     } catch ( const std::exception& ) {
         return {};
     }
     return subPatterns;
+}
+
+QStringList logicalFieldTerms( const QString& combination )
+{
+    auto expression = combination;
+    QStringList fieldNames;
+    try {
+        parseBooleanExpressions( expression, true, false, fieldNames );
+    } catch ( const std::exception& ) {
+        return {};
+    }
+    return fieldNames;
+}
+
+bool hasFieldTerms( const QString& combination )
+{
+    const auto fields = logicalFieldTerms( combination );
+    return std::any_of( fields.cbegin(), fields.cend(),
+                        []( const QString& field ) { return !field.isEmpty(); } );
+}
+
+bool isFieldNameChar( QChar character )
+{
+    static const QString Separators = QStringLiteral( "\"():!&|:" );
+    return !character.isSpace() && !Separators.contains( character );
+}
+
+bool isFieldName( const QString& name )
+{
+    return !name.isEmpty() && std::all_of( name.cbegin(), name.cend(), []( QChar character ) {
+        return isFieldNameChar( character );
+    } );
+}
+
+QString writeFieldTerm( const QString& field, const QString& subPattern )
+{
+    return field + QChar( ':' ) + quoteSubPattern( subPattern );
 }
 
 QString quoteSubPattern( const QString& subPattern )
@@ -276,8 +342,9 @@ RegularExpression::RegularExpression( const RegularExpressionPattern& pattern, R
 {
     try {
         if ( pattern.isBoolean ) {
+            QStringList fieldNames;
             subPatterns_ = parseBooleanExpressions( expression_, pattern.isCaseSensitive,
-                                                    pattern.isPlainText );
+                                                    pattern.isPlainText, fieldNames );
 
             BooleanExpressionEvaluator evaluator{ expression_.toStdString(), subPatterns_ };
             if ( !evaluator.isValid() ) {
@@ -285,18 +352,58 @@ RegularExpression::RegularExpression( const RegularExpressionPattern& pattern, R
                 errorString_ = QString::fromStdString( evaluator.errorString() );
                 return;
             }
+
+            // The Field Terms read their field through the reader the
+            // pattern carries; the other sub-patterns match the line.
+            for ( std::size_t index = 0; index < subPatterns_.size(); ++index ) {
+                const auto& fieldName = fieldNames[ static_cast<qsizetype>( index ) ];
+                if ( fieldName.isEmpty() ) {
+                    fieldOfSubPattern_.push_back( -1 );
+                    lineSubPatterns_.push_back( subPatterns_[ index ] );
+                    continue;
+                }
+                if ( !pattern.fieldReader ) {
+                    throw std::runtime_error(
+                        QStringLiteral( "No Log Format to read the field \"%1\" from" )
+                            .arg( fieldName )
+                            .toStdString() );
+                }
+                const auto field = pattern.fieldReader->fieldIndex( fieldName );
+                if ( !field.has_value() ) {
+                    throw std::runtime_error( QStringLiteral( "The Log Format has no field \"%1\"" )
+                                                  .arg( fieldName )
+                                                  .toStdString() );
+                }
+                auto regexp = static_cast<QRegularExpression>( subPatterns_[ index ] );
+                if ( !regexp.isValid() ) {
+                    throw std::runtime_error( regexp.errorString().toStdString() );
+                }
+                regexp.optimize();
+                fieldOfSubPattern_.push_back( static_cast<int>( fieldTerms_.size() ) );
+                fieldTerms_.push_back( CompiledFieldTerm{ *field, std::move( regexp ) } );
+            }
+            if ( !fieldTerms_.empty() ) {
+                fieldReader_ = pattern.fieldReader;
+            }
         }
         else {
             subPatterns_.emplace_back( pattern );
             expression_ = QString::fromStdString( subPatterns_.front().id() );
+            lineSubPatterns_ = subPatterns_;
         }
 
-        hsExpression_ = HsRegularExpression( subPatterns_ );
-        isValid_ = hsExpression_.isValid();
-        errorString_ = hsExpression_.errorString();
+        if ( fieldTerms_.empty() || !lineSubPatterns_.empty() ) {
+            hsExpression_ = HsRegularExpression( lineSubPatterns_ );
+            isValid_ = hsExpression_.isValid();
+            errorString_ = hsExpression_.errorString();
 
-        if ( engine_ != RegexpEngine::Vectorscan ) {
-            qtRegexps_ = compileRegularExpressions( subPatterns_ );
+            if ( engine_ != RegexpEngine::Vectorscan ) {
+                qtRegexps_ = compileRegularExpressions( lineSubPatterns_ );
+            }
+        }
+        else {
+            // Only Field Terms: nothing matches the whole line.
+            isValid_ = true;
         }
 
     } catch ( std::exception& err ) {
@@ -345,13 +452,33 @@ bool hasInverseCombinedMatch( const MatchedPatterns& matched,
 
 } // namespace matching
 
+MatcherVariant PatternMatcher::createMatcherVariant( const RegularExpression& expression )
+{
+    // The engine's matcher of the sub-patterns matched on the whole line.
+    const auto lines = [ &expression ]() {
+        return expression.engine_ == RegexpEngine::Vectorscan
+                   ? expression.hsExpression_.createMatcher()
+                   : LineMatcherVariant{ DefaultRegularExpressionMatcher( expression.qtRegexps_ ) };
+    };
+    if ( expression.fieldTerms_.empty() ) {
+        return widenMatcher( lines() );
+    }
+    // With Field Terms: the plain sub-patterns on the line, if there are any,
+    // the Field Terms on their fields.
+    std::optional<LineMatcherVariant> lineMatcher;
+    if ( !expression.lineSubPatterns_.empty() ) {
+        lineMatcher = lines();
+    }
+    return MatcherVariant{ FieldTermMatcher( std::move( lineMatcher ), expression.fieldReader_,
+                                             expression.fieldOfSubPattern_,
+                                             expression.fieldTerms_ ) };
+}
+
 PatternMatcher::PatternMatcher( const RegularExpression& expression )
     : isInverse_( expression.isInverse_ )
     , isBooleanCombination_( expression.isBooleanCombination_ )
     , mainPatternId_( expression.subPatterns_.front().id() )
-    , matcher_( expression.engine_ == RegexpEngine::Vectorscan
-                    ? expression.hsExpression_.createMatcher()
-                    : MatcherVariant{ DefaultRegularExpressionMatcher( expression.qtRegexps_ ) } )
+    , matcher_( createMatcherVariant( expression ) )
 {
 
     if ( expression.isBooleanCombination_ ) {

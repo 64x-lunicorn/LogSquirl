@@ -25,6 +25,8 @@
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
+#include "logformatfieldreader.h"
+#include "regularexpression.h"
 
 #include "textencoding.h"
 
@@ -294,7 +296,7 @@ void OpenLogFile::requestKeptSearch( const std::shared_ptr<LogFilteredData>& sea
         waitingKeptSearches_.push_back( WaitingSearch{ search, pattern } );
         return;
     }
-    search->request( pattern, searchLimits_.start, searchLimits_.end );
+    search->request( withFieldReader( pattern ), searchLimits_.start, searchLimits_.end );
 }
 
 void OpenLogFile::holdWaitingSearches()
@@ -325,7 +327,8 @@ void OpenLogFile::releaseHeldSearches()
             requestSearch( waiting.pattern );
         }
         else {
-            search->request( waiting.pattern, searchLimits_.start, searchLimits_.end );
+            search->request( withFieldReader( waiting.pattern ), searchLimits_.start,
+                             searchLimits_.end );
         }
     }
     if ( !heldBeforeLoad.empty() || !held.empty() ) {
@@ -400,7 +403,7 @@ SearchSessionState OpenLogFile::requestSearch( const RegularExpressionPattern& p
 
     // The Search Session validates the pattern itself; an invalid one goes to
     // InvalidPattern synchronously, so the state is conclusive right away.
-    filteredData_->request( pattern, searchLimits_.start, searchLimits_.end );
+    filteredData_->request( withFieldReader( pattern ), searchLimits_.start, searchLimits_.end );
     auto state = filteredData_->searchState();
 
     if ( state.phase != SearchSessionPhase::InvalidPattern ) {
@@ -497,6 +500,22 @@ const std::shared_ptr<const LogFormatCatalog>& OpenLogFile::logFormatCatalog() c
 const std::shared_ptr<const LogFormatDefinition>& OpenLogFile::logFormat() const
 {
     return logFormat_;
+}
+
+RegularExpressionPattern OpenLogFile::withFieldReader( RegularExpressionPattern pattern )
+{
+    // Only a logical combination with Field Terms reads the Log Format: any
+    // other pattern reads the same under every Log Format, keeps its cached
+    // results and continues over a Log File that grows.
+    if ( !pattern.isBoolean || !logFormat_ || !hasFieldTerms( pattern.pattern ) ) {
+        pattern.fieldReader.reset();
+        return pattern;
+    }
+    if ( !fieldReader_ || &fieldReader_->format() != logFormat_.get() ) {
+        fieldReader_ = std::make_shared<const LogFormatFieldReader>( logFormat_ );
+    }
+    pattern.fieldReader = fieldReader_;
+    return pattern;
 }
 
 int OpenLogFile::formatRecognitionCount() const
@@ -603,8 +622,8 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
         // the run rather than starting over, when it has Log Lines to run
         // over.
         if ( decision.continueOver ) {
-            filteredData_->request( searched.pattern, decision.continueOver->start,
-                                    decision.continueOver->end );
+            filteredData_->request( withFieldReader( searched.pattern ),
+                                    decision.continueOver->start, decision.continueOver->end );
         }
         break;
     case LoadRule::SearchRefresh::Restart:
@@ -647,7 +666,8 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
             heldAfterLoad_.push_back( waiting );
         }
         else {
-            search->request( waiting.pattern, searchLimits_.start, searchLimits_.end );
+            search->request( withFieldReader( waiting.pattern ), searchLimits_.start,
+                             searchLimits_.end );
         }
     }
     if ( !succeeded && !heldBeforeLoad.empty() ) {
@@ -655,7 +675,20 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     }
 
     if ( decision.recognizeFormat ) {
+        const auto previousFormat = logFormat_;
         load.formatRecognized = recognizeFormat();
+        // Whether it is taken again as the Log File grows the rule decides
+        // from what was found (#794).
+        loadRule_.formatRecognitionTaken( logFormat_ != nullptr, lineCount );
+        // A logical combination reads its Field Terms through the Log
+        // Format (#798): the Search requested above read them through the
+        // one before, so it is requested again under the one recognized now,
+        // and its cached results are not those of the other Log Format.
+        if ( logFormat_ != previousFormat && searchPattern_.isBoolean
+             && hasFieldTerms( searchPattern_.pattern ) && !isHeld( filteredData_ )
+             && filteredData_->searchState().phase != SearchSessionPhase::Idle ) {
+            requestSearch( searchPattern_ );
+        }
     }
 
     Q_EMIT loadingFinished( load );
@@ -732,6 +765,7 @@ void OpenLogFile::handleFileChanged( MonitoredFileStatus status, const QString& 
     }
     if ( decision.forgetLogFormat ) {
         logFormat_.reset();
+        fieldReader_.reset();
     }
 
     switch ( decision.report ) {

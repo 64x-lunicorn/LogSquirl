@@ -3,7 +3,7 @@
     "version": 2,
     "tolerance_percent": 5,
     "min_delta_seconds": 0.001,
-    "updated": "2026-10-06",
+    "updated": "2026-10-12",
     "description": "Performance baselines for LogSquirl E2E tests. Run with --update-baseline to refresh.",
     "config": {
       "warmup": 3,
@@ -1898,6 +1898,167 @@
       "filtered_count": 21,
       "total_count": 21,
       "measures": "Searched for 'slow response' in generated_100Mb.log, Search finished before: the 200 Marks removed again"
+    },
+    "gui_sort_log_100mb_text_sorted": {
+      "median_seconds": 2.057030167,
+      "mean_seconds": 2.410763036,
+      "std_seconds": 0.553025616,
+      "cv_percent": 22.94,
+      "p5_seconds": 1.917652375,
+      "p95_seconds": 3.297856708,
+      "iqr_seconds": 1.016069917,
+      "min_seconds": 1.917652375,
+      "max_seconds": 3.297856708,
+      "runs": [
+        1.917652375,
+        2.013078208,
+        2.050937833,
+        2.057030167,
+        2.509637834,
+        3.029148125,
+        3.297856708
+      ],
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Table View of generated_scroll_100Mb.log sorted by the body column, text: the click on the header to the Rows switched to the Sort Order, Log File loaded and shown before"
+    },
+    "gui_sort_log_100mb_timestamp_sorted": {
+      "median_seconds": 2.3323435,
+      "mean_seconds": 2.301099089,
+      "std_seconds": 0.687772058,
+      "cv_percent": 29.89,
+      "p5_seconds": 1.391260625,
+      "p95_seconds": 3.11431625,
+      "iqr_seconds": 1.550836042,
+      "min_seconds": 1.391260625,
+      "max_seconds": 3.11431625,
+      "runs": [
+        1.391260625,
+        1.395253875,
+        2.293487042,
+        2.3323435,
+        2.634942417,
+        2.946089917,
+        3.11431625
+      ],
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Table View of generated_scroll_100Mb.log sorted by the timestamp column, Timestamps: the click on the header to the Rows switched to the Sort Order, Log File loaded and shown before"
+    },
+    "gui_sort_log_100mb_numeric_sorted": {
+      "median_seconds": 0.803609458,
+      "mean_seconds": 0.804770006,
+      "std_seconds": 0.010760064,
+      "cv_percent": 1.34,
+      "p5_seconds": 0.79269325,
+      "p95_seconds": 0.816213917,
+      "iqr_seconds": 0.022095708,
+      "min_seconds": 0.79269325,
+      "max_seconds": 0.816213917,
+      "runs": [
+        0.79269325,
+        0.793315667,
+        0.796889542,
+        0.803609458,
+        0.815256833,
+        0.815411375,
+        0.816213917
+      ],
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "The Table View of generated_scroll_100Mb.log sorted by the ms column, integers: the click on the header to the Rows switched to the Sort Order, Log File loaded and shown before"
+    },
+    "gui_search_log_100mb_field_first_match": {
+      "median_seconds": 0.145517958,
+      "mean_seconds": 0.146017047,
+      "std_seconds": 0.006175022,
+      "cv_percent": 4.23,
+      "p5_seconds": 0.137545458,
+      "p95_seconds": 0.15393725,
+      "iqr_seconds": 0.012899875,
+      "min_seconds": 0.137545458,
+      "max_seconds": 0.15393725,
+      "runs": [
+        0.137545458,
+        0.139645083,
+        0.144181416,
+        0.145517958,
+        0.148747209,
+        0.152544958,
+        0.15393725
+      ],
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Field Term, the Log Lines whose level field is ERROR (generated_scroll_100Mb.log): Search requested to first Match displayed, Log File loaded before"
+    },
+    "gui_search_log_100mb_field_finished": {
+      "median_seconds": 0.435593458,
+      "mean_seconds": 0.437422619,
+      "std_seconds": 0.053342824,
+      "cv_percent": 12.19,
+      "p5_seconds": 0.364646875,
+      "p95_seconds": 0.529466708,
+      "iqr_seconds": 0.067020333,
+      "min_seconds": 0.364646875,
+      "max_seconds": 0.529466708,
+      "runs": [
+        0.364646875,
+        0.393073625,
+        0.41940275,
+        0.435593458,
+        0.459680958,
+        0.460093958,
+        0.529466708
+      ],
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Field Term, the Log Lines whose level field is ERROR (generated_scroll_100Mb.log): Search requested to Search finished, Log File loaded before"
+    },
+    "gui_search_log_100mb_field_and_text_first_match": {
+      "median_seconds": 0.146992125,
+      "mean_seconds": 0.14733272,
+      "std_seconds": 0.005152403,
+      "cv_percent": 3.5,
+      "p5_seconds": 0.141103958,
+      "p95_seconds": 0.156684125,
+      "iqr_seconds": 0.007592416,
+      "min_seconds": 0.141103958,
+      "max_seconds": 0.156684125,
+      "runs": [
+        0.141103958,
+        0.1431975,
+        0.145370875,
+        0.146992125,
+        0.147190542,
+        0.150789916,
+        0.156684125
+      ],
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Field Term and a plain sub-pattern, the WARN Log Lines (generated_scroll_100Mb.log): Search requested to first Match displayed, Log File loaded before"
+    },
+    "gui_search_log_100mb_field_and_text_finished": {
+      "median_seconds": 0.448921875,
+      "mean_seconds": 0.431552357,
+      "std_seconds": 0.045943208,
+      "cv_percent": 10.65,
+      "p5_seconds": 0.378070417,
+      "p95_seconds": 0.490351166,
+      "iqr_seconds": 0.086745707,
+      "min_seconds": 0.378070417,
+      "max_seconds": 0.490351166,
+      "runs": [
+        0.378070417,
+        0.385848959,
+        0.390061833,
+        0.448921875,
+        0.455017584,
+        0.472594666,
+        0.490351166
+      ],
+      "filtered_count": 7,
+      "total_count": 7,
+      "measures": "A Field Term and a plain sub-pattern, the WARN Log Lines (generated_scroll_100Mb.log): Search requested to Search finished, Log File loaded before"
     }
   }
 }

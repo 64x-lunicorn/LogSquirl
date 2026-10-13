@@ -8,8 +8,10 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/jsonlogline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfmtlogline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logformattablemodel.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/logformatfieldreader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/rowmapping.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tablerowcells.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/tablesortkeys.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/timestampreader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/timelookup.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logformatparser.cpp
@@ -19,8 +21,10 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/jsonlogline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfmtlogline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logformattablemodel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/logformatfieldreader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/rowmapping.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tablerowcells.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tablesortkeys.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/timestampreader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/timelookup.cpp
   ${CMAKE_SOURCE_DIR}/Resources/formats/formats.qrc
@@ -36,3 +40,6 @@ target_link_libraries(
 )
 # Where the user's Log Formats are (#602).
 target_link_libraries(logsquirl_logformat PUBLIC logsquirl_datalocation)
+# The Catalog logs a plugin's Log Format file it cannot read (#793). It never
+# links the plugin layer: the plugins' files are handed to it.
+target_link_libraries(logsquirl_logformat PUBLIC logsquirl_logging)

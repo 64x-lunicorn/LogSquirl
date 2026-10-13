@@ -78,6 +78,7 @@ my_plugin/
 | `author`       | no       | Author name or organisation.                                    |
 | `license`      | no       | SPDX identifier of the plugin's licence.                        |
 | `icon`         | no       | File name of an icon next to `plugin.json`.                     |
+| `formats`      | no       | Log Format files the plugin ships, see [Shipping Log Formats](#shipping-log-formats). |
 
 `library` is resolved relative to the directory containing `plugin.json`. It
 may leave out the platform's prefix and extension: `my_plugin` finds
@@ -270,6 +271,71 @@ disabled in `Plugins` → `Plugin Management...`.
 
 ---
 
+## Shipping Log Formats
+
+A plugin can ship Log Formats: the JSON definitions LogSquirl recognizes a
+log file by and shows it as a table with (see the user documentation's *Log
+Formats* section for the file format, which is the same as for a file in the
+user's Log Formats folder). This is declarative: the plugin names the files
+in its manifest and LogSquirl reads them. No host function is involved, the
+plugin's library does not need to run for its Log Formats to be known, and
+the files travel in the plugin's release archive beside the library.
+
+Add the optional `formats` key to `plugin.json`, a list of paths relative to
+the plugin directory:
+
+```json
+{
+    "id": "com.example.tcpdump",
+    "name": "tcpdump",
+    "version": "1.0.0",
+    "type": "converter",
+    "library": "tcpdump_plugin",
+    "api_version": 1,
+    "formats": [ "formats/tcpdump_log.json" ]
+}
+```
+
+```
+~/.local/share/logsquirl/plugins/
+└── com.example.tcpdump/
+    ├── plugin.json
+    ├── libtcpdump_plugin.so
+    └── formats/
+        └── tcpdump_log.json
+```
+
+Each file may hold one or more Log Formats, keyed by name as in a user's file.
+A path that leaves the plugin directory (`../x.json`, an absolute path) makes
+the manifest invalid, and the plugin is not listed at all. A manifest without
+the key, or with an empty list, ships no Log Format and the plugin behaves as
+before.
+
+**When the Log Formats are read.** The Log Format Catalog, one per running
+LogSquirl, is rebuilt as soon as the plugin manifests have been read after
+start-up, whenever a plugin is enabled or disabled in Plugin Management, and
+on every settings change. It reads the Log Formats of every *enabled* plugin,
+whether or not the plugin's library is loaded (for example with auto-load
+off). A log file opened before the plugins were discovered keeps the Log
+Format it was recognized with until it is reloaded.
+
+**Precedence.** The Catalog reads the built-in Log Formats first, then the
+enabled plugins', then the user's folder, and the later one wins by name: a
+plugin's Log Format replaces a built-in one of the same name, and a user's
+replaces a plugin's. Between two enabled plugins that name the same Log
+Format, the plugin whose `id` sorts first wins and a warning naming both
+plugins and the Log Format is logged. Choose names unlikely to collide, such
+as `tcpdump_log` rather than `log`.
+
+**A file that cannot be read.** A missing file, one that is not JSON, or one
+without a Log Format in it is skipped with a logged warning naming the plugin
+and the file. The plugin's other Log Format files and the plugin itself are
+unaffected: it still loads. Plugin Management shows the warning on the
+plugin's card, and the Options dialog's Log Formats page shows every Log
+Format with its Source: *Built-in*, *User*, or the plugin's name.
+
+---
+
 ## C ABI Reference
 
 ### Version and Export Macro
@@ -324,12 +390,25 @@ them, never both. A plugin that exports `logsquirl_plugin_init_ex` still
 exports `logsquirl_plugin_init`; the host refuses a plugin without it, which an
 older host could not load.
 
-Converter plugins additionally export both of these:
+A converter exports the extensions it handles and a convert function:
 
 ```c
 LOGSQUIRL_PLUGIN_EXPORT const char* logsquirl_converter_get_extensions( void );
 LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert( const char*, const char* );
 ```
+
+A converter that reports progress and hears a cancellation also exports
+(optional):
+
+```c
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert_ex( const char*, const char*,
+                                                            const LogSquirlConvertControl* );
+```
+
+A host that knows `logsquirl_converter_convert_ex` calls it instead of
+`logsquirl_converter_convert`; an older host calls the latter, so a plugin
+that exports `convert_ex` still exports `convert`. A plugin may export
+either one, or both. See [Converters](#converters).
 
 The host resolves the functions by these names, which the header also defines
 as constants:
@@ -342,6 +421,7 @@ as constants:
 #define LOGSQUIRL_PLUGIN_ENTRY_INIT_EX "logsquirl_plugin_init_ex"
 #define LOGSQUIRL_CONVERTER_ENTRY_GET_EXTS "logsquirl_converter_get_extensions"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT "logsquirl_converter_convert"
+#define LOGSQUIRL_CONVERTER_ENTRY_CONVERT_EX "logsquirl_converter_convert_ex"
 ```
 
 and the function pointer types it casts them to:
@@ -355,6 +435,39 @@ typedef void ( *LogSquirlPluginShutdownFn )( void );
 typedef void ( *LogSquirlPluginConfigureFn )( void* parent_widget );
 typedef const char* ( *LogSquirlConverterGetExtsFn )( void );
 typedef int ( *LogSquirlConverterConvertFn )( const char* input_path, const char* output_path );
+typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const char* output_path,
+                                                const LogSquirlConvertControl* control );
+```
+
+### `LogSquirlConvertControl`
+
+What the host hands `logsquirl_converter_convert_ex`: progress out,
+cancellation in. The host owns it, it is valid for the duration of the call,
+and its functions are called on the thread `convert_ex` runs on only, each
+with the control itself as the first argument. It grows by appending members,
+and `size` says how many of them the running host filled: check
+`LOGSQUIRL_CONVERT_CONTROL_HAS( control, member )` before reading a member
+added later (the members below are always there). Keep the pointer the host
+passes and never copy the struct.
+
+```c
+typedef struct LogSquirlConvertControl {
+    size_t size; /* sizeof( LogSquirlConvertControl ) in the host's build */
+
+    void* host; /* the host's own; never dereference or interpret it */
+
+    /* done of total units of the plugin's choosing; a total of 0 means unknown */
+    void ( *report_progress )( const struct LogSquirlConvertControl* control, uint64_t done,
+                               uint64_t total );
+
+    /* non-zero once the user cancelled: return as soon as possible then */
+    int ( *is_cancelled )( const struct LogSquirlConvertControl* control );
+} LogSquirlConvertControl;
+
+#define LOGSQUIRL_CONVERT_CONTROL_HAS( control, member )                                           \
+    ( offsetof( LogSquirlConvertControl, member )                                                  \
+          + sizeof( ( (const LogSquirlConvertControl*)0 )->member )                                \
+      <= ( control )->size )
 ```
 
 ### `LogSquirlPluginType`
@@ -393,8 +506,8 @@ come from `plugin.json`.
 
 The function-pointer table the host passes to `init`. It is valid from `init`
 until `shutdown`, and its functions are safe to call from any thread, but for
-`open_regex_lab`, `go_to_log_line` and `get_selected_log_lines`, which are
-called on the UI thread only.
+`open_regex_lab`, `go_to_log_line`, `get_selected_log_lines` and
+`get_active_file_path`, which are called on the UI thread only.
 
 ```c
 typedef struct {
@@ -595,13 +708,68 @@ Lines pushed while no stream of the plugin is running are dropped.
 
 ### Converters
 
-A converter plugin (`"type": "converter"`) exports
-`logsquirl_converter_get_extensions` and `logsquirl_converter_convert`.
+A converter exports `logsquirl_converter_get_extensions` and
+`logsquirl_converter_convert`, `logsquirl_converter_convert_ex`, or both.
+Any plugin that exports them converts, whatever `type` its manifest names:
+`type` names the plugin's main kind for the Plugins menu and the plugin
+dialog, and a `ui` plugin claims its extensions all the same.
 `logsquirl_converter_get_extensions` returns the file extensions it handles,
 separated by semicolons, e.g. `".har;.pcap"`. When a Log File with one of
-these extensions is opened, the host calls `logsquirl_converter_convert` with
-the file's path and the path of a temporary file to write plain text into, and
-shows that text if the converter returns 0. Both paths are absolute and UTF-8.
+these extensions is opened -- from the File menu, by drag and drop, from the
+recent files, the command line or `open_file` alike -- the host calls the
+convert function with the file's path and the path of a temporary file to
+write plain text into, and shows that text as a Transient Log File if the
+converter returns 0. Both paths are absolute and UTF-8. A non-zero return
+removes the output, and the user is told that the plugin could not convert
+the file.
+
+The call runs on a worker thread of the host's, never on the UI thread: the
+window stays in use, with a progress dialog beside it that has a Cancel
+button. The host calls a plugin's converter one file at a time, never
+re-entrantly -- a second file for the same plugin waits its turn -- while
+converters of different plugins run at the same time. Keep the converter's
+state in locals, and call the host API from inside under its thread rules
+(`open_file` is fine, the UI-thread-only functions are not).
+
+`logsquirl_converter_convert_ex` gets a `LogSquirlConvertControl` as its third
+argument: call `report_progress` with how far the conversion is -- the
+dialog shows the share done; with a total of 0 it shows the conversion as
+busy -- and poll `is_cancelled` now and then; once it is non-zero, return as
+soon as possible with any code, since what was written is discarded anyway.
+Call both from the thread `convert_ex` runs on only, never after it returned.
+A plugin with the plain `convert` only is shown as busy without a share done,
+and a cancellation discards its result once it returns.
+
+```cpp
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert_ex( const char* input_path,
+                                                            const char* output_path,
+                                                            const LogSquirlConvertControl* control )
+{
+    std::ifstream in( input_path );
+    std::ofstream out( output_path );
+    const uint64_t total = fileSize( input_path ); /* 0 when unknown */
+    uint64_t done = 0;
+    std::string record;
+    while ( readRecord( in, record ) ) {
+        if ( control->is_cancelled( control ) ) {
+            return 2; /* discarded by the host */
+        }
+        out << decode( record ) << '\n';
+        done += record.size();
+        control->report_progress( control, done, total );
+    }
+    return out ? 0 : 1;
+}
+
+/* For a host older than convert_ex: no progress, no Cancel. */
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert( const char* input_path,
+                                                         const char* output_path )
+{
+    static const LogSquirlConvertControl none
+        = { sizeof( LogSquirlConvertControl ), nullptr, &noProgress, &neverCancelled };
+    return logsquirl_converter_convert_ex( input_path, output_path, &none );
+}
+```
 
 ### UI Integration
 
@@ -615,6 +783,11 @@ api->open_file( handle, "/tmp/converted.log", 0 /* follow = false */ );
 /* Add an item to the Plugins menu */
 api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
 ```
+
+`open_file` may be called from any thread: the file opens in the most recently
+active LogSquirl window on its UI thread, at once when called there, else once
+that window's event loop turns, and the call returns at once. A call queued by
+a plugin that is unloaded before then is dropped.
 
 `menu_path` names the submenus of the `Plugins` menu the item goes into,
 separated by `/`: `"My Plugin/Sub"` puts `label` into
@@ -642,7 +815,8 @@ api->register_active_file_callback( handle, &onActiveFile, userData );
 ```
 
 The string `get_active_file_path` returns is valid until the next host API
-call.
+call. Call it on the UI thread only: called on another thread, it touches no
+window and returns an empty string, as without a file.
 
 ### Regex Lab
 
@@ -752,9 +926,13 @@ window the plugin keeps open outlives the dialog.
 ## Guidelines
 
 - **Thread safety**: Host API calls are safe from any thread, but for
-  `open_regex_lab`, `go_to_log_line` and `get_selected_log_lines`, which are
-  called on the UI thread only. The host
-  dispatches UI-modifying calls to the main thread internally.
+  `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines` and
+  `get_active_file_path`, which are called on the UI thread only. The host
+  dispatches UI-modifying calls, `open_file` included, to the UI thread
+  internally. `init`, `shutdown`, `configure` and menu actions run on the UI
+  thread; `logsquirl_converter_convert` and `logsquirl_converter_convert_ex`
+  run on a host worker thread, one call per plugin at a time, and the
+  `LogSquirlConvertControl` functions are called on that thread only.
 - **String lifetime**: All `const char*` strings you pass to host API functions
   are copied immediately — you may free them after the call returns.
 - **Error reporting**: Return non-zero from `init` on failure; the host logs
@@ -779,8 +957,13 @@ A: No. Most plugins don't need Qt at all. Only a plugin that hands widgets to
 the host or shows a Qt dialog links against `Qt6::Widgets`.
 
 **Q: My plugin needs a background thread. Is that safe?**
-A: Yes. Create threads as needed. All host API functions are thread-safe. Call
-`signal_eos` or `signal_error` when your thread is done.
+A: Yes. Create threads as needed. All host API functions are safe from any
+thread, but for `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`
+and `get_active_file_path`, which are called on the UI thread only; `open_file`
+from a worker thread opens the file on the UI thread. Call `signal_eos` or
+`signal_error` when your thread is done. A converter needs no thread of its
+own: the host calls `logsquirl_converter_convert` and
+`logsquirl_converter_convert_ex` on a worker thread already.
 
 **Q: How do I handle plugin-specific configuration?**
 A: Use `get_config_dir()` to obtain your private directory, then read/write

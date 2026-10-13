@@ -27,6 +27,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/valuenames_ui_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_switch_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/applicationplugins_window_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/pluginlogformats_test.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_screenshots_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sidebar_layout_test.cpp
@@ -46,7 +47,9 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/predefinedfiltersetedit_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_editors_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_searchline_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/fieldterm_searchline_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_loglines_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin_conversion_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_follow_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_line_status_theme_test.cpp
 )
@@ -96,6 +99,14 @@ set_target_properties(logsquirl_test_log_lines_plugin PROPERTIES CXX_VISIBILITY_
 add_dependencies(logsquirl_itests logsquirl_test_log_lines_plugin)
 target_compile_definitions(logsquirl_itests PRIVATE
     LOGSQUIRL_TEST_LOG_LINES_PLUGIN_PATH="$<TARGET_FILE:logsquirl_test_log_lines_plugin>")
+
+# The converter plugins of the unit tests, whose Conversion a test holds and
+# cancels: one with convert_ex, of kind "ui", and one with the plain convert
+# only (#795).
+add_dependencies(logsquirl_itests logsquirl_convert_probe logsquirl_convert_probe_plain)
+target_compile_definitions(logsquirl_itests PRIVATE
+    LOGSQUIRL_CONVERT_PROBE_PATH="$<TARGET_FILE:logsquirl_convert_probe>"
+    LOGSQUIRL_CONVERT_PROBE_PLAIN_PATH="$<TARGET_FILE:logsquirl_convert_probe_plain>")
 
 # theme_screenshots_test copies the demo log from test_data/ (#253).
 target_compile_definitions(logsquirl_itests PRIVATE LOGSQUIRL_SOURCE_DIR="${CMAKE_SOURCE_DIR}")

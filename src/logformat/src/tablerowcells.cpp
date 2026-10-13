@@ -20,6 +20,7 @@
 #include "tablerowcells.h"
 
 #include <algorithm>
+#include <cmath>
 
 TableRowCells::TableRowCells( const LogFormatDefinition& format, const QDate& modificationDate )
     : extractor_( format )
@@ -32,6 +33,25 @@ TableRowCells::TableRowCells( const LogFormatDefinition& format, const QDate& mo
             elapsedColumn_ = timestampField_ + 1;
             reader_ = std::make_unique<const TimestampReader>( format, 0, modificationDate );
         }
+    }
+
+    const auto& values = format.valueDefinitions();
+    sortKeyKinds_.assign( static_cast<size_t>( columnCount() ), SortKeyKind::Text );
+    for ( int field = 0; field < fieldNames_.size(); ++field ) {
+        auto kind = SortKeyKind::Text;
+        if ( field == timestampField_ ) {
+            kind = SortKeyKind::Timestamp;
+        }
+        else if ( const auto value = values.constFind( fieldNames_[ field ] );
+                  value != values.constEnd()
+                  && ( value->kind == QLatin1String( "integer" )
+                       || value->kind == QLatin1String( "float" ) ) ) {
+            kind = SortKeyKind::Number;
+        }
+        sortKeyKinds_[ static_cast<size_t>( columnOfField( field ) ) ] = kind;
+    }
+    if ( elapsedColumn_ >= 0 ) {
+        sortKeyKinds_[ static_cast<size_t>( elapsedColumn_ ) ] = SortKeyKind::Elapsed;
     }
 }
 
@@ -111,6 +131,7 @@ TableRowCells::Row TableRowCells::rowOf( LineNumber logLine, const QString& line
 
     Row row;
     row.cells.resize( columnCount() );
+    row.matchesFormat = extracted.isValid();
     if ( extracted.isValid() ) {
         for ( int field = 0; field < fieldNames_.size(); ++field ) {
             auto value = extracted.value( fieldNames_[ field ] );
@@ -144,10 +165,77 @@ TableRowCells::Row TableRowCells::rowOf( LineNumber logLine, const QString& line
         const auto lookBack = std::min( ElapsedLookBack, logLine.get() );
         for ( uint64_t back = 1; back <= lookBack; ++back ) {
             if ( const auto previous = earlierTimestamp( LineNumber( logLine.get() - back ) ) ) {
-                row.cells[ elapsedColumn_ ] = formatElapsed( previous->msecsTo( *row.timestamp ) );
+                row.elapsedMilliseconds = previous->msecsTo( *row.timestamp );
+                row.cells[ elapsedColumn_ ] = formatElapsed( *row.elapsedMilliseconds );
                 break;
             }
         }
     }
     return row;
+}
+
+TableRowCells::SortKeyKind TableRowCells::sortKeyKindOf( int column ) const
+{
+    if ( column < 0 || static_cast<size_t>( column ) >= sortKeyKinds_.size() ) {
+        return SortKeyKind::Text;
+    }
+    return sortKeyKinds_[ static_cast<size_t>( column ) ];
+}
+
+TableRowCells::SortKey TableRowCells::sortKeyOf( int column, LineNumber logLine,
+                                                 const QString& line,
+                                                 const TimestampOfLogLine& earlierTimestamp ) const
+{
+    return sortKeyOf( column, rowOf( logLine, line, earlierTimestamp ) );
+}
+
+TableRowCells::SortKey TableRowCells::sortKeyOf( int column, const Row& row ) const
+{
+    SortKey key;
+    if ( column < 0 || column >= columnCount() ) {
+        return key;
+    }
+    switch ( sortKeyKindOf( column ) ) {
+    case SortKeyKind::Elapsed:
+        if ( row.elapsedMilliseconds ) {
+            key.hasValue = true;
+            key.milliseconds = *row.elapsedMilliseconds;
+        }
+        return key;
+    case SortKeyKind::Timestamp:
+        if ( row.matchesFormat && row.timestamp ) {
+            key.hasValue = true;
+            key.milliseconds = row.timestamp->toMSecsSinceEpoch();
+        }
+        return key;
+    case SortKeyKind::Number: {
+        const auto& cell = row.cells.at( column );
+        if ( !row.matchesFormat || cell.isEmpty() ) {
+            return key;
+        }
+        // An integer as written, else a floating-point number; a cell that
+        // is neither has no value.
+        bool isNumber = false;
+        const auto trimmed = cell.trimmed();
+        const auto integer = trimmed.toLongLong( &isNumber );
+        if ( isNumber ) {
+            key.number = static_cast<double>( integer );
+        }
+        else {
+            key.number = trimmed.toDouble( &isNumber );
+        }
+        key.hasValue = isNumber && !std::isnan( key.number );
+        return key;
+    }
+    case SortKeyKind::Text: {
+        const auto& cell = row.cells.at( column );
+        if ( !row.matchesFormat || cell.isEmpty() ) {
+            return key;
+        }
+        key.hasValue = true;
+        key.text = cell.toCaseFolded();
+        return key;
+    }
+    }
+    return key;
 }

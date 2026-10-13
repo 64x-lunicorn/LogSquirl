@@ -1116,3 +1116,117 @@ SCENARIO( "A Search counts the Log Lines the regex engine gave up on", "[searchs
         }
     }
 }
+
+namespace {
+
+// Reads the fields of numberedLines() -- "line <number> [fizz]" -- as a Log
+// Format would (#798): the words after "line", named number and tag; a
+// reader swapped reads them the other way round, as another Log Format
+// would, under an identity of its own.
+class NumberedLineFields : public FieldReader {
+public:
+    explicit NumberedLineFields( QString identity, bool swapped = false )
+        : identity_( std::move( identity ) )
+        , swapped_( swapped )
+    {
+    }
+
+    QString identity() const override
+    {
+        return identity_;
+    }
+    QStringList fieldNames() const override
+    {
+        return { QStringLiteral( "number" ), QStringLiteral( "tag" ) };
+    }
+    std::optional<int> fieldIndex( const QString& name ) const override
+    {
+        const auto index = fieldNames().indexOf( name );
+        return index < 0 ? std::nullopt : std::optional<int>( static_cast<int>( index ) );
+    }
+    bool readFields( const QString& line, QStringList& fields ) const override
+    {
+        const auto words = line.split( QChar( ' ' ) );
+        if ( words.size() < 2 ) {
+            return false;
+        }
+        const auto& number = words[ 1 ];
+        const auto tag = words.size() > 2 ? words[ 2 ] : QString{};
+        fields = swapped_ ? QStringList{ tag, number } : QStringList{ number, tag };
+        return true;
+    }
+    std::optional<std::pair<qsizetype, qsizetype>> fieldSpan( const QString&, int ) const override
+    {
+        return std::nullopt;
+    }
+
+private:
+    QString identity_;
+    bool swapped_;
+};
+
+RegularExpressionPattern fieldTermPattern( std::shared_ptr<const FieldReader> reader )
+{
+    RegularExpressionPattern pattern( R"(tag:"fizz")", true, false, true, true );
+    pattern.fieldReader = std::move( reader );
+    return pattern;
+}
+
+} // namespace
+
+SCENARIO( "The cached results of a Search are keyed on the Log Format its Field Terms read",
+          "[searchsession][fieldterm]" )
+{
+    const auto policies = testSettingsPolicies();
+    InMemoryBlockSource blockSource( numberedLines( 300 ) );
+    SearchSession session( blockSource, policies.search );
+
+    GIVEN( "a Field Term Search run under one Log Format" )
+    {
+        const auto formatA = std::make_shared<NumberedLineFields>( "format-a" );
+        session.request( fieldTermPattern( formatA ) );
+        REQUIRE( waitUntilSettled( session ) );
+        REQUIRE( session.state().phase == Phase::Complete );
+        REQUIRE( session.matches() == fizzLines( 300 ) );
+
+        WHEN( "the same pattern is requested under another Log Format, which reads the fields "
+              "differently" )
+        {
+            session.request(
+                fieldTermPattern( std::make_shared<NumberedLineFields>( "format-b", true ) ) );
+            REQUIRE( waitUntilSettled( session ) );
+
+            THEN( "the Search runs anew and finds what that Log Format reads, not the cached "
+                  "Matches of the other" )
+            {
+                REQUIRE_FALSE( session.state().fromCache );
+                REQUIRE( session.state().phase == Phase::Complete );
+                REQUIRE( session.matches().cardinality() == 0 );
+            }
+
+            AND_WHEN( "it is requested under the first Log Format again" )
+            {
+                session.request(
+                    fieldTermPattern( std::make_shared<NumberedLineFields>( "format-a" ) ) );
+                REQUIRE( waitUntilSettled( session ) );
+
+                THEN( "the cached Matches of that Log Format serve" )
+                {
+                    REQUIRE( session.state().fromCache );
+                    REQUIRE( session.matches() == fizzLines( 300 ) );
+                }
+            }
+        }
+
+        WHEN( "the same pattern is requested without a Log Format" )
+        {
+            session.request( fieldTermPattern( nullptr ) );
+
+            THEN( "it is a pattern error naming the field" )
+            {
+                REQUIRE( session.state().phase == Phase::InvalidPattern );
+                REQUIRE( session.state().errorString.contains( QStringLiteral( "\"tag\"" ) ) );
+            }
+        }
+    }
+}

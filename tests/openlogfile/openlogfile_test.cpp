@@ -18,6 +18,7 @@
  */
 
 #include "fake_file_watch.h"
+#include "formatrecognition.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
@@ -67,14 +68,29 @@ QByteArray logLines( int count, int firstNumber = 0 )
     return lines;
 }
 
-bool writeLogFile( const QString& path, int count )
+// Lines that match no Log Format of the Catalog below, such as a header at
+// the start of a Log File.
+QByteArray headerLines( int count, int firstNumber = 0 )
+{
+    QByteArray lines;
+    for ( auto number = firstNumber; number < firstNumber + count; ++number ) {
+        lines += QString( "HEADER line %1\n" ).arg( number ).toUtf8();
+    }
+    return lines;
+}
+
+bool writeFile( const QString& path, const QByteArray& content )
 {
     QFile file( path );
     if ( !file.open( QIODevice::WriteOnly | QIODevice::Truncate ) ) {
         return false;
     }
-    const auto lines = logLines( count );
-    return file.write( lines ) == lines.size();
+    return file.write( content ) == content.size();
+}
+
+bool writeLogFile( const QString& path, int count )
+{
+    return writeFile( path, logLines( count ) );
 }
 
 // How many of the first count Log Lines say "fizz".
@@ -480,6 +496,103 @@ SCENARIO( "An Open Log File follows a Log File that grows", "[openlogfile]" )
                 const auto state = logFile.searchState();
                 REQUIRE( state.endLine == LineNumber( FirstLineCount ) );
                 REQUIRE( state.matchCount == fizzCount( FirstLineCount ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A Log File too short to recognize a Log Format from is recognized as it grows",
+          "[openlogfile][formatrecognition]" )
+{
+    // Format Recognition recognizes nothing from a Log File of fewer Log
+    // Lines than it looks at while none of them matches, so it is taken
+    // again after each load that brings more, until a Log Format is
+    // recognized or the Log File has as many as it looks at (#794).
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "short.log" );
+
+    GIVEN( "a Log File of one header line, which matches no Log Format" )
+    {
+        REQUIRE( writeFile( path, headerLines( 1 ) ) );
+        OpenedLogFile logFile( path );
+        REQUIRE( logFile.observer.waitLoads( 1 ) );
+        REQUIRE( logFile.nbLines() == 1_lcount );
+
+        THEN( "the first load took Format Recognition, which recognized nothing" )
+        {
+            REQUIRE( logFile.observer.loads.front().formatRecognized );
+            REQUIRE( logFile.openLogFile.formatRecognitionCount() == 1 );
+            REQUIRE( logFile.openLogFile.logFormat() == nullptr );
+        }
+
+        WHEN( "Log Lines matching a Log Format of the Catalog are added" )
+        {
+            REQUIRE( logFile.fileWatch->grow( path, logLines( FirstLineCount ) ) );
+            REQUIRE( logFile.observer.waitLoads( 2 ) );
+            REQUIRE( logFile.nbLines() == LinesCount( FirstLineCount + 1 ) );
+
+            THEN( "the load that brought them recognized the Log Format" )
+            {
+                REQUIRE( logFile.observer.loads.back().formatRecognized );
+                REQUIRE( logFile.openLogFile.formatRecognitionCount() == 2 );
+                REQUIRE( logFile.openLogFile.logFormat() != nullptr );
+                REQUIRE( logFile.openLogFile.logFormat()->name() == "openlogfile_test" );
+            }
+
+            AND_WHEN( "the Log File grows further" )
+            {
+                REQUIRE(
+                    logFile.fileWatch->grow( path, logLines( FirstLineCount, FirstLineCount ) ) );
+                REQUIRE( logFile.observer.waitLoads( 3 ) );
+
+                THEN( "the Log Format stays, without Format Recognition taken again" )
+                {
+                    REQUIRE_FALSE( logFile.observer.loads.back().formatRecognized );
+                    REQUIRE( logFile.openLogFile.formatRecognitionCount() == 2 );
+                    REQUIRE( logFile.openLogFile.logFormat() != nullptr );
+                    REQUIRE( logFile.openLogFile.logFormat()->name() == "openlogfile_test" );
+                }
+            }
+        }
+
+        WHEN( "more header lines are added, fewer than Format Recognition looks at" )
+        {
+            REQUIRE( logFile.fileWatch->grow( path, headerLines( 9, 1 ) ) );
+            REQUIRE( logFile.observer.waitLoads( 2 ) );
+            REQUIRE( logFile.nbLines() == 10_lcount );
+
+            THEN( "Format Recognition was taken again and recognized nothing" )
+            {
+                REQUIRE( logFile.observer.loads.back().formatRecognized );
+                REQUIRE( logFile.openLogFile.formatRecognitionCount() == 2 );
+                REQUIRE( logFile.openLogFile.logFormat() == nullptr );
+            }
+        }
+    }
+
+    GIVEN( "a Log File of as many header lines as Format Recognition looks at" )
+    {
+        REQUIRE( writeFile( path, headerLines( FormatRecognition::SampleDepth ) ) );
+        OpenedLogFile logFile( path );
+        REQUIRE( logFile.observer.waitLoads( 1 ) );
+        REQUIRE( logFile.nbLines() == LinesCount( FormatRecognition::SampleDepth ) );
+        REQUIRE( logFile.observer.loads.front().formatRecognized );
+        REQUIRE( logFile.openLogFile.formatRecognitionCount() == 1 );
+        REQUIRE( logFile.openLogFile.logFormat() == nullptr );
+
+        WHEN( "Log Lines matching a Log Format of the Catalog are added" )
+        {
+            REQUIRE( logFile.fileWatch->grow( path, logLines( FirstLineCount ) ) );
+            REQUIRE( logFile.observer.waitLoads( 2 ) );
+            REQUIRE( logFile.nbLines()
+                     == LinesCount( FormatRecognition::SampleDepth + FirstLineCount ) );
+
+            THEN( "Format Recognition is not taken again: the Log Lines it looks at are the same" )
+            {
+                REQUIRE_FALSE( logFile.observer.loads.back().formatRecognized );
+                REQUIRE( logFile.openLogFile.formatRecognitionCount() == 1 );
+                REQUIRE( logFile.openLogFile.logFormat() == nullptr );
             }
         }
     }

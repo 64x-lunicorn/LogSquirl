@@ -26,14 +26,21 @@
 #include <QStringList>
 
 #include <memory>
+#include <vector>
 
-// The Log Format Catalog: every Log Format available to choose from, built in
-// and supplied by the user. A user's Log Format replaces a built-in one of the
-// same name.
+// The Log Format Catalog: every Log Format available to choose from, built
+// in, supplied by enabled plugins and supplied by the user. By name, a user's
+// Log Format replaces a plugin's, and a plugin's a built-in one. Every Log
+// Format carries its Source.
 //
 // One Catalog serves the whole application. It is built where the Settings
 // Policies are derived and handed to whoever needs it; it is not a singleton
 // and has no ambient accessor.
+//
+// The Catalog knows no plugin: whoever owns both the plugin layer and the
+// Catalog hands it the Log Format files of the enabled plugins with
+// setPluginFormats() -- an id to order by, a name to show and files to read
+// -- and rebuilds it (#793).
 //
 // Log Formats are held as shared, immutable objects. Rebuilding the Catalog
 // parses every definition again into new objects, so a Log Format handed out
@@ -42,6 +49,30 @@
 class LogFormatCatalog {
 public:
     using Formats = QHash<QString, std::shared_ptr<const LogFormatDefinition>>;
+
+    // The Log Format files one enabled plugin ships, as its manifest names
+    // them (#793).
+    struct PluginFormats {
+        // Orders the plugins: between two naming the same Log Format, the one
+        // whose id sorts first wins.
+        QString id;
+        // The plugin's display name, the Source its Log Formats show.
+        QString name;
+        // Absolute paths of the plugin's Log Format files.
+        QStringList files;
+
+        bool operator==( const PluginFormats& ) const = default;
+    };
+
+    // What went wrong with a plugin's Log Formats in the last rebuild: a file
+    // that could not be read, which was skipped, or a Log Format another
+    // plugin had already supplied. Every warning is also logged.
+    struct PluginFormatWarning {
+        QString pluginId;
+        QString message;
+
+        bool operator==( const PluginFormatWarning& ) const = default;
+    };
 
     // A Catalog whose rebuild() reads the built-in Log Formats only.
     LogFormatCatalog() = default;
@@ -57,16 +88,35 @@ public:
     // portable run. Empty if there is none.
     static QString defaultUserFormatsDirectory();
 
+    // The Log Format files of the enabled plugins, read by every rebuild()
+    // from now on, after the built-in Log Formats and before the user's. The
+    // list replaces the one handed in before; an empty one means no plugin
+    // supplies a Log Format. Does not rebuild.
+    void setPluginFormats( std::vector<PluginFormats> plugins );
+
     // Forget every Log Format and read them all again: the built-in ones,
-    // then the user's. Log Formats handed out before stay valid.
+    // then the enabled plugins', then the user's. Log Formats handed out
+    // before stay valid.
     void rebuild();
 
-    // Load all .json files from a directory and add their formats.
-    // Later calls override formats with the same name from earlier calls.
+    // The warnings of the last rebuild about the plugins' Log Format files.
+    const std::vector<PluginFormatWarning>& pluginFormatWarnings() const
+    {
+        return pluginFormatWarnings_;
+    }
+
+    // The messages of the last rebuild's warnings about one plugin's Log
+    // Format files, in the order they arose; empty when there were none.
+    QStringList pluginFormatWarnings( const QString& pluginId ) const;
+
+    // Load all .json files from a directory and add their formats, with the
+    // User Source. Later calls override formats with the same name from
+    // earlier calls.
     void loadFromDirectory( const QString& directoryPath );
 
-    // Add a single format definition. Overwrites any existing format with the same name.
-    void addFormat( LogFormatDefinition format );
+    // Add a single format definition with the given Source. Overwrites any
+    // existing format with the same name.
+    void addFormat( LogFormatDefinition format, LogFormatSource source = {} );
 
     // Look up a format by its symbolic name. Returns nullptr if not found.
     std::shared_ptr<const LogFormatDefinition> formatByName( const QString& name ) const;
@@ -87,6 +137,12 @@ public:
     void loadBuiltinFormats();
 
 private:
+    // Reads the plugins' Log Format files, in id order, and records the
+    // warnings.
+    void loadPluginFormats();
+
     QString userFormatsDirectory_;
+    std::vector<PluginFormats> pluginFormats_;
+    std::vector<PluginFormatWarning> pluginFormatWarnings_;
     Formats formats_;
 };

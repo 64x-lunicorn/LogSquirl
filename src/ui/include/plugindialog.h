@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include "applicationplugins.h"
+#include "logformatcatalog.h"
 #include "plugincatalog.h"
 #include "pluginhost.h"
 #include "pluginrepository.h"
@@ -32,10 +34,12 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QShowEvent>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 #include <map>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -52,11 +56,28 @@ class PluginDialog : public QDialog {
 
 public:
     /**
-     * Create the dialog for the plugins the catalog lists; enabling and
-     * disabling one loads and unloads it in the host.
+     * Create the dialog for the plugins the Application Plugins' catalog
+     * lists; enabling and disabling one loads and unloads it in their host
+     * and tells them of the change (#793).
      */
-    PluginDialog( logsquirl::plugins::PluginCatalog& catalog, logsquirl::plugins::PluginHost& host,
-                  QWidget* parent = nullptr );
+    explicit PluginDialog( logsquirl::plugins::ApplicationPlugins& plugins,
+                           QWidget* parent = nullptr );
+
+    /**
+     * Show in each plugin's details what the Log Format Catalog could not
+     * read of the plugin's Log Format files (#793). Read again whenever a
+     * plugin is enabled or disabled, so the Catalog must outlive the dialog.
+     * Without it, no such warning shows.
+     */
+    void showLogFormatWarnings( std::shared_ptr<const LogFormatCatalog> logFormatCatalog );
+
+protected:
+    /**
+     * Fetches the remote catalog the first time the dialog is shown. A dialog
+     * built and never shown, as the tests do, makes no network request, so
+     * none is in flight when it is destroyed.
+     */
+    void showEvent( QShowEvent* event ) override;
 
 private Q_SLOTS:
     void onCatalogReady();
@@ -88,6 +109,8 @@ private:
         PluginState state = PluginState::NotInstalled;
         bool loaded = false;       ///< Loaded in the Plugin Host
         bool configurable = false; ///< Loaded and exports logsquirl_plugin_configure
+        QStringList
+            formatWarnings; ///< What the Log Format Catalog could not read of its Log Formats
     };
 
     // ── Card widget ──────────────────────────────────────────────────
@@ -110,6 +133,7 @@ private:
         QLabel* authorLabel = nullptr;
         QLabel* licenseLabel = nullptr;
         QLabel* descriptionLabel = nullptr;
+        QLabel* formatWarningLabel = nullptr;
         QLabel* statusBadge = nullptr;
         QPushButton* actionButton = nullptr;
         QPushButton* toggleButton = nullptr;
@@ -153,9 +177,12 @@ private:
 
     // ── Members ──────────────────────────────────────────────────────
 
+    logsquirl::plugins::ApplicationPlugins& plugins_;
     logsquirl::plugins::PluginCatalog& catalog_;
     logsquirl::plugins::PluginHost& host_;
     logsquirl::plugins::PluginRepository repository_;
+    bool catalogFetched_ = false;
+    std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;
 
     QLineEdit* searchEdit_ = nullptr;
     QToolButton* tabAll_ = nullptr;

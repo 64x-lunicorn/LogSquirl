@@ -583,22 +583,27 @@ void MainWindow::showArchiveRestoreProgress( const QString& archive )
     // The progress opening an archive by hand shows, but beside the window,
     // which stays in use; only an archive that takes a while shows it.
     if ( !archiveRestoreProgress_ ) {
-        archiveRestoreProgress_ = new QProgressDialog( this );
-        archiveRestoreProgress_->setAttribute( Qt::WA_ShowWithoutActivating );
-        archiveRestoreProgress_->setWindowModality( Qt::NonModal );
-        archiveRestoreProgress_->setAutoClose( false );
-        archiveRestoreProgress_->setAutoReset( false );
-        archiveRestoreProgress_->setRange( 0, 0 );
+        archiveRestoreProgress_ = newBackgroundProgressDialog();
         // Cancelling it leaves out the tab of the archive it shows.
         connect( archiveRestoreProgress_, &QProgressDialog::canceled, this, [ this ] {
             archiveRestores_.cancelCurrent();
             closeArchiveRestoreProgress();
         } );
-        QTimer::singleShot( archiveRestoreProgress_->minimumDuration(), archiveRestoreProgress_,
-                            [ progress = archiveRestoreProgress_ ] { progress->show(); } );
     }
     archiveRestoreProgress_->setLabelText(
         tr( "Extracting %1" ).arg( QDir::toNativeSeparators( archive ) ) );
+}
+
+QProgressDialog* MainWindow::newBackgroundProgressDialog()
+{
+    auto* progress = new QProgressDialog( this );
+    progress->setAttribute( Qt::WA_ShowWithoutActivating );
+    progress->setWindowModality( Qt::NonModal );
+    progress->setAutoClose( false );
+    progress->setAutoReset( false );
+    progress->setRange( 0, 0 );
+    QTimer::singleShot( progress->minimumDuration(), progress, [ progress ] { progress->show(); } );
+    return progress;
 }
 
 void MainWindow::closeArchiveRestoreProgress()
@@ -842,6 +847,8 @@ void MainWindow::reTranslateUI()
     textWrapAction->setText( transAction( action::wrapText ) );
     showValueNamesAction->setText( transAction( action::showValueNamesText ) );
     showValueNamesAction->setStatusTip( transAction( action::showValueNamesStatusTip ) );
+    matchesOnlyAction->setText( transAction( action::matchesOnlyText ) );
+    matchesOnlyAction->setStatusTip( transAction( action::matchesOnlyStatusTip ) );
     reloadAction->setText( transAction( action::reloadText ) );
     stopAction->setText( transAction( action::stopText ) );
 
@@ -1109,6 +1116,14 @@ void MainWindow::createActions()
     showValueNamesAction->setStatusTip( tr( action::showValueNamesStatusTip ) );
     showValueNamesAction->setCheckable( true );
     connect( showValueNamesAction, &QAction::toggled, this, &MainWindow::valueNamesShownSet );
+
+    // Matches Only (#798): the Table View's, enabled for a tab that has one.
+    matchesOnlyAction = new QAction( tr( action::matchesOnlyText ), this );
+    matchesOnlyAction->setObjectName( "matchesOnlyAction" );
+    matchesOnlyAction->setStatusTip( tr( action::matchesOnlyStatusTip ) );
+    matchesOnlyAction->setCheckable( true );
+    matchesOnlyAction->setEnabled( false );
+    connect( matchesOnlyAction, &QAction::toggled, this, &MainWindow::matchesOnlySet );
 
     reloadAction = new QAction( tr( action::reloadText ), this );
 
@@ -1425,6 +1440,7 @@ void MainWindow::createMenus()
     viewMenu->addSeparator();
     viewMenu->addAction( textWrapAction );
     viewMenu->addAction( showValueNamesAction );
+    viewMenu->addAction( matchesOnlyAction );
     viewMenu->addSeparator();
     viewMenu->addAction( followAction );
     viewMenu->addSeparator();
@@ -2327,7 +2343,10 @@ void MainWindow::servePluginCallbacks()
 
 void MainWindow::showPluginDialog()
 {
-    PluginDialog dialog( plugins_->catalog(), plugins_->host(), this );
+    PluginDialog dialog( *plugins_, this );
+    // What the Log Format Catalog could not read of a plugin's Log Formats
+    // shows on the plugin's card (#793).
+    dialog.showLogFormatWarnings( session_.logFormatCatalog() );
     dialog.exec();
     updateSourcesMenu();
 }
@@ -2691,6 +2710,15 @@ void MainWindow::changeFollowMode( bool follow )
     followAction->setChecked( follow );
 }
 
+// The one place the Matches Only action is written: from what the Table
+// View of the Log File in front holds, as it says it or as it is read when
+// the tab comes to the front (#798).
+void MainWindow::changeMatchesOnly( bool on )
+{
+    const QSignalBlocker blocker( matchesOnlyAction );
+    matchesOnlyAction->setChecked( on );
+}
+
 void MainWindow::lineNumberHandler( LineNumber startLine, LinesCount nLines, LineColumn startCol,
                                     LineLength nSymbols )
 {
@@ -2790,7 +2818,10 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
         lineNumberHandler( 0_lnum, LinesCount( 0 ), LineColumn( 0 ), LineLength( 0 ) );
 
         // The Log Format is recognized once the load has finished.
-        updateGoToTimestampAction( crawler->state() );
+        const auto state = crawler->state();
+        updateGoToTimestampAction( state );
+        matchesOnlyAction->setEnabled( state.hasTableView );
+        changeMatchesOnly( state.matchesOnly );
 
         // Now everything is ready, we can finally show the file!
         crawler->show();
@@ -3044,6 +3075,7 @@ void MainWindow::connectFrontTab( CrawlerWidget* crawler )
         connect( this, &MainWindow::textWrapSet, crawler, &CrawlerWidget::textWrapSet ),
         connect( this, &MainWindow::valueNamesShownSet, crawler,
                  &CrawlerWidget::valueNamesShownSet ),
+        connect( this, &MainWindow::matchesOnlySet, crawler, &CrawlerWidget::setMatchesOnly ),
         connect( this, &MainWindow::enteringQuickFind, crawler, &CrawlerWidget::enteringQuickFind ),
         connect( &quickFindWidget_, &QuickFindWidget::close, crawler,
                  &CrawlerWidget::exitingQuickFind ),
@@ -3058,6 +3090,8 @@ void MainWindow::connectFrontTab( CrawlerWidget* crawler )
 
         // What the Log File in front tells the window
         connect( crawler, &CrawlerWidget::followModeChanged, this, &MainWindow::changeFollowMode ),
+        connect( crawler, &CrawlerWidget::matchesOnlyChanged, this,
+                 &MainWindow::changeMatchesOnly ),
         connect( crawler, &CrawlerWidget::newSelection, this, &MainWindow::lineNumberHandler ),
         connect( crawler, &CrawlerWidget::saveCurrentSearchAsPredefinedFilter, this,
                  &MainWindow::newPredefinedFilterHandler ),
@@ -3133,6 +3167,9 @@ MainWindow::~MainWindow()
 {
     session_.removeWindow( this );
 
+    // A Conversion still under way gets no tab in a window that is gone.
+    cancelConversions();
+
     // The Plugin Host outlives this window. What plugins show here is taken
     // out before the window's widgets go, so no plugin widget is deleted with
     // them; their widgets move to the most recently active remaining window.
@@ -3153,8 +3190,10 @@ void MainWindow::closeEvent( QCloseEvent* event )
         }
 
         // A Log File still decompressing for a restore was saved as it was
-        // stored, and gets no tab in a closed window (#610).
+        // stored, and gets no tab in a closed window (#610); nor does one
+        // still converting (#795).
         archiveRestores_.cancelAll();
+        cancelConversions();
 
         closeAll( ActionInitiator::App );
         trayIcon_->hide();
@@ -3456,31 +3495,17 @@ bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFil
         return true;
     }
 
-    // Check if a converter plugin handles this file extension (Phase 4)
-    auto& pluginHost = plugins_->host();
+    // A converter plugin handling this file's extension converts it, in the
+    // background; its tab comes once it is done (#795). Asked for again
+    // meanwhile, it waits for that same Conversion.
+    if ( conversions_.contains( fileName ) ) {
+        return true;
+    }
     const auto ext = QFileInfo( fileName ).suffix().toLower();
-    const auto converterId = pluginHost.converterForExtension( ext );
-    if ( !converterId.isEmpty() ) {
-        auto* tempFile = new QTemporaryFile(
-            tempDir_.filePath( QFileInfo( fileName ).fileName() + ".txt" ), this );
-        if ( tempFile->open() ) {
-            const auto rc = pluginHost.runConverter( converterId, fileName, tempFile->fileName() );
-            if ( rc == 0 ) {
-                // The converted Log File is a Transient one, whatever the
-                // file it was converted from: it is read from a temporary
-                // file that is gone after a restart, so neither the Session
-                // nor the recent files keep its path (#605). It is not
-                // converted again on restore either: the Session is restored
-                // before the plugins load (#303), so the converter would not
-                // be there for it. The recent files keep the Log File it was
-                // converted from instead, unless that one is Transient too;
-                // opening that one again shows this tab (#615).
-                return openLogFile( tempFile->fileName(),
-                                    LogFileProvenance::conversionOf( fileName, origin ),
-                                    followFile );
-            }
-            LOG_ERROR << "Converter plugin " << converterId << " failed with rc=" << rc;
-        }
+    if ( const auto converterId = plugins_->host().converterForExtension( ext );
+         !converterId.isEmpty() ) {
+        convertAndOpen( converterId, fileName, followFile, origin );
+        return true;
     }
 
     const auto decompressAction = Decompressor::action( fileName );
@@ -3551,6 +3576,143 @@ bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFil
     }
     else {
         return extractAndLoadFile( fileName );
+    }
+}
+
+namespace {
+
+// Shows done of total on the dialog, as a share of a fixed range: the counts
+// may exceed what the dialog counts in. A total of 0 is unknown: busy, with
+// no share done.
+void showConversionProgress( QProgressDialog& dialog, std::uint64_t done, std::uint64_t total )
+{
+    if ( total == 0 ) {
+        dialog.setRange( 0, 0 );
+        return;
+    }
+    constexpr int Steps = 1000;
+    const auto share
+        = static_cast<double>( std::min( done, total ) ) / static_cast<double>( total );
+    dialog.setRange( 0, Steps );
+    dialog.setValue( static_cast<int>( share * Steps ) );
+}
+
+} // namespace
+
+void MainWindow::convertAndOpen( const QString& converterId, const QString& fileName,
+                                 bool followFile, const LogFileOrigin& origin )
+{
+    using logsquirl::plugins::ConversionEnd;
+    using logsquirl::plugins::ConversionId;
+    using logsquirl::plugins::ConversionOutcome;
+    using logsquirl::plugins::ConversionReport;
+
+    auto& pluginHost = plugins_->host();
+    const auto* plugin = pluginHost.pluginHandle( converterId );
+    const auto pluginName = plugin ? plugin->metadata().name() : converterId;
+    const auto shownName = QDir::toNativeSeparators( fileName );
+    const auto failed = [ this, shownName, pluginName ] {
+        QMessageBox::warning( this, tr( "logsquirl" ),
+                              tr( "Failed to convert %1 with %2" ).arg( shownName, pluginName ) );
+    };
+
+    // What the converter writes, read as a Transient Log File once it is
+    // done: removed with the window, or below when nothing is read from it.
+    auto* output = new QTemporaryFile(
+        tempDir_.filePath( QFileInfo( fileName ).fileName() + ".txt" ), this );
+    // Nothing is read from what it wrote: the file goes, and no tab opens.
+    const auto notConverted = [ this, output, fileName ] {
+        delete output;
+        forgetOpening( fileName );
+    };
+    if ( !output->open() ) {
+        LOG_ERROR << "Cannot create the output file of the Conversion of " << fileName;
+        notConverted();
+        failed();
+        return;
+    }
+
+    // Known once the Conversion is started, before the user can cancel it;
+    // the dialog once its turn comes.
+    auto id = std::make_shared<ConversionId>( 0 );
+    auto dialog = std::make_shared<QPointer<QProgressDialog>>();
+    const QPointer<MainWindow> window( this );
+
+    ConversionReport report{
+        .started =
+            [ this, window, id, dialog, shownName, pluginName ] {
+                if ( !window ) {
+                    return;
+                }
+                // Shown beside the window, which stays in use, as the
+                // progress of a restored archive is, and only once the
+                // Conversion takes a while.
+                auto* progress = newBackgroundProgressDialog();
+                progress->setLabelText(
+                    tr( "Converting %1 with %2" ).arg( shownName, pluginName ) );
+                connect( progress, &QProgressDialog::canceled, this,
+                         [ this, id ] { plugins_->host().cancelConversion( *id ); } );
+                *dialog = progress;
+            },
+        .progress =
+            [ dialog ]( std::uint64_t done, std::uint64_t total ) {
+                if ( *dialog ) {
+                    showConversionProgress( **dialog, done, total );
+                }
+            },
+        .finished =
+            [ this, window, id, dialog, output, fileName, followFile, origin, notConverted,
+              failed ]( const ConversionEnd& end ) {
+                if ( !window ) {
+                    return;
+                }
+                if ( *dialog ) {
+                    ( *dialog )->deleteLater();
+                }
+                conversions_.erase( fileName );
+                if ( end.outcome == ConversionOutcome::Succeeded ) {
+                    // The converted Log File is a Transient one, whatever
+                    // the file it was converted from: it is read from a
+                    // temporary file that is gone after a restart, so
+                    // neither the Session nor the recent files keep its path
+                    // (#605). It is not converted again on restore either:
+                    // the Session is restored before the plugins load
+                    // (#303), so the converter would not be there for it.
+                    // The recent files keep the Log File it was converted
+                    // from instead, unless that one is Transient too;
+                    // opening that one again shows this tab (#615).
+                    openLogFile( output->fileName(),
+                                 LogFileProvenance::conversionOf( fileName, origin ), followFile );
+                    return;
+                }
+                // A failure is reported, a cancellation was asked for.
+                notConverted();
+                if ( end.outcome == ConversionOutcome::Failed ) {
+                    failed();
+                }
+            },
+    };
+
+    *id = pluginHost.startConversion( converterId, fileName, output->fileName(),
+                                      std::move( report ) );
+    if ( *id == 0 ) {
+        notConverted();
+        failed();
+        return;
+    }
+    conversions_[ fileName ] = *id;
+}
+
+void MainWindow::cancelConversions()
+{
+    // Cancelled by ID: the report of each erases it from the map.
+    std::vector<logsquirl::plugins::ConversionId> ids;
+    ids.reserve( conversions_.size() );
+    for ( const auto& [ fileName, id ] : conversions_ ) {
+        ids.push_back( id );
+    }
+    for ( const auto id : ids ) {
+        plugins_->host().cancelConversion( id );
     }
 }
 
@@ -3668,6 +3830,8 @@ void MainWindow::updateMenuBarFromDocument( const CrawlerWidget::State& state )
     changeFollowMode( state.follows );
     textWrapAction->setChecked( state.textWrap );
     showValueNamesAction->setChecked( state.valueNamesShown );
+    matchesOnlyAction->setEnabled( state.hasTableView );
+    changeMatchesOnly( state.matchesOnly );
     updateGoToTimestampAction( state );
 }
 

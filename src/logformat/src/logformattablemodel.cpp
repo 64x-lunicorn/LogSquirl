@@ -77,8 +77,8 @@ std::optional<QDateTime> LogFormatTableModel::timestampOfLogLine( LineNumber lin
 
 void LogFormatTableModel::setLineCount( int logLineCount )
 {
-    const int lineCount
-        = rows_->rowCount( LinesCount( static_cast<uint64_t>( std::max( logLineCount, 0 ) ) ) );
+    logLineCount_ = std::max( logLineCount, 0 );
+    const int lineCount = rows_->rowCount( LinesCount( static_cast<uint64_t>( logLineCount_ ) ) );
 
     if ( lineCount == lineCount_ ) {
         return;
@@ -119,6 +119,14 @@ void LogFormatTableModel::rereadRows()
         const auto lastColumn = columnCount() - 1;
         Q_EMIT dataChanged( index( 0, 0 ), index( lineCount_ - 1, lastColumn ) );
     }
+}
+
+bool LogFormatTableModel::rowMatchesFormat( int row ) const
+{
+    if ( row < 0 || row >= lineCount_ ) {
+        return false;
+    }
+    return cachedRow( row ).matchesFormat;
 }
 
 int LogFormatTableModel::rowCount( const QModelIndex& parent ) const
@@ -176,12 +184,113 @@ QVariant LogFormatTableModel::headerData( int section, Qt::Orientation orientati
     if ( section < 0 || section >= columnCount() ) {
         return {};
     }
+    if ( section == headerNoteColumn_ ) {
+        return headerNote_;
+    }
     return cells_->columnName( section );
+}
+
+void LogFormatTableModel::setRowMapping( std::shared_ptr<const RowMapping> rows )
+{
+    beginResetModel();
+    rows_ = std::move( rows );
+    lineCount_ = rows_->rowCount( LinesCount( static_cast<uint64_t>( logLineCount_ ) ) );
+    endResetModel();
+}
+
+namespace {
+
+// The Rows while runs of them are inserted one after another: the Rows
+// before the next run are the merged mapping's, the ones from it on still
+// the previous mapping's, moved down by the Rows inserted so far. A view
+// told of an insertion reads the Rows around it before and after, and sees
+// the same Log Lines both times.
+class MergingRows : public RowMapping {
+public:
+    MergingRows( std::shared_ptr<const RowMapping> previous,
+                 std::shared_ptr<const RowMapping> merged )
+        : previous_( std::move( previous ) )
+        , merged_( std::move( merged ) )
+    {
+    }
+
+    // The run at first is being inserted: the Rows before it are merged.
+    void beginRun( int first )
+    {
+        cutoff_ = first;
+    }
+    // The run of count Rows is inserted: the Rows through it are merged.
+    void endRun( int count )
+    {
+        cutoff_ += count;
+        insertedSoFar_ += count;
+    }
+
+    int rowCount( LinesCount logLines ) const override
+    {
+        return previous_->rowCount( logLines ) + insertedSoFar_;
+    }
+
+    LineNumber logLineAt( int row ) const override
+    {
+        return row < cutoff_ ? merged_->logLineAt( row )
+                             : previous_->logLineAt( row - insertedSoFar_ );
+    }
+
+    std::optional<int> rowOf( LineNumber logLine ) const override
+    {
+        if ( const auto row = merged_->rowOf( logLine ); row && *row < cutoff_ ) {
+            return row;
+        }
+        if ( const auto row = previous_->rowOf( logLine ) ) {
+            return *row + insertedSoFar_;
+        }
+        return std::nullopt;
+    }
+
+private:
+    std::shared_ptr<const RowMapping> previous_;
+    std::shared_ptr<const RowMapping> merged_;
+    int cutoff_ = 0;
+    int insertedSoFar_ = 0;
+};
+
+} // namespace
+
+void LogFormatTableModel::mergeRows( std::shared_ptr<const RowMapping> rows,
+                                     const std::vector<RowRun>& inserted )
+{
+    auto merging = std::make_shared<MergingRows>( rows_, rows );
+    rows_ = merging;
+    for ( const auto& run : inserted ) {
+        if ( run.count <= 0 ) {
+            continue;
+        }
+        merging->beginRun( run.first );
+        beginInsertRows( QModelIndex(), run.first, run.first + run.count - 1 );
+        merging->endRun( run.count );
+        lineCount_ += run.count;
+        endInsertRows();
+    }
+    rows_ = std::move( rows );
+}
+
+void LogFormatTableModel::setHeaderNote( int column, const std::optional<QString>& note )
+{
+    const auto previous = headerNoteColumn_;
+    headerNoteColumn_ = note ? column : -1;
+    headerNote_ = note.value_or( QString{} );
+    for ( const auto changed : { previous, headerNoteColumn_ } ) {
+        if ( changed >= 0 && changed < columnCount() ) {
+            Q_EMIT headerDataChanged( Qt::Horizontal, changed, changed );
+        }
+    }
 }
 
 const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) const
 {
-    auto it = rowCacheMap_.find( row );
+    const auto logLine = rows_->logLineAt( row );
+    auto it = rowCacheMap_.find( logLine.get() );
     if ( it != rowCacheMap_.end() ) {
         // Move to front (most recently used)
         rowCacheList_.splice( rowCacheList_.begin(), rowCacheList_, it.value() );
@@ -189,7 +298,6 @@ const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) 
     }
 
     // Extract from logData_ — read the line once from disk
-    const auto logLine = rows_->logLineAt( row );
     auto line = logData_->getLineString( logLine );
     auto computed = cells_->rowOf(
         logLine, line, [ this ]( LineNumber earlier ) { return timestampOfLogLine( earlier ); } );
@@ -204,9 +312,9 @@ const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) 
         rowCacheList_.pop_back();
     }
 
-    CachedRow entry{ std::move( line ), std::move( computed.cells ) };
-    rowCacheList_.emplace_front( row, std::move( entry ) );
-    rowCacheMap_[ row ] = rowCacheList_.begin();
+    CachedRow entry{ std::move( line ), std::move( computed.cells ), computed.matchesFormat };
+    rowCacheList_.emplace_front( logLine.get(), std::move( entry ) );
+    rowCacheMap_[ logLine.get() ] = rowCacheList_.begin();
     return rowCacheList_.front().second;
 }
 

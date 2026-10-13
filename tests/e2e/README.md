@@ -75,7 +75,12 @@ around a process and never with a fixed wait:
   Search complete (its MB/s is the Search's). Five Searches per generated Log File
   (`SEARCH_VARIANTS` in `benchmark_mode.py`): plain text, a regular expression, no Match
   (`_finished` only), case ignored, an alternation. Every run must report the Matches counted
-  without LogSquirl (`SearchVariant.known_match_count()`), or it fails.
+  without LogSquirl (`SearchVariant.known_match_count()`), or it fails. Two more Searches
+  (`FIELD_SEARCH_VARIANTS`, #798) run on the scroll Log File with Field Terms: `field`, one Field
+  Term on the level field, and `field_and_text`, a Field Term and a plain sub-pattern. They
+  read every Log Line through a Log Format, so the run copies `formats/java_log.json` (the sort
+  cases' one-pattern Log Format) into its own formats folder and recognizes it (the scenario's
+  `format` option), and takes as few runs as a 1 GB case.
 - **QuickFind cases** (`gui_quickfind_*`, #668) run the `quickfind` scenario: on the loaded Log
   File, QuickFind is opened and `slow response` typed a character at a time, at most ten a
   second; each keystroke is timed until the first paint of the Text View after it, the one that
@@ -123,6 +128,16 @@ around a process and never with a fixed wait:
   removed again. `_marks_added`, `_saved` and `_marks_removed` are each step, timed by the
   application. The scenario is also what trains a profile-guided build on Marks and on saving
   displayed lines (BUILD.md, *Profile-guided optimization*).
+- **Sort cases** (`gui_sort_*`, #797) run the `sort` scenario: the scroll Log File is opened,
+  loaded and shown in the Table View, unmeasured; then the Rows are sorted by one column, as a
+  click on its header sorts them: the column's keys are read for every Log Line off the UI
+  thread and sorted, and the Rows switch to the Sort Order. `_sorted` is the click to the
+  switch. One case per kind of key: `text` sorts by the message (`body`), `timestamp` by the
+  Timestamp, and `numeric` by an integer field, which the built-in Java Log Format does not
+  have, so that run copies `formats/java_log.json`, the same Log Lines with the milliseconds
+  of a message as an integer field `ms`, into its own formats folder, where it replaces the
+  built-in one. Each run keys a million Log Lines, so a case takes at most 7 runs after one
+  warmup run.
 - **Grep cases** (`grep_*`) run `logsquirl_grep --benchmark-output <file>`, which writes a
   report of the same format for its Search (scenario `grep`): `index_finished`,
   `search_finished` and `matches_written`, timed from the open of the Log File. A case reports
@@ -237,6 +252,7 @@ pytest -v -m "performance and not slow"          # quick benchmarks only (1-1.5 
 | `gui_open_log_1gb_first_line` / `_indexed` | Open to first Log Line displayed / Index finished | 1 GB Log File, generated |
 | `gui_search_log_100mb_<variant>_first_match` / `_finished` | Search requested to first Match displayed / Search finished; variants `plain`, `regex`, `no_match` (`_finished` only), `case_insensitive`, `alternation` | 100 MB Log File, generated |
 | `gui_search_log_1gb_<variant>_first_match` / `_finished` | The same | 1 GB Log File, generated |
+| `gui_search_log_100mb_field_first_match` / `_finished`, `gui_search_log_100mb_field_and_text_first_match` / `_finished` | A Search with a Field Term on the level field, alone and with a plain sub-pattern, under `formats/java_log.json` (#798) | 100 MB scroll Log File, generated |
 | `gui_quickfind_log_100mb_keystroke_p50` / `_p99` | QuickFind typed character by character: keystroke to Matches on screen marked, median / 99th percentile of a run | 100 MB Log File, generated |
 | `gui_quickfind_log_1gb_keystroke_p50` / `_p99` | The same | 1 GB Log File, generated |
 | `gui_scroll_<view>_frame_p50` / `_p99` / `_max` | A frame, the paint of the view's Viewport, while scrolling by line, by page and to the end: median / 99th percentile / longest of a run; `_frame_p99` also the frames over 16.7 ms. Views `text`, `text_highlighters`, `table`, `table_highlighters` | 100 MB scroll Log File, generated |
@@ -249,13 +265,15 @@ pytest -v -m "performance and not slow"          # quick benchmarks only (1-1.5 
 | `gui_read_while_indexing_log_100mb_index_wall` / `_index_cpu` | The same run's indexing, from the request to open the Log File to its Index finished: wall time / the process's CPU time, every thread together; `_index_wall` also the parallelism, CPU over wall time | 100 MB Log File, generated |
 | `gui_read_while_indexing_log_1gb_*` | The same | 1 GB Log File, generated |
 | `gui_save_log_100mb_marks_added` / `_saved` / `_marks_removed` | After a Search for the WARN Log Lines: 200 Marks set / the Filtered View's Matches and Marks saved to a file / the Marks removed | 100 MB Log File, generated |
+| `gui_sort_log_100mb_text_sorted` / `gui_sort_log_100mb_timestamp_sorted` / `gui_sort_log_100mb_numeric_sorted` | The Table View sorted by the message text / the Timestamp / an integer field: the click on the header to the Rows switched to the Sort Order | 100 MB scroll Log File, generated |
 | `gui_startup_version` | Process start to exit of `logsquirl --version` | — |
 
 Every grep case is timed from the open of the Log File to its last match written, every
 `gui_open_*` case from the open, every Search case from its request, every QuickFind case
 from each keystroke, every scroll case is a paint, every follow case is timed from an append
 every session restore case from the restore, every read-while-indexing case is a read or
-the indexing from the open and every save case a step after the Search finished; none
+the indexing from the open, every save case a step after the Search finished and every
+sort case from the click on the header; none
 contains the process startup.
 
 The read-while-indexing cases see what the instruction counts cannot (#686): Cachegrind runs

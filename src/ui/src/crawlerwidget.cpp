@@ -168,6 +168,12 @@ CrawlerWidget::CrawlerWidget( const ViewBuild& build, QWidget* parent )
 
 CrawlerWidget::~CrawlerWidget()
 {
+    // A sort of the Table View reads the Log File until it is stopped: it is
+    // stopped here, before the Log File goes with the members, while the
+    // Table View, a child, would go only after them.
+    if ( logTableView_ != nullptr ) {
+        logTableView_->setLogFormat( nullptr, nullptr );
+    }
     // A Filtered View reads its Search until it is gone, so the tabs go
     // before the Kept Searches let the Searches go, and ask nothing of them
     // as they go.
@@ -356,6 +362,8 @@ CrawlerWidget::State CrawlerWidget::state() const
     state.follows = isFollowEnabled();
     state.textWrap = isTextWrapEnabled();
     state.valueNamesShown = isValueNamesShownSet();
+    state.hasTableView = recognizedFormat_ != nullptr;
+    state.matchesOnly = logTableView_->matchesOnly();
     state.encodingMib = encodingMib();
     state.goToTimestampUnavailable = goToTimestampUnavailableReason();
     state.searchLimitsByTimeUnavailable = searchLimitsByTimeUnavailableReason();
@@ -807,7 +815,7 @@ void CrawlerWidget::openSearchInRegexLab()
         // A pattern not yet edited in the Lab follows the Search Line; one
         // the user edited there stays.
         if ( searchRegexLab_->pattern() == searchRegexLabOpenedWith_ ) {
-            searchRegexLabOpenedWith_ = searchLine_->request();
+            searchRegexLabOpenedWith_ = openLogFile_->withFieldReader( searchLine_->request() );
             searchRegexLab_->setPattern( searchRegexLabOpenedWith_ );
         }
         searchRegexLab_->raise();
@@ -817,7 +825,7 @@ void CrawlerWidget::openSearchInRegexLab()
 
     // The pattern exactly as the Search Line requests a Search: a Wildcard
     // or Fixed String reading comes to the Lab as plain text.
-    searchRegexLabOpenedWith_ = searchLine_->request();
+    searchRegexLabOpenedWith_ = openLogFile_->withFieldReader( searchLine_->request() );
 
     // A window of its own, destroyed with this tab: the Search Line it would
     // write back into goes with it. Cancel changes nothing: only applied() is
@@ -877,6 +885,12 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
                         || state.phase == SearchSession::Phase::Interrupted
                         || state.phase == SearchSession::Phase::InvalidPattern;
 
+    // A pattern found invalid by a Search requested again without the user
+    // -- a Field Term under the Log Format recognized anew (#798) -- is told
+    // here, as the request told it when the user asked.
+    if ( state.phase == SearchSession::Phase::InvalidPattern ) {
+        searchLine_->requested( state );
+    }
     // The Search Line tells the progress, the Matches found or the failure.
     searchLine_->progressed( state, openLogFile_->searchAutoRefresh().state() );
     if ( const auto failure = searchLine_->display().offerIssueReport; !failure.isEmpty() ) {
@@ -1160,6 +1174,12 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     lastLoadStatus_ = load.status;
     lastLoadFailure_ = load.failure;
 
+    // A load from the start (a reload, a truncation) sorts the Table View's
+    // Rows anew once it is brought up to date below.
+    if ( load.fromStart ) {
+        logTableView_->reloaded();
+    }
+
     if ( load.formatRecognized ) {
         showRecognizedFormat();
     }
@@ -1186,6 +1206,12 @@ void CrawlerWidget::truncatedHandler( const QString& failure )
         nbMatches_ = 0_lcount;
     }
 
+    // The Sort Order goes with the Log Format; the Table View sorts by it
+    // again once the truncated Log File has loaded and is recognized.
+    sortOrderAcrossTruncation_.reset();
+    if ( const auto sortOrder = logTableView_->namedSortOrder() ) {
+        sortOrderAcrossTruncation_ = std::make_pair( sortOrder->column, sortOrder->order );
+    }
     resetLogFormat();
 }
 
@@ -1532,6 +1558,11 @@ void CrawlerWidget::setup()
     connectPresentation( logTableView_ );
     connect( logTableView_, &LogTableView::countValuesRequested, this,
              &CrawlerWidget::countFieldValues );
+    // Matches Only and the Field Term of a cell (#798)
+    connect( logTableView_, &LogTableView::matchesOnlyChanged, this,
+             &CrawlerWidget::matchesOnlyChanged );
+    connect( logTableView_, &LogTableView::searchValueInColumn, this,
+             &CrawlerWidget::searchValueInColumn );
 
     // Leaving following by moving away from the bottom, which both
     // Presentations let the user do (#543), asks the View Set, which owns
@@ -2238,7 +2269,9 @@ std::array<LogPresentation*, 2> CrawlerWidget::presentations() const
 }
 
 // Show the Log Format the Open Log File recognized. Called from the
-// load-finished path only, once per first load, manual reload or truncation.
+// load-finished path only, after each load that took Format Recognition:
+// the first load, a manual reload, a truncation, and a growth of a Log File
+// that was too short to recognize anything from (#794).
 void CrawlerWidget::showRecognizedFormat()
 {
     auto recognized = openLogFile_->logFormat();
@@ -2247,6 +2280,7 @@ void CrawlerWidget::showRecognizedFormat()
         if ( recognizedFormat_ ) {
             resetLogFormat();
         }
+        sortOrderAcrossTruncation_.reset();
         return;
     }
 
@@ -2254,6 +2288,7 @@ void CrawlerWidget::showRecognizedFormat()
         // Still the very same Log Format: nothing to switch, only the Table
         // View to bring up to date with what was loaded.
         logTableView_->updateData( isFollowEnabled(), openLogFile_->lastModified().date() );
+        sortOrderAcrossTruncation_.reset();
         return;
     }
 
@@ -2273,6 +2308,13 @@ void CrawlerWidget::showRecognizedFormat()
     // A reload that recognized a different Log Format while the Table View
     // was shown keeps it shown, with the new columns.
     logTableView_->updateData( isFollowEnabled(), openLogFile_->lastModified().date() );
+    // Truncated under a Sort Order: sorted by that column again, if the Log
+    // Format recognized now has it.
+    if ( sortOrderAcrossTruncation_ ) {
+        const auto [ column, order ] = *sortOrderAcrossTruncation_;
+        sortOrderAcrossTruncation_.reset();
+        logTableView_->sortBy( LogTableView::NamedSortOrder{ column, order } );
+    }
     if ( viewSet_.presentationPolicy().autoShowTableView && !tableViewToggle_->isChecked() ) {
         // Automatically activate table view if the user opted in
         tableViewToggle_->setChecked( true );
@@ -2294,4 +2336,22 @@ void CrawlerWidget::resetLogFormat()
         tableViewToggle_->setChecked( false );
         tableViewToggle_->setVisible( false );
     }
+}
+
+void CrawlerWidget::setMatchesOnly( bool on )
+{
+    // Matches Only is the Table View's: switched on, the Table View is what
+    // the user sees.
+    if ( on && recognizedFormat_ && tableViewToggle_ && !tableViewToggle_->isChecked() ) {
+        tableViewToggle_->setChecked( true );
+    }
+    logTableView_->setMatchesOnly( on );
+}
+
+void CrawlerWidget::searchValueInColumn( const QString& column, const QString& value )
+{
+    // The Field Term joins the pattern as the user would write it, and the
+    // Search runs as the user asked for.
+    searchLine_->addFieldTerm( column, value );
+    runEditedPattern( true );
 }

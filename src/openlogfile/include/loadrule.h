@@ -153,6 +153,12 @@ public:
                                const SearchAutoRefresh& autoRefresh, SearchLimits limits,
                                SearchLimits searched );
 
+    // Format Recognition was taken, as a load's decision said: whether it
+    // recognized a Log Format, and how many Log Lines the Log File had to
+    // recognize from. While it recognized nothing from fewer than it looks at,
+    // it is taken again after every load that brings more Log Lines (#794).
+    void formatRecognitionTaken( bool recognized, LinesCount lineCount );
+
     // The Log File grows no more: watching it stops (#575). attached tells
     // whether a Log File is attached yet; before, its first load reads it all.
     // Told again once it stops, it does nothing.
@@ -187,8 +193,14 @@ private:
     bool truncatedSinceLoad_ = false;
     logsquirl::vector<LineNumber> savedMarks_;
     // Whether the next load to finish is to recognize the Log Format: the
-    // first load, and the one after a reload or a truncation.
+    // first load, the one after a reload or a truncation, and, while nothing
+    // was recognized from fewer Log Lines than Format Recognition looks at,
+    // every load that brings more (#794).
     bool formatRecognitionPending_ = true;
+    // The Log Lines the Log File had when Format Recognition was last taken
+    // since it was armed: a load that brings no more has the same Log Lines
+    // to recognize from.
+    LinesCount recognizedFromLineCount_;
     // The Log Lines the last finished load brought: Search Limits that end
     // there are the whole Log File.
     LinesCount loadedLineCount_;

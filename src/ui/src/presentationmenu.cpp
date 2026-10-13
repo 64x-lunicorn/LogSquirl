@@ -189,6 +189,15 @@ std::unique_ptr<QMenu> PresentationMenu::create( QWidget* parent, const Report& 
                   }
               } )
         ->setStatusTip( tr( "Excludes the selection from search" ) );
+    // The Table View's cell: the Search narrowed to the Log Lines whose
+    // field has the cell's value, as a Field Term (#798).
+    if ( entries.searchValueInColumn && !report.columnUnderCursor.isEmpty() ) {
+        addEntry( *menu, tr( "Search this value in %1" ).arg( report.columnUnderCursor ),
+                  entries.searchValueInColumn )
+            ->setStatusTip( tr( "Narrows the search to the lines whose %1 field has the value "
+                                "of this cell, as a logical combination" )
+                                .arg( report.columnUnderCursor ) );
+    }
 
     menu->addSeparator();
     // The Log Line under the cursor; where there is none, the selected one.

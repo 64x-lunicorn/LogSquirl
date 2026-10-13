@@ -269,9 +269,11 @@ SCENARIO( "A converter plugin converts through its C entry points", "[pluginload
                          QStringLiteral( "datasource" ) ) );
         REQUIRE( result.has_value() );
 
-        THEN( "It is not treated as a converter" )
+        THEN( "It converts all the same: the entry points make a converter, not the kind (#795)" )
         {
-            REQUIRE( !result->isConverter() );
+            REQUIRE( result->isConverter() );
+            REQUIRE( result->converterExtensions() == "abc;xyz" );
+            REQUIRE_FALSE( result->hasConvertEx() );
         }
     }
 

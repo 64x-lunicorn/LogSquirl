@@ -86,7 +86,8 @@ public:
     // What the dialog Export as CSV starts with: all shown lines or the
     // selected ones, Include Context Lines (unchecked, and only enabled while
     // Context Lines are shown), then the Line and Type columns (unchecked) and
-    // every column of the Table View.
+    // every column of the Table View in the order its Column Layout for the
+    // Log Format shows them, the hidden ones unchecked.
     CsvExportDialog::Setup csvExportSetup() const;
     // Exports the Displayed Lines, or the selected ones, to a CSV file as
     // chosen in that dialog, in the order the view shows them; Context Lines

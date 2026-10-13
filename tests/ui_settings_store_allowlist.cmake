@@ -68,7 +68,7 @@ set(ALLOWED_FILES
     # The shortcuts: a keyed table of some seventy actions with a codec of its
     # own, not the flat snapshot of values a Policy is. Each widget that owns
     # shortcuts registers them straight from that table -- the main window
-    # above, the two files below -- and a Policy would only rewrap the map.
+    # above, the three files below -- and a Policy would only rewrap the map.
     #
     # Logging (enableLogging, loggingLevel): it configures the process's
     # logger, outside the lifetime of any Log File. The main window re-applies
@@ -79,6 +79,7 @@ set(ALLOWED_FILES
     # starts. It is a decision taken at load time, not a setting the Log File
     # keeps.
     src/abstractlogview.cpp # The shortcuts.
+    src/logtableview.cpp    # The shortcuts: next and previous Mark (#797).
     # The shortcuts, and the splitter sizes it reads and writes (window chrome).
     # It also writes the font on zoom, and is the one place that assembles the
     # font (mainFont, useBoldFont, forceFontAntialiasing) its views are handed:

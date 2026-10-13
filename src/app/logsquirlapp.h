@@ -61,6 +61,7 @@
 #include "log.h"
 #include "logformatcatalog.h"
 #include "logsquirl_version.h"
+#include "pluginlogformats.h"
 #include "session.h"
 #include "settingspolicies.h"
 #include "teamfolder.h"
@@ -167,6 +168,13 @@ public:
         // window (#303).
         plugins_ = std::make_shared<logsquirl::plugins::ApplicationPlugins>(
             &LogSquirlApp::loadConfiguredPlugins );
+
+        // The Log Formats the enabled plugins ship go into the Catalog once
+        // the plugins are discovered, and come and go as plugins are enabled
+        // and disabled (#793). The plugin layer reads no settings: which
+        // plugins are enabled is read here, from the configuration.
+        pluginLogFormats_ = std::make_unique<PluginLogFormats>(
+            *plugins_, logFormatCatalog_, [] { return Configuration::get().enabledPlugins(); } );
 
         // The file types LogSquirl opens, as this platform tells them: one
         // for the run, which every window's Options Dialog and the questions
@@ -540,6 +548,10 @@ private:
     // The one Plugin Catalog and Plugin Host, set up by
     // prepareForMainWindows() and handed to every window (#303).
     std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins_;
+
+    // Hands the Log Format Catalog the Log Formats the enabled plugins ship
+    // (#793). Declared after both, which it refers to.
+    std::unique_ptr<PluginLogFormats> pluginLogFormats_;
 
     std::list<std::pair<WindowSession, MainWindow*>> mainWindows_;
     std::stack<QPointer<MainWindow>> activeWindows_;

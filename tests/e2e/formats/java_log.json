@@ -1,0 +1,43 @@
+{
+    "$schema": "https://lnav.org/schemas/format-v1.schema.json",
+    "java_log": {
+        "title": "Java log format with a duration field (sort benchmark)",
+        "description": "The Log Lines of the scroll Log File (generate_test_data.py) with the milliseconds of a message as an integer field; replaces the built-in java_log in a run of the sort scenario (#797)",
+        "regex": {
+            "sort-benchmark": {
+                "pattern": "^(?<timestamp>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}) (?<level>\\w+)\\s+\\[(?<thread>[^\\]]+)\\] \\[(?<class>[^\\]]+)\\] (?<body>.*?)(?: (?<ms>\\d+) ms)?$"
+            }
+        },
+        "level-field": "level",
+        "level": {
+            "error": "ERROR",
+            "warning": "WARN",
+            "debug": "DEBUG",
+            "info": "INFO"
+        },
+        "value": {
+            "thread": {
+                "kind": "string",
+                "identifier": true
+            },
+            "class": {
+                "kind": "string",
+                "identifier": true
+            },
+            "ms": {
+                "kind": "integer"
+            },
+            "body": {
+                "kind": "string"
+            }
+        },
+        "sample": [
+            {
+                "line": "2026-09-01 00:00:00.000 INFO  [worker-00] [c.e.http.RequestHandler] request 0 handled in 0 ms"
+            },
+            {
+                "line": "2026-09-01 00:00:00.001 INFO  [worker-01] [c.e.cache.LookupService] cache lookup for key user:1 hit"
+            }
+        ]
+    }
+}

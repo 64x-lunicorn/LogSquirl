@@ -59,6 +59,9 @@ struct LoadFinished {
     // The Log Lines the current Search last ran over; when not given, the
     // Search Limits as they stand before the load.
     std::optional<Limits> searched = {};
+    // What Format Recognition found when the load's decision took it: a Log
+    // Format, or none (#794).
+    bool recognized = true;
 };
 // The user sets the Search Limits.
 struct SetLimits {
@@ -171,6 +174,11 @@ Decisions run( LoadRule& rule, const std::vector<Event>& events )
                         decisions.limits, load.searched.value_or( decisions.limits ) );
                     decisions.limits = decisions.load.searchLimits;
                     decisions.watching = decisions.load.watching;
+                    // The Open Log File takes Format Recognition when told to
+                    // and reports what it found.
+                    if ( decisions.load.recognizeFormat ) {
+                        rule.formatRecognitionTaken( load.recognized, LinesCount( load.lines ) );
+                    }
                 },
                 [ & ]( const SetLimits& set ) { decisions.limits = limits( set.start, set.end ); },
                 [ & ]( const StopWatching& stop ) {
@@ -236,6 +244,14 @@ SCENARIO( "The Load Rule decides what a finished load brings", "[openlogfile][lo
     const auto truncatedUnderStaticSearch
         = LoadFinished{ LoadingStatus::Successful, 10, AutoRefreshState::FileTruncated };
     const auto noLines = LoadFinished{ LoadingStatus::Successful, 0 };
+    // Loads from which Format Recognition recognized nothing: of a Log File
+    // too short to tell, and of one with as many Log Lines as it looks at
+    // (#794).
+    const auto oneLineUnrecognized = LoadFinished{ .lines = 1, .recognized = false };
+    const auto tenLinesUnrecognized = LoadFinished{ .lines = 10, .recognized = false };
+    const auto fiftyLinesUnrecognized = LoadFinished{ .lines = 50, .recognized = false };
+    const auto eightyLinesUnrecognized = LoadFinished{ .lines = 80, .recognized = false };
+    const auto twoLinesRecognized = LoadFinished{ .lines = 2 };
 
     // clang-format off
     const std::vector<LoadRow> rows = {
@@ -311,6 +327,36 @@ SCENARIO( "The Load Rule decides what a finished load brings", "[openlogfile][lo
           true, false, SearchRefresh::None, {}, false, false },
         { "the Log Format is recognized once Log Lines were added", { noLines, grew, loaded },
           false, true, SearchRefresh::None, {}, false, true },
+        // A Log File too short to recognize a Log Format from is looked at
+        // again as it grows, until one is recognized or it has as many Log
+        // Lines as Format Recognition looks at (#794).
+        { "nothing recognized from one Log Line: recognized again once more were added",
+          { oneLineUnrecognized, grew, loaded },
+          false, true, SearchRefresh::None, {}, false, true },
+        { "nothing recognized from one Log Line: not again while no more were added",
+          { oneLineUnrecognized, unchanged, oneLineUnrecognized },
+          false, false, SearchRefresh::None, {}, false, false },
+        { "nothing recognized from one, then from ten Log Lines: recognized again after that",
+          { oneLineUnrecognized, grew, tenLinesUnrecognized, grew, loaded },
+          false, true, SearchRefresh::None, {}, false, true },
+        { "a Log Format recognized from two Log Lines stays as the Log File grows",
+          { twoLinesRecognized, grew, loaded },
+          false, true, SearchRefresh::None, {}, false, false },
+        { "nothing recognized from fifty Log Lines: not again as the Log File grows",
+          { fiftyLinesUnrecognized, grew, LoadFinished{ .lines = 60 } },
+          false, true, SearchRefresh::None, {}, false, false },
+        { "nothing recognized from eighty Log Lines: not again as the Log File grows",
+          { eightyLinesUnrecognized, grew, LoadFinished{ .lines = 100 } },
+          false, true, SearchRefresh::None, {}, false, false },
+        { "nothing recognized from fifty Log Lines, then reloaded",
+          { fiftyLinesUnrecognized, Reload{}, loaded },
+          true, false, SearchRefresh::None, {}, false, true },
+        { "nothing recognized from fifty Log Lines, then truncated",
+          { fiftyLinesUnrecognized, truncated, truncatedUnderStaticSearch },
+          false, false, SearchRefresh::None, {}, false, true },
+        { "nothing recognized from one Log Line, then truncated and loaded with one again",
+          { oneLineUnrecognized, truncated, oneLineUnrecognized },
+          false, false, SearchRefresh::None, {}, false, true },
         // Kept oddity: a check that finds the Log File unchanged still reports
         // it grew (see the change table), but the load after it does not take
         // it for Log Lines added.

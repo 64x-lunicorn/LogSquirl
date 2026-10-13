@@ -45,6 +45,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -206,6 +207,10 @@ public:
         bool textWrap = false;
         // Whether the tab shows Value Names (#647).
         bool valueNamesShown = false;
+        // Whether the tab has a Table View (a Log Format recognized), and
+        // whether it shows Matches Only (#798).
+        bool hasTableView = false;
+        bool matchesOnly = false;
         // The Encoding chosen for the Log File, none when it is detected.
         std::optional<int> encodingMib;
         // Why Go to timestamp and the Search Limits given as a time are not
@@ -247,6 +252,10 @@ public Q_SLOTS:
     // outcome and hands it to every view; followModeChanged() says it when it
     // is not what was asked or changed.
     void followSet( bool follow );
+    // The Table View shows only the Rows of the current Search's Matches, or
+    // every Row again (Matches Only, #798): the window's action. Switched
+    // on, the Table View is shown. matchesOnlyChanged() says what it is now.
+    void setMatchesOnly( bool on );
 
     void focusSearchEdit();
     void goToLine();
@@ -314,6 +323,9 @@ Q_SIGNALS:
     // Sent up when the Log File is now followed or not, as the View Set
     // holds it; the window's action mirrors it (#558).
     void followModeChanged( bool follow );
+    // Sent up when the Table View switched Matches Only on or off, as it
+    // holds it; the window's action mirrors it (#798).
+    void matchesOnlyChanged( bool on );
     // Sent up when the current line number is updated
     void newSelection( LineNumber startLine, LinesCount nLines, LineColumn startCol,
                        LineLength nSymbols );
@@ -386,6 +398,11 @@ private Q_SLOTS:
 
     // Called when the user add the string to the search
     void addToSearch( const QString& string );
+    // The user asked, from a cell of the Table View, to narrow the Search to
+    // the Log Lines whose field named column has the value (#798): a Field
+    // Term joins the pattern, the logical combination switched on, and the
+    // Search runs.
+    void searchValueInColumn( const QString& column, const QString& value );
 
     // Called when the user replaces the search with the selection string
     void replaceSearch( const QString& string );
@@ -619,6 +636,10 @@ private:
     // this tab is brought to the front (#540): none while a load is under way,
     // whose progress is kept instead, and the failure of a Failed one.
     std::optional<LoadingStatus> lastLoadStatus_;
+    // The Table View's Sort Order when the Log File was truncated, which
+    // forgot the Log Format, as the column's name and the direction: sorted
+    // by again once a Log Format is recognized.
+    std::optional<std::pair<QString, Qt::SortOrder>> sortOrderAcrossTruncation_;
     QString lastLoadFailure_;
     bool hasLoaded_ = false;
     int loadingProgress_ = 0;

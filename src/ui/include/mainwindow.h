@@ -170,12 +170,14 @@ public:
     // until the tab closes, and the Session where it came from. A Transient
     // Log File is not saved with the Session (#570), nor added to the recent
     // files (#597). A Log File a converter plugin handles is opened as what
-    // the converter wrote, a Transient Log File (#605).
+    // the converter wrote, a Transient Log File (#605), once the Conversion
+    // running in the background is done (#795).
     //
     // A Log File asked for before the plugins have loaded opens once they
-    // have (#303); the call then returns true at once, and the provenance's
-    // whenOpened is called after. An open that fails keeps nothing of the
-    // tab, and returns false.
+    // have (#303), and one being converted once that is done; the call then
+    // returns true at once, and the provenance's whenOpened is called after
+    // -- without a tab while the Conversion is still under way. An open that
+    // fails keeps nothing of the tab, and returns false.
     bool openLogFile( const QString& fileName, LogFileProvenance provenance,
                       bool followFile = false );
 
@@ -295,6 +297,9 @@ private Q_SLOTS:
     // Mirrors in the follow action whether the current Log File is followed,
     // as its View Set, the owner of follow, holds it (#558).
     void changeFollowMode( bool follow );
+    // Mirrors in the Matches Only action whether the current Log File's
+    // Table View shows Matches Only, as it holds it (#798).
+    void changeMatchesOnly( bool on );
 
     // Update the selection information displayed in the status bar.
     // Must be passed as the internal (starts at 0) line number.
@@ -340,6 +345,9 @@ Q_SIGNALS:
     void textWrapSet( bool checked );
     // Is emitted when Show Value Names is switched for the tab in front.
     void valueNamesShownSet( bool shown );
+    // The user switched the Matches Only action: asks the current Log
+    // File's Table View, which says back what it holds (#798).
+    void matchesOnlySet( bool on );
     // Is emitted before the QuickFind box is activated,
     // to allow crawlers to get search in the right view.
     void enteringQuickFind();
@@ -371,6 +379,15 @@ private:
     // Opens a Log File now that the plugins have loaded: shows its tab if it
     // is open already, converts it, decompresses it or builds its tab.
     bool openNow( const QString& fileName, bool followFile, const LogFileOrigin& origin );
+    // Starts the Conversion of `fileName` by the converter plugin
+    // `converterId` on a worker thread of the Plugin Host's, shows its
+    // progress beside the window, which stays in use, with Cancel, and opens
+    // the Transient Log File it wrote once it is done (#795). A failed
+    // Conversion is reported; no tab opens then, nor when it was cancelled.
+    void convertAndOpen( const QString& converterId, const QString& fileName, bool followFile,
+                         const LogFileOrigin& origin );
+    // Cancels the Conversions this window started: none of them opens a tab.
+    void cancelConversions();
     // Forgets what was kept of the tab of a Log File whose open failed.
     void forgetOpening( const QString& fileName );
     // Stops the Command Source of the tab of `fileName`, if it has one.
@@ -394,6 +411,10 @@ private:
     // closes it once none is.
     void showArchiveRestoreProgress( const QString& archive );
     void closeArchiveRestoreProgress();
+    // A busy progress dialog for work in the background, beside the window,
+    // which stays in use: non-modal, shown only once the work has taken the
+    // usual minimum duration, and left to its owner to label and close.
+    QProgressDialog* newBackgroundProgressDialog();
     // Raises the window and gives it the focus, as a hand-over from another
     // instance does.
     void bringToFront();
@@ -525,6 +546,7 @@ private:
     QAction* followAction;
     QAction* textWrapAction;
     QAction* showValueNamesAction;
+    QAction* matchesOnlyAction;
     QAction* copyAsShownAction;
     QAction* reloadAction;
     QAction* stopAction;
@@ -617,6 +639,9 @@ private:
     // for the decompression under way, before tempDir_ is removed (#610).
     ArchiveMemberDecompression archiveRestores_;
     QPointer<QProgressDialog> archiveRestoreProgress_;
+    // The Conversions this window started that have not finished, by the Log
+    // File asked for: asked for again meanwhile, it is not converted twice.
+    std::map<QString, logsquirl::plugins::ConversionId> conversions_;
 
     // The window's Regex Lab while it is open; it closes with the window.
     QPointer<RegexLabWindow> regexLab_;

@@ -1,3 +1,102 @@
+# Unreleased
+
+## Changes
+
+- **A search narrows by column with field terms, and the table view shows
+  Matches Only**: in the logical combination a sub-pattern written
+  `Protocol:"DNS"` matches the text of that field of the tab's log format
+  alone, not the whole line; it is read as the *Use regex* and *Match case*
+  buttons say, matches anywhere in the field, and combines with plain
+  sub-patterns and `not(...)`. A line the log format does not parse has no
+  fields and matches no field term. A field the log format lacks, or a field
+  term in a tab without a recognized log format, is a pattern error in the
+  search line naming the field. Field terms work in Predefined Filters and in
+  the Regex Lab, which lists them with their field and marks what they
+  matched in the field. The table view's cell menu offers *Search this value
+  in <column>*, which appends the field term and runs the search. *Matches
+  Only* in the *View* menu and the header menu narrows the table to the rows
+  of the current search's matches; it follows the search, composes with the
+  sort order and turns off when the search is cleared. A search without field
+  terms runs as fast as before; the benchmark mode's `search` scenario gets
+  the options `logical` and `format` and two Budgets for field term Searches
+  (ADR 0018). (#798)
+- **A converter plugin runs in the background with progress and Cancel**:
+  opening a file a converter plugin handles no longer freezes the window
+  while it converts. A conversion that takes a while shows a non-modal
+  progress dialog beside the window, named after the file and the plugin,
+  with a *Cancel* button; cancelling opens no tab, and a failed conversion
+  says which plugin could not convert which file instead of opening the raw
+  file. A plugin converts one file at a time, files for different plugins
+  convert at the same time, and disabling a plugin cancels its conversions.
+  For plugin authors: the new optional entry point
+  `logsquirl_converter_convert_ex` gets a `LogSquirlConvertControl` to report
+  progress and poll for cancellation, both convert entry points run on a host
+  worker thread, and any plugin exporting the converter entry points converts,
+  whatever its manifest `type`. (#795)
+- **The Table View sorts its Rows by a column (Sort Order)**: a click on a
+  column header sorts the Rows by that column, a second click the other way
+  round, a third restores Log Line order; the header shows the indicator.
+  Fields the Log Format declares `integer` or `float` sort by number, the
+  timestamp field by its Timestamp, the Δt column by its duration, every
+  other field by its text ignoring case; ties keep Log Line order and Rows
+  without a value come last in both directions. The sort reads the column
+  off the UI thread, the header showing its progress; a second click or Esc
+  stops it and keeps the previous order. A Row stays its Log Line: the
+  selection, Marks, Matches, Go to line, Go to timestamp and QuickFind land
+  on the same Log Lines, and `[` and `]` go to the previous and next Mark up
+  and down the sorted table. *Copy* and the CSV export's *Selected rows*
+  follow the order shown. A followed Log File keeps its Sort Order, appended
+  Log Lines merged in at their place and follow sticking to the last Row; a
+  reload or truncation sorts again. The Sort Order lives with the tab: it is
+  not saved per Log Format, in the Session or in the Column Layout, and
+  hiding the sorted column keeps it. The benchmark mode's new `sort` scenario
+  times a sort of the 100 MB scroll Log File by a text, a numeric and a
+  timestamp column, with Budgets proposed in ADR 0018. (#797)
+- **A log file too short to be recognized is recognized as it grows**: while
+  a file has fewer than 50 lines and no log format matched them,
+  auto-detection runs again after each load that brings more lines,
+  until a format is recognized or 50 lines have been seen. A file opened with
+  only a header line shows its table view once its first log lines arrive. A
+  recognized format stays as before; a file whose first 50 lines matched
+  nothing is not matched again until it is reloaded or truncated. (#794)
+- **The Table View hides and reorders its columns, kept per Log Format (Column
+  Layout)**: the header's context menu lists every column with a check mark,
+  the Δt column among them; unchecking hides a column, checking shows it
+  again, and one column always stays shown. A column header dragged to
+  another place moves the column, and *Reset columns* restores the Log
+  Format's order, shows every column and drops the saved widths. Which columns
+  are shown, in which order and how wide is kept per Log Format beside the
+  widths and applied to every Log File of that Log Format, also after a
+  restart; a Log Format whose columns changed gets the defaults. A Row is
+  unchanged by its layout: *Copy* copies every cell, a Row stays a Match or
+  Mark when the matched text sits in a hidden column, and *Count values*
+  counts the field of the column clicked. The *Export as CSV* dialog of the
+  Table View and of the Filtered View lists the columns in the shown order
+  with the hidden ones unchecked. (#792)
+
+- **A plugin ships Log Formats**: a plugin names Log Format files in its
+  manifest (`"formats": ["formats/tcpdump_log.json"]`), and they are part of
+  the Log Format Catalog while the plugin is enabled in Plugin Management,
+  loaded or not. The Catalog reads the built-in formats, then the enabled
+  plugins', then your formats folder, and the later one wins by name; between
+  two plugins shipping one format, the plugin whose id sorts first wins and
+  the log says so. A format file that cannot be read is skipped, the plugin
+  still loads, and its card in Plugin Management shows what was wrong. The
+  Options dialog's Log Formats page gets a *Source* column reading
+  *Built-in*, *User* or the plugin's name. A file opened before the plugins
+  were discovered keeps the format it was recognized with until it is
+  reloaded. (#793)
+
+## Bug fixes
+
+- **A plugin opens a file from any thread**: `open_file` called from a
+  plugin's worker thread now opens the file on the UI thread once its event
+  loop turns, instead of opening a tab off the UI thread, and a call a plugin
+  queued before it was unloaded is dropped. `get_active_file_path` is UI-thread
+  only, like `open_regex_lab`, `go_to_log_line` and `get_selected_log_lines`:
+  called elsewhere it logs a warning and answers an empty string, as without a
+  file. The plugin SDK guide and the header state the same thread rules. (#796)
+
 # v26.11.0-beta1 (2026-10-09)
 
 ## Changes

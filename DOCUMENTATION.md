@@ -158,6 +158,25 @@ Following logic operations are supported:
 |`&`             |Similar to AND but with left to right expression short circuiting optimization  |
 |`\|`             |Similar to OR but with left to right expression short circuiting optimization   |
 |`not`           |Logical NOT, Negate the logical sense of the input. Input must be enclosed in `()` (eg: `not("x")`)|
+|`Name:"x"`      |A **field term**: `x` is matched against the field `Name` of the tab's log format only, not the whole line (eg: `Protocol:"DNS" and not(Source:"10\.0\.0\.5")`)|
+
+A field term narrows a sub-pattern to one field of the [log format](#auto-log-format-detection-table-view)
+recognized for the file: write the column's name as the table view's header
+shows it, a colon and the quoted pattern, as in `Protocol:"DNS"`. The
+quoted part is read like every other sub-pattern, as a regular expression or
+as text and with or without case as the buttons say, and matches anywhere in
+the field's text (`Protocol:"DNS"` also matches `MDNS`; anchor it with `^`
+and `$` when the whole field must match). Sub-patterns without a field keep
+matching the whole line, so `level:"ERROR" and "timed out"` finds the ERROR
+lines that say *timed out* anywhere. A line the log format does not parse
+has no fields: no field term matches it, and `not(level:"ERROR")` does. The
+Δt column is no field. A field term naming a field the log format lacks, or
+any field term in a tab without a recognized log format, is a pattern error
+shown in the search line, naming the field; the search does not run. A
+reload that recognizes another log format reads the search again under it.
+A field whose name has a space, a colon, a quote, a parenthesis or an
+operator character (`! & |`) cannot be named in a field term. Outside the
+logical combination a colon is text: `a:b` finds `a:b`.
 
 #### The search bar
 
@@ -515,7 +534,12 @@ pattern of the selected filter, on the Log Lines of the tab in front (or on
 pasted text while no file is open). The Lab reads the pattern exactly as the search
 line of the tab in front reads it once the filter is used there: with the
 search engine and that search line's *Match case*, as one pattern, not a
-logical combination. A search line with *Use regex* on reads the filter as a
+logical combination. A filter written with field terms (`level:"ERROR" and
+not("retry")`) is a logical combination of its own: used from the Filters
+Panel it switches the search line's logical combination on and joins the
+pattern as written, in parentheses, its sub-patterns read as the search
+line's buttons say; it needs the tab's log format to have the fields it
+names. A search line with *Use regex* on reads the filter as a
 regular expression or as plain text, as the filter says; one with *Use regex*
 off reads every filter as plain text. So *Use regex* can be changed in the Lab
 only while the search line uses regular expressions; *Match case*, which a
@@ -573,7 +597,10 @@ While you type, the Lab shows after a short pause:
   and in their colors, and beside each line the numbers of those that match
   it -- a negated one included, since it is its match that `not(...)` turns
   round. Whether the line matches is the combination's verdict, as a search
-  decides it. Hovering the numbers says them in words;
+  decides it. Hovering the numbers says them in words. A field term is listed
+  with its field (`level:"ERROR"`), matches against the field's text alone,
+  and is marked where the line shows the field (a JSON or logfmt log format
+  places its fields nowhere in the line, so nothing is marked for it);
 - for the line with the cursor, the capture groups of its first match,
   numbered and with their names (`(?<name>...)`); for a logical combination
   they are numbered *sub-pattern.group*, as in `2.1`;
@@ -825,8 +852,23 @@ level, body, and any custom fields defined by the format).
 
 Enable auto-detection in **Options → Log Formats → "Auto-detect log format
 (table view)"**. The same tab shows a scrollable list of all available format
-definitions (built-in and user-defined) and provides an "Open Formats Folder…"
-button to quickly access the user formats directory.
+definitions and provides an "Open Formats Folder…" button to quickly access
+the user formats directory. The list's *Source* column tells where each
+format comes from: *Built-in* for one shipped with *logsquirl*, *User* for a
+file in your formats folder, or the name of the plugin that ships it.
+
+A plugin can ship format definitions of its own; they are available while the
+plugin is enabled in Plugin Management, whether or not it is loaded. Formats
+are read in the order built-in, then enabled plugins, then your formats
+folder, and the later one wins by name: a plugin's format replaces a built-in
+one of the same name, and one of yours replaces a plugin's. Should two
+enabled plugins ship a format of the same name, the plugin whose id sorts
+first wins, and the log says so. A format file of a plugin that cannot be
+read is skipped; the plugin still loads, and its card in Plugin Management
+shows what was wrong. Plugins are discovered shortly after *logsquirl* has
+started, so a file opened before that -- one restored from the last session,
+say -- is recognized without the plugins' formats and keeps the format it was
+recognized with until it is reloaded.
 
 When enabled, *logsquirl* samples the first lines of each
 opened file and matches them against its library of format definitions. If a
@@ -884,23 +926,114 @@ executable instead (see [Installing](#installing)).
 Format definitions are read when *logsquirl* starts and again whenever the
 Options dialog is applied. A file that is already open keeps the format it
 was recognized with; reload it (or reopen it) to have an added or edited
-user format picked up.
+user format picked up. The one exception is a file that was too short to be
+recognized: while it has fewer than 50 lines and no format matched them, it
+is matched again after each load that brings more lines, so a file opened
+with only a header line gets its table view once its first log lines arrive.
+Once a format is recognized it stays, and a file whose first 50 lines matched
+nothing is not matched again as it grows.
 
 #### Column order
 
 Columns appear in the order their corresponding named capture groups are
 defined in the format's regex pattern. This means the table layout matches
 the structure of the original log line. If no explicit order can be
-determined, columns fall back to alphabetical order.
+determined, columns fall back to alphabetical order. The elapsed-time column
+**Δt** follows the timestamp.
+
+#### The header menu and the Column Layout
+
+Right-click a column header for the header menu. It starts with [*Matches
+Only*](#matches-only), then *Count values*, which counts the values of that
+column's field (not offered for the Δt column, which is no field), then lists
+every column with a check mark, the
+Δt column among them: uncheck a column to hide it, check it to show it again.
+One column always stays shown, so the last checked entry is disabled. Drag a
+column header to move the column to another place. *Reset columns* restores
+the format's order, shows every column and drops the saved widths, so the
+default widths apply again.
+
+Which columns are shown, in which order and how wide is the **Column
+Layout**. It is kept per log format in your own settings and applied to every
+file that format opens, also after a restart. When a format's columns change
+(a field added, removed or renamed), the layout is dropped and the defaults
+apply. A layout does not travel with the format, a Team Folder or a plugin: a
+plugin that wants a default order declares its fields in that order.
+
+A row is unchanged by its layout: *Copy* copies every cell of the row, hidden
+ones included, a row stays a match or a mark when the matched text sits in a
+hidden column, *Count values* counts the field of the column clicked wherever
+it is placed, and selecting text in a cell works on the shown columns in the
+shown order. The *Export as CSV* dialog, in the table view and in the
+filtered view, lists the columns in the shown order with the hidden ones
+unchecked; check one to export it anyway.
+
+#### Sorting the rows
+
+Click a column header to sort the rows by that column, ascending; click it
+again for descending, and a third time for the order of the file again. The
+header shows the sort indicator. Fields the format declares `integer` or
+`float` sort by their number, the timestamp field by its timestamp, the
+**Δt** column by its duration, and every other field by its text, ignoring
+case. Rows with the same value keep their order in the file, and rows without
+a value in that column, the lines the format does not match among them, come
+last in both directions.
+
+The sort reads the column of every line in the background: the header reads
+*sorting* with the progress meanwhile, the rows stay as they are, and they
+switch to the new order at once when it is done. Click the header again or
+press Esc to stop a sort under way and keep the previous order. There is no
+limit on the size of the file; the time grows with it.
+
+A row stays its line of the file, sorted or not: the selection, marks,
+matches, *Go to line*, *Go to timestamp*, QuickFind and the chart's *Show
+this line* all land on the same line. `[` and `]` go to the previous and
+the next marked row in the order shown, that is up and down the table. *Copy*
+copies the selected rows in the order shown, and so does the CSV export's
+*Selected rows*. A followed file keeps its sort order: appended lines are
+placed where they belong, keyed alone, and follow sticks to the last row of
+the sorted table. A reload or a truncation sorts the rows again once the file
+has loaded. The sort order lives with the tab while it is open: it is not
+kept per format or in the session, a new tab of the same format opens in
+file order, and it is not part of the Column Layout. Hiding the sorted
+column keeps the sort order; the indicator comes back with the column.
+
+#### Matches Only
+
+*Matches Only*, in the *View* menu and in the header menu, narrows the table
+to the rows whose line is a match of the current search: a marked line or a
+context line has a row only when it is a match. It follows the search as it
+runs, as *Auto-refresh* finds matches in a growing file and as another search
+replaces it, and it turns itself off when the search is cleared; without a
+search there is nothing to narrow to, and it stays off. It composes with the
+sort order: Matches Only decides which rows there are, the sort order their
+order, and switching either does not touch the other. A row stays its line
+of the file: the selection, *Go to line*, QuickFind, *Copy* and the next and
+previous match (and mark) address the lines shown. Matches Only belongs to
+the table view of the tab, for as long as the tab is open: it is not kept
+per format or in the session, and switching it on from the *View* menu shows
+the table view.
+
+#### Search this value in a column
+
+Right-click a cell that shows a value of a field for *Search this value in
+<column>* (not offered on the Δt column, or on an empty cell). It appends
+`and <column>:"<value>"` to the search pattern as a
+[field term](#exploring-log-files), the value escaped when the search line
+reads regular expressions, switches the logical combination on if it was off,
+and runs the search: the quickest way to narrow a search to the lines whose
+field has the value under the cursor. *Add to search* on selected text stays
+as it is.
 
 #### Column sizing
 
 Columns are auto-sized by measuring the actual text content of up to 2000
 rows using the view's font metrics. This ensures that cell content — including
 very long body messages — is never clipped. When the total column width is
-narrower than the viewport, the last column stretches to fill the remaining
-space. A horizontal scrollbar appears automatically when columns exceed the
-viewport width.
+narrower than the viewport, the last shown column stretches to fill the
+remaining space. A horizontal scrollbar appears automatically when columns
+exceed the viewport width. A width you set is part of the Column Layout and
+kept for the format.
 
 #### Highlighting in the table view
 
@@ -930,8 +1063,8 @@ Without a recognized format there is no table view and no export. A dialog
 chooses what is written:
 
 - **Rows**: *All rows*, every row the table shows, in its order, or
-  *Selected rows*, the selected ones in line order. *Selected rows* can only
-  be chosen while rows are selected, and is then chosen at first.
+  *Selected rows*, the selected ones in the order shown. *Selected rows* can
+  only be chosen while rows are selected, and is then chosen at first.
 - **Columns**: *Line*, the 1-based line number as *Copy with line numbers*
   writes it (unchecked at first), then every column of the table, **Δt**
   included (all checked). At least one column must be checked.
@@ -1288,7 +1421,14 @@ widgets or panels. How to write one is described in the
 
 A file a converter plugin turns into text is opened from a temporary copy of
 that text. It is not restored with the session; the recent files keep the file
-you opened, which is converted again when you open it from there.
+you opened, which is converted again when you open it from there. The
+conversion runs in the background: the window stays usable, and one that takes
+a while shows a progress dialog beside the window, named after the file and
+the plugin, with a *Cancel* button. A plugin converts one file at a time, so
+a second file for the same plugin waits its turn; files for different plugins
+convert at the same time. A cancelled conversion opens no tab, and a failed
+one tells you which plugin could not convert which file. Any plugin that
+offers a converter converts, whatever its kind.
 
 `Plugins->Plugin Management...` opens the Plugin Management dialog. It lists the
 plugins in the catalog and the ones installed on your machine under the tabs

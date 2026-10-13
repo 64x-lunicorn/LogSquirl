@@ -457,14 +457,17 @@ void RegexLabWindow::setPattern( const RegularExpressionPattern& pattern )
         inverse_->setChecked( pattern.isExclude );
         logicalCombination_->setChecked( pattern.isBoolean );
     }
+    fieldReader_ = pattern.fieldReader;
     evaluate();
 }
 
 RegularExpressionPattern RegexLabWindow::pattern() const
 {
-    return RegularExpressionPattern( patternEdit_->text(), matchCase_->isChecked(),
-                                     inverse_->isChecked(), logicalCombination_->isChecked(),
-                                     !useRegexp_->isChecked() );
+    RegularExpressionPattern pattern( patternEdit_->text(), matchCase_->isChecked(),
+                                      inverse_->isChecked(), logicalCombination_->isChecked(),
+                                      !useRegexp_->isChecked() );
+    pattern.fieldReader = fieldReader_;
+    return pattern;
 }
 
 void RegexLabWindow::setOptionsKept( Options kept, Options shownFixed )
@@ -810,12 +813,21 @@ void RegexLabWindow::showSubPatterns()
     QStringList shown;
     for ( qsizetype index = 0; index < result_.subPatterns.size(); ++index ) {
         const auto color = matchColor( static_cast<int>( index ) ).name();
+        // A Field Term is shown with the field it reads (#798).
+        const auto field = index < result_.subPatternFields.size()
+                               ? result_.subPatternFields[ index ]
+                               : QString{};
+        const auto text
+            = field.isEmpty()
+                  ? result_.subPatterns[ index ].toHtmlEscaped()
+                  : QStringLiteral( "%1:&quot;%2&quot;" )
+                        .arg( field.toHtmlEscaped(), result_.subPatterns[ index ].toHtmlEscaped() );
         shown.append( QStringLiteral(
                           "<span style=\"background-color:%1; color:black\">&nbsp;%2&nbsp;</span> "
                           "<code>%3</code>" )
                           .arg( color )
                           .arg( index + 1 )
-                          .arg( result_.subPatterns[ index ].toHtmlEscaped() ) );
+                          .arg( text ) );
     }
     subPatterns_->setText(
         tr( "Sub-patterns: %1" ).arg( shown.join( QStringLiteral( "&nbsp; " ) ) ) );

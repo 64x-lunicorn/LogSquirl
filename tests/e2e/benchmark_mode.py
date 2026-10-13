@@ -24,7 +24,8 @@ import functools
 import json
 import re
 import subprocess
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from isolated_instance import IsolatedLogSquirl
@@ -203,17 +204,35 @@ class SearchVariant:
     regex: bool = False
     match_case: bool = True
     description: str = ""
+    # The Search Line's logical combination button: the pattern is quoted
+    # sub-patterns joined by and/or/not, Field Terms among them (#798).
+    logical: bool = False
+    # A Log Format file the run copies into its own formats folder, where it
+    # replaces the Catalog's of the same name, with Log Formats recognized:
+    # what a Search with Field Terms reads the fields through. None leaves
+    # the Catalog as it is and recognizes nothing, as the other Searches run.
+    format: Path | None = None
+    # What a logical pattern matches, read by Python: re knows no Field Term.
+    known_matcher: Callable[[str], bool] | None = field(default=None, compare=False, hash=False)
 
     def options(self) -> dict[str, str]:
         """The --benchmark-option values of the search scenario."""
-        return {
+        options = {
             "pattern": self.pattern,
             "regex": "true" if self.regex else "false",
             "match_case": "true" if self.match_case else "false",
         }
+        if self.logical:
+            options["logical"] = "true"
+        if self.format is not None:
+            options["format"] = str(self.format)
+        return options
 
     def matches(self, line: str) -> bool:
         """Whether a Log Line, without its line feed, is a Match: read by Python, not LogSquirl."""
+        if self.logical:
+            assert self.known_matcher is not None, "a logical variant needs its known_matcher"
+            return self.known_matcher(line)
         if self.regex:
             flags = 0 if self.match_case else re.IGNORECASE
             return re.search(self.pattern, line, flags) is not None
@@ -246,4 +265,33 @@ SEARCH_VARIANTS = (
                   description="Plain text, case ignored, the ERROR Log Lines"),
     SearchVariant("alternation", "ERROR|WARN", regex=True,
                   description="An alternation, the ERROR and WARN Log Lines"),
+)
+
+
+# The Log Format the Field Term Searches read the fields through: the scroll
+# Log File's Log Lines as one pattern (the sort benchmark's, #797), copied over
+# the built-in Java Log Format, whose many patterns would make the reading
+# spread.
+FIELD_SEARCH_FORMAT = Path(__file__).resolve().parent / "formats" / "java_log.json"
+
+
+def _level_of(line: str) -> str:
+    """The level field of a scroll Log File's Log Line: the word after the timestamp."""
+    parts = line.split(" ")
+    return parts[2] if len(parts) > 2 else ""
+
+
+# The Searches with Field Terms (#798) the search scenario is measured with, on
+# the scroll Log File (generate_test_data.py) under FIELD_SEARCH_FORMAT: one in
+# 101 Log Lines has the level ERROR, one in 13 (but not an ERROR) the level
+# WARN with a "slow response" message. A Field Term reads the field of every
+# Log Line through the Log Format, so these are slower than the raw Searches.
+FIELD_SEARCH_VARIANTS = (
+    SearchVariant("field", 'level:"ERROR"', logical=True, format=FIELD_SEARCH_FORMAT,
+                  known_matcher=lambda line: _level_of(line) == "ERROR",
+                  description="A Field Term, the Log Lines whose level field is ERROR"),
+    SearchVariant("field_and_text", 'level:"WARN" and "slow response"', logical=True,
+                  format=FIELD_SEARCH_FORMAT,
+                  known_matcher=lambda line: _level_of(line) == "WARN" and "slow response" in line,
+                  description="A Field Term and a plain sub-pattern, the WARN Log Lines"),
 )

@@ -24,6 +24,8 @@
 #include <QStringList>
 #include <QVector>
 
+#include <utility>
+
 // Represents one value/field definition from a lnav format's "value" section.
 struct LogFormatValueDef {
     QString kind = "string";
@@ -45,11 +47,48 @@ enum class LogFormatKind {
     Logfmt, // key/value pairs; fields are the keys ("file-type": "logfmt")
 };
 
+// Where a Log Format in the Log Format Catalog came from (#793): built in,
+// a file in the user's Log Formats folder, or a file an enabled plugin names
+// in its manifest, shown with the plugin's name. A Log File knows only its
+// Log Format, not its Source.
+struct LogFormatSource {
+    enum class Kind { BuiltIn, User, Plugin };
+
+    Kind kind = Kind::BuiltIn;
+    // The plugin's display name, for Kind::Plugin; empty otherwise.
+    QString pluginName;
+
+    static LogFormatSource builtIn()
+    {
+        return {};
+    }
+    static LogFormatSource user()
+    {
+        return { Kind::User, {} };
+    }
+    static LogFormatSource plugin( const QString& name )
+    {
+        return { Kind::Plugin, name };
+    }
+
+    bool operator==( const LogFormatSource& ) const = default;
+};
+
 // Represents a single parsed log format definition (one entry from a lnav JSON file).
 // Holds metadata, regex patterns, field definitions, and sample lines.
 class LogFormatDefinition {
 public:
     LogFormatDefinition() = default;
+
+    // Where the Log Format came from, as the Catalog that read it says.
+    const LogFormatSource& source() const
+    {
+        return source_;
+    }
+    void setSource( LogFormatSource source )
+    {
+        source_ = std::move( source );
+    }
 
     // What kind of Log Line the format describes. For a Json or Logfmt format the regex
     // patterns are empty and the value definitions name the field paths.
@@ -230,6 +269,7 @@ public:
     }
 
 private:
+    LogFormatSource source_;
     LogFormatKind kind_ = LogFormatKind::Regex;
     QString name_;
     QString title_;

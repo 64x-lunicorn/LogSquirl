@@ -21,7 +21,10 @@
 
 #include "logformatdefinition.h"
 
+#include <QByteArray>
 #include <QVector>
+
+#include <expected>
 
 // Parses lnav-compatible JSON format definition files.
 // Supports the subset of fields needed by LogSquirl:
@@ -35,6 +38,12 @@ public:
     // Keys like "$schema" are ignored.
     // Formats without a "regex" section are skipped.
     static QVector<LogFormatDefinition> parseJsonString( const char* jsonString );
+
+    // Parse the text of a Log Format file: its formats, as parseJsonString
+    // reads them, or why the text is no Log Format file at all -- empty, not
+    // JSON, or not a JSON object (#793).
+    static std::expected<QVector<LogFormatDefinition>, QString>
+    parseJsonText( const QByteArray& text );
 
     // Parse a JSON file on disk.
     // Returns a list of successfully parsed formats, or empty on error.

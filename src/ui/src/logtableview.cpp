@@ -24,19 +24,23 @@
 #include <numeric>
 #include <utility>
 
+#include <QAction>
 #include <QFileDialog>
 #include <QHeaderView>
+#include <QItemSelection>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPointer>
 #include <QScrollBar>
-#include <QSettings>
+#include <QShortcut>
 #include <QTimer>
 
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
 #include "clipboard.h"
+#include "columnlayout.h"
+#include "configuration.h"
 #include "csvexport.h"
 #include "linessaver.h"
 #include "logfiltereddata.h"
@@ -44,29 +48,21 @@
 #include "logtablehighlightdelegate.h"
 #include "overview.h"
 #include "overviewwidget.h"
-#include "persistentinfo.h"
 #include "presentationmenu.h"
 #include "quickfind.h"
 #include "quickfindpattern.h"
 #include "regularexpression.h"
+#include "shortcuts.h"
 #include "theme.h"
 #include "wordrule.h"
 
 namespace {
 
-// A Log Format name safe for use as a QSettings group key.
-QString sanitizedFormatName( const QString& name )
-{
-    QString safe = name;
-    safe.replace( '/', '_' );
-    safe.replace( '\\', '_' );
-    return safe;
-}
+// What a column is wide until auto-sizing has measured it.
+constexpr int StartingColumnWidth = 120;
 
-QString columnWidthsGroup( const LogFormatDefinition& format )
-{
-    return "logformat/columns/" + sanitizedFormatName( format.name() );
-}
+// How often the header shows how far a sort got.
+constexpr int SortProgressIntervalMs = 100;
 
 } // namespace
 
@@ -78,11 +74,37 @@ LogTableView::LogTableView( QWidget* parent )
 LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* parent )
     : QTableView( parent )
     , rows_( std::move( rows ) )
+    , baseRows_( rows_ )
 {
     setSelectionBehavior( QAbstractItemView::SelectRows );
     setAlternatingRowColors( true );
     setShowGrid( false );
     horizontalHeader()->setStretchLastSection( true );
+    // A column header dragged to another place moves the column (Column
+    // Layout); the layout is saved as the user moves and resizes columns.
+    horizontalHeader()->setSectionsMovable( true );
+    connect( horizontalHeader(), &QHeaderView::sectionMoved, this,
+             &LogTableView::saveColumnLayout );
+    // The column shown last is stretched over the remaining width by the
+    // header itself, also in a resize it posts for later, whatever the user
+    // gives it: a resize of that column is not a layout the user chose.
+    connect( horizontalHeader(), &QHeaderView::sectionResized, this, [ this ]( int column ) {
+        if ( column != lastShownColumn() ) {
+            saveColumnLayout();
+        }
+    } );
+    // A click on a header, as the header tells a click from a drag (Sort
+    // Order); the indicator is the Table View's to set, so the table does
+    // not sort through its model.
+    horizontalHeader()->setSectionsClickable( true );
+    horizontalHeader()->setSortIndicatorShown( false );
+    connect( horizontalHeader(), &QHeaderView::sectionClicked, this,
+             &LogTableView::cycleSortOrder );
+
+    sorter_ = std::make_unique<TableSorter>();
+    connect( sorter_.get(), &TableSorter::finished, this, &LogTableView::onSortFinished );
+    sortProgressTimer_.setInterval( SortProgressIntervalMs );
+    connect( &sortProgressTimer_, &QTimer::timeout, this, &LogTableView::showSortProgress );
     setHorizontalScrollBarPolicy( Qt::ScrollBarAsNeeded );
     setHorizontalScrollMode( QAbstractItemView::ScrollPerPixel );
     horizontalScrollBar()->setSingleStep( 10 );
@@ -152,18 +174,32 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
 LogTableView::~LogTableView()
 {
     quickFind_->stopSearch();
+    // No worker outlives the Log File it reads.
+    sorter_->stopAndWait();
 }
 
 void LogTableView::setLogFormat( const LogFormatDefinition* format, AbstractLogData* logData )
 {
     // A Find next or previous under way searches the Log Lines about to go
     quickFind_->stopSearch();
+    // So does a sort; and the Sort Order was the Log Format's columns'.
+    sorter_->stopAndWait();
+    sortProgressTimer_.stop();
+    sorting_.reset();
+    merging_ = false;
+    sortOrder_.reset();
+    sortKeys_.reset();
+    sortedRows_.reset();
+    resortOnUpdate_ = false;
+    // Matches Only stays, over the Matches as they are now.
+    matchRows_.reset();
+    rows_ = baseRows_;
+    delegate_->setRowMapping( rows_ );
+    horizontalHeader()->setSortIndicatorShown( false );
 
     if ( model_ ) {
-        // Disconnect header signals before removing the model to prevent
-        // duplicate connections when updateData() reconnects.
-        disconnect( horizontalHeader(), &QHeaderView::sectionResized, this,
-                    &LogTableView::saveColumnWidths );
+        // The header loses its sections with the model: not a layout to save.
+        const ApplyingLayout applying( *this );
         setModel( nullptr );
         delete model_;
         model_ = nullptr;
@@ -179,6 +215,7 @@ void LogTableView::setLogFormat( const LogFormatDefinition* format, AbstractLogD
     if ( overviewWidget_ ) {
         overviewWidget_->hide();
     }
+    refreshMatchRows();
 }
 
 void LogTableView::updateData( bool follow, const QDate& modificationDate )
@@ -190,16 +227,16 @@ void LogTableView::updateData( bool follow, const QDate& modificationDate )
 
     if ( !model_ ) {
         model_ = new LogFormatTableModel( *format_, logData_, rows_, this );
-        setModel( model_ );
-
-        // Save column widths when the user resizes a column
-        connect( horizontalHeader(), &QHeaderView::sectionResized, this,
-                 &LogTableView::saveColumnWidths );
+        // The header gets its sections from the model: not a layout to save.
+        {
+            const ApplyingLayout applying( *this );
+            setModel( model_ );
+        }
 
         connect( selectionModel(), &QItemSelectionModel::selectionChanged, this,
                  [ this ]() { rowSelectionChanged(); } );
 
-        // Column widths need sizing once the first data has arrived
+        // The Column Layout is applied once the first data has arrived
         columnsNeedSizing_ = true;
     }
 
@@ -208,7 +245,26 @@ void LogTableView::updateData( bool follow, const QDate& modificationDate )
         = static_cast<int>( std::min( lineCount, static_cast<uint64_t>( INT_MAX ) ) );
     modificationDate_ = modificationDate;
     model_->setModificationDate( modificationDate );
-    model_->setLineCount( lineCountInt );
+
+    // Under a Sort Order, a Log File loaded from its start again, or one
+    // with fewer Rows than sorted, is sorted anew from Log Line order; one
+    // with more has them merged in, once no sort is under way.
+    const auto sortedCount = sortedRows_ ? sortedRows_->rowCount( LinesCount( lineCount ) ) : 0;
+    const auto baseCount = narrowedRows()->rowCount( LinesCount( lineCount ) );
+    const auto wanted = sorting_ ? sorting_ : sortOrder_;
+    if ( wanted && ( resortOnUpdate_ || ( sortedRows_ && baseCount < sortedCount ) ) ) {
+        resortOnUpdate_ = false;
+        dropSortOrder();
+        model_->setLineCount( lineCountInt );
+        startSort( *wanted );
+    }
+    else {
+        resortOnUpdate_ = false;
+        model_->setLineCount( lineCountInt );
+        if ( sortedRows_ && !sorting_ && baseCount > sortedCount ) {
+            startMerge();
+        }
+    }
     // New Log Lines may match where QuickFind last found nothing more.
     quickFind_->resetLimits();
     const bool hasRows = model_->rowCount() > 0;
@@ -216,16 +272,11 @@ void LogTableView::updateData( bool follow, const QDate& modificationDate )
     if ( columnsNeedSizing_ && hasRows ) {
         columnsNeedSizing_ = false;
 
-        // Widths the user saved for this Log Format win; auto-sizing them
-        // afterwards would throw the user's widths away.
-        if ( !applySavedColumnWidths() ) {
-            // No saved widths — use a reasonable default until auto-sizing finishes
-            programmaticColumnResize_ = true;
-            for ( int col = 0; col < model_->columnCount(); ++col ) {
-                setColumnWidth( col, 120 );
-            }
-            programmaticColumnResize_ = false;
-
+        // The Column Layout the user saved for this Log Format wins;
+        // auto-sizing the columns afterwards would throw the user's widths
+        // away.
+        if ( !applySavedColumnLayout() ) {
+            applyDefaultColumns();
             // Defer the expensive auto-sizing so the UI stays responsive
             QTimer::singleShot( 0, this, &LogTableView::autoSizeColumns );
         }
@@ -255,6 +306,10 @@ void LogTableView::setActive( bool active )
     if ( !active_ && overviewWidget_ ) {
         overviewWidget_->hide();
     }
+    // The Matches may have changed while the Text View was shown.
+    if ( active_ ) {
+        refreshMatchRows();
+    }
 }
 
 void LogTableView::setQuickFindPattern( std::shared_ptr<QuickFindPattern> pattern )
@@ -277,6 +332,8 @@ void LogTableView::setSearchPattern( const RegularExpressionPattern& pattern )
 void LogTableView::setCurrentSearch( const LogFilteredData* search )
 {
     state_.currentSearch = search;
+    // Matches Only follows the Search now current.
+    refreshMatchRows();
     repaintIfActive();
 }
 
@@ -339,13 +396,90 @@ void LogTableView::updateFont( const QFont& font )
     horizontalHeader()->setFont( font );
 }
 
+void LogTableView::registerShortcut( const std::string& action, std::function<void()> func )
+{
+    const auto& config = Configuration::get();
+    ShortcutAction::registerShortcut( config.shortcuts(), shortcuts_, this, Qt::WidgetShortcut,
+                                      action, func );
+}
+
 void LogTableView::registerShortcuts()
 {
-    // The Table View has no shortcuts of its own: its keys are the table's.
+    for ( auto& shortcut : shortcuts_ ) {
+        shortcut.second->deleteLater();
+    }
+    shortcuts_.clear();
+
+    // The keys of the table do the rest. Next Mark goes down the Rows and
+    // previous Mark up, as in the Text View (#233), in the order shown.
+    registerShortcut( ShortcutAction::LogViewNextMark, [ this ]() { selectNextMark(); } );
+    registerShortcut( ShortcutAction::LogViewPrevMark, [ this ]() { selectPreviousMark(); } );
+}
+
+void LogTableView::selectNextMark()
+{
+    selectNeighbour( AbstractLogData::LineTypeFlags::Mark, true );
+}
+
+void LogTableView::selectPreviousMark()
+{
+    selectNeighbour( AbstractLogData::LineTypeFlags::Mark, false );
+}
+
+void LogTableView::selectNextMatch()
+{
+    selectNeighbour( AbstractLogData::LineTypeFlags::Match, true );
+}
+
+void LogTableView::selectPreviousMatch()
+{
+    selectNeighbour( AbstractLogData::LineTypeFlags::Match, false );
+}
+
+// The Marks and Matches are Log Lines; the nearest in the direction given
+// is the one whose Row is nearest, whatever the Sort Order. Without a
+// current Row, the first one below the top, or above the bottom.
+void LogTableView::selectNeighbour( AbstractLogData::LineTypeFlags type, bool below )
+{
+    if ( !model_ || state_.currentSearch == nullptr ) {
+        return;
+    }
+    const auto current = currentIndex();
+    const int from = current.isValid() ? current.row() : ( below ? -1 : model_->rowCount() );
+
+    std::optional<int> nearest;
+    const auto consider = [ & ]( LineNumber logLine ) {
+        const auto row = rows_->rowOf( logLine );
+        if ( !row || *row >= model_->rowCount() || ( below ? *row <= from : *row >= from ) ) {
+            return;
+        }
+        if ( !nearest || ( below ? *row < *nearest : *row > *nearest ) ) {
+            nearest = row;
+        }
+    };
+    const auto* search = state_.currentSearch;
+    if ( type == AbstractLogData::LineTypeFlags::Mark ) {
+        for ( const auto mark : search->getMarks() ) {
+            consider( mark );
+        }
+    }
+    else {
+        const auto matches = search->getNbMatches().get();
+        for ( uint64_t index = 0; index < matches; ++index ) {
+            consider( search->getMatchingLineNumber( LineNumber( index ) ) );
+        }
+    }
+
+    if ( nearest ) {
+        scrollTo( model_->index( *nearest, 0 ), QAbstractItemView::PositionAtCenter );
+        selectRow( *nearest );
+    }
 }
 
 void LogTableView::updateDecorations()
 {
+    // The Matches or Marks changed: Matches Only follows the Matches.
+    refreshMatchRows();
     if ( active_ ) {
         viewport()->update();
         updateOverview();
@@ -357,6 +491,370 @@ void LogTableView::rereadLogLines()
     if ( model_ ) {
         model_->rereadRows();
     }
+}
+
+void LogTableView::reloaded()
+{
+    if ( model_ ) {
+        model_->rereadRows();
+    }
+    if ( sortOrder_ || sorting_ ) {
+        // A sort under way reads Log Lines that are no more.
+        sorter_->cancel();
+        resortOnUpdate_ = true;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Sort Order
+// ---------------------------------------------------------------------------
+
+void LogTableView::cycleSortOrder( int column )
+{
+    if ( !model_ || column < 0 || column >= model_->columnCount() ) {
+        return;
+    }
+    // A click on the header being sorted by stops the sort; a click on
+    // another header abandons the sort and goes on from the Sort Order the
+    // Rows are in. A merge of appended Log Lines is not a sort to stop: the
+    // click goes on from the Sort Order, which the merge keeps.
+    if ( sorting_ && !merging_ && sorting_->column == column ) {
+        stopSorting();
+        return;
+    }
+    if ( !sortOrder_ || sortOrder_->column != column ) {
+        sortBy( SortOrder{ column, Qt::AscendingOrder } );
+    }
+    else if ( sortOrder_->order == Qt::AscendingOrder ) {
+        sortBy( SortOrder{ column, Qt::DescendingOrder } );
+    }
+    else {
+        sortBy( std::nullopt );
+    }
+}
+
+void LogTableView::sortBy( std::optional<SortOrder> order )
+{
+    if ( !model_ || !format_ || !logData_ ) {
+        return;
+    }
+    if ( !order ) {
+        stopSorting();
+        if ( sortOrder_ ) {
+            dropSortOrder();
+            model_->setLineCount( static_cast<int>(
+                std::min( logData_->getNbLine().get(), static_cast<uint64_t>( INT_MAX ) ) ) );
+            Q_EMIT sortOrderChanged();
+        }
+        return;
+    }
+    if ( order->column < 0 || order->column >= model_->columnCount() ) {
+        return;
+    }
+    // The Rows are in that order, or a merge keeps them in it.
+    if ( sortOrder_ == order && ( !sorting_ || merging_ ) ) {
+        return;
+    }
+    startSort( *order );
+}
+
+std::optional<LogTableView::NamedSortOrder> LogTableView::namedSortOrder() const
+{
+    if ( !sortOrder_ || !model_ ) {
+        return std::nullopt;
+    }
+    return NamedSortOrder{ model_->columnName( sortOrder_->column ), sortOrder_->order };
+}
+
+void LogTableView::sortBy( const NamedSortOrder& order )
+{
+    if ( !model_ ) {
+        return;
+    }
+    for ( int column = 0; column < model_->columnCount(); ++column ) {
+        if ( model_->columnName( column ) == order.column ) {
+            sortBy( SortOrder{ column, order.order } );
+            return;
+        }
+    }
+}
+
+TableSortRequest LogTableView::sortRequest( const SortOrder& order ) const
+{
+    TableSortRequest request;
+    request.logData = logData_;
+    request.format = std::make_shared<const LogFormatDefinition>( *format_ );
+    request.modificationDate = modificationDate_;
+    request.column = order.column;
+    request.order = order.order;
+    request.lineCount
+        = LinesCount( std::min( logData_->getNbLine().get(), static_cast<uint64_t>( INT_MAX ) ) );
+    // Matches Only narrows, the Sort Order orders: the Rows sorted are the
+    // narrowed ones.
+    request.base = narrowedRows();
+    // The keys read for the column are read again only if Log Lines went.
+    if ( sortOrder_ && sortOrder_->column == order.column && sortKeys_
+         && sortKeys_->size() <= request.lineCount.get() ) {
+        request.keys = sortKeys_;
+    }
+    return request;
+}
+
+void LogTableView::startSort( const SortOrder& order )
+{
+    sorting_ = order;
+    merging_ = false;
+    sorter_->start( sortRequest( order ) );
+    showSortIndicator();
+    showSortProgress();
+    sortProgressTimer_.start();
+}
+
+void LogTableView::startMerge()
+{
+    if ( !sortOrder_ || !sortKeys_ || !sortedRows_ ) {
+        return;
+    }
+    auto request = sortRequest( *sortOrder_ );
+    request.rows = sortedRows_;
+    sorting_ = sortOrder_;
+    merging_ = true;
+    sorter_->start( std::move( request ) );
+    showSortProgress();
+    sortProgressTimer_.start();
+}
+
+void LogTableView::stopSorting()
+{
+    if ( !sorting_ ) {
+        return;
+    }
+    sorter_->cancel();
+    sorting_.reset();
+    merging_ = false;
+    sortProgressTimer_.stop();
+    if ( model_ ) {
+        model_->setHeaderNote( -1, std::nullopt );
+    }
+    showSortIndicator();
+}
+
+void LogTableView::showSortProgress()
+{
+    if ( !model_ || !sorting_ ) {
+        return;
+    }
+    model_->setHeaderNote( sorting_->column, tr( "%1 (sorting %2%)" )
+                                                 .arg( model_->columnName( sorting_->column ) )
+                                                 .arg( sorter_->progress() ) );
+}
+
+void LogTableView::showSortIndicator()
+{
+    auto* header = horizontalHeader();
+    const auto shown = sorting_ ? sorting_ : sortOrder_;
+    if ( shown ) {
+        header->setSortIndicator( shown->column, shown->order );
+        header->setSortIndicatorShown( true );
+    }
+    else {
+        header->setSortIndicatorShown( false );
+    }
+}
+
+void LogTableView::onSortFinished( const TableSortResult& result )
+{
+    if ( !model_ || !sorting_ || sorting_->column != result.column
+         || sorting_->order != result.order ) {
+        return;
+    }
+    sorting_.reset();
+    merging_ = false;
+    sortProgressTimer_.stop();
+    model_->setHeaderNote( -1, std::nullopt );
+
+    sortKeys_ = result.keys;
+    sortedRows_ = result.rows;
+    sortOrder_ = SortOrder{ result.column, result.order };
+    if ( result.merged ) {
+        rows_ = result.rows;
+        delegate_->setRowMapping( rows_ );
+        model_->mergeRows( rows_, result.inserted );
+        // Following sticks to the last Row of the Sort Order.
+        if ( follow_ ) {
+            scrollToBottom();
+        }
+    }
+    else {
+        swapRowMapping( result.rows );
+    }
+    showSortIndicator();
+    Q_EMIT sortOrderChanged();
+
+    // Log Lines appended while the sort ran are merged in next.
+    const auto lineCount = logData_ != nullptr ? logData_->getNbLine() : LinesCount( 0 );
+    if ( sortedRows_->rowCount( lineCount ) < narrowedRows()->rowCount( lineCount ) ) {
+        startMerge();
+    }
+}
+
+void LogTableView::dropSortOrder()
+{
+    sortOrder_.reset();
+    sortKeys_.reset();
+    sortedRows_.reset();
+    if ( model_ ) {
+        swapRowMapping( narrowedRows() );
+    }
+    else {
+        rows_ = narrowedRows();
+        delegate_->setRowMapping( rows_ );
+    }
+    showSortIndicator();
+}
+
+// ---------------------------------------------------------------------------
+// Matches Only
+// ---------------------------------------------------------------------------
+
+bool LogTableView::hasSearchToNarrowTo() const
+{
+    return state_.currentSearch != nullptr
+           && state_.currentSearch->searchState().phase != SearchSession::Phase::Idle;
+}
+
+void LogTableView::setMatchesOnly( bool on )
+{
+    if ( on == matchesOnly_ ) {
+        return;
+    }
+    if ( on ) {
+        if ( !hasSearchToNarrowTo() ) {
+            // Nothing to narrow to: stays off, and whoever asked is told.
+            Q_EMIT matchesOnlyChanged( false );
+            return;
+        }
+        matchesOnly_ = true;
+        refreshMatchRows();
+    }
+    else {
+        matchesOnly_ = false;
+        matchRows_.reset();
+        if ( !model_ ) {
+            rows_ = baseRows_;
+            delegate_->setRowMapping( rows_ );
+        }
+        else if ( const auto wanted = sorting_ ? sorting_ : sortOrder_ ) {
+            // Every Row again, in the Sort Order: the keys are read already.
+            startSort( *wanted );
+        }
+        else {
+            swapRowMapping( baseRows_ );
+        }
+    }
+    Q_EMIT matchesOnlyChanged( matchesOnly_ );
+}
+
+void LogTableView::refreshMatchRows()
+{
+    if ( !matchesOnly_ ) {
+        return;
+    }
+    if ( !hasSearchToNarrowTo() ) {
+        // The Search was cleared: Matches Only is off.
+        setMatchesOnly( false );
+        return;
+    }
+
+    // Told of every change of the Matches or Marks: the Matches are compared
+    // with the Rows shown in place, and copied only when they differ.
+    static const std::vector<uint32_t> NoRows;
+    const auto& previous = matchRows_ ? matchRows_->logLines() : NoRows;
+    const auto& matches = state_.currentSearch->matches();
+    if ( matchRows_ && matches.cardinality() == previous.size()
+         && std::equal( previous.begin(), previous.end(), matches.begin() ) ) {
+        return;
+    }
+    auto rows = std::make_shared<const MatchRows>( *state_.currentSearch );
+    // Matches found since are appended after the ones shown: the Rows
+    // shown stay, as a Sort Order's merge keeps them.
+    const bool appended
+        = matchRows_ && rows->logLines().size() > previous.size()
+          && std::equal( previous.begin(), previous.end(), rows->logLines().begin() );
+    const auto previousCount = static_cast<int>( previous.size() );
+    matchRows_ = std::move( rows );
+
+    if ( !model_ ) {
+        rows_ = narrowedRows();
+        delegate_->setRowMapping( rows_ );
+        return;
+    }
+    if ( const auto wanted = sorting_ ? sorting_ : sortOrder_ ) {
+        if ( appended && sortedRows_ && !sorting_ ) {
+            startMerge();
+        }
+        else {
+            // The Rows stay as they are until the sort is done.
+            startSort( *wanted );
+        }
+        return;
+    }
+    if ( appended ) {
+        rows_ = matchRows_;
+        delegate_->setRowMapping( rows_ );
+        const auto added = static_cast<int>( matchRows_->logLines().size() ) - previousCount;
+        model_->mergeRows( rows_, { RowRun{ previousCount, added } } );
+        if ( follow_ ) {
+            scrollToBottom();
+        }
+        updateOverview();
+    }
+    else {
+        swapRowMapping( matchRows_ );
+    }
+}
+
+void LogTableView::swapRowMapping( std::shared_ptr<const RowMapping> rows )
+{
+    // What is selected, as Log Lines: the Rows are about to move.
+    const auto current = currentIndex();
+    const auto currentLogLine
+        = current.isValid() ? std::optional( rows_->logLineAt( current.row() ) ) : std::nullopt;
+    const auto selected = selectedLogLines( LinesCount( SelectionKept ) );
+    // Every Row selected is every Row selected afterwards, however many.
+    int selectedRows = 0;
+    for ( const auto& range : selectionModel()->selection() ) {
+        selectedRows += range.bottom() - range.top() + 1;
+    }
+    const bool allSelected = model_->rowCount() > 0 && selectedRows >= model_->rowCount();
+    state_.selection.clearInCell();
+
+    rows_ = std::move( rows );
+    delegate_->setRowMapping( rows_ );
+    model_->setRowMapping( rows_ );
+
+    if ( allSelected ) {
+        selectAll();
+    }
+    QItemSelection selection;
+    const int lastColumn = model_->columnCount() - 1;
+    for ( const auto logLine : selected ) {
+        const auto row = rows_->rowOf( logLine );
+        if ( row && *row < model_->rowCount() ) {
+            selection.select( model_->index( *row, 0 ), model_->index( *row, lastColumn ) );
+        }
+    }
+    if ( !selection.isEmpty() && !allSelected ) {
+        selectionModel()->select( selection, QItemSelectionModel::ClearAndSelect );
+    }
+    if ( currentLogLine ) {
+        if ( const auto row = rows_->rowOf( *currentLogLine ); row && *row < model_->rowCount() ) {
+            selectionModel()->setCurrentIndex( model_->index( *row, 0 ),
+                                               QItemSelectionModel::NoUpdate );
+            scrollTo( model_->index( *row, 0 ), QAbstractItemView::PositionAtCenter );
+        }
+    }
+    updateOverview();
 }
 
 void LogTableView::repaintIfActive()
@@ -460,6 +958,8 @@ TableViewSelection LogTableView::selection() const
         for ( const auto& index : indexes ) {
             rows.push_back( index.row() );
         }
+        // In the order shown, not the order they were selected in.
+        std::ranges::sort( rows );
     }
     selection.setRows( std::move( rows ) );
     return selection;
@@ -652,6 +1152,12 @@ void LogTableView::keyPressEvent( QKeyEvent* event )
             copySelection();
             return;
         }
+        // Esc stops a sort under way, the Rows staying as they are; not a
+        // merge of appended Log Lines, which keeps the Sort Order.
+        if ( event->key() == Qt::Key_Escape && sorting_ && !merging_ ) {
+            stopSorting();
+            return;
+        }
         // 'm' to mark/unmark lines (same as text view)
         if ( event->key() == Qt::Key_M && event->modifiers() == Qt::NoModifier ) {
             markSelection();
@@ -747,21 +1253,95 @@ void LogTableView::showHeaderContextMenu( const QPoint& pos )
         return;
     }
     const auto* header = horizontalHeader();
-    const auto column = header->logicalIndexAt( pos );
+    // Chosen entries may destroy the Table View, and the menu with it.
+    QPointer<QMenu> menu = createHeaderMenu( header->logicalIndexAt( pos ) ).release();
+    menu->exec( header->mapToGlobal( pos ) );
+    delete menu;
+}
+
+std::unique_ptr<QMenu> LogTableView::createHeaderMenu( int column )
+{
+    auto menu = std::make_unique<QMenu>( this );
+    if ( !model_ ) {
+        return menu;
+    }
+    addMatchesOnlyEntry( *menu );
+    menu->addSeparator();
+    addCountValuesEntry( *menu, column );
+    menu->addSeparator();
+    addColumnEntries( *menu );
+    menu->addSeparator();
+    addResetColumnsEntry( *menu );
+    return menu;
+}
+
+// Matches Only, checked while it is on; without a Search to narrow to, only
+// an entry that is on can be switched (off).
+void LogTableView::addMatchesOnlyEntry( QMenu& menu )
+{
+    auto* entry = menu.addAction( tr( "Matches Only" ) );
+    entry->setCheckable( true );
+    entry->setChecked( matchesOnly_ );
+    entry->setEnabled( matchesOnly_ || hasSearchToNarrowTo() );
+    connect( entry, &QAction::toggled, this, &LogTableView::setMatchesOnly );
+}
+
+// Count values counts the field of the column, wherever the layout shows it.
+void LogTableView::addCountValuesEntry( QMenu& menu, int column )
+{
     const auto fieldName = model_->headerData( column, Qt::Horizontal ).toString();
     // The elapsed time is no field of the Log Format: there is nothing to count.
     if ( fieldName.isEmpty() || model_->isElapsedColumn( column ) ) {
         return;
     }
+    auto* count = menu.addAction( tr( "Count values" ) );
+    connect( count, &QAction::triggered, this,
+             [ this, fieldName ] { Q_EMIT countValuesRequested( fieldName ); } );
+}
 
-    QPointer<QMenu> menu = new QMenu( this );
-    const auto* countAction = menu->addAction( tr( "Count values" ) );
-    const auto* chosen = menu->exec( header->mapToGlobal( pos ) );
-    const bool count = chosen == countAction;
-    delete menu;
-    if ( count ) {
-        Q_EMIT countValuesRequested( fieldName );
+// Every column with a check mark, in the shown order; one column always
+// stays shown, so the last checked entry is disabled.
+void LogTableView::addColumnEntries( QMenu& menu )
+{
+    const auto layout = columnLayout();
+    const bool oneShown = layout.shownColumns().size() == 1;
+    for ( const auto column : layout.order ) {
+        auto* entry = menu.addAction( model_->headerData( column, Qt::Horizontal ).toString() );
+        entry->setCheckable( true );
+        entry->setChecked( !layout.isHidden( column ) );
+        entry->setEnabled( !( oneShown && entry->isChecked() ) );
+        connect( entry, &QAction::toggled, this,
+                 [ this, column ]( bool shown ) { setColumnShown( column, shown ); } );
     }
+}
+
+void LogTableView::addResetColumnsEntry( QMenu& menu )
+{
+    auto* reset = menu.addAction( tr( "Reset columns" ) );
+    connect( reset, &QAction::triggered, this, &LogTableView::resetColumns );
+}
+
+void LogTableView::setColumnShown( int column, bool shown )
+{
+    if ( !model_ || column < 0 || column >= model_->columnCount()
+         || isColumnHidden( column ) == !shown ) {
+        return;
+    }
+    // One column always stays shown.
+    if ( !shown && columnLayout().shownColumns().size() <= 1 ) {
+        return;
+    }
+    if ( !shown ) {
+        // The column's width is kept for when it is shown again: a hidden
+        // column's section is 0 wide.
+        saveColumnLayout();
+    }
+    {
+        const ApplyingLayout applying( *this );
+        setColumnHidden( column, !shown );
+        stretchLastColumn();
+    }
+    saveColumnLayout();
 }
 
 std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
@@ -797,6 +1377,22 @@ std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
     entries.replaceSearch = [ this ]() { Q_EMIT replaceSearch( selectedText() ); };
     entries.addToSearch = [ this ]() { Q_EMIT addToSearch( selectedText() ); };
     entries.excludeFromSearch = [ this ]() { Q_EMIT excludeFromSearch( selectedText() ); };
+    // The cell under the cursor, when it shows a value of a field: the
+    // Search narrowed to the Log Lines whose field has it (#798). The
+    // elapsed time is no field, a Log Line the Log Format does not parse has
+    // none (its last cell shows it whole), and a column whose name a Field
+    // Term cannot write is not offered.
+    if ( const auto cell = indexAt( pos ); model_ && cell.isValid()
+                                           && !model_->isElapsedColumn( cell.column() )
+                                           && model_->rowMatchesFormat( cell.row() ) ) {
+        const auto value = cell.data( Qt::DisplayRole ).toString();
+        const auto column = model_->columnName( cell.column() );
+        if ( !value.isEmpty() && isFieldName( column ) ) {
+            report.columnUnderCursor = column;
+            entries.searchValueInColumn
+                = [ this, column, value ]() { Q_EMIT searchValueInColumn( column, value ); };
+        }
+    }
     entries.setSearchStart = [ this ]( LineNumber logLine ) {
         const auto end = state_.searchEnd.value_or(
             LineNumber( logData_ != nullptr ? logData_->getNbLine().get() : 0 ) );
@@ -953,6 +1549,9 @@ void LogTableView::showQuickFindResult( bool hasMatch, const Portion& logLinePor
         // Line: the first cell the pattern matches holds the match.
         const auto matcher = state_.quickFindPattern->getMatcher();
         for ( int column = 0; column < model_->columnCount(); ++column ) {
+            if ( isColumnHidden( column ) ) {
+                continue;
+            }
             const auto cellText = model_->index( *row, column ).data( Qt::DisplayRole ).toString();
             if ( matcher.isLineMatching( cellText ) ) {
                 const auto [ start, end ] = matcher.getLastMatch();
@@ -974,7 +1573,8 @@ void LogTableView::selectCellHolding( int row, const CellsInLogLine& cells,
     const auto matchEnd = logLinePortion.endColumn().get<int>() + 1;
     for ( int column = 0; column < model_->columnCount(); ++column ) {
         const auto* span = cells.spanOf( column );
-        if ( span == nullptr || cells.displayColumnOf( span->start ) > matchStart
+        if ( span == nullptr || isColumnHidden( column )
+             || cells.displayColumnOf( span->start ) > matchStart
              || matchEnd > cells.displayColumnOf( span->end ) ) {
             continue;
         }
@@ -1105,7 +1705,7 @@ std::vector<CsvColumn> LogTableView::csvColumns() const
 {
     std::vector<CsvColumn> columns{ CsvColumn::lineNumber( tr( "Line" ) ) };
     if ( format_ ) {
-        const auto tableColumns = CsvColumn::ofTable( *format_ );
+        const auto tableColumns = CsvColumn::ofTable( *format_, columnLayout() );
         columns.insert( columns.end(), tableColumns.begin(), tableColumns.end() );
     }
     return columns;
@@ -1143,11 +1743,8 @@ void LogTableView::exportCsvTo( const CsvExportDialog::Choices& choices )
     // off it.
     CsvExport csvExport;
     if ( choices.selectedRowsOnly ) {
+        // In the order shown, as selectedLogLines() lists them.
         csvExport.logLines = selectedLogLines();
-        std::sort( csvExport.logLines.begin(), csvExport.logLines.end() );
-        csvExport.logLines.erase(
-            std::unique( csvExport.logLines.begin(), csvExport.logLines.end() ),
-            csvExport.logLines.end() );
     }
     else {
         const auto rowCount = model_->rowCount();
@@ -1182,99 +1779,150 @@ void LogTableView::markSelection()
     viewport()->update();
 }
 
-// Save column widths for the Log Format to QSettings.
-void LogTableView::saveColumnWidths()
+ColumnLayout LogTableView::columnLayout() const
 {
-    if ( programmaticColumnResize_ || !format_ || !model_ ) {
-        return;
+    ColumnLayout layout;
+    if ( !model_ ) {
+        return layout;
     }
-
-    auto& settings = PersistentInfo::getSettings( app_settings{} );
-    settings.beginGroup( columnWidthsGroup( *format_ ) );
-
     const auto* header = horizontalHeader();
-    const int colCount = model_->columnCount();
-
-    // Save column count and a layout fingerprint so stale widths can be detected
-    settings.setValue( "_columnCount", colCount );
-    QStringList colNames;
-    for ( int i = 0; i < colCount; ++i ) {
-        colNames << model_->headerData( i, Qt::Horizontal ).toString();
+    const int columnCount = model_->columnCount();
+    const auto count = static_cast<size_t>( columnCount );
+    layout.order.reserve( count );
+    layout.hidden.assign( count, false );
+    layout.widths.assign( count, 0 );
+    for ( int visual = 0; visual < columnCount; ++visual ) {
+        layout.order.push_back( header->logicalIndex( visual ) );
     }
-    settings.setValue( "_columnNames", colNames.join( "|" ) );
-
-    for ( int i = 0; i < colCount; ++i ) {
-        settings.setValue( QString::number( i ), header->sectionSize( i ) );
+    for ( int column = 0; column < columnCount; ++column ) {
+        const auto index = static_cast<size_t>( column );
+        layout.hidden[ index ] = isColumnHidden( column );
+        // A hidden column's section is 0 wide: its width is not known here.
+        layout.widths[ index ] = header->sectionSize( column );
     }
-
-    settings.endGroup();
+    return layout;
 }
 
-// Apply column widths saved for the Log Format, if they match its columns.
-bool LogTableView::applySavedColumnWidths()
+QStringList LogTableView::columnNames() const
+{
+    QStringList names;
+    if ( model_ ) {
+        const int columnCount = model_->columnCount();
+        names.reserve( columnCount );
+        for ( int column = 0; column < columnCount; ++column ) {
+            names << model_->headerData( column, Qt::Horizontal ).toString();
+        }
+    }
+    return names;
+}
+
+void LogTableView::saveColumnLayout()
+{
+    if ( applyingColumnLayout_ || !format_ || !model_ ) {
+        return;
+    }
+    storeColumnLayout( *format_, columnNames(), columnLayout() );
+}
+
+bool LogTableView::applySavedColumnLayout()
 {
     if ( !format_ || !model_ ) {
         return false;
     }
-
-    auto& settings = PersistentInfo::getSettings( app_settings{} );
-    settings.beginGroup( columnWidthsGroup( *format_ ) );
-
-    const int savedColCount = settings.value( "_columnCount", -1 ).toInt();
-    const int currentColCount = model_->columnCount();
-    if ( savedColCount != currentColCount ) {
-        settings.endGroup();
+    const auto saved = loadColumnLayout( *format_, columnNames() );
+    if ( !saved ) {
         return false;
     }
-
-    // Verify layout fingerprint matches current columns
-    QStringList currentNames;
-    for ( int i = 0; i < currentColCount; ++i ) {
-        currentNames << model_->headerData( i, Qt::Horizontal ).toString();
-    }
-    if ( settings.value( "_columnNames" ).toString() != currentNames.join( "|" ) ) {
-        settings.endGroup();
-        return false;
-    }
-
-    programmaticColumnResize_ = true;
-    for ( int i = 0; i < currentColCount; ++i ) {
-        const int w = settings.value( QString::number( i ), -1 ).toInt();
-        if ( w > 0 ) {
-            setColumnWidth( i, w );
-        }
-    }
-    programmaticColumnResize_ = false;
-    stretchLastColumn();
-
-    settings.endGroup();
+    applyColumnLayout( *saved );
     return true;
 }
 
-// Stretch the last column to fill any remaining viewport space.
-void LogTableView::stretchLastColumn()
+void LogTableView::applyColumnLayout( const ColumnLayout& layout )
+{
+    if ( !model_ || layout.columnCount() != model_->columnCount() ) {
+        return;
+    }
+    const ApplyingLayout applying( *this );
+    auto* header = horizontalHeader();
+    const int columnCount = layout.columnCount();
+    // The widths first: a column hidden afterwards keeps the width it was
+    // given for when it is shown again.
+    for ( int column = 0; column < columnCount; ++column ) {
+        const int width = layout.widths[ static_cast<size_t>( column ) ];
+        if ( width > 0 ) {
+            setColumnWidth( column, width );
+        }
+    }
+    // One column always stays shown.
+    const bool leavesOneShown = !layout.shownColumns().empty();
+    for ( int column = 0; column < columnCount; ++column ) {
+        setColumnHidden( column, leavesOneShown && layout.isHidden( column ) );
+    }
+    for ( int visual = 0; visual < columnCount; ++visual ) {
+        const int from = header->visualIndex( layout.order[ static_cast<size_t>( visual ) ] );
+        if ( from != visual ) {
+            header->moveSection( from, visual );
+        }
+    }
+    stretchLastColumn();
+}
+
+void LogTableView::applyDefaultColumns()
 {
     if ( !model_ ) {
         return;
     }
+    auto layout = ColumnLayout::defaultsFor( model_->columnCount() );
+    std::ranges::fill( layout.widths, StartingColumnWidth );
+    applyColumnLayout( layout );
+}
 
-    const int colCount = model_->columnCount();
-    const int lastCol = colCount - 1;
+void LogTableView::resetColumns()
+{
+    if ( !model_ || !format_ ) {
+        return;
+    }
+    const ApplyingLayout applying( *this );
+    dropColumnLayout( *format_ );
+    applyDefaultColumns();
+    autoSizeColumns();
+}
+
+int LogTableView::lastShownColumn() const
+{
+    if ( !model_ ) {
+        return -1;
+    }
+    const auto* header = horizontalHeader();
+    for ( int visual = model_->columnCount() - 1; visual >= 0; --visual ) {
+        const int column = header->logicalIndex( visual );
+        if ( !isColumnHidden( column ) ) {
+            return column;
+        }
+    }
+    return -1;
+}
+
+// Stretch the column shown last to fill any remaining viewport space.
+void LogTableView::stretchLastColumn()
+{
+    const int lastCol = lastShownColumn();
     if ( lastCol < 0 ) {
         return;
     }
 
+    const ApplyingLayout applying( *this );
     const auto* header = horizontalHeader();
+    const int colCount = model_->columnCount();
     int usedWidth = 0;
     for ( int i = 0; i < colCount; ++i ) {
+        // A hidden column's section is 0 wide
         usedWidth += header->sectionSize( i );
     }
     const int viewportWidth = viewport()->width();
     if ( usedWidth < viewportWidth ) {
         const int currentLast = header->sectionSize( lastCol );
-        programmaticColumnResize_ = true;
         setColumnWidth( lastCol, currentLast + ( viewportWidth - usedWidth ) );
-        programmaticColumnResize_ = false;
     }
 }
 
@@ -1326,11 +1974,11 @@ void LogTableView::autoSizeColumns()
         }
     }
 
-    programmaticColumnResize_ = true;
+    // A hidden column takes its width for when it is shown again.
+    const ApplyingLayout applying( *this );
     for ( int col = 0; col < colCount; ++col ) {
         setColumnWidth( col, maxWidths[ col ] );
     }
-    programmaticColumnResize_ = false;
 
     stretchLastColumn();
 }

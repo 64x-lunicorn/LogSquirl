@@ -103,14 +103,16 @@ endforeach()
 
 # ── Every declaration of the header, as the header spells it ────────────────
 
-# The entry points a plugin exports are declared in a comment of the header.
-string(REGEX MATCHALL "\n \\*   LOGSQUIRL_PLUGIN_EXPORT [^\n]*@" exports "${header_code}")
+# The entry points a plugin exports are declared in a comment of the header,
+# one of them wrapped over a second comment line.
+string(REGEX MATCHALL "\n \\*   LOGSQUIRL_PLUGIN_EXPORT [^@]*@" exports "${header_code}")
 if(NOT exports)
   string(APPEND failures "\n  found no exported entry points in ${HEADER}")
 endif()
 set(expected "")
 foreach(_export IN LISTS exports)
   string(REGEX REPLACE "^\n \\*   " "" _export "${_export}")
+  string(REGEX REPLACE "\n \\* *" " " _export "${_export}")
   list(APPEND expected "${_export}")
 endforeach()
 
@@ -147,13 +149,14 @@ collapse("${code}" code)
 string(REGEX MATCHALL "typedef [^@{}]*\\( \\*LogSquirl[A-Za-z]*Fn \\)[^@]*@" fn_types "${code}")
 list(APPEND expected ${fn_types})
 
-# The enums and structs: each constant and member, and the typedef name.
-string(REGEX MATCHALL "typedef (enum|struct) {[^}]*} [A-Za-z]+@" types "${code}")
+# The enums and structs, tagged or not: each constant and member, and the
+# typedef name.
+string(REGEX MATCHALL "typedef (enum|struct)( [A-Za-z]+)? {[^}]*} [A-Za-z]+@" types "${code}")
 foreach(_type IN LISTS types)
-  string(REGEX MATCH "^typedef (enum|struct) {([^}]*)} ([A-Za-z]+@)$" _parts "${_type}")
+  string(REGEX MATCH "^typedef (enum|struct)( [A-Za-z]+)? {([^}]*)} ([A-Za-z]+@)$" _parts "${_type}")
   set(_kind "${CMAKE_MATCH_1}")
-  set(_body "${CMAKE_MATCH_2}")
-  list(APPEND expected "} ${CMAKE_MATCH_3}")
+  set(_body "${CMAKE_MATCH_3}")
+  list(APPEND expected "} ${CMAKE_MATCH_4}")
   if(_kind STREQUAL "enum")
     string(REPLACE "," ";" _members "${_body}")
   else()

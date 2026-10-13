@@ -275,9 +275,16 @@ jobs:
         # hand with os_version and container_root (#198, #230).
         #
         # pgo and bolt switch the release build of one entry to profile-guided
-        # optimization and, on top of it, BOLT (#682). Both stay false until
-        # the A/B numbers of the PGO workflow (pgo.yml) show a clear gain for
-        # that build; BUILD.md, "Profile-guided optimization".
+        # optimization and, on top of it, BOLT (#682). A switch is turned on
+        # only when the A/B numbers of the PGO workflow (pgo.yml) show a clear
+        # gain on the scenarios and no case the compare script calls slower;
+        # BUILD.md, "Profile-guided optimization". Decided 2026-10-12 from run
+        # 37583820995 (master, 3e634961): both stay false. PGO made 23 of the
+        # 97 noble scenario cases faster (Search up to -27 %, grep up to
+        # -28 %) and 10 slower (read-while-indexing up to +27 %, follow
+        # +17 %), with the build 41 % longer; BOLT on top of it made 10 cases
+        # faster and 29 slower than PGO alone, with the build 69 % longer.
+        # Neither is a gain without loss.
         config:
           - os: oraclelinux
             os_version: 10
@@ -371,7 +378,7 @@ jobs:
 
       - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env
-      # Off for every entry until #682's numbers decide (see the matrix).
+      # Off for every entry: #682's numbers showed losses (see the matrix).
       - uses: ./.github/actions/pgo-profile
         if: matrix.config.pgo
         with:
@@ -836,9 +843,15 @@ jobs:
             # line info at the same optimization as before (#340), matching
             # Windows and Linux (#280).
             cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_SKIP_INSTALL_RPATH=ON
-            # Profile-guided optimization of the release build, off until the
-            # A/B numbers of the PGO workflow (pgo.yml) show a clear gain on
-            # macOS (#682).
+            # Profile-guided optimization of the release build (#682): on only
+            # when the A/B numbers of the PGO workflow (pgo.yml) show a clear
+            # gain on the scenarios and no case the compare script calls
+            # slower. Decided 2026-10-12 from run 37583820995 (master,
+            # 3e634961): off. PGO made 33 of the 97 cases faster (Search -14
+            # to -42 %, startup -34 %) and 12 slower, among them every scroll
+            # frame time it changed (Text View p50 +48 to +59 %, Table View up
+            # to +16 %) and opening the 100 MB Log File (+22 %); the build
+            # took 2 % longer.
             pgo: false
 
     runs-on: ${{ matrix.config.runner }}
@@ -937,9 +950,15 @@ jobs:
             ssl_arch: -x64
             cmake_opts:
             artifacts_id: windows-x64
-            # Profile-guided optimization of the release build, off until the
-            # A/B numbers of the PGO workflow (pgo.yml) show a clear gain on
-            # Windows (#682).
+            # Profile-guided optimization of the release build (#682): on only
+            # when the A/B numbers of the PGO workflow (pgo.yml) show a clear
+            # gain on the scenarios and no case the compare script calls
+            # slower. Decided 2026-10-12 from run 37583820995 (master,
+            # 3e634961): off. PGO made 35 of the 97 cases faster (grep -4 to
+            # -26 %, open -6 to -30 %, Search -9 to -34 %) and 3 slower
+            # (getNbLine while indexing the 1 GB Log File, max +4.3 %; one
+            # first match +5.7 %), and the build took 64 % longer. The closest
+            # platform: a second run without a slower case would turn this on.
             pgo: false
 
     runs-on: ${{ matrix.config.runner }}

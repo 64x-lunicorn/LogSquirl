@@ -69,6 +69,13 @@ public:
     {
     }
 
+    // Each Row now shows the Log Line rows maps it onto (a Sort Order taken
+    // or dropped). The Table View calls it between paints, never from one.
+    void setRowMapping( std::shared_ptr<const RowMapping> rows )
+    {
+        rows_ = std::move( rows );
+    }
+
     // Set the main search pattern for main-search highlighting.
     void setSearchPattern( const RegularExpressionPattern& pattern )
     {

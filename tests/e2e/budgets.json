@@ -88,6 +88,46 @@
       "cpu": "AMD EPYC 7763",
       "date": "2026-10-07",
       "url": "https://github.com/64x-lunicorn/LogSquirl/actions/runs/37599481111"
+    },
+    "local-2026-10-12-sort-a": {
+      "workflow": "local e2e run (not the machine class): tests/e2e, --bench-runs 5 --bench-warmup 1",
+      "run": 0,
+      "event": "#797, the sort scenario's first measurement, before any runner run",
+      "commit": "e8e632da773a0a235b2802946fc586351e15f652 plus the #797 change",
+      "ref": "worktree branch of #797",
+      "cpu": "Apple M5 (macOS, RelWithDebInfo, shared with other builds)",
+      "date": "2026-10-12",
+      "url": ""
+    },
+    "local-2026-10-12-sort-b": {
+      "workflow": "local e2e run (not the machine class): tests/e2e, --bench-runs 7 --bench-warmup 1",
+      "run": 0,
+      "event": "#797, the sort scenario's second measurement, before any runner run",
+      "commit": "e8e632da773a0a235b2802946fc586351e15f652 plus the #797 change",
+      "ref": "worktree branch of #797",
+      "cpu": "Apple M5 (macOS, RelWithDebInfo, shared with other builds)",
+      "date": "2026-10-12",
+      "url": ""
+    },
+    "local-2026-10-12-field-a": {
+      "workflow": "local e2e run (not the machine class): tests/e2e, --bench-runs 5 --bench-warmup 1",
+      "run": 0,
+      "event": "#798, the Field Term search cases' first measurement, before any runner run",
+      "commit": "0495ce244b6ce065b682c5ee774fbaa5a24781da plus the #798 change",
+      "ref": "worktree branch of #798",
+      "cpu": "Apple M5 (macOS, RelWithDebInfo, shared with other builds)",
+      "date": "2026-10-12",
+      "url": ""
+    },
+    "local-2026-10-12-field-b": {
+      "workflow": "local e2e run (not the machine class): tests/e2e, --bench-runs 7 --bench-warmup 1",
+      "run": 0,
+      "event": "#798, the Field Term search cases' second measurement, before any runner run",
+      "commit": "0495ce244b6ce065b682c5ee774fbaa5a24781da plus the #798 change",
+      "ref": "worktree branch of #798",
+      "cpu": "Apple M5 (macOS, RelWithDebInfo, shared with other builds)",
+      "date": "2026-10-12",
+      "url": ""
     }
   },
   "budgets": {
@@ -894,6 +934,111 @@
         "perf-37291185901",
         "perf-37442838466",
         "perf-37599481111"
+      ]
+    },
+    "gui_sort_log_100mb_text_sorted": {
+      "scenario": "sort",
+      "file": "100 MB scroll Log File, generated",
+      "metric": "the Table View sorted by the body column (text): the click on the header to the Rows switched to the Sort Order, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_sort_log_100mb_text_sorted",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 4.3,
+      "measured": {
+        "local-2026-10-12-sort-a": 3.395907,
+        "local-2026-10-12-sort-b": 2.158119
+      },
+      "worst": 3.395907,
+      "headroom_percent": 26.6,
+      "noise_margin_percent": 80,
+      "source": [
+        "local-2026-10-12-sort-a",
+        "local-2026-10-12-sort-b"
+      ]
+    },
+    "gui_sort_log_100mb_timestamp_sorted": {
+      "scenario": "sort",
+      "file": "100 MB scroll Log File, generated",
+      "metric": "the Table View sorted by the timestamp column (Timestamps): the click on the header to the Rows switched to the Sort Order, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_sort_log_100mb_timestamp_sorted",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 4.7,
+      "measured": {
+        "local-2026-10-12-sort-a": 3.711669,
+        "local-2026-10-12-sort-b": 2.165408
+      },
+      "worst": 3.711669,
+      "headroom_percent": 26.6,
+      "noise_margin_percent": 70,
+      "source": [
+        "local-2026-10-12-sort-a",
+        "local-2026-10-12-sort-b"
+      ]
+    },
+    "gui_sort_log_100mb_numeric_sorted": {
+      "scenario": "sort",
+      "file": "100 MB scroll Log File, generated, under tests/e2e/formats/java_log.json",
+      "metric": "the Table View sorted by the ms column (integers): the click on the header to the Rows switched to the Sort Order, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_sort_log_100mb_numeric_sorted",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 1.2,
+      "measured": {
+        "local-2026-10-12-sort-a": 0.818912,
+        "local-2026-10-12-sort-b": 0.90472
+      },
+      "worst": 0.90472,
+      "headroom_percent": 32.6,
+      "noise_margin_percent": 10,
+      "source": [
+        "local-2026-10-12-sort-a",
+        "local-2026-10-12-sort-b"
+      ]
+    },
+    "gui_search_log_100mb_field_finished": {
+      "scenario": "search",
+      "file": "100 MB scroll Log File, generated, under tests/e2e/formats/java_log.json",
+      "metric": "a Search of one Field Term (level:\"ERROR\"), every Log Line read through the Log Format, requested to the Search finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_search_log_100mb_field_finished",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.55,
+      "measured": {
+        "local-2026-10-12-field-a": 0.429429,
+        "local-2026-10-12-field-b": 0.435593
+      },
+      "worst": 0.435593,
+      "headroom_percent": 26.3,
+      "noise_margin_percent": 50,
+      "source": [
+        "local-2026-10-12-field-a",
+        "local-2026-10-12-field-b"
+      ]
+    },
+    "gui_search_log_100mb_field_and_text_finished": {
+      "scenario": "search",
+      "file": "100 MB scroll Log File, generated, under tests/e2e/formats/java_log.json",
+      "metric": "a Search of a Field Term and a plain sub-pattern (level:\"WARN\" and \"slow response\"), every Log Line read through the Log Format, requested to the Search finished, median of the runs",
+      "report": "e2e",
+      "benchmark": "gui_search_log_100mb_field_and_text_finished",
+      "field": "median_seconds",
+      "unit": "s",
+      "budget": 0.57,
+      "measured": {
+        "local-2026-10-12-field-a": 0.397658,
+        "local-2026-10-12-field-b": 0.448922
+      },
+      "worst": 0.448922,
+      "headroom_percent": 27.0,
+      "noise_margin_percent": 60,
+      "source": [
+        "local-2026-10-12-field-a",
+        "local-2026-10-12-field-b"
       ]
     },
     "gui_read_while_indexing_log_100mb_nb_line_p50": {

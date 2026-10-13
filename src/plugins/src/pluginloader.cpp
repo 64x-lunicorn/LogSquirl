@@ -47,7 +47,8 @@ PluginHandle::PluginHandle( PluginMetadata meta, std::unique_ptr<QLibrary> lib,
                             LogSquirlPluginInitExFn initExFn, LogSquirlPluginShutdownFn shutdownFn,
                             LogSquirlPluginConfigureFn configureFn,
                             LogSquirlConverterGetExtsFn converterGetExtsFn,
-                            LogSquirlConverterConvertFn converterConvertFn )
+                            LogSquirlConverterConvertFn converterConvertFn,
+                            LogSquirlConverterConvertExFn converterConvertExFn )
     : metadata_( std::move( meta ) )
     , library_( std::move( lib ) )
     , getInfoFn_( getInfoFn )
@@ -57,6 +58,7 @@ PluginHandle::PluginHandle( PluginMetadata meta, std::unique_ptr<QLibrary> lib,
     , configureFn_( configureFn )
     , converterGetExtsFn_( converterGetExtsFn )
     , converterConvertFn_( converterConvertFn )
+    , converterConvertExFn_( converterConvertExFn )
 {
 }
 
@@ -77,6 +79,7 @@ PluginHandle::PluginHandle( PluginHandle&& other ) noexcept
     , configureFn_( other.configureFn_ )
     , converterGetExtsFn_( other.converterGetExtsFn_ )
     , converterConvertFn_( other.converterConvertFn_ )
+    , converterConvertExFn_( other.converterConvertExFn_ )
     , initialised_( other.initialised_ )
 {
     other.initialised_ = false;
@@ -87,6 +90,7 @@ PluginHandle::PluginHandle( PluginHandle&& other ) noexcept
     other.configureFn_ = nullptr;
     other.converterGetExtsFn_ = nullptr;
     other.converterConvertFn_ = nullptr;
+    other.converterConvertExFn_ = nullptr;
 }
 
 PluginHandle& PluginHandle::operator=( PluginHandle&& other ) noexcept
@@ -104,6 +108,7 @@ PluginHandle& PluginHandle::operator=( PluginHandle&& other ) noexcept
         configureFn_ = other.configureFn_;
         converterGetExtsFn_ = other.converterGetExtsFn_;
         converterConvertFn_ = other.converterConvertFn_;
+        converterConvertExFn_ = other.converterConvertExFn_;
         initialised_ = other.initialised_;
 
         other.initialised_ = false;
@@ -114,6 +119,7 @@ PluginHandle& PluginHandle::operator=( PluginHandle&& other ) noexcept
         other.configureFn_ = nullptr;
         other.converterGetExtsFn_ = nullptr;
         other.converterConvertFn_ = nullptr;
+        other.converterConvertExFn_ = nullptr;
     }
     return *this;
 }
@@ -161,8 +167,10 @@ void PluginHandle::configure( void* parentWidget )
 
 bool PluginHandle::isConverter() const
 {
-    return metadata_.type() == LOGSQUIRL_PLUGIN_CONVERTER && converterGetExtsFn_ != nullptr
-           && converterConvertFn_ != nullptr;
+    // The entry points make a converter, not the kind the manifest names: a
+    // "ui" plugin claims its extensions all the same (#795).
+    return converterGetExtsFn_ != nullptr
+           && ( converterConvertFn_ != nullptr || converterConvertExFn_ != nullptr );
 }
 
 QString PluginHandle::converterExtensions() const
@@ -181,6 +189,17 @@ int PluginHandle::convert( const QString& inputPath, const QString& outputPath )
     const auto inUtf8 = inputPath.toUtf8();
     const auto outUtf8 = outputPath.toUtf8();
     return converterConvertFn_( inUtf8.constData(), outUtf8.constData() );
+}
+
+int PluginHandle::convertEx( const QString& inputPath, const QString& outputPath,
+                             const LogSquirlConvertControl* control ) const
+{
+    if ( !converterConvertExFn_ ) {
+        return -1;
+    }
+    const auto inUtf8 = inputPath.toUtf8();
+    const auto outUtf8 = outputPath.toUtf8();
+    return converterConvertExFn_( inUtf8.constData(), outUtf8.constData(), control );
 }
 
 // ── PluginLoader ────────────────────────────────────────────────────────────
@@ -302,6 +321,9 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
     auto converterConvertFn
         = resolveSymbol<LogSquirlConverterConvertFn>( *library, LOGSQUIRL_CONVERTER_ENTRY_CONVERT );
 
+    auto converterConvertExFn = resolveSymbol<LogSquirlConverterConvertExFn>(
+        *library, LOGSQUIRL_CONVERTER_ENTRY_CONVERT_EX );
+
     // Validate the plugin's own info against the manifest
     const auto* info = getInfoFn();
     if ( !info ) {
@@ -319,7 +341,8 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
     LOG_INFO << "Plugin loaded successfully: " << metadata.id() << " v" << metadata.version();
 
     return PluginHandle( metadata, std::move( library ), getInfoFn, initFn, initExFn, shutdownFn,
-                         configureFn, converterGetExtsFn, converterConvertFn );
+                         configureFn, converterGetExtsFn, converterConvertFn,
+                         converterConvertExFn );
 }
 
 } // namespace logsquirl::plugins
