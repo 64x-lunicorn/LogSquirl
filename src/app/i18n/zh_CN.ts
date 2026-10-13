@@ -4,7 +4,7 @@
 <context>
     <name>AbstractLogView</name>
     <message>
-        <location filename="../../ui/src/abstractlogview.cpp" line="1542"/>
+        <location filename="../../ui/src/abstractlogview.cpp" line="1559"/>
         <source>%1 → %2 · table %3 · rule %4 · group %5</source>
         <extracomment>The tooltip over a Named Value: the raw value, its name, the Name Table, the Naming Rule and the Naming Group it came from.</extracomment>
         <translation>%1 → %2 · 表 %3 · 规则 %4 · 组 %5</translation>
@@ -1745,27 +1745,27 @@ Do you want to replace it?</source>
 <context>
     <name>LogTableView</name>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="647"/>
+        <location filename="../../ui/src/logtableview.cpp" line="650"/>
         <source>%1 (sorting %2%)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="1282"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1285"/>
         <source>Matches Only</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="1297"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1300"/>
         <source>Count values</source>
         <translation>统计值</translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="1320"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1323"/>
         <source>Reset columns</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="1706"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1709"/>
         <source>Line</source>
         <translation>行号</translation>
     </message>
@@ -3266,7 +3266,7 @@ Backspace or Delete clears the shortcut.</source>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="209"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="841"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="847"/>
         <source>Update</source>
         <translation>更新</translation>
     </message>
@@ -3307,7 +3307,7 @@ Backspace or Delete clears the shortcut.</source>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="274"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="647"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="653"/>
         <source>Updates</source>
         <translation>更新</translation>
     </message>
@@ -3337,32 +3337,32 @@ Backspace or Delete clears the shortcut.</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="374"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="380"/>
         <source>%1 plugins available</source>
         <translation>%1 个可用插件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="389"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="395"/>
         <source>Error: %1</source>
         <translation>错误：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="411"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="417"/>
         <source>Downloaded to %1</source>
         <translation>已下载到 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="428"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="434"/>
         <source>%1 installed and activated.</source>
         <translation>%1 已安装并激活。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="429"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="435"/>
         <source>Plugin Installed</source>
         <translation>插件已安装</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="430"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="436"/>
         <source>%1 has been installed and activated.
 
 You can now use it from the Plugins menu.</source>
@@ -3371,97 +3371,97 @@ You can now use it from the Plugins menu.</source>
 现在可以通过“插件”菜单使用它。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="441"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="447"/>
         <source>Download failed: %1</source>
         <translation>下载失败：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="442"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="448"/>
         <source>Download Error</source>
         <translation>下载错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="644"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="650"/>
         <source>All (%1)</source>
         <translation>全部 (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="645"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="651"/>
         <source>Installed (%1)</source>
         <translation>已安装 (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="646"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="652"/>
         <source>Updates (%1)</source>
         <translation>更新 (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="657"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="773"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="663"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="779"/>
         <source>Install Error</source>
         <translation>安装错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="658"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="664"/>
         <source>No compatible download available for %1 on this platform.</source>
         <translation>%1 没有适用于此平台的兼容下载。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="673"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="679"/>
         <source>Downloading %1...</source>
         <translation>正在下载 %1...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="679"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="685"/>
         <source>Installing...</source>
         <translation>正在安装...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="701"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="707"/>
         <source>Plugin disabled.</source>
         <translation>插件已禁用。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="711"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="717"/>
         <source>Plugin Error</source>
         <translation>插件错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="712"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="718"/>
         <source>Failed to load %1:
 %2</source>
         <translation>加载 %1 失败：
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="715"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="721"/>
         <source>Plugin enabled.</source>
         <translation>插件已启用。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="772"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="778"/>
         <source>Installation failed.</source>
         <translation>安装失败。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="774"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="780"/>
         <source>Failed to extract plugin archive:
 %1</source>
         <translation>解压插件压缩包失败：
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="789"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="795"/>
         <source>Extracted but failed to load.</source>
         <translation>已解压但加载失败。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="790"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="796"/>
         <source>Load Error</source>
         <translation>加载错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="791"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="797"/>
         <source>Plugin was extracted but could not be loaded:
 %1
 
@@ -3472,17 +3472,17 @@ Restart LogSquirl to try again.</source>
 请重新启动 LogSquirl 后重试。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="839"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="845"/>
         <source>Active</source>
         <translation>已激活</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="843"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="849"/>
         <source>Disabled</source>
         <translation>已禁用</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="845"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="851"/>
         <source>Available</source>
         <translation>可用</translation>
     </message>
@@ -4024,7 +4024,7 @@ Restart LogSquirl to try again.</source>
         <translation>保留搜索结果</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="512"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="526"/>
         <source>Jump to the bottom of the text</source>
         <translation>跳转到文本末尾</translation>
     </message>
@@ -4075,191 +4075,201 @@ Restart LogSquirl to try again.</source>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="445"/>
+        <source>Jump to next match</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../settings/src/shortcuts.cpp" line="452"/>
+        <source>Jump to previous match</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../settings/src/shortcuts.cpp" line="459"/>
         <source>Move selection up</source>
         <translation>向上移动选择</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="452"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="466"/>
         <source>Move selection down</source>
         <translation>向下移动选择</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="460"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="474"/>
         <source>Scroll up</source>
         <translation>向上滚动</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="467"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="481"/>
         <source>Scroll down</source>
         <translation>向下滚动</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="474"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="488"/>
         <source>Scroll left</source>
         <translation>向左滚动</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="482"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="496"/>
         <source>Scroll right</source>
         <translation>向右滚动</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="490"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="504"/>
         <source>Jump to the beginning of the current line</source>
         <translation>跳转到当前行的行首</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="498"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="512"/>
         <source>Jump to the end start of the current line</source>
         <translation>跳转到当前行的行尾</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="505"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="519"/>
         <source>Jump to the right of the text</source>
         <translation>跳转到文本最右侧</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="519"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="533"/>
         <source>Jump to the top of the text</source>
         <translation>跳转到文本开头</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="526"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="540"/>
         <source>Jump to line</source>
         <translation>跳转到行</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="533"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="547"/>
         <source>Jump to line number</source>
         <translation>跳转到行号</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="540"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="554"/>
         <source>Jump to timestamp</source>
         <translation>跳转到时间戳</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="547"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="561"/>
         <source>Set search limits to a time range</source>
         <translation>将搜索范围设为时间段</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="554"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="568"/>
         <source>Set search limits around the current line</source>
         <translation>将搜索范围设为当前行前后</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="561"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="575"/>
         <source>Main view: find next</source>
         <translation>主视图：查找下一个</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="568"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="582"/>
         <source>Main view: find previous</source>
         <translation>主视图：查找上一个</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="574"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="588"/>
         <source>Set selection to QuickFind and find next</source>
         <translation>将选中内容设为快速查找并查找下一个</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="581"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="595"/>
         <source>Set selection to QuickFind and find previous</source>
         <translation>将选中内容设为快速查找并查找上一个</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="589"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="603"/>
         <source>Release focus from view</source>
         <translation>从视图释放焦点</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="596"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="610"/>
         <source>Highlight text with color 1</source>
         <translation>使用颜色 1 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="603"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="617"/>
         <source>Highlight text with color 2</source>
         <translation>使用颜色 2 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="610"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="624"/>
         <source>Highlight text with color 3</source>
         <translation>使用颜色 3 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="617"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="631"/>
         <source>Highlight text with color 4</source>
         <translation>使用颜色 4 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="624"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="638"/>
         <source>Highlight text with color 5</source>
         <translation>使用颜色 5 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="631"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="645"/>
         <source>Highlight text with color 6</source>
         <translation>使用颜色 6 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="638"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="652"/>
         <source>Highlight text with color 7</source>
         <translation>使用颜色 7 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="645"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="659"/>
         <source>Highlight text with color 8</source>
         <translation>使用颜色 8 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="652"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="666"/>
         <source>Highlight text with color 9</source>
         <translation>使用颜色 9 高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="659"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="673"/>
         <source>Highlight text with next color</source>
         <translation>使用下一个颜色高亮文本</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="666"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="680"/>
         <source>Clear all color labels</source>
         <translation>清除所有颜色标签</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="673"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="687"/>
         <source>Send selection to scratchpad</source>
         <translation>将选中内容追加到暂存器</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="680"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="694"/>
         <source>Replace scratchpad with selection</source>
         <translation>用选中内容替换暂存器</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="687"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="701"/>
         <source>Add selection to search pattern</source>
         <translation>将选中内容添加到搜索表达式</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="694"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="708"/>
         <source>Exclude selection from search pattern </source>
         <translation>从搜索表达式中排除选中内容 </translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="701"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="715"/>
         <source>Replace search pattern with selection</source>
         <translation>用选中内容替换搜索表达式</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="715"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="729"/>
         <source>Select lines down</source>
         <translation>向下选择多行</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="708"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="722"/>
         <source>Select lines up</source>
         <translation>向上选择多行</translation>
     </message>

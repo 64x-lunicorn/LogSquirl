@@ -25,6 +25,7 @@
 
 #include <condition_variable>
 #include <cstdio>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <vector>
@@ -34,20 +35,24 @@
 #include <QElapsedTimer>
 #include <QHeaderView>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
 #include <QTimer>
 
+#include "configuration.h"
 #include "counting_log_data.h"
 #include "fake_log_data.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
+#include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "rowmapping.h"
+#include "shortcuts.h"
 #include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -142,6 +147,20 @@ QStringList manyLinesOf( int count )
                      .arg( ( line * 7919 ) % count );
     }
     return lines;
+}
+
+// Activates the shortcut view registered for action, as its key would.
+void trigger( LogTableView& view, const char* action )
+{
+    const auto keys = ShortcutAction::shortcutKeys( action, Configuration::get().shortcuts() );
+    REQUIRE_FALSE( keys.isEmpty() );
+    for ( auto* shortcut : view.findChildren<QShortcut*>() ) {
+        if ( shortcut->key() == keys.first() ) {
+            Q_EMIT shortcut->activated();
+            return;
+        }
+    }
+    FAIL( "no shortcut for " << action );
 }
 
 void selectRows( LogTableView& view, std::initializer_list<int> rows )
@@ -379,6 +398,23 @@ SCENARIO( "A Row of a sorted Table View stays its Log Line", "[logtableview][sor
                     REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 0_lnum } );
                     REQUIRE( view.currentIndex().row() == 2 );
                 }
+
+                AND_WHEN( "QuickFind finds the next gamma" )
+                {
+                    auto pattern = std::make_shared<QuickFindPattern>();
+                    view.setQuickFindPattern( pattern );
+                    QSignalSpy newSelection( &view, &LogTableView::newSelection );
+                    pattern->changeSearchPattern( "gamma", false, false );
+                    view.searchForward();
+
+                    THEN( "it selects the Row of Log Line 3, above the Row it started from" )
+                    {
+                        REQUIRE( ( !newSelection.isEmpty() || newSelection.wait( 10000 ) ) );
+                        REQUIRE( view.selectedLogLines()
+                                 == logsquirl::vector<LineNumber>{ 3_lnum } );
+                        REQUIRE( view.currentIndex().row() == 1 );
+                    }
+                }
             }
         }
     }
@@ -464,18 +500,34 @@ SCENARIO( "Next and previous Mark and Match in a sorted Table View move by Rows"
             }
         }
 
-        WHEN( "the next and the previous Match are selected" )
+        WHEN( "the next and the previous Match are selected with their keys" )
         {
-            view.selectNextMatch();
+            view.registerShortcuts();
+            trigger( view, ShortcutAction::LogViewNextMatch );
             const auto next = view.selectedLogLines();
             view.selectionModel()->setCurrentIndex( view.model()->index( 1, 0 ),
                                                     QItemSelectionModel::NoUpdate );
-            view.selectPreviousMatch();
+            trigger( view, ShortcutAction::LogViewPrevMatch );
 
             THEN( "they are the Matches in the Rows below and above" )
             {
                 REQUIRE( next == logsquirl::vector<LineNumber>{ 0_lnum } );
                 REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 4_lnum } );
+            }
+        }
+
+        WHEN( "the next Match is asked for below the last one, a Mark that is no Match below it" )
+        {
+            logFile.filteredData->addMark( 1_lnum );
+            QCoreApplication::processEvents( QEventLoop::AllEvents, 50 );
+            view.selectionModel()->setCurrentIndex( view.model()->index( 2, 0 ),
+                                                    QItemSelectionModel::NoUpdate );
+            view.selectNextMatch();
+
+            THEN( "the selection stays where it was: the Mark's Row is no Match's" )
+            {
+                REQUIRE( view.currentIndex().row() == 2 );
+                REQUIRE( view.selectedLogLines().empty() );
             }
         }
 

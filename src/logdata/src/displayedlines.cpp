@@ -267,30 +267,12 @@ void DisplayedLines::forgetMarkLength( LineNumber line )
 
 OptionalLineNumber DisplayedLines::markAfter( LineNumber line ) const
 {
-    // rank counts the Marks up to and including line, so it is also the
-    // index of the first Mark after it.
-    LineNumber::UnderlyingType nextMark;
-    if ( marks_.select( marks_.rank( line.get() ), &nextMark ) ) {
-        return LineNumber( nextMark );
-    }
-    return {};
+    return lineAfter( marks_, line );
 }
 
 OptionalLineNumber DisplayedLines::markBefore( LineNumber line ) const
 {
-    // The Marks strictly before line: rank counts line itself when it is marked.
-    const LineNumber::UnderlyingType marksBefore
-        = marks_.rank( line.get() ) - ( marks_.contains( line.get() ) ? 1 : 0 );
-
-    if ( marksBefore == 0 ) {
-        return {};
-    }
-
-    LineNumber::UnderlyingType previousMark;
-    if ( marks_.select( marksBefore - 1, &previousMark ) ) {
-        return LineNumber( previousMark );
-    }
-    return {};
+    return lineBefore( marks_, line );
 }
 
 DisplayedLines::LineType DisplayedLines::lineType( LineNumber line ) const

@@ -85,6 +85,8 @@ struct ShortcutAction {
     static constexpr auto LogViewMark = "logview.mark";
     static constexpr auto LogViewNextMark = "logview.next_mark";
     static constexpr auto LogViewPrevMark = "logview.prev_mark";
+    static constexpr auto LogViewNextMatch = "logview.next_match";
+    static constexpr auto LogViewPrevMatch = "logview.prev_match";
     static constexpr auto LogViewSelectionUp = "logview.selection_up";
     static constexpr auto LogViewSelectionDown = "logview.selection_down";
     static constexpr auto LogViewScrollUp = "logview.scroll_up";

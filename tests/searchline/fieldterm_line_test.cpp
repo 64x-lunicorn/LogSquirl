@@ -137,6 +137,17 @@ SCENARIO( "A Predefined Filter with Field Terms is combined as a logical combina
             }
         }
 
+        WHEN( "a filter of JSON text, a quoted key, a colon and a quoted value, is used" )
+        {
+            line.useFilters( { PredefinedFilter{ "json", R"("level":"error")", false } } );
+
+            THEN( "it is no Field Term: the pattern stays its fixed string" )
+            {
+                REQUIRE_FALSE( line.flags().booleanCombination );
+                REQUIRE( line.pattern() == R"("level":"error")" );
+            }
+        }
+
         WHEN( "only plain filters are used" )
         {
             line.useFilters( { plainFilter } );

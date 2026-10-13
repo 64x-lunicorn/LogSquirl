@@ -40,6 +40,7 @@
 #include "logformatdefinition.h"
 #include "logformattablemodel.h"
 #include "logtableview.h"
+#include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "rowmapping.h"
 #include "shown_widget.h"
@@ -176,6 +177,37 @@ void open( LogTableView& view, const LogFormatDefinition& format, SearchedLogFil
 
 } // namespace
 
+SCENARIO( "QuickFind under Matches Only searches the Rows shown",
+          "[logtableview][matchesonly][quickfind]" )
+{
+    const auto format = makeFormat();
+    SearchedLogFile logFile;
+    // The Log Lines beta and delta: 0 and 4. gamma, Log Line 3, is no Row.
+    logFile.search( "beta|delta", 2_lcount );
+    MenuTableView view;
+    open( view, format, logFile );
+    view.setMatchesOnly( true );
+    REQUIRE( rowsOf( view ) == Rows{ 0_lnum, 4_lnum } );
+
+    auto pattern = std::make_shared<QuickFindPattern>();
+    view.setQuickFindPattern( pattern );
+    view.showLogLine( 0_lnum );
+    QSignalSpy newSelection( &view, &LogTableView::newSelection );
+
+    WHEN( "QuickFind looks for the next gamma or delta from Row 0" )
+    {
+        pattern->changeSearchPattern( "gamma|delta", true, true );
+        view.searchForward();
+
+        THEN( "it finds delta in Row 1, past gamma's Log Line, which is no Row" )
+        {
+            REQUIRE( ( !newSelection.isEmpty() || newSelection.wait( 10000 ) ) );
+            REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 4_lnum } );
+            REQUIRE( view.currentIndex().row() == 1 );
+        }
+    }
+}
+
 SCENARIO( "Matches Only shows the Rows of the current Search's Matches",
           "[logtableview][matchesonly]" )
 {
@@ -210,6 +242,24 @@ SCENARIO( "Matches Only shows the Rows of the current Search's Matches",
             view.selectRow( 0 );
             REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 0_lnum } );
             REQUIRE( view.selectedText().contains( QStringLiteral( "beta" ) ) );
+        }
+
+        AND_WHEN( "Rows 0 and 1 are selected and copied" )
+        {
+            view.selectRow( 0 );
+            view.selectionModel()->select( view.model()->index( 1, 0 ),
+                                           QItemSelectionModel::Select
+                                               | QItemSelectionModel::Rows );
+
+            THEN( "Copy copies the Log Lines of those Rows, nothing hidden between them" )
+            {
+                REQUIRE( view.selectedLogLines()
+                         == logsquirl::vector<LineNumber>{ 0_lnum, 1_lnum } );
+                REQUIRE( view.selectedText()
+                         == QStringList{ "2026-01-01 10:00:00.000\t\tINFO\t30\tbeta",
+                                         "2026-01-01 10:00:02.000\t+2.0s\tWARN\t7\tAlpha" }
+                                .join( '\n' ) );
+            }
         }
 
         THEN( "the next and the previous Match move by the Rows shown" )

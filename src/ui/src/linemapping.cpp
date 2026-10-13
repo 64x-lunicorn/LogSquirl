@@ -113,6 +113,24 @@ OptionalLineNumber LineMapping::shownMarkBefore( LineNumber logLine ) const
     return mark;
 }
 
+OptionalLineNumber LineMapping::shownMatchAfter( LineNumber logLine ) const
+{
+    auto match = matchAfter( logLine );
+    while ( match.has_value() && !shows( *match ) ) {
+        match = matchAfter( *match );
+    }
+    return match;
+}
+
+OptionalLineNumber LineMapping::shownMatchBefore( LineNumber logLine ) const
+{
+    auto match = matchBefore( logLine );
+    while ( match.has_value() && !shows( *match ) ) {
+        match = matchBefore( *match );
+    }
+    return match;
+}
+
 EveryLogLine::EveryLogLine( const AbstractLogData* logFile, const LogFilteredData* filteredData )
     : logFile_( logFile )
     , filteredData_( filteredData )
@@ -159,6 +177,22 @@ OptionalLineNumber EveryLogLine::markBefore( LineNumber logLine ) const
 {
     if ( filteredData_ != nullptr ) {
         return filteredData_->getMarkBefore( logLine );
+    }
+    return std::nullopt;
+}
+
+OptionalLineNumber EveryLogLine::matchAfter( LineNumber logLine ) const
+{
+    if ( filteredData_ != nullptr ) {
+        return filteredData_->getMatchAfter( logLine );
+    }
+    return std::nullopt;
+}
+
+OptionalLineNumber EveryLogLine::matchBefore( LineNumber logLine ) const
+{
+    if ( filteredData_ != nullptr ) {
+        return filteredData_->getMatchBefore( logLine );
     }
     return std::nullopt;
 }
@@ -216,6 +250,24 @@ OptionalLineNumber FilteredViewLines::markAfter( LineNumber logLine ) const
 OptionalLineNumber FilteredViewLines::markBefore( LineNumber logLine ) const
 {
     return filteredData_->getMarkBefore( logLine );
+}
+
+// With the Matches hidden none is looked at: walking every Match for the
+// few that are also Marks would cost as much as the Matches.
+OptionalLineNumber FilteredViewLines::matchAfter( LineNumber logLine ) const
+{
+    if ( !filteredData_->visibility().testFlag( LogFilteredData::VisibilityFlags::Matches ) ) {
+        return std::nullopt;
+    }
+    return filteredData_->getMatchAfter( logLine );
+}
+
+OptionalLineNumber FilteredViewLines::matchBefore( LineNumber logLine ) const
+{
+    if ( !filteredData_->visibility().testFlag( LogFilteredData::VisibilityFlags::Matches ) ) {
+        return std::nullopt;
+    }
+    return filteredData_->getMatchBefore( logLine );
 }
 
 const AbstractLogData& FilteredViewLines::logFile() const

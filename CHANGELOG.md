@@ -87,6 +87,12 @@
   were discovered keeps the format it was recognized with until it is
   reloaded. (#793)
 
+- **Next and previous Match**: `}` jumps to the next matching line and `{` to
+  the previous one, in the text view, the filtered view and the table view,
+  where they move by the rows shown, sorted or not. They skip marks and
+  context lines that are no match; the keys can be changed in the shortcut
+  settings.
+
 ## Bug fixes
 
 - **A plugin opens a file from any thread**: `open_file` called from a

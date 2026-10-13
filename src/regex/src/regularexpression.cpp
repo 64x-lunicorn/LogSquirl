@@ -89,8 +89,10 @@ QString unescapeSubPattern( const QString& written )
 }
 
 // The field name written right before the quote at leftQuote, as
-// `Name:"..."`: where it starts, or leftQuote when there is none.
-qsizetype fieldNameStart( const QString& pattern, qsizetype leftQuote )
+// `Name:"..."`: where it starts, or leftQuote when there is none. The
+// sub-patterns before parsedEnd are already replaced by their ids, which
+// name no field: `"level":"error"` has no Field Term.
+qsizetype fieldNameStart( const QString& pattern, qsizetype leftQuote, qsizetype parsedEnd )
 {
     if ( leftQuote < 1 || pattern[ leftQuote - 1 ] != QChar( ':' ) ) {
         return leftQuote;
@@ -100,7 +102,7 @@ qsizetype fieldNameStart( const QString& pattern, qsizetype leftQuote )
         --start;
     }
     // A colon alone names no field: the quote is an ordinary sub-pattern's.
-    return start == leftQuote - 1 ? leftQuote : start;
+    return start == leftQuote - 1 || start < parsedEnd ? leftQuote : start;
 }
 
 // The sub-patterns of the combination in the order written, each replaced
@@ -122,6 +124,9 @@ logsquirl::vector<RegularExpressionPattern> parseBooleanExpressions( QString& pa
     int currentIndex = 0;
     int leftQuote = -1;
     int rightQuote = -1;
+    // Where the id of the last sub-pattern replaced ends: each one replaced
+    // is after those before it.
+    qsizetype parsedEnd = 0;
 
     while ( currentIndex < pattern.size() ) {
         leftQuote = type_safe::narrow_cast<int>( pattern.indexOf( QChar( '"' ), currentIndex ) );
@@ -161,13 +166,14 @@ logsquirl::vector<RegularExpressionPattern> parseBooleanExpressions( QString& pa
         subPatterns.emplace_back( subPattern, isCaseSensitive, false, false, isPlainText );
 
         // A Field Term is replaced with its field: `Name:"..."` as a whole.
-        const auto termStart = fieldNameStart( pattern, leftQuote );
+        const auto termStart = fieldNameStart( pattern, leftQuote, parsedEnd );
         fieldNames.append( termStart < leftQuote
                                ? pattern.mid( termStart, leftQuote - 1 - termStart )
                                : QString{} );
 
-        pattern.replace( termStart, rightQuote + 1 - termStart,
-                         QString::fromStdString( subPatterns.back().id() ) );
+        const auto id = QString::fromStdString( subPatterns.back().id() );
+        pattern.replace( termStart, rightQuote + 1 - termStart, id );
+        parsedEnd = termStart + id.size();
 
         currentIndex = 0;
         rightQuote = -1;

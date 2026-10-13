@@ -4,7 +4,7 @@
 <context>
     <name>AbstractLogView</name>
     <message>
-        <location filename="../../ui/src/abstractlogview.cpp" line="1542"/>
+        <location filename="../../ui/src/abstractlogview.cpp" line="1559"/>
         <source>%1 → %2 · table %3 · rule %4 · group %5</source>
         <extracomment>The tooltip over a Named Value: the raw value, its name, the Name Table, the Naming Rule and the Naming Group it came from.</extracomment>
         <translation>%1 → %2 · таблиця %3 · правило %4 · група %5</translation>
@@ -1745,27 +1745,27 @@ Do you want to replace it?</source>
 <context>
     <name>LogTableView</name>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="647"/>
+        <location filename="../../ui/src/logtableview.cpp" line="650"/>
         <source>%1 (sorting %2%)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="1282"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1285"/>
         <source>Matches Only</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="1297"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1300"/>
         <source>Count values</source>
         <translation>Підрахунок значень</translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="1320"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1323"/>
         <source>Reset columns</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/logtableview.cpp" line="1706"/>
+        <location filename="../../ui/src/logtableview.cpp" line="1709"/>
         <source>Line</source>
         <translation>Рядок</translation>
     </message>
@@ -3268,7 +3268,7 @@ Backspace або Delete очищає комбінацію.</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="209"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="841"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="847"/>
         <source>Update</source>
         <translation>Оновити</translation>
     </message>
@@ -3309,7 +3309,7 @@ Backspace або Delete очищає комбінацію.</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="274"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="647"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="653"/>
         <source>Updates</source>
         <translation>Оновлення</translation>
     </message>
@@ -3339,32 +3339,32 @@ Backspace або Delete очищає комбінацію.</translation>
         <translation>Закрити</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="374"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="380"/>
         <source>%1 plugins available</source>
         <translation>Доступно плагінів: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="389"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="395"/>
         <source>Error: %1</source>
         <translation>Помилка: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="411"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="417"/>
         <source>Downloaded to %1</source>
         <translation>Завантажено до %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="428"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="434"/>
         <source>%1 installed and activated.</source>
         <translation>%1 встановлено та активовано.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="429"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="435"/>
         <source>Plugin Installed</source>
         <translation>Плагін встановлено</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="430"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="436"/>
         <source>%1 has been installed and activated.
 
 You can now use it from the Plugins menu.</source>
@@ -3373,97 +3373,97 @@ You can now use it from the Plugins menu.</source>
 Тепер ним можна користуватися з меню «Плагіни».</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="441"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="447"/>
         <source>Download failed: %1</source>
         <translation>Помилка завантаження: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="442"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="448"/>
         <source>Download Error</source>
         <translation>Помилка завантаження</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="644"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="650"/>
         <source>All (%1)</source>
         <translation>Усі (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="645"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="651"/>
         <source>Installed (%1)</source>
         <translation>Встановлені (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="646"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="652"/>
         <source>Updates (%1)</source>
         <translation>Оновлення (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="657"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="773"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="663"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="779"/>
         <source>Install Error</source>
         <translation>Помилка встановлення</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="658"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="664"/>
         <source>No compatible download available for %1 on this platform.</source>
         <translation>Для %1 немає сумісного завантаження для цієї платформи.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="673"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="679"/>
         <source>Downloading %1...</source>
         <translation>Завантаження %1...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="679"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="685"/>
         <source>Installing...</source>
         <translation>Встановлення...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="701"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="707"/>
         <source>Plugin disabled.</source>
         <translation>Плагін вимкнено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="711"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="717"/>
         <source>Plugin Error</source>
         <translation>Помилка плагіна</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="712"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="718"/>
         <source>Failed to load %1:
 %2</source>
         <translation>Не вдалося завантажити %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="715"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="721"/>
         <source>Plugin enabled.</source>
         <translation>Плагін увімкнено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="772"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="778"/>
         <source>Installation failed.</source>
         <translation>Помилка встановлення.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="774"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="780"/>
         <source>Failed to extract plugin archive:
 %1</source>
         <translation>Не вдалося розпакувати архів плагіна:
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="789"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="795"/>
         <source>Extracted but failed to load.</source>
         <translation>Розпаковано, але не вдалося завантажити.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="790"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="796"/>
         <source>Load Error</source>
         <translation>Помилка завантаження</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="791"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="797"/>
         <source>Plugin was extracted but could not be loaded:
 %1
 
@@ -3474,17 +3474,17 @@ Restart LogSquirl to try again.</source>
 Перезапустіть LogSquirl, щоб спробувати знову.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="839"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="845"/>
         <source>Active</source>
         <translation>Активний</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="843"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="849"/>
         <source>Disabled</source>
         <translation>Вимкнений</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="845"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="851"/>
         <source>Available</source>
         <translation>Доступний</translation>
     </message>
@@ -4026,7 +4026,7 @@ Restart LogSquirl to try again.</source>
         <translation>Зберегти результати пошуку</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="512"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="526"/>
         <source>Jump to the bottom of the text</source>
         <translation>Перейти до кінця тексту</translation>
     </message>
@@ -4077,191 +4077,201 @@ Restart LogSquirl to try again.</source>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="445"/>
+        <source>Jump to next match</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../settings/src/shortcuts.cpp" line="452"/>
+        <source>Jump to previous match</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../settings/src/shortcuts.cpp" line="459"/>
         <source>Move selection up</source>
         <translation>Перемістити виділення вгору</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="452"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="466"/>
         <source>Move selection down</source>
         <translation>Перемістити виділення вниз</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="460"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="474"/>
         <source>Scroll up</source>
         <translation>Прокрутити вгору</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="467"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="481"/>
         <source>Scroll down</source>
         <translation>Прокрутити вниз</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="474"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="488"/>
         <source>Scroll left</source>
         <translation>Прокрутити ліворуч</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="482"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="496"/>
         <source>Scroll right</source>
         <translation>Прокрутити праворуч</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="490"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="504"/>
         <source>Jump to the beginning of the current line</source>
         <translation>Перейти до початку поточного рядка</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="498"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="512"/>
         <source>Jump to the end start of the current line</source>
         <translation>Перейти до кінця поточного рядка</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="505"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="519"/>
         <source>Jump to the right of the text</source>
         <translation>Перейти до правого краю тексту</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="519"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="533"/>
         <source>Jump to the top of the text</source>
         <translation>Перейти до початку тексту</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="526"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="540"/>
         <source>Jump to line</source>
         <translation>Перейти до рядка</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="533"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="547"/>
         <source>Jump to line number</source>
         <translation>Перейти до номера рядка</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="540"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="554"/>
         <source>Jump to timestamp</source>
         <translation>Перейти до мітки часу</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="547"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="561"/>
         <source>Set search limits to a time range</source>
         <translation>Обмежити пошук діапазоном часу</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="554"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="568"/>
         <source>Set search limits around the current line</source>
         <translation>Обмежити пошук навколо поточного рядка</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="561"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="575"/>
         <source>Main view: find next</source>
         <translation>Основний вигляд: знайти наступне</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="568"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="582"/>
         <source>Main view: find previous</source>
         <translation>Основний вигляд: знайти попереднє</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="574"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="588"/>
         <source>Set selection to QuickFind and find next</source>
         <translation>Задати виділення для швидкого пошуку і знайти наступне</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="581"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="595"/>
         <source>Set selection to QuickFind and find previous</source>
         <translation>Задати виділення для швидкого пошуку і знайти попереднє</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="589"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="603"/>
         <source>Release focus from view</source>
         <translation>Зняти фокус з вигляду</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="596"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="610"/>
         <source>Highlight text with color 1</source>
         <translation>Підсвітити текст кольором 1</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="603"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="617"/>
         <source>Highlight text with color 2</source>
         <translation>Підсвітити текст кольором 2</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="610"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="624"/>
         <source>Highlight text with color 3</source>
         <translation>Підсвітити текст кольором 3</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="617"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="631"/>
         <source>Highlight text with color 4</source>
         <translation>Підсвітити текст кольором 4</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="624"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="638"/>
         <source>Highlight text with color 5</source>
         <translation>Підсвітити текст кольором 5</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="631"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="645"/>
         <source>Highlight text with color 6</source>
         <translation>Підсвітити текст кольором 6</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="638"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="652"/>
         <source>Highlight text with color 7</source>
         <translation>Підсвітити текст кольором 7</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="645"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="659"/>
         <source>Highlight text with color 8</source>
         <translation>Підсвітити текст кольором 8</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="652"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="666"/>
         <source>Highlight text with color 9</source>
         <translation>Підсвітити текст кольором 9</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="659"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="673"/>
         <source>Highlight text with next color</source>
         <translation>Підсвітити текст наступним кольором</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="666"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="680"/>
         <source>Clear all color labels</source>
         <translation>Очистити всі кольорові мітки</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="673"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="687"/>
         <source>Send selection to scratchpad</source>
         <translation>Відправити виділення до чернетки</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="680"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="694"/>
         <source>Replace scratchpad with selection</source>
         <translation>Замінити чернетку виділенням</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="687"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="701"/>
         <source>Add selection to search pattern</source>
         <translation>Додати виділення до шаблону пошуку</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="694"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="708"/>
         <source>Exclude selection from search pattern </source>
         <translation>Виключити виділення з шаблону пошуку </translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="701"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="715"/>
         <source>Replace search pattern with selection</source>
         <translation>Замінити шаблон пошуку виділенням</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="715"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="729"/>
         <source>Select lines down</source>
         <translation>Виділити рядки вниз</translation>
     </message>
     <message>
-        <location filename="../../settings/src/shortcuts.cpp" line="708"/>
+        <location filename="../../settings/src/shortcuts.cpp" line="722"/>
         <source>Select lines up</source>
         <translation>Виділити рядки вгору</translation>
     </message>

@@ -885,6 +885,9 @@ void AbstractLogView::registerShortcuts()
     // Next Mark goes down and previous Mark up, in either view (#233).
     registerShortcut( ShortcutAction::LogViewNextMark, [ this ]() { selectMark( true ); } );
     registerShortcut( ShortcutAction::LogViewPrevMark, [ this ]() { selectMark( false ); } );
+    // Next and previous Match the same way, past the Marks and Context Lines.
+    registerShortcut( ShortcutAction::LogViewNextMatch, [ this ]() { selectMatch( true ); } );
+    registerShortcut( ShortcutAction::LogViewPrevMatch, [ this ]() { selectMatch( false ); } );
 
     registerShortcut( ShortcutAction::LogViewJumpToLineNumber, [ this ]() {
         // Without a typed number there is no line to go to (#614).
@@ -1303,6 +1306,19 @@ void AbstractLogView::selectMark( bool after )
     const auto mark = after ? lines_->shownMarkAfter( *from ) : lines_->shownMarkBefore( *from );
     if ( mark.has_value() ) {
         selectAndDisplayLine( *mark );
+    }
+}
+
+void AbstractLogView::selectMatch( bool after )
+{
+    const auto from = getViewPosition();
+    if ( !from.has_value() ) {
+        return;
+    }
+
+    const auto match = after ? lines_->shownMatchAfter( *from ) : lines_->shownMatchBefore( *from );
+    if ( match.has_value() ) {
+        selectAndDisplayLine( *match );
     }
 }
 

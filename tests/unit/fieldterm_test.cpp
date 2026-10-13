@@ -367,6 +367,28 @@ SCENARIO( "Outside a logical combination a colon before a quote is text", "[rege
             REQUIRE( logicalFieldTerms( R"("key:value")" ) == QStringList{ QString{} } );
         }
     }
+
+    GIVEN( "a quoted sub-pattern, a colon and another, as a JSON key and value read" )
+    {
+        const auto text = QStringLiteral( R"("level":"error")" );
+        const RegularExpression expression( combination( text ), engine );
+
+        THEN( "the first sub-pattern names no field: there is no Field Term, and the "
+              "combination is malformed as it was before Field Terms" )
+        {
+            REQUIRE_FALSE( hasFieldTerms( text ) );
+            REQUIRE_FALSE( expression.isValid() );
+            REQUIRE_FALSE( expression.errorString().contains( QStringLiteral( "field" ) ) );
+        }
+    }
+
+    GIVEN( "a Field Term right after a quoted sub-pattern, with nothing between them" )
+    {
+        THEN( "the name reaching into the sub-pattern before names no field" )
+        {
+            REQUIRE_FALSE( hasFieldTerms( QStringLiteral( R"("a"x:"b")" ) ) );
+        }
+    }
 }
 
 SCENARIO( "The Field Terms of a combination are read back as written", "[regex][fieldterm]" )

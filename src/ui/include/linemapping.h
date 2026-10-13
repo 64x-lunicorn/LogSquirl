@@ -60,6 +60,10 @@ public:
     // it, whether shown or not.
     virtual OptionalLineNumber markAfter( LineNumber logLine ) const = 0;
     virtual OptionalLineNumber markBefore( LineNumber logLine ) const = 0;
+    // The first Match strictly after logLine, and the last strictly before
+    // it, of those the view can show.
+    virtual OptionalLineNumber matchAfter( LineNumber logLine ) const = 0;
+    virtual OptionalLineNumber matchBefore( LineNumber logLine ) const = 0;
 
     // The Log File the text of the Log Lines is read from.
     virtual const AbstractLogData& logFile() const = 0;
@@ -89,6 +93,9 @@ public:
     // The nearest Mark shown after logLine, and before it.
     OptionalLineNumber shownMarkAfter( LineNumber logLine ) const;
     OptionalLineNumber shownMarkBefore( LineNumber logLine ) const;
+    // The nearest Match shown after logLine, and before it.
+    OptionalLineNumber shownMatchAfter( LineNumber logLine ) const;
+    OptionalLineNumber shownMatchBefore( LineNumber logLine ) const;
 };
 
 // Every Log Line of a Log File at its own position: the main view. Its Marks
@@ -105,6 +112,8 @@ public:
     LinesCount logLineCount() const override;
     OptionalLineNumber markAfter( LineNumber logLine ) const override;
     OptionalLineNumber markBefore( LineNumber logLine ) const override;
+    OptionalLineNumber matchAfter( LineNumber logLine ) const override;
+    OptionalLineNumber matchBefore( LineNumber logLine ) const override;
     const AbstractLogData& logFile() const override;
     QuickFindLines quickFindLines() const override;
     DisplayedLinesReader linesToSave() const override;
@@ -126,6 +135,8 @@ public:
     LinesCount logLineCount() const override;
     OptionalLineNumber markAfter( LineNumber logLine ) const override;
     OptionalLineNumber markBefore( LineNumber logLine ) const override;
+    OptionalLineNumber matchAfter( LineNumber logLine ) const override;
+    OptionalLineNumber matchBefore( LineNumber logLine ) const override;
     const AbstractLogData& logFile() const override;
     QuickFindLines quickFindLines() const override;
     DisplayedLinesReader linesToSave() const override;
