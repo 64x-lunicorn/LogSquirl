@@ -347,6 +347,11 @@ private:
         // first (#795). UI thread only.
         int callsRunning = 0;
         bool unloadPending = false;
+        // The Regex Lab answers that came while the unload was pending, in
+        // the order they came: delivered from the event loop if the plugin
+        // is loaded again meanwhile, dropped once it is shut down (#801).
+        // While any wait, a later answer waits behind them. UI thread only.
+        std::deque<std::function<void()>> parkedAnswers{};
         // The plugin's Conversions: at most one under way, the others in the
         // order asked. UI thread only.
         std::deque<std::unique_ptr<Conversion>> queuedConversions{};
@@ -367,6 +372,15 @@ private:
      * meanwhile is finished once the outermost such call has returned.
      */
     bool callIntoPlugin( PluginContext& context, const std::function<void()>& call );
+
+    /**
+     * Delivers a Regex Lab answer as a call into the plugin, or parks it
+     * while the plugin's unload is pending or earlier answers are parked.
+     */
+    void answerPlugin( PluginContext& context, std::function<void()> answer );
+
+    /** Delivers the parked answers from the event loop, unless the plugin goes meanwhile. */
+    void deliverParkedAnswersLater( PluginContext& context );
 
     /** Shuts the plugin down and lets its context go. */
     void unloadNow( const QString& pluginId );

@@ -147,6 +147,11 @@ QString PluginHost::loadPlugin( const QString& pluginId )
         // never shut down, so it simply stays.
         if ( it->second->unloadPending ) {
             it->second->unloadPending = false;
+            // The Regex Lab answers it was owed meanwhile are delivered now,
+            // but not from within whatever loaded it again.
+            if ( !it->second->parkedAnswers.empty() ) {
+                deliverParkedAnswersLater( *it->second );
+            }
             Q_EMIT pluginLoaded( pluginId );
             return {};
         }
@@ -260,6 +265,7 @@ void PluginHost::unloadNow( const QString& pluginId )
     // From now on, no answer of the user interface reaches the plugin: a
     // Regex Lab it opened may still answer while it is closed.
     it->second->answerContext.reset();
+    it->second->parkedAnswers.clear();
 
     // Shut the plugin down while it is still loaded: it unregisters its
     // widgets through the host callbacks. Whatever it left behind is taken
@@ -307,6 +313,35 @@ bool PluginHost::callIntoPlugin( PluginContext& context, const std::function<voi
             Qt::QueuedConnection );
     }
     return true;
+}
+
+void PluginHost::answerPlugin( PluginContext& context, std::function<void()> answer )
+{
+    if ( context.unloadPending || !context.parkedAnswers.empty() ) {
+        context.parkedAnswers.push_back( std::move( answer ) );
+        return;
+    }
+    callIntoPlugin( context, answer );
+}
+
+void PluginHost::deliverParkedAnswersLater( PluginContext& context )
+{
+    QMetaObject::invokeMethod(
+        this,
+        [ this, pluginId = context.handle.metadata().id(), loadSerial = context.loadSerial ] {
+            const auto it = loaded_.find( pluginId );
+            if ( it == loaded_.end() || it->second->loadSerial != loadSerial ) {
+                return;
+            }
+            // Unloaded again meanwhile: those left wait for the next load.
+            auto& parked = it->second->parkedAnswers;
+            while ( !parked.empty() && !it->second->unloadPending ) {
+                const auto answer = std::move( parked.front() );
+                parked.pop_front();
+                callIntoPlugin( *it->second, answer );
+            }
+        },
+        Qt::QueuedConnection );
 }
 
 void PluginHost::runMenuAction( void* menuActionCall )
@@ -999,9 +1034,10 @@ int PluginHost::hostOpenRegexLab( void* handle, const char* pattern, int flags,
     const PluginPattern opened{ .pattern = QString::fromUtf8( pattern ? pattern : "" ),
                                 .matchesCase = ( flags & LOGSQUIRL_REGEX_LAB_MATCH_CASE ) != 0 };
     // Called through the answer context only, so never after the plugin is
-    // shut down.
+    // shut down. An answer that comes while the plugin's unload is pending
+    // is kept, the pattern with it, in case the plugin stays (#801).
     auto answer = [ ctx, callback, userData ]( const std::optional<PluginPattern>& applied ) {
-        ctx->host->callIntoPlugin( *ctx, [ &applied, callback, userData ] {
+        ctx->host->answerPlugin( *ctx, [ applied, callback, userData ] {
             if ( !applied ) {
                 callback( userData, LOGSQUIRL_REGEX_LAB_CANCELLED, nullptr, 0 );
                 return;

@@ -102,6 +102,13 @@
   only, like `open_regex_lab`, `go_to_log_line` and `get_selected_log_lines`:
   called elsewhere it logs a warning and answers an empty string, as without a
   file. The plugin SDK guide and the header state the same thread rules. (#796)
+- **A plugin hears the Regex Lab answer that came while it was being
+  disabled**: a Regex Lab a plugin opened, applied or cancelled while the
+  plugin's disabling waited for one of its calls to return, no longer loses its
+  answer when the plugin is enabled again before that call returns; the plugin
+  gets the answer right after, exactly once and in the order the answers
+  came. A plugin that is disabled after all still gets no call after
+  its shutdown. (#801)
 
 # v26.11.0-beta1 (2026-10-09)
 
