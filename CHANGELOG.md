@@ -103,7 +103,7 @@
   called elsewhere it logs a warning and answers an empty string, as without a
   file. The plugin SDK guide and the header state the same thread rules. (#796)
 - **A plugin hears the Regex Lab answer that came while it was being
-  disabled**: a Regex Lab a plugin opened, applied or cancelled while the
+  disabled**: a Regex Lab the user applied or cancelled while the
   plugin's disabling waited for one of its calls to return, no longer loses its
   answer when the plugin is enabled again before that call returns; the plugin
   gets the answer right after, exactly once and in the order the answers

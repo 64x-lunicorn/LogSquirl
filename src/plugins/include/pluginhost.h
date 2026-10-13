@@ -350,7 +350,8 @@ private:
         // The Regex Lab answers that came while the unload was pending, in
         // the order they came: delivered from the event loop if the plugin
         // is loaded again meanwhile, dropped once it is shut down (#801).
-        // While any wait, a later answer waits behind them. UI thread only.
+        // While any are parked, a later answer is parked behind them. UI
+        // thread only.
         std::deque<std::function<void()>> parkedAnswers{};
         // The plugin's Conversions: at most one under way, the others in the
         // order asked. UI thread only.

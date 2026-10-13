@@ -1097,7 +1097,8 @@ SCENARIO( "A plugin opens the Regex Lab through the Plugin Host",
     }
 }
 
-SCENARIO( "A Regex Lab answer that arrives while the plugin's unload is pending",
+SCENARIO( "A Regex Lab answer that arrives while the plugin's unload is pending reaches it "
+          "only if it stays loaded",
           "[pluginhost][pluginregexlab][plugins]" )
 {
     GIVEN( "The probe plugin loaded, with a Regex Lab open, and a menu action that runs "
@@ -1217,13 +1218,38 @@ SCENARIO( "A Regex Lab answer that arrives while the plugin's unload is pending"
             }
         }
 
+        WHEN( "A Lab is answered after the plugin is loaded again, before the kept answer is "
+              "delivered" )
+        {
+            REQUIRE( api->open_regex_lab( handle, "INFO", 0, &recordRegexLabAnswer, &received )
+                     == 0 );
+            REQUIRE( port.labs.size() == 2 );
+            runningCall( [ & ] {
+                host.unloadPlugin( ProbeId );
+                port.labs[ 0 ].answer( applied );
+                REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+            } );
+            port.labs[ 1 ].answer( std::nullopt );
+
+            THEN( "It waits behind the kept answer, and both arrive in order" )
+            {
+                REQUIRE( received.answers.empty() );
+                turnEventLoop();
+                REQUIRE( received.answers.size() == 2 );
+                REQUIRE( received.answers[ 0 ].result == LOGSQUIRL_REGEX_LAB_APPLIED );
+                REQUIRE( received.answers[ 1 ].result == LOGSQUIRL_REGEX_LAB_CANCELLED );
+            }
+        }
+
         WHEN( "The Lab is applied while the unload waits, and the unload completes" )
         {
             runningCall( [ & ] {
                 host.unloadPlugin( ProbeId );
                 port.labs[ 0 ].answer( applied );
+                REQUIRE( received.answers.empty() );
             } );
             REQUIRE( host.isLoaded( ProbeId ) == false );
+            REQUIRE( received.answers.empty() );
             turnEventLoop();
             turnEventLoop();
 
