@@ -79,6 +79,29 @@ public:
                                       : std::nullopt;
     }
 
+    OptionalLineNumber matchAfter( LineNumber logLine ) const override
+    {
+        for ( auto line = std::upper_bound( shown_.begin(), shown_.end(), logLine.get() );
+              line != shown_.end(); ++line ) {
+            if ( isMatch( *line ) ) {
+                return LineNumber( *line );
+            }
+        }
+        return std::nullopt;
+    }
+
+    OptionalLineNumber matchBefore( LineNumber logLine ) const override
+    {
+        for ( auto line = std::lower_bound( shown_.begin(), shown_.end(), logLine.get() );
+              line != shown_.begin(); ) {
+            --line;
+            if ( isMatch( *line ) ) {
+                return LineNumber( *line );
+            }
+        }
+        return std::nullopt;
+    }
+
     const AbstractLogData& logFile() const override
     {
         return *logFile_;
@@ -106,6 +129,11 @@ public:
     }
 
 private:
+    bool isMatch( uint64_t logLine ) const
+    {
+        return std::ranges::find( marks_, logLine ) == marks_.end();
+    }
+
     const AbstractLogData* logFile_;
     std::vector<uint64_t> shown_;
     std::vector<uint64_t> marks_;

@@ -20,6 +20,8 @@
 // "Next Mark" goes down to the nearest Mark below the selected Log Line and
 // "previous Mark" up to the nearest Mark above, in the main view and in the
 // Filtered View alike; with no Mark further that way neither moves (#233).
+// "Next Match" and "previous Match" move the same way between the Matches,
+// past the Marks.
 
 #include "configuration.h"
 #include "filteredview.h"
@@ -47,16 +49,26 @@ constexpr int NbLogLines = 20;
 const LineNumber FirstMark{ 5 };
 const LineNumber LastMark{ 12 };
 
-// A loaded Log File of NbLogLines Log Lines with Marks on FirstMark and
-// LastMark, and a Search that matches every Log Line, so the Filtered View
-// shows each Log Line at its own line number.
+// Every fourth Log Line, from 3 on, reads "match": 3, 7, 11, 15 and 19.
+bool readsMatch( int line )
+{
+    return line % 4 == 3;
+}
+
+// A loaded Log File of NbLogLines Log Lines with Marks on firstMark and
+// lastMark, and a Search for pattern: "." matches every Log Line, so the
+// Filtered View shows each Log Line at its own line number.
 struct MarkedLogFile {
-    MarkedLogFile()
+    explicit MarkedLogFile( LineNumber firstMark = FirstMark, LineNumber lastMark = LastMark,
+                            const QString& pattern = QStringLiteral( "." ) )
         : logData( policies.indexing, policies.search, policies.fileAccess, policies.decoding )
     {
         REQUIRE( file.open() );
         for ( int line = 0; line < NbLogLines; ++line ) {
-            file.write( QStringLiteral( "log line %1\n" ).arg( line ).toLatin1() );
+            file.write( QStringLiteral( "log line %1%2\n" )
+                            .arg( line )
+                            .arg( readsMatch( line ) ? QStringLiteral( " match" ) : QString{} )
+                            .toLatin1() );
         }
         file.flush();
 
@@ -67,7 +79,7 @@ struct MarkedLogFile {
         filteredData = logData.getNewFilteredData();
 
         SafeQSignalSpy searchStateSpy{ filteredData.get(), &LogFilteredData::searchStateChanged };
-        filteredData->request( RegularExpressionPattern( QStringLiteral( "." ) ) );
+        filteredData->request( RegularExpressionPattern( pattern ) );
         REQUIRE( waitUiState( [ & ]() {
             return searchStateSpy.count() > 0
                    && qvariant_cast<SearchSession::State>( searchStateSpy.last().at( 0 ) ).progress
@@ -75,9 +87,8 @@ struct MarkedLogFile {
         } ) );
         QCoreApplication::processEvents( QEventLoop::AllEvents, 50 );
 
-        filteredData->addMark( FirstMark );
-        filteredData->addMark( LastMark );
-        REQUIRE( filteredData->getNbLine().get() == NbLogLines );
+        filteredData->addMark( firstMark );
+        filteredData->addMark( lastMark );
     }
 
     SettingsPolicies policies = testSettingsPolicies();
@@ -86,12 +97,12 @@ struct MarkedLogFile {
     decltype( logData.getNewFilteredData() ) filteredData;
 };
 
-// No Mark selected: the view did not move.
-constexpr int64_t NoMark = -1;
+// No Log Line selected: the view did not move.
+constexpr int64_t NoLine = -1;
 
 // Selects from, triggers the shortcut of action on view, and returns the Log
-// Line it selected, or NoMark when it selected none.
-int64_t goToMark( AbstractLogView& view, LineNumber from, const char* action )
+// Line it selected, or NoLine when it selected none.
+int64_t goTo( AbstractLogView& view, LineNumber from, const char* action )
 {
     view.selectAndDisplayLine( from );
 
@@ -109,7 +120,7 @@ int64_t goToMark( AbstractLogView& view, LineNumber from, const char* action )
     QSignalSpy selected( &view, &AbstractLogView::newSelection );
     Q_EMIT shortcut->activated();
     if ( selected.isEmpty() ) {
-        return NoMark;
+        return NoLine;
     }
     return static_cast<int64_t>( qvariant_cast<LineNumber>( selected.last().at( 0 ) ).get() );
 }
@@ -119,16 +130,16 @@ int64_t goToMark( AbstractLogView& view, LineNumber from, const char* action )
 void requireMarkNavigationMovesDownAndUp( AbstractLogView& view )
 {
     const auto next = [ &view ]( LineNumber from ) {
-        return goToMark( view, from, ShortcutAction::LogViewNextMark );
+        return goTo( view, from, ShortcutAction::LogViewNextMark );
     };
     const auto previous = [ &view ]( LineNumber from ) {
-        return goToMark( view, from, ShortcutAction::LogViewPrevMark );
+        return goTo( view, from, ShortcutAction::LogViewPrevMark );
     };
 
     const LineNumber aboveMarks{ 2 };
     const LineNumber betweenMarks{ 8 };
     const LineNumber belowMarks{ 15 };
-    // As goToMark() returns them.
+    // As goTo() returns them.
     const auto firstMark = static_cast<int64_t>( FirstMark.get() );
     const auto lastMark = static_cast<int64_t>( LastMark.get() );
 
@@ -136,16 +147,45 @@ void requireMarkNavigationMovesDownAndUp( AbstractLogView& view )
     CHECK( next( aboveMarks ) == firstMark );
     CHECK( next( FirstMark ) == lastMark );
     CHECK( next( betweenMarks ) == lastMark );
-    CHECK( next( LastMark ) == NoMark );
-    CHECK( next( belowMarks ) == NoMark );
+    CHECK( next( LastMark ) == NoLine );
+    CHECK( next( belowMarks ) == NoLine );
 
     // Previous Mark goes up to the nearest Mark above.
     CHECK( previous( belowMarks ) == lastMark );
     CHECK( previous( LastMark ) == firstMark );
     CHECK( previous( betweenMarks ) == firstMark );
-    CHECK( previous( FirstMark ) == NoMark );
-    CHECK( previous( aboveMarks ) == NoMark );
-    CHECK( previous( 0_lnum ) == NoMark );
+    CHECK( previous( FirstMark ) == NoLine );
+    CHECK( previous( aboveMarks ) == NoLine );
+    CHECK( previous( 0_lnum ) == NoLine );
+}
+
+// Marks on 1 and 12, neither of them a Match, around the Matches of
+// readsMatch(): Log Lines either view shows, for the selection to start on.
+const LineNumber MarkAboveMatches{ 1 };
+const LineNumber MarkBetweenMatches{ 12 };
+
+// Requires that next and previous Match move view down and up between the
+// Matches from every selected Log Line, past the Marks: from a Mark, from a
+// Match, and from beyond the last Match either way.
+void requireMatchNavigationMovesDownAndUp( AbstractLogView& view )
+{
+    const auto next = [ &view ]( LineNumber from ) {
+        return goTo( view, from, ShortcutAction::LogViewNextMatch );
+    };
+    const auto previous = [ &view ]( LineNumber from ) {
+        return goTo( view, from, ShortcutAction::LogViewPrevMatch );
+    };
+
+    CHECK( next( MarkAboveMatches ) == 3 );
+    CHECK( next( 3_lnum ) == 7 );
+    CHECK( next( MarkBetweenMatches ) == 15 );
+    CHECK( next( 19_lnum ) == NoLine );
+
+    CHECK( previous( 19_lnum ) == 15 );
+    CHECK( previous( MarkBetweenMatches ) == 11 );
+    CHECK( previous( 7_lnum ) == 3 );
+    CHECK( previous( 3_lnum ) == NoLine );
+    CHECK( previous( MarkAboveMatches ) == NoLine );
 }
 
 } // namespace
@@ -154,6 +194,7 @@ SCENARIO( "Next and previous Mark move the same way in the main view and the Fil
           "[marks][filteredview][logmainview]" )
 {
     MarkedLogFile logFile;
+    REQUIRE( logFile.filteredData->getNbLine().get() == NbLogLines );
     QuickFindPattern quickFindPattern;
 
     GIVEN( "the main view" )
@@ -175,5 +216,45 @@ SCENARIO( "Next and previous Mark move the same way in the main view and the Fil
         view.registerShortcuts();
 
         requireMarkNavigationMovesDownAndUp( view );
+    }
+}
+
+SCENARIO( "Next and previous Match move the same way in the main view and the Filtered View",
+          "[matches][filteredview][logmainview]" )
+{
+    MarkedLogFile logFile( MarkAboveMatches, MarkBetweenMatches, QStringLiteral( "match" ) );
+    QuickFindPattern quickFindPattern;
+
+    GIVEN( "the main view" )
+    {
+        LogMainView view( &logFile.logData, &quickFindPattern, nullptr, nullptr, false );
+        view.setCurrentSearch( logFile.filteredData.get() );
+        view.resize( 400, 200 );
+        showUntilExposed( view );
+        view.registerShortcuts();
+
+        requireMatchNavigationMovesDownAndUp( view );
+    }
+
+    GIVEN( "the Filtered View" )
+    {
+        FilteredView view( logFile.filteredData.get(), &quickFindPattern, false );
+        view.resize( 400, 200 );
+        showUntilExposed( view );
+        view.registerShortcuts();
+
+        requireMatchNavigationMovesDownAndUp( view );
+
+        WHEN( "it shows the Marks only" )
+        {
+            logFile.filteredData->setVisibility( LogFilteredData::VisibilityFlags::Marks );
+
+            THEN( "no Match is shown to go to" )
+            {
+                CHECK( goTo( view, MarkAboveMatches, ShortcutAction::LogViewNextMatch ) == NoLine );
+                CHECK( goTo( view, MarkBetweenMatches, ShortcutAction::LogViewPrevMatch )
+                       == NoLine );
+            }
+        }
     }
 }

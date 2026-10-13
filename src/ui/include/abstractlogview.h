@@ -821,6 +821,8 @@ private:
     void selectWordAtPosition( const FilePosition& pos );
     // Selects the nearest Mark shown after, or before, the view's position.
     void selectMark( bool after );
+    // Selects the nearest Match shown after, or before, the view's position.
+    void selectMatch( bool after );
 
     void updateSearchLimits();
     // Make the Search Limits start at, or end with, the Log Line.

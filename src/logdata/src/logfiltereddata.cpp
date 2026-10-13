@@ -203,6 +203,16 @@ void LogFilteredData::addMark( LineNumber line )
     }
 }
 
+OptionalLineNumber LogFilteredData::getMatchAfter( LineNumber line ) const
+{
+    return lineAfter( session_.matches(), line );
+}
+
+OptionalLineNumber LogFilteredData::getMatchBefore( LineNumber line ) const
+{
+    return lineBefore( session_.matches(), line );
+}
+
 OptionalLineNumber LogFilteredData::getMarkAfter( LineNumber line ) const
 {
     return displayedLines_.markAfter( line );

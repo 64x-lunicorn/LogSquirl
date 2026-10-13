@@ -988,7 +988,8 @@ limit on the size of the file; the time grows with it.
 A row stays its line of the file, sorted or not: the selection, marks,
 matches, *Go to line*, *Go to timestamp*, QuickFind and the chart's *Show
 this line* all land on the same line. `[` and `]` go to the previous and
-the next marked row in the order shown, that is up and down the table. *Copy*
+the next marked row in the order shown, that is up and down the table, and
+`{` and `}` to the previous and the next matching row. *Copy*
 copies the selected rows in the order shown, and so does the CSV export's
 *Selected rows*. A followed file keeps its sort order: appended lines are
 placed where they belong, keyed alone, and follow sticks to the last row of
@@ -1855,6 +1856,7 @@ The main commands are:
 |                |file (like "tail -f")                                             |
 |m               |put a mark on current selected line                               |
 |\[ or \]        |jump to previous or next marked line                              |
+|{ or }          |jump to previous or next matching line                            |
 |+ or -          |increase/decrease main view size                                  |
 |v or Shift+V    |switch filtered view visibility mode, forward or backward          |
 |                |(see [Breadcrumbs](#breadcrumbs))                                 |

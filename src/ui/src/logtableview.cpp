@@ -411,9 +411,12 @@ void LogTableView::registerShortcuts()
     shortcuts_.clear();
 
     // The keys of the table do the rest. Next Mark goes down the Rows and
-    // previous Mark up, as in the Text View (#233), in the order shown.
+    // previous Mark up, as in the Text View (#233), in the order shown; next
+    // and previous Match the same way.
     registerShortcut( ShortcutAction::LogViewNextMark, [ this ]() { selectNextMark(); } );
     registerShortcut( ShortcutAction::LogViewPrevMark, [ this ]() { selectPreviousMark(); } );
+    registerShortcut( ShortcutAction::LogViewNextMatch, [ this ]() { selectNextMatch(); } );
+    registerShortcut( ShortcutAction::LogViewPrevMatch, [ this ]() { selectPreviousMatch(); } );
 }
 
 void LogTableView::selectNextMark()
@@ -464,9 +467,10 @@ void LogTableView::selectNeighbour( AbstractLogData::LineTypeFlags type, bool be
         }
     }
     else {
-        const auto matches = search->getNbMatches().get();
-        for ( uint64_t index = 0; index < matches; ++index ) {
-            consider( search->getMatchingLineNumber( LineNumber( index ) ) );
+        // The Matches themselves: the Displayed Lines hold Marks and Context
+        // Lines too.
+        for ( const auto match : search->matches() ) {
+            consider( LineNumber( match ) );
         }
     }
 

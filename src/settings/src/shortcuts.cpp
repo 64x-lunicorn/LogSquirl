@@ -440,6 +440,20 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
             },
         },
         {
+            LogViewNextMatch,
+            {
+                QApplication::tr( "Jump to next match" ),
+                QStringList{ QKeySequence( Qt::Key_BraceRight ).toString() },
+            },
+        },
+        {
+            LogViewPrevMatch,
+            {
+                QApplication::tr( "Jump to previous match" ),
+                QStringList{ QKeySequence( Qt::Key_BraceLeft ).toString() },
+            },
+        },
+        {
             LogViewSelectionUp,
             {
                 QApplication::tr( "Move selection up" ),

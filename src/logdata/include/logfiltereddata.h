@@ -107,6 +107,10 @@ public:
     // visibility: what the Search Session keeps. Read on the thread this
     // object lives on; they change only with a searchStateChanged().
     const SearchResultArray& matches() const;
+    // The first Match strictly after line, and the last strictly before it,
+    // whatever the visibility.
+    OptionalLineNumber getMatchAfter( LineNumber line ) const;
+    OptionalLineNumber getMatchBefore( LineNumber line ) const;
 
     LineType lineTypeByLine( LineNumber lineNumber ) const;
 

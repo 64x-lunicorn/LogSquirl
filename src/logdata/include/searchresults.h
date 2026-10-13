@@ -53,4 +53,24 @@ inline OptionalLineNumber lineAtPosition( const SearchResultArray& lines, LineNu
     return LineNumber( line );
 }
 
+// The first of lines strictly after line, and the last strictly before it.
+// Cost as much as a rank and a select, not as the lines.
+inline OptionalLineNumber lineAfter( const SearchResultArray& lines, LineNumber line )
+{
+    // rank counts the lines up to and including line, so it is also the
+    // position of the first one after it.
+    return lineAtPosition( lines, LineNumber( lines.rank( line.get() ) ) );
+}
+
+inline OptionalLineNumber lineBefore( const SearchResultArray& lines, LineNumber line )
+{
+    // The lines strictly before line: rank counts line itself when it is one.
+    const LineNumber::UnderlyingType before
+        = lines.rank( line.get() ) - ( lines.contains( line.get() ) ? 1 : 0 );
+    if ( before == 0 ) {
+        return {};
+    }
+    return lineAtPosition( lines, LineNumber( before - 1 ) );
+}
+
 #endif
