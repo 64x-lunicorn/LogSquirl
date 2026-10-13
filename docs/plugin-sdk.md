@@ -281,8 +281,8 @@ in its manifest and LogSquirl reads them. No host function is involved, the
 plugin's library does not need to run for its Log Formats to be known, and
 the files travel in the plugin's release archive beside the library.
 
-Add the optional `formats` key to `plugin.json`, a list of paths relative to
-the plugin directory:
+Add the optional `formats` key to `plugin.json` (added in LogSquirl 26.12), a
+list of paths relative to the plugin directory:
 
 ```json
 {
@@ -398,7 +398,7 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert( const char*, const char
 ```
 
 A converter that reports progress and hears a cancellation also exports
-(optional):
+(optional, added in LogSquirl 26.12):
 
 ```c
 LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert_ex( const char*, const char*,
