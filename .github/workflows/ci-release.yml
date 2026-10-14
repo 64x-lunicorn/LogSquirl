@@ -128,7 +128,7 @@ jobs:
       # fails when a download does not match the artifact's digest. Each
       # artifact lands in a directory named after it.
       - name: Download the build
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           github-token: ${{ github.token }}
           run-id: ${{ steps.run.outputs.run_id }}
@@ -149,7 +149,7 @@ jobs:
 
       # Re-upload for the later jobs. The macOS packages go to sign-mac first;
       # later jobs take its signed ones.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-artifacts
           path: |
@@ -159,7 +159,7 @@ jobs:
             build/sbom-base/**
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: unsigned-mac-arm64
           path: build/packages-mac-arm64/*
@@ -185,7 +185,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: unsigned-mac-arm64
           path: packages-mac-arm64
@@ -200,7 +200,7 @@ jobs:
           notarization-team: ${{ secrets.APPLE_TEAM_ID }}
           notarization-password: ${{ secrets.APPLE_PASSWORD }}
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: signed-mac-arm64
           path: packages-mac-arm64/*
@@ -244,14 +244,14 @@ jobs:
           persist-credentials: false
 
       - if: steps.token.outputs.present == 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-artifacts
 
       # The symbols need not wait for signing: codesign leaves the Mach-O
       # UUIDs that match the dSYM unchanged.
       - if: steps.token.outputs.present == 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: unsigned-mac-arm64
           path: packages-mac-arm64
@@ -318,12 +318,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-artifacts
 
       # The SBOM describes the macOS app that is published: the signed one.
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: signed-mac-arm64
           path: packages-mac-arm64
@@ -362,7 +362,7 @@ jobs:
           tar -xzf "${macapp[0]}" -C "$scan/macos"
 
       - name: Scan the packages with syft
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           path: ${{ runner.temp }}/sbom-scan
           format: cyclonedx-json
@@ -385,7 +385,7 @@ jobs:
             --syft "$RUNNER_TEMP/syft.cdx.json" --require-detected qt,openssl,icu --output "$sbom"
           python scripts/sbom/logsquirl_sbom.py validate "$sbom"
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-sbom
           path: sbom/*.cdx.json
@@ -423,7 +423,7 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/contents/scripts/sbom/vuln-ignore.yml?ref=master" \
             -H "Accept: application/vnd.github.raw" > scripts/sbom/vuln-ignore.yml
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-sbom
           path: release-sbom
@@ -473,20 +473,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-artifacts
 
       # The signed, notarized and stapled DMG and app archive (#203), so the
       # checksum file, the upload and the attestations cover the final files.
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: signed-mac-arm64
           path: packages-mac-arm64
 
       # Its own asset directory, so the checksum file, the upload and the
       # provenance attestation cover the SBOM like every other asset (#212).
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-sbom
           path: packages-sbom
