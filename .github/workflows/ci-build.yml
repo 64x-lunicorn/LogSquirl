@@ -107,7 +107,7 @@ jobs:
       - name: Save version
         run: echo $LOGSQUIRL_VERSION > logsquirl_version.txt
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logsquirl_version
           path: 'logsquirl_version.txt'
@@ -187,7 +187,7 @@ jobs:
       - name: Check Renovate checksum pairs
         run: python .github/scripts/update-checksums.py --list
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
 
@@ -252,7 +252,7 @@ jobs:
             --output sbom-base/logsquirl-sbom-base.cdx.json
           python scripts/sbom/logsquirl_sbom.py validate sbom-base/logsquirl-sbom-base.cdx.json
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sbom-base
           path: sbom-base/logsquirl-sbom-base.cdx.json
@@ -409,7 +409,7 @@ jobs:
 
       - uses: ./.github/actions/docker-package
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
@@ -609,7 +609,7 @@ jobs:
             /bin/bash -c "cd /usr/local && python3 scripts/coverage_report.py --build-dir $LOGSQUIRL_BUILD_ROOT --source-root /usr/local --json $LOGSQUIRL_BUILD_ROOT/coverage.json --markdown $LOGSQUIRL_BUILD_ROOT/coverage.md"
           cat "$LOGSQUIRL_BUILD_ROOT/coverage.md" >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: |
@@ -923,7 +923,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
@@ -1004,7 +1004,7 @@ jobs:
       # secret, so none can reach a job outside the `release` environment (#203).
       - uses: ./.github/actions/agent-package-win
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
@@ -1030,12 +1030,12 @@ jobs:
           sparse-checkout: .github/scripts/check-windows-installer.ps1
           sparse-checkout-cone-mode: false
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: packages-windows-x64
           path: ${{ runner.temp }}/packages
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: logsquirl_version
           path: ${{ runner.temp }}/version
@@ -1080,7 +1080,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           cache: 'npm'
@@ -1172,7 +1172,7 @@ jobs:
       # then fails on it.
       - name: Download the counts
         continue-on-error: true
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: instruction-counts
           path: ${{ runner.temp }}/instruction-counts
@@ -1197,7 +1197,7 @@ jobs:
           exit $status
 
       # Replaced on a re-run, so the comment shows the latest verdict.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: instruction-counts-gate
