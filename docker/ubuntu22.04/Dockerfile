@@ -10,7 +10,7 @@
 # std::expected (C++23), so GCC 12 (also shipped by jammy) is installed and made
 # the default compiler.  GCC 12 keeps the libstdc++ requirement at jammy's own
 # runtime level, unlike a PPA-sourced newer GCC which would raise the floor.
-FROM ubuntu:jammy@sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02
+FROM ubuntu:jammy@sha256:5ec03bb3441e8b0bf3b4f9cd4629a1ae763010dc3035bb8da3ae6cf026486401
 
 ENV DEBIAN_FRONTEND=noninteractive
 
