@@ -20,12 +20,17 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
+#include <chrono>
 #include <limits>
+#include <optional>
 #include <vector>
 
+#include <QDataStream>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QIODevice>
 #include <QTemporaryDir>
 
 #include "indexcache.h"
@@ -54,7 +59,9 @@ LinePositionArray makeLinePositions( std::initializer_list<qint64> offsets )
     return array;
 }
 
-const auto SomeLinePositions = makeLinePositions( { 4, 8, 20, 4000, 20000, 20050 } );
+// Within every Log File written here: the cache hands out no Index reaching
+// past its Log File (#824).
+const auto SomeLinePositions = makeLinePositions( { 2, 4, 5 } );
 
 bool store( const IndexCache& cache, const QString& logFile,
             const LinePositionArray& linePositions = SomeLinePositions,
@@ -524,75 +531,16 @@ SCENARIO( "An Index cache given no directory stores nothing", "[indexcache]" )
     }
 }
 
-SCENARIO( "The Index cache keeps line positions of a block spanning 4 GiB or more exactly",
-          "[indexcache]" )
+SCENARIO( "The Index cache drops an Index of a format before this one", "[indexcache]" )
 {
-    // Such a block's positions were truncated to 32-bit offsets (#321).
-    QTemporaryDir cacheDir;
-    QTemporaryDir logDir;
-    REQUIRE( cacheDir.isValid() );
-    REQUIRE( logDir.isValid() );
-    const IndexCache cache{ cacheDir.path(), QString{}, NoBudgetLimit };
-
-    const auto logFile = logDir.filePath( "huge-lines.log" );
-    writeFile( logFile, "stands in for a Log File with lines longer than 4 GiB\n" );
-
-    // 300 Log Lines, two of them longer than 4 GiB, in the first compressed
-    // block and in the tail not yet compressed.
-    constexpr qint64 BeyondFourGiB = ( qint64{ 1 } << 32 ) * 5 + 777;
-    LinePositionArray positions;
-    std::vector<OffsetInFile> expected;
-    qint64 offset = 0;
-    for ( int line = 0; line < 300; ++line ) {
-        offset += ( line == 70 || line == 280 ) ? BeyondFourGiB : 80 + line % 11;
-        expected.push_back( OffsetInFile( offset ) );
-        positions.append( expected.back() );
-    }
-
-    GIVEN( "their Index stored" )
-    {
-        REQUIRE( store( cache, logFile, positions ) );
-
-        WHEN( "it is loaded" )
-        {
-            const auto loaded = cache.tryLoad( logFile );
-
-            THEN( "every line position is loaded back exactly" )
-            {
-                REQUIRE( loaded.has_value() );
-                REQUIRE( loaded->linePosition.size().get() == expected.size() );
-                for ( auto i = 0u; i < expected.size(); ++i ) {
-                    REQUIRE( loaded->linePosition.at( i ) == expected[ i ] );
-                }
-            }
-        }
-
-        WHEN( "the entry is of the format before #321, which truncated such positions" )
-        {
-            const auto names = cacheFiles( cacheDir.path() );
-            REQUIRE( names.size() == 1 );
-            QFile entry( QDir( cacheDir.path() ).filePath( names.first() ) );
-            REQUIRE( entry.open( QIODevice::ReadWrite ) );
-            // The format version follows the 4 magic bytes, big-endian.
-            REQUIRE( entry.seek( 4 ) );
-            const char formatBefore321[] = { 0, 0, 0, 1 };
-            REQUIRE( entry.write( formatBefore321, 4 ) == 4 );
-            entry.close();
-
-            THEN( "nothing is loaded and the outdated entry is gone" )
-            {
-                REQUIRE_FALSE( cache.tryLoad( logFile ).has_value() );
-                REQUIRE( cacheFiles( cacheDir.path() ).isEmpty() );
-            }
-        }
-    }
-}
-
-SCENARIO( "The Index cache drops a UTF-16 Index of the format before #804", "[indexcache]" )
-{
-    // Up to format 2, a UTF-16 or UTF-32 Index could break a Log Line at a
-    // line feed byte straddling two code units (#804). Format 3 is laid out
-    // as format 2 was.
+    // Up to format 1, a block spanning 4 GiB or more had its positions
+    // truncated to 32 bits (#321); up to format 2, a UTF-16 or UTF-32 Index
+    // could break a Log Line at a line feed byte straddling two code units
+    // (#804); up to format 3 an entry carried no digest of its payload
+    // (#824). None is handed out: the Log File is indexed again and the
+    // entry written anew. That positions past 4 GiB survive the format is
+    // checked on the storage itself, as the cache hands out no Index
+    // reaching past its Log File.
     QTemporaryDir cacheDir;
     QTemporaryDir logDir;
     REQUIRE( cacheDir.isValid() );
@@ -604,13 +552,13 @@ SCENARIO( "The Index cache drops a UTF-16 Index of the format before #804", "[in
     const auto encodingName
         = GENERATE( QByteArray( "UTF-16LE" ), QByteArray( "UTF-16BE" ), QByteArray( "UTF-32LE" ),
                     QByteArray( "UTF-8" ), QByteArray( "ISO-8859-1" ) );
-    const auto multiByteLineFeed
-        = encodingName.startsWith( "UTF-16" ) || encodingName.startsWith( "UTF-32" );
     CAPTURE( encodingName );
     REQUIRE( store( cache, logFile, SomeLinePositions, encodingName ) );
 
-    GIVEN( "the Index stored as the format before, 2, stores it" )
+    GIVEN( "the Index stored as an earlier format stores it" )
     {
+        const auto version = GENERATE( 1, 2, 3 );
+        CAPTURE( version );
         const auto files = cacheFiles( cacheDir.path() );
         REQUIRE( files.size() == 1 );
         QFile entry( QDir( cacheDir.path() ).filePath( files.first() ) );
@@ -618,12 +566,14 @@ SCENARIO( "The Index cache drops a UTF-16 Index of the format before #804", "[in
         // The magic, then the format version, big-endian as QDataStream
         // writes it.
         REQUIRE( entry.seek( 4 ) );
-        REQUIRE( entry.write( QByteArray( "\0\0\0\x02", 4 ) ) == 4 );
+        const char formatBefore[] = { 0, 0, 0, static_cast<char>( version ) };
+        REQUIRE( entry.write( formatBefore, 4 ) == 4 );
         entry.close();
 
-        THEN( "only an Index of an Encoding whose line feed is one byte is handed out" )
+        THEN( "nothing is loaded and the outdated entry is gone" )
         {
-            REQUIRE( cache.tryLoad( logFile ).has_value() != multiByteLineFeed );
+            REQUIRE_FALSE( cache.tryLoad( logFile ).has_value() );
+            REQUIRE( cacheFiles( cacheDir.path() ).isEmpty() );
         }
     }
 
@@ -634,6 +584,255 @@ SCENARIO( "The Index cache drops a UTF-16 Index of the format before #804", "[in
             const auto loaded = cache.tryLoad( logFile );
             REQUIRE( loaded.has_value() );
             REQUIRE( loaded->encodingName == encodingName );
+        }
+    }
+}
+
+namespace {
+
+// The one cache file of a directory holding one entry.
+QString onlyCacheFile( const QString& directory )
+{
+    const auto names = cacheFiles( directory );
+    REQUIRE( names.size() == 1 );
+    return QDir( directory ).filePath( names.first() );
+}
+
+QByteArray readFile( const QString& path )
+{
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::ReadOnly ) );
+    return file.readAll();
+}
+
+// What write( QDataStream& ) serializes, with the stream version every
+// cache entry is written with.
+template <typename Write>
+QByteArray serialized( Write&& write )
+{
+    QByteArray bytes;
+    QDataStream out( &bytes, QIODevice::WriteOnly );
+    out.setVersion( QDataStream::Qt_6_0 );
+    write( out );
+    return bytes;
+}
+
+// An entry of this format: the magic, the format version, the digest of the
+// payload, then the payload.
+QByteArray entryOf( const QByteArray& payload )
+{
+    return serialized( [ &payload ]( QDataStream& out ) {
+               out << quint32( 0x4C534149 ) << quint32( 4 ) << quint64( digestOf( payload ) );
+           } )
+           + payload;
+}
+
+// The payload of an entry for logFile, as it is now, holding the serialized
+// line positions given: the hash the indexer records, the longest line, the
+// Encoding, whether the last line feed is a fake one, then the positions.
+QByteArray payloadOf( const QString& logFile, const QByteArray& linePositions,
+                      bool fakeFinalLF = false, std::optional<qint64> headerSize = std::nullopt )
+{
+    const auto hash = hashOfFile( logFile );
+    return serialized( [ & ]( QDataStream& out ) {
+               out << hash.size << hash.fullDigest;
+               out << headerSize.value_or( hash.headerSize ) << hash.headerDigest;
+               out << hash.tailSize << hash.tailOffset << hash.tailDigest;
+               out << qint32( 30 ) << QByteArray( "UTF-8" ) << fakeFinalLF;
+           } )
+           + linePositions;
+}
+
+// Line positions serialized as the compressed storage writes fewer than a
+// block of them: no packed block, no packed byte, the positions as the
+// uncompressed tail, their count, and the last of them.
+QByteArray tailPositionsOf( const std::vector<qint64>& positions,
+                            std::optional<qint64> lastPosition = std::nullopt )
+{
+    return serialized( [ & ]( QDataStream& out ) {
+        out << quint32( 0 ) << quint64( 0 ) << static_cast<quint32>( positions.size() );
+        for ( const auto position : positions ) {
+            out << position;
+        }
+        out << static_cast<qint64>( positions.size() )
+            << lastPosition.value_or( positions.empty() ? 0 : positions.back() );
+    } );
+}
+
+} // namespace
+
+SCENARIO( "The Index cache hands out an Index only when its content is sound", "[indexcache]" )
+{
+    // An entry anybody can edit on disk is checked before any of it is
+    // trusted (#824): its payload against the digest written with it, every
+    // line position for lying within the Log File in increasing order, and
+    // what it announces for fitting in the bytes it has. An entry that
+    // fails is deleted, so the Log File is indexed again and the entry
+    // written anew without anybody clearing the cache.
+    QTemporaryDir cacheDir;
+    QTemporaryDir logDir;
+    REQUIRE( cacheDir.isValid() );
+    REQUIRE( logDir.isValid() );
+    const IndexCache cache{ cacheDir.path(), QString{}, NoBudgetLimit };
+
+    const auto logFile = logDir.filePath( "sound.log" );
+    writeFile( logFile, "first line\nsecond line\nthird line\n" );
+    const qint64 logFileSize = 34;
+    REQUIRE( QFileInfo( logFile ).size() == logFileSize );
+    REQUIRE( store( cache, logFile, makeLinePositions( { 11, 23, 34 } ) ) );
+    const auto entryPath = onlyCacheFile( cacheDir.path() );
+    const auto soundEntry = readFile( entryPath );
+
+    const auto requireDropped = [ & ] {
+        REQUIRE_FALSE( cache.tryLoad( logFile ).has_value() );
+        REQUIRE( cacheFiles( cacheDir.path() ).isEmpty() );
+    };
+
+    GIVEN( "the entry as stored" )
+    {
+        THEN( "it is handed out" )
+        {
+            const auto loaded = cache.tryLoad( logFile );
+            REQUIRE( loaded.has_value() );
+            REQUIRE( loaded->linePosition.size() == 3_lcount );
+            REQUIRE( loaded->linePosition.at( 2 ) == OffsetInFile( 34 ) );
+        }
+
+        THEN( "it is laid out as the entries made here are" )
+        {
+            REQUIRE( soundEntry
+                     == entryOf( payloadOf( logFile, tailPositionsOf( { 11, 23, 34 } ) ) ) );
+        }
+    }
+
+    GIVEN( "a byte of the entry flipped" )
+    {
+        // In the digest, at the start of the payload, in the middle of it
+        // and at its end.
+        const auto at = GENERATE( 8, 16, 60, -1 );
+        CAPTURE( at );
+        auto damaged = soundEntry;
+        const auto index = at < 0 ? damaged.size() - 1 : at;
+        damaged[ index ] = static_cast<char>( damaged[ index ] ^ 0x01 );
+        writeFile( entryPath, damaged );
+
+        THEN( "nothing is loaded and the entry is gone" )
+        {
+            requireDropped();
+        }
+
+        WHEN( "the Index is stored again" )
+        {
+            REQUIRE_FALSE( cache.tryLoad( logFile ).has_value() );
+            REQUIRE( store( cache, logFile, makeLinePositions( { 11, 23, 34 } ) ) );
+
+            THEN( "it is handed out" )
+            {
+                REQUIRE( cache.tryLoad( logFile ).has_value() );
+            }
+        }
+    }
+
+    GIVEN( "an entry whose line positions are negative or do not increase" )
+    {
+        const auto positions
+            = GENERATE( std::vector<qint64>{ -11, 23, 34 }, std::vector<qint64>{ 11, -23, 34 },
+                        std::vector<qint64>{ 11, 23, 23 }, std::vector<qint64>{ 11, 34, 23 },
+                        std::vector<qint64>{ 11, 23, -34 } );
+        CAPTURE( positions );
+        writeFile( entryPath, entryOf( payloadOf( logFile, tailPositionsOf( positions ) ) ) );
+
+        THEN( "nothing is loaded and the entry is gone" )
+        {
+            requireDropped();
+        }
+    }
+
+    GIVEN( "an entry whose last line ends one byte past the Log File, at its fake line feed" )
+    {
+        writeFile( entryPath, entryOf( payloadOf( logFile, tailPositionsOf( { 11, 23, 35 } ),
+                                                  /*fakeFinalLF=*/true ) ) );
+
+        THEN( "it is handed out" )
+        {
+            const auto loaded = cache.tryLoad( logFile );
+            REQUIRE( loaded.has_value() );
+            REQUIRE( loaded->fakeFinalLF );
+            REQUIRE( loaded->linePosition.at( 2 ) == OffsetInFile( 35 ) );
+        }
+    }
+
+    GIVEN( "an entry whose last line ends past the Log File" )
+    {
+        const auto fakeFinalLF = GENERATE( false, true );
+        const auto last = logFileSize + ( fakeFinalLF ? 2 : 1 );
+        CAPTURE( fakeFinalLF, last );
+        writeFile( entryPath, entryOf( payloadOf( logFile, tailPositionsOf( { 11, 23, last } ),
+                                                  fakeFinalLF ) ) );
+
+        THEN( "nothing is loaded and the entry is gone" )
+        {
+            requireDropped();
+        }
+    }
+
+    GIVEN( "an entry whose last position is not that of its last line" )
+    {
+        writeFile( entryPath,
+                   entryOf( payloadOf( logFile, tailPositionsOf( { 11, 23, 34 }, 30 ) ) ) );
+
+        THEN( "nothing is loaded and the entry is gone" )
+        {
+            requireDropped();
+        }
+    }
+
+    GIVEN( "an entry holding no line" )
+    {
+        writeFile( entryPath, entryOf( payloadOf( logFile, tailPositionsOf( {} ) ) ) );
+
+        THEN( "nothing is loaded and the entry is gone" )
+        {
+            requireDropped();
+        }
+    }
+
+    GIVEN( "an entry whose header digest covers nothing" )
+    {
+        writeFile( entryPath, entryOf( payloadOf( logFile, tailPositionsOf( { 11, 23, 34 } ), false,
+                                                  /*headerSize=*/0 ) ) );
+
+        THEN( "nothing is loaded and the entry is gone" )
+        {
+            requireDropped();
+        }
+    }
+
+    GIVEN( "an entry cut short after announcing a hundred million packed blocks" )
+    {
+        const auto linePositions
+            = serialized( []( QDataStream& out ) { out << quint32( 100'000'000 ); } );
+        writeFile( entryPath, entryOf( payloadOf( logFile, linePositions ) ) );
+
+        THEN( "it is refused at once, without room made for them" )
+        {
+            const auto started = std::chrono::steady_clock::now();
+            requireDropped();
+            REQUIRE( std::chrono::steady_clock::now() - started < std::chrono::seconds( 2 ) );
+        }
+    }
+
+    GIVEN( "an entry announcing more packed bytes than it holds" )
+    {
+        const auto linePositions = serialized(
+            []( QDataStream& out ) { out << quint32( 0 ) << quint64( 1'500'000'000 ); } );
+        writeFile( entryPath, entryOf( payloadOf( logFile, linePositions ) ) );
+
+        THEN( "it is refused at once, without room made for them" )
+        {
+            const auto started = std::chrono::steady_clock::now();
+            requireDropped();
+            REQUIRE( std::chrono::steady_clock::now() - started < std::chrono::seconds( 2 ) );
         }
     }
 }

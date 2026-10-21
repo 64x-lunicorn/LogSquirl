@@ -224,6 +224,19 @@ void overwriteByte( const QString& path, qint64 offset, char byte )
     REQUIRE( file.write( &byte, 1 ) == 1 );
 }
 
+// Flips one bit of the byte at offset.
+void flipByte( const QString& path, qint64 offset )
+{
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::ReadWrite ) );
+    REQUIRE( file.seek( offset ) );
+    char byte = 0;
+    REQUIRE( file.read( &byte, 1 ) == 1 );
+    byte = static_cast<char>( byte ^ 0x01 );
+    REQUIRE( file.seek( offset ) );
+    REQUIRE( file.write( &byte, 1 ) == 1 );
+}
+
 // Writes the bytes over those at offset, leaving the rest of the Log File --
 // its size included -- as it was.
 void overwriteBytes( const QString& path, qint64 offset, const QByteArray& bytes )
@@ -494,6 +507,53 @@ SCENARIO( "Reopening a grown Log File indexes only what was added to it", "[inde
             {
                 REQUIRE( reopened.lines.get() == 50 );
                 REQUIRE( reopened.bytesIndexed == reopened.hash.size );
+            }
+        }
+    }
+}
+
+SCENARIO( "A damaged Index Cache entry is dropped and the Log File indexed again",
+          "[indexing][indexcache]" )
+{
+    // An entry edited on disk is found out by the digest of its payload
+    // (#824). Nobody has to clear the cache: the Log File is indexed again
+    // and the entry written anew.
+    QTemporaryDir cacheDir;
+    QTemporaryDir logDir;
+    REQUIRE( cacheDir.isValid() );
+    REQUIRE( logDir.isValid() );
+
+    auto policy = testSettingsPolicies().indexing;
+    policy.useIndexCache = true;
+    policy.indexCacheDirectory = cacheDir.path();
+
+    const auto logFile = logDir.filePath( "damaged.log" );
+
+    GIVEN( "a cached Index of a Log File" )
+    {
+        writeContent( logFile, linesOf( 0, 1000, 100 ) );
+        const auto cached = runFullIndex( logFile, policy );
+        REQUIRE( cached.lines.get() == 1000 );
+        const auto entries = QDir( cacheDir.path() ).entryInfoList( { "*.idx" }, QDir::Files );
+        REQUIRE( entries.size() == 1 );
+
+        WHEN( "a byte of the entry's line positions is flipped" )
+        {
+            // The last byte of the first packed block's first position, and
+            // a packed byte of its positions.
+            const auto offset = GENERATE( 97, 250 );
+            CAPTURE( offset );
+            flipByte( entries.first().filePath(), offset );
+
+            THEN( "reopening indexes the whole Log File, and the Index is cached again" )
+            {
+                const auto reopened = runFullIndex( logFile, policy );
+                REQUIRE( reopened.bytesIndexed == reopened.hash.size );
+                requireSameIndex( reopened, cached );
+
+                const auto again = runFullIndex( logFile, policy );
+                REQUIRE( again.bytesIndexed == 0 );
+                requireSameIndex( again, cached );
             }
         }
     }

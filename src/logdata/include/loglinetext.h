@@ -27,6 +27,7 @@
 #include <QString>
 
 #include <cstddef>
+#include <exception>
 #include <limits>
 #include <new>
 #include <string>
@@ -103,6 +104,9 @@ QString warningText( std::string_view warning );
 // Tells the log that a Log Line could not be made for want of memory.
 void logNotEnoughMemory();
 
+// Tells the log that reading Log Lines failed with the error given.
+void logReadFailed( const char* what );
+
 // A Log Line decoded (without its line feed), as its text: its ANSI color
 // sequences removed when hideAnsiColorSequences, then trimmed.
 QString logLineText( QString&& decodedLine, bool hideAnsiColorSequences );
@@ -171,6 +175,10 @@ logsquirl::vector<Line> decodeReadLogLines( const TextCodecHolder& codec, std::s
                 isRead[ request ] = true;
             }
         }
+    } catch ( const std::exception& error ) {
+        // A read gone wrong over a tampered Index must not reach the paint
+        // path: the Log Lines not read yet read as warnings below (#824).
+        logReadFailed( error.what() );
     }
 
     for ( std::size_t request = 0; request < count; ++request ) {
@@ -227,6 +235,10 @@ std::string decodeReadLogLinesToUtf8( const TextCodecHolder& codec, std::size_t 
     } catch ( const std::bad_alloc& ) {
         logNotEnoughMemory();
         return utf8NotEnoughMemory( count );
+    } catch ( const std::exception& error ) {
+        // As in decodeReadLogLines(): the Log Lines not read yet read as
+        // warnings (#824).
+        logReadFailed( error.what() );
     }
 
     return utf8LogLineTextsInRequestOrder( std::move( decoded ), placed );

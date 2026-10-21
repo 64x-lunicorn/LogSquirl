@@ -17,6 +17,7 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <QIODevice>
 #include <QtEndian>
 #include <algorithm>
 #include <array>
@@ -333,9 +334,25 @@ void CompressedLinePositionStorage::serialize( QDataStream& out ) const
 
 bool CompressedLinePositionStorage::deserialize( QDataStream& in )
 {
+    // Every count read is bounded by what the stream still holds before
+    // room is made for it: a short cache file announcing millions of blocks
+    // or gigabytes of packed bytes is refused without reserving (#824).
+    const auto* device = in.device();
+    if ( device == nullptr ) {
+        return false;
+    }
+    const auto bytesLeft = [ device ]() -> quint64 {
+        return static_cast<quint64>( std::max( device->bytesAvailable(), qint64{ 0 } ) );
+    };
+
+    // A position past half the range could overflow when the offsets of
+    // its block are added to it.
+    constexpr auto MaxPosition = std::numeric_limits<int64_t>::max() / 2;
+
     quint32 blockCount = 0;
     in >> blockCount;
-    if ( in.status() != QDataStream::Ok || blockCount > 100'000'000 ) {
+    constexpr quint64 BlockBytes = sizeof( qint64 ) + sizeof( quint64 );
+    if ( in.status() != QDataStream::Ok || blockCount > bytesLeft() / BlockBytes ) {
         return false;
     }
 
@@ -348,6 +365,11 @@ bool CompressedLinePositionStorage::deserialize( QDataStream& in )
         if ( in.status() != QDataStream::Ok ) {
             return false;
         }
+        // Blocks follow each other in the Log File.
+        const auto previousFirst = blocks_.empty() ? -1 : blocks_.back().firstLineOffset.get();
+        if ( firstOffset <= previousFirst || firstOffset > MaxPosition ) {
+            return false;
+        }
         auto& block = blocks_.emplace_back();
         block.firstLineOffset = OffsetInFile( firstOffset );
         block.storageOffsetAndWideFlag = storageOffset;
@@ -356,7 +378,8 @@ bool CompressedLinePositionStorage::deserialize( QDataStream& in )
     // Packed byte storage
     quint64 packedSize = 0;
     in >> packedSize;
-    if ( in.status() != QDataStream::Ok || packedSize > 2'000'000'000ULL ) {
+    if ( in.status() != QDataStream::Ok || packedSize > 2'000'000'000ULL
+         || packedSize > bytesLeft() ) {
         return false;
     }
     // streamvbyte's decoder reads up to STREAMVBYTE_PADDING bytes past a block.
@@ -388,6 +411,31 @@ bool CompressedLinePositionStorage::deserialize( QDataStream& in )
         return false;
     }
 
+    // Every position, once unpacked, must follow the one before it: what
+    // reads the Log File sizes its buffers from their differences (#824).
+    // A wide offset is checked before it is added to the block's first
+    // position, so that the sum cannot overflow.
+    OffsetInFile previous( -1 );
+    std::array<OffsetInFile, SimdIndexBlockSize> positions;
+    for ( const auto& block : blocks_ ) {
+        if ( block.hasWideOffsets() ) {
+            for ( size_t index = 0; index < SimdIndexBlockSize; ++index ) {
+                const auto offset = qFromLittleEndian<uint64_t>(
+                    &packedLinesStorage_[ block.packetStorageOffset() + index * WideOffsetBytes ] );
+                if ( offset > static_cast<uint64_t>( MaxPosition ) ) {
+                    return false;
+                }
+            }
+        }
+        unpack_block( block, 0, SimdIndexBlockSize, positions.data() );
+        for ( const auto position : positions ) {
+            if ( position <= previous ) {
+                return false;
+            }
+            previous = position;
+        }
+    }
+
     // Uncompressed tail block
     quint32 tailCount = 0;
     in >> tailCount;
@@ -400,10 +448,11 @@ bool CompressedLinePositionStorage::deserialize( QDataStream& in )
     for ( quint32 i = 0; i < tailCount; ++i ) {
         qint64 val = 0;
         in >> val;
-        if ( in.status() != QDataStream::Ok ) {
+        if ( in.status() != QDataStream::Ok || val <= previous.get() || val > MaxPosition ) {
             return false;
         }
         currentLinesBlock_.push_back( OffsetInFile( val ) );
+        previous = OffsetInFile( val );
     }
 
     // Scalar state
@@ -411,7 +460,8 @@ bool CompressedLinePositionStorage::deserialize( QDataStream& in )
     qint64 lastP = 0;
     in >> lines >> lastP;
     if ( in.status() != QDataStream::Ok
-         || static_cast<quint64>( lines ) != blocks_.size() * SimdIndexBlockSize + tailCount ) {
+         || static_cast<quint64>( lines ) != blocks_.size() * SimdIndexBlockSize + tailCount
+         || lastP != ( lines == 0 ? 0 : previous.get() ) ) {
         return false;
     }
     nbLines_ = LinesCount( static_cast<LinesCount::UnderlyingType>( lines ) );

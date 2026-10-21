@@ -39,6 +39,7 @@
 // This file implements LogData, the content of a log file.
 
 #include <algorithm>
+#include <exception>
 #include <limits>
 #include <numeric>
 #include <qregularexpression.h>
@@ -522,6 +523,14 @@ RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number ) const
         rawLines.endOfLines.clear();
         rawLines.buffer.clear();
         return rawLines;
+    } catch ( const std::exception& error ) {
+        // Offsets out of a tampered Index make the buffer's size absurd;
+        // the block reads as warnings rather than throwing into the paint
+        // path (#824).
+        LOG_ERROR << "cannot read Log Lines: " << error.what();
+        rawLines.endOfLines.clear();
+        rawLines.buffer.clear();
+        return rawLines;
     }
 }
 
@@ -548,6 +557,9 @@ logsquirl::vector<QString> LogData::getLinesFromFile( LineNumber firstLine, Line
     } catch ( const std::bad_alloc& e ) {
         LOG_ERROR << "not enough memory " << e.what();
         processedLines.push_back( warningText( NotEnoughMemoryWarning ) );
+    } catch ( const std::exception& error ) {
+        // The Log Lines not made yet read as warnings below (#824).
+        LOG_ERROR << "cannot read Log Lines: " << error.what();
     }
 
     processedLines.reserve( number.get() - processedLines.size() );
@@ -641,6 +653,9 @@ logsquirl::vector<AnsiColoredText> LogData::doGetAnsiColoredLines( LineNumber fi
     } catch ( const std::bad_alloc& e ) {
         LOG_ERROR << "not enough memory " << e.what();
         lines.push_back( AnsiColoredText{ warningText( NotEnoughMemoryWarning ) } );
+    } catch ( const std::exception& error ) {
+        // As in getLinesFromFile() (#824).
+        LOG_ERROR << "cannot read Log Lines: " << error.what();
     }
 
     while ( lines.size() < number.get() ) {

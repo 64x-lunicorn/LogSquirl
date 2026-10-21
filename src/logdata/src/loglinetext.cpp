@@ -48,6 +48,11 @@ void logNotEnoughMemory()
     LOG_ERROR << "not enough memory";
 }
 
+void logReadFailed( const char* what )
+{
+    LOG_ERROR << "Reading Log Lines failed: " << what;
+}
+
 QString logLineText( QString&& decodedLine, bool hideAnsiColorSequences )
 {
     if ( hideAnsiColorSequences ) {
@@ -99,7 +104,9 @@ ReadLogLine readLogLine( std::size_t request, std::string_view bytesRead, qint64
     if ( length >= MaxLogLineLength ) {
         line.warning = LineTooLongWarning;
     }
-    else if ( begin + length > static_cast<qint64>( bytesRead.size() ) ) {
+    else if ( begin < 0 || begin + length > static_cast<qint64>( bytesRead.size() ) ) {
+        // A negative begin comes from a tampered Index; substr would throw
+        // on it (#824).
         line.warning = FileReadFailedWarning;
     }
     else if ( length > 0 ) {

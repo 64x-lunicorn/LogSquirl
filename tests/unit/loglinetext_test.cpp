@@ -537,6 +537,18 @@ SCENARIO( "A Log Line that cannot be read reads as a warning in every shape", "[
         }
     }
 
+    GIVEN( "a Log Line an Index says begins before the bytes read (#824)" )
+    {
+        const std::string_view bytes = "first\n";
+
+        THEN( "it reads as a warning rather than reaching before them" )
+        {
+            const auto line = readLogLine( 0, bytes, -1, 3, false );
+            REQUIRE( line.warning == FileReadFailedWarning );
+            REQUIRE( line.bytes.empty() );
+        }
+    }
+
     GIVEN( "a block whose first Log Line is too long to decode" )
     {
         auto rawLines = rawLinesOfBytes( { "first\n", "second\n" }, "UTF-8", false );

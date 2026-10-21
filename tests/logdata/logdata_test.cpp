@@ -27,6 +27,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -46,6 +47,8 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
+#include "indexoperation.h"
+#include "linepositionarray.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
 
@@ -1090,6 +1093,85 @@ SCENARIO( "A UTF-16 Log File breaks its Log Lines only at whole line feeds", "[l
             REQUIRE( logData.getNbLine() == 2_lcount );
             REQUIRE( logData.getLineString( 1_lnum ) == QStringLiteral( "VIN: X" ) );
             REQUIRE( logData.getLineString( 0_lnum ).endsWith( straddling ) );
+        }
+    }
+}
+
+struct CraftedIndexAccess {};
+
+template <>
+struct LogData::access_by<CraftedIndexAccess> {
+    // The Index of the Log File, to hold what no indexing run would build.
+    static IndexingData& indexingData( LogData& logData )
+    {
+        return *logData.indexing_data_;
+    }
+};
+
+SCENARIO( "Log Lines read through an Index that was tampered with read as warnings", "[logdata]" )
+{
+    // The Index Cache no longer hands out an entry edited on disk (#824),
+    // and the read path trusts no Index either: a Log Line ending before it
+    // starts, or starting before the Log File, reads as a warning on the UI
+    // thread rather than throwing into the paint path.
+    QTemporaryFile file{ "logdata_test_tampered_XXXXXX" };
+    REQUIRE( file.open() );
+    writeNumberedLogLines( file, 10 );
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    REQUIRE( logData.getNbLine() == 10_lcount );
+
+    GIVEN( "an Index whose line ends go below zero and backwards" )
+    {
+        FastLinePositionArray crafted;
+        for ( const auto position : { 100, -50, 300, 250 } ) {
+            crafted.append( OffsetInFile( position ) );
+        }
+        {
+            IndexingData::MutateAccessor accessor{
+                &LogData::access_by<CraftedIndexAccess>::indexingData( logData )
+            };
+            accessor.clear( policies.indexing );
+            accessor.addAll( 0, 0_length, crafted, TextEncoding::forName( "UTF-8" ), std::nullopt );
+        }
+        REQUIRE( logData.getNbLine() == 4_lcount );
+
+        THEN( "a Log Line ending before it starts reads as a warning" )
+        {
+            REQUIRE( isReadWarning( logData.getLineString( 1_lnum ) ) );
+            REQUIRE( isReadWarning( logData.getExpandedLineString( 1_lnum ) ) );
+            const auto lines = logData.getLines( 1_lnum, 1_lcount );
+            REQUIRE( lines.size() == 1 );
+            REQUIRE( isReadWarning( lines.front() ) );
+            const auto colored = logData.getAnsiColoredLines( 1_lnum, 1_lcount );
+            REQUIRE( colored.size() == 1 );
+            REQUIRE( isReadWarning( colored.front().text ) );
+        }
+
+        THEN( "a block of Log Lines reads as many Log Lines as asked for" )
+        {
+            REQUIRE( logData.getLines( 0_lnum, 4_lcount ).size() == 4 );
+            REQUIRE( logData.getExpandedLines( 0_lnum, 4_lcount ).size() == 4 );
+        }
+
+        THEN( "a sparse set of Log Lines starting before the Log File reads as warnings" )
+        {
+            const std::vector<LineNumber> lines{ 1_lnum, 2_lnum };
+            const auto text = asStd( logData.getLinesSparse( lines ) );
+            REQUIRE( text.size() == 2 );
+            REQUIRE( isReadWarning( text[ 1 ] ) );
+            REQUIRE( logData.getExpandedLinesSparse( lines ).size() == 2 );
+            REQUIRE( logData.getAnsiColoredLinesSparse( lines ).size() == 2 );
+            REQUIRE( QString::fromStdString( logData.getUtf8LinesSparse( lines ) )
+                         .split( QLatin1Char( '\n' ) )
+                         .size()
+                     == 3 );
         }
     }
 }
