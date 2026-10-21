@@ -29,6 +29,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -87,6 +88,14 @@ public:
         std::lock_guard lock( mutex_ );
         const auto utf8 = suffix.toUtf8();
         lines_.back().append( utf8.constData(), static_cast<std::size_t>( utf8.size() ) );
+    }
+
+    // A block holds no more Log Lines than fit in maxBytes, the first always,
+    // as the log data bounds a Search's block by its bytes (#825).
+    void limitBlockBytes( qint64 maxBytes )
+    {
+        std::lock_guard lock( mutex_ );
+        maxBlockBytes_ = maxBytes;
     }
 
     void failReading( std::string message )
@@ -175,6 +184,11 @@ public:
 
         for ( auto index = first.get(); index < ( first + number ).get(); ++index ) {
             const auto& line = lines_[ static_cast<std::size_t>( index ) ];
+            if ( index > first.get()
+                 && static_cast<qint64>( rawLines.buffer.size() + line.size() + 1 )
+                        > maxBlockBytes_ ) {
+                break;
+            }
             rawLines.buffer.insert( rawLines.buffer.end(), line.begin(), line.end() );
             rawLines.buffer.push_back( '\n' );
             rawLines.endOfLines.push_back( static_cast<qint64>( rawLines.buffer.size() ) );
@@ -203,6 +217,7 @@ private:
     std::vector<std::string> lines_;
     std::string failure_;
     std::size_t failFromBlock_ = 0;
+    qint64 maxBlockBytes_ = std::numeric_limits<qint64>::max();
     static constexpr std::size_t NoBlock = static_cast<std::size_t>( -1 );
 
     bool held_ = false;

@@ -19,6 +19,11 @@ _Avoid_: document, source, input
 One line of a Log File, addressed by its number in the file. Its text — what is displayed,
 what a Search matches and what the grep CLI prints — is the line decoded, without its line
 feed, a carriage return that ends it or a byte order mark that starts it.
+A Log Line of a gibibyte or more (`MaxLogLineLength`) is never read: wherever Log Lines are
+read — a block for the view or a Search, a sparse read for the Filtered View — it costs
+nothing but its line feed and reads as the too-long warning, so reading N Log Lines costs at
+most N times that bound plus a constant, and a Search's block is bounded by its bytes as
+well as by its Log Lines, however long the Log File's lines are (#825).
 _Avoid_: record, entry, row (row belongs to the Table View)
 
 **Index**:

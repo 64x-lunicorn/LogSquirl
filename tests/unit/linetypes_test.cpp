@@ -19,6 +19,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <limits>
+#include <string>
+#include <utility>
+
 #include "linetypes.h"
 
 SCENARIO( "OffsetInFile basic operations", "[linetypes]" )
@@ -696,6 +700,53 @@ SCENARIO( "getUntabifiedLength for QString matches untabify output", "[linetypes
                 auto length = getUntabifiedLength( input );
                 REQUIRE( length.get() == expanded.size() );
             }
+        }
+    }
+}
+
+// A Log Line within MaxLogLineLength may expand to eight times its length:
+// the expanded length and the columns are counted in 64 bits, and capped at
+// MaxExpandedLineLength, so none of them overflows (#825).
+SCENARIO( "Tab expansion of a Log Line of hundreds of millions of tabs does not overflow",
+          "[linetypes][untabify]" )
+{
+    GIVEN( "a line of 300 million tabs" )
+    {
+        constexpr qsizetype TabCount = 300'000'000;
+
+        THEN( "its expanded length is capped, as a QString and as UTF-8" )
+        {
+            QString line( TabCount, QChar::Tabulation );
+            REQUIRE( getUntabifiedLength( line ).get() == MaxExpandedLineLength );
+            REQUIRE( getUntabifiedLength( std::string( TabCount, '\t' ) ).get()
+                     == MaxExpandedLineLength );
+
+            const auto expanded = untabify( std::move( line ) );
+            REQUIRE( expanded.size() == MaxExpandedLineLength );
+            REQUIRE( expanded.back() == QChar::Space );
+        }
+    }
+
+    GIVEN( "tabs at a column past what an int counts" )
+    {
+        const LineColumn column( static_cast<qsizetype>( std::numeric_limits<int>::max() ) - 1 );
+        QString line( 4, QChar::Tabulation );
+
+        THEN( "every display column is capped, none negative" )
+        {
+            const auto columns = rawToDisplayColumns( line, column );
+            REQUIRE( columns.size() == 5 );
+            for ( const auto displayColumn : columns ) {
+                REQUIRE( displayColumn == MaxExpandedLineLength );
+            }
+        }
+
+        THEN( "the line expands to the next tab stop, then whole ones" )
+        {
+            // The column is six past a tab stop: two spaces, then eight per tab.
+            const auto expanded = untabify( std::move( line ), column );
+            REQUIRE( expanded.size() == 2 + 3 * TabStop );
+            REQUIRE( expanded == QString( 2 + 3 * TabStop, QChar::Space ) );
         }
     }
 }

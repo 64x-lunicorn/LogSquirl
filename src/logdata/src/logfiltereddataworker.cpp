@@ -504,7 +504,12 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
                 chunkStart, blockSource_.getLinesRaw( chunkStart, linesInChunk ) ) );
 
             bytesRead += blockData->lines.buffer.size();
-            chunkStart = chunkStart + nbLinesInChunk;
+            // The block may hold fewer Log Lines than asked, its bytes bounded
+            // (SearchBlockMaxBytes): the Search goes on from the Log Line after
+            // its last. An empty block, one that could not be read, is passed
+            // over as a whole, so the Search still ends (#825).
+            const LinesCount linesInBlock{ blockData->lines.endOfLines.size() };
+            chunkStart = chunkStart + ( linesInBlock.get() > 0 ? linesInBlock : linesInChunk );
             fileReadingDuration += duration_cast<microseconds>( high_resolution_clock::now()
                                                                 - lineSourceStartTime );
             return blockData;

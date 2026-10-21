@@ -23,17 +23,21 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <vector>
 
 #include "textencoding.h"
+#include <QCoreApplication>
 #include <QDateTime>
+#include <QEventLoop>
 #include <QFileInfo>
 #include <QProcess>
 #include <QSignalSpy>
@@ -41,6 +45,13 @@
 #include <QTemporaryFile>
 #include <QTest>
 #include <QThread>
+#include <QVariant>
+
+#ifdef _WIN32
+#include <io.h>
+#include <windows.h>
+#include <winioctl.h>
+#endif
 
 #include "file_write_helper.h"
 #include "log.h"
@@ -51,6 +62,8 @@
 #include "linepositionarray.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
+#include "loglinetext.h"
+#include "searchblocksource.h"
 
 static const qint64 SL_NB_LINES = 500LL;
 static const qint64 VBL_NB_LINES = 50000LL;
@@ -1173,5 +1186,179 @@ SCENARIO( "Log Lines read through an Index that was tampered with read as warnin
                          .size()
                      == 3 );
         }
+    }
+}
+
+namespace {
+
+// Makes file sparse where the file system does not do that by itself, so
+// that a hole of gigabytes costs no disk and no time to write.
+void makeSparse( QFile& file )
+{
+#ifdef _WIN32
+    DWORD returned = 0;
+    DeviceIoControl( reinterpret_cast<HANDLE>( _get_osfhandle( file.handle() ) ), FSCTL_SET_SPARSE,
+                     nullptr, 0, nullptr, 0, &returned, nullptr );
+#else
+    static_cast<void>( file );
+#endif
+}
+
+// A Log File whose Log Lines are holes of the given lengths (line feed
+// included), each starting with its number as "line N".
+void writeHoleLogLines( QFile& file, const std::vector<qint64>& lengths )
+{
+    makeSparse( file );
+    qint64 end = 0;
+    for ( std::size_t line = 0; line < lengths.size(); ++line ) {
+        const auto start = end;
+        end += lengths[ line ];
+        REQUIRE( file.resize( end ) );
+        REQUIRE( file.seek( start ) );
+        const auto marker = QStringLiteral( "line %1" ).arg( line ).toLatin1();
+        REQUIRE( file.write( marker ) == marker.size() );
+        REQUIRE( file.seek( end - 1 ) );
+        REQUIRE( file.write( "\n", 1 ) == 1 );
+    }
+    REQUIRE( file.flush() );
+}
+
+// A Search for pattern over logData's Log Lines, complete.
+std::unique_ptr<LogFilteredData> searched( LogData& logData, const QString& pattern )
+{
+    auto filtered = logData.getNewFilteredData();
+    SafeQSignalSpy searchStateSpy{ filtered.get(), &LogFilteredData::searchStateChanged };
+    filtered->request( RegularExpressionPattern( pattern ) );
+    REQUIRE( waitUiState( [ &searchStateSpy ] {
+        return searchStateSpy.count() > 0
+               && qvariant_cast<SearchSession::State>( searchStateSpy.last().at( 0 ) ).progress
+                      >= 100;
+    } ) );
+    QCoreApplication::processEvents( QEventLoop::AllEvents, 50 );
+    return filtered;
+}
+
+} // namespace
+
+SCENARIO( "A Log Line of gigabytes costs no more than its line feed wherever it is read (#825)",
+          "[logdata][long-line]" )
+{
+    // Longer than MaxLogLineLength, a gibibyte less a byte. A hole in a
+    // sparse file, so it costs no disk; what costs is reading it, which
+    // nothing here may do more than once, to index it.
+    constexpr qint64 LongLineBytes = 3LL * 1024 * 1024 * 1024;
+    constexpr qint64 SecondLineBytes = 12;
+
+    QTemporaryFile file{ "logdata_test_long_line_XXXXXX" };
+    REQUIRE( file.open() );
+    writeHoleLogLines( file, { LongLineBytes, SecondLineBytes } );
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+    logData.attachFile( file.fileName() );
+    REQUIRE( loadEndSpy.safeWait( 120000 ) );
+    REQUIRE( logData.getNbLine() == 2_lcount );
+
+    const auto tooLong = warningText( LineTooLongWarning );
+    const auto second
+        = QStringLiteral( "line 1" ).leftJustified( SecondLineBytes - 1, QChar::Null );
+    const std::vector<QString> expected{ tooLong, second };
+    const std::vector<LineNumber> both{ 0_lnum, 1_lnum };
+
+    THEN( "it reads as the too-long warning, and the Log Line after it as itself" )
+    {
+        // A block, as the view and a Search read: nothing but the line feed
+        // stands for it.
+        const auto rawLines = logData.searchBlockSource().getLinesRaw( 0_lnum, 2_lcount );
+        REQUIRE( rawLines.buffer.size() == 1 + SecondLineBytes );
+        REQUIRE( rawLines.endOfLines == logsquirl::vector<qint64>{ 1, 1 + SecondLineBytes } );
+        REQUIRE( rawLines.tooLongLines == logsquirl::vector<std::size_t>{ 0 } );
+        const auto view = rawLines.buildUtf8View();
+        REQUIRE( std::vector<std::string>( view.begin(), view.end() )
+                 == std::vector<std::string>{ std::string( LineTooLongWarning ),
+                                              second.toStdString() } );
+
+        REQUIRE( asStd( logData.getLines( 0_lnum, 2_lcount ) ) == expected );
+        REQUIRE( asStd( logData.getExpandedLines( 0_lnum, 2_lcount ) )
+                 == std::vector<QString>{ tooLong, untabify( QString( second ) ) } );
+        REQUIRE( logData.getLineString( 0_lnum ) == tooLong );
+        REQUIRE( logData.getExpandedLineString( 0_lnum ) == tooLong );
+        const auto colored = logData.getAnsiColoredLines( 0_lnum, 2_lcount );
+        REQUIRE( colored.size() == 2 );
+        REQUIRE( colored[ 0 ].text == tooLong );
+        REQUIRE( colored[ 1 ].text == second );
+
+        // Read sparsely, as the Filtered View and a plugin read.
+        REQUIRE( asStd( logData.getLinesSparse( both ) ) == expected );
+        REQUIRE( asStd( logData.getExpandedLinesSparse( both ) )
+                 == std::vector<QString>{ tooLong, untabify( QString( second ) ) } );
+        const auto coloredSparse = logData.getAnsiColoredLinesSparse( both );
+        REQUIRE( coloredSparse.size() == 2 );
+        REQUIRE( coloredSparse[ 0 ].text == tooLong );
+        REQUIRE( logData.getUtf8LinesSparse( both )
+                 == std::string( LineTooLongWarning ) + "\n" + second.toStdString() + "\n" );
+
+        // A Search runs over it and matches what it reads as.
+        const auto filtered = searched( logData, QStringLiteral( "too long|line 1" ) );
+        REQUIRE( filtered->getNbMatches() == 2_lcount );
+    }
+}
+
+SCENARIO( "A Search's block is bounded by its bytes as well as by its Log Lines (#825)",
+          "[logdata][search]" )
+{
+    // Four of these fill a Search's block exactly; the last Log Line is past
+    // the bound on its own.
+    constexpr qint64 LineBytes = SearchBlockMaxBytes / 4;
+    constexpr std::size_t ShortLines = 8;
+    constexpr qint64 LongLineBytes = SearchBlockMaxBytes + LineBytes;
+
+    QTemporaryFile file{ "logdata_test_block_bytes_XXXXXX" };
+    REQUIRE( file.open() );
+    std::vector<qint64> lengths( ShortLines, LineBytes );
+    lengths.push_back( LongLineBytes );
+    writeHoleLogLines( file, lengths );
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+    logData.attachFile( file.fileName() );
+    REQUIRE( loadEndSpy.safeWait( 120000 ) );
+    REQUIRE( logData.getNbLine() == LinesCount( ShortLines + 1 ) );
+
+    const auto& blockSource = logData.searchBlockSource();
+
+    THEN( "a block ends before the Log Line that would take it past the bound" )
+    {
+        const auto first = blockSource.getLinesRaw( 0_lnum, LinesCount( ShortLines + 1 ) );
+        REQUIRE( first.endOfLines.size() == 4 );
+        REQUIRE( first.buffer.size() == static_cast<std::size_t>( SearchBlockMaxBytes ) );
+        REQUIRE( first.tooLongLines.empty() );
+
+        const auto fewer = blockSource.getLinesRaw( 3_lnum, 3_lcount );
+        REQUIRE( fewer.endOfLines.size() == 3 );
+    }
+
+    THEN( "the first Log Line is always in the block, past the bound or not" )
+    {
+        const auto last = blockSource.getLinesRaw( LineNumber( ShortLines ), 1_lcount );
+        REQUIRE( last.endOfLines.size() == 1 );
+        REQUIRE( last.buffer.size() == static_cast<std::size_t>( LongLineBytes ) );
+    }
+
+    THEN( "the view reads every Log Line it asks for, whatever their bytes" )
+    {
+        const auto lines = logData.getLines( 3_lnum, 5_lcount );
+        REQUIRE( lines.size() == 5 );
+        for ( std::size_t line = 0; line < lines.size(); ++line ) {
+            REQUIRE( lines[ line ].startsWith( QStringLiteral( "line %1" ).arg( line + 3 ) ) );
+        }
+    }
+
+    THEN( "a Search runs over every Log Line, block after block" )
+    {
+        const auto filtered = searched( logData, QStringLiteral( "^line" ) );
+        REQUIRE( filtered->getNbMatches() == LinesCount( ShortLines + 1 ) );
     }
 }

@@ -214,6 +214,39 @@ SCENARIO( "A Search Session runs a Search over its block source", "[searchsessio
     }
 }
 
+SCENARIO( "A Search goes on from the Log Line after a block cut short by its bytes (#825)",
+          "[searchsession]" )
+{
+    auto policies = testSettingsPolicies();
+    policies.search.readBufferSizeLines = 7;
+    InMemoryBlockSource blockSource( numberedLines( 50 ) );
+    // Two of the numbered Log Lines fit a block (at most 22 bytes together),
+    // never three (at least 28) nor the seven asked for.
+    blockSource.limitBlockBytes( 24 );
+    SearchSession session( blockSource, policies.search );
+
+    WHEN( "a pattern is requested over every Log Line" )
+    {
+        session.request( RegularExpressionPattern( "fizz" ) );
+        REQUIRE( waitUntilSettled( session ) );
+
+        THEN( "it completes over every Log Line, none skipped and none read twice" )
+        {
+            const auto state = session.state();
+            REQUIRE( state.phase == Phase::Complete );
+            REQUIRE( state.matchCount == 17_lcount );
+            REQUIRE( session.matches() == fizzLines( 50 ) );
+            REQUIRE( session.processedLines() == 50_lcount );
+
+            const auto blocks = blockSource.readBlocks();
+            REQUIRE( blocks.size() == 25 );
+            for ( std::size_t block = 0; block < blocks.size(); ++block ) {
+                REQUIRE( blocks[ block ].first == LineNumber( 2 * block ) );
+            }
+        }
+    }
+}
+
 SCENARIO( "A Search Session changes its Matches only when it reports a state change",
           "[searchsession]" )
 {

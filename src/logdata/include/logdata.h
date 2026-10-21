@@ -42,6 +42,7 @@
 #include <cstddef>
 #include <exception>
 #include <functional>
+#include <limits>
 #include <memory>
 
 #include "textencoding.h"
@@ -263,8 +264,13 @@ private:
 
     // The raw Log Lines [first, first + number), as a Search reads them
     // through searchBlockSource() and as the block reads here decode them.
-    // Only the offsets are taken under the Index's lock.
-    RawLines getLinesRaw( LineNumber first, LinesCount number ) const;
+    // Only the offsets are taken under the Index's lock. The block ends
+    // before the Log Line that would take its bytes past maxBytes, its
+    // first Log Line always in it: a Search's block is bounded so, the
+    // view's is not. A Log Line too long to read costs its line feed alone
+    // (RawLines::tooLongLines, #825).
+    RawLines getLinesRaw( LineNumber first, LinesCount number,
+                          qint64 maxBytes = std::numeric_limits<qint64>::max() ) const;
     // Tells every LogFilteredData handed out that the Log Lines from
     // firstChanged on may read differently now.
     void logLinesChanged( LineNumber firstChanged = 0_lnum ) const;
