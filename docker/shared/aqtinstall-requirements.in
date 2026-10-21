@@ -2,3 +2,6 @@
 # hash-locked aqtinstall-requirements.txt into a throwaway directory; after a
 # change here, regenerate it with the command at the top of that file.
 aqtinstall==3.3.0
+# certifi comes in through requests. 2026.10.19 drops the emSign root whose
+# intermediates have compromised keys (GHSA-6q48-6c7w-9gw2).
+certifi>=2026.10.19
