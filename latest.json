@@ -91,6 +91,10 @@
     {
       "version": "26.11.0-beta1",
       "description": "Value Names, Regex Lab, File Associations on all platforms, Open Command Output, Session files and Kept Searches, CSV export, ANSI colors, 18 bug fixes"
+    },
+    {
+      "version": "26.12.0-beta1",
+      "description": "Table View Sort Order and Column Layout, field terms in Search, Matches Only, next and previous Match, converter plugins in the background, plugins ship Log Formats, 3 bug fixes"
     }
   ],
   "stable_version": "26.10.0",
