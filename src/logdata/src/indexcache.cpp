@@ -30,10 +30,20 @@
 #include <QFileInfo>
 #include <QSaveFile>
 
+#include "encodingdetector.h"
 #include "indexedhash.h"
 #include "log.h"
+#include "textencoding.h"
 
 namespace {
+
+/// Whether the Encoding's line feed is one byte: an Index of the format before
+/// #804 broke Log Lines only at whole line feeds then. One of an Encoding
+/// this build does not know is not trusted.
+bool hasOneByteLineFeed( const TextEncoding* encoding )
+{
+    return encoding != nullptr && EncodingParameters( encoding ).lineFeedWidth == 1;
+}
 
 /// Build a hex-encoded SHA-256 of the absolute file path for use as a
 /// cache-file name.  Using the path (not the file contents) is cheap
@@ -109,7 +119,8 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath,
         quint32 magic = 0;
         quint32 version = 0;
         in >> magic >> version;
-        if ( magic != kMagic || version != kVersion ) {
+        if ( magic != kMagic
+             || ( version != kVersion && version != kVersionBeforeWholeLineFeeds ) ) {
             LOG_INFO << "Index cache version mismatch for " << filePath;
             return std::nullopt;
         }
@@ -149,6 +160,12 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath,
         // Encoding
         QByteArray encodingName;
         in >> encodingName;
+        if ( version == kVersionBeforeWholeLineFeeds
+             && !hasOneByteLineFeed( TextEncoding::forName( encodingName ) ) ) {
+            LOG_INFO << "Index cache of " << filePath << " predates whole "
+                     << encodingName.constData() << " line feeds";
+            return std::nullopt;
+        }
 
         // fakeFinalLF flag
         bool fakeLF = false;

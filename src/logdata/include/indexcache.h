@@ -117,7 +117,11 @@ private:
     static constexpr quint32 kMagic = 0x4C534149; // "LSAI"
     /// Format version — increment when the on-disk layout changes.
     /// 2: a compressed block spanning 4 GiB or more keeps 64-bit offsets (#321).
-    static constexpr quint32 kVersion = 2;
+    /// 3: laid out as 2, but a UTF-16 or UTF-32 Index breaks Log Lines only at
+    ///    whole line feeds (#804). A format 2 Index is still handed out when
+    ///    its Encoding's line feed is one byte, as it was right then.
+    static constexpr quint32 kVersion = 3;
+    static constexpr quint32 kVersionBeforeWholeLineFeeds = 2;
 
     QString directory_;
     QString excludedDirectory_;

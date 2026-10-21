@@ -124,14 +124,14 @@ typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, cons
 /* ── Log Lines ───────────────────────────────────────────────────────────── */
 
 /**
- * What go_to_log_line and get_selected_log_lines return.  Not negative is
- * success; negative says why nothing was done.
+ * What go_to_log_line, get_selected_log_lines and get_log_file_encoding
+ * return.  Not negative is success; negative says why nothing was done.
  */
 typedef enum {
     LOGSQUIRL_LOG_LINES_OK = 0,                /**< Done                                     */
     LOGSQUIRL_LOG_LINES_TRUNCATED = 1,         /**< Done, with the first selected lines only */
     LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD = -1, /**< Called off the UI thread                 */
-    LOGSQUIRL_LOG_LINES_NO_LOG_FILE = -2,      /**< The tab in front shows no Log File       */
+    LOGSQUIRL_LOG_LINES_NO_LOG_FILE = -2,      /**< No Log File in front, or none named open */
     LOGSQUIRL_LOG_LINES_OUT_OF_RANGE = -3,     /**< The Log File has no line of that number  */
     LOGSQUIRL_LOG_LINES_NO_SELECTION = -4,     /**< No Log Line is selected                  */
     LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5  /**< A NULL handle or text                    */
@@ -143,6 +143,20 @@ typedef enum {
 /** At most this many bytes (1 MiB, without the NUL) are returned by get_selected_log_lines. */
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES 1048576
 
+/* ── Encoding ────────────────────────────────────────────────────────────── */
+
+/**
+ * Called on the UI thread when the host reads an open Log File in another
+ * text encoding (see register_encoding_callback).
+ * @param user_data  The user_data passed to register_encoding_callback, unchanged.
+ * @param file_path  The Log File (UTF-8), as get_active_file_path names it;
+ *                   valid during the call only.
+ * @param encoding   The name of the encoding it is read in now, as
+ *                   get_log_file_encoding returns it; valid during the call only.
+ */
+typedef void ( *LogSquirlEncodingCallbackFn )( void* user_data, const char* file_path,
+                                               const char* encoding );
+
 /* ── Host API (provided by host, called by plugin) ───────────────────────── */
 
 /**
@@ -153,10 +167,10 @@ typedef enum {
  *
  * **Lifetime**: the struct is valid from init until shutdown.
  * **Thread safety**: all functions are safe to call from any thread, except
- * open_regex_lab, go_to_log_line, get_selected_log_lines and
- * get_active_file_path, which must be called on the UI thread; a call that
- * changes the user interface, open_file included, is dispatched to the UI
- * thread by the host.
+ * open_regex_lab, go_to_log_line, get_selected_log_lines,
+ * get_log_file_encoding and get_active_file_path, which must be called on the
+ * UI thread; a call that changes the user interface, open_file included, is
+ * dispatched to the UI thread by the host.
  * **Growth**: functions added later are appended at the end, below "Added
  * later"; nothing is reordered, removed or changed in size, and only function
  * pointers are appended.  A host older than a function passes a shorter
@@ -346,6 +360,52 @@ typedef struct {
      */
     int ( *get_selected_log_lines )( void* handle, const char** text, size_t* length,
                                      size_t* line_count );
+
+    /**
+     * Read which text encoding LogSquirl reads a Log File in (LogSquirl
+     * 26.12): the one the user chose for its tab, else the one detected from
+     * a byte order mark or guessed from the bytes, else the locale's.  A
+     * plugin that reads the Log File itself reads it in this encoding, so its
+     * Log Lines are those the views show.
+     *
+     * The name is the encoding's IANA name, e.g. "UTF-8", "UTF-16LE",
+     * "UTF-16BE", "ISO-8859-1" or "windows-1252", NUL-terminated.  The host
+     * owns it: it is valid until the plugin calls get_log_file_encoding again
+     * or is shut down.
+     *
+     * The encoding changes when the user chooses another one for the tab,
+     * and may change when a load of the Log File detects another one: the
+     * callback of register_encoding_callback tells of every change.  Ask
+     * again in the active-file callback for the new tab in front.
+     *
+     * Call on the UI thread only.
+     * @param file_path  The Log File (UTF-8 path), as get_active_file_path
+     *                   names it; NULL or "" for the tab in front.
+     * @param encoding   Receives the name; NULL when the result is negative.
+     *                   Must not be NULL.
+     * @return LOGSQUIRL_LOG_LINES_OK with the name;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when the tab in front shows no
+     *         Log File, or no tab shows the one named;
+     *         LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD off the UI thread;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle or
+     *         encoding.
+     */
+    int ( *get_log_file_encoding )( void* handle, const char* file_path, const char** encoding );
+
+    /**
+     * Register a callback invoked, on the UI thread, whenever LogSquirl reads
+     * an open Log File in another text encoding (LogSquirl 26.12): the user
+     * chose one for its tab, or a load detected another one.  It is called
+     * for the Log File of any tab, in front or not, with the new encoding's
+     * name: once for each tab, so twice for a Log File two windows show
+     * when both read it in another encoding.  A plugin has one such
+     * callback: registering another replaces it, and a NULL callback removes
+     * it.
+     * @param callback   Function called with the Log File and the encoding.
+     * @param user_data  Passed back to callback unchanged.
+     */
+    void ( *register_encoding_callback )( void* handle, LogSquirlEncodingCallbackFn callback,
+                                          void* user_data );
 
 } LogSquirlHostApi;
 

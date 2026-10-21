@@ -437,6 +437,30 @@ void PluginUiAdapter::setTabInFront( std::function<CrawlerWidget*()> tabInFront 
     tabInFront_ = std::move( tabInFront );
 }
 
+void PluginUiAdapter::setTabOfLogFile(
+    std::function<CrawlerWidget*( const QString& )> tabOfLogFile )
+{
+    tabOfLogFile_ = std::move( tabOfLogFile );
+}
+
+std::optional<QString> PluginUiAdapter::logFileEncoding( const QString& logFile )
+{
+    if ( QThread::currentThread() != window_.thread() ) {
+        return std::nullopt;
+    }
+    CrawlerWidget* tab = nullptr;
+    if ( logFile.isEmpty() ) {
+        tab = tabInFront_ ? tabInFront_() : nullptr;
+    }
+    else {
+        tab = tabOfLogFile_ ? tabOfLogFile_( logFile ) : nullptr;
+    }
+    if ( tab == nullptr ) {
+        return std::nullopt;
+    }
+    return tab->encodingName();
+}
+
 PluginLogLineJump PluginUiAdapter::goToLogLine( std::uint64_t logLine )
 {
     if ( QThread::currentThread() != window_.thread() || !tabInFront_ ) {

@@ -156,6 +156,25 @@ void goToFirstLine( void* /* user_data */ )
     host->go_to_log_line( hostHandle, 1 );
 }
 
+// A plugin that reads the Log File itself reads it in the encoding LogSquirl
+// reads it in, so its Log Lines are those LogSquirl shows.
+void showEncoding( void* /* user_data */ )
+{
+    const char* encoding = nullptr;
+    if ( host->get_log_file_encoding( hostHandle, nullptr, &encoding ) < 0 ) {
+        host->show_notification( hostHandle, "No Log File in front" );
+        return;
+    }
+    host->show_notification( hostHandle, ( std::string( "Read as " ) + encoding ).c_str() );
+}
+
+// Called on the UI thread whenever LogSquirl reads a Log File in another encoding.
+void encodingChanged( void* /* user_data */, const char* file_path, const char* encoding )
+{
+    host->log_message( hostHandle, LOGSQUIRL_LOG_INFO,
+                       ( std::string( file_path ) + " is read as " + encoding ).c_str() );
+}
+
 } // namespace
 
 extern "C" {
@@ -182,6 +201,11 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
         api->register_menu_action( handle, "Plugins", "Show Selection", &showSelection, nullptr );
         api->register_menu_action( handle, "Plugins", "Go to First Line", &goToFirstLine, nullptr );
     }
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, get_log_file_encoding )
+         && LOGSQUIRL_HOST_API_HAS( api_size, register_encoding_callback ) ) {
+        api->register_menu_action( handle, "Plugins", "Show Encoding", &showEncoding, nullptr );
+        api->register_encoding_callback( handle, &encodingChanged, nullptr );
+    }
     return 0;
 }
 
@@ -203,8 +227,8 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 The exported functions need C linkage: in C++, define them inside
 `extern "C"`, or the host does not find them by name. The example exports
 `logsquirl_plugin_init_ex` as well as `logsquirl_plugin_init`, so it runs on a
-LogSquirl that knows the Regex Lab and Log Line functions and on one that does
-not.
+LogSquirl that knows the Regex Lab, Log Line and encoding functions and on one
+that does not.
 
 ### 4. Build with CMake
 
@@ -506,8 +530,9 @@ come from `plugin.json`.
 
 The function-pointer table the host passes to `init`. It is valid from `init`
 until `shutdown`, and its functions are safe to call from any thread, but for
-`open_regex_lab`, `go_to_log_line`, `get_selected_log_lines` and
-`get_active_file_path`, which are called on the UI thread only.
+`open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`,
+`get_log_file_encoding` and `get_active_file_path`, which are called on the UI
+thread only.
 
 ```c
 typedef struct {
@@ -548,6 +573,9 @@ typedef struct {
     int ( *go_to_log_line )( void* handle, uint64_t line_number );
     int ( *get_selected_log_lines )( void* handle, const char** text, size_t* length,
                                      size_t* line_count );
+    int ( *get_log_file_encoding )( void* handle, const char* file_path, const char** encoding );
+    void ( *register_encoding_callback )( void* handle, LogSquirlEncodingCallbackFn callback,
+                                          void* user_data );
 } LogSquirlHostApi;
 ```
 
@@ -616,11 +644,13 @@ The example plugin shows the pattern: `logsquirl_plugin_init` forwards to
 `LOGSQUIRL_HOST_API_HAS( api_size, open_regex_lab )`. Keep the size, or what it
 tells, for later calls.
 
-| Function                 | Added in        |
-|--------------------------|-----------------|
-| `open_regex_lab`         | LogSquirl 26.11 |
-| `go_to_log_line`         | LogSquirl 26.11 |
-| `get_selected_log_lines` | LogSquirl 26.11 |
+| Function                     | Added in        |
+|------------------------------|-----------------|
+| `open_regex_lab`             | LogSquirl 26.11 |
+| `go_to_log_line`             | LogSquirl 26.11 |
+| `get_selected_log_lines`     | LogSquirl 26.11 |
+| `get_log_file_encoding`      | LogSquirl 26.12 |
+| `register_encoding_callback` | LogSquirl 26.12 |
 
 ### Regex Lab Types
 
@@ -640,8 +670,9 @@ typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, cons
 
 ### Log Lines Types
 
-The result of `go_to_log_line` and `get_selected_log_lines`, and the bounds
-of the text `get_selected_log_lines` returns:
+The result of `go_to_log_line`, `get_selected_log_lines` and
+`get_log_file_encoding`, and the bounds of the text `get_selected_log_lines`
+returns:
 
 ```c
 typedef enum {
@@ -656,6 +687,15 @@ typedef enum {
 
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES 1000
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES 1048576
+```
+
+### Encoding Types
+
+The callback of `register_encoding_callback`:
+
+```c
+typedef void ( *LogSquirlEncodingCallbackFn )( void* user_data, const char* file_path,
+                                               const char* encoding );
 ```
 
 ---
@@ -901,6 +941,54 @@ and return `LOGSQUIRL_LOG_LINES_NO_LOG_FILE` when it shows no Log File.
 Call them on the UI thread only: called on another thread, they do nothing and
 return `LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD`.
 
+### Encoding
+
+A plugin that reads a Log File itself -- to find values in it, say -- reads it
+in the text encoding LogSquirl reads it in, so that its Log Lines, and their
+numbers, are those the views show:
+
+```c
+if ( LOGSQUIRL_HOST_API_HAS( api_size, get_log_file_encoding ) ) {
+    const char* encoding = NULL;
+    /* NULL or "" for the tab in front, or a path as get_active_file_path names it */
+    int result = api->get_log_file_encoding( handle, NULL, &encoding );
+    if ( result == LOGSQUIRL_LOG_LINES_OK ) {
+        /* encoding: "UTF-8", "UTF-16LE", "windows-1252", ... */
+    }
+}
+
+if ( LOGSQUIRL_HOST_API_HAS( api_size, register_encoding_callback ) ) {
+    /* Be told whenever a Log File is read in another encoding */
+    api->register_encoding_callback( handle, &onEncodingChanged, userData );
+}
+```
+
+`get_log_file_encoding` returns the encoding LogSquirl reads the Log File in:
+the one the user chose for its tab in the *Encoding* menu, else the one
+detected -- from a byte order mark, or guessed from the bytes, as for a UTF-16
+file without one -- else the locale's. The name is the encoding's IANA name,
+such as `UTF-8`, `UTF-16LE`, `UTF-16BE`, `ISO-8859-1` or `windows-1252`. With
+`file_path` `NULL` or `""` it is the Log File of the tab in front of the most
+recently active LogSquirl window; with a path, that of the tab showing that
+Log File, in any window. It returns `LOGSQUIRL_LOG_LINES_OK` and the name, or
+`LOGSQUIRL_LOG_LINES_NO_LOG_FILE` with a `NULL` name when the tab in front
+shows no Log File or no tab shows the one named. A `NULL` handle or `encoding`
+is `LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT`. The host owns the name: it is valid
+until your plugin calls `get_log_file_encoding` again or is shut down. Call it
+on the UI thread only: called on another thread, it returns
+`LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD`.
+
+The encoding of a Log File changes when the user chooses another one for its
+tab, and may change when a load of it detects another one -- the first load
+detects it only once it has read the file. The callback of
+`register_encoding_callback` is called on the UI thread on every such change,
+for the Log File of any tab, with its path and the new encoding's name, both
+valid during the call only; a Log File shown in two windows is reported for
+each tab whose encoding changes. A plugin has one such callback: registering
+another replaces it, and `NULL` removes it. When the user switches tabs, the
+active-file callback is called instead; ask for the encoding of the new tab in
+front there.
+
 ### Configuration Dialog
 
 A plugin may export `logsquirl_plugin_configure`; the host passes it a
@@ -926,8 +1014,9 @@ window the plugin keeps open outlives the dialog.
 ## Guidelines
 
 - **Thread safety**: Host API calls are safe from any thread, but for
-  `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines` and
-  `get_active_file_path`, which are called on the UI thread only. The host
+  `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`,
+  `get_log_file_encoding` and `get_active_file_path`, which are called on the
+  UI thread only. The host
   dispatches UI-modifying calls, `open_file` included, to the UI thread
   internally. `init`, `shutdown`, `configure` and menu actions run on the UI
   thread; `logsquirl_converter_convert` and `logsquirl_converter_convert_ex`

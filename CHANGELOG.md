@@ -2,6 +2,17 @@
 
 ## Changes
 
+- **A plugin learns which text encoding LogSquirl reads a log file in**: the
+  new host function `get_log_file_encoding` returns the encoding of the tab in
+  front's log file, or of an open log file the plugin names by path, by its
+  IANA name (`UTF-8`, `UTF-16LE`, `windows-1252`, ...): the one chosen in the
+  *Encoding* menu, else the one detected, a UTF-16 file without a byte order
+  mark included. `register_encoding_callback` tells a plugin whenever a log
+  file is read in another encoding, chosen by the user or detected by a load.
+  A plugin that reads the file itself reads it as the views show it, with the
+  same line numbers. Plugins detect both with `LOGSQUIRL_HOST_API_HAS`, like
+  the 26.11 functions; older plugins are unaffected. The plugin SDK guide and
+  its example plugin show them. (#803)
 - **A search narrows by column with field terms, and the table view shows
   Matches Only**: in the logical combination a sub-pattern written
   `Protocol:"DNS"` matches the text of that field of the tab's log format
@@ -109,6 +120,14 @@
   gets the answer right after, exactly once and in the order the answers
   came. A plugin that is disabled after all still gets no call after
   its shutdown. (#801)
+- **A UTF-16 log file no longer breaks a line inside two characters**: a
+  `0x0A` or `0x09` byte that is the high byte of one code unit and, with the
+  zero byte next to it, straddles two characters (U+0A00 followed by U+0100 in
+  UTF-16LE, say) no longer counts as a line feed or a tab. Lines break only at
+  whole line feed code units, in UTF-16LE and UTF-16BE alike, so line numbers
+  and line text match the file; UTF-8 and single-byte files index as before.
+  A UTF-16 or UTF-32 file whose index an earlier version cached is indexed
+  once more; the cached indexes of other files are kept. (#804)
 
 # v26.11.0-beta1 (2026-10-09)
 

@@ -65,6 +65,25 @@ void goToFirstLine( void* /* user_data */ )
     host->go_to_log_line( hostHandle, 1 );
 }
 
+// A plugin that reads the Log File itself reads it in the encoding LogSquirl
+// reads it in, so its Log Lines are those LogSquirl shows.
+void showEncoding( void* /* user_data */ )
+{
+    const char* encoding = nullptr;
+    if ( host->get_log_file_encoding( hostHandle, nullptr, &encoding ) < 0 ) {
+        host->show_notification( hostHandle, "No Log File in front" );
+        return;
+    }
+    host->show_notification( hostHandle, ( std::string( "Read as " ) + encoding ).c_str() );
+}
+
+// Called on the UI thread whenever LogSquirl reads a Log File in another encoding.
+void encodingChanged( void* /* user_data */, const char* file_path, const char* encoding )
+{
+    host->log_message( hostHandle, LOGSQUIRL_LOG_INFO,
+                       ( std::string( file_path ) + " is read as " + encoding ).c_str() );
+}
+
 } // namespace
 
 extern "C" {
@@ -90,6 +109,11 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
          && LOGSQUIRL_HOST_API_HAS( api_size, go_to_log_line ) ) {
         api->register_menu_action( handle, "Plugins", "Show Selection", &showSelection, nullptr );
         api->register_menu_action( handle, "Plugins", "Go to First Line", &goToFirstLine, nullptr );
+    }
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, get_log_file_encoding )
+         && LOGSQUIRL_HOST_API_HAS( api_size, register_encoding_callback ) ) {
+        api->register_menu_action( handle, "Plugins", "Show Encoding", &showEncoding, nullptr );
+        api->register_encoding_callback( handle, &encodingChanged, nullptr );
     }
     return 0;
 }

@@ -106,6 +106,14 @@ public:
         wentTo.push_back( logLine );
         return logsquirl::plugins::PluginLogLineJump::Shown;
     }
+
+    /// The Encoding of the tab in front; none without a Log File.
+    std::optional<QString> encodingInFront;
+
+    std::optional<QString> logFileEncoding( const QString& logFile ) override
+    {
+        return logFile.isEmpty() ? encodingInFront : std::nullopt;
+    }
 };
 
 /// Installs the example the way the guide says: its plugin.json and the built
@@ -165,23 +173,37 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
 
             const auto error = host.loadPlugin( ExampleId );
 
-            THEN( "It is initialised and adds its menu actions, testing a pattern and going to "
-                  "and reading Log Lines as well, since this host offers them" )
+            THEN( "It is initialised and adds its menu actions, testing a pattern, going to "
+                  "and reading Log Lines and showing the encoding as well, since this host "
+                  "offers them" )
             {
                 REQUIRE( error.isEmpty() );
                 REQUIRE( host.isLoaded( ExampleId ) );
-                REQUIRE( port.actions.size() == 4 );
+                REQUIRE( port.actions.size() == 5 );
                 REQUIRE( port.actions[ 0 ].pluginId == ExampleId );
                 REQUIRE( port.actions[ 0 ].label == "Say Hello" );
                 REQUIRE( port.actions[ 1 ].pluginId == ExampleId );
                 REQUIRE( port.actions[ 1 ].label == "Test Pattern" );
                 REQUIRE( port.actions[ 2 ].label == "Show Selection" );
                 REQUIRE( port.actions[ 3 ].label == "Go to First Line" );
+                REQUIRE( port.actions[ 4 ].label == "Show Encoding" );
+            }
+
+            THEN( "Its Show Encoding shows the encoding of the tab in front, or that there is "
+                  "no Log File" )
+            {
+                REQUIRE( port.actions.size() == 5 );
+                const auto& showEncoding = port.actions[ 4 ];
+                showEncoding.callback( showEncoding.userData );
+                port.encodingInFront = QStringLiteral( "UTF-16LE" );
+                showEncoding.callback( showEncoding.userData );
+                REQUIRE( notifications
+                         == QStringList{ "No Log File in front", "Read as UTF-16LE" } );
             }
 
             THEN( "Its Show Selection shows the selected Log Lines, and nothing without" )
             {
-                REQUIRE( port.actions.size() == 4 );
+                REQUIRE( port.actions.size() == 5 );
                 const auto& showSelection = port.actions[ 2 ];
                 showSelection.callback( showSelection.userData );
                 REQUIRE( notifications.isEmpty() );
@@ -194,7 +216,7 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
             THEN( "Its Show Selection shows only the beginning of a long selection, whole "
                   "characters" )
             {
-                REQUIRE( port.actions.size() == 4 );
+                REQUIRE( port.actions.size() == 5 );
                 const auto& showSelection = port.actions[ 2 ];
                 // "a", then two-byte characters: 200 bytes end inside one.
                 port.selected
@@ -207,7 +229,7 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
 
             THEN( "Its Go to First Line goes to the first Log Line" )
             {
-                REQUIRE( port.actions.size() == 4 );
+                REQUIRE( port.actions.size() == 5 );
                 const auto& goToFirstLine = port.actions[ 3 ];
                 goToFirstLine.callback( goToFirstLine.userData );
                 REQUIRE( port.wentTo == std::vector<std::uint64_t>{ 0 } );
@@ -215,7 +237,7 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
 
             THEN( "Its menu action shows a notification" )
             {
-                REQUIRE( port.actions.size() == 4 );
+                REQUIRE( port.actions.size() == 5 );
                 const auto& action = port.actions.front();
                 action.callback( action.userData );
                 REQUIRE( notifications == QStringList{ "Hello from My Plugin" } );

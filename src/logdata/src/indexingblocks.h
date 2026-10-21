@@ -218,8 +218,17 @@ struct IndexingBlock {
     }
 
     // Tells whether the line feed or tab byte at offset within the block is
-    // one in the encoding: its other bytes, before or after it, are zero.
-    bool isDelimiter( std::int64_t offset ) const;
+    // one in the encoding: it is where the encoding puts it in a code unit,
+    // on a code unit boundary of the Log File, and the code unit's other
+    // bytes, before or after it, are zero. In an encoding whose line feed is
+    // one byte, every such byte is one: that answer stays inline, in the
+    // loops over every line feed and tab of a block (#804).
+    bool isDelimiter( std::int64_t offset ) const
+    {
+        return encoding.lineFeedWidth == 1 || isWideDelimiter( offset );
+    }
+    // isDelimiter() for an encoding whose line feed is wider than one byte.
+    bool isWideDelimiter( std::int64_t offset ) const;
 
     std::int64_t capacity;
     // Not zero-filled: every byte used is read into it first.

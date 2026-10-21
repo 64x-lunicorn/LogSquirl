@@ -211,6 +211,12 @@ public:
      */
     void notifyActiveFileChanged( const QString& filePath );
 
+    /**
+     * Notify all plugins that registered an encoding callback that a Log
+     * File is read in another Encoding now (#803). On the host's thread only.
+     */
+    void notifyEncodingChanged( const QString& filePath, const QString& encoding );
+
     // ── DataSource (Phase 2) ─────────────────────────────────────────
 
     /**
@@ -331,6 +337,9 @@ private:
         // Active-file-change callback registered by plugin (optional)
         void ( *activeFileCallback )( void* user_data, const char* file_path ) = nullptr;
         void* activeFileUserData = nullptr;
+        // Encoding-change callback registered by plugin (optional, #803)
+        LogSquirlEncodingCallbackFn encodingCallback = nullptr;
+        void* encodingUserData = nullptr;
         // What the user interface answers the plugin through is connected
         // with this context, on the host's thread: once it is gone, nothing
         // calls into the plugin any more. It goes before the plugin is shut
@@ -339,6 +348,9 @@ private:
         // Cached UTF-8 so the get_selected_log_lines text stays valid until
         // the plugin's next call of it (#663).
         QByteArray selectedLogLinesUtf8{};
+        // Cached UTF-8 so the get_log_file_encoding name stays valid until
+        // the plugin's next call of it (#803).
+        QByteArray logFileEncodingUtf8{};
         // The host's calls into the plugin, nested ones on the UI thread and
         // a Conversion under way on its worker thread included: one of them
         // may run an event loop -- a modal dialog -- in which the user unloads
@@ -463,6 +475,9 @@ private:
     static int hostGoToLogLine( void* handle, uint64_t lineNumber );
     static int hostGetSelectedLogLines( void* handle, const char** text, size_t* length,
                                         size_t* lineCount );
+    static int hostGetLogFileEncoding( void* handle, const char* filePath, const char** encoding );
+    static void hostRegisterEncodingCallback( void* handle, LogSquirlEncodingCallbackFn callback,
+                                              void* userData );
 
     // The functions of the LogSquirlConvertControl handed to convert_ex,
     // called on the Conversion's worker thread.

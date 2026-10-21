@@ -27,6 +27,8 @@
 #include <QStringList>
 
 #include <algorithm>
+#include <map>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -98,6 +100,19 @@ public:
     }
 
     QStringList regexLabs;
+
+    /// The Encoding of the tab in front, and of each Log File a tab shows.
+    std::optional<QString> encodingInFront;
+    std::map<QString, QString> encodingOf;
+
+    std::optional<QString> logFileEncoding( const QString& logFile ) override
+    {
+        if ( logFile.isEmpty() ) {
+            return encodingInFront;
+        }
+        const auto tab = encodingOf.find( logFile );
+        return tab != encodingOf.end() ? std::optional( tab->second ) : std::nullopt;
+    }
 
     bool showsAnything() const
     {
@@ -274,6 +289,64 @@ SCENARIO( "A plugin's Regex Lab opens in the most recently active window",
                     REQUIRE( first.regexLabs.isEmpty() );
                     REQUIRE( second.regexLabs == QStringList{ QStringLiteral( "ERROR" ) } );
                 }
+            }
+
+            port.removeWindow( &first );
+            port.removeWindow( &second );
+        }
+    }
+}
+
+SCENARIO( "A plugin reads the Encoding of a Log File in any window",
+          "[sharedpluginuiport][pluginencoding][plugins]" )
+{
+    GIVEN( "No window" )
+    {
+        SharedPluginUiPort port;
+
+        THEN( "No Log File is open, in front or by its path" )
+        {
+            REQUIRE_FALSE( port.logFileEncoding( {} ).has_value() );
+            REQUIRE_FALSE( port.logFileEncoding( QStringLiteral( "/logs/a.log" ) ).has_value() );
+        }
+
+        AND_GIVEN( "Two windows, the second the most recently active, both showing a.log" )
+        {
+            FakeWindowPort first;
+            FakeWindowPort second;
+            first.encodingInFront = QStringLiteral( "UTF-8" );
+            first.encodingOf
+                = { { QStringLiteral( "/logs/a.log" ), QStringLiteral( "UTF-8" ) },
+                    { QStringLiteral( "/logs/b.log" ), QStringLiteral( "UTF-16LE" ) } };
+            second.encodingInFront = QStringLiteral( "windows-1252" );
+            second.encodingOf
+                = { { QStringLiteral( "/logs/a.log" ), QStringLiteral( "windows-1252" ) } };
+            port.addWindow( &first );
+            port.addWindow( &second );
+            port.activateWindow( &first );
+            port.activateWindow( &second );
+
+            THEN( "the tab in front is that of the most recently active window" )
+            {
+                REQUIRE( port.logFileEncoding( {} ) == QStringLiteral( "windows-1252" ) );
+            }
+
+            THEN( "a Log File both show is read as the most recently active window reads it" )
+            {
+                REQUIRE( port.logFileEncoding( QStringLiteral( "/logs/a.log" ) )
+                         == QStringLiteral( "windows-1252" ) );
+            }
+
+            THEN( "a Log File only the other window shows is found there" )
+            {
+                REQUIRE( port.logFileEncoding( QStringLiteral( "/logs/b.log" ) )
+                         == QStringLiteral( "UTF-16LE" ) );
+            }
+
+            THEN( "a Log File no window shows is none" )
+            {
+                REQUIRE_FALSE(
+                    port.logFileEncoding( QStringLiteral( "/logs/c.log" ) ).has_value() );
             }
 
             port.removeWindow( &first );

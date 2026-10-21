@@ -332,6 +332,16 @@ QString CrawlerWidget::encodingText() const
     return encodingText_;
 }
 
+QString CrawlerWidget::encodingName() const
+{
+    // The one the Log Lines are decoded in. Settling it reloads the Log File
+    // when its line feed is another width, which drops the detection that
+    // encoding() would answer from until that load has finished.
+    const auto* decodedIn = openLogFile_->logData()->getDisplayEncoding();
+    return QString::fromLatin1(
+        ( decodedIn != nullptr ? decodedIn : openLogFile_->encoding() )->name() );
+}
+
 // Return a pointer to the view in which we should do the QuickFind
 SearchableWidgetInterface* CrawlerWidget::doGetActiveSearchable() const
 {
@@ -2186,6 +2196,7 @@ void CrawlerWidget::applyEncodingChange()
     // counted, and its chart what it extracted.
     viewSet_.rereadLogLines();
     restartChartExtraction();
+    Q_EMIT encodingChanged();
 }
 
 void CrawlerWidget::restartChartExtraction()
