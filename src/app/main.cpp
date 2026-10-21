@@ -184,14 +184,18 @@ int main( int argc, char* argv[] )
     // A secondary instance hands its Log Files over to the primary instance
     // and exits. It needs none of what follows -- no settings, translations,
     // crash handler, Log Format Catalog or file watcher -- so it checks first
-    // (#302).
+    // (#302). When no primary instance answers, it goes on as the first
+    // instance would (#827).
     if ( !benchmark && !parameters.multi_instance && app.isSecondary() ) {
         const auto logLevel = static_cast<logging::LogLevel>( parameters.log_level );
         logging::enableLogging( parameters.enable_logging, logLevel );
         logging::enableFileLogging( parameters.log_to_file, logLevel );
 
         LOG_INFO << "Found another logsquirl, pid " << app.primaryPid();
-        return app.handOverToPrimaryInstance( parameters.filenames, parameters.read_stdin );
+        if ( const auto exitCode
+             = app.handOverToPrimaryInstance( parameters.filenames, parameters.read_stdin ) ) {
+            return *exitCode;
+        }
     }
 
     auto& config = Configuration::getSynced();

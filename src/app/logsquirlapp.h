@@ -27,7 +27,9 @@
 #include <iostream>
 #include <iterator>
 #include <numeric>
+#include <optional>
 #include <qapplication.h>
+#include <sstream>
 #include <stack>
 
 #include <QApplication>
@@ -64,6 +66,7 @@
 #include "pluginlogformats.h"
 #include "session.h"
 #include "settingspolicies.h"
+#include "singleinstancedirectory.h"
 #include "teamfolder.h"
 #include "uuid.h"
 
@@ -80,37 +83,47 @@ class LogSquirlApp : public QApplication {
     Q_OBJECT
 
     // The name KDSingleApplication builds its lock file and local socket (a
-    // named pipe on Windows) from. Unchanged from KDSingleApplication's own
-    // default (the executable's file name) unless LOGSQUIRL_INSTANCE_ID is
-    // set, in which case it is folded in.
+    // named pipe on Windows) from: the executable's file name and the
+    // version, with LOGSQUIRL_INSTANCE_ID folded in when it is set.
     //
-    // On macOS and Linux the lock file and socket already live under
-    // QDir::tempPath(), which an isolated E2E instance redirects (#328), so
-    // two instances never collide there regardless of this name. On Windows
-    // a named pipe is not scoped by a directory at all (#320): without a
-    // per-instance name here, an isolated test instance could hand its files
-    // to, or be activated by, a real running LogSquirl on the same machine.
+    // The version (#827): a secondary instance only finds a primary instance
+    // of its own version, and a primary instance only reads a hand-over of
+    // its own version (readHandOverMessage), so another version never gets
+    // the Log Files and a secondary instance that finds none opens them
+    // itself. What the name does not prove is who listens: another process
+    // of the user could take the name, and on Windows, where the pipe is not
+    // in a directory, another process of the session. The directory the lock
+    // and socket live in (singleInstanceDirectory) keeps other users out.
+    //
+    // On macOS and Linux the lock file and socket live in a directory of the
+    // user's own under QDir::tempPath() or the runtime directory, which an
+    // isolated E2E instance redirects (#328), so two instances never collide
+    // there regardless of this name. On Windows a named pipe is not scoped by
+    // a directory at all (#320): without a per-instance name here, an
+    // isolated test instance could hand its files to, or be activated by, a
+    // real running LogSquirl on the same machine.
     // tests/e2e/isolated_instance.py sets the variable for its instances; a
     // real run never sets it, so it keeps today's fixed name.
     static QString singleApplicationName()
     {
         auto executableName = QFileInfo( QCoreApplication::applicationFilePath() ).fileName();
+        auto name = QStringLiteral( "%1-%2" ).arg( executableName, logsquirlVersion() );
         const auto instanceId = qEnvironmentVariable( "LOGSQUIRL_INSTANCE_ID" );
         if ( instanceId.isEmpty() ) {
-            return executableName;
+            return name;
         }
-        return QStringLiteral( "%1-%2" ).arg( executableName, instanceId );
+        return QStringLiteral( "%1-%2" ).arg( name, instanceId );
     }
 
 public:
     LogSquirlApp( int& argc, char* argv[] )
         : QApplication( argc, argv )
-        , singleApplication_( singleApplicationName() )
+        , singleApplication_( singleApplicationName(), singleInstanceDirectory() )
     {
         // Before the File Watcher's poll thread starts (#698).
         createGestureManager();
 
-        if ( singleApplication_.isPrimaryInstance() ) {
+        if ( singleApplication_.isListening() ) {
             QObject::connect( &singleApplication_, &KDSingleApplication::messageReceived,
                               &messageReceiver_, &MessageReceiver::receiveMessage,
                               Qt::QueuedConnection );
@@ -189,7 +202,7 @@ public:
         } );
 
         versionChecker_ = std::make_unique<VersionChecker>();
-        if ( singleApplication_.isPrimaryInstance() ) {
+        if ( !isSecondary() ) {
             connect( versionChecker_.get(), &VersionChecker::newVersionFound,
                      [ this ]( const QString& new_version, const QString& url,
                                const QStringList& changes ) {
@@ -198,9 +211,11 @@ public:
         }
     }
 
+    // Whether another instance holds the single-instance lock, and this one
+    // hands over to it. False once this instance runs on its own (#827).
     bool isSecondary() const
     {
-        return !singleApplication_.isPrimaryInstance();
+        return !singleApplication_.isPrimaryInstance() && !runsOnItsOwn_;
     }
 
     qint64 primaryPid() const
@@ -212,19 +227,43 @@ public:
     // instance and returns the exit code for this secondary instance. Given
     // "-", it hands standard input over with them and keeps reading it for the
     // primary instance until its writer closes it (#623).
-    int handOverToPrimaryInstance( const std::vector<QString>& filenames, bool readStdin )
+    //
+    // Nothing when no primary instance answers (#827): the lock is held, but
+    // nothing listens on the socket -- a lock file left by a crash the lock
+    // does not see as stale, or one taken by something that is not LogSquirl.
+    // This instance then runs on its own, as if it were the first, instead
+    // of exiting with its Log Files handed to nobody.
+    std::optional<int> handOverToPrimaryInstance( const std::vector<QString>& filenames,
+                                                  bool readStdin )
     {
         if ( readStdin ) {
             // No event loop runs meanwhile: a Log File macOS would deliver
-            // as a QFileOpenEvent is not waited for.
-            return handOverStandardInput(
+            // as a QFileOpenEvent is not waited for. What went wrong is told
+            // only when this instance does not start on its own.
+            std::ostringstream errors;
+            const auto exitCode = handOverStandardInput(
                 filenames, 0, logsquirlVersion(),
                 [ this ]( const QByteArray& message ) { return sendToPrimaryInstance( message ); },
-                std::cerr );
+                errors );
+            if ( exitCode != EXIT_SUCCESS && noPrimaryInstanceAnswered() ) {
+                return runOnItsOwn();
+            }
+            std::cerr << errors.str();
+            return exitCode;
         }
 
         if ( !filenames.empty() ) {
-            return sendFilesToPrimaryInstance( filenames ) ? EXIT_SUCCESS : EXIT_FAILURE;
+            if ( sendFilesToPrimaryInstance( filenames ) ) {
+                return EXIT_SUCCESS;
+            }
+            return noPrimaryInstanceAnswered() ? runOnItsOwn() : std::optional<int>{ EXIT_FAILURE };
+        }
+
+        // Nothing to hand over: an empty hand-over asks whether a primary
+        // instance is there at all (#827). One that is reads it and opens
+        // nothing, as before.
+        if ( !sendFilesToPrimaryInstance( {} ) && noPrimaryInstanceAnswered() ) {
+            return runOnItsOwn();
         }
 
 #ifdef Q_OS_MAC
@@ -260,11 +299,32 @@ public:
 #endif
 
         constexpr auto SendTimeoutMs = 5000;
-        const auto sent = singleApplication_.sendMessageWithTimeout( message, SendTimeoutMs );
-        if ( !sent ) {
-            LOG_ERROR << "Could not hand over to the primary instance, pid " << primaryPid();
+        const auto result = singleApplication_.sendMessageWithResult( message, SendTimeoutMs );
+        noPrimaryInstanceAnswered_ = result == KDSingleApplication::SendResult::NotConnected;
+        if ( result != KDSingleApplication::SendResult::Sent ) {
+            LOG_ERROR << "Could not hand over to the primary instance, pid " << primaryPid()
+                      << ( noPrimaryInstanceAnswered_ ? ": nothing listens on "
+                                                      : ": not written to " )
+                      << singleApplication_.socketName();
         }
-        return sent;
+        return result == KDSingleApplication::SendResult::Sent;
+    }
+
+    // Whether the last hand-over found nothing listening on the primary
+    // instance's socket (#827).
+    bool noPrimaryInstanceAnswered() const
+    {
+        return noPrimaryInstanceAnswered_;
+    }
+
+    // This instance shows windows of its own although it holds no lock
+    // (#827). Nothing for main() to exit with.
+    std::optional<int> runOnItsOwn()
+    {
+        LOG_WARNING << "No primary instance answers, pid " << primaryPid()
+                    << " holds the lock: starting on its own";
+        runsOnItsOwn_ = true;
+        return std::nullopt;
     }
 
     void initCrashHandler()
@@ -525,6 +585,8 @@ private:
 
 private:
     KDSingleApplication singleApplication_;
+    bool noPrimaryInstanceAnswered_ = false;
+    bool runsOnItsOwn_ = false;
     std::unique_ptr<CrashHandler> crashHandler_;
 
     MessageReceiver messageReceiver_;

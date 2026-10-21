@@ -101,6 +101,7 @@ add_executable(logsquirl_tests
     searchsession_test.cpp
     scratchpad_test.cpp
     settingspolicies_test.cpp
+    singleinstance_test.cpp
     sparselineread_test.cpp
     tabbarstyle_test.cpp
     textencoding_test.cpp
@@ -126,7 +127,9 @@ add_executable(logsquirl_tests
 # settings library through the update check. Naming them here as well put four
 # of the archives on the link line twice, and Apple's linker warns about a
 # duplicate library since Xcode 15 (#450).
-target_link_libraries(logsquirl_tests logsquirl_ui Catch2::Catch2 Qt6::Test test_utils)
+# kdsingleapp arrives through no library: the single-instance test drives
+# the guard itself (#827).
+target_link_libraries(logsquirl_tests logsquirl_ui kdsingleapp Catch2::Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_tests PROPERTIES AUTOMOC ON)
 
 # The Options Dialog test needs the dialog's generated form header, and the

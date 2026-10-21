@@ -640,6 +640,8 @@ This product includes software developed by KDAB
 KDToolBox (https://github.com/KDAB/KDToolBox)
 KDSingleApplication (https://github.com/KDAB/KDSingleApplication/)
 licensed under the terms of MIT license
+KDSingleApplication is included as a modified copy under
+3rdparty/kdsingleapplication/, whose README.md lists the changes.
 
 > MIT License
 > 

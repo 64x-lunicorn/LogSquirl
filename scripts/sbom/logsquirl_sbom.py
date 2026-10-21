@@ -12,6 +12,8 @@ knows it:
       version agent-setup downloads for macOS/Windows; Linux builds use the
       build image's distribution headers), OpenSSL and ICU (not pinned in the
       repository, so they carry no version yet);
+    * the third-party code vendored under ``3rdparty/`` with changes of the
+      project's own, by the upstream commit its README names;
     * the minidump-stackwalk release the build downloads and ships as
       ``logsquirl_minidump_dump`` (version from ``cmake/MinidumpStackwalk.cmake``).
 
@@ -419,6 +421,7 @@ class PlatformPins:
     boost_version: str
     linux_images: tuple[str, ...]  # build image directories whose Boost headers the Linux builds use
     minidump_stackwalk_version: str
+    vendored_commits: dict[str, str] = dataclasses.field(default_factory=dict)  # 3rdparty directory -> commit
 
 
 def _one_value(found: dict[str, set[str]], what: str) -> str:
@@ -463,6 +466,7 @@ def read_platform_pins(repo_root: Path) -> PlatformPins:
         boost_version=_one_value({str(setup.relative_to(repo_root)): boost} if boost else {}, "Boost"),
         linux_images=tuple(linux_images),
         minidump_stackwalk_version=_one_value(_minidump_stackwalk_versions(repo_root), "minidump-stackwalk"),
+        vendored_commits=read_vendored_commits(repo_root),
     )
 
 
@@ -526,6 +530,39 @@ def platform_components(pins: PlatformPins) -> list[dict]:
     ]
 
 
+# ── vendored components (copied into 3rdparty/ with changes) ────────────────
+
+# Each vendored directory's README.md names the upstream commit it was copied
+# from, in a line "commit <sha>"; the SBOM lists it by that commit.
+VENDORED = {
+    # directory under 3rdparty -> (component name, GitHub owner/repo)
+    "kdsingleapplication": ("KDSingleApplication", "variar/KDSingleApplication"),
+}
+
+
+def read_vendored_commits(repo_root: Path) -> dict[str, str]:
+    commits = {}
+    for directory, (name, _) in VENDORED.items():
+        readme = repo_root / "3rdparty" / directory / "README.md"
+        found = set(re.findall(r"\bcommit\s+([0-9a-f]{40})\b", readme.read_text())) if readme.is_file() else set()
+        commits[directory] = _one_value({str(readme.relative_to(repo_root)): found} if found else {}, name)
+    return commits
+
+
+def vendored_components(commits: dict[str, str]) -> list[dict]:
+    components = []
+    for directory, (name, github) in VENDORED.items():
+        owner, repo = github.split("/")
+        commit = commits[directory]
+        components.append(_component(
+            ref=f"vendored:{directory}", name=name, version=commit, purl_=github_purl(owner, repo, commit),
+            external=[{"type": "vcs", "url": f"https://github.com/{github}"}],
+            props={"source": "vendored", "git-commit": commit, "platforms": ",".join(ALL_PLATFORMS),
+                   "path": f"3rdparty/{directory}",
+                   "version-source": f"the upstream commit 3rdparty/{directory}/README.md names"}))
+    return components
+
+
 # ── BOM assembly ────────────────────────────────────────────────────────────
 
 TOOL = {"type": "application", "name": "logsquirl_sbom.py", "group": "64x-lunicorn"}
@@ -541,7 +578,8 @@ def build_base_bom(*, cpm_text: str, pins: PlatformPins, version: str, commit: s
     if not _SHA.match(commit):
         raise SbomError(f"--commit {commit!r} is not a full commit SHA")
     owner, repo = repository.split("/")
-    components = [cpm_component(p) for p in parse_cpm_packages(cpm_text)] + platform_components(pins)
+    components = ([cpm_component(p) for p in parse_cpm_packages(cpm_text)] + platform_components(pins)
+                  + vendored_components(pins.vendored_commits))
     bom = {
         "bomFormat": "CycloneDX",
         "specVersion": SPEC_VERSION,

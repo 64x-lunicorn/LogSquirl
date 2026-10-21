@@ -514,28 +514,20 @@ if(LOGSQUIRL_BUILD_TESTS)
   )
 endif()
 
-cpmaddpackage(
-  NAME
-  KDSingleApplication
-  GITHUB_REPOSITORY
-  variar/KDSingleApplication
-  GIT_TAG
-  5b30db30266f92bc01f1439777803ce8dbf16c79
-  DOWNLOAD_ONLY
-  YES
+# KDSingleApplication is vendored under kdsingleapplication/ with the changes
+# that keep the single-instance lock and socket in a directory of the user's
+# own (#827); its README.md names the upstream commit and each change. The
+# release SBOM lists it from there (scripts/sbom/logsquirl_sbom.py).
+add_library(
+  kdsingleapp STATIC ${CMAKE_CURRENT_SOURCE_DIR}/kdsingleapplication/kdsingleapplication.cpp
+                   ${CMAKE_CURRENT_SOURCE_DIR}/kdsingleapplication/kdsingleapplication_localsocket.cpp
 )
-if(KDSingleApplication_ADDED)
-  add_library(
-    kdsingleapp STATIC ${KDSingleApplication_SOURCE_DIR}/src/kdsingleapplication.cpp
-                     ${KDSingleApplication_SOURCE_DIR}/src/kdsingleapplication_localsocket.cpp
-  )
 
-  target_include_directories(kdsingleapp PUBLIC ${KDSingleApplication_SOURCE_DIR}/src)
-  target_link_libraries(kdsingleapp Qt6::Core)
-  target_compile_definitions(kdsingleapp PUBLIC KDSINGLEAPPLICATION_STATIC_BUILD)
+target_include_directories(kdsingleapp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/kdsingleapplication)
+target_link_libraries(kdsingleapp Qt6::Core Qt6::Network)
+target_compile_definitions(kdsingleapp PUBLIC KDSINGLEAPPLICATION_STATIC_BUILD)
 
-  set_target_properties(kdsingleapp PROPERTIES AUTOMOC ON)
-endif()
+set_target_properties(kdsingleapp PROPERTIES AUTOMOC ON)
 
 
 cpmaddpackage(
