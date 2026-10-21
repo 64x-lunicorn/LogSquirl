@@ -112,7 +112,10 @@ public:
     // on when the block's bytes would pass SearchBlockMaxBytes -- the first
     // is always in it: a Search goes on from the Log Line after the block's
     // last. A block that reaches past the last Log Line comes back empty.
-    // May throw: a Search whose block cannot be read fails.
+    // Never throws (#824): a block whose bytes could not all be read holds
+    // the Log Lines read, and from the first one not read on each reads as a
+    // warning (loglinetext.h); one an absurd Index offset makes unreadable
+    // comes back empty, as past the last Log Line.
     virtual RawLines getLinesRaw( LineNumber first, LinesCount number ) const = 0;
 
     // Bracket one run of a Search: whatever the source needs to keep open

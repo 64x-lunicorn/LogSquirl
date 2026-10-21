@@ -22,6 +22,7 @@
 #include "containers.h"
 #include "linetypes.h"
 
+#include <QIODevice>
 #include <QtGlobal>
 
 #include <cstddef>
@@ -81,3 +82,15 @@ using EndOfLineOffsets
 logsquirl::vector<SparseRead> planSparseRead( std::span<const LineNumber> lines, LinesCount nbLines,
                                               const EndOfLineOffsets& endOfLineOffsets,
                                               const SparseReadLimits& limits = {} );
+
+// Reads up to size bytes of device at offset into out: how many were read,
+// fewer than size at the end of the device, or -1 when the device cannot
+// seek there. Nothing is read then: a read from wherever the device stands
+// would be another Log Line's bytes, taken for the one asked for (#845).
+inline qint64 readBytesAt( QIODevice& device, qint64 offset, char* out, qint64 size )
+{
+    if ( !device.seek( offset ) ) {
+        return -1;
+    }
+    return device.read( out, size );
+}

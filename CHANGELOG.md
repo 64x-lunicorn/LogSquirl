@@ -241,6 +241,12 @@
   that run go with it instead of staying in the user's folder until a later
   start recovers them; the version and the exit code are as before, and the
   build's smoke test checks that nothing is left behind. (#844)
+- **Every read of a log file checks its seek**: a sparse read for the filtered
+  view and the read of the selected lines' prefixes no longer read from
+  wherever the file stands when seeking to a Log Line fails; the Log Lines
+  concerned read as the file-read-failed warning instead of another line's
+  bytes. An Index Cache entry that is refused while loading leaves no
+  half-filled line positions behind. (#845)
 
 ## Build and packaging
 

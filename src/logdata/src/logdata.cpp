@@ -583,9 +583,8 @@ RawLines LogData::readRawLines( ReadHandles handles, LineNumber firstLine, Lines
                 if ( size <= 0 ) {
                     return size == 0;
                 }
-                fileHolder.getFile()->seek( fileOffset );
-                const auto bytesRead
-                    = fileHolder.getFile()->read( rawLines.buffer.data() + bufferOffset, size );
+                const auto bytesRead = readBytesAt( *fileHolder.getFile(), fileOffset,
+                                                    rawLines.buffer.data() + bufferOffset, size );
                 if ( bytesRead != size ) {
                     LOG_DEBUG << "failed to read " << size << " bytes, got " << bytesRead;
                     rawLines.buffer.resize( static_cast<std::size_t>(
@@ -717,11 +716,22 @@ void LogData::readSparseLines( std::span<const LineNumber> lines, OnLine&& onLin
         qint64 bytesRead = 0;
         if ( read.size > 0 ) {
             buffer.resize( static_cast<std::size_t>( read.size ) );
-            fileHolder.getFile()->seek( read.firstByte.get() );
-            bytesRead = fileHolder.getFile()->read( buffer.data(), read.size );
+            bytesRead = readBytesAt( *fileHolder.getFile(), read.firstByte.get(), buffer.data(),
+                                     read.size );
             if ( bytesRead != read.size ) {
                 LOG_DEBUG << "failed to read " << read.size << " bytes, got " << bytesRead;
             }
+        }
+        // A read that could not seek read nothing: every Log Line of it reads
+        // as the warning, an empty one included (#845).
+        if ( bytesRead < 0 ) {
+            for ( const auto& line : read.lines ) {
+                onLine( ReadLogLine{ .request = line.request,
+                                     .bytes = {},
+                                     .warning = FileReadFailedWarning,
+                                     .hideAnsiColorSequences = hideAnsiColorSequences } );
+            }
+            continue;
         }
 
         const std::string_view bytes
@@ -831,11 +841,16 @@ void LogData::readLinePrefixes(
     for ( const auto& place : places ) {
         const auto toRead = std::min( place.length, std::max( maxBytes, qint64{ 0 } ) );
         buffer.resize( static_cast<std::size_t>( toRead ) );
-        fileHolder.getFile()->seek( place.begin.get() );
-        const auto bytesRead
-            = toRead > 0
-                  ? std::max( fileHolder.getFile()->read( buffer.data(), toRead ), qint64{ 0 } )
-                  : qint64{ 0 };
+        const auto bytesRead = toRead > 0 ? readBytesAt( *fileHolder.getFile(), place.begin.get(),
+                                                         buffer.data(), toRead )
+                                          : qint64{ 0 };
+        // A Log Line the file could not seek to reads as the warning (#845).
+        if ( bytesRead < 0 ) {
+            if ( !onLine( QString::fromUtf8( FileReadFailedWarning ), false ) ) {
+                return;
+            }
+            continue;
+        }
         const bool cut = place.length > toRead;
 
         textDecoder.decoder->resetState();

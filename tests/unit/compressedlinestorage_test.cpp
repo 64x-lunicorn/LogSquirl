@@ -325,6 +325,26 @@ SCENARIO( "The disk cache format is read back, and refused when it is damaged",
             REQUIRE( refused.allocatedSize() == 0 );
         }
 
+        THEN( "A refused entry leaves the storage empty, whatever it held before (#845)" )
+        {
+            // Cut after the blocks, before the packed bytes; a block out of
+            // order; a line count the blocks do not add up to: each is
+            // refused once part of the entry was taken in.
+            auto outOfOrder = bytes;
+            putBigEndian64( outOfOrder, SecondBlock, 0 );
+            auto wrongCount = bytes;
+            wrongCount[ wrongCount.size() - 9 ]
+                = static_cast<char>( wrongCount[ wrongCount.size() - 9 ] + 1 );
+            for ( const auto& damaged : { bytes.left( PackedSize ), outOfOrder, wrongCount } ) {
+                CompressedLinePositionStorage refused;
+                fill( refused, makeOffsets( 3 ) );
+                QDataStream in( damaged );
+                REQUIRE( !refused.deserialize( in ) );
+                REQUIRE( refused.size().get() == 0 );
+                REQUIRE( refused.allocatedSize() == 0 );
+            }
+        }
+
         THEN( "A block whose first position is negative is refused" )
         {
             auto damaged = bytes;

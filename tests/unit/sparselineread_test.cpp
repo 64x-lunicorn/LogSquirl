@@ -20,6 +20,9 @@
 #include "loglinetext.h"
 #include "sparselineread.h"
 
+#include <QBuffer>
+#include <QByteArray>
+
 #include <cstddef>
 #include <cstdint>
 #include <ostream>
@@ -266,6 +269,39 @@ SCENARIO( "A sparse read reads no byte of a Log Line too long to read (#825)", "
                 = planSparseRead( lines, 3_lcount, offsetsOfLengths( lengths ), limits );
             REQUIRE( reads.size() == 1 );
             REQUIRE( reads[ 0 ].size == 10 + MaxLogLineLength + 1 + 10 );
+        }
+    }
+}
+
+// A read of a Log File seeks first; a seek that fails must not read from
+// wherever the file stands, which would be another Log Line's bytes (#845).
+SCENARIO( "A read at an offset says when the device cannot seek there", "[sparselineread]" )
+{
+    GIVEN( "a device of ten bytes, standing at its start" )
+    {
+        QByteArray bytes( "0123456789" );
+        QBuffer device( &bytes );
+        REQUIRE( device.open( QIODevice::ReadOnly ) );
+
+        THEN( "a read inside it reads the bytes at the offset" )
+        {
+            char out[ 4 ] = { 'x', 'x', 'x', 'x' };
+            REQUIRE( readBytesAt( device, 3, out, 4 ) == 4 );
+            REQUIRE( std::string_view( out, 4 ) == "3456" );
+        }
+
+        THEN( "a read where the device cannot seek reads nothing and says so" )
+        {
+            char out[ 4 ] = { 'x', 'x', 'x', 'x' };
+            REQUIRE( readBytesAt( device, 20, out, 4 ) == -1 );
+            REQUIRE( std::string_view( out, 4 ) == "xxxx" );
+        }
+
+        THEN( "a read cut short by the end says how many bytes it read" )
+        {
+            char out[ 4 ] = { 'x', 'x', 'x', 'x' };
+            REQUIRE( readBytesAt( device, 8, out, 4 ) == 2 );
+            REQUIRE( std::string_view( out, 2 ) == "89" );
         }
     }
 }

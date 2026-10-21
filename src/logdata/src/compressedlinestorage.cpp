@@ -334,6 +334,17 @@ void CompressedLinePositionStorage::serialize( QDataStream& out ) const
 
 bool CompressedLinePositionStorage::deserialize( QDataStream& in )
 {
+    if ( readSerialized( in ) ) {
+        return true;
+    }
+    // A refused entry leaves nothing half filled behind, whatever the
+    // storage held before (#845).
+    *this = CompressedLinePositionStorage{};
+    return false;
+}
+
+bool CompressedLinePositionStorage::readSerialized( QDataStream& in )
+{
     // Every count read is bounded by what the stream still holds before
     // room is made for it: a short Index Cache entry announcing millions of blocks
     // or gigabytes of packed bytes is refused without reserving (#824).
