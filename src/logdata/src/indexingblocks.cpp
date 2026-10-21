@@ -53,12 +53,9 @@ IndexingBlock::IndexingBlock( std::int64_t blockCapacity )
 {
 }
 
-bool IndexingBlock::isDelimiter( std::int64_t offset ) const
+bool IndexingBlock::isWideDelimiter( std::int64_t offset ) const
 {
     const auto width = encoding.lineFeedWidth;
-    if ( width == 1 ) {
-        return true;
-    }
     // Only a whole code unit is one: its line feed or tab byte is where the
     // encoding puts it in a code unit starting on a multiple of the width
     // from the start of the Log File (#804). The byte order mark is a code
