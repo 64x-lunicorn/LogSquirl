@@ -130,7 +130,10 @@ class IsolatedLogSquirl:
         if not supported():
             raise RuntimeError("isolated LogSquirl instances need macOS, Linux or Windows")
 
-        # Short path: the local socket's path must stay below 104 characters.
+        # Short path: the local socket's path must stay within 104 bytes for
+        # the socket to live under this TMPDIR. A deeper one would send it to
+        # /tmp/logsquirl-<uid> (#841), outside the isolation, where only the
+        # instance id in its name keeps it apart from the user's own.
         self.root = Path(tempfile.mkdtemp(prefix="lsq"))
         tmp = self.root / "t"
         tmp.mkdir()

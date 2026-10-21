@@ -18,12 +18,15 @@ socket. Each change is marked `LogSquirl (#827)` in the code.
 
 - `KDSingleApplication(name, directory)`: the lock file and, on Unix, the
   socket are created in `directory`, which the caller keeps reachable by the
-  user alone (LogSquirl: `singleInstanceDirectory()`). The socket's name is
-  `<name>[-<XDG_SESSION_ID>]` inside it, with neither the user id nor the
-  `kdsingleapp-` prefix of upstream, which only kept the path longer. On
-  Windows the named pipe keeps upstream's `kdsingleapp-<session>-<name>`:
-  pipes are not scoped by a directory. An empty directory makes an instance
-  that takes no lock and listens nowhere; it is primary, on its own.
+  user alone (LogSquirl: `singleInstanceLocation()`). The socket is `<name>`
+  inside it, with neither the user id nor the `kdsingleapp-` prefix of
+  upstream, which only kept the path longer, and without `-<XDG_SESSION_ID>`
+  (#841): the login session id is the caller's to add, because it is what
+  the caller drops when the socket's path would not fit `sun_path` (104
+  bytes on macOS, 108 on Linux) otherwise. On Windows the named pipe keeps
+  upstream's `kdsingleapp-<session>-<name>`: pipes are not scoped by a
+  directory. An empty directory makes an instance that takes no lock and
+  listens nowhere; it is primary, on its own.
 - The server sets `QLocalServer::UserAccessOption`: the socket (on Windows
   the pipe's DACL) is reachable by the user alone.
 - Holding the lock makes an instance primary, even when it fails to listen.

@@ -211,6 +211,12 @@ int main( int argc, char* argv[] )
     // Logging is on now, so the warning about an unknown Encoding lands in it.
     resetUnknownDefaultEncoding( config );
 
+    if ( app.instanceLocation().fallback ) {
+        LOG_INFO << "Single-instance lock and socket in " << app.instanceLocation().directory
+                 << ", the first choice being too deep for a local socket's path or not the "
+                    "user's own (#841)";
+    }
+
     // Before anything reads the data or configuration directory, and with
     // logging on so the log says what was copied (#613). A Benchmark Run
     // takes nothing over, and leaves a crash to the operating system.

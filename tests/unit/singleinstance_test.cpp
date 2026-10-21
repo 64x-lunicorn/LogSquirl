@@ -19,7 +19,8 @@
 
 // The single-instance lock and local socket live in a directory only the
 // user can reach, and a held lock with nothing listening does not make an
-// instance hand over (#827).
+// instance hand over (#827). The socket's path fits the platform's limit,
+// from a shorter directory when the first choice is too deep (#841).
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -35,6 +36,7 @@
 #include <QLocalServer>
 #include <QLockFile>
 #include <QSignalSpy>
+#include <QStringList>
 #include <QTemporaryDir>
 
 #ifndef Q_OS_WIN
@@ -119,7 +121,90 @@ QString lockFileOf( const QString& name, const QString& directory )
     return directory + '/' + QFileInfo( guard.socketName() ).fileName() + ".lock";
 }
 
+// A limit no path of these tests reaches: what the directory tests of #827
+// are not about.
+constexpr int NoLimit = 1 << 20;
+
+// The bytes QLocalServer::listen counts for a socket at `path`: its local
+// 8-bit encoding and the terminating NUL (#841).
+int socketPathBytes( const QString& path )
+{
+    return static_cast<int>( QFile::encodeName( path ).size() ) + 1;
+}
+
+// A directory under `base` whose path has at least `bytes` bytes, owner-only,
+// like the temporary directory of a deep scratch folder (#841).
+QString deepDirectoryUnder( const QString& base, int bytes )
+{
+    auto path = base;
+    while ( socketPathBytes( path ) < bytes ) {
+        path += QStringLiteral( "/%1" ).arg( QString( 32, 'd' ) );
+        REQUIRE( QDir().mkpath( path ) );
+        REQUIRE(
+            QFile::setPermissions( path, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner ) );
+    }
+    return path;
+}
+
 } // namespace
+
+TEST_CASE( "A local socket's path fits the limit with its NUL, in bytes", "[singleinstance]" )
+{
+    // What a socket path's bytes are is the encoded path and its NUL: at the
+    // limit it fits, one byte over it does not, whatever the characters.
+    const QString directory = "/d";
+    constexpr int Limit = 104;
+    const auto nameOf
+        = [ & ]( int bytes ) { return QString( bytes - socketPathBytes( directory + '/' ), 'n' ); };
+
+    SECTION( "exactly at the limit" )
+    {
+        const auto name = nameOf( Limit );
+        REQUIRE( socketPathBytes( directory + '/' + name ) == Limit );
+        REQUIRE( localSocketPathFits( directory, name, Limit ) );
+    }
+
+    SECTION( "one byte over" )
+    {
+        const auto name = nameOf( Limit + 1 );
+        REQUIRE( socketPathBytes( directory + '/' + name ) == Limit + 1 );
+        REQUIRE_FALSE( localSocketPathFits( directory, name, Limit ) );
+    }
+
+#ifndef Q_OS_WIN
+    // The local 8-bit encoding is UTF-8 on Unix; on Windows it is the ANSI
+    // code page, where the umlaut is one byte, and no pipe asks.
+    SECTION( "a character of more than one byte counts its bytes, not one" )
+    {
+        // Two bytes in UTF-8; three on macOS, where QFile::encodeName
+        // decomposes it. The bytes count, as many as the encoding makes.
+        const QChar umlautU( 0x00FC );
+        const auto extraBytes
+            = static_cast<int>( QFile::encodeName( QString( umlautU ) ).size() ) - 1;
+        REQUIRE( extraBytes >= 1 );
+
+        auto name = nameOf( Limit );
+        REQUIRE( localSocketPathFits( directory, name, Limit ) );
+        name[ 0 ] = umlautU;
+        REQUIRE( name.size() == nameOf( Limit ).size() );
+        REQUIRE( socketPathBytes( directory + '/' + name ) == Limit + extraBytes );
+        REQUIRE_FALSE( localSocketPathFits( directory, name, Limit ) );
+        REQUIRE_FALSE( localSocketPathFits( directory, name, Limit + extraBytes - 1 ) );
+        REQUIRE( localSocketPathFits( directory, name, Limit + extraBytes ) );
+    }
+#endif
+
+    SECTION( "the platform's limit is sun_path on Unix" )
+    {
+#if defined( Q_OS_MACOS )
+        REQUIRE( localSocketPathLimit() == 104 );
+#elif defined( Q_OS_UNIX )
+        REQUIRE( localSocketPathLimit() == 108 );
+#else
+        REQUIRE( localSocketPathLimit() == 0 );
+#endif
+    }
+}
 
 #ifndef Q_OS_WIN
 TEST_CASE( "The single-instance directory is the user's own under the runtime directory, else "
@@ -130,20 +215,33 @@ TEST_CASE( "The single-instance directory is the user's own under the runtime di
     QTemporaryDir temporary;
     REQUIRE( runtime.isValid() );
     REQUIRE( temporary.isValid() );
+    const auto name = guardName();
 
     SECTION( "under the runtime directory when there is one" )
     {
-        const auto directory = singleInstanceDirectory( runtime.path(), temporary.path() );
-        REQUIRE( directory == ownDirectoryUnder( runtime.path() ) );
-        REQUIRE( isOwnerOnlyDirectory( directory ) );
+        const auto location
+            = singleInstanceLocation( name, {}, { runtime.path(), temporary.path() }, NoLimit );
+        REQUIRE( location.directory == ownDirectoryUnder( runtime.path() ) );
+        REQUIRE( location.socketName == name );
+        REQUIRE_FALSE( location.fallback );
+        REQUIRE( isOwnerOnlyDirectory( location.directory ) );
         REQUIRE_FALSE( QFileInfo::exists( ownDirectoryUnder( temporary.path() ) ) );
     }
 
     SECTION( "under the temporary directory when there is none" )
     {
-        const auto directory = singleInstanceDirectory( {}, temporary.path() );
-        REQUIRE( directory == ownDirectoryUnder( temporary.path() ) );
-        REQUIRE( isOwnerOnlyDirectory( directory ) );
+        const auto location = singleInstanceLocation( name, {}, { {}, temporary.path() }, NoLimit );
+        REQUIRE( location.directory == ownDirectoryUnder( temporary.path() ) );
+        REQUIRE_FALSE( location.fallback );
+        REQUIRE( isOwnerOnlyDirectory( location.directory ) );
+    }
+
+    SECTION( "the session id scopes the socket's name, not the directory" )
+    {
+        const auto location
+            = singleInstanceLocation( name, "7", { runtime.path(), temporary.path() }, NoLimit );
+        REQUIRE( location.directory == ownDirectoryUnder( runtime.path() ) );
+        REQUIRE( location.socketName == name + "-7" );
     }
 
     SECTION( "an existing directory of the user's is made owner-only again" )
@@ -155,7 +253,8 @@ TEST_CASE( "The single-instance directory is the user's own under the runtime di
                                                   | QFile::ReadOther | QFile::ExeOther ) );
         REQUIRE_FALSE( isOwnerOnlyDirectory( path ) );
 
-        REQUIRE( singleInstanceDirectory( {}, temporary.path() ) == path );
+        REQUIRE( singleInstanceLocation( name, {}, { temporary.path() }, NoLimit ).directory
+                 == path );
         REQUIRE( isOwnerOnlyDirectory( path ) );
     }
 
@@ -165,28 +264,141 @@ TEST_CASE( "The single-instance directory is the user's own under the runtime di
         REQUIRE( file.open( QIODevice::WriteOnly ) );
         file.close();
 
-        REQUIRE( singleInstanceDirectory( runtime.path(), temporary.path() )
-                 == ownDirectoryUnder( temporary.path() ) );
-        REQUIRE( singleInstanceDirectory( runtime.path(), {} ).isEmpty() );
+        const auto location
+            = singleInstanceLocation( name, {}, { runtime.path(), temporary.path() }, NoLimit );
+        REQUIRE( location.directory == ownDirectoryUnder( temporary.path() ) );
+        REQUIRE( location.fallback );
+        REQUIRE(
+            singleInstanceLocation( name, {}, { runtime.path() }, NoLimit ).directory.isEmpty() );
     }
 
     SECTION( "a symbolic link in its place is not followed" )
     {
         REQUIRE( QFile::link( runtime.path(), ownDirectoryUnder( temporary.path() ) ) );
 
-        REQUIRE( singleInstanceDirectory( {}, temporary.path() ).isEmpty() );
+        REQUIRE(
+            singleInstanceLocation( name, {}, { temporary.path() }, NoLimit ).directory.isEmpty() );
     }
 
     SECTION( "no directory at all gives none" )
     {
-        REQUIRE( singleInstanceDirectory( {}, {} ).isEmpty() );
+        REQUIRE( singleInstanceLocation( name, {}, {}, NoLimit ).directory.isEmpty() );
+        REQUIRE( singleInstanceLocation( name, {}, { {} }, NoLimit ).directory.isEmpty() );
     }
+}
+
+TEST_CASE( "The single-instance directory is a shorter one when the socket's path does not fit "
+           "the first",
+           "[singleinstance]" )
+{
+    // A deep temporary directory, like TMPDIR inside a scratch folder, and a
+    // short one, like /tmp: the socket goes where its path fits (#841).
+    QTemporaryDir scratch;
+    REQUIRE( scratch.isValid() );
+    const auto name = guardName();
+    const QString sessionId = "12";
+    const auto shortBase = scratch.path();
+    const auto deepBase = deepDirectoryUnder( shortBase, 120 );
+    const auto deepSocket = ownDirectoryUnder( deepBase ) + '/' + name + '-' + sessionId;
+    const auto shortSocket = ownDirectoryUnder( shortBase ) + '/' + name + '-' + sessionId;
+    REQUIRE( socketPathBytes( deepSocket ) > socketPathBytes( shortSocket ) );
+
+    SECTION( "the deep directory when it fits" )
+    {
+        const auto location = singleInstanceLocation( name, sessionId, { deepBase, shortBase },
+                                                      socketPathBytes( deepSocket ) );
+        REQUIRE( location.directory == ownDirectoryUnder( deepBase ) );
+        REQUIRE( location.socketName == name + '-' + sessionId );
+        REQUIRE_FALSE( location.fallback );
+    }
+
+    SECTION( "the short directory, owner-only, when the deep one is a byte too deep" )
+    {
+        const auto location = singleInstanceLocation( name, sessionId, { deepBase, shortBase },
+                                                      socketPathBytes( deepSocket ) - 1 );
+        REQUIRE( location.directory == ownDirectoryUnder( shortBase ) );
+        REQUIRE( location.socketName == name + '-' + sessionId );
+        REQUIRE( location.fallback );
+        REQUIRE( isOwnerOnlyDirectory( location.directory ) );
+        REQUIRE_FALSE( QFileInfo::exists( ownDirectoryUnder( deepBase ) ) );
+    }
+
+    SECTION( "the session id goes when the socket fits no directory with it" )
+    {
+        const auto location = singleInstanceLocation( name, sessionId, { deepBase, shortBase },
+                                                      socketPathBytes( shortSocket ) - 1 );
+        REQUIRE( location.directory == ownDirectoryUnder( shortBase ) );
+        REQUIRE( location.socketName == name );
+        REQUIRE( location.fallback );
+        REQUIRE( localSocketPathFits( location.directory, location.socketName,
+                                      socketPathBytes( shortSocket ) - 1 ) );
+    }
+
+    SECTION( "a shorter directory comes before a shorter socket name" )
+    {
+        // The session id is worth more than the first directory: one primary
+        // instance per login session stays, the socket moves.
+        const auto deepWithoutSession = ownDirectoryUnder( deepBase ) + '/' + name;
+        const auto location = singleInstanceLocation( name, sessionId, { deepBase, shortBase },
+                                                      socketPathBytes( deepWithoutSession ) );
+        REQUIRE( location.directory == ownDirectoryUnder( shortBase ) );
+        REQUIRE( location.socketName == name + '-' + sessionId );
+        REQUIRE( location.fallback );
+    }
+
+    SECTION( "a socket that fits nowhere is placed in the last directory the user can have" )
+    {
+        const auto location = singleInstanceLocation( name, sessionId, { deepBase, shortBase }, 1 );
+        REQUIRE( location.directory == ownDirectoryUnder( shortBase ) );
+        REQUIRE( location.socketName == name );
+        REQUIRE( location.fallback );
+    }
+}
+
+TEST_CASE( "A primary instance listens from the fallback directory of a deep temporary "
+           "directory, and a second instance hands over",
+           "[singleinstance]" )
+{
+    // TMPDIR (and the runtime directory on Linux) too deep for the socket's
+    // path: the location is the user's own under /tmp, and a guard there
+    // listens, where one under TMPDIR could not (#841).
+    QTemporaryDir scratch;
+    REQUIRE( scratch.isValid() );
+    const auto deep = deepDirectoryUnder( scratch.path(), localSocketPathLimit() );
+    const ScopedEnvironment temporary( "TMPDIR", deep );
+    const ScopedEnvironment runtime( "XDG_RUNTIME_DIR", deep );
+    const auto name = guardName();
+
+    const auto location = singleInstanceLocation( name );
+    REQUIRE( location.directory == ownDirectoryUnder( "/tmp" ) );
+    REQUIRE( location.socketName.startsWith( name ) );
+    REQUIRE( location.fallback );
+    REQUIRE( isOwnerOnlyDirectory( location.directory ) );
+    REQUIRE(
+        localSocketPathFits( location.directory, location.socketName, localSocketPathLimit() ) );
+
+    KDSingleApplication primary( location.socketName, location.directory );
+    REQUIRE( primary.isPrimaryInstance() );
+    REQUIRE( primary.isListening() );
+    REQUIRE( primary.socketName() == location.directory + '/' + location.socketName );
+    REQUIRE( isOwnerOnlySocket( primary.socketName() ) );
+    QSignalSpy received( &primary, &KDSingleApplication::messageReceived );
+
+    KDSingleApplication secondary( location.socketName, location.directory );
+    REQUIRE_FALSE( secondary.isPrimaryInstance() );
+    REQUIRE( secondary.sendMessageWithResult( "hello", 2000 )
+             == KDSingleApplication::SendResult::Sent );
+    REQUIRE( received.wait( 5000 ) );
+    REQUIRE( received.first().first().toByteArray() == QByteArray( "hello" ) );
 }
 #else
 TEST_CASE( "The single-instance directory is the temporary directory on Windows",
            "[singleinstance]" )
 {
-    REQUIRE( singleInstanceDirectory( "C:/runtime", "C:/temporary" ) == "C:/temporary" );
+    const auto location = singleInstanceLocation( "n", "7", { "C:/temporary" }, 0 );
+    REQUIRE( location.directory == "C:/temporary" );
+    REQUIRE( location.socketName == "n" );
+    REQUIRE_FALSE( location.fallback );
 }
 #endif
 
@@ -205,14 +417,15 @@ TEST_CASE( "The single-instance directory follows the isolation of an E2E instan
     const ScopedEnvironment moved( "TMP", isolated.path() );
 #endif
 
-    const auto directory = singleInstanceDirectory();
-    REQUIRE_FALSE( directory.isEmpty() );
+    const auto location = singleInstanceLocation( guardName() );
+    REQUIRE_FALSE( location.directory.isEmpty() );
+    REQUIRE_FALSE( location.fallback );
 #ifdef Q_OS_WIN
-    REQUIRE( sameSpelling( directory ) == sameSpelling( isolated.path() ) );
+    REQUIRE( sameSpelling( location.directory ) == sameSpelling( isolated.path() ) );
 #else
-    REQUIRE( sameSpelling( QFileInfo( directory ).absolutePath() )
+    REQUIRE( sameSpelling( QFileInfo( location.directory ).absolutePath() )
              == sameSpelling( isolated.path() ) );
-    REQUIRE( isOwnerOnlyDirectory( directory ) );
+    REQUIRE( isOwnerOnlyDirectory( location.directory ) );
 #endif
 }
 
@@ -231,8 +444,8 @@ TEST_CASE( "The lock file and the socket of the primary instance are in the dire
     const auto entries = QDir( directory.path() ).entryList( QDir::Files | QDir::System );
     REQUIRE( entries.contains( QFileInfo( primary.socketName() ).fileName() + ".lock" ) );
 #ifndef Q_OS_WIN
-    REQUIRE( primary.socketName().startsWith( directory.path() + '/' ) );
-    REQUIRE( QFileInfo( primary.socketName() ).fileName().startsWith( name ) );
+    // The name as given: the session id is the caller's to add (#841).
+    REQUIRE( primary.socketName() == directory.path() + '/' + name );
     REQUIRE( isOwnerOnlySocket( primary.socketName() ) );
 #endif
 }

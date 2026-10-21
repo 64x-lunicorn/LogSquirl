@@ -33,7 +33,9 @@ public:
     // in `directory`, which the caller keeps reachable by the user alone. The
     // other constructors use the temporary directory, as upstream does. An
     // empty directory makes an instance that takes no lock and listens
-    // nowhere: it is primary, on its own.
+    // nowhere: it is primary, on its own. On Unix the socket is
+    // `<directory>/<name>` as given (#841): the caller scopes the name to the
+    // login session and keeps the path within sun_path.
     explicit KDSingleApplication(const QString &name, const QString &directory, QObject *parent = nullptr);
     ~KDSingleApplication();
 

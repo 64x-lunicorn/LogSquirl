@@ -43,14 +43,12 @@ KDSingleApplicationLocalSocket::KDSingleApplicationLocalSocket(const QString &na
     : QObject(parent)
 {
 #if defined(Q_OS_UNIX)
-    // LogSquirl (#827): the socket is a path inside `directory`, which only
-    // the user can reach, so neither the user id nor a prefix goes into its
-    // name. The session id stays: one primary instance per login session.
-    const QString sessionId = qEnvironmentVariable("XDG_SESSION_ID");
+    // LogSquirl (#827, #841): the socket is `name` inside `directory`, which
+    // only the user can reach, so neither the user id nor a prefix goes into
+    // its name. The login session id (XDG_SESSION_ID) is the caller's to add:
+    // it is what goes when the path would not fit sun_path otherwise.
     /* cppcheck-suppress useInitializationList */
-    m_socketName = sessionId.isEmpty() ? name : QStringLiteral("%1-%2").arg(name, sessionId);
-    if (!directory.isEmpty())
-        m_socketName = directory + QLatin1Char('/') + m_socketName;
+    m_socketName = directory.isEmpty() ? name : directory + QLatin1Char('/') + name;
 #elif defined(Q_OS_WIN)
     // I'm not sure of a "global session identifier" on Windows; are
     // multiple logins from the same user a possibility? For now, following this:

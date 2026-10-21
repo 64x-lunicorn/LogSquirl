@@ -93,17 +93,19 @@ class LogSquirlApp : public QApplication {
     // itself. What the name does not prove is who listens: another process
     // of the user could take the name, and on Windows, where the pipe is not
     // in a directory, another process of the session. The directory the lock
-    // and socket live in (singleInstanceDirectory) keeps other users out.
+    // and socket live in (singleInstanceLocation) keeps other users out.
     //
     // On macOS and Linux the lock file and socket live in a directory of the
     // user's own under QDir::tempPath() or the runtime directory, which an
     // isolated E2E instance redirects (#328), so two instances never collide
-    // there regardless of this name. On Windows a named pipe is not scoped by
-    // a directory at all (#320): without a per-instance name here, an
-    // isolated test instance could hand its files to, or be activated by, a
-    // real running LogSquirl on the same machine.
-    // tests/e2e/isolated_instance.py sets the variable for its instances; a
-    // real run never sets it, so it keeps today's fixed name.
+    // there regardless of this name. When that directory is too deep for the
+    // socket's path, the socket goes to one under /tmp (#841), where the
+    // instance id in the name is what keeps an isolated instance apart. On
+    // Windows a named pipe is not scoped by a directory at all (#320):
+    // without a per-instance name here, an isolated test instance could hand
+    // its files to, or be activated by, a real running LogSquirl on the same
+    // machine. tests/e2e/isolated_instance.py sets the variable for its
+    // instances; a real run never sets it, so it keeps today's fixed name.
     static QString singleApplicationName()
     {
         auto executableName = QFileInfo( QCoreApplication::applicationFilePath() ).fileName();
@@ -118,7 +120,9 @@ class LogSquirlApp : public QApplication {
 public:
     LogSquirlApp( int& argc, char* argv[] )
         : QApplication( argc, argv )
-        , singleApplication_( singleApplicationName(), singleInstanceDirectory() )
+        , singleInstanceLocation_( singleInstanceLocation( singleApplicationName() ) )
+        , singleApplication_( singleInstanceLocation_.socketName,
+                              singleInstanceLocation_.directory )
     {
         // Before the File Watcher's poll thread starts (#698).
         createGestureManager();
@@ -221,6 +225,13 @@ public:
     qint64 primaryPid() const
     {
         return singleApplication_.primaryPid();
+    }
+
+    // Where the lock file and socket are, for the log once logging is on:
+    // the constructor runs before it (#841).
+    const SingleInstanceLocation& instanceLocation() const
+    {
+        return singleInstanceLocation_;
     }
 
     // Hands the Log Files given on the command line over to the primary
@@ -585,6 +596,8 @@ private:
     }
 
 private:
+    // Before singleApplication_, which is built from it.
+    SingleInstanceLocation singleInstanceLocation_;
     KDSingleApplication singleApplication_;
     bool noPrimaryInstanceAnswered_ = false;
     bool runsOnItsOwn_ = false;

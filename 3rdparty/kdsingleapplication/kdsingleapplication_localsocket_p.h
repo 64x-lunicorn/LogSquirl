@@ -81,6 +81,7 @@ class KDSingleApplicationLocalSocket : public QObject
 public:
     // LogSquirl (#827): the lock file and, on Unix, the socket live in
     // `directory`. Empty: no lock and no socket, this instance runs on its own.
+    // On Unix the socket is `<directory>/<name>`, the name as given (#841).
     explicit KDSingleApplicationLocalSocket(const QString &name,
                                             const QString &directory,
                                             QObject *parent = nullptr);
