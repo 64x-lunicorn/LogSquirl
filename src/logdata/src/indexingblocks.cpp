@@ -59,6 +59,13 @@ bool IndexingBlock::isDelimiter( std::int64_t offset ) const
     if ( width == 1 ) {
         return true;
     }
+    // Only a whole code unit is one: its line feed or tab byte is where the
+    // encoding puts it in a code unit starting on a multiple of the width
+    // from the start of the Log File (#804). The byte order mark is a code
+    // unit too.
+    if ( ( beginning + offset - encoding.lineFeedIndex ) % width != 0 ) {
+        return false;
+    }
     const auto forward = encoding.lineFeedIndex == 0;
     if ( forward ? offset + width - 1 >= size + bytesAfter
                  : offset - ( width - 1 ) < -bytesBefore ) {

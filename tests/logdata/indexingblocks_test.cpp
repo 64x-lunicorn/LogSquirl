@@ -64,7 +64,8 @@ struct IndexingRun {
 //
 // A line feed or a tab counts where its byte is followed (in an encoding
 // whose line feed starts with it) or preceded (otherwise) by as many zero
-// bytes as the encoding's line feed has. A Log Line ends where its line feed
+// bytes as the encoding's line feed has, and they make a code unit starting
+// on a multiple of its width from the start of the Log File. A Log Line ends where its line feed
 // starts, and the next one starts right after it. A tab widens its Log Line
 // to the next tab stop; a Log Line is as long as its characters, tabs
 // widened. A Log File not ending in a line feed gets an end of line one byte
@@ -78,6 +79,9 @@ ReferenceIndex scanWholeLogFile( const QByteArray& bytes, int lineFeedWidth, int
 {
     const auto size = static_cast<qint64>( bytes.size() );
     const auto isDelimiter = [ & ]( qint64 at ) {
+        if ( ( at - lineFeedIndex ) % lineFeedWidth != 0 ) {
+            return false;
+        }
         for ( int k = 1; k < lineFeedWidth; ++k ) {
             const auto neighbour = lineFeedIndex == 0 ? at + k : at - k;
             if ( neighbour < 0 || neighbour >= size || bytes[ neighbour ] != '\0' ) {
@@ -294,6 +298,55 @@ SCENARIO( "Indexing in blocks finds the Log Lines a scan of the whole Log File f
         const auto bytes = delimiterNoise( 292, 1500 );
         writeLogFile( path, bytes );
         requireIndexOfWholeScan( indexInBlocks( path, codec, blockSize ), bytes, encoded );
+    }
+}
+
+SCENARIO( "A line feed or tab byte inside two UTF-16 code units is neither", "[indexing][blocks]" )
+{
+    // #804: in UTF-16LE, U+0A00 U+0100 is the bytes 00 0A 00 01, whose middle
+    // bytes 0A 00 look like a line feed at an odd offset; in UTF-16BE, U+0100
+    // U+0A01 is 01 00 0A 01. The same holds for a tab, U+0900 and U+0109.
+    QTemporaryDir dir;
+    REQUIRE( dir.isValid() );
+    const auto path = dir.filePath( "straddled.log" );
+
+    const auto blockSize = GENERATE( qint64{ 1 }, qint64{ 2 }, qint64{ 3 }, qint64{ 4 },
+                                     qint64{ 5 }, DefaultIndexingBlockSize );
+    const auto littleEndian = GENERATE( true, false );
+    auto* codec = TextEncoding::forName( littleEndian ? "UTF-16LE" : "UTF-16BE" );
+    REQUIRE( codec != nullptr );
+    const auto byteOrderMark
+        = littleEndian ? QByteArray( "\xFF\xFE", 2 ) : QByteArray( "\xFE\xFF", 2 );
+    CAPTURE( blockSize, littleEndian );
+
+    GIVEN( "the Log Line VIN: X after a line of two characters straddling a line feed" )
+    {
+        const auto straddling
+            = littleEndian ? QString( u"\u0A00\u0100" ) : QString( u"\u0100\u0A01" );
+        const auto bytes = byteOrderMark + codec->fromUnicode( straddling + "\nVIN: X\n" );
+        writeLogFile( path, bytes );
+
+        THEN( "VIN: X is the second Log Line" )
+        {
+            const auto run = indexInBlocks( path, codec, blockSize );
+            REQUIRE( run.endOfLines == std::vector<qint64>{ 8, 22 } );
+            REQUIRE( run.maxLength == 6 );
+        }
+    }
+
+    GIVEN( "a Log Line of two characters straddling a tab" )
+    {
+        const auto straddling
+            = littleEndian ? QString( u"\u0900\u0100" ) : QString( u"\u0100\u0901" );
+        const auto bytes = byteOrderMark + codec->fromUnicode( "a" + straddling + "b\n" );
+        writeLogFile( path, bytes );
+
+        THEN( "it is as long as its characters, the byte order mark one of them" )
+        {
+            const auto run = indexInBlocks( path, codec, blockSize );
+            REQUIRE( run.endOfLines == std::vector<qint64>{ 12 } );
+            REQUIRE( run.maxLength == 5 );
+        }
     }
 }
 

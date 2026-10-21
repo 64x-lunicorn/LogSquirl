@@ -218,7 +218,9 @@ struct IndexingBlock {
     }
 
     // Tells whether the line feed or tab byte at offset within the block is
-    // one in the encoding: its other bytes, before or after it, are zero.
+    // one in the encoding: it is where the encoding puts it in a code unit,
+    // on a code unit boundary of the Log File, and the code unit's other
+    // bytes, before or after it, are zero.
     bool isDelimiter( std::int64_t offset ) const;
 
     std::int64_t capacity;

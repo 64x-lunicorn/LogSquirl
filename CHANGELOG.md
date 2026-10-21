@@ -109,6 +109,13 @@
   gets the answer right after, exactly once and in the order the answers
   came. A plugin that is disabled after all still gets no call after
   its shutdown. (#801)
+- **A UTF-16 log file no longer breaks a line inside two characters**: a
+  `0x0A` or `0x09` byte that is the high byte of one code unit and, with the
+  zero byte next to it, straddles two characters (U+0A00 followed by U+0100 in
+  UTF-16LE, say) no longer counts as a line feed or a tab. Lines break only at
+  whole line feed code units, in UTF-16LE and UTF-16BE alike, so line numbers
+  and line text match the file; UTF-8 and single-byte files index as before.
+  (#804)
 
 # v26.11.0-beta1 (2026-10-09)
 
