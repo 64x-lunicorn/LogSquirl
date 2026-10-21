@@ -96,6 +96,7 @@
 
 #include "mainwindow.h"
 
+#include "archiveextraction.h"
 #include "chipmunkimporter.h"
 #include "clipboard.h"
 #include "commandpalette.h"
@@ -3400,11 +3401,20 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
             for ( const auto& extractedFile : selectedFiles ) {
                 // A file picked beside the archive's is a Log File of its own.
                 const auto member = extracted.relativeFilePath( extractedFile );
-                openLogFile(
-                    extractedFile,
-                    !member.startsWith( "../" ) && !QDir::isAbsolutePath( member )
-                        ? LogFileProvenance::fromArchive( archiveMember.inside( fileName, member ) )
-                        : LogFileProvenance::ordinary() );
+                if ( member.startsWith( "../" ) || QDir::isAbsolutePath( member ) ) {
+                    openLogFile( extractedFile, LogFileProvenance::ordinary() );
+                    continue;
+                }
+                // Checked as a member chosen by name is (#815): a regular file
+                // inside the folder, not a link planted there, whose target
+                // would open otherwise (#847).
+                const auto memberPath = extractedMemberPath( archiveDir.path(), member );
+                if ( memberPath.isEmpty() ) {
+                    LOG_WARNING << "No member " << member << " in " << fileName;
+                    continue;
+                }
+                openLogFile( memberPath, LogFileProvenance::fromArchive(
+                                             archiveMember.inside( fileName, member ) ) );
             }
 
             return true;

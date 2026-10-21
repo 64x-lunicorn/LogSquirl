@@ -885,6 +885,46 @@ TEST_CASE( "A Log File past the decompression budget is refused with the budget 
     CHECK( message.contains( "Archives" ) );
 }
 
+// A file picked from the extraction folder through the file dialog opens only
+// when it is a regular file inside that folder, with the check a member
+// chosen by name gets (#815): a link planted there is refused, so its target
+// is never opened (#847).
+TEST_CASE( "A link picked from an archive's extraction folder is refused", "[ui][modal][archive]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto zipPath = directory.filePath( "logs.zip" );
+    {
+        KZip zip( zipPath );
+        REQUIRE( zip.open( QIODevice::WriteOnly ) );
+        REQUIRE( zip.writeFile( "app.log", "first Log Line\nsecond Log Line\n" ) );
+        REQUIRE( zip.writeFile( "other.log", "another Log File\n" ) );
+        zip.close();
+    }
+    const auto secretPath = directory.filePath( "secret.log" );
+    REQUIRE( writeFile( secretPath, "the user's own file\n" ) );
+
+    WindowFixture window;
+    ModalAnswers modals;
+    modals.click( QMessageBox::Yes ).answerWith( answerProgress() );
+    // Where the user would pick in the file dialog: a link to the user's own
+    // file, planted in the extraction folder.
+    bool picked = false;
+    window.mainWindow->setArchiveMemberChooser( [ & ]( QWidget*, const QString& extracted ) {
+        const auto link = QDir( extracted ).filePath( "link.log" );
+        REQUIRE( QFile::link( secretPath, link ) );
+        picked = true;
+        return QStringList{ link };
+    } );
+    window.mainWindow->loadInitialFile( zipPath, false );
+    REQUIRE( waitUiState( [ & ] { return picked; } ) );
+    // A tab would open once the event loop turns.
+    QTest::qWait( 500 );
+
+    CHECK( logFileTabs( window ).empty() );
+    CHECK( modals.unexpectedMessageBoxes() == 0 );
+}
+
 namespace {
 
 QStringList recentFiles()

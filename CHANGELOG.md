@@ -251,6 +251,12 @@
   it reaches the end or the beginning of the log file, including what they say
   of the Log Lines the regex engine gave up on, read in the chosen language
   like the Search Line's notices. (#846)
+- **A file picked from an extraction folder opens only as a regular file**:
+  a file the user picks in the file dialog from an archive's extraction folder
+  opens only when it is a regular file inside that folder, with the check a
+  member chosen by name gets; a link planted there is refused and logged, so
+  the file it leads to never opens. A file picked beside the folder opens as
+  a log file of its own, as before. (#847)
 
 ## Build and packaging
 
