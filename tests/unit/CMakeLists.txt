@@ -219,6 +219,17 @@ target_compile_definitions(logsquirl_tests PRIVATE
     LOGSQUIRL_CONVERT_PROBE_PATH="$<TARGET_FILE:logsquirl_convert_probe>"
     LOGSQUIRL_CONVERT_PROBE_PLAIN_PATH="$<TARGET_FILE:logsquirl_convert_probe_plain>")
 
+# A data source plugin whose thread pushes lines until its shutdown returns:
+# the tests unload it, stop its stream and let the host go while its lines
+# arrive (#821).
+add_library(logsquirl_stream_probe MODULE plugins/streamprobe.cpp)
+target_link_libraries(logsquirl_stream_probe PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_stream_probe PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_stream_probe PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_stream_probe)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_STREAM_PROBE_PATH="$<TARGET_FILE:logsquirl_stream_probe>")
+
 # On Windows a plugin finds the libraries it ships next to it. The fixture
 # imports a library that is built into a directory of its own, so neither the
 # test's directory nor PATH has it; the test copies both into a plugin

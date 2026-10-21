@@ -332,7 +332,11 @@ private:
         LogSquirlHostApi hostApi;
         QString configDir;
         QByteArray configDirUtf8; ///< Cached UTF-8 so get_config_dir ptr stays valid
-        // Non-null when this plugin is running as a DataSource
+        // Non-null while this plugin runs as a data source. The push
+        // callbacks read and use it on the plugin's threads, the host ends it
+        // on its own: each under streamMutex, so a push under way has
+        // returned before the stream goes, and a later one finds none (#821).
+        std::mutex streamMutex{};
         std::unique_ptr<StreamWriter> stream;
         // Back-pointer to the owning PluginHost (for static trampolines)
         PluginHost* host = nullptr;
@@ -403,6 +407,12 @@ private:
 
     /** Shuts the plugin down and lets its context go. */
     void unloadNow( const QString& pluginId );
+
+    /**
+     * Ends the plugin's stream, if one runs, once a push under way has
+     * returned: signals end-of-stream, frees it and says it stopped.
+     */
+    void endStream( PluginContext& context, const QString& pluginId );
 
     /** Starts the plugin's next queued Conversion, unless one is under way. */
     void startNextConversion( PluginContext& context );

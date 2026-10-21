@@ -397,8 +397,10 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void );
 - `logsquirl_plugin_init` receives the host API table and the opaque handle;
   it returns 0 on success and non-zero on failure. A plugin whose `init` fails
   is not loaded.
-- `logsquirl_plugin_shutdown` releases everything the plugin allocated. The
-  host calls it before it unloads the library.
+- `logsquirl_plugin_shutdown` releases everything the plugin allocated, and
+  stops and joins the threads it started. The host calls it before it unloads
+  the library, and before it ends a stream of the plugin's that is still
+  running.
 
 **Optional** exports, for any plugin type:
 
@@ -745,6 +747,15 @@ api->signal_error( handle, "Device disconnected" );
 ```
 
 Lines pushed while no stream of the plugin is running are dropped.
+
+A stream the user ends -- by disabling or unloading the plugin from the
+Plugin Management dialog, or by closing LogSquirl -- goes in this order: the
+host calls `logsquirl_plugin_shutdown` first and waits for it to return, then
+signals end-of-stream and frees the stream. A thread of the plugin's may push
+until `shutdown` returns; what it pushes meanwhile reaches a live stream.
+`shutdown` must stop and join such a thread before it returns, since nothing
+the plugin calls after that is answered. A stream the host ends on its own,
+with the plugin still loaded, drops what the plugin pushes from then on.
 
 ### Converters
 
