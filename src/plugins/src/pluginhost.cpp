@@ -858,10 +858,26 @@ void PluginHost::hostSignalEos( void* handle )
         ctx->stream->signalEos();
     }
     LOG_INFO << "DataSource EOS from plugin";
-    if ( ctx->host ) {
-        const auto pluginId = ctx->handle.metadata().id();
-        Q_EMIT ctx->host->dataSourceStopped( pluginId );
+    if ( !ctx->host ) {
+        return;
     }
+    // Said on the host's thread, as every other time a data source stops: a
+    // plugin may signal from a thread of its own, and a directly connected
+    // slot would run there. The plugin may be unloaded before the queued
+    // call runs, and loaded again: the unload said the stream stopped (#843).
+    auto* host = ctx->host;
+    QMetaObject::invokeMethod(
+        host,
+        [ host, loadSerial = ctx->loadSerial, pluginId = ctx->handle.metadata().id() ] {
+            const auto* loaded = host->loadedContext( pluginId );
+            if ( !loaded || loaded->loadSerial != loadSerial ) {
+                LOG_INFO << "Plugin " << pluginId
+                         << " was unloaded; dropping its queued end of stream";
+                return;
+            }
+            Q_EMIT host->dataSourceStopped( pluginId );
+        },
+        Qt::QueuedConnection );
 }
 
 void PluginHost::hostSignalError( void* handle, const char* message )

@@ -231,6 +231,11 @@
   Plugin from the repository fails after the download, or the install is
   refused, the downloaded archive goes from the plugin folder as it does after
   a successful install, so the folder holds no archive of that attempt. (#842)
+- **A data source's end of stream is heard on the host's thread**: when a
+  Plugin ends its own stream by signalling end of stream, the rest of the
+  application hears that the data source stopped on the plugin host's thread,
+  as it does whenever a data source stops, whichever thread the Plugin signals
+  from; an end signalled by a Plugin unloaded meanwhile is dropped. (#843)
 
 ## Build and packaging
 

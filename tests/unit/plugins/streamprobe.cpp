@@ -112,6 +112,13 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_stream_probe_shutdown_calls( void )
     return shutdownCalls.load();
 }
 
+/** Signals the end of the stream from a thread of its own, as a plugin may,
+ * and returns once that thread is joined; call while it is initialised. */
+LOGSQUIRL_PLUGIN_EXPORT void logsquirl_stream_probe_signal_eos_from_thread( void )
+{
+    std::thread( [] { hostApi->signal_eos( hostHandle ); } ).join();
+}
+
 /** Forgets what the probe counted; call while it is not initialised. */
 LOGSQUIRL_PLUGIN_EXPORT void logsquirl_stream_probe_reset( void )
 {

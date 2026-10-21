@@ -2457,14 +2457,23 @@ struct StreamProbe {
         reinterpret_cast<Fn>( library.resolve( "logsquirl_stream_probe_reset" ) )();
     }
 
+    void signalEosFromThread()
+    {
+        using Fn = void ( * )();
+        reinterpret_cast<Fn>(
+            library.resolve( "logsquirl_stream_probe_signal_eos_from_thread" ) )();
+    }
+
     QLibrary library;
 };
 
-/// What the host said of the probe's streams, and whether the probe had been
-/// shut down by the time it said the stream stopped.
+/// What the host said of the probe's streams, whether the probe had been
+/// shut down by the time it said the stream stopped, and on which thread it
+/// said so last.
 struct StreamsHeard {
     int stopped = 0;
     bool stoppedBeforeShutdown = false;
+    QThread* stoppedOn = nullptr;
 };
 
 } // namespace
@@ -2488,8 +2497,11 @@ SCENARIO( "A streaming plugin is shut down before its stream goes away",
 
         StreamProbe probe;
         StreamsHeard heard;
+        // Connected without a receiver: the slot runs on whichever thread
+        // the host says it on.
         QObject::connect( host.get(), &PluginHost::dataSourceStopped, [ & ] {
             ++heard.stopped;
+            heard.stoppedOn = QThread::currentThread();
             if ( probe.shutdownCalls() == 0 ) {
                 heard.stoppedBeforeShutdown = true;
             }
@@ -2558,6 +2570,42 @@ SCENARIO( "A streaming plugin is shut down before its stream goes away",
                         REQUIRE( heard.stopped == 1 );
                     }
                 }
+            }
+        }
+
+        // The stopped signal reaches its receivers on the host's thread
+        // whichever thread the plugin signals the end of its stream from (#843).
+        WHEN( "The plugin signals the end of its stream from a thread of its own" )
+        {
+            const auto path = startStreaming();
+            probe.signalEosFromThread();
+
+            THEN( "The host says the stream stopped on its own thread, once the event loop "
+                  "turns, and the plugin stays loaded" )
+            {
+                REQUIRE( heard.stopped == 0 );
+                REQUIRE( waitUiState( [ & ] { return heard.stopped == 1; }, 5000 ) );
+                REQUIRE( heard.stoppedOn == QThread::currentThread() );
+                REQUIRE( host->isLoaded( StreamProbeId ) );
+                REQUIRE( probe.shutdownCalls() == 0 );
+                REQUIRE( QFile::exists( path ) );
+            }
+        }
+
+        WHEN( "The plugin signals the end of its stream from a thread of its own and is unloaded "
+              "before the host's thread hears of it" )
+        {
+            startStreaming();
+            probe.signalEosFromThread();
+            host->unloadPlugin( StreamProbeId );
+
+            THEN( "The stream stopped once, with the unload, and the end the plugin signalled "
+                  "is dropped" )
+            {
+                REQUIRE( heard.stopped == 1 );
+                REQUIRE( heard.stoppedOn == QThread::currentThread() );
+                turnFor( 50 );
+                REQUIRE( heard.stopped == 1 );
             }
         }
 
