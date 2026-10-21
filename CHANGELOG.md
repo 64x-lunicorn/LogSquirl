@@ -104,6 +104,88 @@
   context lines that are no match; the keys can be changed in the shortcut
   settings.
 
+## Security
+
+- **Archive extraction stays in its folder**: a member of a compressed Log File
+  or a downloaded Plugin archive never writes outside the extraction folder, a
+  symbolic link entry is skipped, and a member that is a link is not opened.
+  (#815)
+- **Decompression budget**: a compressed Log File or an archive is decompressed
+  to at most 16 GiB by default, set under Preferences > File > Archives; one
+  that would expand past it is not opened and the message names the limit, and
+  the tar reader no longer copies a whole tarball into a temporary file first.
+  (#816)
+- **Plugin downloads are verified**: a plugin is installed only when its catalog
+  entry carries a well-formed SHA-256 the downloaded archive matches, and every
+  catalog, release and icon URL must be https; an entry that fails either is
+  listed as not installable with the reason. (#818)
+- **A plugin id is a plain name, never a path**: an id from the plugin catalog
+  or a plugin manifest is accepted only when it consists of letters, digits,
+  dots, dashes and underscores and does not start with a dot; any other entry is
+  skipped with a warning, and an install, its backup and their removal only ever
+  touch a folder directly in the user plugin folder. (#819)
+- **Disabling every plugin stays disabled**: the first start enables the
+  discovered plugins once; from then on a user who disabled them all finds none
+  loaded at the next start, and a plugin that appears in the plugin folder later
+  is listed but not loaded until it is enabled. (#820)
+- **Streaming plugin shut down before its stream ends**: disabling or unloading
+  a data source plugin, stopping its stream, or closing LogSquirl while its
+  lines arrive first shuts the plugin down and waits for it, then ends the
+  stream; a push meanwhile finds a live stream, never a freed one. (#821)
+- **Open containing folder is safe for any file name**: a Log File is revealed
+  in Finder through open -R and in Explorer by its absolute path under the
+  system folder; its path is passed as an argument, never composed into script
+  or command text. (#822)
+- **Programs start by their absolute path**: Git for the Team Folder and the
+  shell for Open Command Output are looked up on the PATH, or under the Windows
+  system folder for cmd.exe, and never in the working directory or the
+  application folder, so a program planted beside a Log File is not run. (#823)
+- **A corrupted Index Cache entry is dropped, never served**: an Index Cache
+  entry whose content was edited or damaged on disk is found out by a digest and
+  by checking every line position before it is used; it is deleted and the Log
+  File indexed again, and reading Log Lines over a bad Index shows warnings
+  instead of ending the application. Entries written before this version are
+  indexed again once. (#824)
+- **An overlong Log Line is bounded everywhere it is read**: a Log Line of a
+  gibibyte or more costs no more than its line feed when the view paints it, the
+  Filtered View reads it or a Search runs over it, and reads as the too-long
+  warning; a Search's block is bounded by bytes (64 MiB) as well as by lines;
+  tab expansion and the decoder's length cannot overflow or abort within the
+  allowed line length. (#825)
+- **Long and pathological Log Lines no longer stall the views**: Format
+  Recognition, the Table View's field extraction, Timestamp reading and Quick
+  Find cap a Log Line at a million characters like the Highlighters, Format
+  Recognition runs within a time budget, a Row the regex engine gave up on says
+  so instead of showing as not matching, and Quick Find reports the Log Lines
+  the engine gave up on. (#826)
+- **Single instance on shared hosts**: the lock and socket that keep LogSquirl a
+  single instance live in a folder only the user can reach (the runtime folder
+  on Linux, the user's temporary folder on macOS), and when nothing answers for
+  a held lock LogSquirl opens a window of its own instead of handing its Log
+  Files to whoever listens. (#827)
+- **Update notice shows feed strings as text**: the version name and changelog
+  entries from the update feed are shown as plain text, so the only link in the
+  notice is the validated release page; the feed request times out after 30
+  seconds and a reply larger than 1 MiB is discarded. (#828)
+- **Debug log and merged Log File are private**: the log written with logging
+  enabled goes to `logs` under the application data (beside the executable in a
+  portable run), readable by the user alone, and a merged Log File is written
+  into the window's own temporary folder, never the shared temporary folder.
+  (#829)
+- **Plain text everywhere untrusted text shows**: a file name, a Log Line, a
+  Named Value, an archive member or a plugin catalog string shown in a label, a
+  tool tip or a message box reads literally; markup in it never changes the
+  layout, hides content or inserts an image. (#830)
+- **CSV export neutralises formula characters**: a field starting with =, +, -
+  or @, or with a tab or carriage return and one of those, is written with an
+  apostrophe before it so a spreadsheet shows it as text instead of running it;
+  the export dialog says so. A negative number like -5 gets the apostrophe too.
+  (#831)
+- **A Search job never outlives its Log File**: a Search whose block read
+  outlasts the Background Run's shutdown timeout (a hung network mount) holds
+  what it reads and writes through shared handles, so closing the tab meanwhile
+  no longer leaves it on freed memory. (#832)
+
 ## Bug fixes
 
 - **A plugin opens a file from any thread**: `open_file` called from a
@@ -129,6 +211,17 @@
   A UTF-16 or UTF-32 file whose index an earlier version cached is indexed
   once more; the cached indexes of other files are kept. (#804)
 
+- **Sentry log messages**: the crash handler's logger for Sentry's own messages
+  fills the placeholders before logging, instead of handing the argument list to
+  Qt's variadic logger. (#833)
+- **A tar.zst or tar.lz4 archive extracts its members whole**: the tar reader
+  can now seek over the zstd and lz4 decompressors as it does over gzip, so such
+  archives no longer parse an entry's data as headers. (#838)
+- **Plugin card button recovers after a failed install**: when installing or
+  updating a Plugin from the repository fails, for any reason, the card's
+  Install or Update button is usable again right away instead of staying
+  disabled as "Installing..." until the dialog is reopened. (#839)
+
 ## Build and packaging
 
 - **The build images trust no compromised emSign certificate**: the Linux
@@ -137,6 +230,19 @@
   certifi trusted the emSign ECC Root CA - G3, and eight intermediate
   certificates below it have compromised private keys (GHSA-6q48-6c7w-9gw2).
   LogSquirl itself does not use certifi.
+- **The macOS main executable alone disables library validation**: the release
+  signs `logsquirl` and the app bundle with `packaging/osx/entitlements-app.plist`, the one file carrying `com.apple.security.cs.disable-library-validation`, because it is the process that loads Plugins from the user plugin
+  directory; the Qt frameworks, the bundled dylibs and Qt plug-ins and the
+  helpers are signed with the hardened runtime and no entitlement, and the
+  signing step fails when the entitlement is missing on the main executable or
+  present anywhere else. (#835)
+
+## Documentation
+
+- **Security policy**: SECURITY.md names 26.10 as the supported release, and the
+  unused appimage-builder recipe with plain http package sources at the repo
+  root is gone; the AppImage is built by
+  packaging/linux/appimage/generate_appimage.sh as before. (#836)
 
 # v26.11.0-beta1 (2026-10-09)
 
