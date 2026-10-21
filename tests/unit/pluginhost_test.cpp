@@ -39,6 +39,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -351,6 +352,13 @@ void recordRegexLabAnswer( void* userData, int result, const char* pattern, int 
             { result,
               pattern ? std::optional<QString>( QString::fromUtf8( pattern ) ) : std::nullopt,
               flags } );
+}
+
+/// Runs what a test hands it as a call into the plugin: a menu action of the
+/// plugin, triggered.
+void runInPlugin( void* userData )
+{
+    ( *static_cast<std::function<void()>*>( userData ) )();
 }
 
 } // namespace
@@ -1081,6 +1089,210 @@ SCENARIO( "A plugin opens the Regex Lab through the Plugin Host",
             {
                 REQUIRE( opened != 0 );
                 REQUIRE( received.answers.empty() );
+            }
+        }
+
+        host.unloadAll();
+        probe.library.unload();
+    }
+}
+
+SCENARIO( "A Regex Lab answer that arrives while the plugin's unload is pending reaches it "
+          "only if it stays loaded",
+          "[pluginhost][pluginregexlab][plugins]" )
+{
+    GIVEN( "The probe plugin loaded, with a Regex Lab open, and a menu action that runs "
+           "what the test hands it as a call into the plugin" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        REQUIRE( api != nullptr );
+
+        RegexLabAnswers received;
+        REQUIRE( api->open_regex_lab( handle, "ERROR", 0, &recordRegexLabAnswer, &received ) == 0 );
+        REQUIRE( port.labs.size() == 1 );
+
+        std::function<void()> whileRunning;
+        api->register_menu_action( handle, "Plugins", "Probe action", &runInPlugin, &whileRunning );
+        const auto added = port.calls.back();
+        REQUIRE( added.kind == PortCall::Kind::AddMenuAction );
+        const auto runningCall = [ & ]( std::function<void()> call ) {
+            whileRunning = std::move( call );
+            added.callback( added.userData );
+        };
+        const auto turnEventLoop
+            = [ & ] { QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall ); };
+        const auto applied
+            = PluginPattern{ .pattern = QStringLiteral( "WARN \u00f6" ), .matchesCase = true };
+
+        WHEN( "The Lab is applied while the unload waits, and the plugin is loaded again "
+              "before the call returns" )
+        {
+            runningCall( [ & ] {
+                host.unloadPlugin( ProbeId );
+                port.labs[ 0 ].answer( applied );
+                REQUIRE( received.answers.empty() );
+                REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+                REQUIRE( received.answers.empty() );
+            } );
+
+            THEN( "Once the event loop turns, the plugin gets the applied pattern and flags, "
+                  "exactly once" )
+            {
+                REQUIRE( received.answers.empty() );
+                turnEventLoop();
+                REQUIRE( received.answers.size() == 1 );
+                REQUIRE( received.answers[ 0 ].result == LOGSQUIRL_REGEX_LAB_APPLIED );
+                REQUIRE( received.answers[ 0 ].pattern == QStringLiteral( "WARN \u00f6" ) );
+                REQUIRE( received.answers[ 0 ].flags == LOGSQUIRL_REGEX_LAB_MATCH_CASE );
+
+                turnEventLoop();
+                REQUIRE( received.answers.size() == 1 );
+                REQUIRE( host.isLoaded( ProbeId ) );
+            }
+
+            AND_WHEN( "The plugin is unloaded before the event loop turns" )
+            {
+                host.unloadPlugin( ProbeId );
+                turnEventLoop();
+
+                THEN( "The answer never reaches it" )
+                {
+                    REQUIRE( received.answers.empty() );
+                }
+            }
+        }
+
+        WHEN( "The Lab is cancelled while the unload waits, and the plugin is loaded again "
+              "before the call returns" )
+        {
+            runningCall( [ & ] {
+                host.unloadPlugin( ProbeId );
+                port.labs[ 0 ].answer( std::nullopt );
+                REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+            } );
+            turnEventLoop();
+            turnEventLoop();
+
+            THEN( "The plugin hears exactly once that it was cancelled" )
+            {
+                REQUIRE( received.answers.size() == 1 );
+                REQUIRE( received.answers[ 0 ].result == LOGSQUIRL_REGEX_LAB_CANCELLED );
+                REQUIRE_FALSE( received.answers[ 0 ].pattern.has_value() );
+            }
+        }
+
+        WHEN( "Two Labs are answered while the unload waits, and the plugin is loaded again "
+              "before the call returns" )
+        {
+            REQUIRE( api->open_regex_lab( handle, "INFO", 0, &recordRegexLabAnswer, &received )
+                     == 0 );
+            REQUIRE( port.labs.size() == 2 );
+            runningCall( [ & ] {
+                host.unloadPlugin( ProbeId );
+                port.labs[ 1 ].answer( std::nullopt );
+                port.labs[ 0 ].answer( applied );
+                REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+            } );
+
+            THEN( "The plugin gets both answers in the order they arrived" )
+            {
+                turnEventLoop();
+                REQUIRE( received.answers.size() == 2 );
+                REQUIRE( received.answers[ 0 ].result == LOGSQUIRL_REGEX_LAB_CANCELLED );
+                REQUIRE( received.answers[ 1 ].result == LOGSQUIRL_REGEX_LAB_APPLIED );
+            }
+        }
+
+        WHEN( "A Lab is answered after the plugin is loaded again, before the kept answer is "
+              "delivered" )
+        {
+            REQUIRE( api->open_regex_lab( handle, "INFO", 0, &recordRegexLabAnswer, &received )
+                     == 0 );
+            REQUIRE( port.labs.size() == 2 );
+            runningCall( [ & ] {
+                host.unloadPlugin( ProbeId );
+                port.labs[ 0 ].answer( applied );
+                REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+            } );
+            port.labs[ 1 ].answer( std::nullopt );
+
+            THEN( "It waits behind the kept answer, and both arrive in order" )
+            {
+                REQUIRE( received.answers.empty() );
+                turnEventLoop();
+                REQUIRE( received.answers.size() == 2 );
+                REQUIRE( received.answers[ 0 ].result == LOGSQUIRL_REGEX_LAB_APPLIED );
+                REQUIRE( received.answers[ 1 ].result == LOGSQUIRL_REGEX_LAB_CANCELLED );
+            }
+        }
+
+        WHEN( "The Lab is applied while the unload waits, and the unload completes" )
+        {
+            runningCall( [ & ] {
+                host.unloadPlugin( ProbeId );
+                port.labs[ 0 ].answer( applied );
+                REQUIRE( received.answers.empty() );
+            } );
+            REQUIRE( host.isLoaded( ProbeId ) == false );
+            REQUIRE( received.answers.empty() );
+            turnEventLoop();
+            turnEventLoop();
+
+            THEN( "The plugin is shut down and the answer never reaches it" )
+            {
+                REQUIRE( port.calls.back().kind == PortCall::Kind::RemoveContributions );
+                REQUIRE( port.labs[ 0 ].context.isNull() );
+                REQUIRE( received.answers.empty() );
+            }
+        }
+
+        WHEN( "The plugin is loaded again, then its unload waits again before the delivery "
+              "runs" )
+        {
+            runningCall( [ & ] {
+                host.unloadPlugin( ProbeId );
+                port.labs[ 0 ].answer( applied );
+                REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+                host.unloadPlugin( ProbeId );
+                turnEventLoop();
+                REQUIRE( received.answers.empty() );
+                REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+            } );
+            turnEventLoop();
+
+            THEN( "The answer is kept and reaches the plugin exactly once when it stays" )
+            {
+                REQUIRE( received.answers.size() == 1 );
+                REQUIRE( received.answers[ 0 ].result == LOGSQUIRL_REGEX_LAB_APPLIED );
+                turnEventLoop();
+                REQUIRE( received.answers.size() == 1 );
+            }
+        }
+
+        WHEN( "The Lab is answered while the plugin's call runs and no unload waits" )
+        {
+            runningCall( [ & ] { port.labs[ 0 ].answer( applied ); } );
+
+            THEN( "The plugin gets the answer right away, exactly once" )
+            {
+                REQUIRE( received.answers.size() == 1 );
+                turnEventLoop();
+                REQUIRE( received.answers.size() == 1 );
             }
         }
 
