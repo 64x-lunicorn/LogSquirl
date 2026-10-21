@@ -472,13 +472,16 @@ SCENARIO( "untabify writes every column of the expanded line", "[linetypes][unta
         QString input( MaxExpandedLineLength - 3, QChar( 'x' ) );
         input.append( "\tyz" );
 
-        THEN( "The line ends with the spaces that still fit" )
+        THEN( "The line is cut where the spaces stop fitting, and its last columns say so" )
         {
             // Starting at column 4 the tab sits at a column 1 past a tab stop:
-            // it wants 7 spaces, only 3 fit.
+            // it wants 7 spaces, only 3 fit; the cut marker takes the last
+            // columns (#848).
             auto result = untabify( std::move( input ), LineColumn( 4 ) );
             REQUIRE( result.size() == MaxExpandedLineLength );
-            REQUIRE( result.right( 4 ) == "x   " );
+            REQUIRE( result.endsWith( ExpandedLineCutWarning ) );
+            const auto beforeMarker = result.left( result.size() - ExpandedLineCutWarning.size() );
+            REQUIRE( beforeMarker.count( QChar( 'x' ) ) == beforeMarker.size() );
         }
     }
 }
@@ -503,10 +506,23 @@ SCENARIO( "untabify handles very long lines with many tabs efficiently", "[linet
         const int numTabs = ( MaxExpandedLineLength / TabStop ) + 1000;
         QString input( numTabs, QChar::Tabulation );
 
-        THEN( "It is capped at MaxExpandedLineLength" )
+        THEN( "It is capped at MaxExpandedLineLength, and its last columns say that it was cut" )
         {
             auto result = untabify( std::move( input ) );
             REQUIRE( result.size() == MaxExpandedLineLength );
+            REQUIRE( result.endsWith( ExpandedLineCutWarning ) );
+        }
+    }
+
+    GIVEN( "A line whose tabs expand to exactly MaxExpandedLineLength" )
+    {
+        QString input( MaxExpandedLineLength / TabStop, QChar::Tabulation );
+
+        THEN( "It is expanded whole, and says nothing of a cut" )
+        {
+            auto result = untabify( std::move( input ) );
+            REQUIRE( result.size() == MaxExpandedLineLength );
+            REQUIRE( result.trimmed().isEmpty() );
         }
     }
 }
@@ -721,9 +737,13 @@ SCENARIO( "Tab expansion of a Log Line of hundreds of millions of tabs does not 
             REQUIRE( getUntabifiedLength( std::string( TabCount, '\t' ) ).get()
                      == MaxExpandedLineLength );
 
+            // Cut at the maximum, visibly (#848).
             const auto expanded = untabify( std::move( line ) );
             REQUIRE( expanded.size() == MaxExpandedLineLength );
-            REQUIRE( expanded.back() == QChar::Space );
+            REQUIRE( expanded.endsWith( ExpandedLineCutWarning ) );
+            REQUIRE( expanded.left( expanded.size() - ExpandedLineCutWarning.size() )
+                         .trimmed()
+                         .isEmpty() );
         }
     }
 

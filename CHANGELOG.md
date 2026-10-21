@@ -103,6 +103,11 @@
   where they move by the rows shown, sorted or not. They skip marks and
   context lines that are no match; the keys can be changed in the shortcut
   settings.
+- **A Log Line whose tab expansion is cut says so**: a Log Line whose tabs
+  would expand past the maximum expanded length of a million columns is shown
+  cut there, with its last columns reading `LOGSQUIRL WARNING: tab expansion
+  cut here` instead of being truncated silently, the way a line too long to
+  read reads as a warning. Ordinary Log Lines expand as before. (#848)
 
 ## Security
 

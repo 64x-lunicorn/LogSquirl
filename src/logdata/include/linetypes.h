@@ -311,6 +311,12 @@ constexpr int TabStop = 8;
 // Lines exceeding this after tab expansion are truncated.
 constexpr int MaxExpandedLineLength = 1'000'000;
 
+// What the last columns of a Log Line read as when its tab expansion was cut
+// at MaxExpandedLineLength: the cut shows where it happened, the way a Log
+// Line too long to read reads as a warning (loglinetext.h). The expansion
+// keeps its capped length, which the column mapping counts on (#848).
+inline constexpr QStringView ExpandedLineCutWarning = u" LOGSQUIRL WARNING: tab expansion cut here";
+
 // Replaces tab characters with the appropriate number of spaces using O(n) single-pass
 // algorithm. Also replaces null characters with spaces.
 //
@@ -383,6 +389,11 @@ inline QString untabify( QString&& line, LineColumn initialPosition = 0_lcol )
             ++column;
             ++outPos;
         }
+    }
+
+    if ( truncated ) {
+        std::copy_n( ExpandedLineCutWarning.data(), ExpandedLineCutWarning.size(),
+                     out + expandedLen - ExpandedLineCutWarning.size() );
     }
 
     return result;
