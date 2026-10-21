@@ -36,6 +36,7 @@
 #include <QVBoxLayout>
 
 #include "configuration.h"
+#include "plaintext.h"
 
 CsvExportDialog::CsvExportDialog( Setup setup, QWidget* parent )
     : QDialog( parent )
@@ -45,10 +46,12 @@ CsvExportDialog::CsvExportDialog( Setup setup, QWidget* parent )
                                              tr( "CSV files (*.csv)" ) );
     } )
     , confirmOverwrite_( []( QWidget* dialogParent, const QString& fileName ) {
-        return QMessageBox::question( dialogParent, tr( "Export as CSV" ),
-                                      tr( "%1 already exists.\nDo you want to replace it?" )
-                                          .arg( QFileInfo( fileName ).fileName() ),
-                                      QMessageBox::Yes | QMessageBox::No, QMessageBox::No )
+        // The file name reads literally (#830).
+        return logsquirl::plaintext::question(
+                   dialogParent, tr( "Export as CSV" ),
+                   tr( "%1 already exists.\nDo you want to replace it?" )
+                       .arg( QFileInfo( fileName ).fileName() ),
+                   QMessageBox::Yes | QMessageBox::No, QMessageBox::No )
                == QMessageBox::Yes;
     } )
 {
