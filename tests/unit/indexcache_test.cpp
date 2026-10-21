@@ -18,6 +18,7 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <limits>
 #include <vector>
@@ -56,10 +57,11 @@ LinePositionArray makeLinePositions( std::initializer_list<qint64> offsets )
 const auto SomeLinePositions = makeLinePositions( { 4, 8, 20, 4000, 20000, 20050 } );
 
 bool store( const IndexCache& cache, const QString& logFile,
-            const LinePositionArray& linePositions = SomeLinePositions )
+            const LinePositionArray& linePositions = SomeLinePositions,
+            const QByteArray& encodingName = "UTF-8" )
 {
-    return cache.trySave( logFile, linePositions, LineLength( 30 ), hashOfFile( logFile ), "UTF-8",
-                          false );
+    return cache.trySave( logFile, linePositions, LineLength( 30 ), hashOfFile( logFile ),
+                          encodingName, false );
 }
 
 QStringList cacheFiles( const QString& directory )
@@ -582,6 +584,56 @@ SCENARIO( "The Index cache keeps line positions of a block spanning 4 GiB or mor
                 REQUIRE_FALSE( cache.tryLoad( logFile ).has_value() );
                 REQUIRE( cacheFiles( cacheDir.path() ).isEmpty() );
             }
+        }
+    }
+}
+
+SCENARIO( "The Index cache drops a UTF-16 Index of the format before #804", "[indexcache]" )
+{
+    // Up to format 2, a UTF-16 or UTF-32 Index could break a Log Line at a
+    // line feed byte straddling two code units (#804). Format 3 is laid out
+    // as format 2 was.
+    QTemporaryDir cacheDir;
+    QTemporaryDir logDir;
+    REQUIRE( cacheDir.isValid() );
+    REQUIRE( logDir.isValid() );
+    const IndexCache cache{ cacheDir.path(), QString{}, NoBudgetLimit };
+    const auto logFile = logDir.filePath( "encoded.log" );
+    writeFile( logFile, "first line\nsecond line\n" );
+
+    const auto encodingName
+        = GENERATE( QByteArray( "UTF-16LE" ), QByteArray( "UTF-16BE" ), QByteArray( "UTF-32LE" ),
+                    QByteArray( "UTF-8" ), QByteArray( "ISO-8859-1" ) );
+    const auto multiByteLineFeed
+        = encodingName.startsWith( "UTF-16" ) || encodingName.startsWith( "UTF-32" );
+    CAPTURE( encodingName );
+    REQUIRE( store( cache, logFile, SomeLinePositions, encodingName ) );
+
+    GIVEN( "the Index stored as the format before, 2, stores it" )
+    {
+        const auto files = cacheFiles( cacheDir.path() );
+        REQUIRE( files.size() == 1 );
+        QFile entry( QDir( cacheDir.path() ).filePath( files.first() ) );
+        REQUIRE( entry.open( QIODevice::ReadWrite ) );
+        // The magic, then the format version, big-endian as QDataStream
+        // writes it.
+        REQUIRE( entry.seek( 4 ) );
+        REQUIRE( entry.write( QByteArray( "\0\0\0\x02", 4 ) ) == 4 );
+        entry.close();
+
+        THEN( "only an Index of an Encoding whose line feed is one byte is handed out" )
+        {
+            REQUIRE( cache.tryLoad( logFile ).has_value() != multiByteLineFeed );
+        }
+    }
+
+    GIVEN( "the Index stored as this format stores it" )
+    {
+        THEN( "it is handed out, whatever its Encoding" )
+        {
+            const auto loaded = cache.tryLoad( logFile );
+            REQUIRE( loaded.has_value() );
+            REQUIRE( loaded->encodingName == encodingName );
         }
     }
 }

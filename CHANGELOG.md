@@ -126,7 +126,8 @@
   UTF-16LE, say) no longer counts as a line feed or a tab. Lines break only at
   whole line feed code units, in UTF-16LE and UTF-16BE alike, so line numbers
   and line text match the file; UTF-8 and single-byte files index as before.
-  (#804)
+  A UTF-16 or UTF-32 file whose index an earlier version cached is indexed
+  once more; the cached indexes of other files are kept. (#804)
 
 # v26.11.0-beta1 (2026-10-09)
 
