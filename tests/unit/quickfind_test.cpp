@@ -452,12 +452,15 @@ SCENARIO( "Quick Find with a single-character pattern on a megabyte Log Line fin
             ranges.addMatches( matches );
             const auto elapsed = clock.elapsed();
 
-            THEN( "every character is a match, found and ranged in well under a second" )
+            THEN( "every character is a match, found and ranged in bounded time" )
             {
                 REQUIRE( found );
                 REQUIRE( matches.size() == static_cast<std::size_t>( line.size() ) );
                 REQUIRE( ranges.matches().size() == matches.size() );
-                REQUIRE( elapsed < 2000 );
+                // A fifth of a second here; the quadratic ranging this replaced
+                // took hours for a million matches, so the bound only has to
+                // stand the sanitizers' slowdown (#826).
+                REQUIRE( elapsed < 30000 );
             }
         }
     }

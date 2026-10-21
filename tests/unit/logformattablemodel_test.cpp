@@ -1036,7 +1036,9 @@ SCENARIO( "A Log File with a 50 MB Log Line opens in the Table View without a st
                 // milliseconds, and each pass would take three -- the Row's
                 // cells, its spans, its Timestamp for the next Row's elapsed
                 // time -- for seconds in all.
-                REQUIRE( elapsed < 1000 );
+                // Well under a second here; the uncapped extraction took
+                // seconds, and tens of them under the sanitizers (#826).
+                REQUIRE( elapsed < 8000 );
             }
 
             THEN( "the huge Log Line shows whole in the last field, as one the Log Format does "
