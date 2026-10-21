@@ -76,7 +76,7 @@ QStringList cacheFiles( const QString& directory )
     return QDir( directory ).entryList( { QStringLiteral( "*.idx" ) }, QDir::Files );
 }
 
-// Stores an Index and dates the cache file that store produced. The cache
+// Stores an Index and dates the entry's file that store produced. The cache
 // file's name is a hash of the Log File's path, so the only reliable way to
 // tell which file is the new one is to compare the directory before and after.
 void storeWrittenAt( const IndexCache& cache, const QString& directory, const QString& logFile,
@@ -235,7 +235,7 @@ SCENARIO( "The Index cache hands out an Index only while it fits its Log File", 
             }
         }
 
-        WHEN( "the cache file is deleted before it is opened, as a concurrent eviction would" )
+        WHEN( "the entry's file is deleted before it is opened, as a concurrent eviction would" )
         {
             for ( const auto& name : cacheFiles( cacheDir.path() ) ) {
                 REQUIRE( QFile::remove( QDir( cacheDir.path() ).filePath( name ) ) );
@@ -247,7 +247,7 @@ SCENARIO( "The Index cache hands out an Index only while it fits its Log File", 
             }
         }
 
-        WHEN( "the cache file is not an Index" )
+        WHEN( "the entry's file is not an Index" )
         {
             const auto names = cacheFiles( cacheDir.path() );
             REQUIRE( names.size() == 1 );
@@ -513,7 +513,7 @@ SCENARIO( "An Index cache given no directory stores nothing", "[indexcache]" )
 {
     // An underived Indexing Policy carries an empty directory, and so does a
     // Policy with the cache turned off. Resolving that against the working
-    // directory, or the filesystem root, would scatter cache files wherever
+    // directory, or the filesystem root, would scatter entries wherever
     // the process happens to run.
     QTemporaryDir logDir;
     REQUIRE( logDir.isValid() );
@@ -590,7 +590,7 @@ SCENARIO( "The Index cache drops an Index of a format before this one", "[indexc
 
 namespace {
 
-// The one cache file of a directory holding one entry.
+// The file of the one entry a directory holds.
 QString onlyCacheFile( const QString& directory )
 {
     const auto names = cacheFiles( directory );

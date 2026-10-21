@@ -118,7 +118,7 @@
 - **Plugin downloads are verified**: a plugin is installed only when its catalog
   entry carries a well-formed SHA-256 the downloaded archive matches, and every
   catalog, release and icon URL must be https; an entry that fails either is
-  listed as not installable with the reason. (#818)
+  listed as not installable with the reason. (#817, #818)
 - **A plugin id is a plain name, never a path**: an id from the plugin catalog
   or a plugin manifest is accepted only when it consists of letters, digits,
   dots, dashes and underscores and does not start with a dot; any other entry is

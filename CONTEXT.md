@@ -710,7 +710,7 @@ _Avoid_: persistent tab, normal file
 **Portable Run**:
 A run of LogSquirl that keeps everything it stores beside its executable: its settings and
 Session in `logsquirl.conf` and `logsquirl_session.conf`, and its Log Formats, plugins,
-plugin configuration, Team Folder, theme stylesheets and crash dumps in its data directory,
+plugin configuration, Team Folder, theme stylesheets, crash dumps and debug logs in its data directory,
 which is the executable's directory. A run is portable when its build says so (the portable
 package, the command line tool, the test binaries) or when it finds `logsquirl.conf` beside
 its executable; every other run is installed and keeps them in the user profile. One place

@@ -335,7 +335,7 @@ void CompressedLinePositionStorage::serialize( QDataStream& out ) const
 bool CompressedLinePositionStorage::deserialize( QDataStream& in )
 {
     // Every count read is bounded by what the stream still holds before
-    // room is made for it: a short cache file announcing millions of blocks
+    // room is made for it: a short Index Cache entry announcing millions of blocks
     // or gigabytes of packed bytes is refused without reserving (#824).
     const auto* device = in.device();
     if ( device == nullptr ) {

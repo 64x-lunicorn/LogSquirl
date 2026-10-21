@@ -218,7 +218,7 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
 
     // Action button: a release that could not be verified is not offered (#818).
     const auto installable = plugin.installRefusal.isEmpty();
-    actionButton->setToolTip( plugin.installRefusal );
+    actionButton->setToolTip( logsquirl::plaintext::toolTip( plugin.installRefusal ) );
     switch ( plugin.state ) {
     case PluginState::NotInstalled:
         actionButton->setText( tr( "Install" ) );
