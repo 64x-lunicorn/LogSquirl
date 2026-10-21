@@ -1158,6 +1158,10 @@ sha256sum myplugin-1.0.0-macos.zip      # Linux
 shasum -a 256 myplugin-1.0.0-macos.zip  # macOS
 ```
 
+`scripts/check_plugin_catalog.py` downloads every archive the public catalog
+offers and compares it with the catalog's hash; the maintainer runs it after a
+catalog change (#817).
+
 Every URL a catalog entry or a release manifest hands out, `releases_url`,
 `icon_url`, `repo_url` and `download_url`, must use `https`. An entry or an
 asset with any other scheme, `http` included, is skipped when the catalog is
