@@ -247,6 +247,10 @@
   concerned read as the file-read-failed warning instead of another line's
   bytes. An Index Cache entry that is refused while loading leaves no
   half-filled line positions behind. (#845)
+- **Quick Find's notices are translated**: the notices Quick Find shows when
+  it reaches the end or the beginning of the log file, including what they say
+  of the Log Lines the regex engine gave up on, read in the chosen language
+  like the Search Line's notices. (#846)
 
 ## Build and packaging
 

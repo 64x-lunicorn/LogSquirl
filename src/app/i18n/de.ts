@@ -1129,76 +1129,76 @@ Muster: %2</translation>
 <context>
     <name>CsvExportDialog</name>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="44"/>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="48"/>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="55"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="45"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="51"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="58"/>
         <source>Export as CSV</source>
         <translation>Als CSV exportieren</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="45"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="46"/>
         <source>CSV files (*.csv)</source>
         <translation>CSV-Dateien (*.csv)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="49"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="52"/>
         <source>%1 already exists.
 Do you want to replace it?</source>
         <translation>%1 existiert bereits.
 Möchten Sie die Datei ersetzen?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="57"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="60"/>
         <source>Rows</source>
         <translation>Zeilen</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="60"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="63"/>
         <source>All rows</source>
         <translation>Alle Zeilen</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="61"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="64"/>
         <source>Selected rows</source>
         <translation>Ausgewählte Zeilen</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="75"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="78"/>
         <source>Columns</source>
         <translation>Spalten</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="87"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="90"/>
         <source>Separator</source>
         <translation>Trennzeichen</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="89"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="92"/>
         <source>Comma</source>
         <translation>Komma</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="90"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="93"/>
         <source>Semicolon</source>
         <translation>Semikolon</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="91"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="94"/>
         <source>Tab</source>
         <translation>Tabulator</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="104"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="107"/>
         <source>Write column names as the first row</source>
         <translation>Spaltennamen als erste Zeile schreiben</translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="108"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="111"/>
         <source>A field starting with =, +, - or @ is written with an apostrophe before it, so that a spreadsheet shows it as text.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/csvexportdialog.cpp" line="114"/>
+        <location filename="../../ui/src/csvexportdialog.cpp" line="117"/>
         <source>Export...</source>
         <translation>Exportieren...</translation>
     </message>
@@ -3296,7 +3296,7 @@ Rücktaste oder Entf löscht das Tastenkürzel.</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="242"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="944"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="947"/>
         <source>Update</source>
         <translation>Aktualisieren</translation>
     </message>
@@ -3337,7 +3337,7 @@ Rücktaste oder Entf löscht das Tastenkürzel.</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="321"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="720"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="724"/>
         <source>Updates</source>
         <translation>Updates</translation>
     </message>
@@ -3382,17 +3382,17 @@ Rücktaste oder Entf löscht das Tastenkürzel.</translation>
         <translation>Heruntergeladen nach %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="489"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="493"/>
         <source>%1 installed and activated.</source>
         <translation>%1 installiert und aktiviert.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="490"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="494"/>
         <source>Plugin Installed</source>
         <translation>Plugin installiert</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="491"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="495"/>
         <source>%1 has been installed and activated.
 
 You can now use it from the Plugins menu.</source>
@@ -3401,113 +3401,113 @@ You can now use it from the Plugins menu.</source>
 Sie können es jetzt über das Menü „Plugins“ verwenden.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="503"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="507"/>
         <source>Download failed: %1</source>
         <translation>Download fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="504"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="508"/>
         <source>Download Error</source>
         <translation>Downloadfehler</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="513"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="517"/>
         <source>No compatible download available on this platform.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="717"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="721"/>
         <source>All (%1)</source>
         <translation>Alle (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="718"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="722"/>
         <source>Installed (%1)</source>
         <translation>Installiert (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="719"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="723"/>
         <source>Updates (%1)</source>
         <translation>Updates (%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="730"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="846"/>
-        <location filename="../../ui/src/plugindialog.cpp" line="876"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="734"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="850"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="880"/>
         <source>Install Error</source>
         <translation>Installationsfehler</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="731"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="735"/>
         <source>No compatible download available for %1 on this platform.</source>
         <translation>Für %1 ist auf dieser Plattform kein kompatibler Download verfügbar.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="746"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="750"/>
         <source>Downloading %1...</source>
         <translation>%1 wird heruntergeladen...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="752"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="756"/>
         <source>Installing...</source>
         <translation>Wird installiert...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="789"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="793"/>
         <source>Plugin disabled.</source>
         <translation>Plugin deaktiviert.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="799"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="803"/>
         <source>Plugin Error</source>
         <translation>Plugin-Fehler</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="800"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="804"/>
         <source>Failed to load %1:
 %2</source>
         <translation>%1 konnte nicht geladen werden:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="803"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="807"/>
         <source>Plugin enabled.</source>
         <translation>Plugin aktiviert.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="844"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="848"/>
         <source>Installation refused.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="847"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="851"/>
         <source>The plugin id %1 is not a plain name and names no folder in the plugin folder.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="874"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="878"/>
         <source>Installation failed.</source>
         <translation>Installation fehlgeschlagen.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="877"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="881"/>
         <source>Failed to extract plugin archive:
 %1</source>
         <translation>Plugin-Archiv konnte nicht entpackt werden:
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="892"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="895"/>
         <source>Extracted but failed to load.</source>
         <translation>Entpackt, aber Laden fehlgeschlagen.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="893"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="896"/>
         <source>Load Error</source>
         <translation>Ladefehler</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="894"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="897"/>
         <source>Plugin was extracted but could not be loaded:
 %1
 
@@ -3518,17 +3518,17 @@ Restart LogSquirl to try again.</source>
 Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="942"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="945"/>
         <source>Active</source>
         <translation>Aktiv</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="946"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="949"/>
         <source>Disabled</source>
         <translation>Deaktiviert</translation>
     </message>
     <message>
-        <location filename="../../ui/src/plugindialog.cpp" line="948"/>
+        <location filename="../../ui/src/plugindialog.cpp" line="951"/>
         <source>Available</source>
         <translation>Verfügbar</translation>
     </message>
@@ -4366,9 +4366,37 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
     </message>
 </context>
 <context>
+    <name>QFNotification</name>
+    <message>
+        <location filename="../../ui/src/quickfindwidget.cpp" line="58"/>
+        <source>Reached end of file, no occurrence found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/quickfindwidget.cpp" line="63"/>
+        <source>Reached beginning of file, no occurrence found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/quickfindwidget.cpp" line="68"/>
+        <source>Search interrupted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/quickfindwidget.cpp" line="75"/>
+        <source> (the regex engine gave up on %1 Log Lines: they may match)</source>
+        <translation type="unfinished"> (die Regex-Engine hat bei %1 Logzeilen aufgegeben: sie können Treffer sein)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/quickfindwidget.cpp" line="79"/>
+        <source> (the regex engine gave up on 1 Log Line: it may match)</source>
+        <translation type="unfinished"> (die Regex-Engine hat bei 1 Logzeile aufgegeben: sie kann ein Treffer sein)</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
-        <location filename="../../ui/include/qfnotifications.h" line="91"/>
+        <location filename="../../ui/include/qfnotifications.h" line="95"/>
         <source>Searching (position %1 %)</source>
         <translation>Suche (Position %1 %)</translation>
     </message>
@@ -4398,12 +4426,12 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
         <translation>B</translation>
     </message>
     <message>
-        <location filename="../main.cpp" line="326"/>
+        <location filename="../main.cpp" line="335"/>
         <source>Loading settings...</source>
         <translation>Einstellungen werden geladen...</translation>
     </message>
     <message>
-        <location filename="../main.cpp" line="331"/>
+        <location filename="../main.cpp" line="340"/>
         <source>Restoring session...</source>
         <translation>Sitzung wird wiederhergestellt...</translation>
     </message>

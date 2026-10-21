@@ -53,20 +53,30 @@
 
 static constexpr int NotificationTimeout = 5000;
 
-const QString QFNotification::REACHED_EOF = "Reached end of file, no occurrence found.";
-const QString QFNotification::REACHED_BOF = "Reached beginning of file, no occurrence found.";
-const QString QFNotification::INTERRUPTED = "Search interrupted";
+QString QFNotification::reachedEndOfFile()
+{
+    return tr( "Reached end of file, no occurrence found." );
+}
+
+QString QFNotification::reachedBeginningOfFile()
+{
+    return tr( "Reached beginning of file, no occurrence found." );
+}
+
+QString QFNotification::interrupted()
+{
+    return tr( "Search interrupted" );
+}
 
 QString QFNotification::withUndecided( const QString& message, int undecidedLines )
 {
     if ( undecidedLines > 1 ) {
         return message
-               + QStringLiteral( " (the regex engine gave up on %1 Log Lines: they may match)" )
+               + tr( " (the regex engine gave up on %1 Log Lines: they may match)" )
                      .arg( undecidedLines );
     }
     if ( undecidedLines == 1 ) {
-        return message
-               + QStringLiteral( " (the regex engine gave up on 1 Log Line: it may match)" );
+        return message + tr( " (the regex engine gave up on 1 Log Line: it may match)" );
     }
     return message;
 }

@@ -32,8 +32,10 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
+#include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QStringList>
+#include <QTranslator>
 
 #include <atomic>
 #include <chrono>
@@ -537,5 +539,57 @@ SCENARIO( "Quick Find tells a Log Line the regex engine gave up on", "[quickfind
                     "the regex engine gave up on 1 Log Line: it may match" ) );
             }
         }
+    }
+}
+
+namespace {
+
+// A translator that marks every string asked for in the notices' context, so
+// a notice shows whether it goes through tr() (#846).
+class MarkingTranslator : public QTranslator {
+public:
+    QString translate( const char* context, const char* sourceText, const char* disambiguation,
+                       int n ) const override
+    {
+        Q_UNUSED( disambiguation );
+        Q_UNUSED( n );
+        if ( qstrcmp( context, "QFNotification" ) != 0 ) {
+            return {};
+        }
+        return QStringLiteral( "[translated]" ) + QString::fromUtf8( sourceText );
+    }
+
+    bool isEmpty() const override
+    {
+        return false;
+    }
+};
+
+} // namespace
+
+SCENARIO( "Quick Find's notices are translated", "[quickfind][i18n]" )
+{
+    GIVEN( "a translation of the notices" )
+    {
+        MarkingTranslator translator;
+        REQUIRE( QCoreApplication::installTranslator( &translator ) );
+
+        THEN( "every notice reads in that translation, what it says of the Log Lines the regex "
+              "engine gave up on included" )
+        {
+            CHECK( QFNotificationReachedEndOfFile().message()
+                   == "[translated]Reached end of file, no occurrence found." );
+            CHECK( QFNotificationReachedBegininningOfFile().message()
+                   == "[translated]Reached beginning of file, no occurrence found." );
+            CHECK( QFNotificationInterrupted().message() == "[translated]Search interrupted" );
+            CHECK( QFNotificationReachedEndOfFile( 2 ).message()
+                   == "[translated]Reached end of file, no occurrence found."
+                      "[translated] (the regex engine gave up on 2 Log Lines: they may match)" );
+            CHECK( QFNotificationReachedBegininningOfFile( 1 ).message()
+                   == "[translated]Reached beginning of file, no occurrence found."
+                      "[translated] (the regex engine gave up on 1 Log Line: it may match)" );
+        }
+
+        QCoreApplication::removeTranslator( &translator );
     }
 }
