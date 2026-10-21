@@ -329,15 +329,15 @@ private:
     // Per-plugin context stored alongside the handle
     struct PluginContext {
         PluginHandle handle;
-        LogSquirlHostApi hostApi;
-        QString configDir;
-        QByteArray configDirUtf8; ///< Cached UTF-8 so get_config_dir ptr stays valid
+        LogSquirlHostApi hostApi{};
+        QString configDir{};
+        QByteArray configDirUtf8{}; ///< Cached UTF-8 so get_config_dir ptr stays valid
         // Non-null while this plugin runs as a data source. The push
         // callbacks read and use it on the plugin's threads, the host ends it
         // on its own: each under streamMutex, so a push under way has
         // returned before the stream goes, and a later one finds none (#821).
         std::mutex streamMutex{};
-        std::unique_ptr<StreamWriter> stream;
+        std::unique_ptr<StreamWriter> stream{};
         // Back-pointer to the owning PluginHost (for static trampolines)
         PluginHost* host = nullptr;
         // Which load of the plugin this is, from any thread: a call queued to
