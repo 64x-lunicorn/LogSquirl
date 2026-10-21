@@ -37,6 +37,7 @@ using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
 using logsquirl::plugins::PluginRepository;
+using logsquirl::plugins::ReleaseEntry;
 
 namespace {
 
@@ -129,6 +130,17 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     formatWarningLabel->setVisible( false );
     centerLayout->addWidget( formatWarningLabel );
 
+    // Why the catalog's release cannot be installed (#818); hidden while it can.
+    installRefusalLabel = new QLabel( this );
+    installRefusalLabel->setTextFormat( Qt::PlainText );
+    installRefusalLabel->setObjectName( "installRefusalLabel" );
+    installRefusalLabel->setWordWrap( true );
+    installRefusalLabel->setStyleSheet(
+        QStringLiteral( "font-size: 11px; color: %1;" )
+            .arg( Theme::active().color( ColorToken::StatusWarning ).name( QColor::HexRgb ) ) );
+    installRefusalLabel->setVisible( false );
+    centerLayout->addWidget( installRefusalLabel );
+
     centerLayout->addStretch();
     mainLayout->addLayout( centerLayout, 1 );
 
@@ -137,6 +149,7 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     rightLayout->setSpacing( 6 );
 
     actionButton = new QPushButton( this );
+    actionButton->setObjectName( "actionButton" );
     actionButton->setFixedWidth( 90 );
     rightLayout->addWidget( actionButton );
 
@@ -185,21 +198,28 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
                                                     : tr( "License: %1" ).arg( plugin.license ) );
     licenseLabel->setVisible( !plugin.license.isEmpty() );
 
-    // Log Format warnings: a card with some grows to hold them.
+    // Log Format warnings and an install refusal: a card with some grows to
+    // hold them.
     formatWarningLabel->setText( plugin.formatWarnings.join( QChar( '\n' ) ) );
     formatWarningLabel->setVisible( !plugin.formatWarnings.isEmpty() );
-    setMaximumHeight( plugin.formatWarnings.isEmpty() ? CardHeight : QWIDGETSIZE_MAX );
+    installRefusalLabel->setText( plugin.installRefusal );
+    installRefusalLabel->setVisible( !plugin.installRefusal.isEmpty() );
+    setMaximumHeight( plugin.formatWarnings.isEmpty() && plugin.installRefusal.isEmpty()
+                          ? CardHeight
+                          : QWIDGETSIZE_MAX );
 
     // Status badge
     statusBadge->setText( badgeText( plugin.state ) );
     statusBadge->setStyleSheet( badgeStyleSheet( plugin.state ) );
     statusBadge->setVisible( true );
 
-    // Action button
+    // Action button: a release that could not be verified is not offered (#818).
+    const auto installable = plugin.installRefusal.isEmpty();
+    actionButton->setToolTip( plugin.installRefusal );
     switch ( plugin.state ) {
     case PluginState::NotInstalled:
         actionButton->setText( tr( "Install" ) );
-        actionButton->setEnabled( true );
+        actionButton->setEnabled( installable );
         actionButton->setVisible( true );
         toggleButton->setVisible( false );
         break;
@@ -217,7 +237,7 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
         break;
     case PluginState::UpdateReady:
         actionButton->setText( tr( "Update" ) );
-        actionButton->setEnabled( true );
+        actionButton->setEnabled( installable );
         actionButton->setVisible( true );
         toggleButton->setText( tr( "Disable" ) );
         toggleButton->setEnabled( true );
@@ -375,6 +395,12 @@ PluginDialog::PluginDialog( ApplicationPlugins& plugins, QWidget* parent )
     Theme::whenApplied( this, [ this ] { rebuildCards(); } );
 }
 
+void PluginDialog::showCatalog( const QByteArray& catalogJson )
+{
+    catalogFetched_ = true;
+    repository_.parseCatalog( catalogJson );
+}
+
 void PluginDialog::showEvent( QShowEvent* event )
 {
     QDialog::showEvent( event );
@@ -461,6 +487,15 @@ void PluginDialog::onDownloadError( const QString& message )
 
 // ── Merge local + remote data ─────────────────────────────────────────
 
+QString PluginDialog::installRefusal( const ReleaseEntry& release )
+{
+    // installPlugin() downloads the first asset, so that one decides (#818).
+    if ( release.assets.empty() ) {
+        return tr( "No compatible download available on this platform." );
+    }
+    return PluginRepository::downloadRefusal( release.assets.front() );
+}
+
 void PluginDialog::rebuildMergedList()
 {
     const auto& config = Configuration::get();
@@ -515,6 +550,7 @@ void PluginDialog::rebuildMergedList()
             const auto* latest = repository_.latestRelease( ce.id );
             if ( latest ) {
                 mp.latestVersion = latest->version;
+                mp.installRefusal = installRefusal( *latest );
                 if ( !mp.installedVersion.isEmpty() && mp.installedVersion != latest->version ) {
                     mp.state = PluginState::UpdateReady;
                 }
@@ -533,6 +569,7 @@ void PluginDialog::rebuildMergedList()
             const auto* latest = repository_.latestRelease( ce.id );
             if ( latest ) {
                 mp.latestVersion = latest->version;
+                mp.installRefusal = installRefusal( *latest );
             }
 
             byId[ mp.id ] = std::move( mp );

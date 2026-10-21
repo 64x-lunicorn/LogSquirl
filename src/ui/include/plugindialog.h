@@ -71,6 +71,12 @@ public:
      */
     void showLogFormatWarnings( std::shared_ptr<const LogFormatCatalog> logFormatCatalog );
 
+    /**
+     * Show the plugins of a catalog document in place of the fetched one,
+     * as the tests do; nothing is fetched for a schema v1 document (#818).
+     */
+    void showCatalog( const QByteArray& catalogJson );
+
 protected:
     /**
      * Fetches the remote catalog the first time the dialog is shown. A dialog
@@ -106,6 +112,7 @@ private:
         QString license;
         QString installedVersion;
         QString latestVersion;
+        QString installRefusal; ///< Why the latest release cannot be installed; empty when it can
         PluginState state = PluginState::NotInstalled;
         bool loaded = false;       ///< Loaded in the Plugin Host
         bool configurable = false; ///< Loaded and exports logsquirl_plugin_configure
@@ -134,6 +141,7 @@ private:
         QLabel* licenseLabel = nullptr;
         QLabel* descriptionLabel = nullptr;
         QLabel* formatWarningLabel = nullptr;
+        QLabel* installRefusalLabel = nullptr;
         QLabel* statusBadge = nullptr;
         QPushButton* actionButton = nullptr;
         QPushButton* toggleButton = nullptr;
@@ -144,6 +152,9 @@ private:
     };
 
     // ── Internal helpers ─────────────────────────────────────────────
+
+    /** Why the release cannot be installed, for the card; empty when it can (#818). */
+    static QString installRefusal( const logsquirl::plugins::ReleaseEntry& release );
 
     /** Rebuild merged plugin list from discovered + catalog data. */
     void rebuildMergedList();

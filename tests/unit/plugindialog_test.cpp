@@ -257,3 +257,78 @@ SCENARIO( "Plugin Management shows what the Catalog could not read of a plugin's
         }
     }
 }
+
+// A catalog entry whose download could not be verified is listed, but
+// cannot be installed, and the card says why (#818).
+SCENARIO( "Plugin Management shows a catalog entry without a checksum as not installable",
+          "[plugindialog][plugins]" )
+{
+    ApplicationPlugins plugins;
+
+    const auto catalog = []( const QString& sha256 ) {
+        return QStringLiteral( R"({
+            "schema_version": 1,
+            "plugins": [
+                { "id": "io.test.remote", "name": "Remote", "version": "1.0.0",
+                  "download_url": "https://files.test/remote.zip", "sha256": "%1",
+                  "platforms": ["all"] }
+            ]
+        })" )
+            .arg( sha256 )
+            .toUtf8();
+    };
+
+    // The one card's Install button and refusal label, once the cards the
+    // catalog replaced are gone.
+    const auto installButton = []( const PluginDialog& dialog ) {
+        QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+        const auto buttons = dialog.findChildren<QPushButton*>( "actionButton" );
+        REQUIRE( buttons.size() == 1 );
+        return buttons.front();
+    };
+    const auto refusalLabel = []( const PluginDialog& dialog ) {
+        QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+        const auto labels = dialog.findChildren<QLabel*>( "installRefusalLabel" );
+        REQUIRE( labels.size() == 1 );
+        return labels.front();
+    };
+
+    GIVEN( "a catalog whose entry carries a checksum" )
+    {
+        PluginDialog dialog( plugins );
+        dialog.showCatalog( catalog( QString( 64, 'a' ) ) );
+
+        THEN( "the card offers Install and shows no refusal" )
+        {
+            CHECK( installButton( dialog )->isEnabled() );
+            CHECK_FALSE( refusalLabel( dialog )->isVisibleTo( &dialog ) );
+        }
+    }
+
+    GIVEN( "a catalog whose entry carries no checksum" )
+    {
+        PluginDialog dialog( plugins );
+        dialog.showCatalog( catalog( "" ) );
+
+        THEN( "the card's Install is disabled and the card says the entry carries no checksum" )
+        {
+            CHECK_FALSE( installButton( dialog )->isEnabled() );
+            const auto* label = refusalLabel( dialog );
+            CHECK( label->isVisibleTo( &dialog ) );
+            CHECK( label->text().contains( "checksum" ) );
+            CHECK( installButton( dialog )->toolTip() == label->text() );
+        }
+    }
+
+    GIVEN( "a catalog whose entry carries a malformed checksum" )
+    {
+        PluginDialog dialog( plugins );
+        dialog.showCatalog( catalog( "abc" ) );
+
+        THEN( "the card's Install is disabled and the card says why" )
+        {
+            CHECK_FALSE( installButton( dialog )->isEnabled() );
+            CHECK( refusalLabel( dialog )->text().contains( "checksum" ) );
+        }
+    }
+}

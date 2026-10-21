@@ -46,10 +46,40 @@ constexpr auto DefaultIndexUrl
 // Empty vector returned when no releases exist for a plugin ID
 const std::vector<ReleaseEntry> EmptyReleases;
 
+// The only scheme a catalog or a release feed may hand out: a plain http
+// URL would let anyone on the path swap the archive or the feed (#818).
+bool isHttps( const QUrl& url )
+{
+    return url.isValid() && !url.isEmpty() && url.scheme() == QLatin1String( "https" );
+}
+
+// An optional URL: left out, or https.
+bool isAbsentOrHttps( const QUrl& url )
+{
+    return url.isEmpty() || isHttps( url );
+}
+
+// A SHA-256 as the catalog spells it: 64 hex digits, either case.
+bool isSha256Hex( const QString& hash )
+{
+    return hash.size() == 64 && std::all_of( hash.cbegin(), hash.cend(), []( QChar c ) {
+               return ( c >= u'0' && c <= u'9' ) || ( c >= u'a' && c <= u'f' )
+                      || ( c >= u'A' && c <= u'F' );
+           } );
+}
+
 } // namespace
 
 PluginRepository::PluginRepository( QObject* parent )
     : QObject( parent )
+    , network_( new QNetworkAccessManager( this ) )
+    , indexUrl_( DefaultIndexUrl )
+{
+}
+
+PluginRepository::PluginRepository( QNetworkAccessManager& network, QObject* parent )
+    : QObject( parent )
+    , network_( &network )
     , indexUrl_( DefaultIndexUrl )
 {
 }
@@ -66,7 +96,7 @@ void PluginRepository::fetchCatalog()
     QNetworkRequest request( indexUrl_ );
     request.setHeader( QNetworkRequest::UserAgentHeader, "LogSquirl-PluginRepo/2.0" );
 
-    auto* reply = network_.get( request );
+    auto* reply = network_->get( request );
     connect( reply, &QNetworkReply::finished, this, [ this, reply ]() {
         reply->deleteLater();
 
@@ -141,6 +171,12 @@ void PluginRepository::parseCatalogV1( const QJsonArray& plugins )
         entry.author = obj.value( "author" ).toString();
         entry.license = obj.value( "license" ).toString();
         entry.downloadUrl = QUrl( obj.value( "download_url" ).toString() );
+        if ( !isHttps( entry.downloadUrl ) ) {
+            LOG_WARNING << "Skipping catalog entry '" << entry.id
+                        << "': its download URL is not https: '" << entry.downloadUrl.toString()
+                        << "'";
+            continue;
+        }
         entry.sha256 = obj.value( "sha256" ).toString();
         entry.apiVersion = obj.value( "api_version" ).toInt( 1 );
 
@@ -224,6 +260,12 @@ void PluginRepository::parseCatalogV2( const QJsonArray& plugins )
         entry.repoUrl = QUrl( obj.value( "repo_url" ).toString() );
         entry.releasesUrl = QUrl( obj.value( "releases_url" ).toString() );
         entry.iconUrl = QUrl( obj.value( "icon_url" ).toString() );
+        if ( !isAbsentOrHttps( entry.releasesUrl ) || !isAbsentOrHttps( entry.iconUrl )
+             || !isAbsentOrHttps( entry.repoUrl ) ) {
+            LOG_WARNING << "Skipping catalog entry '" << entry.id
+                        << "': its releases, icon or repository URL is not https";
+            continue;
+        }
         entry.license = obj.value( "license" ).toString();
 
         catalog_.push_back( std::move( entry ) );
@@ -239,12 +281,14 @@ void PluginRepository::fetchReleasesForAll()
 {
     pendingFetches_ = 0;
 
+    // Parsing skipped every entry with another scheme; checked again here so
+    // that nothing but https is ever requested (#818).
     for ( const auto& entry : catalog_ ) {
-        if ( entry.releasesUrl.isValid() && !entry.releasesUrl.isEmpty() ) {
+        if ( isHttps( entry.releasesUrl ) ) {
             ++pendingFetches_;
             fetchReleases( entry );
         }
-        if ( entry.iconUrl.isValid() && !entry.iconUrl.isEmpty() ) {
+        if ( isHttps( entry.iconUrl ) ) {
             ++pendingFetches_;
             fetchIcon( entry );
         }
@@ -263,7 +307,7 @@ void PluginRepository::fetchReleases( const CatalogEntry& entry )
     request.setHeader( QNetworkRequest::UserAgentHeader, "LogSquirl-PluginRepo/2.0" );
 
     const auto pluginId = entry.id;
-    auto* reply = network_.get( request );
+    auto* reply = network_->get( request );
     connect( reply, &QNetworkReply::finished, this, [ this, reply, pluginId ]() {
         reply->deleteLater();
 
@@ -312,6 +356,14 @@ void PluginRepository::parseReleases( const QString& pluginId, const QByteArray&
                 asset.platform = assetPlatform;
                 asset.downloadUrl = QUrl( aObj.value( "download_url" ).toString() );
                 asset.sha256 = aObj.value( "sha256" ).toString();
+                // An asset without a checksum stays, shown as not installable;
+                // one with another scheme is never offered (#818).
+                if ( !isHttps( asset.downloadUrl ) ) {
+                    LOG_WARNING << "Skipping release " << release.version << " asset of "
+                                << pluginId << ": its download URL is not https: '"
+                                << asset.downloadUrl.toString() << "'";
+                    continue;
+                }
                 release.assets.push_back( std::move( asset ) );
             }
         }
@@ -331,7 +383,7 @@ void PluginRepository::fetchIcon( const CatalogEntry& entry )
     request.setHeader( QNetworkRequest::UserAgentHeader, "LogSquirl-PluginRepo/2.0" );
 
     const auto pluginId = entry.id;
-    auto* reply = network_.get( request );
+    auto* reply = network_->get( request );
     connect( reply, &QNetworkReply::finished, this, [ this, reply, pluginId ]() {
         reply->deleteLater();
 
@@ -393,61 +445,83 @@ QPixmap PluginRepository::pluginIcon( const QString& pluginId ) const
 
 // ── Download ──────────────────────────────────────────────────────────
 
+QString PluginRepository::downloadRefusal( const ReleaseAsset& asset )
+{
+    if ( asset.downloadUrl.isEmpty() ) {
+        return tr( "The catalog entry carries no download URL." );
+    }
+    if ( !isHttps( asset.downloadUrl ) ) {
+        return tr( "The catalog entry's download URL is not https: %1" )
+            .arg( asset.downloadUrl.toString() );
+    }
+    if ( asset.sha256.isEmpty() ) {
+        return tr( "The catalog entry carries no SHA-256 checksum, so a download could not be "
+                   "verified." );
+    }
+    if ( !isSha256Hex( asset.sha256 ) ) {
+        return tr( "The catalog entry carries a malformed SHA-256 checksum (not 64 hex digits), "
+                   "so a download could not be verified." );
+    }
+    return {};
+}
+
 void PluginRepository::downloadPlugin( const ReleaseAsset& asset, const QString& pluginId,
                                        const QString& destDir )
 {
-    if ( asset.downloadUrl.isEmpty() ) {
-        Q_EMIT downloadError( tr( "No download URL for plugin %1" ).arg( pluginId ) );
+    // Refused before any request: what cannot be verified is not fetched (#818).
+    const auto refusal = downloadRefusal( asset );
+    if ( !refusal.isEmpty() ) {
+        LOG_WARNING << "Refusing to download plugin " << pluginId << ": " << refusal;
+        Q_EMIT downloadError( tr( "Download refused for %1: %2" ).arg( pluginId, refusal ) );
         return;
     }
 
     QNetworkRequest request( asset.downloadUrl );
     request.setHeader( QNetworkRequest::UserAgentHeader, "LogSquirl-PluginRepo/2.0" );
 
-    auto* reply = network_.get( request );
+    auto* reply = network_->get( request );
     connect( reply, &QNetworkReply::downloadProgress, this, &PluginRepository::downloadProgress );
 
     const auto expectedSha256 = asset.sha256.toLower();
     const auto fileName = QFileInfo( asset.downloadUrl.path() ).fileName();
 
-    connect( reply, &QNetworkReply::finished, this,
-             [ this, reply, destDir, expectedSha256, pluginId, fileName ]() {
-                 reply->deleteLater();
+    connect(
+        reply, &QNetworkReply::finished, this,
+        [ this, reply, destDir, expectedSha256, pluginId, fileName ]() {
+            reply->deleteLater();
 
-                 if ( reply->error() != QNetworkReply::NoError ) {
-                     Q_EMIT downloadError(
-                         tr( "Download failed for %1: %2" ).arg( pluginId, reply->errorString() ) );
-                     return;
-                 }
+            if ( reply->error() != QNetworkReply::NoError ) {
+                Q_EMIT downloadError(
+                    tr( "Download failed for %1: %2" ).arg( pluginId, reply->errorString() ) );
+                return;
+            }
 
-                 const auto data = reply->readAll();
+            const auto data = reply->readAll();
 
-                 if ( !expectedSha256.isEmpty() ) {
-                     const auto actualHash
-                         = QCryptographicHash::hash( data, QCryptographicHash::Sha256 )
-                               .toHex()
-                               .toLower();
-                     if ( actualHash != expectedSha256 ) {
-                         Q_EMIT downloadError( tr( "Checksum mismatch for %1: expected %2, got %3" )
-                                                   .arg( pluginId, expectedSha256,
-                                                         QString::fromLatin1( actualHash ) ) );
-                         return;
-                     }
-                 }
+            const auto actualHash
+                = QCryptographicHash::hash( data, QCryptographicHash::Sha256 ).toHex().toLower();
+            if ( actualHash != expectedSha256 ) {
+                LOG_WARNING << "Discarding download of plugin " << pluginId << ": SHA-256 "
+                            << actualHash << " is not the catalog's " << expectedSha256;
+                Q_EMIT downloadError(
+                    tr( "Checksum mismatch for %1: expected %2, got %3" )
+                        .arg( pluginId, expectedSha256, QString::fromLatin1( actualHash ) ) );
+                return;
+            }
 
-                 QDir().mkpath( destDir );
-                 const auto archivePath = QDir( destDir ).filePath( fileName );
-                 QFile outFile( archivePath );
-                 if ( !outFile.open( QIODevice::WriteOnly ) ) {
-                     Q_EMIT downloadError( tr( "Cannot write to %1" ).arg( archivePath ) );
-                     return;
-                 }
-                 outFile.write( data );
-                 outFile.close();
+            QDir().mkpath( destDir );
+            const auto archivePath = QDir( destDir ).filePath( fileName );
+            QFile outFile( archivePath );
+            if ( !outFile.open( QIODevice::WriteOnly ) ) {
+                Q_EMIT downloadError( tr( "Cannot write to %1" ).arg( archivePath ) );
+                return;
+            }
+            outFile.write( data );
+            outFile.close();
 
-                 LOG_INFO << "Downloaded plugin " << pluginId << " to " << archivePath;
-                 Q_EMIT downloadFinished( archivePath );
-             } );
+            LOG_INFO << "Downloaded plugin " << pluginId << " to " << archivePath;
+            Q_EMIT downloadFinished( archivePath );
+        } );
 }
 
 void PluginRepository::downloadPlugin( const RepositoryEntry& entry, const QString& destDir )

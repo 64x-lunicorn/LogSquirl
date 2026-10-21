@@ -1134,7 +1134,23 @@ releases without touching the central `plugins.json`.
 ```
 
 Releases are ordered newest-first. Assets are filtered by the current platform.
-Downloaded archives are verified against the `sha256` checksum.
+
+### Checksums and URLs
+
+Every asset must carry the SHA-256 of its archive as 64 hex digits: the host
+keeps a download only when its hash is that one, and lists an asset with an
+empty or malformed `sha256` as not installable, saying so on the plugin's card.
+Produce the value from the archive you publish:
+
+```bash
+sha256sum myplugin-1.0.0-macos.zip      # Linux
+shasum -a 256 myplugin-1.0.0-macos.zip  # macOS
+```
+
+Every URL a catalog entry or a release manifest hands out, `releases_url`,
+`icon_url`, `repo_url` and `download_url`, must use `https`. An entry or an
+asset with any other scheme, `http` included, is skipped when the catalog is
+read and nothing is requested from it.
 
 ### Plugin Icons
 
@@ -1165,3 +1181,5 @@ and platform data is inline in `plugins.json`:
   ]
 }
 ```
+
+The same rules apply: `sha256` is required and `download_url` must use `https`.

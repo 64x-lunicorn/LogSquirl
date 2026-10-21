@@ -51,8 +51,8 @@ struct CatalogEntry {
  */
 struct ReleaseAsset {
     QString platform; ///< "macos", "linux", or "windows"
-    QUrl downloadUrl; ///< Direct HTTPS URL to the ZIP archive
-    QString sha256;   ///< SHA-256 checksum of the archive
+    QUrl downloadUrl; ///< Direct https URL to the ZIP archive; no other scheme is read (#818)
+    QString sha256;   ///< SHA-256 of the archive, 64 hex digits; the download must match it
 };
 
 /**
@@ -89,12 +89,24 @@ struct RepositoryEntry {
  *
  * Schema v1 (legacy): central plugins.json contains all version/platform info inline.
  * Supported for backward compatibility during the transition period.
+ *
+ * Every URL a catalog or a release feed hands out must be https: an entry
+ * or an asset with any other scheme is skipped when it is parsed, as one
+ * with an invalid id is, and never requested. A download is kept only when
+ * its SHA-256 is the one the catalog carries; an asset without a
+ * well-formed one is refused before any request (#818).
  */
 class PluginRepository : public QObject {
     Q_OBJECT
 
 public:
     explicit PluginRepository( QObject* parent = nullptr );
+
+    /**
+     * A repository that sends its requests through the given manager, which
+     * must outlive it; the tests record and serve them (#818).
+     */
+    explicit PluginRepository( QNetworkAccessManager& network, QObject* parent = nullptr );
 
     /** Set the URL of the plugins.json catalog. */
     void setIndexUrl( const QUrl& url );
@@ -114,7 +126,8 @@ public:
 
     /**
      * Read a catalog document, as fetchCatalog() does with what it fetched.
-     * An entry whose id is not a plain plugin name is skipped (#819).
+     * An entry whose id is not a plain plugin name (#819) or whose URLs are
+     * not all https (#818) is skipped.
      */
     void parseCatalog( const QByteArray& data );
 
@@ -146,11 +159,19 @@ public:
     }
 
     /**
-     * Download a plugin archive to the given directory.
-     * Verifies the SHA-256 checksum after download.
+     * Download a plugin archive to the given directory. The asset must have
+     * no downloadRefusal(), or downloadError() is emitted before any request;
+     * an archive whose SHA-256 is not the asset's is discarded and reported
+     * the same way (#818).
      */
     void downloadPlugin( const ReleaseAsset& asset, const QString& pluginId,
                          const QString& destDir );
+
+    /**
+     * Why the asset cannot be downloaded, for the user; empty when it can:
+     * its URL is https and its SHA-256 is 64 hex digits (#818).
+     */
+    static QString downloadRefusal( const ReleaseAsset& asset );
 
     /** Legacy overload for RepositoryEntry. */
     void downloadPlugin( const RepositoryEntry& entry, const QString& destDir );
@@ -195,7 +216,7 @@ private:
     void fetchIcon( const CatalogEntry& entry );
     void checkAllFetched();
 
-    QNetworkAccessManager network_;
+    QNetworkAccessManager* network_; ///< Owned unless injected
     QUrl indexUrl_;
 
     std::vector<CatalogEntry> catalog_;
