@@ -247,3 +247,75 @@ SCENARIO( "extractPluginArchive overwrites existing files in the destination",
         }
     }
 }
+
+SCENARIO( "A catalog entry whose id is not a plain name is skipped", "[pluginrepository][plugins]" )
+{
+    GIVEN( "A schema v1 catalog with one plain id and ids that name a path" )
+    {
+        const QByteArray json = R"({
+            "schema_version": 1,
+            "plugins": [
+                { "id": "io.test.good", "name": "Good", "version": "1.0.0",
+                  "download_url": "https://example.test/good.zip", "sha256": "ab" },
+                { "id": "/Users/me/.ssh", "name": "Absolute", "version": "1.0.0",
+                  "download_url": "https://example.test/abs.zip", "sha256": "ab" },
+                { "id": "../up", "name": "Parent", "version": "1.0.0",
+                  "download_url": "https://example.test/up.zip", "sha256": "ab" },
+                { "id": "a/b", "name": "Nested", "version": "1.0.0",
+                  "download_url": "https://example.test/ab.zip", "sha256": "ab" },
+                { "id": "a\\b", "name": "Backslash", "version": "1.0.0",
+                  "download_url": "https://example.test/ab2.zip", "sha256": "ab" },
+                { "id": ".hidden", "name": "Hidden", "version": "1.0.0",
+                  "download_url": "https://example.test/hidden.zip", "sha256": "ab" },
+                { "id": "", "name": "Empty", "version": "1.0.0",
+                  "download_url": "https://example.test/empty.zip", "sha256": "ab" }
+            ]
+        })";
+
+        PluginRepository repository;
+
+        WHEN( "The catalog is read" )
+        {
+            repository.parseCatalog( json );
+
+            THEN( "Only the plain id is listed, in the catalog and the legacy entries (#819)" )
+            {
+                REQUIRE( repository.catalog().size() == 1 );
+                CHECK( repository.catalog().front().id == "io.test.good" );
+                REQUIRE( repository.entries().size() == 1 );
+                CHECK( repository.entries().front().id == "io.test.good" );
+                CHECK( repository.releases( "io.test.good" ).size() == 1 );
+                CHECK( repository.releases( "../up" ).empty() );
+            }
+        }
+    }
+
+    GIVEN( "A schema v2 catalog with one plain id and ids that name a path" )
+    {
+        const QByteArray json = R"({
+            "schema_version": 2,
+            "plugins": [
+                { "id": "io.test.good", "name": "Good" },
+                { "id": "/Users/me/.ssh", "name": "Absolute" },
+                { "id": "../up", "name": "Parent" },
+                { "id": "a/b", "name": "Nested" },
+                { "id": "a\\b", "name": "Backslash" },
+                { "id": ".hidden", "name": "Hidden" },
+                { "id": "", "name": "Empty" }
+            ]
+        })";
+
+        PluginRepository repository;
+
+        WHEN( "The catalog is read" )
+        {
+            repository.parseCatalog( json );
+
+            THEN( "Only the plain id is listed (#819)" )
+            {
+                REQUIRE( repository.catalog().size() == 1 );
+                CHECK( repository.catalog().front().id == "io.test.good" );
+            }
+        }
+    }
+}

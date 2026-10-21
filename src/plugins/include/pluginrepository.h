@@ -112,6 +112,12 @@ public:
      */
     void fetchCatalog();
 
+    /**
+     * Read a catalog document, as fetchCatalog() does with what it fetched.
+     * An entry whose id is not a plain plugin name is skipped (#819).
+     */
+    void parseCatalog( const QByteArray& data );
+
     /** Legacy alias — calls fetchCatalog(). */
     void fetchIndex()
     {
@@ -181,7 +187,6 @@ Q_SIGNALS:
     void downloadError( const QString& errorMessage );
 
 private:
-    void parseCatalog( const QByteArray& data );
     void parseCatalogV1( const QJsonArray& plugins );
     void parseCatalogV2( const QJsonArray& plugins );
     void fetchReleasesForAll();

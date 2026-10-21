@@ -416,3 +416,53 @@ SCENARIO( "A plugin manifest names the Log Format files the plugin ships", "[plu
         }
     }
 }
+
+SCENARIO( "A plugin id is a plain name, never a path", "[pluginmetadata][plugins]" )
+{
+    GIVEN( "Ids made of letters, digits, dots, dashes and underscores" )
+    {
+        THEN( "They are accepted" )
+        {
+            CHECK( PluginMetadata::isValidId( "io.github.foo.bar" ) );
+            CHECK( PluginMetadata::isValidId( "my-plugin_1" ) );
+            CHECK( PluginMetadata::isValidId( "A1" ) );
+        }
+    }
+
+    GIVEN( "Ids that name a path, hide a folder or are empty" )
+    {
+        THEN( "They are rejected (#819)" )
+        {
+            CHECK_FALSE( PluginMetadata::isValidId( "/Users/me/.ssh" ) );
+            CHECK_FALSE( PluginMetadata::isValidId( "C:\\Users\\me" ) );
+            CHECK_FALSE( PluginMetadata::isValidId( ".." ) );
+            CHECK_FALSE( PluginMetadata::isValidId( "a/b" ) );
+            CHECK_FALSE( PluginMetadata::isValidId( "a\\b" ) );
+            CHECK_FALSE( PluginMetadata::isValidId( "../a" ) );
+            CHECK_FALSE( PluginMetadata::isValidId( ".hidden" ) );
+            CHECK_FALSE( PluginMetadata::isValidId( "" ) );
+            CHECK_FALSE( PluginMetadata::isValidId( "a b" ) );
+            CHECK_FALSE( PluginMetadata::isValidId( "a~b" ) );
+        }
+    }
+
+    GIVEN( "A manifest whose id leaves the plugin directory" )
+    {
+        const auto json = R"({
+            "id": "../../.ssh",
+            "name": "Escape",
+            "version": "1.0.0",
+            "type": "datasource",
+            "library": "libescape.dylib",
+            "api_version": 1
+        })";
+
+        THEN( "Parsing fails naming the id" )
+        {
+            const auto result = PluginMetadata::fromJson( QByteArray( json ), "test" );
+            REQUIRE_FALSE( result.has_value() );
+            CHECK( result.error().contains( "'id'" ) );
+            CHECK( result.error().contains( "../../.ssh" ) );
+        }
+    }
+}

@@ -68,7 +68,7 @@ my_plugin/
 
 | Field          | Required | Description                                                     |
 |----------------|----------|-----------------------------------------------------------------|
-| `id`           | **yes**  | Reverse-domain unique identifier.                               |
+| `id`           | **yes**  | Reverse-domain unique identifier: letters, digits, `.`, `-` and `_`, not starting with a dot. It names the plugin's folder. |
 | `name`         | **yes**  | Human-readable display name.                                    |
 | `version`      | **yes**  | Semver string.                                                  |
 | `type`         | **yes**  | One of `datasource`, `converter`, `ui`.                         |

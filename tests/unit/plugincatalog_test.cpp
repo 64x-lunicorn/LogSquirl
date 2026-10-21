@@ -307,3 +307,82 @@ SCENARIO( "A plugin updated into the user plugin directory wins over the shipped
         }
     }
 }
+
+SCENARIO( "A plugin whose id is not a plain name is not installed anywhere",
+          "[plugincatalog][plugins]" )
+{
+    GIVEN( "Ids that name a path or hide a folder" )
+    {
+        WHEN( "Their install directory is asked for" )
+        {
+            THEN( "There is none (#819)" )
+            {
+                CHECK( PluginCatalog::installDirectory( "/Users/me/.ssh" ).isEmpty() );
+                CHECK( PluginCatalog::installDirectory( ".." ).isEmpty() );
+                CHECK( PluginCatalog::installDirectory( "a/b" ).isEmpty() );
+                CHECK( PluginCatalog::installDirectory( "a\\b" ).isEmpty() );
+                CHECK( PluginCatalog::installDirectory( ".hidden" ).isEmpty() );
+                CHECK( PluginCatalog::installDirectory( "" ).isEmpty() );
+            }
+        }
+    }
+
+    GIVEN( "A manifest on disk whose id leaves its directory" )
+    {
+        QTemporaryDir root;
+        REQUIRE( root.isValid() );
+        writeManifest( root.path(), "escape", "../../.ssh", "Escape" );
+        writeManifest( root.path(), "valid", "com.test.valid" );
+
+        PluginCatalog catalog;
+
+        WHEN( "The directory is scanned" )
+        {
+            catalog.discoverPluginsIn( root.path() );
+
+            THEN( "Only the plugin with a plain id is listed" )
+            {
+                REQUIRE( catalog.discoveredPlugins().size() == 1 );
+                CHECK( catalog.discoveredPlugins().front().id() == "com.test.valid" );
+            }
+        }
+    }
+}
+
+SCENARIO( "An install may only create, rename or remove a folder directly in the user plugin "
+          "directory",
+          "[plugincatalog][plugins]" )
+{
+    GIVEN( "The user plugin directory" )
+    {
+        const auto user = PluginCatalog::userPluginDirectory();
+
+        WHEN( "A plugin's install directory and its backup are checked" )
+        {
+            const auto installDir = PluginCatalog::installDirectory( "io.github.foo.bar" );
+
+            THEN( "Both pass" )
+            {
+                CHECK( PluginCatalog::isInstallPath( installDir ) );
+                CHECK( PluginCatalog::isInstallPath( installDir + ".bak" ) );
+                CHECK( PluginCatalog::isInstallPath( user + "/my-plugin_1/" ) );
+            }
+        }
+
+        WHEN( "A path that is not a direct child of it is checked" )
+        {
+            THEN( "It is refused (#819)" )
+            {
+                CHECK_FALSE( PluginCatalog::isInstallPath( user ) );
+                CHECK_FALSE( PluginCatalog::isInstallPath( user + "/" ) );
+                CHECK_FALSE( PluginCatalog::isInstallPath( user + "/.." ) );
+                CHECK_FALSE( PluginCatalog::isInstallPath( user + "/../outside" ) );
+                CHECK_FALSE( PluginCatalog::isInstallPath( user + "/a/../../outside" ) );
+                CHECK_FALSE( PluginCatalog::isInstallPath( user + "/a/b" ) );
+                CHECK_FALSE( PluginCatalog::isInstallPath( "/Users/me/.ssh" ) );
+                CHECK_FALSE( PluginCatalog::isInstallPath( "relative" ) );
+                CHECK_FALSE( PluginCatalog::isInstallPath( "" ) );
+            }
+        }
+    }
+}

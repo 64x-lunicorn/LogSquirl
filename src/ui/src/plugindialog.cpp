@@ -753,6 +753,20 @@ bool PluginDialog::extractAndInstall( const QString& archivePath, const QString&
     const auto pluginDir = PluginCatalog::installDirectory( pluginId );
     const auto backupDir = pluginDir + ".bak";
 
+    // Both are renamed and removed below: only a folder directly in the user
+    // plugin directory may be, whatever the id says (#819).
+    if ( !PluginCatalog::isInstallPath( pluginDir )
+         || !PluginCatalog::isInstallPath( backupDir ) ) {
+        LOG_WARNING << "Refusing to install plugin '" << pluginId
+                    << "': its id names no folder in the user plugin directory";
+        statusLabel_->setText( tr( "Installation refused." ) );
+        QMessageBox::warning(
+            this, tr( "Install Error" ),
+            tr( "The plugin id %1 is not a plain name and names no folder in the plugin folder." )
+                .arg( pluginId ) );
+        return false;
+    }
+
     // Unload existing plugin before overwriting
     if ( host_.isLoaded( pluginId ) ) {
         LOG_INFO << "Unloading existing plugin " << pluginId << " for update";

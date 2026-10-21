@@ -20,6 +20,7 @@
 #include "pluginrepository.h"
 
 #include "log.h"
+#include "pluginmetadata.h"
 
 #include <algorithm>
 
@@ -128,6 +129,13 @@ void PluginRepository::parseCatalogV1( const QJsonArray& plugins )
 
         RepositoryEntry entry;
         entry.id = obj.value( "id" ).toString();
+        // The id names the install folder: anything but a plain name could
+        // point it anywhere (#819).
+        if ( !PluginMetadata::isValidId( entry.id ) ) {
+            LOG_WARNING << "Skipping catalog entry whose id is not a plain plugin name: '"
+                        << entry.id << "'";
+            continue;
+        }
         entry.name = obj.value( "name" ).toString();
         entry.version = obj.value( "version" ).toString();
         entry.description = obj.value( "description" ).toString();
@@ -204,6 +212,13 @@ void PluginRepository::parseCatalogV2( const QJsonArray& plugins )
 
         CatalogEntry entry;
         entry.id = obj.value( "id" ).toString();
+        // The id names the install folder: anything but a plain name could
+        // point it anywhere (#819).
+        if ( !PluginMetadata::isValidId( entry.id ) ) {
+            LOG_WARNING << "Skipping catalog entry whose id is not a plain plugin name: '"
+                        << entry.id << "'";
+            continue;
+        }
         entry.name = obj.value( "name" ).toString();
         entry.author = obj.value( "author" ).toString();
         entry.description = obj.value( "description" ).toString();
@@ -212,9 +227,7 @@ void PluginRepository::parseCatalogV2( const QJsonArray& plugins )
         entry.iconUrl = QUrl( obj.value( "icon_url" ).toString() );
         entry.license = obj.value( "license" ).toString();
 
-        if ( !entry.id.isEmpty() ) {
-            catalog_.push_back( std::move( entry ) );
-        }
+        catalog_.push_back( std::move( entry ) );
     }
 
     LOG_INFO << "Plugin catalog (v2): " << catalog_.size() << " plugins";

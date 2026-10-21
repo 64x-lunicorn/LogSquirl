@@ -52,6 +52,15 @@ public:
     static std::expected<PluginMetadata, QString> fromJson( const QByteArray& json,
                                                             const QString& context );
 
+    /**
+     * Whether an id is a plain plugin name: letters, digits, dots, dashes
+     * and underscores, not starting with a dot. Such an id names a folder
+     * directly under a plugin directory and nothing else; an empty id, a
+     * path, a parent reference or any other character is refused, by the
+     * manifest parser and by the catalog alike (#819).
+     */
+    static bool isValidId( const QString& id );
+
     const QString& id() const
     {
         return id_;
