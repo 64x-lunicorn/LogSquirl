@@ -26,6 +26,7 @@
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QTemporaryDir>
 
 #include <kcompressiondevice.h>
@@ -81,6 +82,17 @@ SCENARIO( "A saved archive member is decompressed again", "[ui][session][archive
         REQUIRE( zip.writeFile( "a/app.log", LogLines ) );
         REQUIRE( zip.writeFile( "app.log.gz", compressed ) );
         REQUIRE( zip.writeFile( "other.log", "another Log File\n" ) );
+        zip.close();
+    }
+    // links.zip holding a link to a file of the user's beside the archive (#815).
+    const auto secretPath = archives.filePath( "secret.log" );
+    REQUIRE( writeFile( secretPath, "the user's own file\n" ) );
+    const auto linksPath = archives.filePath( "links.zip" );
+    {
+        KZip zip( linksPath );
+        REQUIRE( zip.open( QIODevice::WriteOnly ) );
+        REQUIRE( zip.writeFile( "a/app.log", LogLines ) );
+        REQUIRE( zip.writeSymLink( "link.log", secretPath ) );
         zip.close();
     }
 
@@ -143,6 +155,23 @@ SCENARIO( "A saved archive member is decompressed again", "[ui][session][archive
                 const auto member = ArchiveMember{}.inside( zipPath, name );
                 REQUIRE( decompressArchiveMember( member, decompressed.path() ).isEmpty() );
             }
+        }
+    }
+
+    GIVEN( "a member that is a link to a file outside the archive" )
+    {
+        const auto member = ArchiveMember{}.inside( linksPath, "link.log" );
+
+        THEN( "nothing is named, and the file the link leads to is untouched" )
+        {
+            REQUIRE( decompressArchiveMember( member, decompressed.path() ).isEmpty() );
+            REQUIRE( readFile( secretPath ) == "the user's own file\n" );
+            // The other member is still there to take.
+            const auto path = decompressArchiveMember(
+                ArchiveMember{}.inside( linksPath, "a/app.log" ), decompressed.path() );
+            REQUIRE( readFile( path ) == LogLines );
+            REQUIRE_FALSE(
+                QFileInfo{ QFileInfo{ path }.dir().filePath( "../link.log" ) }.isSymLink() );
         }
     }
 

@@ -292,6 +292,7 @@ endif()
 # Qt Widgets (#169).
 add_executable(logsquirl_compression_tests
     compression_tests_main.cpp
+    archiveextraction_test.cpp
     lz4device_test.cpp
     zstddevice_test.cpp
 )

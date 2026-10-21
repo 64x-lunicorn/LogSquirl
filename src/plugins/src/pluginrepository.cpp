@@ -33,9 +33,8 @@
 
 #include <kzip.h>
 
-#ifdef LOGSQUIRL_KARCHIVE
-#include <QAtomicInt>
-#endif
+#include "archiveextraction.h"
+#include "atomicflag.h"
 
 namespace logsquirl::plugins {
 
@@ -499,15 +498,10 @@ bool PluginRepository::extractPluginArchive( const QString& archivePath, const Q
         return false;
     }
 
-    QDir().mkpath( destDir );
-
-    const auto recursive = true;
-#ifdef LOGSQUIRL_KARCHIVE
-    QAtomicInt notCanceled{ 0 };
-    const auto ok = root->copyTo( destDir, notCanceled, recursive );
-#else
-    const auto ok = root->copyTo( destDir, recursive );
-#endif
+    // The rules a Log File archive is extracted by: nothing lands outside
+    // destDir, no link is created (#815).
+    AtomicFlag never;
+    const auto ok = extractArchiveDirectory( *root, destDir, never );
     zip.close();
 
     if ( !ok ) {

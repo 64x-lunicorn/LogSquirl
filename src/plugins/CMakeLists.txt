@@ -53,7 +53,7 @@ target_link_libraries(
          project_warnings
          logsquirl_plugin_catalog
          logsquirl_logging
-         logsquirl_karchive
+         logsquirl_compression
          Qt6::Core
          Qt6::Gui
          Qt6::Network

@@ -25,6 +25,7 @@
 #include <QTemporaryFile>
 #include <QtConcurrent/QtConcurrentRun>
 
+#include "archiveextraction.h"
 #include "atomicflag.h"
 #include "decompressor.h"
 #include "log.h"
@@ -60,10 +61,10 @@ QString decompressLevel( const QString& fileName, const QString& member, const Q
             return {};
         }
 
-        // A member names a file inside the archive, never one beside it.
-        auto path = QDir::cleanPath( extracted.filePath( member ) );
-        if ( !path.startsWith( QDir::cleanPath( extracted.path() ) + '/' )
-             || !QFileInfo{ path }.isFile() ) {
+        // A member names a file inside the archive, never one beside it nor
+        // one a link leads to (#815).
+        auto path = extractedMemberPath( extracted.path(), member );
+        if ( path.isEmpty() ) {
             LOG_WARNING << "No member " << member << " in " << fileName;
             return {};
         }

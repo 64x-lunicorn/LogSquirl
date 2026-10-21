@@ -23,6 +23,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -315,6 +316,54 @@ SCENARIO( "A catalog entry whose id is not a plain name is skipped", "[pluginrep
             {
                 REQUIRE( repository.catalog().size() == 1 );
                 CHECK( repository.catalog().front().id == "io.test.good" );
+            }
+        }
+    }
+}
+
+// A Plugin's archive is extracted by the rules of a Log File archive (#815).
+SCENARIO( "extractPluginArchive writes nothing outside the destination",
+          "[pluginrepository][plugins]" )
+{
+    GIVEN( "a plugin ZIP with a link, a directory of the same name but case, and an entry leading "
+           "out" )
+    {
+        QTemporaryDir tmpDir;
+        REQUIRE( tmpDir.isValid() );
+        const auto outside = tmpDir.filePath( "outside" );
+        REQUIRE( QDir().mkpath( outside ) );
+        const auto destDir = tmpDir.filePath( "io.test.plugin" );
+        const auto sibling = tmpDir.filePath( "io.test.pluginX" );
+
+        const auto archivePath = tmpDir.filePath( "hostile-plugin.zip" );
+        {
+            KZip zip( archivePath );
+            REQUIRE( zip.open( QIODevice::WriteOnly ) );
+            REQUIRE( zip.writeFile( "plugin.json",
+                                    makePluginJson( "io.test.plugin", "Hostile" ).toUtf8() ) );
+            REQUIRE( zip.writeSymLink( "escape", outside ) );
+            REQUIRE( zip.writeFile( "Escape/planted.txt", "planted" ) );
+            REQUIRE( zip.writeFile( "../io.test.pluginX/planted.txt", "planted" ) );
+            zip.close();
+        }
+
+        WHEN( "extractPluginArchive is called" )
+        {
+            QString errorMessage;
+            const auto result
+                = PluginRepository::extractPluginArchive( archivePath, destDir, &errorMessage );
+
+            THEN( "the plugin is extracted, the link is not, and nothing lands outside" )
+            {
+                REQUIRE( result );
+                REQUIRE( errorMessage.isEmpty() );
+                REQUIRE( QFile::exists( QDir( destDir ).filePath( "plugin.json" ) ) );
+                REQUIRE_FALSE( QFileInfo( QDir( destDir ).filePath( "escape" ) ).isSymLink() );
+                REQUIRE_FALSE( QFileInfo( QDir( destDir ).filePath( "escape.lnk" ) ).exists() );
+                REQUIRE( QDir( outside )
+                             .entryList( QDir::AllEntries | QDir::NoDotAndDotDot )
+                             .isEmpty() );
+                REQUIRE_FALSE( QFileInfo::exists( sibling ) );
             }
         }
     }

@@ -31,6 +31,7 @@
 
 #include "log.h"
 
+#include "archiveextraction.h"
 #include "decompressor.h"
 #include "lz4device.h"
 #include "zstddevice.h"
@@ -213,12 +214,9 @@ bool doExtract( std::shared_ptr<KArchive> archive, const QString& archiveFilePat
 
     auto result = false;
     try {
-        const auto recursive = true;
-#ifdef LOGSQUIRL_KARCHIVE
-        result = root->copyTo( destination, interrupt, recursive );
-#else
-        result = root->copyTo( destination, recursive );
-#endif
+        // Never KArchive's own copy: it creates links and writes through
+        // them (#815).
+        result = extractArchiveDirectory( *root, destination, interrupt );
     } catch ( const std::exception& e ) {
         LOG_ERROR << "Exception during extract: " << e.what();
     }
