@@ -1054,3 +1054,42 @@ SCENARIO( "Log Lines read while their Log File is indexed", "[logdata][concurren
         }
     }
 }
+
+SCENARIO( "A UTF-16 Log File breaks its Log Lines only at whole line feeds", "[logdata][encoding]" )
+{
+    // #804: U+0A00 U+0100 is 00 0A 00 01 in UTF-16LE, U+0100 U+0A01 is
+    // 01 00 0A 01 in UTF-16BE: the middle bytes look like a line feed.
+    const auto littleEndian = GENERATE( true, false );
+    CAPTURE( littleEndian );
+    const auto* encoding = TextEncoding::forName( littleEndian ? "UTF-16LE" : "UTF-16BE" );
+    REQUIRE( encoding != nullptr );
+    const auto straddling = littleEndian ? QString( u"਀Ā" ) : QString( u"Āਁ" );
+
+    QTemporaryFile file{ "logdata_test_utf16_XXXXXX" };
+    REQUIRE( file.open() );
+    file.write( littleEndian ? QByteArray( "\xFF\xFE", 2 ) : QByteArray( "\xFE\xFF", 2 ) );
+    file.write( encoding->fromUnicode( straddling + "\nVIN: X\n" ) );
+    file.flush();
+
+    GIVEN( "the Log File of the example, with its byte order mark, loaded" )
+    {
+        const auto policies = testSettingsPolicies();
+        LogData logData{ policies.indexing, policies.search, policies.fileAccess,
+                         policies.decoding };
+        {
+            SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+            logData.attachFile( file.fileName() );
+            REQUIRE( loadEndSpy.safeWait( 10000 ) );
+        }
+        // Read in the Encoding detected, as the Open Log File has it read.
+        REQUIRE( logData.getDetectedEncoding() == encoding );
+        logData.setDisplayEncoding( *encoding );
+
+        THEN( "it has two Log Lines, VIN: X the second, and the first is its two characters" )
+        {
+            REQUIRE( logData.getNbLine() == 2_lcount );
+            REQUIRE( logData.getLineString( 1_lnum ) == QStringLiteral( "VIN: X" ) );
+            REQUIRE( logData.getLineString( 0_lnum ).endsWith( straddling ) );
+        }
+    }
+}

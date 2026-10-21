@@ -966,7 +966,7 @@ if ( LOGSQUIRL_HOST_API_HAS( api_size, register_encoding_callback ) ) {
 `get_log_file_encoding` returns the encoding LogSquirl reads the Log File in:
 the one the user chose for its tab in the *Encoding* menu, else the one
 detected -- from a byte order mark, or guessed from the bytes, as for a UTF-16
-file without one -- else the system's. The name is the encoding's IANA name,
+file without one -- else the locale's. The name is the encoding's IANA name,
 such as `UTF-8`, `UTF-16LE`, `UTF-16BE`, `ISO-8859-1` or `windows-1252`. With
 `file_path` `NULL` or `""` it is the Log File of the tab in front of the most
 recently active LogSquirl window; with a path, that of the tab showing that
@@ -983,7 +983,8 @@ tab, and may change when a load of it detects another one -- the first load
 detects it only once it has read the file. The callback of
 `register_encoding_callback` is called on the UI thread on every such change,
 for the Log File of any tab, with its path and the new encoding's name, both
-valid during the call only. A plugin has one such callback: registering
+valid during the call only; a Log File shown in two windows is reported for
+each tab whose encoding changes. A plugin has one such callback: registering
 another replaces it, and `NULL` removes it. When the user switches tabs, the
 active-file callback is called instead; ask for the encoding of the new tab in
 front there.

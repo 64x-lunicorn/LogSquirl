@@ -131,7 +131,7 @@ typedef enum {
     LOGSQUIRL_LOG_LINES_OK = 0,                /**< Done                                     */
     LOGSQUIRL_LOG_LINES_TRUNCATED = 1,         /**< Done, with the first selected lines only */
     LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD = -1, /**< Called off the UI thread                 */
-    LOGSQUIRL_LOG_LINES_NO_LOG_FILE = -2,      /**< No tab shows the Log File asked for      */
+    LOGSQUIRL_LOG_LINES_NO_LOG_FILE = -2,      /**< No Log File in front, or none named open */
     LOGSQUIRL_LOG_LINES_OUT_OF_RANGE = -3,     /**< The Log File has no line of that number  */
     LOGSQUIRL_LOG_LINES_NO_SELECTION = -4,     /**< No Log Line is selected                  */
     LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5  /**< A NULL handle or text                    */
@@ -169,9 +169,8 @@ typedef void ( *LogSquirlEncodingCallbackFn )( void* user_data, const char* file
  * **Thread safety**: all functions are safe to call from any thread, except
  * open_regex_lab, go_to_log_line, get_selected_log_lines,
  * get_log_file_encoding and get_active_file_path, which must be called on the
- * UI thread; a call that
- * changes the user interface, open_file included, is dispatched to the UI
- * thread by the host.
+ * UI thread; a call that changes the user interface, open_file included, is
+ * dispatched to the UI thread by the host.
  * **Growth**: functions added later are appended at the end, below "Added
  * later"; nothing is reordered, removed or changed in size, and only function
  * pointers are appended.  A host older than a function passes a shorter
@@ -365,7 +364,7 @@ typedef struct {
     /**
      * Read which text encoding LogSquirl reads a Log File in (LogSquirl
      * 26.12): the one the user chose for its tab, else the one detected from
-     * a byte order mark or guessed from the bytes, else the system's.  A
+     * a byte order mark or guessed from the bytes, else the locale's.  A
      * plugin that reads the Log File itself reads it in this encoding, so its
      * Log Lines are those the views show.
      *
@@ -398,8 +397,10 @@ typedef struct {
      * an open Log File in another text encoding (LogSquirl 26.12): the user
      * chose one for its tab, or a load detected another one.  It is called
      * for the Log File of any tab, in front or not, with the new encoding's
-     * name.  A plugin has one such callback: registering another replaces it,
-     * and a NULL callback removes it.
+     * name: once for each tab, so twice for a Log File two windows show
+     * when both read it in another encoding.  A plugin has one such
+     * callback: registering another replaces it, and a NULL callback removes
+     * it.
      * @param callback   Function called with the Log File and the encoding.
      * @param user_data  Passed back to callback unchanged.
      */

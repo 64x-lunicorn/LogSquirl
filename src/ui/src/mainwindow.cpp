@@ -487,7 +487,7 @@ std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
         // temporary path (#609).
         mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary,
                                    archiveMembers_.value( fileName ).key() );
-        tellPluginsOfEncodingChanges( crawlerWidget );
+        tellPluginsOfEncodingChanges( crawlerWidget, fileName );
 
         if ( followFileOnLoad ) {
             followOnOpen( crawlerWidget );
@@ -568,7 +568,7 @@ void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& m
     // Its name and group are found by its archive (#609).
     mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary, member.key(),
                                tabIndex );
-    tellPluginsOfEncodingChanges( crawlerWidget );
+    tellPluginsOfEncodingChanges( crawlerWidget, fileName );
     if ( !opened.inFront && front ) {
         mainTabWidget_.setCurrentWidget( front );
     }
@@ -3548,7 +3548,7 @@ bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFil
             // archive keeps its name and group by the archive (#609).
             int index = mainTabWidget_.addCrawler( crawlerWidget, fileName, origin.lifetime,
                                                    origin.storedKey( fileName ) );
-            tellPluginsOfEncodingChanges( crawlerWidget );
+            tellPluginsOfEncodingChanges( crawlerWidget, fileName );
 
             // Setting the new tab, the user will see a blank page for the duration
             // of the loading, with no way to switch to another tab
@@ -3755,11 +3755,16 @@ CrawlerWidget* MainWindow::tabOfLogFile( const QString& path ) const
     return nullptr;
 }
 
-void MainWindow::tellPluginsOfEncodingChanges( CrawlerWidget* crawler )
+void MainWindow::tellPluginsOfEncodingChanges( CrawlerWidget* crawler, const QString& fileName )
 {
-    connect( crawler, &CrawlerWidget::encodingChanged, this, [ this, crawler ] {
-        plugins_->host().notifyEncodingChanged( session_.getFilename( crawler ),
-                                                crawler->encodingName() );
+    // By the path the tab was added under: a load that finishes while its
+    // tab closes still settles the Encoding, after the Session let go of the
+    // view and has no name for it any more. A tab that is closing is none of
+    // the plugins' business.
+    connect( crawler, &CrawlerWidget::encodingChanged, this, [ this, crawler, fileName ] {
+        if ( mainTabWidget_.indexOf( crawler ) >= 0 ) {
+            plugins_->host().notifyEncodingChanged( fileName, crawler->encodingName() );
+        }
     } );
 }
 
