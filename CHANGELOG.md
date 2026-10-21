@@ -236,6 +236,11 @@
   application hears that the data source stopped on the plugin host's thread,
   as it does whenever a data source stops, whichever thread the Plugin signals
   from; an end signalled by a Plugin unloaded meanwhile is dropped. (#843)
+- **logsquirl -v ends cleanly**: printing the version ends the application
+  the way a normal quit does, so the single-instance lock file and socket of
+  that run go with it instead of staying in the user's folder until a later
+  start recovers them; the version and the exit code are as before, and the
+  build's smoke test checks that nothing is left behind. (#844)
 
 ## Build and packaging
 

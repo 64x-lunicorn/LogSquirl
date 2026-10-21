@@ -162,6 +162,9 @@ int main( int argc, char* argv[] )
 
     LogSquirlApp app( argc, argv );
     CliParameters parameters( app );
+    if ( parameters.version_printed ) {
+        return EXIT_SUCCESS;
+    }
 
     // Before anything reads a setting: a Benchmark Run reads and writes
     // nothing of the user's.

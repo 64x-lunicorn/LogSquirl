@@ -42,6 +42,10 @@ struct CliParameters {
     bool follow_file = false;
     // A "-" among the arguments: read a Log File from standard input.
     bool read_stdin = false;
+    // -v: the version was printed and nothing else is asked; main returns at
+    // once, so the application destructs and its single-instance lock and
+    // socket go with it (#844).
+    bool version_printed = false;
 
     bool enable_logging = false;
     int log_level = 3;
@@ -169,7 +173,8 @@ struct CliParameters {
 
         if ( parser.isSet( versionOption ) ) {
             print_version();
-            exit( EXIT_SUCCESS );
+            version_printed = true;
+            return;
         }
 
         if ( parser.value( debugOption ).toInt() > 0 ) {
