@@ -281,6 +281,35 @@ TEST_CASE( "A Team Folder without Git reports that Git is missing", "[teamfolder
     const QTemporaryDir nowhere;
     REQUIRE( nowhere.isValid() );
     checkMissingGitIsReported( nowhere.filePath( "no-git-here" ) );
+    checkMissingGitIsReported( QStringLiteral( "logsquirl-no-such-git-823" ) );
+}
+
+// Started by a bare name, a program is looked up on the PATH only, never in
+// the working directory, where a Log File's folder may have planted one
+// (#823).
+TEST_CASE( "A git planted in the working directory is not run, it is missing", "[teamfolder]" )
+{
+    const IsolatedGitEnvironment environment;
+    const QTemporaryDir planted;
+    REQUIRE( planted.isValid() );
+    const QString name = QStringLiteral( "logsquirl-planted-git-823" );
+    const auto path = planted.filePath( name );
+    QFile stub( path );
+    REQUIRE( stub.open( QIODevice::WriteOnly ) );
+    stub.write( "#!/bin/sh\necho planted\n" );
+    stub.close();
+    REQUIRE( stub.setPermissions( stub.permissions() | QFileDevice::ExeOwner ) );
+
+    const auto previous = QDir::currentPath();
+    REQUIRE( QDir::setCurrent( planted.path() ) );
+    const auto result = Git( name ).run( { QStringLiteral( "--version" ) } );
+    QDir::setCurrent( previous );
+
+    CHECK_FALSE( result.started );
+    CHECK( result.notFound );
+    CHECK_FALSE( result.output.contains( "planted" ) );
+    CHECK( result.message().contains( "Git could not be started" ) );
+    CHECK( result.message().contains( "Install Git" ) );
 }
 
 TEST_CASE( "A Team Folder is off until it names a repository", "[teamfolder]" )

@@ -18,18 +18,54 @@
  */
 
 // Revealing a Log File in the file manager hands its path over as a process
-// argument, never as script or command text (#822).
+// argument, never as script or command text (#822). A program started by a
+// bare name is looked up on the PATH, never in the working directory (#823).
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QUrl>
 
 #include "openfilehelper.h"
 #include "systemprogram.h"
 
 namespace {
+
+// Makes a directory the working directory while it lives.
+class WorkingDirectory {
+public:
+    explicit WorkingDirectory( const QString& path )
+        : previous_( QDir::currentPath() )
+    {
+        REQUIRE( QDir::setCurrent( path ) );
+    }
+    ~WorkingDirectory()
+    {
+        QDir::setCurrent( previous_ );
+    }
+    WorkingDirectory( const WorkingDirectory& ) = delete;
+    WorkingDirectory& operator=( const WorkingDirectory& ) = delete;
+
+private:
+    QString previous_;
+};
+
+// An executable file of this name in the directory: a program planted there.
+QString plantProgram( const QDir& directory, const QString& name )
+{
+    const auto path = directory.filePath( name );
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::WriteOnly ) );
+    file.write( "#!/bin/sh\nexit 0\n" );
+    file.close();
+    REQUIRE( file.setPermissions( file.permissions() | QFileDevice::ExeOwner ) );
+    return path;
+}
 
 // Every character a file system allows that would break out of a quoted
 // AppleScript string or a command line: a quote, an ampersand, parentheses,
@@ -148,6 +184,99 @@ SCENARIO( "a system program is resolved below the system root", "[openfilehelper
             const auto program
                 = systemProgramPath( QStringLiteral( "System32/cmd.exe" ), QString() );
             REQUIRE( ( program.isEmpty() || QDir::isAbsolutePath( program ) ) );
+        }
+    }
+}
+
+SCENARIO( "a program to start is resolved to an absolute path, never in the working directory",
+          "[openfilehelper][systemprogram]" )
+{
+    GIVEN( "a program of a bare name planted in the working directory, which is not on PATH" )
+    {
+        const QTemporaryDir planted;
+        REQUIRE( planted.isValid() );
+        const QString name = QStringLiteral( "logsquirl-planted-823.exe" );
+        const auto path = plantProgram( QDir( planted.path() ), name );
+        const WorkingDirectory cwd( planted.path() );
+        REQUIRE( QFileInfo::exists( name ) );
+
+        THEN( "the bare name resolves to nothing on every platform" )
+        {
+            const auto platform = GENERATE( ProgramPlatform::Windows, ProgramPlatform::Other );
+            CHECK( resolvedProgramPath( name, platform, QString() ).isEmpty() );
+            CHECK(
+                resolvedProgramPath( name, platform, QStringLiteral( "C:/Windows" ) ).isEmpty() );
+            CHECK( resolvedProgramPath( name ).isEmpty() );
+        }
+
+        THEN( "a relative path with separators is refused" )
+        {
+            const auto platform = GENERATE( ProgramPlatform::Windows, ProgramPlatform::Other );
+            CHECK( resolvedProgramPath( QStringLiteral( "./" ) + name, platform, QString() )
+                       .isEmpty() );
+            CHECK( resolvedProgramPath( QStringLiteral( ".\\" ) + name, platform, QString() )
+                       .isEmpty() );
+            CHECK( resolvedProgramPath( QStringLiteral( "bin/" ) + name, platform, QString() )
+                       .isEmpty() );
+        }
+
+        THEN( "its absolute path is returned as it is" )
+        {
+            CHECK( resolvedProgramPath( path ) == path );
+            CHECK( resolvedProgramPath( path, ProgramPlatform::Other, QString() ) == path );
+        }
+
+        THEN( "an absolute path that leads nowhere resolves to nothing" )
+        {
+            CHECK( resolvedProgramPath( planted.filePath( "not-there.exe" ) ).isEmpty() );
+        }
+
+        THEN( "a bare name on PATH is where PATH finds it, an absolute path" )
+        {
+#ifdef Q_OS_WIN
+            const QString onPath = QStringLiteral( "where" );
+#else
+            const QString onPath = QStringLiteral( "sh" );
+#endif
+            const auto resolved = resolvedProgramPath( onPath );
+            REQUIRE_FALSE( resolved.isEmpty() );
+            CHECK( QDir::isAbsolutePath( resolved ) );
+            CHECK( resolved == QStandardPaths::findExecutable( onPath ) );
+        }
+    }
+
+    GIVEN( "the Windows command interpreter by its bare name" )
+    {
+        THEN( "it is the one of the system folder, whatever PATH or the working directory hold" )
+        {
+            const auto name = GENERATE( QStringLiteral( "cmd.exe" ), QStringLiteral( "CMD.EXE" ),
+                                        QStringLiteral( "cmd" ) );
+            CHECK( resolvedProgramPath( name, ProgramPlatform::Windows,
+                                        QStringLiteral( "C:/Windows" ) )
+                   == QDir::toNativeSeparators( QStringLiteral( "C:/Windows/System32/cmd.exe" ) ) );
+        }
+
+        THEN( "without a system root it is found on PATH by its name or not at all" )
+        {
+            const auto resolved = resolvedProgramPath( QStringLiteral( "cmd.exe" ),
+                                                       ProgramPlatform::Windows, QString() );
+            CHECK( ( resolved.isEmpty() || QDir::isAbsolutePath( resolved ) ) );
+        }
+
+        THEN( "elsewhere it is an ordinary program name" )
+        {
+            const auto resolved
+                = resolvedProgramPath( QStringLiteral( "cmd.exe" ), ProgramPlatform::Other,
+                                       QStringLiteral( "C:/Windows" ) );
+            CHECK( resolved == QStandardPaths::findExecutable( QStringLiteral( "cmd.exe" ) ) );
+        }
+    }
+
+    GIVEN( "no program name" )
+    {
+        THEN( "nothing is resolved" )
+        {
+            CHECK( resolvedProgramPath( QString() ).isEmpty() );
         }
     }
 }

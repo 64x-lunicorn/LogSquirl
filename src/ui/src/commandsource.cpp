@@ -27,6 +27,7 @@
 #include <QStringDecoder>
 
 #include <algorithm>
+#include <cerrno>
 #include <mutex>
 #include <utility>
 
@@ -34,12 +35,12 @@
 #include "log.h"
 #include "stdinpump.h"
 #include "streamwriter.h"
+#include "systemprogram.h"
 #include "textencoding.h"
 
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
 #else
-#include <cerrno>
 #include <chrono>
 #include <condition_variable>
 #include <signal.h>
@@ -412,9 +413,17 @@ void CommandSource::removeLeftoverSpoolFiles()
 QString CommandSource::startProcess()
 {
     const auto invocation = shellInvocation( command_.commandLine, userShell() );
+    // The shell by its absolute path: a bare name, cmd.exe by default, is
+    // looked up on the PATH or under the system folder, never in the working
+    // directory, where a Log File's folder may have planted one (#823).
+    const auto program = resolvedProgramPath( invocation.program );
+    if ( program.isEmpty() ) {
+        return tr( "The shell %1 could not be started: %2" )
+            .arg( QDir::toNativeSeparators( invocation.program ), qt_error_string( ENOENT ) );
+    }
 
     process_ = new QProcess( this );
-    process_->setProgram( invocation.program );
+    process_->setProgram( program );
     process_->setArguments( invocation.arguments );
 #ifdef Q_OS_WIN
     process_->setNativeArguments( invocation.nativeArguments );
@@ -497,7 +506,7 @@ QString CommandSource::startProcess()
         delete process_;
         process_ = nullptr;
         return tr( "The shell %1 could not be started: %2" )
-            .arg( QDir::toNativeSeparators( invocation.program ), why );
+            .arg( QDir::toNativeSeparators( program ), why );
     }
     processGroup_ = process_->processId();
     LOG_INFO << "Command started, process " << processGroup_ << ": " << command_.commandLine;

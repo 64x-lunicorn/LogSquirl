@@ -31,3 +31,22 @@ QString systemProgramPath( const QString& relativePath, const QString& systemRoo
 
 // The same, from the SystemRoot the environment names.
 QString systemProgramPath( const QString& relativePath );
+
+// Whose rules a program name is resolved by: the current platform's, unless a
+// test says otherwise.
+enum class ProgramPlatform { Windows, Other };
+
+// The absolute path to start for the program a setting or the environment
+// names, or empty when there is nothing to start (#823): an absolute path as
+// it is, when it exists; a bare name where PATH finds it, never in the working
+// directory or the application folder, which CreateProcess would search first
+// and where a Log File's folder may have planted a copy; on Windows the
+// command interpreter from the system folder, whatever PATH holds. A relative
+// path with separators is refused: it would be taken from the working
+// directory.
+QString resolvedProgramPath( const QString& program, ProgramPlatform platform,
+                             const QString& systemRoot );
+
+// The same, for the platform this runs on and the SystemRoot the environment
+// names.
+QString resolvedProgramPath( const QString& program );
