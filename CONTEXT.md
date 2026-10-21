@@ -481,7 +481,10 @@ going to one and reading the selected ones. The host functions a plugin can call
 only grow, appended to one table whose size tells a plugin which the running LogSquirl
 offers (ADR 0017). What a plugin shows goes through the Plugin UI Port.
 A plugin is loaded when the host has initialised it, and enabled when the configuration
-says to load it.
+says to load it. The first start enables every discovered plugin once and the
+configuration keeps that choice; from then on only the enabled plugins are loaded, none
+when the user disabled them all, and a plugin that appears in a plugin directory later is
+listed but not loaded until the user enables it.
 _Avoid_: plugin manager, plugin loader (the loader only opens one library)
 
 **Application Plugins**:

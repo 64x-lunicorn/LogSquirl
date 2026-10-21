@@ -110,10 +110,12 @@ PluginAutoLoadResult PluginHost::autoLoadPlugins( const PluginAutoLoad& configur
     PluginAutoLoadResult result;
     auto enabledIds = configuration.enabled;
 
-    // First run: if no plugins have been explicitly configured yet, enable
-    // all discovered plugins by default so they are visible immediately. The
-    // caller keeps them, so this only triggers once.
-    if ( enabledIds.isEmpty() && !catalog_.discoveredPlugins().empty() ) {
+    // First run: until the enabled plugins were chosen, enable every
+    // discovered plugin so they are visible immediately. The caller keeps the
+    // choice, even an empty one, so this happens once; a user who disabled
+    // every plugin gets none back, and a plugin dropped into the plugin folder
+    // later is listed but not loaded (#820).
+    if ( enabledIds.isEmpty() && !configuration.chosen ) {
         for ( const auto& meta : catalog_.discoveredPlugins() ) {
             enabledIds.append( meta.id() );
         }

@@ -511,8 +511,9 @@ private:
         catalog.discoverPlugins();
 
         auto& config = Configuration::get();
-        const auto autoLoaded = host.autoLoadPlugins(
-            { .autoLoad = config.pluginsAutoLoad(), .enabled = config.enabledPlugins() } );
+        const auto autoLoaded = host.autoLoadPlugins( { .autoLoad = config.pluginsAutoLoad(),
+                                                        .enabled = config.enabledPlugins(),
+                                                        .chosen = config.enabledPluginsChosen() } );
         if ( autoLoaded.enabledOnFirstRun ) {
             config.setEnabledPlugins( *autoLoaded.enabledOnFirstRun );
             config.save();

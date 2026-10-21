@@ -51,6 +51,12 @@ struct PluginAutoLoad {
     bool autoLoad = true;
     /** The IDs of the enabled plugins; none yet on a first run. */
     QStringList enabled;
+    /**
+     * Whether the enabled plugins were chosen, by the user or by a first run
+     * the caller kept. Until then an empty list means a first run, which
+     * enables every plugin in the catalog; afterwards it means none (#820).
+     */
+    bool chosen = false;
 };
 
 /** What loading the enabled plugins at start-up came to. */
@@ -58,9 +64,9 @@ struct PluginAutoLoadResult {
     /** One message per plugin that failed to load (empty if all loaded). */
     QStringList errors;
     /**
-     * Set on a first run, when no plugin was enabled yet and the host enabled
-     * every plugin in the catalog: those IDs, for the caller to keep as the
-     * enabled plugins so a first run happens only once.
+     * Set on a first run, when no plugin was chosen yet and the host enabled
+     * every plugin in the catalog: those IDs, possibly none, for the caller to
+     * keep as the chosen enabled plugins so a first run happens only once.
      */
     std::optional<QStringList> enabledOnFirstRun;
 };

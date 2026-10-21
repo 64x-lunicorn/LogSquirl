@@ -763,9 +763,18 @@ public:
     {
         return enabledPlugins_;
     }
+    // Writing the enabled plugins is the choice, an empty list included: from
+    // then on no start enables the discovered plugins by itself (#820).
     void setEnabledPlugins( const QStringList& plugins )
     {
         enabledPlugins_ = plugins;
+        enabledPluginsChosen_ = true;
+    }
+    // Whether the enabled plugins were chosen, by the user or by a first run
+    // that enabled every discovered plugin; false only until then (#820).
+    bool enabledPluginsChosen() const
+    {
+        return enabledPluginsChosen_;
     }
 
     // Whether a start asks which file types LogSquirl opens, until the user
@@ -951,6 +960,7 @@ private:
 
     bool pluginsAutoLoad_{};
     QStringList enabledPlugins_;
+    bool enabledPluginsChosen_{};
 
     bool askForFileAssociations_{};
     bool fileAssociationsChosen_{};

@@ -19,6 +19,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "configuration.h"
+#include "configurationfixture.h"
 #include "convert_probe.h"
 #include "logsquirl_plugin_api.h"
 #include "plugincatalog.h"
@@ -790,9 +792,23 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
         PluginHost host( catalog );
         host.setUiPort( &port );
 
-        WHEN( "Auto-load is enabled but no plugin is enabled" )
+        WHEN( "Auto-load is enabled and no plugin has been chosen yet" )
         {
             const auto loaded = host.autoLoadPlugins( { .autoLoad = true, .enabled = {} } );
+
+            THEN( "Nothing is loaded, and the first run is over with nothing enabled (#820)" )
+            {
+                REQUIRE( loaded.errors.isEmpty() );
+                REQUIRE( loaded.enabledOnFirstRun );
+                REQUIRE( loaded.enabledOnFirstRun->isEmpty() );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
+            }
+        }
+
+        WHEN( "Auto-load is enabled and the user disabled every plugin" )
+        {
+            const auto loaded
+                = host.autoLoadPlugins( { .autoLoad = true, .enabled = {}, .chosen = true } );
 
             THEN( "Nothing is loaded or enabled, and there are no errors" )
             {
@@ -919,6 +935,115 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
                 REQUIRE( enabled == expected );
                 REQUIRE( loaded.errors.size() == 1 );
                 REQUIRE( host.loadedPluginIds() == QStringList{ ProbeId } );
+            }
+        }
+
+        WHEN( "The user disabled every plugin" )
+        {
+            const auto loaded
+                = host.autoLoadPlugins( { .autoLoad = true, .enabled = {}, .chosen = true } );
+
+            THEN( "The choice stands: nothing is enabled or loaded (#820)" )
+            {
+                REQUIRE_FALSE( loaded.enabledOnFirstRun );
+                REQUIRE( loaded.errors.isEmpty() );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
+                REQUIRE( loadedSignals.isEmpty() );
+            }
+        }
+
+        host.unloadAll();
+    }
+
+    // The two cases below go through a Configuration as the application does:
+    // it is handed the enabled plugins and whether they were chosen, and keeps
+    // what a first run enabled (#820).
+    GIVEN( "A configuration whose last plugin was disabled, and a plugin dropped into the "
+           "plugin folder since" )
+    {
+        Configuration config;
+        config.setEnabledPlugins( {} );
+        REQUIRE( config.enabledPluginsChosen() );
+
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+
+        WHEN( "The plugins are loaded at start-up" )
+        {
+            const auto loaded = host.autoLoadPlugins( { .autoLoad = config.pluginsAutoLoad(),
+                                                        .enabled = config.enabledPlugins(),
+                                                        .chosen = config.enabledPluginsChosen() } );
+
+            THEN( "The dropped-in plugin is listed but neither enabled nor loaded" )
+            {
+                REQUIRE( catalog.findDiscovered( ProbeId ) != nullptr );
+                REQUIRE_FALSE( loaded.enabledOnFirstRun );
+                REQUIRE( loaded.errors.isEmpty() );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
+                REQUIRE( config.enabledPlugins().isEmpty() );
+            }
+        }
+
+        host.unloadAll();
+    }
+
+    GIVEN( "A fresh configuration and a catalog listing the probe plugin" )
+    {
+        Configuration config;
+        REQUIRE_FALSE( config.enabledPluginsChosen() );
+
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+
+        WHEN( "The plugins are loaded at start-up and the first run's choice is kept" )
+        {
+            const auto loaded = host.autoLoadPlugins( { .autoLoad = config.pluginsAutoLoad(),
+                                                        .enabled = config.enabledPlugins(),
+                                                        .chosen = config.enabledPluginsChosen() } );
+            REQUIRE( loaded.enabledOnFirstRun );
+            config.setEnabledPlugins( *loaded.enabledOnFirstRun );
+
+            THEN( "The discovered plugin is enabled and loaded once, and the choice is stored "
+                  "with the list" )
+            {
+                REQUIRE( host.loadedPluginIds() == QStringList{ ProbeId } );
+                REQUIRE( config.enabledPlugins() == QStringList{ ProbeId } );
+                REQUIRE( config.enabledPluginsChosen() );
+
+                const auto stored = configuration_fixture::storedSettings( config );
+                REQUIRE( stored.value( "plugins.chosen" ).toBool() );
+                REQUIRE( stored.value( "plugins.enabledPlugins" ).toStringList()
+                         == QStringList{ ProbeId } );
+            }
+
+            AND_WHEN( "The next start finds the probe plugin disabled meanwhile" )
+            {
+                host.unloadAll();
+                config.setEnabledPlugins( {} );
+                const auto again
+                    = host.autoLoadPlugins( { .autoLoad = config.pluginsAutoLoad(),
+                                              .enabled = config.enabledPlugins(),
+                                              .chosen = config.enabledPluginsChosen() } );
+
+                THEN( "No first run happens again and nothing is loaded" )
+                {
+                    REQUIRE_FALSE( again.enabledOnFirstRun );
+                    REQUIRE( host.loadedPluginIds().isEmpty() );
+                }
             }
         }
 

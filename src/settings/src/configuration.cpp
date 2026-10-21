@@ -631,6 +631,7 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
 
     visit( "plugins.autoLoad", config.pluginsAutoLoad_, true );
     visit( "plugins.enabledPlugins", config.enabledPlugins_, QStringList{} );
+    visit( "plugins.chosen", config.enabledPluginsChosen_, false );
 
     visit( "fileAssociations.ask", config.askForFileAssociations_, true );
     visit( "fileAssociations.chosen", config.fileAssociationsChosen_, false );
@@ -733,6 +734,13 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     LOG_DEBUG << "Configuration::retrieveFromStorage";
 
     forEachSetting( *this, ReadSetting{ settings } );
+
+    // Plugins enabled before the marker existed were chosen, by the user or a
+    // first run; only an empty list without the marker still owes the first
+    // run (#820).
+    if ( !enabledPlugins_.isEmpty() ) {
+        enabledPluginsChosen_ = true;
+    }
 
     LOG_INFO << "Main font is " << mainFontInWords( mainFont_ );
 }

@@ -68,6 +68,11 @@ SCENARIO( "Configuration default values", "[configuration]" )
             REQUIRE( config.enabledPlugins().isEmpty() );
         }
 
+        THEN( "The enabled plugins have not been chosen yet" )
+        {
+            REQUIRE_FALSE( config.enabledPluginsChosen() );
+        }
+
         THEN( "Native file watch is enabled by default" )
         {
             REQUIRE( config.nativeFileWatchEnabled() );
@@ -435,6 +440,76 @@ SCENARIO( "Configuration plugin settings round-trip", "[configuration][plugins]"
                 REQUIRE( ids.contains( "com.example.a" ) );
                 REQUIRE( ids.contains( "com.example.b" ) );
             }
+
+            THEN( "The enabled plugins stay chosen" )
+            {
+                REQUIRE( restored.enabledPluginsChosen() );
+            }
+        }
+    }
+}
+
+// The first start enables every discovered plugin once; from then on the
+// user's choice stands, an empty one included. The choice is recognized by a
+// marker of its own, not by the enabled list being empty (#820).
+SCENARIO( "The enabled plugins are chosen once their list is written", "[configuration][plugins]" )
+{
+    GIVEN( "A Configuration whose last plugin was disabled" )
+    {
+        Configuration config;
+        config.setEnabledPlugins( {} );
+
+        THEN( "The enabled plugins are chosen although none is enabled" )
+        {
+            REQUIRE( config.enabledPluginsChosen() );
+            REQUIRE( config.enabledPlugins().isEmpty() );
+        }
+
+        WHEN( "It is saved and loaded again" )
+        {
+            SettingsFile file;
+            file.write( config );
+            const auto restored = file.load();
+
+            THEN( "The empty choice stands" )
+            {
+                REQUIRE( restored.enabledPluginsChosen() );
+                REQUIRE( restored.enabledPlugins().isEmpty() );
+            }
+        }
+    }
+
+    GIVEN( "A settings file from before the marker, with plugins enabled" )
+    {
+        SettingsFile file;
+        file.setValue( "plugins.enabledPlugins", QStringList{ "com.example.a" } );
+
+        WHEN( "It is loaded" )
+        {
+            const auto config = file.load();
+
+            THEN( "The enabled plugins count as chosen, so nothing changes for the user" )
+            {
+                REQUIRE( config.enabledPluginsChosen() );
+                REQUIRE( config.enabledPlugins() == QStringList{ "com.example.a" } );
+            }
+        }
+    }
+
+    GIVEN( "A settings file from before the marker, with no plugin enabled" )
+    {
+        SettingsFile file;
+        file.setValue( "plugins.autoLoad", true );
+
+        WHEN( "It is loaded" )
+        {
+            const auto config = file.load();
+
+            THEN( "The enabled plugins are not chosen yet, so the first run is still to come" )
+            {
+                REQUIRE_FALSE( config.enabledPluginsChosen() );
+                REQUIRE( config.enabledPlugins().isEmpty() );
+            }
         }
     }
 }
@@ -598,6 +673,7 @@ const QStringList StoredSettingNames = {
     "perf.useParallelSearch",
     "perf.useSearchResultsCache",
     "plugins.autoLoad",
+    "plugins.chosen",
     "plugins.enabledPlugins",
     "quickfind.ignore_case",
     "quickfind.incremental",
@@ -722,6 +798,7 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.autoShowTableView() == expected.autoShowTableView() );
     CHECK( actual.pluginsAutoLoad() == expected.pluginsAutoLoad() );
     CHECK( actual.enabledPlugins() == expected.enabledPlugins() );
+    CHECK( actual.enabledPluginsChosen() == expected.enabledPluginsChosen() );
     CHECK( actual.askForFileAssociations() == expected.askForFileAssociations() );
     CHECK( actual.chosenFileAssociations() == expected.chosenFileAssociations() );
     CHECK( actual.dismissedFileAssociations() == expected.dismissedFileAssociations() );
@@ -966,7 +1043,8 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                         "commandSource.recentCommands/size", "view.showValueNames",
                         "fileAssociations.ask", "fileAssociations.chosen",
                         "fileAssociations.chosenTypes", "fileAssociations.dismissed",
-                        "fileAssociations.confirmed", "archives.decompressionBudgetMb" } ) {
+                        "fileAssociations.confirmed", "archives.decompressionBudgetMb",
+                        "plugins.chosen" } ) {
                     stored.remove( added );
                 }
                 CHECK( stored.keys() == releaseValues.keys() );
@@ -997,6 +1075,8 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                 CHECK( config.defaultEncodingMib() == 106 );
                 CHECK( config.splitterSizes() == QList<int>{ 300, 200 } );
                 CHECK( config.enabledPlugins() == QStringList{ "com.example.a", "com.example.b" } );
+                // Enabled before the marker existed: the choice stands (#820).
+                CHECK( config.enabledPluginsChosen() );
                 CHECK( config.shortcuts().at( FixtureShortcutAction ) == FixtureShortcutKeys );
                 CHECK( config.chartPresets().value( "Errors" ) == "[]" );
                 CHECK( config.chartPresets().value( "Latency" )
