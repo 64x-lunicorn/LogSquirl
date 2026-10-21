@@ -100,6 +100,7 @@
 #include "clipboard.h"
 #include "commandpalette.h"
 #include "crawlerwidget.h"
+#include "datalocation.h"
 #include "decompressor.h"
 #include "dispatch_to.h"
 #include "downloader.h"
@@ -2295,7 +2296,8 @@ void MainWindow::applySettingsChange()
 {
     const auto& config = Configuration::get();
     logging::enableFileLogging( config.enableLogging(),
-                                static_cast<logging::LogLevel>( config.loggingLevel() ) );
+                                static_cast<logging::LogLevel>( config.loggingLevel() ),
+                                DataLocation::current().dataDirectory() );
 
     newWindowAction->setVisible( config.allowMultipleWindows() );
     followAction->setEnabled( session_.watchPolicy().anyWatchEnabled() );
@@ -2544,7 +2546,7 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
     // The merge controller belongs to the merged tab: closing the tab ends
     // the rebuild and removes the temporary file. The window holds it only
     // until the tab is there.
-    auto* controller = new MergeController( this );
+    auto* controller = new MergeController( tempDir_.path(), this );
     const auto mergedPath = controller->merge( filePaths, dedup );
 
     // Open the merged temp file as a tab of its own. It goes with its tab, so

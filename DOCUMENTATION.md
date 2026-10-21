@@ -104,11 +104,11 @@ are left as they are; delete them once you no longer need them. Nothing is
 copied when your own formats, plugin configuration, Team Folder or themes
 already sit beside the executable.
 
-Only the index cache stays in the user profile, and a log file written with
-logging turned on goes to the temporary folder. Unpack the package where you
-may write, not under `Program Files`. Since the plugins you install share the
-`plugins` folder with those it comes with, updating one from the catalog
-replaces the copy it came with.
+Only the index cache stays in the user profile; a log file written with
+logging turned on goes to `logs` beside the executable. Unpack the package
+where you may write, not under `Program Files`. Since the plugins you install
+share the `plugins` folder with those it comes with, updating one from the
+catalog replaces the copy it came with.
 
 ### The Dashboard
 
@@ -1816,7 +1816,16 @@ pattern will not go through all files but will use cached line numbers
 instead.
 
 In case there is an issue with *logsquirl*, logging can be enabled with
-a desired level of verbosity. Log files are saved to a temporary directory.
+a desired level of verbosity. Log files are saved to the `logs` folder of the
+application data, readable by you alone:
+
+| Platform  | Location                                                 |
+|-----------|----------------------------------------------------------|
+| Linux     | `~/.local/share/logsquirl/logs/`                         |
+| macOS     | `~/Library/Application Support/logsquirl/logs/`          |
+| Windows   | `%APPDATA%/logsquirl/logs/`                              |
+
+A portable *logsquirl* keeps them in `logs` beside its executable.
 A log level of 4 or 5 is usually enough. Enabling logging can slow down 
 regular expressions search.
 
@@ -1901,7 +1910,7 @@ Scrolling sideways, on a trackpad or a tilting wheel, scrolls horizontally.
 |-m,--multi         |allow multiple instance of logsquirl to run simultaneously (use together with -s)|                                    |
 |-s,--load-session  |load the previous session (default when no file is passed)|
 |-n,--new-session   |do not load the previous session (default when a file is passed) |
-|-l,--log           |save the log to a file                                    |
+|-l,--log           |save the log to a file in the `logs` folder of the application data |
 |-f,--follow        |follow initial opened files                               |
 |-                 |read a Log File from standard input, in the running *logsquirl* if there is one (in a window of its own with -m); can be combined with files |
 |-d,--debug         |output more debug (include multiple times for more verbosity e.g. -dddd) |

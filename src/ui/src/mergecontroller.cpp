@@ -24,14 +24,14 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSet>
-#include <QStandardPaths>
 #include <QTextStream>
 #include <QUuid>
 
 #include "log.h"
 
-MergeController::MergeController( QObject* parent )
+MergeController::MergeController( const QString& directory, QObject* parent )
     : QObject( parent )
+    , directory_( directory )
 {
     rebuildTimer_.setSingleShot( true );
     rebuildTimer_.setInterval( 300 );
@@ -62,11 +62,10 @@ QString MergeController::merge( const QStringList& sourcePaths, bool dedup )
         sourceWatcher_.removePaths( sourceWatcher_.files() );
     }
 
-    // Create a stable temp file path in the app's temp directory
-    const auto tempDir = QStandardPaths::writableLocation( QStandardPaths::TempLocation );
+    // A stable path in the folder handed in, the window's own (#829).
     const auto uniqueId = QUuid::createUuid().toString( QUuid::Id128 ).left( 12 );
     mergedFilePath_
-        = QDir( tempDir ).filePath( QString( "logsquirl_merged_%1.log" ).arg( uniqueId ) );
+        = QDir( directory_ ).filePath( QString( "logsquirl_merged_%1.log" ).arg( uniqueId ) );
 
     doMerge();
     watchSources();

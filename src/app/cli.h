@@ -96,7 +96,8 @@ struct CliParameters {
 
         const QCommandLineOption logToFileOption( QStringList() << "l"
                                                                 << "log",
-                                                  "save the log to a file" );
+                                                  "save the log to a file in the logs folder of "
+                                                  "the application data" );
 
         const QCommandLineOption followOption( QStringList() << "f"
                                                              << "follow",

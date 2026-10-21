@@ -22,6 +22,8 @@
 
 #include <cstdint>
 
+#include <QString>
+
 #include "log.h"
 
 namespace logging {
@@ -36,7 +38,15 @@ enum class ConsoleStream { StdOut, StdErr };
 
 void enableLogging( bool enableLogging = true, LogLevel logLevel = LogLevel::Info,
                     ConsoleStream consoleStream = ConsoleStream::StdOut );
-void enableFileLogging( bool enableLogging = true, LogLevel logLevel = LogLevel::Info );
+// The log file says which files the user opened and what they searched for, so
+// it is the user's own: `logsquirl_<time>_<pid>.log` in `logs` under the
+// application's data directory, both readable by the owner alone on Unix
+// (#829). The data directory is handed in, since this library sits below the
+// one that knows it; empty, the log goes to an owner-only folder under the
+// temporary directory. A pre-existing file of another owner or a symbolic link
+// at the log's path is never written through: file logging then stays off.
+void enableFileLogging( bool enableLogging = true, LogLevel logLevel = LogLevel::Info,
+                        const QString& dataDirectory = {} );
 } // namespace logging
 
 #endif

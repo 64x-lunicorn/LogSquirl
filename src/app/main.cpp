@@ -189,7 +189,8 @@ int main( int argc, char* argv[] )
     if ( !benchmark && !parameters.multi_instance && app.isSecondary() ) {
         const auto logLevel = static_cast<logging::LogLevel>( parameters.log_level );
         logging::enableLogging( parameters.enable_logging, logLevel );
-        logging::enableFileLogging( parameters.log_to_file, logLevel );
+        logging::enableFileLogging( parameters.log_to_file, logLevel,
+                                    DataLocation::current().dataDirectory() );
 
         LOG_INFO << "Found another logsquirl, pid " << app.primaryPid();
         if ( const auto exitCode
@@ -204,7 +205,8 @@ int main( int argc, char* argv[] )
     const auto logLevel
         = static_cast<logging::LogLevel>( std::max( parameters.log_level, config.loggingLevel() ) );
     logging::enableLogging( parameters.enable_logging || config.enableLogging(), logLevel );
-    logging::enableFileLogging( parameters.log_to_file || config.enableLogging(), logLevel );
+    logging::enableFileLogging( parameters.log_to_file || config.enableLogging(), logLevel,
+                                DataLocation::current().dataDirectory() );
 
     // Logging is on now, so the warning about an unknown Encoding lands in it.
     resetUnknownDefaultEncoding( config );
