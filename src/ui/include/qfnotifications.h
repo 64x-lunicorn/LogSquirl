@@ -51,22 +51,27 @@ protected:
     static const QString REACHED_BOF;
     static const QString INTERRUPTED;
 
+    // The message, and the Log Lines searched that the regex engine gave up
+    // on when there were any: they may match, as the Search says of its
+    // own (#689, #826).
+    static QString withUndecided( const QString& message, int undecidedLines );
+
 private:
     QString message_;
 };
 
 class QFNotificationReachedEndOfFile : public QFNotification {
 public:
-    QFNotificationReachedEndOfFile()
-        : QFNotification( REACHED_EOF )
+    explicit QFNotificationReachedEndOfFile( int undecidedLines = 0 )
+        : QFNotification( withUndecided( REACHED_EOF, undecidedLines ) )
     {
     }
 };
 
 class QFNotificationReachedBegininningOfFile : public QFNotification {
 public:
-    QFNotificationReachedBegininningOfFile()
-        : QFNotification( REACHED_BOF )
+    explicit QFNotificationReachedBegininningOfFile( int undecidedLines = 0 )
+        : QFNotification( withUndecided( REACHED_BOF, undecidedLines ) )
     {
     }
 };

@@ -43,6 +43,8 @@
 
 #include <qregularexpression.h>
 
+#include "hsregularexpression.h"
+#include "linelengthcap.h"
 #include "linetypes.h"
 #include "quickfindpattern.h"
 
@@ -50,10 +52,12 @@ constexpr Qt::GlobalColor QfForeColor = Qt::black;
 
 bool QuickFindMatcher::isLineMatching( const QString& line, LineColumn column ) const
 {
-    if ( !isActive_ )
+    gaveUp_ = false;
+    if ( !isActive_ || line.size() > MaxUiThreadLineLength )
         return false;
 
     QRegularExpressionMatch match = regexp_.match( line, column.get() );
+    gaveUp_ = engineGaveUp( match );
     if ( match.hasMatch() ) {
         lastMatchStart_ = LineColumn{ match.capturedStart() };
         lastMatchEnd_ = LineColumn{ match.capturedEnd() - 1 };
@@ -66,7 +70,8 @@ bool QuickFindMatcher::isLineMatching( const QString& line, LineColumn column ) 
 
 bool QuickFindMatcher::isLineMatchingBackward( const QString& line, LineColumn column ) const
 {
-    if ( !isActive_ )
+    gaveUp_ = false;
+    if ( !isActive_ || line.size() > MaxUiThreadLineLength )
         return false;
 
     QRegularExpressionMatchIterator matches = regexp_.globalMatch( line );
@@ -79,6 +84,9 @@ bool QuickFindMatcher::isLineMatchingBackward( const QString& line, LineColumn c
 
         lastMatch = matches.next();
     }
+    // The iterator holds the match it stopped at: an invalid one when the
+    // engine gave up on the next occurrence (#826).
+    gaveUp_ = !matches.isValid();
 
     if ( lastMatch.hasMatch() ) {
         lastMatchStart_ = LineColumn{ lastMatch.capturedStart() };
@@ -99,14 +107,16 @@ bool QuickFindMatcher::matchLine( const QString& line, logsquirl::vector<Highlig
                                   const QColor& backColor ) const
 {
     matches.clear();
+    gaveUp_ = false;
 
-    if ( isActive_ ) {
+    if ( isActive_ && line.size() <= MaxUiThreadLineLength ) {
         QRegularExpressionMatchIterator matchIterator = regexp_.globalMatch( line );
         while ( matchIterator.hasNext() ) {
             QRegularExpressionMatch match = matchIterator.next();
             matches.emplace_back( LineColumn{ match.capturedStart() },
                                   LineLength{ match.capturedLength() }, QfForeColor, backColor );
         }
+        gaveUp_ = !matchIterator.isValid();
     }
 
     return ( !matches.empty() );

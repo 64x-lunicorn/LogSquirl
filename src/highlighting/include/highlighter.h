@@ -51,6 +51,7 @@
 
 #include "containers.h"
 #include "highlightedmatch.h"
+#include "linelengthcap.h"
 #include "regularexpression.h"
 #include "regularexpressionpattern.h"
 
@@ -68,8 +69,8 @@ enum class HighlighterMatchType { NoMatch, WordMatch, LineMatch };
 class Highlighter {
 public:
     // A Log Line longer than this is never highlighted: matching it could
-    // hang the views.
-    static constexpr qsizetype MaxHighlightLineLength = 1'000'000;
+    // hang the views. The one cap of the UI thread's text work (#826).
+    static constexpr qsizetype MaxHighlightLineLength = MaxUiThreadLineLength;
 
     // Construct an uninitialized Highlighter (when reading from a config file)
     Highlighter() = default;

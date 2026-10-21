@@ -22,11 +22,16 @@
 #include "counting_log_data.h"
 #include "fake_log_data.h"
 #include "formatrecognition.h"
+#include "linelengthcap.h"
 #include "logformatcatalog.h"
 #include "logformatparser.h"
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QTemporaryDir>
+
+#include <chrono>
+#include <initializer_list>
 
 constexpr RecognitionPolicy Enabled{ .enabled = true };
 constexpr RecognitionPolicy Disabled{ .enabled = false };
@@ -669,6 +674,138 @@ SCENARIO( "Format Recognition recognizes each built-in Log Format by its own sam
                     REQUIRE( FormatRecognition::recognize( samples, Enabled, catalog ) == format );
                 }
             }
+        }
+    }
+}
+
+// #826: a Log Format definition with a pattern that backtracks
+// catastrophically, shared through the user's formats folder or a plugin,
+// delays Format Recognition by its time budget at most, and the Log Lines
+// the regex engine gave up on count for no Log Format.
+namespace {
+
+// Six patterns the engine gives up on, one after the other, a dozen
+// milliseconds each: without the budget, the sample of 50 takes seconds.
+const char* BacktrackingFormatJson = R"({
+    "backtracking_log": {
+        "title": "Backtracking",
+        "regex": {
+            "p1": { "pattern": "^(?<body>(a|aa)+)$" },
+            "p2": { "pattern": "^(?<body>(a|aa)+)#$" },
+            "p3": { "pattern": "^(?<body>(a|aa)+)!x$" },
+            "p4": { "pattern": "^(?<body>(a|aa)+)!y$" },
+            "p5": { "pattern": "^(?<body>(a|aa)+)!z$" },
+            "p6": { "pattern": "^(?<body>(a|aa)+)!!$" }
+        },
+        "body-field": "body",
+        "sample": [ { "line": "aaaa" } ]
+    }
+})";
+
+const char* AnythingFormatJson = R"({
+    "anything_log": {
+        "title": "Anything",
+        "regex": {
+            "basic": { "pattern": "^(?<body>.*)$" }
+        },
+        "body-field": "body",
+        "sample": [ { "line": "anything" } ]
+    }
+})";
+
+// A Log Line PCRE2 gives up on with the backtracking pattern (#689).
+QString backtrackingLine()
+{
+    return QString( 5000, QLatin1Char( 'a' ) ) + QLatin1Char( '!' );
+}
+
+} // namespace
+
+SCENARIO( "Format Recognition finishes within its time budget on a pattern that backtracks "
+          "catastrophically",
+          "[logformat][recognition][budget]" )
+{
+    GIVEN( "a Catalog with a backtracking Log Format and the syslog one" )
+    {
+        const auto catalog = catalogOf( { BacktrackingFormatJson, SyslogJson } );
+
+        WHEN( "every sample Log Line makes the engine give up" )
+        {
+            QStringList lines;
+            for ( int line = 0; line < FormatRecognition::SampleDepth; ++line ) {
+                lines << backtrackingLine();
+            }
+
+            QElapsedTimer clock;
+            clock.start();
+            const auto result = FormatRecognition::recognize( lines, Enabled, catalog );
+            const auto elapsed = std::chrono::milliseconds( clock.elapsed() );
+
+            THEN( "no Log Format is recognized: the engine decided none of the Log Lines" )
+            {
+                REQUIRE( result == nullptr );
+            }
+
+            THEN( "Format Recognition took its time budget, plus one match, at most" )
+            {
+                // A generous bound: one match that gives up runs well under
+                // a second, and the 300 of them uncapped take several.
+                REQUIRE( elapsed < FormatRecognition::TimeBudget + std::chrono::seconds( 1 ) );
+            }
+        }
+
+        WHEN( "the sample is syslog, which the backtracking pattern rejects at once" )
+        {
+            const QStringList lines = {
+                "Jun 15 10:21:04 myhost sshd[12345]: Accepted publickey for user",
+                "Jun 15 10:21:05 myhost sshd[12345]: pam_unix(sshd:session): session opened",
+            };
+            const auto result = FormatRecognition::recognize( lines, Enabled, catalog );
+
+            THEN( "syslog is recognized as before" )
+            {
+                REQUIRE( result != nullptr );
+                REQUIRE( result->name() == "syslog_log" );
+            }
+        }
+
+        WHEN( "the engine gives up on half of the sample, and syslog matches the other half" )
+        {
+            const QStringList lines = {
+                backtrackingLine(),
+                "Jun 15 10:21:04 myhost sshd[12345]: Accepted publickey for user",
+                backtrackingLine(),
+                "Jun 15 10:21:05 myhost sshd[12345]: pam_unix(sshd:session): session opened",
+            };
+            const auto result = FormatRecognition::recognize( lines, Enabled, catalog );
+
+            THEN( "syslog is recognized: a Log Line the engine gave up on counts for no Log "
+                  "Format" )
+            {
+                REQUIRE( result != nullptr );
+                REQUIRE( result->name() == "syslog_log" );
+            }
+        }
+    }
+}
+
+SCENARIO( "A sample Log Line past the UI thread's line length cap counts for no Log Format",
+          "[logformat][recognition][linecap]" )
+{
+    GIVEN( "a Catalog with a Log Format matching anything" )
+    {
+        const auto catalog = catalogOf( { AnythingFormatJson } );
+
+        THEN( "a Log Line at the cap is recognized" )
+        {
+            const QStringList lines = { QString( MaxUiThreadLineLength, QLatin1Char( 'x' ) ) };
+            REQUIRE( FormatRecognition::recognize( lines, Enabled, catalog ) != nullptr );
+        }
+
+        THEN( "a Log Line past the cap is not" )
+        {
+            const QStringList lines = { QString( MaxUiThreadLineLength + 1, QLatin1Char( 'x' ) ) };
+            REQUIRE( FormatRecognition::recognize( lines, Enabled, catalog ) == nullptr );
         }
     }
 }
