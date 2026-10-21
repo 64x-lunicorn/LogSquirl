@@ -472,7 +472,11 @@ void PluginDialog::onDownloadFinished( const QString& archivePath )
         return;
     }
 
-    if ( !extractAndInstall( archivePath, pluginId ) ) {
+    // Whichever way the install went, the archive has served: a failed or
+    // refused install leaves none behind in the plugin folder (#842).
+    const auto installed = extractAndInstall( archivePath, pluginId );
+    QFile::remove( archivePath );
+    if ( !installed ) {
         restoreActionButton( pluginId );
         return;
     }
@@ -878,11 +882,10 @@ bool PluginDialog::extractAndInstall( const QString& archivePath, const QString&
         return false;
     }
 
-    // Clean up backup and archive
+    // Clean up backup
     if ( hasBackup ) {
         QDir( backupDir ).removeRecursively();
     }
-    QFile::remove( archivePath );
 
     // Re-discover and load
     catalog_.discoverPlugins();

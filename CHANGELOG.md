@@ -227,6 +227,10 @@
   a socket name without the login session id, so a second LogSquirl still hands
   its Log Files over instead of opening a window of its own; the lock file
   follows, and the log names the folder when it is not the first choice. (#841)
+- **A failed plugin install leaves no archive behind**: when installing a
+  Plugin from the repository fails after the download, or the install is
+  refused, the downloaded archive goes from the plugin folder as it does after
+  a successful install, so the folder holds no archive of that attempt. (#842)
 
 ## Build and packaging
 

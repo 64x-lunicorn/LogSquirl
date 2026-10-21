@@ -22,6 +22,7 @@
 #include "applicationplugins.h"
 #include "logformatcatalog.h"
 #include "modal_answers.h"
+#include "plugincatalog.h"
 #include "plugindialog.h"
 #include "shown_widget.h"
 
@@ -44,6 +45,7 @@
 #include <utility>
 
 using logsquirl::plugins::ApplicationPlugins;
+using logsquirl::plugins::PluginCatalog;
 
 namespace {
 
@@ -445,6 +447,12 @@ SCENARIO( "Plugin Management gives a card its button back after a failed install
                 const auto* button = actionButton( dialog );
                 CHECK( button->isEnabled() );
                 CHECK( button->text() == "Install" );
+            }
+
+            THEN( "the plugin folder holds no archive of the download (#842)" )
+            {
+                CHECK_FALSE( QFile::exists(
+                    QDir( PluginCatalog::userPluginDirectory() ).filePath( "remote.zip" ) ) );
             }
         }
     }
