@@ -19,6 +19,8 @@
 
 #include "mergedialog.h"
 
+#include "plaintext.h"
+
 #include <QAbstractItemModel>
 #include <QCheckBox>
 #include <QDialogButtonBox>
@@ -47,7 +49,7 @@ MergeDialog::MergeDialog( const std::vector<MergeCandidate>& candidates, QWidget
     list_->setDefaultDropAction( Qt::MoveAction );
     for ( const auto& candidate : candidates ) {
         auto* item = new QListWidgetItem( candidate.name, list_ );
-        item->setToolTip( candidate.toolTip );
+        item->setToolTip( logsquirl::plaintext::toolTip( candidate.toolTip ) );
         item->setData( PathRole, candidate.path );
         item->setFlags( Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable
                         | Qt::ItemIsDragEnabled );

@@ -43,6 +43,7 @@
 #include "logfileprovenance.h"
 #include "mergedialog.h"
 #include "openfilehelper.h"
+#include "plaintext.h"
 #include "tabbarstyle.h"
 #include "tabgroupinfo.h"
 #include "tabnamemapping.h"
@@ -110,9 +111,10 @@ void TabbedCrawlerWidget::setOpeningTitle( const QString& path, const QString& t
 
     // The tab of a command that ended is open already (#575).
     if ( const auto index = tabOfPath( path ); index >= 0 ) {
-        myTabBar_.setTabToolTip( index, toolTip.isEmpty() || title.isEmpty()
-                                            ? QDir::toNativeSeparators( path )
-                                            : toolTip );
+        myTabBar_.setTabToolTip(
+            index, logsquirl::plaintext::toolTip( toolTip.isEmpty() || title.isEmpty()
+                                                      ? QDir::toNativeSeparators( path )
+                                                      : toolTip ) );
         updateTabGroupAppearance( index );
     }
 }
@@ -130,8 +132,9 @@ void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName,
 
     myTabBar_.setTabIcon( index, olddata_icon_ );
     const auto toolTip = openingTitles_.value( fileName ).toolTip;
-    myTabBar_.setTabToolTip( index,
-                             toolTip.isEmpty() ? QDir::toNativeSeparators( fileName ) : toolTip );
+    myTabBar_.setTabToolTip(
+        index, logsquirl::plaintext::toolTip(
+                   toolTip.isEmpty() ? QDir::toNativeSeparators( fileName ) : toolTip ) );
 
     // Names the tab too.
     updateTabGroupAppearance( index );

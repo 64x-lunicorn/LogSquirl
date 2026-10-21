@@ -58,6 +58,7 @@
 #include "groupexchange.h"
 #include "groupimportprompt.h"
 #include "iconloader.h"
+#include "plaintext.h"
 #include "textencoding.h"
 #include "theme.h"
 #include "valuenamer.h"
@@ -1307,8 +1308,8 @@ void ValueNamesDialog::importCsv()
     }
     QFile input( file );
     if ( !input.open( QIODevice::ReadOnly ) ) {
-        QMessageBox::warning( this, tr( "Import CSV" ),
-                              tr( "The file %1 could not be read." ).arg( file ) );
+        logsquirl::plaintext::warning( this, tr( "Import CSV" ),
+                                       tr( "The file %1 could not be read." ).arg( file ) );
         return;
     }
     const auto text = decodeCsvFile( input.readAll() );
@@ -1338,8 +1339,8 @@ void ValueNamesDialog::exportCsv()
     QFile output( file );
     if ( !output.open( QIODevice::WriteOnly | QIODevice::Truncate )
          || output.write( exportCsvText().toUtf8() ) < 0 ) {
-        QMessageBox::warning( this, tr( "Export CSV" ),
-                              tr( "The file %1 could not be written." ).arg( file ) );
+        logsquirl::plaintext::warning( this, tr( "Export CSV" ),
+                                       tr( "The file %1 could not be written." ).arg( file ) );
     }
 }
 
@@ -1518,8 +1519,8 @@ void ValueNamesDialog::exportGroup()
     file = withConfSuffix( file );
 
     if ( !exportShownGroup( file ) ) {
-        QMessageBox::warning( this, tr( "Export Naming Group" ),
-                              tr( "The file %1 could not be written." ).arg( file ) );
+        logsquirl::plaintext::warning( this, tr( "Export Naming Group" ),
+                                       tr( "The file %1 could not be written." ).arg( file ) );
         return;
     }
     rememberExportFolder( file );

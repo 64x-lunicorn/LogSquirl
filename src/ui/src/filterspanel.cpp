@@ -26,6 +26,7 @@
 
 #include "log.h"
 #include "persistentinfo.h"
+#include "plaintext.h"
 
 static constexpr const char* PinnedSettingsKey = "PinnedFilters";
 
@@ -155,7 +156,7 @@ void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
             else {
                 childItem->setText( 0, filter.pattern );
             }
-            childItem->setToolTip( 0, filter.pattern );
+            childItem->setToolTip( 0, logsquirl::plaintext::toolTip( filter.pattern ) );
             childItem->setFlags( childItem->flags() | Qt::ItemIsUserCheckable );
 
             // Store filter name and group id for retrieval.

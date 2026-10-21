@@ -54,6 +54,7 @@
 #include "log.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
+#include "plaintext.h"
 #include "recentfiles.h"
 #include "savedsearches.h"
 #include "shortcuts.h"
@@ -449,7 +450,7 @@ void OptionsDialog::setupLogFormats( const LogFormatCatalog& logFormatCatalog )
         item->setText( 0, title );
         item->setText( 1, fmt->description() );
         item->setText( 2, sourceText( fmt->source() ) );
-        item->setToolTip( 0, name );
+        item->setToolTip( 0, logsquirl::plaintext::toolTip( name ) );
     }
 
     formatsTreeWidget->resizeColumnToContents( 0 );

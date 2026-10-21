@@ -121,6 +121,7 @@
 #include "mergecontroller.h"
 #include "openfilehelper.h"
 #include "optionsdialog.h"
+#include "plaintext.h"
 #include "plugindialog.h"
 #include "predefinedfiltersdialog.h"
 #include "progress.h"
@@ -640,7 +641,7 @@ void MainWindow::openStandardInput()
     QString error;
     auto source = CommandSource::readStandardInput( 0, &error );
     if ( !source ) {
-        QMessageBox::warning( this, tr( "Standard input" ), error );
+        logsquirl::plaintext::warning( this, tr( "Standard input" ), error );
         return;
     }
     const auto filePath = source->spoolPath();
@@ -680,7 +681,7 @@ bool MainWindow::openCommandOutput( const RecentCommand& command )
     QString error;
     auto source = CommandSource::startCommand( command, &error );
     if ( !source ) {
-        QMessageBox::warning( this, tr( "Open Command Output" ), error );
+        logsquirl::plaintext::warning( this, tr( "Open Command Output" ), error );
         return false;
     }
     const auto title = commandTabTitle( source->command().commandLine );
@@ -1680,8 +1681,8 @@ void MainWindow::openRemoteFile( const QUrl& url )
             openLogFile( tempFile->fileName(), LogFileProvenance::transient() );
         }
         else {
-            QMessageBox::critical( this, tr( "LogSquirl - File download" ),
-                                   downloader.lastError() );
+            logsquirl::plaintext::critical( this, tr( "LogSquirl - File download" ),
+                                            downloader.lastError() );
         }
     }
     else {
@@ -1710,7 +1711,7 @@ void MainWindow::openFileFromRecent( QAction* action )
         loadFile( filename );
     }
     else {
-        const auto userAction = QMessageBox::question(
+        const auto userAction = logsquirl::plaintext::question(
             this, tr( "logsquirl - remove from recent" ),
             tr( "Could not read file %1. Remove it from recent files?" ).arg( filename ),
             QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
@@ -1732,7 +1733,7 @@ void MainWindow::openFileFromFavorites( QAction* action )
         loadFile( filename );
     }
     else {
-        const auto userAction = QMessageBox::question(
+        const auto userAction = logsquirl::plaintext::question(
             this, tr( "logsquirl - remove from favorites" ),
             tr( "Could not read file %1. Remove it from favorites?" ).arg( filename ),
             QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
@@ -1824,7 +1825,7 @@ void MainWindow::find()
 void MainWindow::clearLog()
 {
     const auto current_file = session_.getFilename( currentCrawlerWidget() );
-    const auto userAction = QMessageBox::question(
+    const auto userAction = logsquirl::plaintext::question(
         this, tr( "logsquirl - clear file" ),
         tr( "Clear file %1? File content will be removed from disk, this is irreversible" )
             .arg( current_file ),
@@ -2216,6 +2217,7 @@ void MainWindow::askAboutPendingConflicts()
                                   "editing it." )
                                   .arg( result.request.name ),
                               QMessageBox::NoButton, this );
+        question.setTextFormat( Qt::PlainText );
         question.setInformativeText(
             result.hasTheirs()
                 ? tr( "Keep your version and replace theirs, take theirs and drop your change, or "
@@ -2364,8 +2366,8 @@ void MainWindow::startPluginDataSource( const QString& pluginId )
     if ( !pluginHost.isLoaded( pluginId ) ) {
         const auto loadError = pluginHost.loadPlugin( pluginId );
         if ( !loadError.isEmpty() ) {
-            QMessageBox::warning( this, tr( "Plugin Error" ),
-                                  tr( "Failed to load plugin:\n%1" ).arg( loadError ) );
+            logsquirl::plaintext::warning( this, tr( "Plugin Error" ),
+                                           tr( "Failed to load plugin:\n%1" ).arg( loadError ) );
             return;
         }
     }
@@ -2377,7 +2379,7 @@ void MainWindow::startPluginDataSource( const QString& pluginId )
     const auto error = pluginHost.startDataSource( pluginId );
     disconnect( started );
     if ( !error.isEmpty() ) {
-        QMessageBox::warning( this, tr( "DataSource Error" ), error );
+        logsquirl::plaintext::warning( this, tr( "DataSource Error" ), error );
     }
 }
 
@@ -2595,8 +2597,8 @@ void MainWindow::importChipmunkFilters()
 
     QFile jsonFile( file );
     if ( !jsonFile.open( QIODevice::ReadOnly ) ) {
-        QMessageBox::warning( this, tr( "Import error" ),
-                              tr( "Could not open file: %1" ).arg( file ) );
+        logsquirl::plaintext::warning( this, tr( "Import error" ),
+                                       tr( "Could not open file: %1" ).arg( file ) );
         return;
     }
 
@@ -2615,7 +2617,7 @@ void MainWindow::importChipmunkFilters()
 
     int filtersAdded = 0;
     if ( filtersCollection.hasSetByName( groupName ) ) {
-        QMessageBox::information(
+        logsquirl::plaintext::information(
             this, tr( "Import result" ),
             tr( "A filter group named '%1' already exists. Skipping filter import." )
                 .arg( groupName ) );
@@ -2924,6 +2926,7 @@ void MainWindow::closeTabs( const QList<int>& indices, ActionInitiator initiator
     if ( initiator == ActionInitiator::User && Configuration::get().confirmTabClose() ) {
         QMessageBox msgBox( this );
         msgBox.setIcon( QMessageBox::Question );
+        msgBox.setTextFormat( Qt::PlainText );
         if ( crawlers.size() == 1 ) {
             const auto displayName
                 = QFileInfo( session_.getFilename( crawlers.front() ) ).fileName();
@@ -3348,7 +3351,7 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
                                                           archiveMember.inside( fileName, {} ) ) );
         }
         else {
-            QMessageBox::warning(
+            logsquirl::plaintext::warning(
                 this, tr( "logsquirl" ),
                 tr( "Failed to decompress %1" ).arg( QDir::toNativeSeparators( fileName ) ) );
         }
@@ -3383,7 +3386,7 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
             return true;
         }
         else {
-            QMessageBox::warning(
+            logsquirl::plaintext::warning(
                 this, tr( "logsquirl" ),
                 tr( "Failed to extract %1" ).arg( QDir::toNativeSeparators( fileName ) ) );
         }
@@ -3618,8 +3621,9 @@ void MainWindow::convertAndOpen( const QString& converterId, const QString& file
     const auto pluginName = plugin ? plugin->metadata().name() : converterId;
     const auto shownName = QDir::toNativeSeparators( fileName );
     const auto failed = [ this, shownName, pluginName ] {
-        QMessageBox::warning( this, tr( "logsquirl" ),
-                              tr( "Failed to convert %1 with %2" ).arg( shownName, pluginName ) );
+        logsquirl::plaintext::warning(
+            this, tr( "logsquirl" ),
+            tr( "Failed to convert %1 with %2" ).arg( shownName, pluginName ) );
     };
 
     // What the converter writes, read as a Transient Log File once it is
@@ -3818,7 +3822,8 @@ void MainWindow::updateRecentFileActions()
                 QString text
                     = tr( "&%1 %2" ).arg( QChar( key ) ).arg( strippedName( recent_files[ j ] ) );
                 recentFileActions[ actionIndex ]->setText( text );
-                recentFileActions[ actionIndex ]->setToolTip( recent_files[ j ] );
+                recentFileActions[ actionIndex ]->setToolTip(
+                    logsquirl::plaintext::toolTip( recent_files[ j ] ) );
                 recentFileActions[ actionIndex ]->setData( recent_files[ j ] );
                 recentFileActions[ actionIndex ]->setVisible( true );
             }
@@ -3935,7 +3940,7 @@ void MainWindow::updateOpenedFilesMenu()
         auto action = openedFilesMenu->addAction( displayFile.displayName() );
 
         action->setActionGroup( openedFilesGroup );
-        action->setToolTip( displayFile.nativeFullPath() );
+        action->setToolTip( logsquirl::plaintext::toolTip( displayFile.nativeFullPath() ) );
         action->setData( displayFile.fullPath() );
     }
 
@@ -3993,7 +3998,7 @@ void MainWindow::updateFavoritesMenu()
         auto action = favoritesMenu->addAction( file.displayName() );
 
         action->setActionGroup( favoritesGroup );
-        action->setToolTip( file.nativeFullPath() );
+        action->setToolTip( logsquirl::plaintext::toolTip( file.nativeFullPath() ) );
         action->setData( file.fullPath() );
     }
 }
@@ -4222,9 +4227,10 @@ bool MainWindow::saveSessionFile( const QString& path )
     if ( !file.open( QIODevice::WriteOnly ) || file.write( text ) != text.size()
          || !file.commit() ) {
         LOG_ERROR << "Cannot write the session file " << path << ": " << file.errorString();
-        QMessageBox::critical( this, tr( "Save Session As" ),
-                               tr( "The session could not be saved to %1:\n%2" )
-                                   .arg( QDir::toNativeSeparators( path ), file.errorString() ) );
+        logsquirl::plaintext::critical(
+            this, tr( "Save Session As" ),
+            tr( "The session could not be saved to %1:\n%2" )
+                .arg( QDir::toNativeSeparators( path ), file.errorString() ) );
         return false;
     }
     return true;
@@ -4247,15 +4253,16 @@ void MainWindow::openSessionFile( const QString& path )
 
     QFile file( path );
     if ( !file.open( QIODevice::ReadOnly ) ) {
-        QMessageBox::critical( this, title,
-                               tr( "The session file %1 could not be read:\n%2" )
-                                   .arg( QDir::toNativeSeparators( path ), file.errorString() ) );
+        logsquirl::plaintext::critical(
+            this, title,
+            tr( "The session file %1 could not be read:\n%2" )
+                .arg( QDir::toNativeSeparators( path ), file.errorString() ) );
         return;
     }
 
     auto read = readSessionFile( file.readAll(), QFileInfo( path ).absoluteDir() );
     if ( !read ) {
-        QMessageBox::critical( this, title, sessionFileErrorText( read.error() ) );
+        logsquirl::plaintext::critical( this, title, sessionFileErrorText( read.error() ) );
         return;
     }
 
@@ -4266,7 +4273,7 @@ void MainWindow::openSessionFile( const QString& path )
 
     if ( read->window.files.empty() ) {
         // No window is left empty: the notice alone.
-        QMessageBox::information(
+        logsquirl::plaintext::information(
             this, title,
             read->leftOut.isEmpty()
                 ? tr( "The session holds no log files." )
@@ -4294,7 +4301,7 @@ void MainWindow::restoreSessionFile( const SessionFileRead& read )
     if ( !read.leftOut.isEmpty() ) {
         // Once the window is shown.
         QTimer::singleShot( 0, this, [ this, leftOut = read.leftOut ] {
-            QMessageBox::information(
+            logsquirl::plaintext::information(
                 this, tr( "Open Session" ),
                 tr( "These log files of the session were left out. They are missing or "
                     "already open in another window:\n\n%1" )

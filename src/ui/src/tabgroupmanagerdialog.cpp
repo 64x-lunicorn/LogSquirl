@@ -28,6 +28,7 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
+#include "plaintext.h"
 #include "tabgroupinfo.h"
 
 TabGroupManagerDialog::TabGroupManagerDialog( QWidget* parent )
@@ -175,10 +176,10 @@ void TabGroupManagerDialog::deleteSelectedGroup()
     const auto row = table_->selectionModel()->selectedRows().first().row();
     const auto name = table_->item( row, 1 )->text();
 
-    const auto answer
-        = QMessageBox::question( this, tr( "Delete Group" ),
-                                 tr( "Delete group \"%1\"? Tabs will be ungrouped." ).arg( name ),
-                                 QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
+    const auto answer = logsquirl::plaintext::question(
+        this, tr( "Delete Group" ),
+        tr( "Delete group \"%1\"? Tabs will be ungrouped." ).arg( name ),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
 
     if ( answer == QMessageBox::Yes ) {
         TabGroupInfo::getSynced().removeGroup( groupId ).save();

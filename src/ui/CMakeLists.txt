@@ -25,6 +25,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/infoline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchlinewidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pathline.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/plaintext.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linemapping.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logmainview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tablesorter.h
@@ -135,6 +136,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/infoline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/searchlinewidget.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pathline.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/plaintext.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logmainview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logtableview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tablesorter.cpp
