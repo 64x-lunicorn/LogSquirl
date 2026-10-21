@@ -230,12 +230,18 @@
   certifi trusted the emSign ECC Root CA - G3, and eight intermediate
   certificates below it have compromised private keys (GHSA-6q48-6c7w-9gw2).
   LogSquirl itself does not use certifi.
+- **Current sentry-native and KArchive**: the crash reporter is sentry-native
+  0.17.4 with its crashpad, and archives are read by KDE's KArchive 6.31.0 built
+  from source with zlib 1.3.2, bzip2 1.0.8 and xz 5.8.4, in place of the 2022
+  klogg_karchive fork and its bundled copies. (#834)
 - **The macOS main executable alone disables library validation**: the release
-  signs `logsquirl` and the app bundle with `packaging/osx/entitlements-app.plist`, the one file carrying `com.apple.security.cs.disable-library-validation`, because it is the process that loads Plugins from the user plugin
-  directory; the Qt frameworks, the bundled dylibs and Qt plug-ins and the
-  helpers are signed with the hardened runtime and no entitlement, and the
-  signing step fails when the entitlement is missing on the main executable or
-  present anywhere else. (#835)
+  signs `logsquirl` and the app bundle with
+  `packaging/osx/entitlements-app.plist`, the one file carrying
+  `com.apple.security.cs.disable-library-validation`, because it is the process
+  that loads Plugins from the user plugin directory; the Qt frameworks, the
+  bundled dylibs and Qt plug-ins and the helpers are signed with the hardened
+  runtime and no entitlement, and the signing step fails when the entitlement is
+  missing on the main executable or present anywhere else. (#835)
 
 ## Documentation
 
