@@ -11,11 +11,11 @@
     "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.42.5",
-    "astro": "^7.3.6",
+    "@astrojs/starlight": "^0.42.6",
+    "astro": "^7.3.8",
     "github-slugger": "^2.0.0",
     "sharp": "^0.35.4",
-    "starlight-links-validator": "^0.26.0"
+    "starlight-links-validator": "^0.27.0"
   },
   "overrides": {
     "postcss-nested": {
