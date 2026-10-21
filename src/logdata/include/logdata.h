@@ -44,6 +44,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <mutex>
 
 #include "textencoding.h"
 #include <QDateTime>
@@ -70,9 +71,14 @@ class LogData;
 class LogFilteredData;
 
 // The log data as the block source a Search reads its Log Lines through.
+// Shared with every Search on the Log File, and kept by a Search left running
+// past its Background Run's shutdown timeout, when the LogData is gone: a
+// block read takes what it needs from the LogData at its start and holds it
+// through handles of its own, and once the LogData has let go there is
+// nothing to read (#832).
 class LogDataBlockSource final : public SearchBlockSource {
 public:
-    explicit LogDataBlockSource( const LogData& logData )
+    explicit LogDataBlockSource( const LogData* logData )
         : logData_( logData )
     {
     }
@@ -82,8 +88,17 @@ public:
     void attachReader() const override;
     void detachReader() const override;
 
+    // The LogData is going away.
+    void forgetLogData();
+
 private:
-    const LogData& logData_;
+    // The Log File's holder, or none before a file is attached or once the
+    // LogData is gone.
+    std::shared_ptr<FileHolder> attachedFile() const;
+
+    // Held while the LogData is looked at, never while a block is read.
+    mutable std::mutex mutex_;
+    const LogData* logData_;
 };
 
 // Thrown when trying to attach an already attached LogData
@@ -203,9 +218,9 @@ public:
     void readLinePrefixes( std::span<const LineNumber> lines, qint64 maxBytes,
                            const std::function<bool( QString&& text, bool cut )>& onLine ) const;
 
-    // What a Search on this Log File reads its Log Lines through. Lives as
-    // long as this object.
-    const SearchBlockSource& searchBlockSource() const;
+    // What a Search on this Log File reads its Log Lines through. A Search
+    // may keep it past this object: it reads nothing then.
+    std::shared_ptr<const SearchBlockSource> searchBlockSource() const;
 
     // A change on disk was heard of for fileName: this Log File or another
     // watched one. The Log File is checked on disk -- reopened first when it
@@ -271,6 +286,20 @@ private:
     // (RawLines::tooLongLines, #825).
     RawLines getLinesRaw( LineNumber first, LinesCount number,
                           qint64 maxBytes = std::numeric_limits<qint64>::max() ) const;
+
+    // What a block read holds of this object, so that the read goes on
+    // without it: the Index and the Log File through shared handles, and the
+    // rest by value (#832).
+    struct ReadHandles {
+        std::shared_ptr<IndexingData> index;
+        std::shared_ptr<FileHolder> file;
+        EncodingParameters encodingParams;
+        TextDecoder decoder;
+        DecodingPolicy decodingPolicy;
+    };
+    ReadHandles readHandles() const;
+    static RawLines readRawLines( ReadHandles handles, LineNumber first, LinesCount number,
+                                  qint64 maxBytes );
     // Tells every LogFilteredData handed out that the Log Lines from
     // firstChanged on may read differently now.
     void logLinesChanged( LineNumber firstChanged = 0_lnum ) const;
@@ -285,7 +314,8 @@ private:
     void readSparseLines( std::span<const LineNumber> lines, OnLine&& onLine ) const;
 
 private:
-    mutable std::unique_ptr<FileHolder> attached_file_;
+    // Shared with the block reads of a Search, which may outlive this object.
+    mutable std::shared_ptr<FileHolder> attached_file_;
 
     // Indexing data, read by us, written by the worker thread
     std::shared_ptr<IndexingData> indexing_data_;
@@ -321,7 +351,9 @@ private:
     // touched under the indexing data's lock.
     DecodingPolicy decodingPolicy_;
 
-    LogDataBlockSource searchBlockSource_{ *this };
+    // Declared last: it forgets this object first thing in the destructor.
+    const std::shared_ptr<LogDataBlockSource> searchBlockSource_
+        = std::make_shared<LogDataBlockSource>( this );
 };
 
 #endif

@@ -228,17 +228,19 @@ void SearchData::clear()
     newUndecided_ = {};
 }
 
-LogFilteredDataWorker::LogFilteredDataWorker( const SearchBlockSource& blockSource,
-                                              const SearchPolicy& searchPolicy )
-    : blockSource_( blockSource )
+LogFilteredDataWorker::LogFilteredDataWorker( std::shared_ptr<const SearchBlockSource> blockSource,
+                                              const SearchPolicy& searchPolicy,
+                                              std::chrono::milliseconds shutdownTimeout )
+    : blockSource_( std::move( blockSource ) )
     , run_(
           "Search", searchPolicy,
-          { [ &blockSource ] { blockSource.attachReader(); },
-            [ &blockSource ] { blockSource.detachReader(); } },
+          { [ source = blockSource_ ] { source->attachReader(); },
+            [ source = blockSource_ ] { source->detachReader(); } },
           [ this ]( RunId id, int percent ) { Q_EMIT searchProgressed( percent, id ); },
           [ this ]( const RunEnd<std::monostate>& end ) {
               Q_EMIT searchFinished( end.id, end.superseded, end.failure );
-          } )
+          },
+          shutdownTimeout )
 {
 }
 
@@ -246,11 +248,13 @@ SearchId LogFilteredDataWorker::search( std::shared_ptr<const RegularExpression>
                                         LineNumber startLine, LineNumber endLine )
 {
     LOG_INFO << "Search requested";
-    return run_.start( [ this, compiledExpression = std::move( compiledExpression ), startLine,
+    // The job holds the source and the data itself, not this worker: it may
+    // outlive it (#832).
+    return run_.start( [ source = blockSource_, data = searchData_,
+                         compiledExpression = std::move( compiledExpression ), startLine,
                          endLine ]( const RunControl& run, const SearchPolicy& searchPolicy ) {
-        FullSearchOperation( blockSource_, run, compiledExpression, startLine, endLine,
-                             searchPolicy )
-            .run( searchData_ );
+        FullSearchOperation( *source, run, compiledExpression, startLine, endLine, searchPolicy )
+            .run( *data );
         return std::monostate{};
     } );
 }
@@ -260,12 +264,12 @@ LogFilteredDataWorker::updateSearch( std::shared_ptr<const RegularExpression> co
                                      LineNumber startLine, LineNumber endLine, LineNumber position )
 {
     LOG_INFO << "Search update requested from " << position.get();
-    return run_.start( [ this, compiledExpression = std::move( compiledExpression ), startLine,
-                         endLine,
+    return run_.start( [ source = blockSource_, data = searchData_,
+                         compiledExpression = std::move( compiledExpression ), startLine, endLine,
                          position ]( const RunControl& run, const SearchPolicy& searchPolicy ) {
-        UpdateSearchOperation( blockSource_, run, compiledExpression, startLine, endLine, position,
+        UpdateSearchOperation( *source, run, compiledExpression, startLine, endLine, position,
                                searchPolicy )
-            .run( searchData_ );
+            .run( *data );
         return std::monostate{};
     } );
 }
@@ -284,7 +288,7 @@ void LogFilteredDataWorker::interrupt()
 // This will do an atomic copy of the object
 SearchResults LogFilteredDataWorker::getSearchResults() const
 {
-    return searchData_.takeCurrentResults();
+    return searchData_->takeCurrentResults();
 }
 
 //

@@ -100,6 +100,7 @@ add_executable(logsquirl_tests
     searchdata_test.cpp
     searchfailure_test.cpp
     searchsession_test.cpp
+    searchshutdown_test.cpp
     scratchpad_test.cpp
     settingspolicies_test.cpp
     singleinstance_test.cpp

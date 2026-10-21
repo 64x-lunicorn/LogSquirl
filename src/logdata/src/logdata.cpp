@@ -42,6 +42,7 @@
 #include <exception>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <qregularexpression.h>
 #include <string_view>
 #include <utility>
@@ -122,6 +123,9 @@ LogData::~LogData()
 {
     LOG_DEBUG << "Destroying log data";
 
+    // A Search left running past its shutdown timeout still holds the block
+    // source: from here on it reads nothing (#832).
+    searchBlockSource_->forgetLogData();
     operationQueue_.shutdown();
 }
 
@@ -169,7 +173,7 @@ void LogData::attachFile( const QString& fileName )
     }
 
     indexingFileName_ = fileName;
-    attached_file_.reset( new FileHolder( fileAccessPolicy_.keepFileClosed ) );
+    attached_file_ = std::make_shared<FileHolder>( fileAccessPolicy_.keepFileClosed );
     attached_file_->open( indexingFileName_ );
 
     operationQueue_.enqueueJob( AttachJob{ fileName, fileAccessPolicy_.defaultEncodingMib } );
@@ -427,32 +431,79 @@ logsquirl::vector<QString> LogData::doGetExpandedLines( LineNumber first_line,
     return getLinesFromFile( first_line, number, untabified );
 }
 
-const SearchBlockSource& LogData::searchBlockSource() const
+std::shared_ptr<const SearchBlockSource> LogData::searchBlockSource() const
 {
     return searchBlockSource_;
 }
 
 LinesCount LogDataBlockSource::getNbLines() const
 {
-    return logData_.getNbLine();
+    std::lock_guard lock( mutex_ );
+    return logData_ ? logData_->getNbLine() : 0_lcount;
 }
 
 RawLines LogDataBlockSource::getLinesRaw( LineNumber first, LinesCount number ) const
 {
-    return logData_.getLinesRaw( first, number, SearchBlockMaxBytes );
+    // The handles are taken under the lock, the block is read without it: a
+    // read that outlasts the LogData holds everything it touches.
+    auto handles = [ this ]() -> std::optional<LogData::ReadHandles> {
+        std::lock_guard lock( mutex_ );
+        if ( !logData_ ) {
+            return std::nullopt;
+        }
+        return logData_->readHandles();
+    }();
+    if ( !handles ) {
+        RawLines rawLines;
+        rawLines.startLine = first;
+        return rawLines;
+    }
+    return LogData::readRawLines( std::move( *handles ), first, number, SearchBlockMaxBytes );
 }
 
 void LogDataBlockSource::attachReader() const
 {
-    logData_.attachReader();
+    if ( const auto file = attachedFile() ) {
+        file->attachReader();
+    }
 }
 
 void LogDataBlockSource::detachReader() const
 {
-    logData_.detachReader();
+    if ( const auto file = attachedFile() ) {
+        file->detachReader();
+    }
+}
+
+void LogDataBlockSource::forgetLogData()
+{
+    std::lock_guard lock( mutex_ );
+    logData_ = nullptr;
+}
+
+std::shared_ptr<FileHolder> LogDataBlockSource::attachedFile() const
+{
+    std::lock_guard lock( mutex_ );
+    return logData_ ? logData_->attached_file_ : nullptr;
+}
+
+LogData::ReadHandles LogData::readHandles() const
+{
+    ReadHandles handles{ indexing_data_, attached_file_, codec_.encodingParameters(),
+                         codec_.makeDecoder(), DecodingPolicy{} };
+    // Written under the Index's lock (setDecodingPolicy), so read under it.
+    IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+    handles.decodingPolicy = decodingPolicy_;
+    return handles;
 }
 
 RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number, qint64 maxBytes ) const
+{
+    return readRawLines( readHandles(), firstLine, number, maxBytes );
+}
+
+RawLines LogData::readRawLines( ReadHandles handles, LineNumber firstLine, LinesCount number,
+                                qint64 maxBytes )
 {
     RawLines rawLines;
     rawLines.startLine = firstLine;
@@ -463,13 +514,13 @@ RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number, qint64 m
         {
             // Only the offsets are taken under the index lock: the file is
             // read without it, so indexing can publish a block meanwhile.
-            IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+            IndexingData::ConstAccessor scopedAccessor{ handles.index.get() };
             if ( ( firstLine + number ).get() > scopedAccessor.getNbLines().get() ) {
                 LOG_WARNING << "Lines out of bound asked for";
                 return {}; /* exception? */
             }
 
-            rawLines.hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+            rawLines.hideAnsiColorSequences = handles.decodingPolicy.hideAnsiColorSequences;
 
             firstByte = ( firstLine == 0_lnum )
                             ? 0
@@ -490,7 +541,7 @@ RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number, qint64 m
         // Where each Log Line ends in the buffer. A Log Line too long to read
         // is left out of it but for a line feed, and the block ends before
         // the Log Line that would take the buffer past maxBytes (#825).
-        const auto encodingParams = codec_.encodingParameters();
+        const auto encodingParams = handles.encodingParams;
         const auto lineFeedWidth = encodingParams.lineFeedWidth;
         rawLines.endOfLines.reserve( endOfLines.size() );
         qint64 lineStart = firstByte;
@@ -521,7 +572,7 @@ RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number, qint64 m
         rawLines.buffer.resize( static_cast<std::size_t>( bytesToRead ) );
 
         {
-            ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
+            ScopedFileHolder<FileHolder> fileHolder( handles.file.get() );
             // Reads the bytes [fileOffset, fileOffset + size) of the Log File
             // to bufferOffset in the buffer. When the Log File is shorter than
             // its Index says, as when it was cut short on disk and is not
@@ -573,7 +624,7 @@ RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number, qint64 m
         }
 
         LOG_DEBUG << "done reading lines:" << rawLines.buffer.size();
-        rawLines.textDecoder = codec_.makeDecoder();
+        rawLines.textDecoder = std::move( handles.decoder );
         return rawLines;
 
     } catch ( const std::bad_alloc& ) {

@@ -92,6 +92,9 @@ inline constexpr qint64 SearchBlockMaxBytes = 64 * 1024 * 1024;
 //
 // getLinesRaw() is called from the Search's threads while the Search Session
 // asks getNbLines() on its own, so an adapter must be safe to use from both.
+// A Search holds its source through a shared handle and may keep it past
+// whoever made it, when a run outlasts its Background Run's shutdown timeout:
+// an adapter must then read nothing rather than what is gone (#832).
 class SearchBlockSource {
 public:
     SearchBlockSource() = default;

@@ -102,7 +102,7 @@ bool waitUntilSettled( const SearchSession& session )
 SCENARIO( "A Search Session starts idle", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource;
+    auto blockSource = std::make_shared<InMemoryBlockSource>();
     SearchSession session( blockSource, policies.search );
 
     THEN( "its phase is Idle with no matches" )
@@ -118,7 +118,7 @@ SCENARIO( "Requesting an invalid pattern goes to InvalidPattern without running 
           "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource;
+    auto blockSource = std::make_shared<InMemoryBlockSource>();
     SearchSession session( blockSource, policies.search );
 
     GIVEN( "a pattern that fails to compile as a regex" )
@@ -144,7 +144,7 @@ SCENARIO( "Requesting an invalid pattern goes to InvalidPattern without running 
 SCENARIO( "Requesting with no pattern goes idle", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource;
+    auto blockSource = std::make_shared<InMemoryBlockSource>();
     SearchSession session( blockSource, policies.search );
 
     GIVEN( "a Session that was left in InvalidPattern" )
@@ -170,7 +170,7 @@ SCENARIO( "Requesting with no pattern goes idle", "[searchsession]" )
 SCENARIO( "stop() is a no-op when nothing is running", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource;
+    auto blockSource = std::make_shared<InMemoryBlockSource>();
     SearchSession session( blockSource, policies.search );
 
     WHEN( "stop() is called on an idle Session" )
@@ -189,7 +189,7 @@ SCENARIO( "A Search Session runs a Search over its block source", "[searchsessio
     auto policies = testSettingsPolicies();
     // Several blocks, so that results are gathered across them.
     policies.search.readBufferSizeLines = 7;
-    InMemoryBlockSource blockSource( numberedLines( 50 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 50 ) );
     SearchSession session( blockSource, policies.search );
 
     WHEN( "a pattern is requested over every Log Line" )
@@ -208,8 +208,8 @@ SCENARIO( "A Search Session runs a Search over its block source", "[searchsessio
 
         THEN( "it read the Log Lines in blocks and let go of the reader" )
         {
-            REQUIRE( blockSource.readBlocks().size() == 8 );
-            REQUIRE( blockSource.attachedReaders() == 0 );
+            REQUIRE( blockSource->readBlocks().size() == 8 );
+            REQUIRE( blockSource->attachedReaders() == 0 );
         }
     }
 }
@@ -219,10 +219,10 @@ SCENARIO( "A Search goes on from the Log Line after a block cut short by its byt
 {
     auto policies = testSettingsPolicies();
     policies.search.readBufferSizeLines = 7;
-    InMemoryBlockSource blockSource( numberedLines( 50 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 50 ) );
     // Two of the numbered Log Lines fit a block (at most 22 bytes together),
     // never three (at least 28) nor the seven asked for.
-    blockSource.limitBlockBytes( 24 );
+    blockSource->limitBlockBytes( 24 );
     SearchSession session( blockSource, policies.search );
 
     WHEN( "a pattern is requested over every Log Line" )
@@ -238,7 +238,7 @@ SCENARIO( "A Search goes on from the Log Line after a block cut short by its byt
             REQUIRE( session.matches() == fizzLines( 50 ) );
             REQUIRE( session.processedLines() == 50_lcount );
 
-            const auto blocks = blockSource.readBlocks();
+            const auto blocks = blockSource->readBlocks();
             REQUIRE( blocks.size() == 25 );
             for ( std::size_t block = 0; block < blocks.size(); ++block ) {
                 REQUIRE( blocks[ block ].first == LineNumber( 2 * block ) );
@@ -253,7 +253,7 @@ SCENARIO( "A Search Session changes its Matches only when it reports a state cha
     auto policies = testSettingsPolicies();
     // Many small blocks, so that progress is reported before completion.
     policies.search.readBufferSizeLines = 3;
-    InMemoryBlockSource blockSource( numberedLines( 300 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 300 ) );
     SearchSession session( blockSource, policies.search );
 
     // What the Matches were at each reported state change, and whether they
@@ -300,7 +300,7 @@ SCENARIO( "A Search Session hands over what changed in its Matches before each s
     auto policies = testSettingsPolicies();
     // Many small blocks, so that Matches arrive before the Search completes.
     policies.search.readBufferSizeLines = 3;
-    InMemoryBlockSource blockSource( numberedLines( 300 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 300 ) );
     SearchSession session( blockSource, policies.search );
 
     // One entry per matches delta: its outcome, whether the Matches were
@@ -427,7 +427,7 @@ SCENARIO( "A Search Session hands over what changed in its Matches before each s
 SCENARIO( "A Search continues after Log Lines were added", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource( numberedLines( 30 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 30 ) );
     SearchSession session( blockSource, policies.search );
 
     const RegularExpressionPattern pattern( "fizz" );
@@ -437,8 +437,8 @@ SCENARIO( "A Search continues after Log Lines were added", "[searchsession]" )
 
     GIVEN( "Log Lines appended to the source" )
     {
-        blockSource.appendLines( numberedLines( 20, 30 ) );
-        const auto blocksBefore = blockSource.readBlocks().size();
+        blockSource->appendLines( numberedLines( 20, 30 ) );
+        const auto blocksBefore = blockSource->readBlocks().size();
 
         WHEN( "the same pattern is requested over the grown range" )
         {
@@ -455,7 +455,7 @@ SCENARIO( "A Search continues after Log Lines were added", "[searchsession]" )
 
                 // Only the last Log Line searched before is read again: it
                 // may have been incomplete.
-                const auto blocks = blockSource.readBlocks();
+                const auto blocks = blockSource->readBlocks();
                 REQUIRE( blocks.size() == blocksBefore + 1 );
                 REQUIRE( blocks.back().first == 29_lnum );
             }
@@ -466,14 +466,15 @@ SCENARIO( "A Search continues after Log Lines were added", "[searchsession]" )
 SCENARIO( "A new request supersedes the Search in flight", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource( QStringList{ "alpha", "beta", "alpha", "beta", "beta" } );
+    auto blockSource = std::make_shared<InMemoryBlockSource>(
+        QStringList{ "alpha", "beta", "alpha", "beta", "beta" } );
     SearchSession session( blockSource, policies.search );
 
     GIVEN( "a Search held in its first block read" )
     {
-        blockSource.holdReading();
+        blockSource->holdReading();
         session.request( RegularExpressionPattern( "alpha" ) );
-        blockSource.waitUntilReadingHeld();
+        blockSource->waitUntilReadingHeld();
         REQUIRE( session.state().phase == Phase::Running );
 
         WHEN( "another pattern is requested" )
@@ -482,7 +483,7 @@ SCENARIO( "A new request supersedes the Search in flight", "[searchsession]" )
             // held one is let go shortly after the request was made.
             std::thread releaser( [ &blockSource ] {
                 std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
-                blockSource.releaseReading();
+                blockSource->releaseReading();
             } );
             session.request( RegularExpressionPattern( "beta" ) );
             releaser.join();
@@ -504,7 +505,7 @@ SCENARIO( "A new request supersedes the Search in flight", "[searchsession]" )
             THEN( "both runs let go of the reader" )
             {
                 REQUIRE( QTest::qWaitFor(
-                    [ &blockSource ] { return blockSource.attachedReaders() == 0; }, 10000 ) );
+                    [ &blockSource ] { return blockSource->attachedReaders() == 0; }, 10000 ) );
             }
         }
     }
@@ -520,7 +521,7 @@ SCENARIO( "A Search superseded before it runs leaves no Matches behind", "[searc
 {
     const auto policies = testSettingsPolicies();
     // No Log Line matches both patterns.
-    InMemoryBlockSource blockSource(
+    auto blockSource = std::make_shared<InMemoryBlockSource>(
         QStringList{ "alpha 0", "beta 1", "alpha 2", "beta 3", "alpha 4" } );
 
     const auto alpha = std::make_shared<const RegularExpression>(
@@ -534,8 +535,8 @@ SCENARIO( "A Search superseded before it runs leaves no Matches behind", "[searc
     GIVEN( "a Search whose Matches were never taken, because it was superseded" )
     {
         const FakeRunControl previousRun{ SearchId( 1 ), activeSearchId };
-        FullSearchOperation previous{ blockSource, previousRun,     alpha,
-                                      0_lnum,      LineNumber( 5 ), policies.search };
+        FullSearchOperation previous{ *blockSource, previousRun,     alpha,
+                                      0_lnum,       LineNumber( 5 ), policies.search };
         previous.run( searchData );
         REQUIRE( searchData.getLastProcessedLine() == LineNumber( 5 ) );
 
@@ -546,13 +547,13 @@ SCENARIO( "A Search superseded before it runs leaves no Matches behind", "[searc
             // for the new pattern would start.
             activeSearchId.store( 3 );
             const FakeRunControl supersededRun{ SearchId( 2 ), activeSearchId };
-            FullSearchOperation superseded{ blockSource, supersededRun,   beta,
-                                            0_lnum,      LineNumber( 5 ), policies.search };
+            FullSearchOperation superseded{ *blockSource, supersededRun,   beta,
+                                            0_lnum,       LineNumber( 5 ), policies.search };
             superseded.run( searchData );
 
-            blockSource.appendLines( QStringList{ "beta 5", "alpha 6" } );
+            blockSource->appendLines( QStringList{ "beta 5", "alpha 6" } );
             const FakeRunControl continuedRun{ SearchId( 3 ), activeSearchId };
-            UpdateSearchOperation continued{ blockSource,     continuedRun, beta,           0_lnum,
+            UpdateSearchOperation continued{ *blockSource,    continuedRun, beta,           0_lnum,
                                              LineNumber( 7 ), 0_lnum,       policies.search };
             continued.run( searchData );
 
@@ -574,7 +575,7 @@ SCENARIO( "A Search superseded before it runs leaves no Matches behind", "[searc
 SCENARIO( "A Search repeated over the same range is served from the cache", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource( numberedLines( 40 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 40 ) );
     SearchSession session( blockSource, policies.search );
 
     const RegularExpressionPattern fizz( "fizz" );
@@ -586,7 +587,7 @@ SCENARIO( "A Search repeated over the same range is served from the cache", "[se
 
     WHEN( "the first pattern is requested again" )
     {
-        const auto blocksBefore = blockSource.readBlocks().size();
+        const auto blocksBefore = blockSource->readBlocks().size();
         session.request( fizz );
 
         THEN( "it completes at once from the cache without reading a block" )
@@ -596,7 +597,7 @@ SCENARIO( "A Search repeated over the same range is served from the cache", "[se
             REQUIRE( state.fromCache );
             REQUIRE( state.matchCount == 14_lcount );
             REQUIRE( session.matches() == fizzLines( 40 ) );
-            REQUIRE( blockSource.readBlocks().size() == blocksBefore );
+            REQUIRE( blockSource->readBlocks().size() == blocksBefore );
         }
     }
 }
@@ -605,7 +606,7 @@ SCENARIO( "A Search repeated after the Log Lines changed finds the Matches of th
           "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource( numberedLines( 40 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 40 ) );
     SearchSession session( blockSource, policies.search );
 
     const RegularExpressionPattern fizz( "fizz" );
@@ -615,12 +616,12 @@ SCENARIO( "A Search repeated after the Log Lines changed finds the Matches of th
 
     GIVEN( "every Log Line reading anew, as after another Encoding was chosen" )
     {
-        blockSource.replaceLines( numberedLines( 40, 1 ) );
+        blockSource->replaceLines( numberedLines( 40, 1 ) );
 
         WHEN( "that the Log Lines changed is told, and the same Search is repeated" )
         {
             session.logLinesChanged( 0_lnum );
-            const auto blocksBefore = blockSource.readBlocks().size();
+            const auto blocksBefore = blockSource->readBlocks().size();
             session.request( fizz );
             const auto requested = session.state();
             REQUIRE( waitUntilSettled( session ) );
@@ -630,7 +631,7 @@ SCENARIO( "A Search repeated after the Log Lines changed finds the Matches of th
                 REQUIRE_FALSE( requested.fromCache );
                 REQUIRE_FALSE( requested.isContinuation );
                 REQUIRE( requested.phase == Phase::Running );
-                REQUIRE( blockSource.readBlocks().size() > blocksBefore );
+                REQUIRE( blockSource->readBlocks().size() > blocksBefore );
 
                 const auto state = session.state();
                 REQUIRE( state.phase == Phase::Complete );
@@ -654,7 +655,7 @@ SCENARIO( "A Search repeated after the Log Lines changed finds the Matches of th
 
         WHEN( "the Log Lines grow as well and the Search is asked to follow them" )
         {
-            blockSource.appendLines( numberedLines( 10, 41 ) );
+            blockSource->appendLines( numberedLines( 10, 41 ) );
             session.logLinesChanged( 0_lnum );
             session.request( fizz, 0_lnum, 50_lnum );
             const auto requested = session.state();
@@ -670,9 +671,9 @@ SCENARIO( "A Search repeated after the Log Lines changed finds the Matches of th
 
     GIVEN( "the Log Lines cut short and written again to as many as before" )
     {
-        blockSource.replaceLines( numberedLines( 10 ) );
-        blockSource.appendLines( numberedLines( 30, 11 ) );
-        REQUIRE( blockSource.getNbLines() == 40_lcount );
+        blockSource->replaceLines( numberedLines( 10 ) );
+        blockSource->appendLines( numberedLines( 30, 11 ) );
+        REQUIRE( blockSource->getNbLines() == 40_lcount );
 
         WHEN( "that the Log Lines changed is told, and the same Search is repeated" )
         {
@@ -699,14 +700,14 @@ SCENARIO( "A Search repeated after the Log Lines changed finds the Matches of th
     {
         WHEN( "the same Search is repeated" )
         {
-            const auto blocksBefore = blockSource.readBlocks().size();
+            const auto blocksBefore = blockSource->readBlocks().size();
             session.request( fizz );
 
             THEN( "it is served from the cache" )
             {
                 REQUIRE( session.state().fromCache );
                 REQUIRE( session.matches() == fizzLines( 40 ) );
-                REQUIRE( blockSource.readBlocks().size() == blocksBefore );
+                REQUIRE( blockSource->readBlocks().size() == blocksBefore );
             }
         }
     }
@@ -716,7 +717,7 @@ SCENARIO( "Log Lines that changed past a Search's range leave it served from the
           "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource( numberedLines( 40 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 40 ) );
     SearchSession session( blockSource, policies.search );
 
     const RegularExpressionPattern fizz( "fizz" );
@@ -753,7 +754,7 @@ SCENARIO( "Log Lines that changed past a Search's range leave it served from the
 SCENARIO( "A Search continues when only the last Log Line it searched changed", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource( numberedLines( 30 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 30 ) );
     SearchSession session( blockSource, policies.search );
 
     const RegularExpressionPattern fizz( "fizz" );
@@ -762,7 +763,7 @@ SCENARIO( "A Search continues when only the last Log Line it searched changed", 
 
     WHEN( "Log Lines are appended, the last one searched told changed, as after a Log File grew" )
     {
-        blockSource.appendLines( numberedLines( 20, 30 ) );
+        blockSource->appendLines( numberedLines( 20, 30 ) );
         session.logLinesChanged( 29_lnum );
         session.request( fizz, 0_lnum, 50_lnum );
         const auto requested = session.state();
@@ -780,17 +781,17 @@ SCENARIO( "A Search in flight when the Log Lines changed is not served from the 
           "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource( numberedLines( 40 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 40 ) );
     SearchSession session( blockSource, policies.search );
     const RegularExpressionPattern fizz( "fizz" );
 
     GIVEN( "a Search held in its first block read while the Log Lines change" )
     {
-        blockSource.holdReading();
+        blockSource->holdReading();
         session.request( fizz );
-        blockSource.waitUntilReadingHeld();
+        blockSource->waitUntilReadingHeld();
         session.logLinesChanged( 0_lnum );
-        blockSource.releaseReading();
+        blockSource->releaseReading();
         REQUIRE( waitUntilSettled( session ) );
         REQUIRE( session.state().phase == Phase::Complete );
 
@@ -813,12 +814,12 @@ SCENARIO( "A Search in flight when the Log Lines changed is not served from the 
 SCENARIO( "A Search whose block cannot be read fails", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource( numberedLines( 40 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 40 ) );
     SearchSession session( blockSource, policies.search );
 
     GIVEN( "a block source that fails to read" )
     {
-        blockSource.failReading( "the Log File could not be read" );
+        blockSource->failReading( "the Log File could not be read" );
 
         WHEN( "a pattern is requested" )
         {
@@ -832,7 +833,7 @@ SCENARIO( "A Search whose block cannot be read fails", "[searchsession]" )
                 REQUIRE( state.errorString.contains( "the Log File could not be read" ) );
                 REQUIRE( state.matchCount == 0_lcount );
                 REQUIRE( session.matches().cardinality() == 0 );
-                REQUIRE( blockSource.attachedReaders() == 0 );
+                REQUIRE( blockSource->attachedReaders() == 0 );
             }
         }
     }
@@ -845,9 +846,9 @@ SCENARIO( "A Search whose block cannot be read fails", "[searchsession]" )
         auto search = policies.search;
         search.useParallelSearch = false;
         search.readBufferSizeLines = 1000;
-        InMemoryBlockSource largeSource( numberedLines( 20000 ) );
+        auto largeSource = std::make_shared<InMemoryBlockSource>( numberedLines( 20000 ) );
         SearchSession failingSession( largeSource, search );
-        largeSource.failReadingFromBlock( 4, "the Log File could not be read any further" );
+        largeSource->failReadingFromBlock( 4, "the Log File could not be read any further" );
 
         WHEN( "a pattern is requested" )
         {
@@ -859,9 +860,9 @@ SCENARIO( "A Search whose block cannot be read fails", "[searchsession]" )
                 const auto state = failingSession.state();
                 REQUIRE( state.phase == Phase::Failed );
                 REQUIRE( state.errorString.contains( "could not be read any further" ) );
-                REQUIRE( largeSource.readBlocks().size() >= 5 );
+                REQUIRE( largeSource->readBlocks().size() >= 5 );
                 REQUIRE( failingSession.matches().cardinality() == 0 );
-                REQUIRE( largeSource.attachedReaders() == 0 );
+                REQUIRE( largeSource->attachedReaders() == 0 );
             }
         }
     }
@@ -874,7 +875,7 @@ SCENARIO( "The match count stays exact while a Search continues over a growing L
     policies.search.readBufferSizeLines = 4;
     // The last Log Line is a match to begin with (27 is "fizz"), and so is the
     // last of every three Log Lines appended below.
-    InMemoryBlockSource blockSource( numberedLines( 28 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 28 ) );
     SearchSession session( blockSource, policies.search );
 
     // Whether a reported count ever differed from the Matches reported with it.
@@ -895,7 +896,7 @@ SCENARIO( "The match count stays exact while a Search continues over a growing L
     {
         auto nbLines = 28;
         for ( auto growth = 0; growth < 5; ++growth ) {
-            blockSource.appendLines( numberedLines( 3, nbLines ) );
+            blockSource->appendLines( numberedLines( 3, nbLines ) );
             nbLines += 3;
             session.request( pattern, 0_lnum, LineNumber( static_cast<uint64_t>( nbLines ) ) );
             REQUIRE( session.state().isContinuation );
@@ -931,7 +932,7 @@ SCENARIO( "A continued Search drops the Match of a last Log Line that stopped ma
         // matches an exclude Search for it.
         auto lines = numberedLines( 9 );
         lines.append( "line 9 " );
-        InMemoryBlockSource blockSource( lines );
+        auto blockSource = std::make_shared<InMemoryBlockSource>( lines );
         SearchSession session( blockSource, policies.search );
 
         session.request( exclude, 0_lnum, 10_lnum );
@@ -958,8 +959,8 @@ SCENARIO( "A continued Search drops the Match of a last Log Line that stopped ma
 
         WHEN( "the last Log Line is completed so that it stops matching, and more follow" )
         {
-            blockSource.growLastLine( "fizz" );
-            blockSource.appendLines( numberedLines( 3, 10 ) );
+            blockSource->growLastLine( "fizz" );
+            blockSource->appendLines( numberedLines( 3, 10 ) );
             session.request( exclude, 0_lnum, 13_lnum );
             REQUIRE( session.state().isContinuation );
             REQUIRE( waitUntilSettled( session ) );
@@ -982,8 +983,8 @@ SCENARIO( "A continued Search drops the Match of a last Log Line that stopped ma
 
         WHEN( "the last Log Line is completed and still matches, and more follow" )
         {
-            blockSource.growLastLine( "and more of it" );
-            blockSource.appendLines( numberedLines( 3, 10 ) );
+            blockSource->growLastLine( "and more of it" );
+            blockSource->appendLines( numberedLines( 3, 10 ) );
             session.request( exclude, 0_lnum, 13_lnum );
             REQUIRE( session.state().isContinuation );
             REQUIRE( waitUntilSettled( session ) );
@@ -1012,7 +1013,7 @@ SCENARIO( "A parallel Search interrupted mid-way continues without skipping a Lo
     policies.search.useParallelSearch = true;
     policies.search.threadPoolSize = 4;
     policies.search.readBufferSizeLines = 10;
-    InMemoryBlockSource blockSource( numberedLines( 300 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 300 ) );
     SearchSession session( blockSource, policies.search );
 
     // Whether a reported count ever differed from the Matches reported with it.
@@ -1028,27 +1029,27 @@ SCENARIO( "A parallel Search interrupted mid-way continues without skipping a Lo
 
     GIVEN( "a Search stopped while its 13th block read is held" )
     {
-        blockSource.holdReadingFromBlock( 12 );
+        blockSource->holdReadingFromBlock( 12 );
         session.request( pattern, 0_lnum, 300_lnum );
-        blockSource.waitUntilReadingHeld();
+        blockSource->waitUntilReadingHeld();
         // The twelve blocks read before it are searched and combined, in
         // whatever order their matching finishes.
         REQUIRE( QTest::qWaitFor( [ &session ] { return session.processedLines() == 120_lcount; },
                                   10000 ) );
 
         session.stop();
-        blockSource.releaseReading();
-        REQUIRE( QTest::qWaitFor( [ &blockSource ] { return blockSource.attachedReaders() == 0; },
+        blockSource->releaseReading();
+        REQUIRE( QTest::qWaitFor( [ &blockSource ] { return blockSource->attachedReaders() == 0; },
                                   10000 ) );
         REQUIRE( session.state().phase == Phase::Interrupted );
 
         const auto searchedBefore = session.processedLines();
         REQUIRE( searchedBefore == 120_lcount );
-        const auto blocksBefore = blockSource.readBlocks().size();
+        const auto blocksBefore = blockSource->readBlocks().size();
 
         WHEN( "it continues over Log Lines appended since" )
         {
-            blockSource.appendLines( numberedLines( 30, 300 ) );
+            blockSource->appendLines( numberedLines( 30, 300 ) );
             session.request( pattern, 0_lnum, 330_lnum );
             REQUIRE( session.state().isContinuation );
             REQUIRE( waitUntilSettled( session ) );
@@ -1066,7 +1067,7 @@ SCENARIO( "A parallel Search interrupted mid-way continues without skipping a Lo
 
             THEN( "it reads every Log Line from the last one searched before, each once" )
             {
-                const auto blocks = blockSource.readBlocks();
+                const auto blocks = blockSource->readBlocks();
                 REQUIRE( blocks.size() > blocksBefore );
                 auto next = LineNumber( searchedBefore.get() - 1 );
                 for ( auto block = blocksBefore; block < blocks.size(); ++block ) {
@@ -1091,7 +1092,7 @@ SCENARIO( "A Search counts the Log Lines the regex engine gave up on", "[searchs
     lines[ 2 ] = backtracking;
     lines[ 9 ] = backtracking;
     lines[ 5 ] = QStringLiteral( "aaaa" );
-    InMemoryBlockSource blockSource( lines );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( lines );
     const RegularExpressionPattern pattern( "(a|aa)+$" );
 
     GIVEN( "the QRegularExpression engine" )
@@ -1211,7 +1212,7 @@ SCENARIO( "The cached results of a Search are keyed on the Log Format its Field 
           "[searchsession][fieldterm]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource( numberedLines( 300 ) );
+    auto blockSource = std::make_shared<InMemoryBlockSource>( numberedLines( 300 ) );
     SearchSession session( blockSource, policies.search );
 
     GIVEN( "a Field Term Search run under one Log Format" )

@@ -925,7 +925,7 @@ SCENARIO( "Log Lines read after their Log File shrank on disk, before it is inde
 
         THEN( "a Search reads no more Log Lines past its end than there are bytes for" )
         {
-            const auto rawLines = logData.searchBlockSource().getLinesRaw( 150_lnum, 300_lcount );
+            const auto rawLines = logData.searchBlockSource()->getLinesRaw( 150_lnum, 300_lcount );
             REQUIRE( rawLines.endOfLines.size() == 300 );
             const auto lines = rawLines.buildUtf8View();
             REQUIRE( lines.size() == LinesLeft - 150 );
@@ -1270,7 +1270,7 @@ SCENARIO( "A Log Line of gigabytes costs no more than its line feed wherever it 
     {
         // A block, as the view and a Search read: nothing but the line feed
         // stands for it.
-        const auto rawLines = logData.searchBlockSource().getLinesRaw( 0_lnum, 2_lcount );
+        const auto rawLines = logData.searchBlockSource()->getLinesRaw( 0_lnum, 2_lcount );
         REQUIRE( rawLines.buffer.size() == 1 + SecondLineBytes );
         REQUIRE( rawLines.endOfLines == logsquirl::vector<qint64>{ 1, 1 + SecondLineBytes } );
         REQUIRE( rawLines.tooLongLines == logsquirl::vector<std::size_t>{ 0 } );
@@ -1327,22 +1327,22 @@ SCENARIO( "A Search's block is bounded by its bytes as well as by its Log Lines 
     REQUIRE( loadEndSpy.safeWait( 120000 ) );
     REQUIRE( logData.getNbLine() == LinesCount( ShortLines + 1 ) );
 
-    const auto& blockSource = logData.searchBlockSource();
+    const auto blockSource = logData.searchBlockSource();
 
     THEN( "a block ends before the Log Line that would take it past the bound" )
     {
-        const auto first = blockSource.getLinesRaw( 0_lnum, LinesCount( ShortLines + 1 ) );
+        const auto first = blockSource->getLinesRaw( 0_lnum, LinesCount( ShortLines + 1 ) );
         REQUIRE( first.endOfLines.size() == 4 );
         REQUIRE( first.buffer.size() == static_cast<std::size_t>( SearchBlockMaxBytes ) );
         REQUIRE( first.tooLongLines.empty() );
 
-        const auto fewer = blockSource.getLinesRaw( 3_lnum, 3_lcount );
+        const auto fewer = blockSource->getLinesRaw( 3_lnum, 3_lcount );
         REQUIRE( fewer.endOfLines.size() == 3 );
     }
 
     THEN( "the first Log Line is always in the block, past the bound or not" )
     {
-        const auto last = blockSource.getLinesRaw( LineNumber( ShortLines ), 1_lcount );
+        const auto last = blockSource->getLinesRaw( LineNumber( ShortLines ), 1_lcount );
         REQUIRE( last.endOfLines.size() == 1 );
         REQUIRE( last.buffer.size() == static_cast<std::size_t>( LongLineBytes ) );
     }

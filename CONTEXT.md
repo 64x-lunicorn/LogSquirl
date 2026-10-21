@@ -139,7 +139,10 @@ The one way a Search or an index job runs off the UI thread: one run at a time o
 thread of its own. Starting a run supersedes the one in flight; each run gets a copy of
 the Policy taken as it starts, keeps the Log File's reader attached for as long as it
 lasts, and is reported finished exactly once — returned, superseded or failed. Shutting
-it down stops the run in flight and reports nothing more. The job it runs is plain code;
+it down stops the run in flight, waits up to a shutdown timeout (10 s) for it, and reports
+nothing more; a run still going after that is left to itself, with its thread, its reader
+attached and shared handles to what it reads and writes, so that closing never hangs and
+the run never touches what its owner freed. The job it runs is plain code;
 which run supersedes which is still up to whoever starts them (the Search Session for a
 Search; for index jobs the job rule, which starts the next one only once the one before
 is reported finished).

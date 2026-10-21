@@ -54,11 +54,11 @@ MatchesDelta::Outcome outcomeOf( SearchSession::Phase phase )
 
 } // namespace
 
-SearchSession::SearchSession( const SearchBlockSource& blockSource,
+SearchSession::SearchSession( std::shared_ptr<const SearchBlockSource> blockSource,
                               const SearchPolicy& searchPolicy )
-    : blockSource_( blockSource )
+    : blockSource_( std::move( blockSource ) )
     , searchPolicy_( searchPolicy )
-    , workerThread_( std::make_unique<LogFilteredDataWorker>( blockSource, searchPolicy ) )
+    , workerThread_( std::make_unique<LogFilteredDataWorker>( blockSource_, searchPolicy ) )
     , progressThrottler_( std::make_unique<KDToolBox::KDSignalThrottler>() )
 {
     // A Search can be run without any log data, on a block source of its own.
@@ -159,7 +159,7 @@ void SearchSession::setSearchPolicy( const SearchPolicy& searchPolicy )
 
 void SearchSession::request( const RegularExpressionPattern& pattern )
 {
-    request( pattern, 0_lnum, LineNumber( blockSource_.getNbLines().get() ) );
+    request( pattern, 0_lnum, LineNumber( blockSource_->getNbLines().get() ) );
 }
 
 void SearchSession::request()

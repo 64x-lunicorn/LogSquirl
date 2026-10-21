@@ -326,6 +326,44 @@ SCENARIO( "Destroying the index worker while it indexes waits for the run and re
     }
 }
 
+SCENARIO( "A block source kept past its LogData reads nothing and touches nothing",
+          "[logdata][destruction]" )
+{
+    // A Search leaked past its shutdown timeout keeps the block source, not
+    // the LogData (#832).
+    GIVEN( "the block source of a LogData that indexed a Log File" )
+    {
+        QTemporaryFile file{ "destruction_block_source_test_XXXXXX" };
+        REQUIRE( generateTestFile( file, 100 ) );
+
+        std::shared_ptr<const SearchBlockSource> blockSource;
+        {
+            LogData logData{ testSettingsPolicies().indexing, testSettingsPolicies().search,
+                             testSettingsPolicies().fileAccess, testSettingsPolicies().decoding };
+            attachAndWaitForIndexing( logData, file.fileName() );
+            blockSource = logData.searchBlockSource();
+            REQUIRE( blockSource->getNbLines() == 100_lcount );
+            REQUIRE( blockSource->getLinesRaw( 0_lnum, 10_lcount ).endOfLines.size() == 10 );
+            blockSource->attachReader();
+            // logData destroyed here, with a reader still attached, as a
+            // leaked run leaves it.
+        }
+
+        WHEN( "the LogData is gone" )
+        {
+            THEN( "the block source has no Log Lines, hands back an empty block, and its "
+                  "reader attaches to nothing" )
+            {
+                REQUIRE( blockSource->getNbLines() == 0_lcount );
+                REQUIRE( blockSource->getLinesRaw( 0_lnum, 10_lcount ).endOfLines.empty() );
+                blockSource->detachReader();
+                blockSource->attachReader();
+                blockSource->detachReader();
+            }
+        }
+    }
+}
+
 SCENARIO( "LogData destruction during indexing does not deadlock", "[logdata][destruction]" )
 {
     GIVEN( "A temporary log file large enough to keep indexing busy" )
