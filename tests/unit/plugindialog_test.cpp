@@ -21,16 +21,27 @@
 
 #include "applicationplugins.h"
 #include "logformatcatalog.h"
+#include "modal_answers.h"
 #include "plugindialog.h"
+#include "shown_widget.h"
 
 #include <QCheckBox>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QLabel>
 #include <QLibrary>
+#include <QMessageBox>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QPushButton>
 #include <QTemporaryDir>
+#include <QTest>
+#include <QUrl>
+
+#include <utility>
 
 using logsquirl::plugins::ApplicationPlugins;
 
@@ -76,6 +87,65 @@ QPushButton* configureButton( const PluginDialog& dialog )
     const auto buttons = dialog.findChildren<QPushButton*>( "configureButton" );
     REQUIRE( buttons.size() == 1 );
     return buttons.front();
+}
+
+/// The Install or Update button of the dialog's only plugin card, once the
+/// cards a catalog replaced are gone.
+QPushButton* actionButton( const PluginDialog& dialog )
+{
+    QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+    const auto buttons = dialog.findChildren<QPushButton*>( "actionButton" );
+    REQUIRE( buttons.size() == 1 );
+    return buttons.front();
+}
+
+/// A network that serves the path of any URL it is asked for from a folder,
+/// so a catalog's https download can fail without a server (#839).
+class LocalNetwork : public QNetworkAccessManager {
+public:
+    explicit LocalNetwork( QString root )
+        : root_( std::move( root ) )
+    {
+    }
+
+protected:
+    QNetworkReply* createRequest( Operation op, const QNetworkRequest& request,
+                                  QIODevice* outgoingData ) override
+    {
+        QNetworkRequest local( request );
+        local.setUrl(
+            QUrl::fromLocalFile( QDir( root_ ).filePath( request.url().path().mid( 1 ) ) ) );
+        return QNetworkAccessManager::createRequest( op, local, outgoingData );
+    }
+
+private:
+    QString root_;
+};
+
+/// Writes content to name in root and returns its SHA-256 as the catalog spells it.
+QString serveFile( const QString& root, const QString& name, const QByteArray& content )
+{
+    QFile f( QDir( root ).filePath( name ) );
+    REQUIRE( f.open( QIODevice::WriteOnly ) );
+    f.write( content );
+    f.close();
+    return QString::fromLatin1(
+        QCryptographicHash::hash( content, QCryptographicHash::Sha256 ).toHex() );
+}
+
+/// A v1 catalog with one installable entry whose download is remote.zip.
+QByteArray remoteCatalog( const QString& sha256 )
+{
+    return QStringLiteral( R"({
+        "schema_version": 1,
+        "plugins": [
+            { "id": "io.test.remote", "name": "Remote", "version": "1.0.0",
+              "download_url": "https://files.test/remote.zip", "sha256": "%1",
+              "platforms": ["all"] }
+        ]
+    })" )
+        .arg( sha256 )
+        .toUtf8();
 }
 
 } // namespace
@@ -329,6 +399,73 @@ SCENARIO( "Plugin Management shows a catalog entry without a checksum as not ins
         {
             CHECK_FALSE( installButton( dialog )->isEnabled() );
             CHECK( refusalLabel( dialog )->text().contains( "checksum" ) );
+        }
+    }
+}
+
+// When installing from the catalog fails, the card's button is usable again
+// with its previous text, so the user can retry without reopening the
+// dialog (#839).
+SCENARIO( "Plugin Management gives a card its button back after a failed installation",
+          "[plugindialog][plugins]" )
+{
+    QTemporaryDir served;
+    REQUIRE( served.isValid() );
+    LocalNetwork network( served.path() );
+    ApplicationPlugins plugins;
+    ModalAnswers modals;
+
+    // Clicks the card's button and waits until the failure was reported, in
+    // a message box that says what failed.
+    const auto installAndFail = [ & ]( PluginDialog& dialog, const QString& failure ) {
+        auto* button = actionButton( dialog );
+        REQUIRE( button->isEnabled() );
+        REQUIRE( button->text() == "Install" );
+        modals.click( QMessageBox::Ok );
+        button->click();
+        REQUIRE( QTest::qWaitFor( [ & ] { return modals.unanswered() == 0; }, 5000 ) );
+        REQUIRE( modals.messages().size() == 1 );
+        CHECK( modals.messages().front().contains( failure ) );
+        CHECK( modals.unexpectedMessageBoxes() == 0 );
+    };
+
+    GIVEN( "a catalog entry whose download is not an archive" )
+    {
+        const auto sha256 = serveFile( served.path(), "remote.zip", "not a zip archive" );
+        PluginDialog dialog( plugins, network );
+        showUntilExposed( dialog );
+        dialog.showCatalog( remoteCatalog( sha256 ) );
+
+        WHEN( "the user clicks Install and the extraction fails" )
+        {
+            installAndFail( dialog, "Failed to extract plugin archive" );
+
+            THEN( "the card's button is enabled and reads Install again" )
+            {
+                const auto* button = actionButton( dialog );
+                CHECK( button->isEnabled() );
+                CHECK( button->text() == "Install" );
+            }
+        }
+    }
+
+    GIVEN( "a catalog entry whose checksum is not its download's" )
+    {
+        serveFile( served.path(), "remote.zip", "not what the catalog promised" );
+        PluginDialog dialog( plugins, network );
+        showUntilExposed( dialog );
+        dialog.showCatalog( remoteCatalog( QString( 64, 'a' ) ) );
+
+        WHEN( "the user clicks Install and the download is discarded" )
+        {
+            installAndFail( dialog, "Checksum mismatch" );
+
+            THEN( "the card's button is enabled and reads Install again" )
+            {
+                const auto* button = actionButton( dialog );
+                CHECK( button->isEnabled() );
+                CHECK( button->text() == "Install" );
+            }
         }
     }
 }

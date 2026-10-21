@@ -30,6 +30,7 @@
 #include <QFrame>
 #include <QLabel>
 #include <QLineEdit>
+#include <QNetworkAccessManager>
 #include <QPixmap>
 #include <QProgressBar>
 #include <QPushButton>
@@ -62,6 +63,13 @@ public:
      */
     explicit PluginDialog( logsquirl::plugins::ApplicationPlugins& plugins,
                            QWidget* parent = nullptr );
+
+    /**
+     * The same dialog, with its catalog and downloads fetched through the
+     * given manager, which must outlive it; the tests serve them (#839).
+     */
+    PluginDialog( logsquirl::plugins::ApplicationPlugins& plugins, QNetworkAccessManager& network,
+                  QWidget* parent = nullptr );
 
     /**
      * Show in each plugin's details what the Log Format Catalog could not
@@ -153,6 +161,10 @@ private:
 
     // ── Internal helpers ─────────────────────────────────────────────
 
+    /** Builds the dialog; the repository fetches through network, or its own when null. */
+    PluginDialog( logsquirl::plugins::ApplicationPlugins& plugins, QNetworkAccessManager* network,
+                  QWidget* parent );
+
     /** Why the release cannot be installed, for the card; empty when it can (#818). */
     static QString installRefusal( const logsquirl::plugins::ReleaseEntry& release );
 
@@ -167,6 +179,12 @@ private:
 
     /** Install or update a plugin from the repository. */
     void installPlugin( const QString& pluginId );
+
+    /**
+     * Give the card its Install or Update button back as it was before
+     * installPlugin() disabled it, after the installation failed (#839).
+     */
+    void restoreActionButton( const QString& pluginId );
 
     /** Toggle a plugin between enabled and disabled. */
     void togglePlugin( const QString& pluginId );
@@ -191,6 +209,7 @@ private:
     logsquirl::plugins::ApplicationPlugins& plugins_;
     logsquirl::plugins::PluginCatalog& catalog_;
     logsquirl::plugins::PluginHost& host_;
+    QNetworkAccessManager* network_; ///< The repository's; before it, as it must outlive it
     logsquirl::plugins::PluginRepository repository_;
     bool catalogFetched_ = false;
     std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;

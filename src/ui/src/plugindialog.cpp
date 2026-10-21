@@ -33,6 +33,9 @@
 #include <QHBoxLayout>
 #include <QMessageBox>
 
+#include <algorithm>
+#include <utility>
+
 using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
@@ -263,10 +266,24 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
 // ── PluginDialog ──────────────────────────────────────────────────────
 
 PluginDialog::PluginDialog( ApplicationPlugins& plugins, QWidget* parent )
+    : PluginDialog( plugins, nullptr, parent )
+{
+}
+
+PluginDialog::PluginDialog( ApplicationPlugins& plugins, QNetworkAccessManager& network,
+                            QWidget* parent )
+    : PluginDialog( plugins, &network, parent )
+{
+}
+
+PluginDialog::PluginDialog( ApplicationPlugins& plugins, QNetworkAccessManager* network,
+                            QWidget* parent )
     : QDialog( parent )
     , plugins_( plugins )
     , catalog_( plugins.catalog() )
     , host_( plugins.host() )
+    , network_( network ? network : new QNetworkAccessManager( this ) )
+    , repository_( *network_, this )
 {
     setWindowTitle( tr( "Plugin Management" ) );
     resize( 750, 550 );
@@ -456,6 +473,7 @@ void PluginDialog::onDownloadFinished( const QString& archivePath )
     }
 
     if ( !extractAndInstall( archivePath, pluginId ) ) {
+        restoreActionButton( pluginId );
         return;
     }
 
@@ -481,6 +499,7 @@ void PluginDialog::onDownloadFinished( const QString& archivePath )
 void PluginDialog::onDownloadError( const QString& message )
 {
     progressBar_->setVisible( false );
+    restoreActionButton( std::exchange( currentInstallId_, {} ) );
     statusLabel_->setText( tr( "Download failed: %1" ).arg( message ) );
     logsquirl::plaintext::warning( this, tr( "Download Error" ), message );
 }
@@ -736,6 +755,21 @@ void PluginDialog::installPlugin( const QString& pluginId )
     // The archive is downloaded next to where extractAndInstall() unpacks it.
     repository_.downloadPlugin( latest->assets.front(), pluginId,
                                 PluginCatalog::userPluginDirectory() );
+}
+
+void PluginDialog::restoreActionButton( const QString& pluginId )
+{
+    // The card keeps the merged state from before the attempt: applying it
+    // again undoes what installPlugin() did to the button and nothing else,
+    // so the user can retry or pick another plugin without reopening (#839).
+    const auto card = cards_.find( pluginId );
+    if ( card == cards_.end() ) {
+        return;
+    }
+    const auto plugin = std::ranges::find( mergedPlugins_, pluginId, &MergedPlugin::id );
+    if ( plugin != mergedPlugins_.end() ) {
+        card->second->updateState( *plugin );
+    }
 }
 
 void PluginDialog::togglePlugin( const QString& pluginId )
