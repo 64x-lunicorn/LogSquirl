@@ -1121,6 +1121,25 @@ macOS and Windows packages. A manual CI Release dispatched from a branch fails
 before anything is downloaded, because its signing job could not enter the
 `release` environment.
 
+#### macOS signing and entitlements
+
+`.github/actions/mac-sign-notarize` signs the app inside out, every component on its own (`--deep` is
+unreliable), all with the hardened runtime (`--options runtime`) and a timestamp, before it notarizes and
+staples the app and the DMG. Which entitlements a component gets follows from what it loads:
+
+| Component | Entitlements | Why |
+|-----------|--------------|-----|
+| `Contents/MacOS/logsquirl` and the bundle, whose signature is the main executable's | `packaging/osx/entitlements-app.plist`: `com.apple.security.cs.disable-library-validation` | The main executable is the one process that loads Plugins. The hardened runtime's library validation only admits libraries signed by Apple or by the same Team ID, and a Plugin from the user plugin directory (ADR 0014) is signed by its author or not at all |
+| The Qt frameworks, the loose dylibs and the Qt plug-ins under `Contents/Frameworks` and `Contents/PlugIns` | none | Libraries do not load Plugins; they are signed with the Team ID the main executable validates them against |
+| The helpers under `Contents/MacOS`: `logsquirl_grep`, `logsquirl_crashpad_handler`, `logsquirl_minidump_dump` | none | They load nothing but the bundled frameworks of the same signature, so library validation stays on. The crashpad handler takes the crashed process's task port from the Mach exception message and needs no entitlement of its own |
+
+A second entitlement goes into `entitlements-app.plist` only when the main executable needs it; a helper that
+ever needs one gets its own file and its own `codesign` call, never the application's. After signing, the action
+checks that the main executable carries the entitlement and that no helper, framework, dylib or Qt plug-in carries
+any, and fails the release otherwise (#835). The shipped Plugins under `Contents/PlugIns` are signed with the
+bundle, so they would load even with library validation on; what the entitlement is for is a Plugin installed
+from the Plugin Catalog or copied into the user plugin directory by hand.
+
 ### Workflows
 
 | Workflow | Trigger | Purpose |
