@@ -250,6 +250,7 @@ void OptionsDialog::setupLogging()
 void OptionsDialog::setupArchives()
 {
     extractArchivesAlwaysCheckBox->setEnabled( extractArchivesCheckBox->isChecked() );
+    decompressionBudgetSpinBox->setEnabled( extractArchivesCheckBox->isChecked() );
 }
 
 void OptionsDialog::setupIndexCache()
@@ -755,6 +756,7 @@ void OptionsDialog::updateDialogFromConfig()
 
     extractArchivesCheckBox->setChecked( config.extractArchives() );
     extractArchivesAlwaysCheckBox->setChecked( config.extractArchivesAlways() );
+    decompressionBudgetSpinBox->setValue( config.decompressionBudgetMb() );
 
     // Perf
     parallelSearchCheckBox->setChecked( config.useParallelSearch() );
@@ -962,6 +964,7 @@ void OptionsDialog::updateConfigFromDialog()
 
     config.setExtractArchives( extractArchivesCheckBox->isChecked() );
     config.setExtractArchivesAlways( extractArchivesAlwaysCheckBox->isChecked() );
+    config.setDecompressionBudgetMb( decompressionBudgetSpinBox->value() );
 
     config.setUseParallelSearch( parallelSearchCheckBox->isChecked() );
     config.setUseSearchResultsCache( searchResultsCacheCheckBox->isChecked() );

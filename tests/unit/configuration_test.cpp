@@ -129,6 +129,11 @@ SCENARIO( "Configuration default values", "[configuration]" )
             REQUIRE_FALSE( config.extractArchivesAlways() );
         }
 
+        THEN( "A compressed Log File is decompressed to 16 GiB at most" )
+        {
+            REQUIRE( config.decompressionBudgetMb() == 16 * 1024 );
+        }
+
         THEN( "SSL peer verification is on" )
         {
             REQUIRE( config.verifySslPeers() );
@@ -549,6 +554,7 @@ namespace {
 // ("dark") are only stored when there are some; the settings file test and
 // the dark palette scenario cover them.
 const QStringList StoredSettingNames = {
+    "archives.decompressionBudgetMb",
     "archives.extract",
     "archives.extractAlways",
     "chartPresets",
@@ -673,6 +679,7 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.betaVersionCheckingEnabled() == expected.betaVersionCheckingEnabled() );
     CHECK( actual.extractArchives() == expected.extractArchives() );
     CHECK( actual.extractArchivesAlways() == expected.extractArchivesAlways() );
+    CHECK( actual.decompressionBudgetMb() == expected.decompressionBudgetMb() );
 
     CHECK( actual.useParallelSearch() == expected.useParallelSearch() );
     CHECK( actual.useSearchResultsCache() == expected.useSearchResultsCache() );
@@ -959,7 +966,7 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                         "commandSource.recentCommands/size", "view.showValueNames",
                         "fileAssociations.ask", "fileAssociations.chosen",
                         "fileAssociations.chosenTypes", "fileAssociations.dismissed",
-                        "fileAssociations.confirmed" } ) {
+                        "fileAssociations.confirmed", "archives.decompressionBudgetMb" } ) {
                     stored.remove( added );
                 }
                 CHECK( stored.keys() == releaseValues.keys() );
@@ -1151,6 +1158,26 @@ SCENARIO( "Stored values outside their range are corrected on load", "[configura
         THEN( "It is loaded as the largest size allowed" )
         {
             CHECK( file.load().indexCacheMaxSizeMb() == 8'000'000 );
+        }
+    }
+
+    GIVEN( "A decompression budget of nothing" )
+    {
+        SettingsFile file;
+        file.setValue( "archives.decompressionBudgetMb", 0 );
+        THEN( "It is loaded as one MB: nothing would decompress nothing (#816)" )
+        {
+            CHECK( file.load().decompressionBudgetMb() == 1 );
+        }
+    }
+
+    GIVEN( "A decompression budget too large to count in bytes" )
+    {
+        SettingsFile file;
+        file.setValue( "archives.decompressionBudgetMb", 9'000'000 );
+        THEN( "It is loaded as the largest budget allowed" )
+        {
+            CHECK( file.load().decompressionBudgetMb() == 8'000'000 );
         }
     }
 

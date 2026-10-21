@@ -32,6 +32,7 @@
 #include "log.h"
 
 #include "archiveextraction.h"
+#include "budgeteddevice.h"
 #include "decompressor.h"
 #include "lz4device.h"
 #include "zstddevice.h"
@@ -83,6 +84,49 @@ Archive archiveTypeByExtension( const QString& archiveFilePath )
     return Archive::None;
 }
 
+// The compression a file is wrapped in, a compressed single file's or a
+// compressed tar's, by its content first and its name second: None for a
+// plain file, a plain tar, a zip or a 7z.
+Archive compressionLayer( const QString& archiveFilePath )
+{
+    QMimeDatabase mimeDb;
+    const auto mime = mimeDb.mimeTypeForFile( archiveFilePath );
+
+    if ( mime.inherits( "application/x-gzip" ) ) {
+        return Archive::Gz;
+    }
+    else if ( mime.inherits( "application/x-bzip" ) ) {
+        return Archive::Bz2;
+    }
+    else if ( mime.inherits( "application/x-lzma" ) || mime.inherits( "application/x-xz" ) ) {
+        return Archive::Xz;
+    }
+    else if ( mime.inherits( "application/zstd" ) || mime.inherits( "application/x-zstd" ) ) {
+        return Archive::Zstd;
+    }
+    else if ( mime.inherits( "application/x-lz4" ) ) {
+        return Archive::Lz4;
+    }
+
+    const auto extension = QFileInfo( archiveFilePath ).suffix().toLower();
+    if ( extension == "gz" || extension == "tgz" ) {
+        return Archive::Gz;
+    }
+    else if ( extension == "bz2" || extension == "tbz" || extension == "tbz2" ) {
+        return Archive::Bz2;
+    }
+    else if ( extension == "xz" || extension == "lzma" || extension == "txz" ) {
+        return Archive::Xz;
+    }
+    else if ( extension == "zst" || extension == "zstd" || extension == "tzst" ) {
+        return Archive::Zstd;
+    }
+    else if ( extension == "lz4" ) {
+        return Archive::Lz4;
+    }
+    return Archive::None;
+}
+
 Archive archiveType( const QString& archiveFilePath )
 {
     QMimeDatabase mimeDb;
@@ -100,24 +144,7 @@ Archive archiveType( const QString& archiveFilePath )
         return Archive::Tar;
     }
 
-    auto mimeArchiveType = Archive::None;
-
-    if ( mime.inherits( "application/x-gzip" ) ) {
-        mimeArchiveType = Archive::Gz;
-    }
-    else if ( mime.inherits( "application/x-bzip" ) ) {
-        mimeArchiveType = Archive::Bz2;
-    }
-    else if ( mime.inherits( "application/x-lzma" ) || mime.inherits( "application/x-xz" ) ) {
-        mimeArchiveType = Archive::Xz;
-    }
-    else if ( mime.inherits( "application/zstd" ) || mime.inherits( "application/x-zstd" ) ) {
-        mimeArchiveType = Archive::Zstd;
-    }
-    else if ( mime.inherits( "application/x-lz4" ) ) {
-        mimeArchiveType = Archive::Lz4;
-    }
-
+    const auto mimeArchiveType = compressionLayer( archiveFilePath );
     if ( mimeArchiveType == Archive::None ) {
         return archiveTypeByExtension( archiveFilePath );
     }
@@ -138,114 +165,126 @@ Archive archiveType( const QString& archiveFilePath )
     return mimeArchiveType;
 }
 
-std::shared_ptr<KArchive> makeExtractor( Archive archiveType, const QString& archiveFilePath )
+/// The decompressed stream of a file wrapped in `layer`: KCompressionDevice
+/// for gz/bz2/xz, the custom devices for zstd/lz4, the file itself for None.
+std::unique_ptr<QIODevice> makeStreamDevice( Archive layer, const QString& archiveFilePath )
+{
+    switch ( layer ) {
+    case Archive::Gz:
+        return std::make_unique<KCompressionDevice>( archiveFilePath, KCompressionDevice::GZip );
+    case Archive::Bz2:
+        return std::make_unique<KCompressionDevice>( archiveFilePath, KCompressionDevice::BZip2 );
+    case Archive::Xz:
+        return std::make_unique<KCompressionDevice>( archiveFilePath, KCompressionDevice::Xz );
+    case Archive::Zstd:
+        return std::make_unique<ZstdDevice>( archiveFilePath );
+    case Archive::Lz4:
+        return std::make_unique<Lz4Device>( archiveFilePath );
+    default:
+        return std::make_unique<QFile>( archiveFilePath );
+    }
+}
+
+// An archive opened for reading, and the budgeted stream a tar is read
+// through, which says whether the archive expanded past the budget.
+struct ArchiveReader {
+    std::shared_ptr<KArchive> archive;
+    std::shared_ptr<BudgetedDevice> stream;
+};
+
+ArchiveReader makeExtractor( Archive archiveType, const QString& archiveFilePath,
+                             qint64 budgetBytes )
 {
     switch ( archiveType ) {
     case Archive::Zip:
-        return std::make_shared<KZip>( archiveFilePath );
+        return { std::make_shared<KZip>( archiveFilePath ), {} };
     case Archive::Zip7:
-        return std::make_shared<K7Zip>( archiveFilePath );
+        return { std::make_shared<K7Zip>( archiveFilePath ), {} };
     case Archive::Tar: {
-        // KTar handles .tar.gz/.tar.bz2/.tar.xz natively, but not zstd/lz4.
-        // For those, provide a pre-decompressing QIODevice to KTar.
-        const auto info = QFileInfo( archiveFilePath );
-        const auto completeSuffix = info.completeSuffix().toLower();
-        const auto extension = info.suffix().toLower();
-
-        QIODevice* decompDevice = nullptr;
-        if ( completeSuffix.contains( "tar.zst" ) || completeSuffix.contains( "tar.zstd" )
-             || extension == "tzst" ) {
-            decompDevice = new ZstdDevice( archiveFilePath );
-        }
-        else if ( completeSuffix.contains( "tar.lz4" ) ) {
-            decompDevice = new Lz4Device( archiveFilePath );
-        }
-
-        if ( decompDevice ) {
-            // KTar does not own the device — use a custom deleter to clean up both.
-            return std::shared_ptr<KTar>( new KTar( decompDevice ), [ decompDevice ]( KTar* tar ) {
-                delete tar;
-                delete decompDevice;
-            } );
-        }
-
-        return std::make_shared<KTar>( archiveFilePath );
+        // KTar given a path copies the whole decompressed tarball into a
+        // temporary file of its own before it reads a header, and nothing
+        // bounds that copy. Given a device it reads the stream as it goes,
+        // so the stream is handed over budgeted: the tar reader parses and
+        // extracts no further than the budget (#816).
+        auto stream = std::make_shared<BudgetedDevice>(
+            makeStreamDevice( compressionLayer( archiveFilePath ), archiveFilePath ), budgetBytes );
+        // KTar does not own the device; the deleter keeps it alive until the
+        // KTar is gone.
+        std::shared_ptr<KArchive> tar( new KTar( stream.get() ),
+                                       [ stream ]( KArchive* archive ) { delete archive; } );
+        return { std::move( tar ), std::move( stream ) };
     }
     default:
         return {};
     }
 }
 
-/// Creates a QIODevice for streaming decompression. Returns KCompressionDevice
-/// for gz/bz2/xz and custom wrappers for zstd/lz4.
-std::shared_ptr<QIODevice> makeDecompressor( Archive archiveType, const QString& archiveFilePath )
+DecompressionFailure doExtract( const ArchiveReader& reader, const QString& archiveFilePath,
+                                const QString& destination, qint64 budgetBytes,
+                                AtomicFlag& interrupt )
 {
-    switch ( archiveType ) {
-    case Archive::Gz:
-        return std::make_shared<KCompressionDevice>( archiveFilePath, KCompressionDevice::GZip );
-    case Archive::Bz2:
-        return std::make_shared<KCompressionDevice>( archiveFilePath, KCompressionDevice::BZip2 );
-    case Archive::Xz:
-        return std::make_shared<KCompressionDevice>( archiveFilePath, KCompressionDevice::Xz );
-    case Archive::Zstd:
-        return std::make_shared<ZstdDevice>( archiveFilePath );
-    case Archive::Lz4:
-        return std::make_shared<Lz4Device>( archiveFilePath );
-    default:
-        return {};
-    }
-}
+    const auto streamExceeded
+        = [ &reader ] { return reader.stream && reader.stream->budgetExceeded(); };
 
-bool doExtract( std::shared_ptr<KArchive> archive, const QString& archiveFilePath,
-                const QString& destination, AtomicFlag& interrupt )
-{
-    if ( !archive->open( QIODevice::ReadOnly ) ) {
-        LOG_WARNING << "Cannot open " << archiveFilePath;
-        return false;
+    if ( !reader.archive->open( QIODevice::ReadOnly ) ) {
+        LOG_WARNING << "Cannot open " << archiveFilePath << ": " << reader.archive->errorString();
+        return streamExceeded() ? DecompressionFailure::BudgetExceeded
+                                : DecompressionFailure::Error;
     }
 
-    const KArchiveDirectory* root = archive->directory();
+    const KArchiveDirectory* root = reader.archive->directory();
 
     if ( !root ) {
         LOG_WARNING << "Cannot open root directory" << archiveFilePath;
-        archive->close();
-        return false;
+        reader.archive->close();
+        return streamExceeded() ? DecompressionFailure::BudgetExceeded
+                                : DecompressionFailure::Error;
     }
 
-    auto result = false;
+    auto result = DecompressionFailure::Error;
     try {
         // Never KArchive's own copy: it creates links and writes through
         // them (#815).
-        result = extractArchiveDirectory( *root, destination, interrupt );
+        result = extractArchiveDirectory( *root, destination, budgetBytes, interrupt );
     } catch ( const std::exception& e ) {
         LOG_ERROR << "Exception during extract: " << e.what();
     }
 
     if ( interrupt ) {
-        result = false;
+        result = DecompressionFailure::Interrupted;
         LOG_INFO << "Interrupted extract of " << archiveFilePath;
     }
+    else if ( result == DecompressionFailure::Error && streamExceeded() ) {
+        // The tar stream ran out at the budget under an entry; the entry
+        // then reads short.
+        result = DecompressionFailure::BudgetExceeded;
+    }
+    if ( result == DecompressionFailure::BudgetExceeded ) {
+        LOG_WARNING << "Extracting " << archiveFilePath
+                    << " stopped at the decompression budget of " << budgetBytes << " bytes (#816)";
+    }
 
-    archive->close();
+    reader.archive->close();
     return result;
 }
 
-bool doDecompress( std::shared_ptr<QIODevice> input, const QString& archiveFilePath,
-                   QFile* outputFile, AtomicFlag& interrupt )
+DecompressionFailure doDecompress( std::shared_ptr<QIODevice> input, const QString& archiveFilePath,
+                                   QFile* outputFile, qint64 budgetBytes, AtomicFlag& interrupt )
 {
     if ( !input->open( QIODevice::ReadOnly ) ) {
         LOG_WARNING << "Cannot open " << archiveFilePath;
-        return false;
+        return DecompressionFailure::Error;
     }
 
-    bool success = true;
+    auto result = DecompressionFailure::None;
     try {
         // One output buffer for the whole Log File instead of a new one per chunk.
         std::vector<char> data( 4 * 1024 * 1024 );
+        qint64 written = 0;
 
         while ( !input->atEnd() ) {
             if ( interrupt ) {
-                success = false;
+                result = DecompressionFailure::Interrupted;
                 LOG_INFO << "Interrupted decompress of " << archiveFilePath;
                 break;
             }
@@ -255,7 +294,7 @@ bool doDecompress( std::shared_ptr<QIODevice> input, const QString& archiveFileP
                 // A corrupt or truncated archive, or an I/O error.
                 LOG_ERROR << "Error decompressing " << archiveFilePath << ": "
                           << input->errorString();
-                success = false;
+                result = DecompressionFailure::Error;
                 break;
             }
             if ( readBytes == 0 ) {
@@ -264,8 +303,18 @@ bool doDecompress( std::shared_ptr<QIODevice> input, const QString& archiveFileP
                 if ( !input->atEnd() ) {
                     LOG_ERROR << "Decompressor stalled (read returned 0 but not atEnd) for "
                               << archiveFilePath;
-                    success = false;
+                    result = DecompressionFailure::Error;
                 }
+                break;
+            }
+
+            // Checked before the write: not a byte past the budget reaches
+            // the disk, however far the input expands (#816).
+            if ( written + readBytes > budgetBytes ) {
+                LOG_WARNING << "Decompressing " << archiveFilePath
+                            << " stopped at the decompression budget of " << budgetBytes
+                            << " bytes (#816)";
+                result = DecompressionFailure::BudgetExceeded;
                 break;
             }
 
@@ -275,40 +324,48 @@ bool doDecompress( std::shared_ptr<QIODevice> input, const QString& archiveFileP
             if ( writtenBytes < 0 ) {
                 LOG_ERROR << "Error decompressing " << archiveFilePath << ": "
                           << outputFile->errorString();
-                success = false;
+                result = DecompressionFailure::Error;
                 break;
             }
             if ( writtenBytes != readBytes ) {
                 LOG_ERROR << "Short write while decompressing " << archiveFilePath << ": wrote "
                           << writtenBytes << " of " << readBytes << " bytes ("
                           << outputFile->errorString() << ")";
-                success = false;
+                result = DecompressionFailure::Error;
                 break;
             }
+            written += writtenBytes;
         }
     } catch ( const std::exception& e ) {
         LOG_ERROR << "Exception during decompress: " << e.what();
-        success = false;
+        result = DecompressionFailure::Error;
     }
 
     input->close();
     outputFile->close();
 
-    return success;
+    return result;
 }
 
 } // namespace
 
-Decompressor::Decompressor( QObject* parent )
+Decompressor::Decompressor( qint64 budgetBytes, QObject* parent )
     : QObject( parent )
+    , budgetBytes_( budgetBytes )
 {
-    connect( &watcher_, &QFutureWatcher<bool>::finished, [ this ]() {
-        LOG_INFO << "Decompressor finished " << watcher_.result();
-        Q_EMIT finished( watcher_.result() );
+    connect( &watcher_, &QFutureWatcher<DecompressionFailure>::finished, [ this ]() {
+        const auto succeeded = watcher_.result() == DecompressionFailure::None;
+        LOG_INFO << "Decompressor finished " << succeeded;
+        Q_EMIT finished( succeeded );
     } );
 }
 
 bool Decompressor::waitForResult()
+{
+    return failure() == DecompressionFailure::None;
+}
+
+DecompressionFailure Decompressor::failure()
 {
     return watcher_.result();
 }
@@ -336,16 +393,18 @@ DecompressAction Decompressor::action( const QString& archiveFilePath )
 bool Decompressor::decompress( const QString& archiveFilePath, QFile* outputFile,
                                AtomicFlag& interrupt )
 {
-    auto decompressor = makeDecompressor( archiveType( archiveFilePath ), archiveFilePath );
-    if ( !decompressor ) {
+    const auto layer = archiveType( archiveFilePath );
+    if ( layer == Archive::None || layer == Archive::Zip || layer == Archive::Zip7
+         || layer == Archive::Tar ) {
         LOG_WARNING << "Unsupported archive " << archiveFilePath.constData();
         return false;
     }
+    std::shared_ptr<QIODevice> decompressor = makeStreamDevice( layer, archiveFilePath );
 
-    future_ = QtConcurrent::run(
-        [ input = std::move( decompressor ), archiveFilePath, outputFile, &interrupt ] {
-            return doDecompress( input, archiveFilePath, outputFile, interrupt );
-        } );
+    future_ = QtConcurrent::run( [ input = std::move( decompressor ), archiveFilePath, outputFile,
+                                   budget = budgetBytes_, &interrupt ] {
+        return doDecompress( input, archiveFilePath, outputFile, budget, interrupt );
+    } );
     watcher_.setFuture( future_ );
 
     return true;
@@ -354,18 +413,18 @@ bool Decompressor::decompress( const QString& archiveFilePath, QFile* outputFile
 bool Decompressor::extract( const QString& archiveFilePath, const QString& destination,
                             AtomicFlag& interrupt )
 {
-    auto archive = makeExtractor( archiveType( archiveFilePath ), archiveFilePath );
-    if ( !archive ) {
+    auto reader = makeExtractor( archiveType( archiveFilePath ), archiveFilePath, budgetBytes_ );
+    if ( !reader.archive ) {
         LOG_WARNING << "Unsupported archive " << archiveFilePath;
         return false;
     }
 
     // Open the archive
 
-    future_ = QtConcurrent::run(
-        [ ar = std::move( archive ), archiveFilePath, destination, &interrupt ] {
-            return doExtract( ar, archiveFilePath, destination, interrupt );
-        } );
+    future_ = QtConcurrent::run( [ reader = std::move( reader ), archiveFilePath, destination,
+                                   budget = budgetBytes_, &interrupt ] {
+        return doExtract( reader, archiveFilePath, destination, budget, interrupt );
+    } );
     watcher_.setFuture( future_ );
 
     return true;

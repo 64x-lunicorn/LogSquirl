@@ -460,6 +460,17 @@ public:
         extractArchivesAlways_ = extract;
     }
 
+    // The most a compressed Log File, or an archive as a whole, is
+    // decompressed to, in MB (#816).
+    int decompressionBudgetMb() const
+    {
+        return decompressionBudgetMb_;
+    }
+    void setDecompressionBudgetMb( int sizeMb )
+    {
+        decompressionBudgetMb_ = sizeMb;
+    }
+
     bool verifySslPeers() const
     {
         return verifySslPeers_;
@@ -892,6 +903,7 @@ private:
 
     bool extractArchives_{};
     bool extractArchivesAlways_{};
+    int decompressionBudgetMb_{};
 
     bool verifySslPeers_{};
 

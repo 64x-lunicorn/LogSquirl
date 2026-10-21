@@ -499,9 +499,12 @@ bool PluginRepository::extractPluginArchive( const QString& archivePath, const Q
     }
 
     // The rules a Log File archive is extracted by: nothing lands outside
-    // destDir, no link is created (#815).
+    // destDir, no link is created (#815), and a zip that expands past what
+    // any plugin is -- a few MB -- stops at 1 GiB (#816).
+    constexpr qint64 PluginArchiveBudgetBytes = qint64{ 1 } << 30;
     AtomicFlag never;
-    const auto ok = extractArchiveDirectory( *root, destDir, never );
+    const auto ok = extractArchiveDirectory( *root, destDir, PluginArchiveBudgetBytes, never )
+                    == DecompressionFailure::None;
     zip.close();
 
     if ( !ok ) {

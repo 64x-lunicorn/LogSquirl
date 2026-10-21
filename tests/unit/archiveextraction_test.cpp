@@ -40,6 +40,8 @@
 namespace {
 
 const QByteArray LogLines = "first Log Line\nsecond Log Line\n";
+// These tests are about where an entry lands, not how much it is (#816).
+constexpr qint64 NoBudgetToSpeakOf = 1024 * 1024;
 const QByteArray Secret = "the victim's own file\n";
 
 bool writeFile( const QString& path, const QByteArray& data )
@@ -96,12 +98,16 @@ bool extract( const QString& archivePath, const QString& folder )
     if ( archivePath.endsWith( ".zip" ) ) {
         KZip zip{ archivePath };
         REQUIRE( zip.open( QIODevice::ReadOnly ) );
-        extracted = extractArchiveDirectory( *zip.directory(), folder, interrupt );
+        extracted
+            = extractArchiveDirectory( *zip.directory(), folder, NoBudgetToSpeakOf, interrupt )
+              == DecompressionFailure::None;
     }
     else {
         KTar tar{ archivePath };
         REQUIRE( tar.open( QIODevice::ReadOnly ) );
-        extracted = extractArchiveDirectory( *tar.directory(), folder, interrupt );
+        extracted
+            = extractArchiveDirectory( *tar.directory(), folder, NoBudgetToSpeakOf, interrupt )
+              == DecompressionFailure::None;
     }
     return extracted;
 }
@@ -201,7 +207,9 @@ SCENARIO( "An archive extracts into its folder and nowhere else", "[compression]
             KZip reading{ archivePath };
             REQUIRE( reading.open( QIODevice::ReadOnly ) );
             AtomicFlag interrupt{ true };
-            REQUIRE_FALSE( extractArchiveDirectory( *reading.directory(), folder, interrupt ) );
+            REQUIRE( extractArchiveDirectory( *reading.directory(), folder, NoBudgetToSpeakOf,
+                                              interrupt )
+                     == DecompressionFailure::Interrupted );
         }
     }
 }

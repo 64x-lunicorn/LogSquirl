@@ -77,7 +77,9 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
         = { .keepFileClosed = config.keepFileClosed(),
             .defaultEncodingMib = knownDefaultEncodingMib( config.defaultEncodingMib() ),
             .extractArchives = config.extractArchives(),
-            .extractArchivesAlways = config.extractArchivesAlways() },
+            .extractArchivesAlways = config.extractArchivesAlways(),
+            .decompressionBudgetBytes
+            = static_cast<qint64>( config.decompressionBudgetMb() ) * 1024 * 1024 },
 
         .recognition = { .enabled = config.autoDetectLogFormats() },
 

@@ -510,7 +510,7 @@ std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
     // the window is in use meanwhile, and its tab comes once it is done (#610).
     for ( const auto& file : fromArchives ) {
         archiveRestores_.decompress(
-            file.archiveMember,
+            file.archiveMember, session_.fileAccessPolicy().decompressionBudgetBytes,
             [ this, id = file.id, member = file.archiveMember ]( const QString& fileName ) {
                 openRestoredFromArchive( id, member, fileName );
             } );
@@ -3320,8 +3320,26 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
     // Log File decompressed from it is saved with that, one level down (#596).
     const auto archiveMember = archiveMembers_.value( fileName );
 
-    Decompressor decompressor;
+    // The most the Log File, or the archive as a whole, is decompressed to;
+    // the user is told the budget by the MB the Options dialog shows (#816).
+    const auto budgetBytes = fileAccess.decompressionBudgetBytes;
+    Decompressor decompressor{ budgetBytes };
     AtomicFlag decompressInterrupt;
+    auto started = false;
+
+    // What the user is told when it fails: the budget is theirs to raise, so
+    // that failure names it and where to change it.
+    const auto failureMessage = [ & ]( const QString& otherwise ) {
+        const auto name = QDir::toNativeSeparators( fileName );
+        if ( started && decompressor.failure() == DecompressionFailure::BudgetExceeded ) {
+            return tr( "%1 expands past the %2 MB LogSquirl decompresses at most, so it was not "
+                       "opened. Raise the limit on the File page of the Preferences, under "
+                       "Archives." )
+                .arg( name )
+                .arg( budgetBytes / ( 1024 * 1024 ) );
+        }
+        return otherwise.arg( name );
+    };
 
     QProgressDialog progressDialog;
     progressDialog.setLabelText( tr( "Extracting %1" ).arg( fileName ) );
@@ -3340,10 +3358,12 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
         auto tempFile = new QTemporaryFile(
             this->tempDir_.filePath( QFileInfo( fileName ).fileName() ), this );
 
-        if ( tempFile->open() && decompressor.decompress( fileName, tempFile, decompressInterrupt )
-             && !progressDialog.exec() ) {
+        started = tempFile->open()
+                  && decompressor.decompress( fileName, tempFile, decompressInterrupt );
+        if ( started && !progressDialog.exec() ) {
 
             if ( decompressInterrupt ) {
+                delete tempFile;
                 return false;
             }
 
@@ -3351,18 +3371,20 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
                                                           archiveMember.inside( fileName, {} ) ) );
         }
         else {
-            logsquirl::plaintext::warning(
-                this, tr( "logsquirl" ),
-                tr( "Failed to decompress %1" ).arg( QDir::toNativeSeparators( fileName ) ) );
+            // The partial output goes with the failure (#816).
+            delete tempFile;
+            logsquirl::plaintext::warning( this, tr( "logsquirl" ),
+                                           failureMessage( tr( "Failed to decompress %1" ) ) );
         }
     }
     else if ( decompressAction == DecompressAction::Extract ) {
         QTemporaryDir archiveDir{ this->tempDir_.filePath( QFileInfo( fileName ).fileName() ) };
         archiveDir.setAutoRemove( false );
-        if ( decompressor.extract( fileName, archiveDir.path(), decompressInterrupt )
-             && !progressDialog.exec() ) {
+        started = decompressor.extract( fileName, archiveDir.path(), decompressInterrupt );
+        if ( started && !progressDialog.exec() ) {
 
             if ( decompressInterrupt ) {
+                archiveDir.remove();
                 return false;
             }
 
@@ -3386,9 +3408,10 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
             return true;
         }
         else {
-            logsquirl::plaintext::warning(
-                this, tr( "logsquirl" ),
-                tr( "Failed to extract %1" ).arg( QDir::toNativeSeparators( fileName ) ) );
+            // The partial extraction goes with the failure (#816).
+            archiveDir.remove();
+            logsquirl::plaintext::warning( this, tr( "logsquirl" ),
+                                           failureMessage( tr( "Failed to extract %1" ) ) );
         }
     }
 

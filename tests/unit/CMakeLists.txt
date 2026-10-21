@@ -293,6 +293,7 @@ endif()
 add_executable(logsquirl_compression_tests
     compression_tests_main.cpp
     archiveextraction_test.cpp
+    decompressionbudget_test.cpp
     lz4device_test.cpp
     zstddevice_test.cpp
 )

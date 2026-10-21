@@ -21,6 +21,8 @@
 
 #include <QString>
 
+#include "decompressionfailure.h"
+
 class AtomicFlag;
 class KArchiveDirectory;
 
@@ -40,10 +42,17 @@ class KArchiveDirectory;
 //   starts with the folder's is outside; a link that was in the folder
 //   before is never followed.
 //
-// Creates `folder` when it is missing. Returns false when an entry could
-// not be written or `interrupt` was set; a skipped entry does not fail it.
-bool extractArchiveDirectory( const KArchiveDirectory& root, const QString& folder,
-                              AtomicFlag& interrupt );
+// At most `budgetBytes` are written, counted over every entry of the
+// archive together: an entry whose next bytes would pass it stops the
+// extraction with BudgetExceeded, so a small archive crafted to expand
+// without end fills no disk (#816).
+//
+// Creates `folder` when it is missing. Returns why it stopped when an entry
+// could not be written, the budget was reached or `interrupt` was set, and
+// None when every entry is written; a skipped entry does not fail it. What
+// was written before it stopped is left for the caller to remove.
+DecompressionFailure extractArchiveDirectory( const KArchiveDirectory& root, const QString& folder,
+                                              qint64 budgetBytes, AtomicFlag& interrupt );
 
 // The path of the member `member` of an archive extracted into `folder`: the
 // member's path inside the folder when it names a regular file there, not a

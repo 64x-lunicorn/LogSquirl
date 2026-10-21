@@ -35,17 +35,30 @@ namespace {
 // Decompresses one level: the one file of a compressed single file, or the
 // member of an archive. Empty when it cannot.
 QString decompressLevel( const QString& fileName, const QString& member, const QString& directory,
-                         AtomicFlag& interrupt )
+                         qint64 budgetBytes, AtomicFlag& interrupt )
 {
-    Decompressor decompressor;
+    Decompressor decompressor{ budgetBytes };
     const auto action = Decompressor::action( fileName );
+    // Not a Log File of the user's that is gone: a restore says why it is
+    // left out (#816).
+    const auto warnOfBudget = [ & ] {
+        if ( decompressor.failure() == DecompressionFailure::BudgetExceeded ) {
+            LOG_WARNING << "Not decompressing " << fileName
+                        << ": it expands past the decompression budget of " << budgetBytes
+                        << " bytes (#816)";
+        }
+    };
 
     if ( action == DecompressAction::Decompress && member.isEmpty() ) {
         // Named as when the user opened it; the directory takes it away.
         QTemporaryFile output{ QDir{ directory }.filePath( QFileInfo( fileName ).fileName() ) };
         output.setAutoRemove( false );
-        if ( !output.open() || !decompressor.decompress( fileName, &output, interrupt )
-             || !decompressor.waitForResult() ) {
+        if ( !output.open() || !decompressor.decompress( fileName, &output, interrupt ) ) {
+            output.remove();
+            return {};
+        }
+        if ( !decompressor.waitForResult() ) {
+            warnOfBudget();
             output.remove();
             return {};
         }
@@ -55,8 +68,13 @@ QString decompressLevel( const QString& fileName, const QString& member, const Q
     if ( action == DecompressAction::Extract && !member.isEmpty() ) {
         QTemporaryDir extracted{ QDir{ directory }.filePath( QFileInfo( fileName ).fileName() ) };
         extracted.setAutoRemove( false );
-        if ( !extracted.isValid() || !decompressor.extract( fileName, extracted.path(), interrupt )
-             || !decompressor.waitForResult() ) {
+        if ( !extracted.isValid()
+             || !decompressor.extract( fileName, extracted.path(), interrupt ) ) {
+            extracted.remove();
+            return {};
+        }
+        if ( !decompressor.waitForResult() ) {
+            warnOfBudget();
             extracted.remove();
             return {};
         }
@@ -77,14 +95,15 @@ QString decompressLevel( const QString& fileName, const QString& member, const Q
 
 } // namespace
 
-QString decompressArchiveMember( const ArchiveMember& member, const QString& directory )
+QString decompressArchiveMember( const ArchiveMember& member, const QString& directory,
+                                 qint64 budgetBytes )
 {
     AtomicFlag interrupt;
-    return decompressArchiveMember( member, directory, interrupt );
+    return decompressArchiveMember( member, directory, budgetBytes, interrupt );
 }
 
 QString decompressArchiveMember( const ArchiveMember& member, const QString& directory,
-                                 AtomicFlag& interrupt )
+                                 qint64 budgetBytes, AtomicFlag& interrupt )
 {
     if ( member.isEmpty() || member.members.isEmpty() ) {
         return {};
@@ -102,7 +121,7 @@ QString decompressArchiveMember( const ArchiveMember& member, const QString& dir
             LOG_INFO << "Interrupted decompressing " << member.archive;
             return {};
         }
-        current = decompressLevel( current, level, directory, interrupt );
+        current = decompressLevel( current, level, directory, budgetBytes, interrupt );
         if ( current.isEmpty() ) {
             return {};
         }
@@ -129,9 +148,10 @@ ArchiveMemberDecompression::~ArchiveMemberDecompression()
     watcher_.waitForFinished();
 }
 
-void ArchiveMemberDecompression::decompress( const ArchiveMember& member, Answer answer )
+void ArchiveMemberDecompression::decompress( const ArchiveMember& member, qint64 budgetBytes,
+                                             Answer answer )
 {
-    queued_.push_back( Request{ member, std::move( answer ) } );
+    queued_.push_back( Request{ member, budgetBytes, std::move( answer ) } );
     if ( !current_ ) {
         startNext();
     }
@@ -171,9 +191,10 @@ void ArchiveMemberDecompression::startNext()
     // Each request its own flag: the thread keeps the one it was started
     // with, whatever is cancelled after it.
     interrupt_ = std::make_shared<AtomicFlag>();
-    watcher_.setFuture( QtConcurrent::run(
-        [ member = current_->member, directory = directory_, interrupt = interrupt_ ] {
-            return decompressArchiveMember( member, directory, *interrupt );
+    watcher_.setFuture(
+        QtConcurrent::run( [ member = current_->member, directory = directory_,
+                             budget = current_->budgetBytes, interrupt = interrupt_ ] {
+            return decompressArchiveMember( member, directory, budget, *interrupt );
         } ) );
 
     Q_EMIT decompressing( current_->member.archive );

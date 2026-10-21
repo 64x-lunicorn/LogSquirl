@@ -1681,6 +1681,12 @@ will ask user permission to extract archives content to a temporary folder.
 If you do not want *logsquirl* to ask for permission, check 
 "extract archives without confirmation" option.
 
+*Decompress at most (MB)* bounds how far a compressed file, or an archive as
+a whole, is decompressed: 16384 MB (16 GiB) by default. A file that would
+expand past the bound is not opened, and *logsquirl* tells you so; raise it
+here if one of your log files is larger than that. The bound keeps a small
+file crafted to expand a thousandfold and more from filling the disk.
+
 #### File download
 
 By default, *logsquirl* will not download files using HTTPS if certificates

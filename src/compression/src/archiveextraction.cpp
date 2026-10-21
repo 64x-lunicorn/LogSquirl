@@ -77,60 +77,70 @@ QFileDevice::Permissions withExecutableBits( QFileDevice::Permissions permission
     return permissions;
 }
 
-// Writes `file` to `path`, in chunks. False when it could not be written
-// whole or `interrupt` was set.
-bool writeFileEntry( const KArchiveFile& file, const QString& path, AtomicFlag& interrupt )
+// Writes `file` to `path`, in chunks, taking what it writes from
+// `budgetLeft`. Why it stopped when it could not be written whole, the
+// budget ran out before it or `interrupt` was set.
+DecompressionFailure writeFileEntry( const KArchiveFile& file, const QString& path,
+                                     qint64& budgetLeft, AtomicFlag& interrupt )
 {
     QFile out{ path };
     if ( !out.open( QIODevice::WriteOnly | QIODevice::Truncate ) ) {
         LOG_WARNING << "Cannot write the archive entry " << path << ": " << out.errorString();
-        return false;
+        return DecompressionFailure::Error;
     }
 
     const std::unique_ptr<QIODevice> in{ file.createDevice() };
     if ( !in ) {
         LOG_WARNING << "Cannot read the archive entry " << file.name();
         out.remove();
-        return false;
+        return DecompressionFailure::Error;
     }
 
     std::vector<char> buffer( 1024 * 1024 );
     auto remaining = file.size();
     while ( remaining > 0 ) {
         if ( interrupt ) {
-            return false;
+            return DecompressionFailure::Interrupted;
         }
         const auto chunk = std::min( remaining, static_cast<qint64>( buffer.size() ) );
         const auto read = in->read( buffer.data(), chunk );
         if ( read <= 0 ) {
             LOG_WARNING << "The archive entry " << file.name() << " ends " << remaining
                         << " bytes short";
-            return false;
+            return DecompressionFailure::Error;
+        }
+        // Checked before the write: not a byte past the budget reaches the
+        // disk (#816).
+        if ( read > budgetLeft ) {
+            LOG_WARNING << "The archive entry " << file.name()
+                        << " passes the decompression budget (#816)";
+            return DecompressionFailure::BudgetExceeded;
         }
         if ( out.write( buffer.data(), read ) != read ) {
             LOG_WARNING << "Short write of the archive entry " << path << ": " << out.errorString();
-            return false;
+            return DecompressionFailure::Error;
         }
+        budgetLeft -= read;
         remaining -= read;
     }
 
     out.setPermissions( withExecutableBits( out.permissions(), file.permissions() ) );
-    return true;
+    return DecompressionFailure::None;
 }
 
 } // namespace
 
-bool extractArchiveDirectory( const KArchiveDirectory& root, const QString& folder,
-                              AtomicFlag& interrupt )
+DecompressionFailure extractArchiveDirectory( const KArchiveDirectory& root, const QString& folder,
+                                              qint64 budgetBytes, AtomicFlag& interrupt )
 {
     if ( !QDir().mkpath( folder ) ) {
         LOG_WARNING << "Cannot create the extraction folder " << folder;
-        return false;
+        return DecompressionFailure::Error;
     }
     const auto canonicalFolder = QFileInfo{ folder }.canonicalFilePath();
     if ( canonicalFolder.isEmpty() ) {
         LOG_WARNING << "Cannot resolve the extraction folder " << folder;
-        return false;
+        return DecompressionFailure::Error;
     }
 
     struct PendingDirectory {
@@ -150,7 +160,7 @@ bool extractArchiveDirectory( const KArchiveDirectory& root, const QString& fold
     std::vector<PendingFile> files;
     while ( !directories.empty() ) {
         if ( interrupt ) {
-            return false;
+            return DecompressionFailure::Interrupted;
         }
         const auto current = directories.back();
         directories.pop_back();
@@ -185,7 +195,7 @@ bool extractArchiveDirectory( const KArchiveDirectory& root, const QString& fold
                 }
                 if ( !QDir().mkpath( path ) ) {
                     LOG_WARNING << "Cannot create the archive directory " << path;
-                    return false;
+                    return DecompressionFailure::Error;
                 }
                 const auto canonical = QFileInfo{ path }.canonicalFilePath();
                 if ( !isInside( canonical, canonicalFolder ) ) {
@@ -206,9 +216,11 @@ bool extractArchiveDirectory( const KArchiveDirectory& root, const QString& fold
     std::sort( files.begin(), files.end(), []( const PendingFile& a, const PendingFile& b ) {
         return a.file->position() < b.file->position();
     } );
+    // One budget for the archive as a whole (#816).
+    auto budgetLeft = budgetBytes;
     for ( const auto& pending : files ) {
         if ( interrupt ) {
-            return false;
+            return DecompressionFailure::Interrupted;
         }
         // Never through a link that was in the folder before (#815).
         if ( QFileInfo{ pending.path }.isSymLink() ) {
@@ -216,12 +228,13 @@ bool extractArchiveDirectory( const KArchiveDirectory& root, const QString& fold
                         << "': a link is in its place (#815)";
             continue;
         }
-        if ( !writeFileEntry( *pending.file, pending.path, interrupt ) ) {
-            return false;
+        const auto failure = writeFileEntry( *pending.file, pending.path, budgetLeft, interrupt );
+        if ( failure != DecompressionFailure::None ) {
+            return failure;
         }
     }
 
-    return !interrupt;
+    return interrupt ? DecompressionFailure::Interrupted : DecompressionFailure::None;
 }
 
 QString extractedMemberPath( const QString& folder, const QString& member )
