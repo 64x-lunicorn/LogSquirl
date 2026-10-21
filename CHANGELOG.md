@@ -129,6 +129,15 @@
   A UTF-16 or UTF-32 file whose index an earlier version cached is indexed
   once more; the cached indexes of other files are kept. (#804)
 
+## Build and packaging
+
+- **The build images trust no compromised emSign certificate**: the Linux
+  build images and the fuzzing image install certifi 2026.10.19 next to
+  aqtinstall, which downloads Qt into them, instead of 2026.7.22. The older
+  certifi trusted the emSign ECC Root CA - G3, and eight intermediate
+  certificates below it have compromised private keys (GHSA-6q48-6c7w-9gw2).
+  LogSquirl itself does not use certifi.
+
 # v26.11.0-beta1 (2026-10-09)
 
 ## Changes
