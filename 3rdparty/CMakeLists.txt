@@ -416,7 +416,10 @@ if(NOT _KARCHIVE_FOUND)
   target_compile_definitions(logsquirl_bzip2 PRIVATE _FILE_OFFSET_BITS=64)
 
   # liblzma alone: no tools, no documentation, no translations. Static, so
-  # the target carries LZMA_API_STATIC for whoever includes lzma.h.
+  # the target carries LZMA_API_STATIC for whoever includes lzma.h. The
+  # sandbox (Landlock, pledge, Capsicum) is the xz tool's, which is not built,
+  # and xz refuses to configure it under -fsanitize, which the sanitizer and
+  # fuzzing builds pass (#834).
   cpmaddpackage(
     NAME xz
     GITHUB_REPOSITORY tukaani-project/xz
@@ -432,6 +435,7 @@ if(NOT _KARCHIVE_FOUND)
       "XZ_TOOL_LZMAINFO OFF"
       "XZ_DOC OFF"
       "XZ_NLS OFF"
+      "XZ_SANDBOX no"
   )
 
   cpmaddpackage(
