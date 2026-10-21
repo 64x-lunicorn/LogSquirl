@@ -221,6 +221,12 @@
   updating a Plugin from the repository fails, for any reason, the card's
   Install or Update button is usable again right away instead of staying
   disabled as "Installing..." until the dialog is reopened. (#839)
+- **Single instance from a deep temporary folder**: the single-instance socket
+  is placed where its path fits the platform's limit (104 bytes on macOS, 108 on
+  Linux), falling back to an owner-only folder under /tmp and, as a last resort,
+  a socket name without the login session id, so a second LogSquirl still hands
+  its Log Files over instead of opening a window of its own; the lock file
+  follows, and the log names the folder when it is not the first choice. (#841)
 
 ## Build and packaging
 
