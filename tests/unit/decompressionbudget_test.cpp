@@ -18,10 +18,14 @@
  */
 
 // A compressed Log File or an archive is decompressed up to a budget of
-// bytes and no further, however far it would expand (#816).
+// bytes and no further, however far it would expand (#816). A tar under
+// zstd or lz4 is parsed and extracted through the same budgeted stream,
+// which seeks over the sequential decompressor as the tar reader needs
+// (#838).
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <QBuffer>
 #include <QByteArray>
 #include <QDir>
 #include <QDirIterator>
@@ -32,7 +36,11 @@
 #include <QTimer>
 
 #include <chrono>
+#include <cstdint>
 #include <functional>
+#include <memory>
+#include <utility>
+#include <vector>
 
 #include <kcompressiondevice.h>
 #include <ktar.h>
@@ -42,7 +50,10 @@
 
 #include "archiveextraction.h"
 #include "atomicflag.h"
+#include "budgeteddevice.h"
 #include "decompressor.h"
+#include "lz4device.h"
+#include "zstddevice.h"
 
 namespace {
 
@@ -78,30 +89,73 @@ bool writeFiltered( const QString& path, KCompressionDevice::CompressionType typ
     return device.open( QIODevice::WriteOnly ) && device.write( data ) == data.size();
 }
 
-bool writeZstd( const QString& path, const QByteArray& data )
+QByteArray zstdCompressed( const QByteArray& data )
 {
     const auto bound = ZSTD_compressBound( static_cast<std::size_t>( data.size() ) );
     QByteArray compressed( static_cast<qsizetype>( bound ), Qt::Uninitialized );
     const auto size = ZSTD_compress( compressed.data(), bound, data.constData(),
                                      static_cast<std::size_t>( data.size() ), 1 );
     if ( ZSTD_isError( size ) ) {
-        return false;
+        return {};
     }
     compressed.truncate( static_cast<qsizetype>( size ) );
-    return writeFile( path, compressed );
+    return compressed;
 }
 
-bool writeLz4( const QString& path, const QByteArray& data )
+QByteArray lz4Compressed( const QByteArray& data )
 {
     const auto bound = LZ4F_compressFrameBound( static_cast<std::size_t>( data.size() ), nullptr );
     QByteArray compressed( static_cast<qsizetype>( bound ), Qt::Uninitialized );
     const auto size = LZ4F_compressFrame( compressed.data(), bound, data.constData(),
                                           static_cast<std::size_t>( data.size() ), nullptr );
     if ( LZ4F_isError( size ) ) {
-        return false;
+        return {};
     }
     compressed.truncate( static_cast<qsizetype>( size ) );
-    return writeFile( path, compressed );
+    return compressed;
+}
+
+bool writeZstd( const QString& path, const QByteArray& data )
+{
+    const auto compressed = zstdCompressed( data );
+    return !compressed.isEmpty() && writeFile( path, compressed );
+}
+
+bool writeLz4( const QString& path, const QByteArray& data )
+{
+    const auto compressed = lz4Compressed( data );
+    return !compressed.isEmpty() && writeFile( path, compressed );
+}
+
+// `size` bytes that neither repeat nor compress away: a tar member whose
+// data a tar reader mistaken for headers would never parse as such, and a
+// stream whose every position holds its own bytes (#838).
+QByteArray noise( qsizetype size, std::uint64_t seed )
+{
+    QByteArray bytes( size, Qt::Uninitialized );
+    auto state = seed;
+    for ( auto& byte : bytes ) {
+        state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+        byte = static_cast<char>( state >> 56 );
+    }
+    return bytes;
+}
+
+using Members = std::vector<std::pair<QString, QByteArray>>;
+
+// A plain tar of the members, built in memory.
+QByteArray tarOf( const Members& members )
+{
+    QBuffer buffer;
+    {
+        KTar tar( &buffer );
+        REQUIRE( tar.open( QIODevice::WriteOnly ) );
+        for ( const auto& [ name, data ] : members ) {
+            REQUIRE( tar.writeFile( name, data ) );
+        }
+        REQUIRE( tar.close() );
+    }
+    return buffer.data();
 }
 
 // Writes a tar, compressed as its name says, of the given entries.
@@ -368,6 +422,162 @@ SCENARIO( "An archive is extracted up to the budget as a whole", "[compression][
                 REQUIRE( bytesBelow( folder ) <= 1 * MiB );
                 REQUIRE( extractArchiveDirectory( *zip.directory(), folder, 2 * MiB, interrupt )
                          == DecompressionFailure::None );
+            }
+        }
+    }
+}
+
+SCENARIO( "A tar.zst or tar.lz4 extracts its members whole", "[compression][tar]" )
+{
+    QTemporaryDir scratch;
+    REQUIRE( scratch.isValid() );
+    const auto folder = scratch.filePath( "extracted" );
+
+    const Members members = {
+        { "logs/first.log", noise( 300 * KiB, 1 ) },
+        { "logs/second.log", noise( 450 * KiB + 7, 2 ) },
+        { "third.log", noise( 200 * KiB + 511, 3 ) },
+    };
+    const auto tar = tarOf( members );
+    REQUIRE( tar.size() > 950 * KiB );
+
+    struct Input {
+        const char* name;
+        QByteArray bytes;
+    };
+    const Input inputs[] = {
+        { "members.tar.zst", zstdCompressed( tar ) },
+        { "members.tar.lz4", lz4Compressed( tar ) },
+    };
+
+    for ( const auto& input : inputs ) {
+        GIVEN( input.name )
+        {
+            const auto path = scratch.filePath( input.name );
+            REQUIRE_FALSE( input.bytes.isEmpty() );
+            REQUIRE( writeFile( path, input.bytes ) );
+
+            WHEN( "it is extracted within the budget" )
+            {
+                const auto outcome = extract( path, folder, 8 * MiB );
+
+                THEN( "every member is extracted byte-identical" )
+                {
+                    REQUIRE( outcome.started );
+                    REQUIRE( outcome.finishedInTime );
+                    REQUIRE( outcome.failure == DecompressionFailure::None );
+                    REQUIRE( outcome.succeeded );
+                    for ( const auto& [ name, data ] : members ) {
+                        REQUIRE( readFile( QDir{ folder }.filePath( name ) ) == data );
+                    }
+                }
+            }
+
+            WHEN( "it is extracted under a budget its first member passes" )
+            {
+                const auto outcome = extract( path, folder, 256 * KiB );
+
+                THEN( "it stops at the budget" )
+                {
+                    REQUIRE( outcome.finishedInTime );
+                    REQUIRE_FALSE( outcome.succeeded );
+                    REQUIRE( outcome.failure == DecompressionFailure::BudgetExceeded );
+                    REQUIRE( bytesBelow( folder ) <= 256 * KiB );
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "A budgeted stream over a sequential decompressor seeks as a tar reader needs",
+          "[compression][tar]" )
+{
+    QTemporaryDir scratch;
+    REQUIRE( scratch.isValid() );
+    const auto payload = noise( 1 * MiB, 4 );
+
+    struct Input {
+        const char* name;
+        std::function<bool( const QString& )> write;
+        std::function<std::unique_ptr<QIODevice>( const QString& )> device;
+    };
+    const Input inputs[] = {
+        { "payload.zst", [ & ]( const QString& path ) { return writeZstd( path, payload ); },
+          []( const QString& path ) { return std::make_unique<ZstdDevice>( path ); } },
+        { "payload.lz4", [ & ]( const QString& path ) { return writeLz4( path, payload ); },
+          []( const QString& path ) { return std::make_unique<Lz4Device>( path ); } },
+    };
+
+    for ( const auto& input : inputs ) {
+        GIVEN( input.name )
+        {
+            const auto path = scratch.filePath( input.name );
+            REQUIRE( input.write( path ) );
+
+            WHEN( "it is read through a budgeted stream it fits" )
+            {
+                BudgetedDevice stream{ input.device( path ), 8 * MiB };
+                REQUIRE( stream.open( QIODevice::ReadOnly ) );
+                std::vector<char> buffer( 16 );
+
+                THEN( "the stream tracks its position, as the tar reader relies on" )
+                {
+                    REQUIRE_FALSE( stream.isSequential() );
+                    REQUIRE( stream.read( buffer.data(), 16 ) == 16 );
+                    REQUIRE( stream.pos() == 16 );
+                }
+
+                THEN( "a forward seek lands on the bytes at that position" )
+                {
+                    REQUIRE( stream.read( buffer.data(), 16 ) == 16 );
+                    REQUIRE( stream.seek( 600 * KiB ) );
+                    REQUIRE( stream.pos() == 600 * KiB );
+                    REQUIRE( stream.read( buffer.data(), 16 ) == 16 );
+                    REQUIRE( QByteArray( buffer.data(), 16 ) == payload.mid( 600 * KiB, 16 ) );
+                    REQUIRE( stream.pos() == 600 * KiB + 16 );
+                }
+
+                THEN( "a seek back lands on the same bytes again, never on garbage" )
+                {
+                    REQUIRE( stream.seek( 600 * KiB ) );
+                    REQUIRE( stream.read( buffer.data(), 16 ) == 16 );
+                    REQUIRE( stream.seek( 100 ) );
+                    REQUIRE( stream.pos() == 100 );
+                    REQUIRE( stream.read( buffer.data(), 16 ) == 16 );
+                    REQUIRE( QByteArray( buffer.data(), 16 ) == payload.mid( 100, 16 ) );
+                    REQUIRE_FALSE( stream.budgetExceeded() );
+                }
+
+                THEN( "a seek past the end fails cleanly" )
+                {
+                    REQUIRE_FALSE( stream.seek( payload.size() + 1 ) );
+                    REQUIRE_FALSE( stream.budgetExceeded() );
+                    REQUIRE( stream.seek( payload.size() ) );
+                    REQUIRE( stream.atEnd() );
+                }
+            }
+
+            WHEN( "it is read through a budgeted stream it passes" )
+            {
+                BudgetedDevice stream{ input.device( path ), 512 * KiB };
+                REQUIRE( stream.open( QIODevice::ReadOnly ) );
+                std::vector<char> buffer( 256 * KiB );
+                REQUIRE( stream.read( buffer.data(), 100 ) == 100 );
+
+                THEN( "a seek past the budget fails with the position unchanged" )
+                {
+                    REQUIRE_FALSE( stream.seek( 600 * KiB ) );
+                    REQUIRE( stream.pos() == 100 );
+                    REQUIRE( stream.budgetExceeded() );
+                }
+
+                THEN( "a forward seek counts against the budget" )
+                {
+                    REQUIRE( stream.seek( 400 * KiB ) );
+                    REQUIRE( stream.read( buffer.data(), 256 * KiB ) == 112 * KiB );
+                    REQUIRE( stream.read( buffer.data(), 1 ) < 0 );
+                    REQUIRE( stream.budgetExceeded() );
+                }
             }
         }
     }

@@ -33,10 +33,15 @@
 // where a tar reader given a path copies the whole decompressed tarball
 // into a temporary file of its own first, which nothing bounds.
 //
-// Seekable when the inner device is: the tar reader seeks forward past an
-// entry's bytes and back to the first entry it extracts. The budget counts
-// the stream position, not the bytes read, so going back and reading the
-// same bytes again costs nothing of it.
+// Seekable, whatever the inner device: the tar reader keeps its place by
+// pos(), seeks forward past an entry's bytes while parsing and back to each
+// entry it extracts. A random-access inner device (a file, KArchive's
+// gz/bz2/xz device) seeks itself. A sequential one (zstd, lz4) decompresses
+// forward only: a seek forward reads and discards the bytes in between, a
+// seek back reopens it at its start and reads up to the position, as the
+// gz/bz2/xz device does over its own stream (#838). The budget counts the
+// stream position, not the bytes read, so going back and reading the same
+// bytes again costs nothing of it.
 class BudgetedDevice : public QIODevice {
 public:
     BudgetedDevice( std::unique_ptr<QIODevice> inner, qint64 budgetBytes,
@@ -61,11 +66,10 @@ protected:
     qint64 writeData( const char* data, qint64 maxSize ) override;
 
 private:
-    // The stream position, which a sequential inner device does not track.
-    qint64 position() const;
+    // Reads and discards `bytes` from the stream, within the budget.
+    bool skip( qint64 bytes );
 
     std::unique_ptr<QIODevice> inner_;
     qint64 budgetBytes_;
-    qint64 consumed_ = 0;
     bool exceeded_ = false;
 };

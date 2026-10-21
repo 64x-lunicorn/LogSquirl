@@ -20,6 +20,7 @@
 #include "budgeteddevice.h"
 
 #include <algorithm>
+#include <vector>
 
 #include <QString>
 
@@ -48,7 +49,6 @@ bool BudgetedDevice::open( OpenMode mode )
         setErrorString( inner_->errorString() );
         return false;
     }
-    consumed_ = 0;
     exceeded_ = false;
     // Unbuffered, so that the position this device reports is the inner
     // device's and the budget is checked against the bytes actually taken.
@@ -63,7 +63,10 @@ void BudgetedDevice::close()
 
 bool BudgetedDevice::isSequential() const
 {
-    return inner_->isSequential();
+    // Random-access even over a sequential inner device, whose seeks this
+    // device emulates: a sequential device's pos() stays 0, and the tar
+    // reader seeks to pos() plus an entry's size (#838).
+    return false;
 }
 
 bool BudgetedDevice::atEnd() const
@@ -78,12 +81,45 @@ qint64 BudgetedDevice::bytesAvailable() const
 
 bool BudgetedDevice::seek( qint64 pos )
 {
+    if ( pos < 0 || !isOpen() ) {
+        return false;
+    }
     if ( pos > budgetBytes_ ) {
         exceeded_ = true;
         setErrorString( QStringLiteral( "The decompression budget is exhausted" ) );
         return false;
     }
-    return inner_->seek( pos ) && QIODevice::seek( pos );
+    if ( !inner_->isSequential() ) {
+        return inner_->seek( pos ) && QIODevice::seek( pos );
+    }
+    if ( pos < QIODevice::pos() ) {
+        // Back to the start: reopened, the inner device decompresses from
+        // its first byte again (#838).
+        inner_->close();
+        if ( !inner_->open( QIODevice::ReadOnly ) ) {
+            setErrorString( inner_->errorString() );
+            return false;
+        }
+        if ( !QIODevice::seek( 0 ) ) {
+            return false;
+        }
+    }
+    return skip( pos - QIODevice::pos() );
+}
+
+bool BudgetedDevice::skip( qint64 bytes )
+{
+    constexpr qint64 ChunkSize = 64 * 1024;
+    std::vector<char> discarded( static_cast<std::size_t>( std::min( bytes, ChunkSize ) ) );
+    while ( bytes > 0 ) {
+        // Through read(), so the bytes count against the budget and pos().
+        const auto read = this->read( discarded.data(), std::min( bytes, ChunkSize ) );
+        if ( read <= 0 ) {
+            return false;
+        }
+        bytes -= read;
+    }
+    return true;
 }
 
 bool BudgetedDevice::budgetExceeded() const
@@ -91,17 +127,12 @@ bool BudgetedDevice::budgetExceeded() const
     return exceeded_;
 }
 
-qint64 BudgetedDevice::position() const
-{
-    return isSequential() ? consumed_ : pos();
-}
-
 qint64 BudgetedDevice::readData( char* data, qint64 maxSize )
 {
     if ( maxSize <= 0 ) {
         return 0;
     }
-    const auto remaining = budgetBytes_ - position();
+    const auto remaining = budgetBytes_ - pos();
     if ( remaining <= 0 ) {
         // At the budget exactly: the end of the stream is not past it.
         char probe = 0;
@@ -113,10 +144,7 @@ qint64 BudgetedDevice::readData( char* data, qint64 maxSize )
         return -1;
     }
     const auto read = inner_->read( data, std::min( maxSize, remaining ) );
-    if ( read > 0 ) {
-        consumed_ += read;
-    }
-    else if ( read < 0 ) {
+    if ( read < 0 ) {
         setErrorString( inner_->errorString() );
     }
     return read;
