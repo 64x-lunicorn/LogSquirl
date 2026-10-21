@@ -139,9 +139,9 @@ SCENARIO( "a CSV export writes exactly what the Table View shows", "[csvexport]"
 
                 // What the comparison covers, spelled out.
                 REQUIRE( lines[ 2 ]
-                         == R"(10:00:00.004;+0.004s;WARN;"disk ""sda"" at 91%, still writing")" );
+                         == R"(10:00:00.004;'+0.004s;WARN;"disk ""sda"" at 91%, still writing")" );
                 REQUIRE( lines[ 3 ] == ";;;    at Foo.bar(Foo.java:1)" );
-                REQUIRE( lines[ 4 ] == R"(10:00:12.304;+12.3s;ERROR;"failed; retrying")" );
+                REQUIRE( lines[ 4 ] == R"(10:00:12.304;'+12.3s;ERROR;"failed; retrying")" );
             }
         }
     }
@@ -163,8 +163,8 @@ SCENARIO( "a CSV export writes exactly what the Table View shows", "[csvexport]"
                   "its elapsed time measured against the Log File" )
             {
                 REQUIRE( lines
-                         == QStringList{ "5,+5m02s,done",
-                                         R"(2,+0.004s,"disk ""sda"" at 91%, still writing")" } );
+                         == QStringList{ "5,'+5m02s,done",
+                                         R"(2,'+0.004s,"disk ""sda"" at 91%, still writing")" } );
             }
         }
     }
@@ -313,7 +313,7 @@ SCENARIO( "a CSV export offers the Table View's columns and takes the dialog's c
                   "past the columns offered is ignored" )
             {
                 REQUIRE( exportedLines( csvExport )
-                         == QStringList{ R"(2;+0.004s;"disk ""sda"" at 91%, still writing")" } );
+                         == QStringList{ R"(2;'+0.004s;"disk ""sda"" at 91%, still writing")" } );
             }
         }
     }
@@ -490,7 +490,7 @@ SCENARIO( "a CSV export of a million Rows writes them all", "[csvexport][.slow]"
         {
             const auto content = contentOf( fileName );
             REQUIRE( content.count( "\r\n" ) == static_cast<qsizetype>( ManyLines + 1 ) );
-            REQUIRE( content.endsWith( "1000000,10:00:00.999,+0.001s,line 999999\r\n" ) );
+            REQUIRE( content.endsWith( "1000000,10:00:00.999,'+0.001s,line 999999\r\n" ) );
         }
     }
 }

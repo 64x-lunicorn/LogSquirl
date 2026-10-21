@@ -28,6 +28,7 @@
 #include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QLabel>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
@@ -103,6 +104,12 @@ CsvExportDialog::CsvExportDialog( Setup setup, QWidget* parent )
     header_ = new QCheckBox( tr( "Write column names as the first row" ) );
     header_->setChecked( config.csvHeader() );
 
+    // Why the export differs from the table for such a field (#831).
+    auto* formulaNote = new QLabel( tr( "A field starting with =, +, - or @ is written with an "
+                                        "apostrophe before it, so that a spreadsheet shows it as "
+                                        "text." ) );
+    formulaNote->setWordWrap( true );
+
     auto* buttons = new QDialogButtonBox;
     export_ = buttons->addButton( tr( "Export..." ), QDialogButtonBox::AcceptRole );
     buttons->addButton( QDialogButtonBox::Cancel );
@@ -114,6 +121,7 @@ CsvExportDialog::CsvExportDialog( Setup setup, QWidget* parent )
     layout->addWidget( columnsBox );
     layout->addWidget( separatorBox );
     layout->addWidget( header_ );
+    layout->addWidget( formulaNote );
     layout->addWidget( buttons );
 
     connect( columns_, &QListWidget::itemChanged, this, [ this ]() { updateExportButton(); } );

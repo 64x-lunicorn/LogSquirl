@@ -305,7 +305,7 @@ SCENARIO( "The Filtered View exports the Matches of a Search as the Table View s
                                     .toStdString() );
                 }
                 // Log Line 0 was not exported, yet Log Line 1's Δt counts from it.
-                REQUIRE( lines[ 0 ] == R"(10:00:00.004,+0.004s,ERROR,"disk ""sda"" full")" );
+                REQUIRE( lines[ 0 ] == R"(10:00:00.004,'+0.004s,ERROR,"disk ""sda"" full")" );
             }
         }
     }
@@ -325,9 +325,9 @@ SCENARIO( "The Filtered View exports the Matches of a Search as the Table View s
             THEN( "only the Matches and Marks are written, each with its type" )
             {
                 REQUIRE( csvLinesOf( choices.fileName )
-                         == Lines{ "Line,Type,Δt,body", R"(2,Match,+0.004s,"disk ""sda"" full")",
-                                   "6,Match+Mark,+9.8s,failed; again", "8,Mark,+0.696s,idle",
-                                   "10,Match,+44.0s,last" } );
+                         == Lines{ "Line,Type,Δt,body", R"(2,Match,'+0.004s,"disk ""sda"" full")",
+                                   "6,Match+Mark,'+9.8s,failed; again", "8,Mark,'+0.696s,idle",
+                                   "10,Match,'+44.0s,last" } );
             }
         }
 
@@ -341,11 +341,11 @@ SCENARIO( "The Filtered View exports the Matches of a Search as the Table View s
             {
                 REQUIRE( csvLinesOf( choices.fileName )
                          == Lines{ "Line,Type,Δt,body", "1,Context,,start",
-                                   R"(2,Match,+0.004s,"disk ""sda"" full")",
+                                   R"(2,Match,'+0.004s,"disk ""sda"" full")",
                                    "3,Context,,    at Foo.bar(Foo.java:1)",
-                                   "5,Context,+1.5s,waiting", "6,Match+Mark,+9.8s,failed; again",
-                                   "7,Context,+5m02s,done", "8,Mark,+0.696s,idle",
-                                   "9,Context,+1.0s,idle", "10,Match,+44.0s,last" } );
+                                   "5,Context,'+1.5s,waiting", "6,Match+Mark,'+9.8s,failed; again",
+                                   "7,Context,'+5m02s,done", "8,Mark,'+0.696s,idle",
+                                   "9,Context,'+1.0s,idle", "10,Match,'+44.0s,last" } );
                 // Log Line 3 is not shown, so it is not exported.
             }
         }
