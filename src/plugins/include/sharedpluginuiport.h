@@ -93,6 +93,11 @@ public:
     PluginLogLineJump goToLogLine( std::uint64_t logLine ) override;
     std::optional<PluginSelectedLogLines> selectedLogLines( std::size_t maxLines,
                                                             std::size_t maxBytes ) override;
+    /**
+     * The tab in front's in the most recently active window; a Log File named
+     * in the first window showing it, the most recently active first.
+     */
+    std::optional<QString> logFileEncoding( const QString& logFile ) override;
 
 private:
     enum class WidgetPlace { Status, Sidebar, Footer };

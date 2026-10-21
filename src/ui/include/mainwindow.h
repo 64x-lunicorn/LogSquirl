@@ -444,6 +444,11 @@ private:
     void updateHighlightersMenu();
     QString strippedName( const QString& fullFileName ) const;
     CrawlerWidget* currentCrawlerWidget() const;
+    // The tab showing the Log File at path, or nullptr (#803).
+    CrawlerWidget* tabOfLogFile( const QString& path ) const;
+    // Tells the plugins whenever the tab's Log File is read in another
+    // Encoding (#803).
+    void tellPluginsOfEncodingChanges( CrawlerWidget* crawler );
     void displayQuickFindBar( QuickFindMux::QFDirection direction );
     // Connects the window to the Log File in front, and it alone: the
     // connections to the tab shown before go (#635). Nothing is connected for

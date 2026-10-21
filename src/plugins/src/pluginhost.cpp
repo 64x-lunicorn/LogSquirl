@@ -412,6 +412,22 @@ void PluginHost::notifyActiveFileChanged( const QString& filePath )
     }
 }
 
+void PluginHost::notifyEncodingChanged( const QString& filePath, const QString& encoding )
+{
+    const auto pathUtf8 = filePath.toUtf8();
+    const auto encodingUtf8 = encoding.toUtf8();
+    // By ID: a plugin's callback may unload another plugin.
+    for ( const auto& id : loadedPluginIds() ) {
+        auto* ctx = loadedContext( id );
+        if ( ctx && ctx->encodingCallback ) {
+            callIntoPlugin( *ctx, [ ctx, &pathUtf8, &encodingUtf8 ] {
+                ctx->encodingCallback( ctx->encodingUserData, pathUtf8.constData(),
+                                       encodingUtf8.constData() );
+            } );
+        }
+    }
+}
+
 // ── DataSource (Phase 2) ─────────────────────────────────────────────────────────
 
 QString PluginHost::startDataSource( const QString& pluginId )
@@ -765,6 +781,8 @@ LogSquirlHostApi PluginHost::buildHostApi()
     api.open_regex_lab = &PluginHost::hostOpenRegexLab;
     api.go_to_log_line = &PluginHost::hostGoToLogLine;
     api.get_selected_log_lines = &PluginHost::hostGetSelectedLogLines;
+    api.get_log_file_encoding = &PluginHost::hostGetLogFileEncoding;
+    api.register_encoding_callback = &PluginHost::hostRegisterEncodingCallback;
 
     return api;
 }
@@ -1189,6 +1207,50 @@ int PluginHost::hostGetSelectedLogLines( void* handle, const char** text, size_t
         *lineCount = result.lineCount;
     }
     return result.truncated ? LOGSQUIRL_LOG_LINES_TRUNCATED : LOGSQUIRL_LOG_LINES_OK;
+}
+
+int PluginHost::hostGetLogFileEncoding( void* handle, const char* filePath, const char** encoding )
+{
+    // Nothing is returned unless the name is.
+    if ( encoding != nullptr ) {
+        *encoding = nullptr;
+    }
+
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || encoding == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    // Checked first: the tabs and the cached name are only touched on the UI
+    // thread.
+    if ( QThread::currentThread() != ctx->host->thread() ) {
+        LOG_WARNING << "Plugin " << ctx->handle.metadata().id()
+                    << " asked for a Log File's encoding off the UI thread; none answered";
+        return LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD;
+    }
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+
+    // NULL and "" both name the tab in front.
+    const auto name = port->logFileEncoding( QString::fromUtf8( filePath ? filePath : "" ) );
+    if ( !name ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    ctx->logFileEncodingUtf8 = name->toUtf8();
+    *encoding = ctx->logFileEncodingUtf8.constData();
+    return LOGSQUIRL_LOG_LINES_OK;
+}
+
+void PluginHost::hostRegisterEncodingCallback( void* handle, LogSquirlEncodingCallbackFn callback,
+                                               void* userData )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx ) {
+        return;
+    }
+    ctx->encodingCallback = callback;
+    ctx->encodingUserData = userData;
 }
 
 } // namespace logsquirl::plugins

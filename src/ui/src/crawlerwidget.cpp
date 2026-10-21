@@ -332,6 +332,11 @@ QString CrawlerWidget::encodingText() const
     return encodingText_;
 }
 
+QString CrawlerWidget::encodingName() const
+{
+    return QString::fromLatin1( openLogFile_->encoding()->name() );
+}
+
 // Return a pointer to the view in which we should do the QuickFind
 SearchableWidgetInterface* CrawlerWidget::doGetActiveSearchable() const
 {
@@ -2186,6 +2191,7 @@ void CrawlerWidget::applyEncodingChange()
     // counted, and its chart what it extracted.
     viewSet_.rereadLogLines();
     restartChartExtraction();
+    Q_EMIT encodingChanged();
 }
 
 void CrawlerWidget::restartChartExtraction()

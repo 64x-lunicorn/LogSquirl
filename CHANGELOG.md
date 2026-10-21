@@ -2,6 +2,17 @@
 
 ## Changes
 
+- **A plugin learns which text encoding LogSquirl reads a log file in**: the
+  new host function `get_log_file_encoding` returns the encoding of the tab in
+  front's log file, or of an open log file the plugin names by path, by its
+  IANA name (`UTF-8`, `UTF-16LE`, `windows-1252`, ...): the one chosen in the
+  *Encoding* menu, else the one detected, a UTF-16 file without a byte order
+  mark included. `register_encoding_callback` tells a plugin whenever a log
+  file is read in another encoding, chosen by the user or detected by a load.
+  A plugin that reads the file itself reads it as the views show it, with the
+  same line numbers. Plugins detect both with `LOGSQUIRL_HOST_API_HAS`, like
+  the 26.11 functions; older plugins are unaffected. The plugin SDK guide and
+  its example plugin show them. (#803)
 - **A search narrows by column with field terms, and the table view shows
   Matches Only**: in the logical combination a sub-pattern written
   `Protocol:"DNS"` matches the text of that field of the tab's log format

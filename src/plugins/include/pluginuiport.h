@@ -179,6 +179,17 @@ public:
     {
         return std::nullopt;
     }
+
+    /**
+     * The name of the Encoding a Log File is read in (#803), on the UI thread
+     * only: that of the tab in front for an empty logFile, else that of the
+     * tab showing logFile. None when there is no such tab; a port that shows
+     * no Log File shows none.
+     */
+    virtual std::optional<QString> logFileEncoding( const QString& /* logFile */ )
+    {
+        return std::nullopt;
+    }
 };
 
 } // namespace logsquirl::plugins

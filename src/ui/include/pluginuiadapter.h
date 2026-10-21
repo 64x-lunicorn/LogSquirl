@@ -102,6 +102,18 @@ public:
      */
     void setTabInFront( std::function<CrawlerWidget*()> tabInFront );
 
+    /**
+     * The name of the Encoding the Log File of the tab in front, or of the
+     * tab showing logFile, is read in (#803).
+     */
+    std::optional<QString> logFileEncoding( const QString& logFile ) override;
+
+    /**
+     * The tab showing a Log File, by its path, asked for at each call of
+     * logFileEncoding(): nullptr when no tab shows it.
+     */
+    void setTabOfLogFile( std::function<CrawlerWidget*( const QString& )> tabOfLogFile );
+
 private:
     /**
      * A widget a plugin placed in the window. In a toolbar, toolBarAction is
@@ -177,6 +189,7 @@ private:
     std::map<QString, std::vector<QPointer<RegexLabWindow>>> regexLabs_;
     std::function<RegexLabSampleSource()> regexLabSampleSource_;
     std::function<CrawlerWidget*()> tabInFront_;
+    std::function<CrawlerWidget*( const QString& )> tabOfLogFile_;
 
     // Tracks menu actions added by each plugin so they can be removed on unload.
     std::map<QString, std::vector<PluginMenuAction>> menuActions_;

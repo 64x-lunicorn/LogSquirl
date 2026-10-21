@@ -40,6 +40,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -204,6 +205,22 @@ public:
                                        = selected->mid( 0, static_cast<qsizetype>( maxLines ) ),
                                        .lastCut = lastCut,
                                        .more = more };
+    }
+
+    /// The Encoding of the tab in front, and of each Log File a tab shows;
+    /// the Log Files a plugin asked about, "" for the tab in front.
+    std::optional<QString> encodingInFront;
+    std::map<QString, QString> encodingOf;
+    QStringList askedForEncodingOf;
+
+    std::optional<QString> logFileEncoding( const QString& logFile ) override
+    {
+        askedForEncodingOf.append( logFile );
+        if ( logFile.isEmpty() ) {
+            return encodingInFront;
+        }
+        const auto tab = encodingOf.find( logFile );
+        return tab != encodingOf.end() ? std::optional( tab->second ) : std::nullopt;
     }
 };
 
@@ -2060,5 +2077,204 @@ SCENARIO( "The Plugin Host converts in the background, with progress and Cancel"
         if ( host ) {
             host->unloadAll();
         }
+    }
+}
+
+namespace {
+
+/// What get_log_file_encoding handed the plugin; the name copied, as it is
+/// valid until the next call only.
+struct EncodingRead {
+    int result = 0;
+    const char* encoding = nullptr;
+    QString nameRead;
+
+    QString name() const
+    {
+        return nameRead;
+    }
+};
+
+EncodingRead readEncoding( const LogSquirlHostApi& api, void* handle, const char* filePath )
+{
+    EncodingRead read;
+    read.result = api.get_log_file_encoding( handle, filePath, &read.encoding );
+    read.nameRead = QString::fromUtf8( read.encoding );
+    return read;
+}
+
+/// The calls of the encoding callback the tests register for the plugin.
+struct EncodingChanges {
+    std::vector<std::pair<QString, QString>> told;
+
+    static void record( void* userData, const char* filePath, const char* encoding )
+    {
+        static_cast<EncodingChanges*>( userData )
+            ->told.emplace_back( QString::fromUtf8( filePath ), QString::fromUtf8( encoding ) );
+    }
+};
+
+} // namespace
+
+SCENARIO( "A plugin reads which Encoding a Log File is read in through the Plugin Host",
+          "[pluginhost][pluginencoding][plugins]" )
+{
+    GIVEN( "A Plugin Host with a fake Plugin UI Port and the probe plugin loaded" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        port.encodingInFront = QStringLiteral( "UTF-16LE" );
+        port.encodingOf
+            = { { QStringLiteral( "/logs/other.log" ), QStringLiteral( "windows-1252" ) } };
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        REQUIRE( api != nullptr );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), get_log_file_encoding ) );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), register_encoding_callback ) );
+
+        WHEN( "The plugin asks for the Encoding with no path, or an empty one" )
+        {
+            const auto none = readEncoding( *api, handle, nullptr );
+            const auto empty = readEncoding( *api, handle, "" );
+
+            THEN( "It gets the Encoding of the tab in front, by its IANA name" )
+            {
+                REQUIRE( none.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( none.name() == QStringLiteral( "UTF-16LE" ) );
+                REQUIRE( empty.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( empty.name() == QStringLiteral( "UTF-16LE" ) );
+                REQUIRE( port.askedForEncodingOf == QStringList{ QString(), QString() } );
+            }
+        }
+
+        WHEN( "The plugin names an open Log File" )
+        {
+            const auto read = readEncoding( *api, handle, "/logs/other.log" );
+
+            THEN( "It gets the Encoding of that Log File" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( read.name() == QStringLiteral( "windows-1252" ) );
+            }
+        }
+
+        WHEN( "The plugin names a Log File no tab shows" )
+        {
+            const auto read = readEncoding( *api, handle, "/logs/closed.log" );
+
+            THEN( "It is told there is no such Log File, and gets no name" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( read.encoding == nullptr );
+            }
+        }
+
+        WHEN( "The tab in front shows no Log File" )
+        {
+            port.encodingInFront.reset();
+            const auto read = readEncoding( *api, handle, nullptr );
+
+            THEN( "It is told there is no Log File, and gets no name" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( read.encoding == nullptr );
+            }
+        }
+
+        WHEN( "The plugin asks with no handle, or nowhere to put the name" )
+        {
+            const auto noHandle = readEncoding( *api, nullptr, nullptr );
+            const auto noName = api->get_log_file_encoding( handle, nullptr, nullptr );
+
+            THEN( "It is an invalid argument, and the port is not asked" )
+            {
+                REQUIRE( noHandle.result == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noHandle.encoding == nullptr );
+                REQUIRE( noName == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( port.askedForEncodingOf.isEmpty() );
+            }
+        }
+
+        WHEN( "The plugin asks off the UI thread" )
+        {
+            EncodingRead read;
+            std::thread( [ & ] { read = readEncoding( *api, handle, nullptr ); } ).join();
+
+            THEN( "The port is not asked, and the plugin is told why" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD );
+                REQUIRE( read.encoding == nullptr );
+                REQUIRE( port.askedForEncodingOf.isEmpty() );
+            }
+        }
+
+        WHEN( "The host has no Plugin UI Port, as without a window" )
+        {
+            host.setUiPort( nullptr );
+
+            THEN( "There is no Log File" )
+            {
+                REQUIRE( readEncoding( *api, handle, nullptr ).result
+                         == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+            }
+            host.setUiPort( &port );
+        }
+
+        WHEN( "The plugin registered an encoding callback and a Log File's Encoding changes" )
+        {
+            EncodingChanges changes;
+            api->register_encoding_callback( handle, &EncodingChanges::record, &changes );
+            host.notifyEncodingChanged( QStringLiteral( "/logs/other.log" ),
+                                        QStringLiteral( "ISO-8859-1" ) );
+
+            THEN( "The callback is told the Log File and its new Encoding" )
+            {
+                REQUIRE(
+                    changes.told
+                    == std::vector<std::pair<QString, QString>>{
+                        { QStringLiteral( "/logs/other.log" ), QStringLiteral( "ISO-8859-1" ) } } );
+            }
+
+            AND_WHEN( "The plugin removes its callback and another change comes" )
+            {
+                api->register_encoding_callback( handle, nullptr, nullptr );
+                host.notifyEncodingChanged( QStringLiteral( "/logs/other.log" ),
+                                            QStringLiteral( "UTF-8" ) );
+
+                THEN( "It is not told" )
+                {
+                    REQUIRE( changes.told.size() == 1 );
+                }
+            }
+        }
+
+        WHEN( "The plugin registered an encoding callback and is unloaded" )
+        {
+            EncodingChanges changes;
+            api->register_encoding_callback( handle, &EncodingChanges::record, &changes );
+            host.unloadAll();
+            host.notifyEncodingChanged( QStringLiteral( "/logs/other.log" ),
+                                        QStringLiteral( "UTF-8" ) );
+
+            THEN( "It is not told any more" )
+            {
+                REQUIRE( changes.told.empty() );
+            }
+        }
+
+        host.unloadAll();
+        probe.library.unload();
     }
 }

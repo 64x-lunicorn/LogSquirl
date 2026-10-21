@@ -395,6 +395,9 @@ MainWindow::MainWindow( WindowSession session,
     // A plugin goes to a Log Line of the tab in front and reads its selected
     // Log Lines (#663).
     pluginUi_->setTabInFront( [ this ]() { return currentCrawlerWidget(); } );
+    // A plugin reads the Encoding of the tab in front, or of a Log File it
+    // names (#803).
+    pluginUi_->setTabOfLogFile( [ this ]( const QString& path ) { return tabOfLogFile( path ); } );
     plugins_->uiPort().addWindow( pluginUi_.get() );
     servePluginCallbacks();
 
@@ -484,6 +487,7 @@ std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
         // temporary path (#609).
         mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary,
                                    archiveMembers_.value( fileName ).key() );
+        tellPluginsOfEncodingChanges( crawlerWidget );
 
         if ( followFileOnLoad ) {
             followOnOpen( crawlerWidget );
@@ -564,6 +568,7 @@ void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& m
     // Its name and group are found by its archive (#609).
     mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary, member.key(),
                                tabIndex );
+    tellPluginsOfEncodingChanges( crawlerWidget );
     if ( !opened.inFront && front ) {
         mainTabWidget_.setCurrentWidget( front );
     }
@@ -3543,6 +3548,7 @@ bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFil
             // archive keeps its name and group by the archive (#609).
             int index = mainTabWidget_.addCrawler( crawlerWidget, fileName, origin.lifetime,
                                                    origin.storedKey( fileName ) );
+            tellPluginsOfEncodingChanges( crawlerWidget );
 
             // Setting the new tab, the user will see a blank page for the duration
             // of the loading, with no way to switch to another tab
@@ -3733,6 +3739,28 @@ bool MainWindow::showView( const ViewInterface* view )
 QString MainWindow::strippedName( const QString& fullFileName ) const
 {
     return QFileInfo( fullFileName ).fileName();
+}
+
+CrawlerWidget* MainWindow::tabOfLogFile( const QString& path ) const
+{
+    // As the file system names it: the same file by another spelling of its
+    // path, or in another case where case does not count, is the same.
+    const QFileInfo wanted( path );
+    for ( const auto i : mainTabWidget_.logFileTabs() ) {
+        auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( i ) );
+        if ( crawler != nullptr && QFileInfo( session_.getFilename( crawler ) ) == wanted ) {
+            return crawler;
+        }
+    }
+    return nullptr;
+}
+
+void MainWindow::tellPluginsOfEncodingChanges( CrawlerWidget* crawler )
+{
+    connect( crawler, &CrawlerWidget::encodingChanged, this, [ this, crawler ] {
+        plugins_->host().notifyEncodingChanged( session_.getFilename( crawler ),
+                                                crawler->encodingName() );
+    } );
 }
 
 // Return the currently active CrawlerWidget, or NULL if none

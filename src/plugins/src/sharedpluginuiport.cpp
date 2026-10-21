@@ -20,6 +20,7 @@
 #include "sharedpluginuiport.h"
 
 #include <algorithm>
+#include <ranges>
 #include <set>
 
 namespace logsquirl::plugins {
@@ -256,6 +257,21 @@ std::optional<PluginSelectedLogLines> SharedPluginUiPort::selectedLogLines( std:
     const std::scoped_lock lock( mutex_ );
     auto* window = mostRecentlyActive();
     return window != nullptr ? window->selectedLogLines( maxLines, maxBytes ) : std::nullopt;
+}
+
+std::optional<QString> SharedPluginUiPort::logFileEncoding( const QString& logFile )
+{
+    const std::scoped_lock lock( mutex_ );
+    if ( logFile.isEmpty() ) {
+        auto* window = mostRecentlyActive();
+        return window != nullptr ? window->logFileEncoding( logFile ) : std::nullopt;
+    }
+    for ( auto* window : windows_ | std::views::reverse ) {
+        if ( auto encoding = window->logFileEncoding( logFile ) ) {
+            return encoding;
+        }
+    }
+    return std::nullopt;
 }
 
 } // namespace logsquirl::plugins

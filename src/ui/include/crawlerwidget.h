@@ -162,6 +162,10 @@ public:
     // suitable to display to the user.
     QString encodingText() const;
 
+    // The IANA name of the Encoding the Log File is read in, as settled now:
+    // the one chosen, else the one detected (#803).
+    QString encodingName() const;
+
     // Whether the Log File is followed, as its View Set, the owner of follow,
     // says (#558).
     bool isFollowEnabled() const;
@@ -341,6 +345,10 @@ Q_SIGNALS:
 
     // Sent up when the current filtered view has been changed
     void filteredViewChanged();
+
+    // The Log File is read in another Encoding now, chosen or detected by a
+    // load: encodingName() names it (#803).
+    void encodingChanged();
 
     // The current Search progressed, completed or failed, as the Search Line
     // and the views were just told: for the benchmark mode, which times a
