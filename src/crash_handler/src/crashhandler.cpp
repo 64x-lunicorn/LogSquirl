@@ -310,5 +310,5 @@ CrashHandler::CrashHandler()
 CrashHandler::~CrashHandler()
 {
     memoryUsageTimer_->stop();
-    sentry_shutdown();
+    sentry_close();
 }

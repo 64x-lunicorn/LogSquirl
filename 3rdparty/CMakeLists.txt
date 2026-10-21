@@ -810,40 +810,17 @@ if(LOGSQUIRL_USE_SENTRY)
     set(CMAKE_OSX_SYSROOT "${_osx_sdk_path}" CACHE STRING "" FORCE)
   endif()
 
+  # Pinned to a release like the other packages cut from one, so Renovate
+  # proposes the next release (#834). Its tags carry no "v". Until 0.17.4 the
+  # pin was a 2023 branch commit (0.6.7) whose crashpad needed <cstdint>
+  # force-included for GCC 15 / Clang 17; the current crashpad includes it.
   cpmaddpackage(
-    NAME
-    sentry
-    GITHUB_REPOSITORY
-    getsentry/sentry-native
-    GIT_TAG
-    a3d58622a807b9dda174cb9fc18fa0f98c89d043
-    EXCLUDE_FROM_ALL
-    YES
+    NAME sentry
+    GITHUB_REPOSITORY getsentry/sentry-native
+    VERSION 0.17.4
+    GIT_TAG 740313523edd50e3a0cfe2f8f931e893ed7423a5 # 0.17.4
+    EXCLUDE_FROM_ALL YES
   )
-
-  # GCC 15 / Clang 17+ no longer transitively include <cstdint> from standard
-  # headers.  The pinned crashpad revision uses uint64_t etc. without including
-  # <cstdint> in several files.  Force-include the header for all crashpad targets.
-  # Use a generator expression so the C++ header is only applied to CXX sources
-  # (crashpad_util also compiles MIG-generated .c files).
-  if(MSVC)
-    set(_sentry_cstdint_flag "$<$<COMPILE_LANGUAGE:CXX>:/FIcstdint>")
-  else()
-    set(_sentry_cstdint_flag "$<$<COMPILE_LANGUAGE:CXX>:SHELL:-include cstdint>")
-  endif()
-  set(_sentry_cstdint_targets
-      sentry crashpad_client crashpad_compat crashpad_util crashpad_handler
-      crashpad_minidump crashpad_snapshot crashpad_tools mini_chromium)
-  foreach(_t ${_sentry_cstdint_targets})
-    if(TARGET ${_t})
-      get_target_property(_t_type ${_t} TYPE)
-      if(_t_type STREQUAL "INTERFACE_LIBRARY")
-        target_compile_options(${_t} INTERFACE ${_sentry_cstdint_flag})
-      else()
-        target_compile_options(${_t} PRIVATE ${_sentry_cstdint_flag})
-      endif()
-    endif()
-  endforeach()
 
   if(WIN32)
     set_target_properties(crashpad_handler PROPERTIES OUTPUT_NAME "logsquirl_crashpad_handler.exe")

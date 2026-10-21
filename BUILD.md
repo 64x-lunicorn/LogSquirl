@@ -1238,7 +1238,7 @@ Both wait until a release is seven days old and run weekly; Renovate lists every
 - **build tools** (CMake, Ninja, Ragel, sccache) in one PR, since a bump in `docker/` rebuilds every build image;
 - **linuxdeploy** and its Qt plugin together;
 - a CPM package pinned to a release updates `VERSION`, the commit SHA and the `# <tag>` comment in one change;
-- a CPM package without releases (forks such as `variar/oneTBB`, `KDAB/KDToolBox`, `getsentry/sentry-native`) tracks
+- a CPM package without releases (forks such as `variar/oneTBB`, `KDAB/KDToolBox`) tracks
   its default branch and only gets a PR once its checkbox on the Dependency Dashboard is ticked.
 
 A tool pin that is downloaded and verified is written as a block Renovate and the checksum script both read; to add

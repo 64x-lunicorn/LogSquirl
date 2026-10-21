@@ -116,10 +116,10 @@
       extractVersionTemplate: "^vectorscan/(?<version>\\d+\\.\\d+\\.\\d+)$",
     },
     {
-      // Forks and upstreams without releases (maddy, oneTBB, KDToolBox,
-      // sentry-native, ...) are pinned to a commit with no tag comment. They
-      // track their default branch; dependencyDashboardApproval below keeps a
-      // new branch head from opening a PR until someone asks for it.
+      // Forks and upstreams without releases (maddy, oneTBB, KDToolBox, ...)
+      // are pinned to a commit with no tag comment. They track their default
+      // branch; dependencyDashboardApproval below keeps a new branch head from
+      // opening a PR until someone asks for it.
       customType: "regex",
       description: "CPM packages pinned to a branch commit",
       managerFilePatterns: ["/^3rdparty/CMakeLists\\.txt$/"],
