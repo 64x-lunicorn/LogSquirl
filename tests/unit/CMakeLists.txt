@@ -71,6 +71,7 @@ add_executable(logsquirl_tests
     valuenamescollection_test.cpp
     menu_test.cpp
     mergecontroller_test.cpp
+    openfilehelper_test.cpp
     optionsdialog_test.cpp
     firststartfileassociationsdialog_test.cpp
     lostfileassociationshint_test.cpp
