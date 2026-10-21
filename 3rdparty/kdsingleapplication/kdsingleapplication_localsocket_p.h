@@ -114,6 +114,7 @@ private:
     void abortConnectionToSecondary();
 
     QString m_socketName;
+    QString m_directory; // LogSquirl (#827): the lock's and socket's folder, removed again when left empty
     qint64 m_primaryPid {-1};
     bool m_unguarded {false};
 

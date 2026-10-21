@@ -49,6 +49,7 @@ KDSingleApplicationLocalSocket::KDSingleApplicationLocalSocket(const QString &na
     // it is what goes when the path would not fit sun_path otherwise.
     /* cppcheck-suppress useInitializationList */
     m_socketName = directory.isEmpty() ? name : directory + QLatin1Char('/') + name;
+    m_directory = directory;
 #elif defined(Q_OS_WIN)
     // I'm not sure of a "global session identifier" on Windows; are
     // multiple logins from the same user a possibility? For now, following this:
@@ -126,7 +127,17 @@ KDSingleApplicationLocalSocket::KDSingleApplicationLocalSocket(const QString &na
     m_localServer = std::move(server);
 }
 
-KDSingleApplicationLocalSocket::~KDSingleApplicationLocalSocket() = default;
+KDSingleApplicationLocalSocket::~KDSingleApplicationLocalSocket()
+{
+    // LogSquirl (#827): the socket and the lock go with this instance, and so
+    // does their folder once nothing else is in it: a run leaves nothing of
+    // its own behind. Another instance's lock or socket keeps the folder.
+    m_localServer.reset();
+    m_lockFile.reset();
+    if (!m_directory.isEmpty()) {
+        QDir().rmdir(m_directory);
+    }
+}
 
 bool KDSingleApplicationLocalSocket::isPrimaryInstance() const
 {

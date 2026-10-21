@@ -37,3 +37,6 @@ socket. Each change is marked `LogSquirl (#827)` in the code.
   (`NotConnected`: nothing listens) from one that connected and failed. The
   caller starts on its own instead of exiting when nothing answers.
 - `socketName()` exposes the socket's name (its path on Unix) for the tests.
+- The destructor removes the directory given once the lock and the socket are
+  gone and nothing else is in it, so a run leaves nothing of its own behind
+  (a Benchmark Run above all).

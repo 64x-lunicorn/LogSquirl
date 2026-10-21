@@ -117,8 +117,14 @@ bool isOwnerOnlySocket( const QString& path )
 // The lock file a guard of `name` in `directory` takes, learnt from one.
 QString lockFileOf( const QString& name, const QString& directory )
 {
-    const KDSingleApplication guard( name, directory );
-    return directory + '/' + QFileInfo( guard.socketName() ).fileName() + ".lock";
+    QString socketName;
+    {
+        const KDSingleApplication guard( name, directory );
+        socketName = guard.socketName();
+    }
+    // The guard took the directory with it, being the last in it (#827).
+    QDir().mkpath( directory );
+    return directory + '/' + QFileInfo( socketName ).fileName() + ".lock";
 }
 
 // A limit no path of these tests reaches: what the directory tests of #827
@@ -448,6 +454,40 @@ TEST_CASE( "The lock file and the socket of the primary instance are in the dire
     REQUIRE( primary.socketName() == directory.path() + '/' + name );
     REQUIRE( isOwnerOnlySocket( primary.socketName() ) );
 #endif
+}
+
+TEST_CASE( "The directory of the lock and the socket goes with the primary instance once it is "
+           "empty",
+           "[singleinstance]" )
+{
+    QTemporaryDir root;
+    REQUIRE( root.isValid() );
+    const auto directory = root.filePath( "instance" );
+    REQUIRE( QDir().mkpath( directory ) );
+    const auto name = guardName();
+
+    {
+        const KDSingleApplication primary( name, directory );
+        REQUIRE( primary.isPrimaryInstance() );
+        REQUIRE( QDir( directory ).exists() );
+    }
+    // A run leaves nothing of its own behind (#827).
+    REQUIRE_FALSE( QDir( directory ).exists() );
+
+    SECTION( "unless something else is in it" )
+    {
+        REQUIRE( QDir().mkpath( directory ) );
+        QFile other( QDir( directory ).filePath( "other" ) );
+        REQUIRE( other.open( QIODevice::WriteOnly ) );
+        other.close();
+        {
+            const KDSingleApplication primary( name, directory );
+            REQUIRE( primary.isPrimaryInstance() );
+        }
+        REQUIRE( QDir( directory ).exists() );
+        REQUIRE( QDir( directory ).entryList( QDir::Files | QDir::System )
+                 == QStringList{ "other" } );
+    }
 }
 
 TEST_CASE( "A second instance of the name in the directory hands its message to the first",
