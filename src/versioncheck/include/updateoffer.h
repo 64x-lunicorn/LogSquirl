@@ -27,6 +27,11 @@
 
 namespace logsquirl::versioncheck {
 
+// The most the update check reads of a feed reply. latest.json is a few KB;
+// anything past this is not the feed, and it is dropped before it is parsed
+// or kept in memory (#828).
+constexpr qint64 MaxUpdateFeedBytes = 1024 * 1024;
+
 // A newer release the update check offers the user (#306).
 struct UpdateOffer {
     QString version; // the release's name, e.g. "26.10.0-beta1"

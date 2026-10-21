@@ -307,3 +307,42 @@ SCENARIO( "The update notice names the package manager only for a known install 
         }
     }
 }
+
+SCENARIO( "The update notice shows the feed's strings as text, never as markup",
+          "[versioncheck][installsource]" )
+{
+    const auto url
+        = QStringLiteral( "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.12.0" );
+    // A feed that passed the release page check with its url, but carries
+    // markup in the strings the check does not parse (#828).
+    const auto version = QStringLiteral( "<a href=\"https://evil.example/x.dmg\">26.12.0</a>" );
+    const QStringList changes{ "26.12.0: <b>Notes</b> <img src=x onerror=1>" };
+
+    GIVEN( "An unknown install source" )
+    {
+        const auto html = updateNoticeHtml( version, url, changes, InstallSource::Unknown );
+
+        THEN( "The only link is the release page, and the markup reads as text" )
+        {
+            CHECK( html.count( "<a " ) == 1 );
+            CHECK( html.count( "<a href=\"" + url + "\">" ) == 1 );
+            CHECK( html.contains( version.toHtmlEscaped() ) );
+            CHECK( html.contains( "<li>" + changes.first().toHtmlEscaped() + "</li>" ) );
+            CHECK_FALSE( html.contains( "<b>" ) );
+            CHECK_FALSE( html.contains( "<img" ) );
+        }
+    }
+
+    GIVEN( "A package manager install" )
+    {
+        const auto html = updateNoticeHtml( version, url, changes, InstallSource::Homebrew );
+
+        THEN( "There is no link at all, and the markup reads as text" )
+        {
+            CHECK_FALSE( html.contains( "<a " ) );
+            CHECK( html.contains( version.toHtmlEscaped() ) );
+            CHECK( html.contains( "<li>" + changes.first().toHtmlEscaped() + "</li>" ) );
+            CHECK_FALSE( html.contains( "<b>" ) );
+        }
+    }
+}

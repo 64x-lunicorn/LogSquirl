@@ -27,6 +27,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include <cstring>
+
 using logsquirl::versioncheck::findUpdateOffer;
 
 namespace {
@@ -375,6 +377,47 @@ SCENARIO( "Only a release page of LogSquirl is offered", "[versioncheck][updateo
             {
                 CHECK_FALSE( findUpdateOffer( mixed, "26.07.0.741", false ).has_value() );
             }
+        }
+    }
+}
+
+SCENARIO( "A feed above the size limit offers nothing", "[versioncheck][updateoffer]" )
+{
+    // A feed that offers a release, padded with a field the check ignores
+    // until it is as long as asked (#828).
+    const auto paddedTo = []( qint64 bytes ) {
+        auto feed = QJsonObject{ { "stable", "26.10.0" },
+                                 { "stable_url", ReleasesUrl + "v26.10.0" },
+                                 { "stable_build", "26.10.0.790" },
+                                 { "releases", QJsonArray{ "26.07.0", "26.10.0" } },
+                                 { "changelog", QJsonArray{} } };
+        const auto unpadded = QJsonDocument( feed ).toJson( QJsonDocument::Compact ).size();
+        const auto padding = bytes - unpadded - qsizetype( strlen( R"(,"padding":"")" ) );
+        REQUIRE( padding > 0 );
+        feed.insert( "padding", QString( padding, u'x' ) );
+        const auto padded = QJsonDocument( feed ).toJson( QJsonDocument::Compact );
+        REQUIRE( padded.size() == bytes );
+        return padded;
+    };
+
+    GIVEN( "A feed exactly as large as the limit" )
+    {
+        THEN( "It is read and the release is offered" )
+        {
+            const auto offer = findUpdateOffer(
+                paddedTo( logsquirl::versioncheck::MaxUpdateFeedBytes ), "26.07.0.741", false );
+            REQUIRE( offer.has_value() );
+            CHECK( offer->version == "26.10.0" );
+        }
+    }
+
+    GIVEN( "A feed one byte larger than the limit" )
+    {
+        THEN( "It is discarded unread" )
+        {
+            const auto offer = findUpdateOffer(
+                paddedTo( logsquirl::versioncheck::MaxUpdateFeedBytes + 1 ), "26.07.0.741", false );
+            CHECK_FALSE( offer.has_value() );
         }
     }
 }
