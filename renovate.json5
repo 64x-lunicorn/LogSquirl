@@ -127,8 +127,7 @@
         "GITHUB_REPOSITORY\\s+(?<depName>[\\w.-]+/[\\w.-]+)\\s+GIT_TAG\\s+(?<currentDigest>[0-9a-f]{40})[ \\t]*\\n",
       ],
       datasourceTemplate: "github-digest",
-      // The one default branch that is not master.
-      currentValueTemplate: "{{#if (equals depName 'variar/klogg_karchive')}}main{{else}}master{{/if}}",
+      currentValueTemplate: "master",
       depTypeTemplate: "cpm-branch",
     },
     {
@@ -222,9 +221,16 @@
       allowedVersions: "<7",
     },
     {
-      // `git ls-remote` carries no tag dates either; uchardet releases rarely.
+      // `git ls-remote` carries no tag dates either; uchardet and bzip2
+      // release rarely.
       matchDatasources: ["git-tags"],
       minimumReleaseAgeBehaviour: "timestamp-optional",
+    },
+    {
+      // bzip2's tags read bzip2-<version> (#834).
+      matchDatasources: ["git-tags"],
+      matchPackageNames: ["https://sourceware.org/git/bzip2"],
+      extractVersion: "^bzip2-(?<version>\\d+(?:\\.\\d+)*)$",
     },
     {
       matchDepNames: ["nsis"],
