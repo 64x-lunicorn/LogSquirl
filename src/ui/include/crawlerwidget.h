@@ -162,8 +162,8 @@ public:
     // suitable to display to the user.
     QString encodingText() const;
 
-    // The IANA name of the Encoding the Log File is read in, as settled now:
-    // the one chosen, else the one detected (#803).
+    // The IANA name of the Encoding the Log Lines are decoded in, as last
+    // settled: the one chosen, else the one detected (#803).
     QString encodingName() const;
 
     // Whether the Log File is followed, as its View Set, the owner of follow,

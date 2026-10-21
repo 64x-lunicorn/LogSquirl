@@ -39,6 +39,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QLibrary>
+#include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
@@ -300,7 +301,12 @@ SCENARIO( "A plugin reads which Encoding a Log File is read in, and hears when i
             WHEN( "the user chooses ISO-8859-1 for the tab" )
             {
                 const auto toldBefore = plugin.changes().size();
+                // An Encoding whose line feed is another width reloads the
+                // Log File. The user goes back only after it has loaded:
+                // going back while that load starts is another story.
+                QSignalSpy reloaded( &crawler, &CrawlerWidget::loadingFinished );
                 crawler.setEncoding( TextEncoding::Latin1Mib );
+                REQUIRE( waitUiState( [ &reloaded ] { return reloaded.count() > 0; }, 10'000 ) );
 
                 THEN( "the plugin is told the Log File is read in ISO-8859-1, and reads it so" )
                 {
@@ -316,11 +322,20 @@ SCENARIO( "A plugin reads which Encoding a Log File is read in, and hears when i
                 {
                     crawler.setEncoding( std::nullopt );
 
-                    THEN( "the plugin is told, and reads, the one the tab reads in again" )
+                    THEN( "the plugin is told UTF-16LE again, once the load has found the byte "
+                          "order mark again, and reads it" )
                     {
-                        REQUIRE( crawler.encodingName() != QStringLiteral( "ISO-8859-1" ) );
-                        REQUIRE( plugin.changes().back().second == crawler.encodingName() );
-                        REQUIRE( plugin.read().name == crawler.encodingName() );
+                        // The guess the ISO-8859-1 Index left is settled
+                        // first; the load it starts finds the byte order
+                        // mark again.
+                        REQUIRE( waitUiState(
+                            [ & ] {
+                                return plugin.changes().back().second
+                                       == QStringLiteral( "UTF-16LE" );
+                            },
+                            10'000 ) );
+                        REQUIRE( plugin.read().name == QStringLiteral( "UTF-16LE" ) );
+                        REQUIRE( plugin.read( path ).name == QStringLiteral( "UTF-16LE" ) );
                     }
                 }
             }

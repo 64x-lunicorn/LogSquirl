@@ -334,7 +334,12 @@ QString CrawlerWidget::encodingText() const
 
 QString CrawlerWidget::encodingName() const
 {
-    return QString::fromLatin1( openLogFile_->encoding()->name() );
+    // The one the Log Lines are decoded in. Settling it reloads the Log File
+    // when its line feed is another width, which drops the detection that
+    // encoding() would answer from until that load has finished.
+    const auto* decodedIn = openLogFile_->logData()->getDisplayEncoding();
+    return QString::fromLatin1(
+        ( decodedIn != nullptr ? decodedIn : openLogFile_->encoding() )->name() );
 }
 
 // Return a pointer to the view in which we should do the QuickFind
