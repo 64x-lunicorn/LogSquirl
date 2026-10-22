@@ -493,21 +493,31 @@ LogData::ReadHandles LogData::readHandles() const
     // every read of Log Lines.
     auto decoder = codec_.makeDecoder();
     const auto encodingParams = decoder.encodingParams;
-    ReadHandles handles{ indexing_data_, attached_file_, encodingParams, std::move( decoder ),
-                         DecodingPolicy{} };
-    // Written under the Index's lock (setDecodingPolicy), so read under it.
-    IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
-    handles.decodingPolicy = decodingPolicy_;
-    return handles;
+    return ReadHandles{ indexing_data_, attached_file_, encodingParams, std::move( decoder ),
+                        decodingPolicy_.load() };
 }
 
 RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number, qint64 maxBytes ) const
 {
-    return readRawLines( readHandles(), firstLine, number, maxBytes );
+    // The views' path: no handles to share, so none are copied per read.
+    auto decoder = codec_.makeDecoder();
+    const auto encodingParams = decoder.encodingParams;
+    return readRawLines( *indexing_data_, *attached_file_, encodingParams, std::move( decoder ),
+                         decodingPolicy_.load(), firstLine, number, maxBytes );
 }
 
 RawLines LogData::readRawLines( ReadHandles handles, LineNumber firstLine, LinesCount number,
                                 qint64 maxBytes )
+{
+    return readRawLines( *handles.index, *handles.file, handles.encodingParams,
+                         std::move( handles.decoder ), handles.decodingPolicy, firstLine, number,
+                         maxBytes );
+}
+
+RawLines LogData::readRawLines( const IndexingData& index, FileHolder& file,
+                                const EncodingParameters& encodingParams, TextDecoder decoder,
+                                DecodingPolicy decodingPolicy, LineNumber firstLine,
+                                LinesCount number, qint64 maxBytes )
 {
     RawLines rawLines;
     rawLines.startLine = firstLine;
@@ -518,13 +528,13 @@ RawLines LogData::readRawLines( ReadHandles handles, LineNumber firstLine, Lines
         {
             // Only the offsets are taken under the index lock: the file is
             // read without it, so indexing can publish a block meanwhile.
-            IndexingData::ConstAccessor scopedAccessor{ handles.index.get() };
+            IndexingData::ConstAccessor scopedAccessor{ &index };
             if ( ( firstLine + number ).get() > scopedAccessor.getNbLines().get() ) {
                 LOG_WARNING << "Lines out of bound asked for";
                 return {}; /* exception? */
             }
 
-            rawLines.hideAnsiColorSequences = handles.decodingPolicy.hideAnsiColorSequences;
+            rawLines.hideAnsiColorSequences = decodingPolicy.hideAnsiColorSequences;
 
             firstByte = ( firstLine == 0_lnum )
                             ? 0
@@ -545,7 +555,6 @@ RawLines LogData::readRawLines( ReadHandles handles, LineNumber firstLine, Lines
         // Where each Log Line ends in the buffer. A Log Line too long to read
         // is left out of it but for a line feed, and the block ends before
         // the Log Line that would take the buffer past maxBytes (#825).
-        const auto encodingParams = handles.encodingParams;
         const auto lineFeedWidth = encodingParams.lineFeedWidth;
         rawLines.endOfLines.reserve( endOfLines.size() );
         qint64 lineStart = firstByte;
@@ -576,7 +585,7 @@ RawLines LogData::readRawLines( ReadHandles handles, LineNumber firstLine, Lines
         rawLines.buffer.resize( static_cast<std::size_t>( bytesToRead ) );
 
         {
-            ScopedFileHolder<FileHolder> fileHolder( handles.file.get() );
+            ScopedFileHolder<FileHolder> fileHolder( &file );
             // Reads the bytes [fileOffset, fileOffset + size) of the Log File
             // to bufferOffset in the buffer. When the Log File is shorter than
             // its Index says, as when it was cut short on disk and is not
@@ -609,15 +618,15 @@ RawLines LogData::readRawLines( ReadHandles handles, LineNumber firstLine, Lines
                 qint64 runFile = firstByte;
                 qint64 runBuffer = 0;
                 bool complete = true;
-                for ( const auto index : rawLines.tooLongLines ) {
-                    const auto bufferEnd = rawLines.endOfLines[ index ];
+                for ( const auto lineIndex : rawLines.tooLongLines ) {
+                    const auto bufferEnd = rawLines.endOfLines[ lineIndex ];
                     complete = readRun( runFile, runBuffer, bufferEnd - lineFeedWidth - runBuffer );
                     if ( !complete ) {
                         break;
                     }
                     rawLines.buffer[ static_cast<std::size_t>(
                         bufferEnd - lineFeedWidth + encodingParams.lineFeedIndex ) ] = '\n';
-                    runFile = endOfLines[ index ].get();
+                    runFile = endOfLines[ lineIndex ].get();
                     runBuffer = bufferEnd;
                 }
                 if ( complete ) {
@@ -627,7 +636,7 @@ RawLines LogData::readRawLines( ReadHandles handles, LineNumber firstLine, Lines
         }
 
         LOG_DEBUG << "done reading lines:" << rawLines.buffer.size();
-        rawLines.textDecoder = std::move( handles.decoder );
+        rawLines.textDecoder = std::move( decoder );
         return rawLines;
 
     } catch ( const std::bad_alloc& ) {
@@ -704,7 +713,7 @@ void LogData::readSparseLines( std::span<const LineNumber> lines, OnLine&& onLin
                 return scopedAccessor.getEndOfLineOffsets( first, count );
             },
             limits );
-        hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+        hideAnsiColorSequences = decodingPolicy_.load().hideAnsiColorSequences;
     }
 
     if ( reads.empty() ) {
@@ -833,7 +842,7 @@ void LogData::readLinePrefixes(
                                                              - static_cast<qint64>( lineFeedWidth ),
                                                          qint64{ 0 } ) } );
         }
-        hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+        hideAnsiColorSequences = decodingPolicy_.load().hideAnsiColorSequences;
     }
     if ( places.empty() ) {
         return;

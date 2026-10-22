@@ -39,6 +39,7 @@
 #ifndef LOGDATA_H
 #define LOGDATA_H
 
+#include <atomic>
 #include <cstddef>
 #include <exception>
 #include <functional>
@@ -300,6 +301,12 @@ private:
     ReadHandles readHandles() const;
     static RawLines readRawLines( ReadHandles handles, LineNumber first, LinesCount number,
                                   qint64 maxBytes );
+    // The read itself: the views read through this object's own Index and Log
+    // File, the Search through the handles above.
+    static RawLines readRawLines( const IndexingData& index, FileHolder& file,
+                                  const EncodingParameters& encodingParams, TextDecoder decoder,
+                                  DecodingPolicy decodingPolicy, LineNumber first,
+                                  LinesCount number, qint64 maxBytes );
     // Tells every LogFilteredData handed out that the Log Lines from
     // firstChanged on may read differently now.
     void logLinesChanged( LineNumber firstChanged = 0_lnum ) const;
@@ -347,9 +354,9 @@ private:
     // taken when a Check finds only growth.
     LinesCount nbLinesBeforeDataAdded_;
 
-    // Read by getLinesRaw() on the Search's threads, so it is only ever
-    // touched under the indexing data's lock.
-    DecodingPolicy decodingPolicy_;
+    // Read by every read of Log Lines, on the Search's threads too: atomic,
+    // so a read takes no lock for it.
+    std::atomic<DecodingPolicy> decodingPolicy_;
 
     // Declared last: it forgets this object first thing in the destructor.
     const std::shared_ptr<LogDataBlockSource> searchBlockSource_
