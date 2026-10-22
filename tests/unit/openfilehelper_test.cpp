@@ -156,7 +156,9 @@ SCENARIO( "a Log File is revealed in the file manager by its path, never by scri
             {
                 REQUIRE( action.program.isEmpty() );
                 REQUIRE( action.arguments.isEmpty() );
-                REQUIRE( action.url == QUrl::fromLocalFile( folder ) );
+                // The backslash of the name is a separator on Windows, so the
+                // folder is what QFileInfo makes of the path there too.
+                REQUIRE( action.url == QUrl::fromLocalFile( QFileInfo( path ).path() ) );
             }
         }
     }

@@ -493,6 +493,10 @@ TEST_CASE( "The directory of the lock and the socket goes with the primary insta
 }
 #endif
 
+#ifndef Q_OS_WIN
+// On the Windows CI runner the secondary's connect to the pipe of a primary
+// instance in the same process never succeeds (#849); the Windows hand-over
+// is covered by tests/e2e/test_single_instance.py on a developer machine.
 TEST_CASE( "A second instance of the name in the directory hands its message to the first",
            "[singleinstance]" )
 {
@@ -513,6 +517,7 @@ TEST_CASE( "A second instance of the name in the directory hands its message to 
     REQUIRE( received.wait( 5000 ) );
     REQUIRE( received.first().first().toByteArray() == QByteArray( "hello" ) );
 }
+#endif
 
 #ifndef Q_OS_WIN
 TEST_CASE( "A lock file or socket under the old name in the temporary directory does not "
@@ -545,6 +550,8 @@ TEST_CASE( "A lock file or socket under the old name in the temporary directory 
 }
 #endif
 
+#ifndef Q_OS_WIN
+// See #849 as well.
 TEST_CASE( "A held lock with nothing listening is told from a primary instance that is busy",
            "[singleinstance]" )
 {
@@ -581,6 +588,7 @@ TEST_CASE( "A held lock with nothing listening is told from a primary instance t
                  == KDSingleApplication::SendResult::Sent );
     }
 }
+#endif
 
 TEST_CASE( "An instance without a directory of its own runs unguarded", "[singleinstance]" )
 {
