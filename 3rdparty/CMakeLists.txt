@@ -333,7 +333,12 @@ else()
   target_include_directories(logsquirl_uchardet_wrapper INTERFACE ${UCHARDET_INCLUDE_DIR})
 endif()
 
-# KArchive: try system package first, fall back to CPM-fetched klogg_karchive fork
+# KArchive: a system KF6Archive when there is one, else KDE's upstream sources
+# built by karchive/CMakeLists.txt with the three compression libraries below
+# (#834). Until then the klogg_karchive fork was built here: a 2022 copy of
+# KF5's KArchive with zlib 1.2.3, bzip2 1.0.5 and liblzma 5.2.4 bundled from
+# CMake's source tree, and a copyTo() with a cancel flag that the extraction
+# walk of #815 made unnecessary.
 add_library(logsquirl_karchive INTERFACE)
 set(_KARCHIVE_FOUND OFF)
 find_package(KF6Archive QUIET)
@@ -344,36 +349,104 @@ endif()
 
 if(NOT _KARCHIVE_FOUND)
   set(CPM_USE_LOCAL_PACKAGES OFF)
+
+  # zlib and bzip2 are compiled from their sources here, as the fork compiled
+  # its copies: zlib's CMakeLists.txt includes CPack and rewrites zconf.h in
+  # the source tree, and bzip2's release has no CMake files at all. Neither
+  # needs configuring; the headers in the source tree are the ones to build
+  # with. bzip2 comes from its home at sourceware.org (the GitHub mirrors are
+  # third parties); the tag's commit is the same there as in them.
+  #
+  # Not NAME zlib or bzip2: CPM writes a Find<NAME>.cmake for every package
+  # into CPM_modules/ on the module path, and on a case-insensitive file
+  # system (macOS, Windows) Findzlib.cmake is what find_package(ZLIB) opens
+  # instead of CMake's FindZLIB.cmake -- sentry and crashpad call it, and
+  # CPM's stub defines no ZLIB::ZLIB target. CMake has a FindBZip2.cmake too.
   cpmaddpackage(
-    NAME
-    Klogg_KArchive
-    GITHUB_REPOSITORY
-    variar/klogg_karchive
-    GIT_TAG
-    f546bf6ae66a8d34b43da5a41afcfbf4e1a47906
-    EXCLUDE_FROM_ALL
-    YES
+    NAME zlib_sources
+    GITHUB_REPOSITORY madler/zlib
+    VERSION 1.3.2
+    GIT_TAG da607da739fa6047df13e66a2af6b8bec7c2a498 # v1.3.2
+    DOWNLOAD_ONLY YES
   )
-  if(Klogg_KArchive_ADDED)
-    # Qt 6.10 no longer allows QFlags to be passed to QString::arg() directly.
-    # Patch the klogg_karchive source to cast to int.
-    foreach(_karchive_src
-      "${Klogg_KArchive_SOURCE_DIR}/karchive/src/karchive.cpp"
-      "${Klogg_KArchive_SOURCE_DIR}/karchive/src/kar.cpp"
-      "${Klogg_KArchive_SOURCE_DIR}/karchive/src/krcc.cpp"
-    )
-      if(EXISTS "${_karchive_src}")
-        file(READ "${_karchive_src}" _karchive_content)
-        string(REPLACE ".arg(mode)" ".arg(static_cast<int>(mode))" _karchive_content "${_karchive_content}")
-        string(REPLACE ".arg(d->mode)" ".arg(static_cast<int>(d->mode))" _karchive_content "${_karchive_content}")
-        file(WRITE "${_karchive_src}" "${_karchive_content}")
-      endif()
-    endforeach()
-    target_link_libraries(logsquirl_karchive INTERFACE klogg_karchive)
-    target_compile_definitions(logsquirl_karchive INTERFACE LOGSQUIRL_KARCHIVE)
-  else()
-    message(WARNING "KArchive not found and CPM fetch failed")
-  endif()
+  # Without the gz* files: they are the gzopen() file API, which KArchive does
+  # not use (it inflates and deflates streams), and the only part of zlib that
+  # needs configuring (HAVE_UNISTD_H, fseeko, ...).
+  add_library(
+    logsquirl_zlib STATIC
+    ${zlib_sources_SOURCE_DIR}/adler32.c
+    ${zlib_sources_SOURCE_DIR}/compress.c
+    ${zlib_sources_SOURCE_DIR}/crc32.c
+    ${zlib_sources_SOURCE_DIR}/deflate.c
+    ${zlib_sources_SOURCE_DIR}/infback.c
+    ${zlib_sources_SOURCE_DIR}/inffast.c
+    ${zlib_sources_SOURCE_DIR}/inflate.c
+    ${zlib_sources_SOURCE_DIR}/inftrees.c
+    ${zlib_sources_SOURCE_DIR}/trees.c
+    ${zlib_sources_SOURCE_DIR}/uncompr.c
+    ${zlib_sources_SOURCE_DIR}/zutil.c
+  )
+  target_include_directories(logsquirl_zlib PUBLIC ${zlib_sources_SOURCE_DIR})
+  # What zlib's own CMakeLists.txt defines for cl: its POSIX calls are not
+  # deprecated here.
+  target_compile_definitions(
+    logsquirl_zlib PRIVATE $<$<BOOL:${MSVC}>:_CRT_SECURE_NO_DEPRECATE> $<$<BOOL:${MSVC}>:_CRT_NONSTDC_NO_DEPRECATE>
+  )
+
+  cpmaddpackage(
+    NAME bzip2_sources
+    GIT_REPOSITORY https://sourceware.org/git/bzip2.git
+    VERSION 1.0.8
+    GIT_TAG 6a8690fc8d26c815e798c588f796eabe9d684cf0 # bzip2-1.0.8
+    DOWNLOAD_ONLY YES
+  )
+  # The library's sources, as its Makefile lists them; the bzip2 tool and
+  # bzip2recover are left out.
+  add_library(
+    logsquirl_bzip2 STATIC
+    ${bzip2_sources_SOURCE_DIR}/blocksort.c
+    ${bzip2_sources_SOURCE_DIR}/huffman.c
+    ${bzip2_sources_SOURCE_DIR}/crctable.c
+    ${bzip2_sources_SOURCE_DIR}/randtable.c
+    ${bzip2_sources_SOURCE_DIR}/compress.c
+    ${bzip2_sources_SOURCE_DIR}/decompress.c
+    ${bzip2_sources_SOURCE_DIR}/bzlib.c
+  )
+  target_include_directories(logsquirl_bzip2 PUBLIC ${bzip2_sources_SOURCE_DIR})
+  target_compile_definitions(logsquirl_bzip2 PRIVATE _FILE_OFFSET_BITS=64)
+
+  # liblzma alone: no tools, no documentation, no translations. Static, so
+  # the target carries LZMA_API_STATIC for whoever includes lzma.h. The
+  # sandbox (Landlock, pledge, Capsicum) is the xz tool's, which is not built,
+  # and xz refuses to configure it under -fsanitize, which the sanitizer and
+  # fuzzing builds pass (#834).
+  cpmaddpackage(
+    NAME xz
+    GITHUB_REPOSITORY tukaani-project/xz
+    VERSION 5.8.4
+    GIT_TAG d3e650e63c110e830fd5391e7f8b45df0b91d3da # v5.8.4
+    EXCLUDE_FROM_ALL YES
+    SYSTEM YES
+    OPTIONS
+      "BUILD_SHARED_LIBS OFF"
+      "XZ_TOOL_XZ OFF"
+      "XZ_TOOL_XZDEC OFF"
+      "XZ_TOOL_LZMADEC OFF"
+      "XZ_TOOL_LZMAINFO OFF"
+      "XZ_DOC OFF"
+      "XZ_NLS OFF"
+      "XZ_SANDBOX no"
+  )
+
+  cpmaddpackage(
+    NAME KArchive
+    GITHUB_REPOSITORY KDE/karchive
+    VERSION 6.31.0
+    GIT_TAG 4fbf1252908ef9245e27c967587ab764afbdd31f # v6.31.0
+    DOWNLOAD_ONLY YES
+  )
+  add_subdirectory(karchive)
+  target_link_libraries(logsquirl_karchive INTERFACE karchive)
 endif()
 
 if(NOT _KARCHIVE_FOUND)
@@ -514,28 +587,20 @@ if(LOGSQUIRL_BUILD_TESTS)
   )
 endif()
 
-cpmaddpackage(
-  NAME
-  KDSingleApplication
-  GITHUB_REPOSITORY
-  variar/KDSingleApplication
-  GIT_TAG
-  5b30db30266f92bc01f1439777803ce8dbf16c79
-  DOWNLOAD_ONLY
-  YES
+# KDSingleApplication is vendored under kdsingleapplication/ with the changes
+# that keep the single-instance lock and socket in a directory of the user's
+# own (#827); its README.md names the upstream commit and each change. The
+# release SBOM lists it from there (scripts/sbom/logsquirl_sbom.py).
+add_library(
+  kdsingleapp STATIC ${CMAKE_CURRENT_SOURCE_DIR}/kdsingleapplication/kdsingleapplication.cpp
+                   ${CMAKE_CURRENT_SOURCE_DIR}/kdsingleapplication/kdsingleapplication_localsocket.cpp
 )
-if(KDSingleApplication_ADDED)
-  add_library(
-    kdsingleapp STATIC ${KDSingleApplication_SOURCE_DIR}/src/kdsingleapplication.cpp
-                     ${KDSingleApplication_SOURCE_DIR}/src/kdsingleapplication_localsocket.cpp
-  )
 
-  target_include_directories(kdsingleapp PUBLIC ${KDSingleApplication_SOURCE_DIR}/src)
-  target_link_libraries(kdsingleapp Qt6::Core)
-  target_compile_definitions(kdsingleapp PUBLIC KDSINGLEAPPLICATION_STATIC_BUILD)
+target_include_directories(kdsingleapp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/kdsingleapplication)
+target_link_libraries(kdsingleapp Qt6::Core Qt6::Network)
+target_compile_definitions(kdsingleapp PUBLIC KDSINGLEAPPLICATION_STATIC_BUILD)
 
-  set_target_properties(kdsingleapp PROPERTIES AUTOMOC ON)
-endif()
+set_target_properties(kdsingleapp PROPERTIES AUTOMOC ON)
 
 
 cpmaddpackage(
@@ -818,40 +883,17 @@ if(LOGSQUIRL_USE_SENTRY)
     set(CMAKE_OSX_SYSROOT "${_osx_sdk_path}" CACHE STRING "" FORCE)
   endif()
 
+  # Pinned to a release like the other packages cut from one, so Renovate
+  # proposes the next release (#834). Its tags carry no "v". Until 0.17.4 the
+  # pin was a 2023 branch commit (0.6.7) whose crashpad needed <cstdint>
+  # force-included for GCC 15 / Clang 17; the current crashpad includes it.
   cpmaddpackage(
-    NAME
-    sentry
-    GITHUB_REPOSITORY
-    getsentry/sentry-native
-    GIT_TAG
-    a3d58622a807b9dda174cb9fc18fa0f98c89d043
-    EXCLUDE_FROM_ALL
-    YES
+    NAME sentry
+    GITHUB_REPOSITORY getsentry/sentry-native
+    VERSION 0.17.4
+    GIT_TAG 740313523edd50e3a0cfe2f8f931e893ed7423a5 # 0.17.4
+    EXCLUDE_FROM_ALL YES
   )
-
-  # GCC 15 / Clang 17+ no longer transitively include <cstdint> from standard
-  # headers.  The pinned crashpad revision uses uint64_t etc. without including
-  # <cstdint> in several files.  Force-include the header for all crashpad targets.
-  # Use a generator expression so the C++ header is only applied to CXX sources
-  # (crashpad_util also compiles MIG-generated .c files).
-  if(MSVC)
-    set(_sentry_cstdint_flag "$<$<COMPILE_LANGUAGE:CXX>:/FIcstdint>")
-  else()
-    set(_sentry_cstdint_flag "$<$<COMPILE_LANGUAGE:CXX>:SHELL:-include cstdint>")
-  endif()
-  set(_sentry_cstdint_targets
-      sentry crashpad_client crashpad_compat crashpad_util crashpad_handler
-      crashpad_minidump crashpad_snapshot crashpad_tools mini_chromium)
-  foreach(_t ${_sentry_cstdint_targets})
-    if(TARGET ${_t})
-      get_target_property(_t_type ${_t} TYPE)
-      if(_t_type STREQUAL "INTERFACE_LIBRARY")
-        target_compile_options(${_t} INTERFACE ${_sentry_cstdint_flag})
-      else()
-        target_compile_options(${_t} PRIVATE ${_sentry_cstdint_flag})
-      endif()
-    endif()
-  endforeach()
 
   if(WIN32)
     set_target_properties(crashpad_handler PROPERTIES OUTPUT_NAME "logsquirl_crashpad_handler.exe")

@@ -47,6 +47,18 @@ public:
         valid_ = valid;
     }
 
+    // Whether the regex engine gave up on the line instead of deciding it:
+    // the extraction is invalid then, but the line may match (#689, #826).
+    // Never for a line past MaxUiThreadLineLength, which is not matched.
+    bool isUndecided() const
+    {
+        return undecided_;
+    }
+    void setUndecided( bool undecided )
+    {
+        undecided_ = undecided;
+    }
+
     // Get the value of a named field. Returns empty string if field not found.
     QString value( const QString& fieldName ) const
     {
@@ -67,6 +79,7 @@ public:
 
 private:
     bool valid_ = false;
+    bool undecided_ = false;
     QHash<QString, QString> fields_;
 };
 
@@ -80,6 +93,11 @@ private:
 // Log Line lacks is an empty field, and a key the format does not declare is
 // ignored. A numeric timestamp field is shown as
 // the point in time it is (through the timestamp divisor), UTC.
+//
+// It runs on the UI thread, per Row painted: a Log Line longer than
+// MaxUiThreadLineLength is neither matched nor parsed, and reads as one the
+// format does not match (#826). A Log Line the regex engine gives up on is
+// invalid and undecided, not a "no match".
 class LogFieldExtractor {
 public:
     // Construct an extractor for the given format definition, which must

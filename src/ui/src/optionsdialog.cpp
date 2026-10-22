@@ -54,6 +54,7 @@
 #include "log.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
+#include "plaintext.h"
 #include "recentfiles.h"
 #include "savedsearches.h"
 #include "shortcuts.h"
@@ -249,6 +250,7 @@ void OptionsDialog::setupLogging()
 void OptionsDialog::setupArchives()
 {
     extractArchivesAlwaysCheckBox->setEnabled( extractArchivesCheckBox->isChecked() );
+    decompressionBudgetSpinBox->setEnabled( extractArchivesCheckBox->isChecked() );
 }
 
 void OptionsDialog::setupIndexCache()
@@ -449,7 +451,7 @@ void OptionsDialog::setupLogFormats( const LogFormatCatalog& logFormatCatalog )
         item->setText( 0, title );
         item->setText( 1, fmt->description() );
         item->setText( 2, sourceText( fmt->source() ) );
-        item->setToolTip( 0, name );
+        item->setToolTip( 0, logsquirl::plaintext::toolTip( name ) );
     }
 
     formatsTreeWidget->resizeColumnToContents( 0 );
@@ -754,6 +756,7 @@ void OptionsDialog::updateDialogFromConfig()
 
     extractArchivesCheckBox->setChecked( config.extractArchives() );
     extractArchivesAlwaysCheckBox->setChecked( config.extractArchivesAlways() );
+    decompressionBudgetSpinBox->setValue( config.decompressionBudgetMb() );
 
     // Perf
     parallelSearchCheckBox->setChecked( config.useParallelSearch() );
@@ -961,6 +964,7 @@ void OptionsDialog::updateConfigFromDialog()
 
     config.setExtractArchives( extractArchivesCheckBox->isChecked() );
     config.setExtractArchivesAlways( extractArchivesAlwaysCheckBox->isChecked() );
+    config.setDecompressionBudgetMb( decompressionBudgetSpinBox->value() );
 
     config.setUseParallelSearch( parallelSearchCheckBox->isChecked() );
     config.setUseSearchResultsCache( searchResultsCacheCheckBox->isChecked() );

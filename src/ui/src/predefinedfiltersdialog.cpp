@@ -49,6 +49,7 @@
 #include "groupimportprompt.h"
 #include "iconloader.h"
 #include "log.h"
+#include "plaintext.h"
 #include "predefinedfilters.h"
 #include "theme.h"
 
@@ -210,8 +211,8 @@ void PredefinedFiltersDialog::exportFilters()
     file = withConfSuffix( file );
 
     if ( !writeGroup( file, group ) ) {
-        QMessageBox::warning( this, tr( "Export predefined filters" ),
-                              tr( "The file %1 could not be written." ).arg( file ) );
+        logsquirl::plaintext::warning( this, tr( "Export predefined filters" ),
+                                       tr( "The file %1 could not be written." ).arg( file ) );
         return;
     }
     rememberExportFolder( file );

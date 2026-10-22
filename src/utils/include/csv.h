@@ -27,4 +27,9 @@
 // by separator. A field holding the separator, a double quote, a carriage
 // return or a line feed is written between double quotes, each double quote
 // in it doubled; any other field is written as it is.
+//
+// A field a spreadsheet would read as a formula, one starting with '=', '+',
+// '-' or '@', or with a tab or carriage return followed by one of those, gets
+// an apostrophe written before it so the spreadsheet shows it as text (#831).
+// A negative number like -5 is prefixed too: that is the usual trade-off.
 QString csvLine( const QStringList& fields, QChar separator );

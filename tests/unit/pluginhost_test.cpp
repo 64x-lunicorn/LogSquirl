@@ -19,6 +19,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "configuration.h"
+#include "configurationfixture.h"
 #include "convert_probe.h"
 #include "logsquirl_plugin_api.h"
 #include "plugincatalog.h"
@@ -790,9 +792,23 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
         PluginHost host( catalog );
         host.setUiPort( &port );
 
-        WHEN( "Auto-load is enabled but no plugin is enabled" )
+        WHEN( "Auto-load is enabled and no plugin has been chosen yet" )
         {
             const auto loaded = host.autoLoadPlugins( { .autoLoad = true, .enabled = {} } );
+
+            THEN( "Nothing is loaded, and the first run is over with nothing enabled (#820)" )
+            {
+                REQUIRE( loaded.errors.isEmpty() );
+                REQUIRE( loaded.enabledOnFirstRun );
+                REQUIRE( loaded.enabledOnFirstRun->isEmpty() );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
+            }
+        }
+
+        WHEN( "Auto-load is enabled and the user disabled every plugin" )
+        {
+            const auto loaded
+                = host.autoLoadPlugins( { .autoLoad = true, .enabled = {}, .chosen = true } );
 
             THEN( "Nothing is loaded or enabled, and there are no errors" )
             {
@@ -919,6 +935,115 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
                 REQUIRE( enabled == expected );
                 REQUIRE( loaded.errors.size() == 1 );
                 REQUIRE( host.loadedPluginIds() == QStringList{ ProbeId } );
+            }
+        }
+
+        WHEN( "The user disabled every plugin" )
+        {
+            const auto loaded
+                = host.autoLoadPlugins( { .autoLoad = true, .enabled = {}, .chosen = true } );
+
+            THEN( "The choice stands: nothing is enabled or loaded (#820)" )
+            {
+                REQUIRE_FALSE( loaded.enabledOnFirstRun );
+                REQUIRE( loaded.errors.isEmpty() );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
+                REQUIRE( loadedSignals.isEmpty() );
+            }
+        }
+
+        host.unloadAll();
+    }
+
+    // The two cases below go through a Configuration as the application does:
+    // it is handed the enabled plugins and whether they were chosen, and keeps
+    // what a first run enabled (#820).
+    GIVEN( "A configuration whose last plugin was disabled, and a plugin dropped into the "
+           "plugin folder since" )
+    {
+        Configuration config;
+        config.setEnabledPlugins( {} );
+        REQUIRE( config.enabledPluginsChosen() );
+
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+
+        WHEN( "The plugins are loaded at start-up" )
+        {
+            const auto loaded = host.autoLoadPlugins( { .autoLoad = config.pluginsAutoLoad(),
+                                                        .enabled = config.enabledPlugins(),
+                                                        .chosen = config.enabledPluginsChosen() } );
+
+            THEN( "The dropped-in plugin is listed but neither enabled nor loaded" )
+            {
+                REQUIRE( catalog.findDiscovered( ProbeId ) != nullptr );
+                REQUIRE_FALSE( loaded.enabledOnFirstRun );
+                REQUIRE( loaded.errors.isEmpty() );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
+                REQUIRE( config.enabledPlugins().isEmpty() );
+            }
+        }
+
+        host.unloadAll();
+    }
+
+    GIVEN( "A fresh configuration and a catalog listing the probe plugin" )
+    {
+        Configuration config;
+        REQUIRE_FALSE( config.enabledPluginsChosen() );
+
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+
+        WHEN( "The plugins are loaded at start-up and the first run's choice is kept" )
+        {
+            const auto loaded = host.autoLoadPlugins( { .autoLoad = config.pluginsAutoLoad(),
+                                                        .enabled = config.enabledPlugins(),
+                                                        .chosen = config.enabledPluginsChosen() } );
+            REQUIRE( loaded.enabledOnFirstRun );
+            config.setEnabledPlugins( *loaded.enabledOnFirstRun );
+
+            THEN( "The discovered plugin is enabled and loaded once, and the choice is stored "
+                  "with the list" )
+            {
+                REQUIRE( host.loadedPluginIds() == QStringList{ ProbeId } );
+                REQUIRE( config.enabledPlugins() == QStringList{ ProbeId } );
+                REQUIRE( config.enabledPluginsChosen() );
+
+                const auto stored = configuration_fixture::storedSettings( config );
+                REQUIRE( stored.value( "plugins.chosen" ).toBool() );
+                REQUIRE( stored.value( "plugins.enabledPlugins" ).toStringList()
+                         == QStringList{ ProbeId } );
+            }
+
+            AND_WHEN( "The next start finds the probe plugin disabled meanwhile" )
+            {
+                host.unloadAll();
+                config.setEnabledPlugins( {} );
+                const auto again
+                    = host.autoLoadPlugins( { .autoLoad = config.pluginsAutoLoad(),
+                                              .enabled = config.enabledPlugins(),
+                                              .chosen = config.enabledPluginsChosen() } );
+
+                THEN( "No first run happens again and nothing is loaded" )
+                {
+                    REQUIRE_FALSE( again.enabledOnFirstRun );
+                    REQUIRE( host.loadedPluginIds().isEmpty() );
+                }
             }
         }
 
@@ -2276,5 +2401,227 @@ SCENARIO( "A plugin reads which Encoding a Log File is read in through the Plugi
 
         host.unloadAll();
         probe.library.unload();
+    }
+}
+
+namespace {
+
+const auto StreamProbeId = QStringLiteral( "io.github.logsquirl.test.stream-probe" );
+
+/// Writes a plugin.json for the stream probe into its own subdirectory of root.
+void installStreamProbe( const QString& root )
+{
+    const auto pluginDir = QDir( root ).filePath( "stream-probe" );
+    REQUIRE( QDir().mkpath( pluginDir ) );
+
+    QFile manifest( QDir( pluginDir ).filePath( "plugin.json" ) );
+    REQUIRE( manifest.open( QIODevice::WriteOnly ) );
+    manifest.write( QStringLiteral( R"({
+        "id": "%1",
+        "name": "Stream Probe",
+        "version": "1.0.0",
+        "type": "datasource",
+        "library": "%2",
+        "api_version": 1
+    })" )
+                        .arg( StreamProbeId, QStringLiteral( LOGSQUIRL_STREAM_PROBE_PATH ) )
+                        .toUtf8() );
+}
+
+/// The exported functions of the stream probe the tests read behind the host's back.
+struct StreamProbe {
+    StreamProbe()
+        : library( QStringLiteral( LOGSQUIRL_STREAM_PROBE_PATH ) )
+    {
+        REQUIRE( library.load() );
+    }
+
+    StreamProbe( const StreamProbe& ) = delete;
+    StreamProbe& operator=( const StreamProbe& ) = delete;
+
+    std::uint64_t linesPushed()
+    {
+        using Fn = std::uint64_t ( * )();
+        return reinterpret_cast<Fn>( library.resolve( "logsquirl_stream_probe_lines_pushed" ) )();
+    }
+
+    int shutdownCalls()
+    {
+        using Fn = int ( * )();
+        return reinterpret_cast<Fn>( library.resolve( "logsquirl_stream_probe_shutdown_calls" ) )();
+    }
+
+    void reset()
+    {
+        using Fn = void ( * )();
+        reinterpret_cast<Fn>( library.resolve( "logsquirl_stream_probe_reset" ) )();
+    }
+
+    void signalEosFromThread()
+    {
+        using Fn = void ( * )();
+        reinterpret_cast<Fn>(
+            library.resolve( "logsquirl_stream_probe_signal_eos_from_thread" ) )();
+    }
+
+    QLibrary library;
+};
+
+/// What the host said of the probe's streams, whether the probe had been
+/// shut down by the time it said the stream stopped, and on which thread it
+/// said so last.
+struct StreamsHeard {
+    int stopped = 0;
+    bool stoppedBeforeShutdown = false;
+    QThread* stoppedOn = nullptr;
+};
+
+} // namespace
+
+SCENARIO( "A streaming plugin is shut down before its stream goes away",
+          "[pluginhost][plugins][datasource]" )
+{
+    GIVEN( "A Plugin Host with the stream probe in its catalog, a data source whose thread pushes "
+           "lines until its shutdown returns" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installStreamProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        auto host = std::make_unique<PluginHost>( catalog );
+        host->setUiPort( &port );
+
+        StreamProbe probe;
+        StreamsHeard heard;
+        // Connected without a receiver: the slot runs on whichever thread
+        // the host says it on.
+        QObject::connect( host.get(), &PluginHost::dataSourceStopped, [ & ] {
+            ++heard.stopped;
+            heard.stoppedOn = QThread::currentThread();
+            if ( probe.shutdownCalls() == 0 ) {
+                heard.stoppedBeforeShutdown = true;
+            }
+        } );
+
+        // Loads the probe and starts its stream, which its thread is pushing into.
+        const auto startStreaming = [ & ]() -> QString {
+            probe.reset();
+            REQUIRE( host->loadPlugin( StreamProbeId ).isEmpty() );
+            REQUIRE( host->startDataSource( StreamProbeId ).isEmpty() );
+            auto* stream = host->streamWriter( StreamProbeId );
+            REQUIRE( stream != nullptr );
+            const auto path = stream->filePath();
+            REQUIRE( QFile::exists( path ) );
+            // Lines are arriving: the pusher is past the host's set-up.
+            const auto pushedSoFar = probe.linesPushed();
+            REQUIRE(
+                waitUiState( [ & ] { return probe.linesPushed() > pushedSoFar + 300; }, 10000 ) );
+            return path;
+        };
+
+        WHEN( "The plugin is unloaded while its lines arrive, over and over" )
+        {
+            constexpr int Rounds = 20;
+            for ( int round = 0; round < Rounds; ++round ) {
+                const auto path = startStreaming();
+                host->unloadPlugin( StreamProbeId );
+                REQUIRE( probe.shutdownCalls() == 1 );
+                REQUIRE_FALSE( host->isLoaded( StreamProbeId ) );
+                REQUIRE_FALSE( QFile::exists( path ) );
+                REQUIRE( heard.stopped == round + 1 );
+            }
+
+            THEN( "Each time the plugin was shut down, and its thread joined, before the host "
+                  "ended the stream and removed its file" )
+            {
+                REQUIRE( heard.stopped == Rounds );
+                REQUIRE_FALSE( heard.stoppedBeforeShutdown );
+            }
+        }
+
+        WHEN( "Its data source is stopped while its lines arrive" )
+        {
+            const auto path = startStreaming();
+            const auto pushedBefore = probe.linesPushed();
+            host->stopDataSource( StreamProbeId );
+
+            THEN( "The stream ended and its file is gone, the plugin stays loaded, and what its "
+                  "thread pushes from then on is dropped" )
+            {
+                REQUIRE( heard.stopped == 1 );
+                REQUIRE_FALSE( QFile::exists( path ) );
+                REQUIRE( host->isLoaded( StreamProbeId ) );
+                REQUIRE( host->streamWriter( StreamProbeId ) == nullptr );
+                REQUIRE( probe.shutdownCalls() == 0 );
+                REQUIRE( waitUiState( [ & ] { return probe.linesPushed() > pushedBefore + 300; },
+                                      10000 ) );
+
+                AND_WHEN( "It is unloaded" )
+                {
+                    host->unloadPlugin( StreamProbeId );
+
+                    THEN( "It was shut down once, and the host said nothing more of the stream" )
+                    {
+                        REQUIRE( probe.shutdownCalls() == 1 );
+                        REQUIRE( heard.stopped == 1 );
+                    }
+                }
+            }
+        }
+
+        // The stopped signal reaches its receivers on the host's thread
+        // whichever thread the plugin signals the end of its stream from (#843).
+        WHEN( "The plugin signals the end of its stream from a thread of its own" )
+        {
+            const auto path = startStreaming();
+            probe.signalEosFromThread();
+
+            THEN( "The host says the stream stopped on its own thread, once the event loop "
+                  "turns, and the plugin stays loaded" )
+            {
+                REQUIRE( heard.stopped == 0 );
+                REQUIRE( waitUiState( [ & ] { return heard.stopped == 1; }, 5000 ) );
+                REQUIRE( heard.stoppedOn == QThread::currentThread() );
+                REQUIRE( host->isLoaded( StreamProbeId ) );
+                REQUIRE( probe.shutdownCalls() == 0 );
+                REQUIRE( QFile::exists( path ) );
+            }
+        }
+
+        WHEN( "The plugin signals the end of its stream from a thread of its own and is unloaded "
+              "before the host's thread hears of it" )
+        {
+            startStreaming();
+            probe.signalEosFromThread();
+            host->unloadPlugin( StreamProbeId );
+
+            THEN( "The stream stopped once, with the unload, and the end the plugin signalled "
+                  "is dropped" )
+            {
+                REQUIRE( heard.stopped == 1 );
+                REQUIRE( heard.stoppedOn == QThread::currentThread() );
+                turnFor( 50 );
+                REQUIRE( heard.stopped == 1 );
+            }
+        }
+
+        WHEN( "The Plugin Host goes while its lines arrive" )
+        {
+            const auto path = startStreaming();
+            host.reset();
+
+            THEN( "The plugin was shut down, and its thread joined, before the host ended the "
+                  "stream and removed its file" )
+            {
+                REQUIRE( probe.shutdownCalls() == 1 );
+                REQUIRE( heard.stopped == 1 );
+                REQUIRE_FALSE( heard.stoppedBeforeShutdown );
+                REQUIRE_FALSE( QFile::exists( path ) );
+            }
+        }
     }
 }

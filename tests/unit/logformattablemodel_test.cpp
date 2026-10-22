@@ -26,6 +26,7 @@
 
 #include <QAbstractItemModelTester>
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QFontMetrics>
 #include <QSignalSpy>
 
@@ -909,6 +910,153 @@ SCENARIO( "The Table View shows the time elapsed since the previous Log Line wit
             REQUIRE( model.columnCount() == 2 );
             REQUIRE( !model.isElapsedColumn( 1 ) );
             REQUIRE( model.headerData( 1, Qt::Horizontal ).toString() == "body" );
+        }
+    }
+}
+
+// #826: a Row the regex engine gave up on shows that it is undecided, as the
+// Search says of its Log Lines, and a Log Line of many megabytes is shown
+// without a stall: past the UI thread's line length cap it is not matched.
+namespace {
+
+LogFormatDefinition backtrackingFormat()
+{
+    LogFormatDefinition def;
+    def.setName( "backtracking_log" );
+    QHash<QString, QString> regex;
+    regex[ "basic" ] = R"(^(?<body>(a|aa)+)$)";
+    def.setRegexPatterns( regex );
+    def.setBodyField( "body" );
+    return def;
+}
+
+// Several ".*" segments, as the built-in haproxy Log Format has: one crafted
+// Log Line makes each match run into PCRE2's step limit.
+LogFormatDefinition greedyFormat()
+{
+    LogFormatDefinition def;
+    def.setName( "greedy_log" );
+    QHash<QString, QString> regex;
+    regex[ "basic" ]
+        = R"(^(?<timestamp>\w{3}\s+\d+ \d{2}:\d{2}:\d{2}) (?<host>.*) (?<proc>.*): (?<body>.*)$)";
+    def.setRegexPatterns( regex );
+    def.setTimestampField( "timestamp" );
+    def.setBodyField( "body" );
+    QHash<QString, LogFormatValueDef> values;
+    values[ "host" ] = LogFormatValueDef{ "string", true, false };
+    values[ "proc" ] = LogFormatValueDef{ "string", true, false };
+    def.setValueDefinitions( values );
+    return def;
+}
+
+} // namespace
+
+SCENARIO( "The Table View shows a Row the regex engine gave up on as undecided",
+          "[logformat][tablemodel][undecided]" )
+{
+    GIVEN( "a table model of a Log Format whose pattern backtracks catastrophically" )
+    {
+        const auto format = backtrackingFormat();
+        FakeLogData logData;
+        LogFormatTableModel model( format, &logData );
+        const auto backtracking = QString( 5000, QLatin1Char( 'a' ) ) + QLatin1Char( '!' );
+        logData.setLines( { backtracking, "b", "aaaa" } );
+        model.setLineCount( 3 );
+        const auto lastColumn = model.columnCount() - 1;
+
+        THEN( "the Row the engine gave up on is undecided: it shows its Log Line whole in the "
+              "last field, and every cell says the engine gave up, as the Search does" )
+        {
+            REQUIRE( model.rowIsUndecided( 0 ) );
+            REQUIRE_FALSE( model.rowMatchesFormat( 0 ) );
+            REQUIRE( model.data( model.index( 0, lastColumn ) ).toString() == backtracking );
+            for ( int column = 0; column < model.columnCount(); ++column ) {
+                const auto note = model.data( model.index( 0, column ), Qt::ToolTipRole );
+                REQUIRE( note.isValid() );
+                REQUIRE( note.toString().contains( "regex engine gave up" ) );
+            }
+        }
+
+        THEN( "a Row the Log Format does not match is decided: it says nothing" )
+        {
+            REQUIRE_FALSE( model.rowIsUndecided( 1 ) );
+            REQUIRE_FALSE( model.rowMatchesFormat( 1 ) );
+            REQUIRE_FALSE( model.data( model.index( 1, lastColumn ), Qt::ToolTipRole ).isValid() );
+        }
+
+        THEN( "a Row the Log Format matches is decided" )
+        {
+            REQUIRE_FALSE( model.rowIsUndecided( 2 ) );
+            REQUIRE( model.rowMatchesFormat( 2 ) );
+            REQUIRE( model.data( model.index( 2, lastColumn ) ).toString() == "aaaa" );
+        }
+
+        THEN( "no Row is undecided" )
+        {
+            REQUIRE_FALSE( model.rowIsUndecided( 3 ) );
+            REQUIRE_FALSE( model.rowIsUndecided( -1 ) );
+        }
+    }
+}
+
+SCENARIO( "A Log File with a 50 MB Log Line opens in the Table View without a stall",
+          "[logformat][tablemodel][linecap]" )
+{
+    GIVEN( "a table model of a Log Format with several greedy segments, and a 50 MB Log Line "
+           "that every segment would backtrack through" )
+    {
+        const auto format = greedyFormat();
+        FakeLogData logData;
+        LogFormatTableModel model( format, &logData );
+        const auto huge = "Jan  1 12:00:00 " + QString( 50'000'000, QLatin1Char( 'a' ) );
+        logData.setLines(
+            { "Jan  1 12:00:00 host1 proc: first", huge, "Jan  1 12:00:01 host2 proc: third" } );
+
+        WHEN( "every cell of every Row is read, and the spans of its columns, fifty times "
+              "over as a scroll back and forth reads them" )
+        {
+            QElapsedTimer clock;
+            clock.start();
+            model.setLineCount( 3 );
+            for ( int pass = 0; pass < 50; ++pass ) {
+                model.rereadRows();
+                for ( int row = 0; row < 3; ++row ) {
+                    for ( int column = 0; column < model.columnCount(); ++column ) {
+                        model.data( model.index( row, column ) );
+                        model.data( model.index( row, column ), Qt::ToolTipRole );
+                    }
+                    REQUIRE( model.columnSpans( row ).has_value() );
+                }
+            }
+            const auto elapsed = clock.elapsed();
+
+            THEN( "it took well under a second: the huge Log Line was not matched" )
+            {
+                // Generous: one match of it that gives up takes a dozen
+                // milliseconds, and each pass would take three -- the Row's
+                // cells, its spans, its Timestamp for the next Row's elapsed
+                // time -- for seconds in all.
+                // Well under a second here; the uncapped extraction took
+                // seconds, and tens of them under the sanitizers (#826).
+                REQUIRE( elapsed < 8000 );
+            }
+
+            THEN( "the huge Log Line shows whole in the last field, as one the Log Format does "
+                  "not match, and is decided" )
+            {
+                REQUIRE_FALSE( model.rowMatchesFormat( 1 ) );
+                REQUIRE_FALSE( model.rowIsUndecided( 1 ) );
+                REQUIRE( model.data( model.index( 1, model.columnCount() - 1 ) ).toString()
+                         == huge );
+            }
+
+            THEN( "the Rows around it are read as ever" )
+            {
+                REQUIRE( model.rowMatchesFormat( 0 ) );
+                REQUIRE( model.rowMatchesFormat( 2 ) );
+                REQUIRE( model.data( model.index( 2, model.columnCount() - 1 ) ).toString()
+                         == "third" );
+            }
         }
     }
 }

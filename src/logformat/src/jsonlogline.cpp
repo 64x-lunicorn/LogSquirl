@@ -19,6 +19,8 @@
 
 #include "jsonlogline.h"
 
+#include "linelengthcap.h"
+
 #include <QJsonDocument>
 #include <QLocale>
 #include <QTimeZone>
@@ -29,6 +31,11 @@ namespace JsonLogLine {
 
 std::optional<QJsonObject> parse( const QString& line )
 {
+    // Parsed per Row and per Timestamp on the UI thread: a Log Line past the
+    // cap is no JSON Log Line (#826).
+    if ( line.size() > MaxUiThreadLineLength ) {
+        return std::nullopt;
+    }
     qsizetype start = 0;
     while ( start < line.size() && line[ start ].isSpace() ) {
         ++start;

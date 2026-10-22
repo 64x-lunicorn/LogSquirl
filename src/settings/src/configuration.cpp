@@ -479,6 +479,18 @@ int withinIndexCacheSizeLimits( int sizeMb )
     return std::clamp( sizeMb, 0, 8'000'000 ); // ~8 TB, a generous upper bound
 }
 
+// 16 GiB: past any Log File LogSquirl is meant for, and a small fraction of
+// what a hostile file of a few hundred KB expands to -- gzip at 1000:1, xz
+// and zstd far beyond -- so that one cannot fill the temp volume (#816).
+constexpr int DefaultDecompressionBudgetMb = 16 * 1024;
+
+// Never 0: that would decompress nothing. The upper bound is the index
+// cache's, ~8 TB.
+int withinDecompressionBudgetLimits( int sizeMb )
+{
+    return std::clamp( sizeMb, 1, 8'000'000 );
+}
+
 // The main font is resolved as a fixed-pitch outline font, whichever family
 // it names. Every main font a Configuration holds is resolved: its default, the
 // one read from storage and the one set on it (#229).
@@ -570,6 +582,8 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
     visit( "versionchecker.betaEnabled", config.enableBetaVersionChecking_, false );
     visit( "archives.extract", config.extractArchives_, true );
     visit( "archives.extractAlways", config.extractArchivesAlways_, false );
+    visit( "archives.decompressionBudgetMb", config.decompressionBudgetMb_,
+           DefaultDecompressionBudgetMb, withinDecompressionBudgetLimits );
 
     visit( "perf.useParallelSearch", config.useParallelSearch_, true );
     visit( "perf.useSearchResultsCache", config.useSearchResultsCache_, true );
@@ -617,6 +631,7 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
 
     visit( "plugins.autoLoad", config.pluginsAutoLoad_, true );
     visit( "plugins.enabledPlugins", config.enabledPlugins_, QStringList{} );
+    visit( "plugins.chosen", config.enabledPluginsChosen_, false );
 
     visit( "fileAssociations.ask", config.askForFileAssociations_, true );
     visit( "fileAssociations.chosen", config.fileAssociationsChosen_, false );
@@ -719,6 +734,13 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     LOG_DEBUG << "Configuration::retrieveFromStorage";
 
     forEachSetting( *this, ReadSetting{ settings } );
+
+    // Plugins enabled before the marker existed were chosen, by the user or a
+    // first run; only an empty list without the marker still owes the first
+    // run (#820).
+    if ( !enabledPlugins_.isEmpty() ) {
+        enabledPluginsChosen_ = true;
+    }
 
     LOG_INFO << "Main font is " << mainFontInWords( mainFont_ );
 }

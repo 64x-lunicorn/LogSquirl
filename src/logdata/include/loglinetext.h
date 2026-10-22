@@ -26,7 +26,9 @@
 #include <QChar>
 #include <QString>
 
+#include <algorithm>
 #include <cstddef>
+#include <exception>
 #include <limits>
 #include <new>
 #include <string>
@@ -94,14 +96,39 @@ inline constexpr std::string_view LinesNotDecodedWarning
     = "LOGSQUIRL WARNING: failed to decode some lines before this one";
 
 // A Log Line this long or longer is not decoded: it reads as
-// LineTooLongWarning.
+// LineTooLongWarning. Nor is it read: whoever reads Log Lines reads nothing
+// but its line feed for it, so reading N Log Lines costs at most N times
+// this many bytes and a constant, whatever the Log File holds (#825).
 inline constexpr qint64 MaxLogLineLength = std::numeric_limits<int>::max() / 2;
+
+// The text of size bytes decoded in pieces of at most maxPieceBytes each by
+// decodePiece( qint64 offset, qsizetype pieceSize ), in order: a decoder
+// carries a character cut short at the end of a piece over to the next, so
+// the pieces read as the whole does. No piece's size is narrowed to an int:
+// a block of more bytes than an int counts -- Log Lines each within
+// MaxLogLineLength add up to one -- is decoded, not aborted on (#825).
+template <typename DecodePiece>
+QString decodeInPieces( qint64 size, qint64 maxPieceBytes, const DecodePiece& decodePiece )
+{
+    if ( size <= maxPieceBytes ) {
+        return decodePiece( qint64{ 0 }, static_cast<qsizetype>( size ) );
+    }
+    QString text;
+    for ( qint64 offset = 0; offset < size; offset += maxPieceBytes ) {
+        text += decodePiece( offset,
+                             static_cast<qsizetype>( std::min( maxPieceBytes, size - offset ) ) );
+    }
+    return text;
+}
 
 // A warning as the text of a Log Line.
 QString warningText( std::string_view warning );
 
 // Tells the log that a Log Line could not be made for want of memory.
 void logNotEnoughMemory();
+
+// Tells the log that reading Log Lines failed with the error given.
+void logReadFailed( const char* what );
 
 // A Log Line decoded (without its line feed), as its text: its ANSI color
 // sequences removed when hideAnsiColorSequences, then trimmed.
@@ -171,6 +198,10 @@ logsquirl::vector<Line> decodeReadLogLines( const TextCodecHolder& codec, std::s
                 isRead[ request ] = true;
             }
         }
+    } catch ( const std::exception& error ) {
+        // A read gone wrong over a tampered Index must not reach the paint
+        // path: the Log Lines not read yet read as warnings below (#824).
+        logReadFailed( error.what() );
     }
 
     for ( std::size_t request = 0; request < count; ++request ) {
@@ -227,6 +258,10 @@ std::string decodeReadLogLinesToUtf8( const TextCodecHolder& codec, std::size_t 
     } catch ( const std::bad_alloc& ) {
         logNotEnoughMemory();
         return utf8NotEnoughMemory( count );
+    } catch ( const std::exception& error ) {
+        // As in decodeReadLogLines(): the Log Lines not read yet read as
+        // warnings (#824).
+        logReadFailed( error.what() );
     }
 
     return utf8LogLineTextsInRequestOrder( std::move( decoded ), placed );

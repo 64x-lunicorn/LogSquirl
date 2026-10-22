@@ -167,6 +167,9 @@ QString updateCommand( InstallSource source )
 QString updateNoticeHtml( const QString& version, const QString& url, const QStringList& changes,
                           InstallSource source )
 {
+    // The message box renders rich text, and the version and the changes come
+    // from the feed: they are shown as text, never as markup, so the only link
+    // is the release page the offer validated (#828).
     const auto command = updateCommand( source );
     QString message;
     if ( command.isEmpty() ) {
@@ -174,21 +177,21 @@ QString updateNoticeHtml( const QString& version, const QString& url, const QStr
                       "UpdateNotice",
                       "<p> A new version of logsquirl (%1) is available for download </p>"
                       "<a href=\"%2\">%2</a>" )
-                      .arg( version, url );
+                      .arg( version.toHtmlEscaped(), url.toHtmlEscaped() );
     }
     else {
         message = QCoreApplication::translate(
                       "UpdateNotice",
                       "<p> A new version of logsquirl (%1) is available. Update it with your "
                       "package manager: </p><p><code>%2</code></p>" )
-                      .arg( version, command.toHtmlEscaped() );
+                      .arg( version.toHtmlEscaped(), command.toHtmlEscaped() );
     }
 
     if ( !changes.empty() ) {
         message.append(
             QCoreApplication::translate( "UpdateNotice", "<p>Important changes:</p><ul>" ) );
         for ( const auto& change : changes ) {
-            message.append( QString( "<li>%1</li>" ).arg( change ) );
+            message.append( QString( "<li>%1</li>" ).arg( change.toHtmlEscaped() ) );
         }
         message.append( "</ul>" );
     }

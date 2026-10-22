@@ -108,6 +108,21 @@ def test_the_minidump_tool_is_listed_with_the_version_the_build_downloads():
     assert "download:minidump-stackwalk" in base_bom()["dependencies"][0]["dependsOn"]
 
 
+def test_vendored_code_is_listed_by_the_upstream_commit_its_readme_names():
+    # KDSingleApplication is a modified copy under 3rdparty/ (#827), no CPM package.
+    readme = (REPO / "3rdparty/kdsingleapplication/README.md").read_text()
+    commit = re.search(r"commit\s+([0-9a-f]{40})", readme).group(1)
+    bom = base_bom()
+    comp = by_ref(bom)["vendored:kdsingleapplication"]
+    assert comp["version"] == commit
+    assert comp["purl"] == f"pkg:github/variar/kdsingleapplication@{commit}"
+    assert PackageURL.from_string(comp["purl"]).to_string() == comp["purl"]
+    assert prop(comp, "source") == "vendored"
+    assert prop(comp, "path") == "3rdparty/kdsingleapplication"
+    assert "vendored:kdsingleapplication" in bom["dependencies"][0]["dependsOn"]
+    assert "cpm:KDSingleApplication" not in by_ref(bom)
+
+
 def test_base_bom_is_valid_cyclonedx():
     bom = base_bom()
     assert sb.validate_bom(json.dumps(bom)) == []

@@ -21,6 +21,7 @@
 #define LOGSQUIRL_BACKGROUND_RUN_H
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <exception>
 #include <functional>
@@ -127,10 +128,12 @@ QString describeUnknownFailure( const QString& name );
 //   started them decides whether a report still matters, by its id. The
 //   report is a plain call, so it may start the next run itself.
 // - Shutting down (the destructor) supersedes the run in flight, waits up to
-//   10 s for it, and delivers nothing more. A job still running after that is
-//   left to itself, with its thread, its reader still attached and whatever
-//   it references: better than a process that cannot end (TBB hanging on
-//   Windows).
+//   the shutdown timeout (10 s unless the owner says otherwise) for it, and
+//   delivers nothing more. A job still running after that is left to itself,
+//   with its thread, its reader still attached and whatever it references:
+//   better than a process that cannot end (TBB hanging on Windows). So a job
+//   must own, or share, everything it reads and writes: its owner may be gone
+//   while it still runs (#832).
 //
 // start(), interrupt() and the destructor are called on the thread the
 // Background Run lives on, which is the one reports are delivered on;
@@ -149,14 +152,20 @@ public:
         std::function<void()> detach;
     };
 
+    // How long shutdown waits for the run in flight before leaving it to
+    // itself. A test shortens it to reach that path.
+    static constexpr std::chrono::milliseconds DefaultShutdownTimeout{ 10'000 };
+
     // name describes the runs in their failures, and names the thread.
     BackgroundRun( QString name, Policy policy, Reader reader, Progressed progressed,
-                   Finished finished )
+                   Finished finished,
+                   std::chrono::milliseconds shutdownTimeout = DefaultShutdownTimeout )
         : name_( std::move( name ) )
         , policy_( std::move( policy ) )
         , reader_( std::move( reader ) )
         , progressed_( std::move( progressed ) )
         , finished_( std::move( finished ) )
+        , shutdownTimeout_( shutdownTimeout )
     {
         pool_->setMaxThreadCount( 1 );
         pool_->setObjectName( name_ );
@@ -168,13 +177,14 @@ public:
             shared_->activeRun.store( 0, std::memory_order_release );
             pool_->clear();
             // Not holding policyMutex_ (or anything a job could wait on) here.
-            const bool done = pool_->waitForDone( ShutdownTimeoutMs );
+            const bool done = pool_->waitForDone( static_cast<int>( shutdownTimeout_.count() ) );
             shared_->mailbox.close();
             if ( !done ) {
                 // Destroying the pool would wait for the job without a limit,
                 // and detaching the reader would close the Log File under it.
                 background_run_detail::reportShutdownTimeout( name_ );
-                // Leaked on purpose: the job still runs on the pool.
+                // Leaked on purpose: the job still runs on the pool, on what
+                // it holds of its own (#832).
                 static_cast<void>( pool_.release() ); // NOLINT(bugprone-unused-return-value)
                 return;
             }
@@ -253,8 +263,6 @@ public:
     }
 
 private:
-    static constexpr int ShutdownTimeoutMs = 10'000;
-
     // Outlives the Background Run if a job is still running when shutdown
     // gives up waiting for it.
     struct Shared {
@@ -324,6 +332,7 @@ private:
     const Reader reader_;
     const Progressed progressed_;
     const Finished finished_;
+    const std::chrono::milliseconds shutdownTimeout_;
 
     // Only on the thread this lives on.
     uint64_t lastRun_ = 0;

@@ -26,6 +26,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include <algorithm>
+
 namespace logsquirl::plugins {
 
 namespace {
@@ -77,6 +79,19 @@ std::expected<QStringList, QString> parseFormats( const QJsonObject& obj )
 
 } // namespace
 
+bool PluginMetadata::isValidId( const QString& id )
+{
+    // ASCII only: the id becomes a folder name on every platform and a key
+    // in the configuration, where nothing else is wanted (#819).
+    const auto plain = []( QChar c ) {
+        const auto u = c.unicode();
+        return ( u >= 'a' && u <= 'z' ) || ( u >= 'A' && u <= 'Z' ) || ( u >= '0' && u <= '9' )
+               || u == '.' || u == '-' || u == '_';
+    };
+    return !id.isEmpty() && !id.startsWith( QLatin1Char( '.' ) )
+           && std::all_of( id.cbegin(), id.cend(), plain );
+}
+
 std::expected<PluginMetadata, QString> PluginMetadata::fromJsonFile( const QString& jsonPath )
 {
     QFile file( jsonPath );
@@ -115,6 +130,12 @@ std::expected<PluginMetadata, QString> PluginMetadata::fromJson( const QByteArra
             return std::unexpected(
                 QString( "%1: missing or invalid required field '%2'" ).arg( context, field ) );
         }
+    }
+
+    // The id names the install folder: a plain name only (#819).
+    if ( const auto id = obj[ "id" ].toString(); !isValidId( id ) ) {
+        return std::unexpected(
+            QString( "%1: 'id' '%2' is not a plain plugin name" ).arg( context, id ) );
     }
 
     // Validate api_version

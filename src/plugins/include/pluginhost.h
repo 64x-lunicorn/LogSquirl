@@ -51,6 +51,12 @@ struct PluginAutoLoad {
     bool autoLoad = true;
     /** The IDs of the enabled plugins; none yet on a first run. */
     QStringList enabled;
+    /**
+     * Whether the enabled plugins were chosen, by the user or by a first run
+     * the caller kept. Until then an empty list means a first run, which
+     * enables every plugin in the catalog; afterwards it means none (#820).
+     */
+    bool chosen = false;
 };
 
 /** What loading the enabled plugins at start-up came to. */
@@ -58,9 +64,9 @@ struct PluginAutoLoadResult {
     /** One message per plugin that failed to load (empty if all loaded). */
     QStringList errors;
     /**
-     * Set on a first run, when no plugin was enabled yet and the host enabled
-     * every plugin in the catalog: those IDs, for the caller to keep as the
-     * enabled plugins so a first run happens only once.
+     * Set on a first run, when no plugin was chosen yet and the host enabled
+     * every plugin in the catalog: those IDs, possibly none, for the caller to
+     * keep as the chosen enabled plugins so a first run happens only once.
      */
     std::optional<QStringList> enabledOnFirstRun;
 };
@@ -323,11 +329,15 @@ private:
     // Per-plugin context stored alongside the handle
     struct PluginContext {
         PluginHandle handle;
-        LogSquirlHostApi hostApi;
-        QString configDir;
-        QByteArray configDirUtf8; ///< Cached UTF-8 so get_config_dir ptr stays valid
-        // Non-null when this plugin is running as a DataSource
-        std::unique_ptr<StreamWriter> stream;
+        LogSquirlHostApi hostApi{};
+        QString configDir{};
+        QByteArray configDirUtf8{}; ///< Cached UTF-8 so get_config_dir ptr stays valid
+        // Non-null while this plugin runs as a data source. The push
+        // callbacks read and use it on the plugin's threads, the host ends it
+        // on its own: each under streamMutex, so a push under way has
+        // returned before the stream goes, and a later one finds none (#821).
+        std::mutex streamMutex{};
+        std::unique_ptr<StreamWriter> stream{};
         // Back-pointer to the owning PluginHost (for static trampolines)
         PluginHost* host = nullptr;
         // Which load of the plugin this is, from any thread: a call queued to
@@ -397,6 +407,12 @@ private:
 
     /** Shuts the plugin down and lets its context go. */
     void unloadNow( const QString& pluginId );
+
+    /**
+     * Ends the plugin's stream, if one runs, once a push under way has
+     * returned: signals end-of-stream, frees it and says it stopped.
+     */
+    void endStream( PluginContext& context, const QString& pluginId );
 
     /** Starts the plugin's next queued Conversion, unless one is under way. */
     void startNextConversion( PluginContext& context );

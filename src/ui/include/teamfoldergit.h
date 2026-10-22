@@ -65,7 +65,8 @@ public:
     static constexpr std::chrono::minutes RunTimeout{ 3 };
 
     // program is what is started: "git" to look it up on the PATH, the way a
-    // terminal does. A run stops early once stop is set.
+    // terminal does, never in the working directory (#823). A run stops early
+    // once stop is set.
     explicit Git( QString program, StopFlag stop = {} );
 
     // Runs git with these arguments in workingDirectory (any directory, when

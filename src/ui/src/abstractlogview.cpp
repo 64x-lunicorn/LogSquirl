@@ -85,6 +85,7 @@
 #include "fontutils.h"
 #include "highlightedmatch.h"
 #include "linetypes.h"
+#include "plaintext.h"
 #include "presentationmenu.h"
 
 #include "active_screen.h"
@@ -1553,10 +1554,16 @@ QString AbstractLogView::valueNameToolTipAt( const QPoint& pos ) const
         return {};
     }
 
+    return valueNameToolTip( *value );
+}
+
+QString AbstractLogView::valueNameToolTip( const logsquirl::valuenames::NamedValue& value )
+{
     //: The tooltip over a Named Value: the raw value, its name, the Name Table,
     //: the Naming Rule and the Naming Group it came from.
-    return tr( "%1 → %2 · table %3 · rule %4 · group %5" )
-        .arg( value->value, value->name, value->table, value->rule, value->group );
+    return logsquirl::plaintext::toolTip(
+        tr( "%1 → %2 · table %3 · rule %4 · group %5" )
+            .arg( value.value, value.name, value.table, value.rule, value.group ) );
 }
 
 void AbstractLogView::textWrapSet( bool checked )

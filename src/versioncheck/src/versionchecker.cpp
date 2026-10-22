@@ -50,6 +50,10 @@ namespace {
 static constexpr QLatin1String VERSION_URL = QLatin1String(
     "https://raw.githubusercontent.com/64x-lunicorn/LogSquirl/master/latest.json", 76 );
 
+// A feed download that makes no progress for this long is given up, so a
+// stalling server never keeps a reply pending for the whole session (#828).
+constexpr int FeedTransferTimeoutMs = 30 * 1000;
+
 } // namespace
 
 void VersionCheckerConfig::retrieveFromStorage( QSettings& settings )
@@ -119,7 +123,18 @@ void VersionChecker::startCheck()
 
         QNetworkRequest request;
         request.setUrl( feedUrl_ );
-        manager_->get( request );
+        request.setTransferTimeout( FeedTransferTimeoutMs );
+        auto* reply = manager_->get( request );
+        // The reply is read only once it is complete, so what arrives piles up
+        // in its buffer; a body larger than the feed could be is cut off before
+        // the rest is downloaded (#828).
+        connect( reply, &QNetworkReply::readyRead, this, [ reply ] {
+            if ( reply->bytesAvailable() > logsquirl::versioncheck::MaxUpdateFeedBytes ) {
+                LOG_WARNING << "Update feed: giving up a reply larger than "
+                            << logsquirl::versioncheck::MaxUpdateFeedBytes << " bytes";
+                reply->abort();
+            }
+        } );
     }
     else {
         LOG_DEBUG << "Deadline not reached yet, next check in "

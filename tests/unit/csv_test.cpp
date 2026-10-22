@@ -96,3 +96,84 @@ SCENARIO( "a CSV field is quoted only for its own separator", "[csv]" )
         }
     }
 }
+
+// A field a spreadsheet would read as a formula is written as text (#831).
+SCENARIO( "a CSV field starting like a formula is prefixed with an apostrophe", "[csv]" )
+{
+    GIVEN( "a field starting with =, +, - or @" )
+    {
+        const auto start
+            = GENERATE( QString( "=" ), QString( "+" ), QString( "-" ), QString( "@" ) );
+        const QStringList fields = { start + "cmd|' /C calc'!A0", "c" };
+
+        THEN( "an apostrophe is written before it" )
+        {
+            REQUIRE( csvLine( fields, ';' ) == "'" + start + "cmd|' /C calc'!A0;c" );
+        }
+    }
+
+    GIVEN( "a field starting with a tab or a carriage return and then a formula character" )
+    {
+        const auto start = GENERATE( QString( "\t=" ), QString( "\r=" ), QString( "\t+" ),
+                                     QString( "\r-" ), QString( "\t@" ) );
+        const QStringList fields = { start + "1+1" };
+
+        THEN( "an apostrophe is written before it, and a carriage return is still quoted" )
+        {
+            const QString expected = "'" + start + "1+1";
+            REQUIRE(
+                csvLine( fields, ',' )
+                == ( start.front() == QChar::CarriageReturn ? "\"" + expected + "\"" : expected ) );
+        }
+    }
+
+    GIVEN( "a field starting with = and holding the separator" )
+    {
+        const QStringList fields = { "=SUM(A1,A2)", "c" };
+
+        THEN( "it is quoted, the apostrophe inside the quotes" )
+        {
+            REQUIRE( csvLine( fields, ',' ) == R"x("'=SUM(A1,A2)",c)x" );
+        }
+    }
+
+    GIVEN( "a field starting with = and holding a quote" )
+    {
+        const QStringList fields = { R"x(=HYPERLINK("http://x"))x" };
+
+        THEN( "it is quoted, the apostrophe inside the quotes, its quotes doubled" )
+        {
+            REQUIRE( csvLine( fields, ',' ) == R"x("'=HYPERLINK(""http://x"")")x" );
+        }
+    }
+
+    GIVEN( "a negative number" )
+    {
+        const QStringList fields = { "-5" };
+
+        THEN( "it is prefixed as well: the apostrophe keeps it text" )
+        {
+            REQUIRE( csvLine( fields, ',' ) == "'-5" );
+        }
+    }
+
+    GIVEN( "fields starting with a digit, a letter, a blank, a tab before a letter, or empty" )
+    {
+        const QStringList fields = { "5", "x=1", " =1", "\tx", "" };
+
+        THEN( "they are written as they are" )
+        {
+            REQUIRE( csvLine( fields, ',' ) == "5,x=1, =1,\tx," );
+        }
+    }
+
+    GIVEN( "a field that is a lone tab" )
+    {
+        const QStringList fields = { "\t" };
+
+        THEN( "it is written as it is" )
+        {
+            REQUIRE( csvLine( fields, ',' ) == "\t" );
+        }
+    }
+}

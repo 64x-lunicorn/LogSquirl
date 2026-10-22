@@ -139,6 +139,15 @@ public:
 
     void addMatch( HighlightedMatch newMatch )
     {
+        // The common case, every source adding its matches in order: a
+        // range starting after the last one cuts nothing, so it is appended.
+        // Cutting through every range before it made a pattern with a
+        // million matches on one Log Line quadratic (#826).
+        if ( matches_.empty() || matches_.back().endColumn() < newMatch.startColumn() ) {
+            matches_.push_back( newMatch );
+            return;
+        }
+
         for ( auto matchIt = matches_.begin(); matchIt != matches_.end(); ++matchIt ) {
             HighlightedMatch& m = *matchIt;
             const LineColumn oldMatchL = m.startColumn();

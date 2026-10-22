@@ -22,6 +22,7 @@
 #include "configuration.h"
 #include "log.h"
 #include "openfilehelper.h"
+#include "plaintext.h"
 #include "theme.h"
 
 #include <QButtonGroup>
@@ -32,10 +33,14 @@
 #include <QHBoxLayout>
 #include <QMessageBox>
 
+#include <algorithm>
+#include <utility>
+
 using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
 using logsquirl::plugins::PluginRepository;
+using logsquirl::plugins::ReleaseEntry;
 
 namespace {
 
@@ -62,8 +67,10 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     mainLayout->setContentsMargins( 12, 10, 12, 10 );
     mainLayout->setSpacing( 12 );
 
+    // Every label reads what the catalog says of the plugin literally (#830).
     // Icon
     iconLabel = new QLabel( this );
+    iconLabel->setTextFormat( Qt::PlainText );
     iconLabel->setFixedSize( 48, 48 );
     iconLabel->setAlignment( Qt::AlignCenter );
     iconLabel->setPixmap( QPixmap( ":/images/logsquirl.png" )
@@ -76,15 +83,18 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
 
     auto* topRow = new QHBoxLayout();
     nameLabel = new QLabel( plugin.name, this );
+    nameLabel->setTextFormat( Qt::PlainText );
     nameLabel->setStyleSheet( "font-weight: bold; font-size: 13px;" );
     topRow->addWidget( nameLabel );
 
     versionLabel = new QLabel( this );
+    versionLabel->setTextFormat( Qt::PlainText );
     versionLabel->setProperty( "secondaryText", true );
     versionLabel->setStyleSheet( "font-size: 11px;" );
     topRow->addWidget( versionLabel );
 
     statusBadge = new QLabel( this );
+    statusBadge->setTextFormat( Qt::PlainText );
     statusBadge->setAlignment( Qt::AlignCenter );
     statusBadge->setFixedHeight( 20 );
     topRow->addWidget( statusBadge );
@@ -93,16 +103,19 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     centerLayout->addLayout( topRow );
 
     authorLabel = new QLabel( this );
+    authorLabel->setTextFormat( Qt::PlainText );
     authorLabel->setProperty( "secondaryText", true );
     authorLabel->setStyleSheet( "font-size: 11px;" );
     centerLayout->addWidget( authorLabel );
 
     licenseLabel = new QLabel( this );
+    licenseLabel->setTextFormat( Qt::PlainText );
     licenseLabel->setProperty( "secondaryText", true );
     licenseLabel->setStyleSheet( "font-size: 11px;" );
     centerLayout->addWidget( licenseLabel );
 
     descriptionLabel = new QLabel( plugin.description, this );
+    descriptionLabel->setTextFormat( Qt::PlainText );
     descriptionLabel->setWordWrap( true );
     descriptionLabel->setStyleSheet( "font-size: 12px;" );
     descriptionLabel->setMaximumHeight( 40 );
@@ -111,6 +124,7 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     // What the Log Format Catalog could not read of the plugin's Log Format
     // files (#793); hidden while there is nothing to say.
     formatWarningLabel = new QLabel( this );
+    formatWarningLabel->setTextFormat( Qt::PlainText );
     formatWarningLabel->setObjectName( "formatWarningLabel" );
     formatWarningLabel->setWordWrap( true );
     formatWarningLabel->setStyleSheet(
@@ -118,6 +132,17 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
             .arg( Theme::active().color( ColorToken::StatusWarning ).name( QColor::HexRgb ) ) );
     formatWarningLabel->setVisible( false );
     centerLayout->addWidget( formatWarningLabel );
+
+    // Why the catalog's release cannot be installed (#818); hidden while it can.
+    installRefusalLabel = new QLabel( this );
+    installRefusalLabel->setTextFormat( Qt::PlainText );
+    installRefusalLabel->setObjectName( "installRefusalLabel" );
+    installRefusalLabel->setWordWrap( true );
+    installRefusalLabel->setStyleSheet(
+        QStringLiteral( "font-size: 11px; color: %1;" )
+            .arg( Theme::active().color( ColorToken::StatusWarning ).name( QColor::HexRgb ) ) );
+    installRefusalLabel->setVisible( false );
+    centerLayout->addWidget( installRefusalLabel );
 
     centerLayout->addStretch();
     mainLayout->addLayout( centerLayout, 1 );
@@ -127,6 +152,7 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     rightLayout->setSpacing( 6 );
 
     actionButton = new QPushButton( this );
+    actionButton->setObjectName( "actionButton" );
     actionButton->setFixedWidth( 90 );
     rightLayout->addWidget( actionButton );
 
@@ -175,21 +201,28 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
                                                     : tr( "License: %1" ).arg( plugin.license ) );
     licenseLabel->setVisible( !plugin.license.isEmpty() );
 
-    // Log Format warnings: a card with some grows to hold them.
+    // Log Format warnings and an install refusal: a card with some grows to
+    // hold them.
     formatWarningLabel->setText( plugin.formatWarnings.join( QChar( '\n' ) ) );
     formatWarningLabel->setVisible( !plugin.formatWarnings.isEmpty() );
-    setMaximumHeight( plugin.formatWarnings.isEmpty() ? CardHeight : QWIDGETSIZE_MAX );
+    installRefusalLabel->setText( plugin.installRefusal );
+    installRefusalLabel->setVisible( !plugin.installRefusal.isEmpty() );
+    setMaximumHeight( plugin.formatWarnings.isEmpty() && plugin.installRefusal.isEmpty()
+                          ? CardHeight
+                          : QWIDGETSIZE_MAX );
 
     // Status badge
     statusBadge->setText( badgeText( plugin.state ) );
     statusBadge->setStyleSheet( badgeStyleSheet( plugin.state ) );
     statusBadge->setVisible( true );
 
-    // Action button
+    // Action button: a release that could not be verified is not offered (#818).
+    const auto installable = plugin.installRefusal.isEmpty();
+    actionButton->setToolTip( logsquirl::plaintext::toolTip( plugin.installRefusal ) );
     switch ( plugin.state ) {
     case PluginState::NotInstalled:
         actionButton->setText( tr( "Install" ) );
-        actionButton->setEnabled( true );
+        actionButton->setEnabled( installable );
         actionButton->setVisible( true );
         toggleButton->setVisible( false );
         break;
@@ -207,7 +240,7 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
         break;
     case PluginState::UpdateReady:
         actionButton->setText( tr( "Update" ) );
-        actionButton->setEnabled( true );
+        actionButton->setEnabled( installable );
         actionButton->setVisible( true );
         toggleButton->setText( tr( "Disable" ) );
         toggleButton->setEnabled( true );
@@ -233,10 +266,24 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
 // ── PluginDialog ──────────────────────────────────────────────────────
 
 PluginDialog::PluginDialog( ApplicationPlugins& plugins, QWidget* parent )
+    : PluginDialog( plugins, nullptr, parent )
+{
+}
+
+PluginDialog::PluginDialog( ApplicationPlugins& plugins, QNetworkAccessManager& network,
+                            QWidget* parent )
+    : PluginDialog( plugins, &network, parent )
+{
+}
+
+PluginDialog::PluginDialog( ApplicationPlugins& plugins, QNetworkAccessManager* network,
+                            QWidget* parent )
     : QDialog( parent )
     , plugins_( plugins )
     , catalog_( plugins.catalog() )
     , host_( plugins.host() )
+    , network_( network ? network : new QNetworkAccessManager( this ) )
+    , repository_( *network_, this )
 {
     setWindowTitle( tr( "Plugin Management" ) );
     resize( 750, 550 );
@@ -301,6 +348,7 @@ PluginDialog::PluginDialog( ApplicationPlugins& plugins, QWidget* parent )
 
     // ── Status label ─────────────────────────────────────────────────
     statusLabel_ = new QLabel( tr( "Fetching plugin catalog..." ), this );
+    statusLabel_->setTextFormat( Qt::PlainText );
     statusLabel_->setProperty( "secondaryText", true );
     statusLabel_->setStyleSheet( "font-size: 11px;" );
     mainLayout->addWidget( statusLabel_ );
@@ -364,6 +412,12 @@ PluginDialog::PluginDialog( ApplicationPlugins& plugins, QWidget* parent )
     Theme::whenApplied( this, [ this ] { rebuildCards(); } );
 }
 
+void PluginDialog::showCatalog( const QByteArray& catalogJson )
+{
+    catalogFetched_ = true;
+    repository_.parseCatalog( catalogJson );
+}
+
 void PluginDialog::showEvent( QShowEvent* event )
 {
     QDialog::showEvent( event );
@@ -418,7 +472,12 @@ void PluginDialog::onDownloadFinished( const QString& archivePath )
         return;
     }
 
-    if ( !extractAndInstall( archivePath, pluginId ) ) {
+    // Whichever way the install went, the archive has served: a failed or
+    // refused install leaves none behind in the plugin folder (#842).
+    const auto installed = extractAndInstall( archivePath, pluginId );
+    QFile::remove( archivePath );
+    if ( !installed ) {
+        restoreActionButton( pluginId );
         return;
     }
 
@@ -432,10 +491,10 @@ void PluginDialog::onDownloadFinished( const QString& archivePath )
     }
 
     statusLabel_->setText( tr( "%1 installed and activated." ).arg( pluginName ) );
-    QMessageBox::information( this, tr( "Plugin Installed" ),
-                              tr( "%1 has been installed and activated.\n\n"
-                                  "You can now use it from the Plugins menu." )
-                                  .arg( pluginName ) );
+    logsquirl::plaintext::information( this, tr( "Plugin Installed" ),
+                                       tr( "%1 has been installed and activated.\n\n"
+                                           "You can now use it from the Plugins menu." )
+                                           .arg( pluginName ) );
 
     rebuildMergedList();
     rebuildCards();
@@ -444,11 +503,21 @@ void PluginDialog::onDownloadFinished( const QString& archivePath )
 void PluginDialog::onDownloadError( const QString& message )
 {
     progressBar_->setVisible( false );
+    restoreActionButton( std::exchange( currentInstallId_, {} ) );
     statusLabel_->setText( tr( "Download failed: %1" ).arg( message ) );
-    QMessageBox::warning( this, tr( "Download Error" ), message );
+    logsquirl::plaintext::warning( this, tr( "Download Error" ), message );
 }
 
 // ── Merge local + remote data ─────────────────────────────────────────
+
+QString PluginDialog::installRefusal( const ReleaseEntry& release )
+{
+    // installPlugin() downloads the first asset, so that one decides (#818).
+    if ( release.assets.empty() ) {
+        return tr( "No compatible download available on this platform." );
+    }
+    return PluginRepository::downloadRefusal( release.assets.front() );
+}
 
 void PluginDialog::rebuildMergedList()
 {
@@ -504,6 +573,7 @@ void PluginDialog::rebuildMergedList()
             const auto* latest = repository_.latestRelease( ce.id );
             if ( latest ) {
                 mp.latestVersion = latest->version;
+                mp.installRefusal = installRefusal( *latest );
                 if ( !mp.installedVersion.isEmpty() && mp.installedVersion != latest->version ) {
                     mp.state = PluginState::UpdateReady;
                 }
@@ -522,6 +592,7 @@ void PluginDialog::rebuildMergedList()
             const auto* latest = repository_.latestRelease( ce.id );
             if ( latest ) {
                 mp.latestVersion = latest->version;
+                mp.installRefusal = installRefusal( *latest );
             }
 
             byId[ mp.id ] = std::move( mp );
@@ -659,7 +730,7 @@ void PluginDialog::installPlugin( const QString& pluginId )
 {
     const auto* latest = repository_.latestRelease( pluginId );
     if ( !latest || latest->assets.empty() ) {
-        QMessageBox::warning(
+        logsquirl::plaintext::warning(
             this, tr( "Install Error" ),
             tr( "No compatible download available for %1 on this platform." ).arg( pluginId ) );
         return;
@@ -690,6 +761,21 @@ void PluginDialog::installPlugin( const QString& pluginId )
                                 PluginCatalog::userPluginDirectory() );
 }
 
+void PluginDialog::restoreActionButton( const QString& pluginId )
+{
+    // The card keeps the merged state from before the attempt: applying it
+    // again undoes what installPlugin() did to the button and nothing else,
+    // so the user can retry or pick another plugin without reopening (#839).
+    const auto card = cards_.find( pluginId );
+    if ( card == cards_.end() ) {
+        return;
+    }
+    const auto plugin = std::ranges::find( mergedPlugins_, pluginId, &MergedPlugin::id );
+    if ( plugin != mergedPlugins_.end() ) {
+        card->second->updateState( *plugin );
+    }
+}
+
 void PluginDialog::togglePlugin( const QString& pluginId )
 {
     auto& config = Configuration::get();
@@ -714,8 +800,8 @@ void PluginDialog::togglePlugin( const QString& pluginId )
 
         const auto error = host_.loadPlugin( pluginId );
         if ( !error.isEmpty() ) {
-            QMessageBox::warning( this, tr( "Plugin Error" ),
-                                  tr( "Failed to load %1:\n%2" ).arg( pluginId, error ) );
+            logsquirl::plaintext::warning( this, tr( "Plugin Error" ),
+                                           tr( "Failed to load %1:\n%2" ).arg( pluginId, error ) );
         }
         else {
             statusLabel_->setText( tr( "Plugin enabled." ) );
@@ -753,6 +839,20 @@ bool PluginDialog::extractAndInstall( const QString& archivePath, const QString&
     const auto pluginDir = PluginCatalog::installDirectory( pluginId );
     const auto backupDir = pluginDir + ".bak";
 
+    // Both are renamed and removed below: only a folder directly in the user
+    // plugin directory may be, whatever the id says (#819).
+    if ( !PluginCatalog::isInstallPath( pluginDir )
+         || !PluginCatalog::isInstallPath( backupDir ) ) {
+        LOG_WARNING << "Refusing to install plugin '" << pluginId
+                    << "': its id names no folder in the user plugin directory";
+        statusLabel_->setText( tr( "Installation refused." ) );
+        logsquirl::plaintext::warning(
+            this, tr( "Install Error" ),
+            tr( "The plugin id %1 is not a plain name and names no folder in the plugin folder." )
+                .arg( pluginId ) );
+        return false;
+    }
+
     // Unload existing plugin before overwriting
     if ( host_.isLoaded( pluginId ) ) {
         LOG_INFO << "Unloading existing plugin " << pluginId << " for update";
@@ -776,16 +876,16 @@ bool PluginDialog::extractAndInstall( const QString& archivePath, const QString&
             QDir().rename( backupDir, pluginDir );
         }
         statusLabel_->setText( tr( "Installation failed." ) );
-        QMessageBox::warning( this, tr( "Install Error" ),
-                              tr( "Failed to extract plugin archive:\n%1" ).arg( extractError ) );
+        logsquirl::plaintext::warning(
+            this, tr( "Install Error" ),
+            tr( "Failed to extract plugin archive:\n%1" ).arg( extractError ) );
         return false;
     }
 
-    // Clean up backup and archive
+    // Clean up backup
     if ( hasBackup ) {
         QDir( backupDir ).removeRecursively();
     }
-    QFile::remove( archivePath );
 
     // Re-discover and load
     catalog_.discoverPlugins();
@@ -793,10 +893,10 @@ bool PluginDialog::extractAndInstall( const QString& archivePath, const QString&
     if ( !loadError.isEmpty() ) {
         LOG_WARNING << "Plugin extracted but failed to load: " << loadError;
         statusLabel_->setText( tr( "Extracted but failed to load." ) );
-        QMessageBox::warning( this, tr( "Load Error" ),
-                              tr( "Plugin was extracted but could not be loaded:\n%1\n\n"
-                                  "Restart LogSquirl to try again." )
-                                  .arg( loadError ) );
+        logsquirl::plaintext::warning( this, tr( "Load Error" ),
+                                       tr( "Plugin was extracted but could not be loaded:\n%1\n\n"
+                                           "Restart LogSquirl to try again." )
+                                           .arg( loadError ) );
         return false;
     }
 

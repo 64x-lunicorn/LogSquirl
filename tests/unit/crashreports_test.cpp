@@ -29,6 +29,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 
+#include <cstdarg>
 #include <cstddef>
 #include <vector>
 
@@ -74,6 +75,19 @@ struct RecordingActions {
 QString issueBody( const QUrl& url )
 {
     return QUrlQuery( url ).queryItemValue( "body", QUrl::FullyDecoded );
+}
+
+// Hands the message to the formatting the way Sentry's logger does, as a
+// format and a va_list (#833).
+QString sentryMessage( const char* message, ... ) Q_ATTRIBUTE_FORMAT_PRINTF( 1, 2 );
+
+QString sentryMessage( const char* message, ... )
+{
+    va_list args;
+    va_start( args, message );
+    const auto text = formatSentryMessage( message, args );
+    va_end( args );
+    return text;
 }
 
 } // namespace
@@ -194,6 +208,15 @@ TEST_CASE( "The Crashpad tools are found next to the application", "[crashreport
     CHECK( crashpadToolPath( "/opt/logsquirl/bin", "logsquirl_crashpad_handler" )
            == "/opt/logsquirl/bin/logsquirl_crashpad_handler" );
 #endif
+}
+
+TEST_CASE( "A message of Sentry's logger has its placeholders filled", "[crashreports]" )
+{
+    REQUIRE( sentryMessage( "using database path \"%s\"", "/tmp/logsquirl_dump" )
+             == QStringLiteral( "using database path \"/tmp/logsquirl_dump\"" ) );
+    REQUIRE( sentryMessage( "sending envelope %d of %d", 1, 3 )
+             == QStringLiteral( "sending envelope 1 of 3" ) );
+    REQUIRE( sentryMessage( "starting backend" ) == QStringLiteral( "starting backend" ) );
 }
 
 TEST_CASE( "The issue offered after a crash opens a new issue of the repository",

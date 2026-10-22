@@ -92,13 +92,16 @@ struct ArchiveMember {
 // Decompresses the archive again, level by level, into a new directory or
 // file inside `directory`, and returns the path of the member there. Returns
 // an empty string when the archive is gone, a member is not in it, or it
-// cannot be decompressed. Blocks until it is done.
-QString decompressArchiveMember( const ArchiveMember& member, const QString& directory );
+// cannot be decompressed -- which it cannot past `budgetBytes`, the most
+// any level is decompressed to (#816); what was written until then is
+// removed. Blocks until it is done.
+QString decompressArchiveMember( const ArchiveMember& member, const QString& directory,
+                                 qint64 budgetBytes );
 
 // The same, which stops early and returns an empty string once `interrupt` is
 // set.
 QString decompressArchiveMember( const ArchiveMember& member, const QString& directory,
-                                 AtomicFlag& interrupt );
+                                 qint64 budgetBytes, AtomicFlag& interrupt );
 
 // Decompresses archive members again one after another, away from the thread
 // that asks, so that a window restoring its Session stays usable while a
@@ -120,7 +123,8 @@ public:
     ArchiveMemberDecompression( const ArchiveMemberDecompression& ) = delete;
     ArchiveMemberDecompression& operator=( const ArchiveMemberDecompression& ) = delete;
 
-    void decompress( const ArchiveMember& member, Answer answer );
+    // `budgetBytes` is the most the member is decompressed to (#816).
+    void decompress( const ArchiveMember& member, qint64 budgetBytes, Answer answer );
 
     // Interrupts the member decompressing now, which is answered with an
     // empty string; the next one starts.
@@ -145,6 +149,7 @@ private:
 
     struct Request {
         ArchiveMember member;
+        qint64 budgetBytes;
         Answer answer;
     };
 

@@ -19,6 +19,11 @@ _Avoid_: document, source, input
 One line of a Log File, addressed by its number in the file. Its text — what is displayed,
 what a Search matches and what the grep CLI prints — is the line decoded, without its line
 feed, a carriage return that ends it or a byte order mark that starts it.
+A Log Line of a gibibyte or more (`MaxLogLineLength`) is never read: wherever Log Lines are
+read — a block for the view or a Search, a sparse read for the Filtered View — it costs
+nothing but its line feed and reads as the too-long warning, so reading N Log Lines costs at
+most N times that bound plus a constant, and a Search's block is bounded by its bytes as
+well as by its Log Lines, however long the Log File's lines are (#825).
 _Avoid_: record, entry, row (row belongs to the Table View)
 
 **Index**:
@@ -134,7 +139,10 @@ The one way a Search or an index job runs off the UI thread: one run at a time o
 thread of its own. Starting a run supersedes the one in flight; each run gets a copy of
 the Policy taken as it starts, keeps the Log File's reader attached for as long as it
 lasts, and is reported finished exactly once — returned, superseded or failed. Shutting
-it down stops the run in flight and reports nothing more. The job it runs is plain code;
+it down stops the run in flight, waits up to a shutdown timeout (10 s) for it, and reports
+nothing more; a run still going after that is left to itself, with its thread, its reader
+attached and shared handles to what it reads and writes, so that closing never hangs and
+the run never touches what its owner freed. The job it runs is plain code;
 which run supersedes which is still up to whoever starts them (the Search Session for a
 Search; for index jobs the job rule, which starts the next one only once the one before
 is reported finished).
@@ -476,7 +484,10 @@ going to one and reading the selected ones. The host functions a plugin can call
 only grow, appended to one table whose size tells a plugin which the running LogSquirl
 offers (ADR 0017). What a plugin shows goes through the Plugin UI Port.
 A plugin is loaded when the host has initialised it, and enabled when the configuration
-says to load it.
+says to load it. The first start enables every discovered plugin once and the
+configuration keeps that choice; from then on only the enabled plugins are loaded, none
+when the user disabled them all, and a plugin that appears in a plugin directory later is
+listed but not loaded until the user enables it.
 _Avoid_: plugin manager, plugin loader (the loader only opens one library)
 
 **Application Plugins**:
@@ -699,7 +710,7 @@ _Avoid_: persistent tab, normal file
 **Portable Run**:
 A run of LogSquirl that keeps everything it stores beside its executable: its settings and
 Session in `logsquirl.conf` and `logsquirl_session.conf`, and its Log Formats, plugins,
-plugin configuration, Team Folder, theme stylesheets and crash dumps in its data directory,
+plugin configuration, Team Folder, theme stylesheets, crash dumps and debug logs in its data directory,
 which is the executable's directory. A run is portable when its build says so (the portable
 package, the command line tool, the test binaries) or when it finds `logsquirl.conf` beside
 its executable; every other run is installed and keeps them in the user profile. One place

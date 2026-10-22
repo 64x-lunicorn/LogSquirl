@@ -19,10 +19,17 @@
 
 #include "logfmtlogline.h"
 
+#include "linelengthcap.h"
+
 namespace LogfmtLogLine {
 
 std::optional<QHash<QString, QString>> parse( const QString& line )
 {
+    // Parsed per Row and per Timestamp on the UI thread: a Log Line past the
+    // cap is no logfmt Log Line (#826).
+    if ( line.size() > MaxUiThreadLineLength ) {
+        return std::nullopt;
+    }
     QHash<QString, QString> pairs;
     const auto size = line.size();
     qsizetype pos = 0;

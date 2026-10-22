@@ -74,7 +74,24 @@ QString PluginCatalog::applicationPluginDirectory()
 
 QString PluginCatalog::installDirectory( const QString& pluginId )
 {
+    // QDir::filePath hands an absolute id back unchanged and keeps "..": a
+    // plain name is the only id that stays in the user plugin directory (#819).
+    if ( !PluginMetadata::isValidId( pluginId ) ) {
+        LOG_WARNING << "Plugin id '" << pluginId << "' is not a plain name: no install directory";
+        return {};
+    }
     return QDir( userPluginDirectory() ).filePath( pluginId );
+}
+
+bool PluginCatalog::isInstallPath( const QString& path )
+{
+    if ( path.isEmpty() || !QDir::isAbsolutePath( path ) ) {
+        return false;
+    }
+    // cleanPath resolves ".." and drops a trailing slash before the parent is
+    // taken, so "<user>/x/.." does not pass as "<user>/x" (#819).
+    const QFileInfo info( QDir::cleanPath( path ) );
+    return QDir::cleanPath( info.absolutePath() ) == QDir::cleanPath( userPluginDirectory() );
 }
 
 // ── Discovery ───────────────────────────────────────────────────────────────

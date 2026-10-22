@@ -9,7 +9,7 @@
       "author": "LogSquirl Contributors",
       "license": "GPL-3.0-or-later",
       "download_url": "https://github.com/64x-lunicorn/LogSquirl-Logcat/releases/download/v0.3.0/logsquirl-logcat-0.3.0-macos-arm64.zip",
-      "sha256": "",
+      "sha256": "e7607cf497874d9610729e85684edbd3fa0865ceb89a90bf213cd2cdf918118f",
       "platforms": [
         "macos"
       ],
@@ -23,7 +23,7 @@
       "author": "LogSquirl Contributors",
       "license": "GPL-3.0-or-later",
       "download_url": "https://github.com/64x-lunicorn/LogSquirl-Logcat/releases/download/v0.3.0/logsquirl-logcat-0.3.0-linux-x64.zip",
-      "sha256": "",
+      "sha256": "22e609b98f6fb4d861064c407e8ad400c8efec6fdbae380935bfadb08d9ed0b2",
       "platforms": [
         "linux"
       ],
@@ -37,7 +37,7 @@
       "author": "LogSquirl Contributors",
       "license": "GPL-3.0-or-later",
       "download_url": "https://github.com/64x-lunicorn/LogSquirl-Logcat/releases/download/v0.3.0/logsquirl-logcat-0.3.0-windows-x64.zip",
-      "sha256": "",
+      "sha256": "be175943a58f85f4724c12531d4a8717d1bf296304423b573c61427ca17b82d3",
       "platforms": [
         "windows"
       ],
@@ -51,7 +51,7 @@
       "author": "LogSquirl Contributors",
       "license": "GPL-3.0-or-later",
       "download_url": "https://github.com/64x-lunicorn/LogSquirl-Serial/releases/download/v0.4.0/logsquirl-serial-0.4.0-macos-arm64.zip",
-      "sha256": "",
+      "sha256": "e712499b071f9c3d559f4328f0bbaa39502dda4e31a5cf7fa268ec75a2b75ce0",
       "platforms": [
         "macos"
       ],
@@ -65,7 +65,7 @@
       "author": "LogSquirl Contributors",
       "license": "GPL-3.0-or-later",
       "download_url": "https://github.com/64x-lunicorn/LogSquirl-Serial/releases/download/v0.4.0/logsquirl-serial-0.4.0-linux-x64.zip",
-      "sha256": "",
+      "sha256": "c0f5b3a403bb45ab831463243459da8556e74de202e6ed5f20b6e477e0165749",
       "platforms": [
         "linux"
       ],
@@ -79,7 +79,7 @@
       "author": "LogSquirl Contributors",
       "license": "GPL-3.0-or-later",
       "download_url": "https://github.com/64x-lunicorn/LogSquirl-Serial/releases/download/v0.4.0/logsquirl-serial-0.4.0-windows-x64.zip",
-      "sha256": "",
+      "sha256": "217705aef15111e479719e1ab2901321648791dcdc73306e6a06700a58409256",
       "platforms": [
         "windows"
       ],

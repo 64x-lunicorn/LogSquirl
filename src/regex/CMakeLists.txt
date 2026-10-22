@@ -13,6 +13,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/hyperscanruntime.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/booleanevaluator.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/regexlab.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/linelengthcap.h
 )
 target_include_directories(logsquirl_regex PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(

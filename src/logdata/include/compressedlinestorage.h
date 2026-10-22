@@ -88,6 +88,10 @@ private:
     // Utility for move ctor/assign
     void move_from( CompressedLinePositionStorage&& orig ) noexcept;
 
+    // deserialize() without the clearing: what it took in before refusing
+    // the entry is left as it is.
+    bool readSerialized( QDataStream& in );
+
     void compress_current_block();
     void uncompress_last_block();
     struct BlockMetadata {

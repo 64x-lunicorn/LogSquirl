@@ -235,6 +235,39 @@ TEST_CASE( "A command does not start in a working folder that does not exist", "
     CHECK( error.contains( QDir::toNativeSeparators( missing ) ) );
 }
 
+// The shell is started by the absolute path PATH finds for it, never one
+// of the working directory; a bare name PATH does not find, or a relative
+// path, is no shell to start (#823).
+TEST_CASE( "A command does not start through a shell that is not found, and names it",
+           "[commandsource]" )
+{
+#ifdef Q_OS_WIN
+    constexpr const char* ShellVariable = "ComSpec";
+#else
+    constexpr const char* ShellVariable = "SHELL";
+#endif
+    const auto shell = GENERATE( QStringLiteral( "logsquirl-no-such-shell-823" ),
+                                 QStringLiteral( "./logsquirl-no-such-shell-823" ) );
+    INFO( shell.toStdString() );
+    const std::optional<QByteArray> previous = qEnvironmentVariableIsSet( ShellVariable )
+                                                   ? std::optional( qgetenv( ShellVariable ) )
+                                                   : std::nullopt;
+    qputenv( ShellVariable, shell.toUtf8() );
+
+    QString error;
+    const auto source = CommandSource::startCommand(
+        RecentCommand{ "echo hello", QDir::tempPath(), true }, &error );
+
+    if ( previous.has_value() ) {
+        qputenv( ShellVariable, *previous );
+    }
+    else {
+        qunsetenv( ShellVariable );
+    }
+    CHECK( source == nullptr );
+    CHECK( error.contains( QDir::toNativeSeparators( shell ) ) );
+}
+
 TEST_CASE( "A spool file handed over is removed with its Command Source", "[commandsource]" )
 {
     QTemporaryDir directory;

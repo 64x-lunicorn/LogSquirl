@@ -115,6 +115,10 @@ struct FileAccessPolicy {
     int defaultEncodingMib{};
     bool extractArchives{};
     bool extractArchivesAlways{};
+    // The most bytes a compressed Log File, or an archive as a whole, is
+    // decompressed to; past it, opening stops and the user is told (#816).
+    // 0 in an underived Policy, which decompresses nothing.
+    qint64 decompressionBudgetBytes{};
 
     bool operator==( const FileAccessPolicy& ) const = default;
 };

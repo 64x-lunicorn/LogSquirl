@@ -23,6 +23,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QContextMenuEvent>
+#include <QFileInfo>
 #include <QMenu>
 
 #include "clipboard.h"

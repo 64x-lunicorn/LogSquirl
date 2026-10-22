@@ -24,12 +24,20 @@
 #include <QFutureWatcher>
 
 #include "atomicflag.h"
+#include "decompressionfailure.h"
 
 enum class DecompressAction { None, Extract, Decompress };
+
+// Decompresses a compressed Log File into a file, or extracts an archive
+// into a folder, on a thread of its own. Either writes at most
+// `budgetBytes` -- for an archive, over all its entries together -- and
+// stops with DecompressionFailure::BudgetExceeded where it would write
+// more (#816). The budget is a setting the caller hands in: this library
+// does not know the settings store.
 class Decompressor : public QObject {
     Q_OBJECT
 public:
-    explicit Decompressor( QObject* parent = nullptr );
+    explicit Decompressor( qint64 budgetBytes, QObject* parent = nullptr );
 
     bool decompress( const QString& path, QFile* outputFile, AtomicFlag& interrupt );
     bool extract( const QString& archiveFilePath, const QString& destination,
@@ -37,14 +45,19 @@ public:
 
     bool waitForResult();
 
+    // Why the decompression or extraction started last did not finish:
+    // None when it did. Waits for it like waitForResult().
+    DecompressionFailure failure();
+
     static DecompressAction action( const QString& archiveFilePath );
 
 Q_SIGNALS:
     void finished( bool );
 
 private:
-    QFuture<bool> future_;
-    QFutureWatcher<bool> watcher_;
+    qint64 budgetBytes_;
+    QFuture<DecompressionFailure> future_;
+    QFutureWatcher<DecompressionFailure> watcher_;
 };
 
 #endif // LOGSQUIRL_DECOMPRESSOR_H

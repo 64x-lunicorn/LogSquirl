@@ -973,7 +973,7 @@ bool FullIndexOperation::resumeFrom( CachedIndex& cached, qint64 fileSize )
     // The last cached Log Line may have had no newline yet, and continued
     // since: indexing goes on from where it starts.
     const auto resumeOffset = lines > 1 ? linePosition.at( lines - 2 ) : 0_offset;
-    if ( resumeOffset.get() > cached.hash.size ) {
+    if ( resumeOffset.get() < 0 || resumeOffset.get() > cached.hash.size ) {
         return false;
     }
 

@@ -84,12 +84,22 @@ public:
     bool matchLine( const QString& line, logsquirl::vector<HighlightedMatch>& matches,
                     const QColor& backColor ) const;
 
+    // Whether the regex engine gave up on the line last searched instead of
+    // deciding it: what it reported then is "no match", not a verdict
+    // (#689). A line past MaxUiThreadLineLength is not searched at all, so
+    // it is decided (#826).
+    bool gaveUp() const
+    {
+        return gaveUp_;
+    }
+
 private:
     bool isActive_ = false;
     QRegularExpression regexp_;
 
     mutable LineColumn lastMatchStart_;
     mutable LineColumn lastMatchEnd_;
+    mutable bool gaveUp_ = false;
 };
 
 // Represents a search pattern for QuickFind (without its results)

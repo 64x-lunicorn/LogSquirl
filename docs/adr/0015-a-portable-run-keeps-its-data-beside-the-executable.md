@@ -6,7 +6,7 @@ The portable package kept its settings in `logsquirl.conf` beside the executable
 
 - `DataLocation` (library `logsquirl_datalocation`, Qt Core only, below every library that stores something) decides once per run whether the run is portable: when its build forces it, or when it finds `logsquirl.conf` beside its executable. Every executable defines `DataLocation::ForcePortable`, as it defined `PersistentInfo::ForcePortable` before: true for the portable package, the command line tool and the test binaries.
 - A portable run's data directory and configuration directory are both the executable's directory. An installed run's are `AppDataLocation` and `AppConfigLocation`, unchanged.
-- Everything that stores something asks `DataLocation`: the settings (`logsquirl.conf`, `logsquirl_session.conf`), the Log Formats (`formats`), the user plugin directory (`plugins`), the plugin configuration (`plugin_config/<id>`), the Team Folder clone (`teamfolder`) and the record of its last sync beside it (`teamfolder-sync.ini`, #714), the theme stylesheets (`themes`) and the crash dumps (`logsquirl_dump`).
+- Everything that stores something asks `DataLocation`: the settings (`logsquirl.conf`, `logsquirl_session.conf`), the Log Formats (`formats`), the user plugin directory (`plugins`), the plugin configuration (`plugin_config/<id>`), the Team Folder clone (`teamfolder`) and the record of its last sync beside it (`teamfolder-sync.ini`, #714), the theme stylesheets (`themes`), the crash dumps (`logsquirl_dump`) and the debug logs (`logs`, #829).
 - The index cache stays in `CacheLocation`: it is a cache, rebuilt when missing, and does not belong in a folder that is copied from machine to machine.
 
 ## Considered Options

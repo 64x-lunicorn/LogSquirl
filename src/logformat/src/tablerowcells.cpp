@@ -132,6 +132,7 @@ TableRowCells::Row TableRowCells::rowOf( LineNumber logLine, const QString& line
     Row row;
     row.cells.resize( columnCount() );
     row.matchesFormat = extracted.isValid();
+    row.undecided = extracted.isUndecided();
     if ( extracted.isValid() ) {
         for ( int field = 0; field < fieldNames_.size(); ++field ) {
             auto value = extracted.value( fieldNames_[ field ] );

@@ -21,6 +21,7 @@
 
 #include <QByteArray>
 #include <QCoreApplication>
+#include <QDebug>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -72,35 +73,28 @@ QString sentryDatabasePath()
     return crashDumpDirectory( DataLocation::current().dataDirectory() );
 }
 
+// The format attribute lets the compiler see the format reach vasprintf
+// unchecked on purpose (#833).
+void logSentry( sentry_level_t level, const char* message, va_list args, void* userdata )
+    Q_ATTRIBUTE_FORMAT_PRINTF( 2, 0 );
+
 void logSentry( sentry_level_t level, const char* message, va_list args, void* userdata )
 {
-#if defined __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wformat-nonliteral"
-#elif defined __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-nonliteral"
-#endif
-
     Q_UNUSED( userdata );
-    QString formattedMessage;
+    // Filled in before Qt's variadic logger sees it: handed the va_list as an
+    // argument, the format would read the list object itself (#833).
+    const auto text = formatSentryMessage( message, args );
     switch ( level ) {
     case SENTRY_LEVEL_WARNING:
-        qWarning( message, args );
+        qWarning().noquote() << text;
         break;
     case SENTRY_LEVEL_ERROR:
-        qCritical( message, args );
+        qCritical().noquote() << text;
         break;
     default:
-        qInfo( message, args );
+        qInfo().noquote() << text;
         break;
     }
-
-#if defined __clang__
-#pragma clang diagnostic pop
-#elif defined __GNUC__
-#pragma GCC diagnostic pop
-#endif
 }
 
 QDialog::DialogCode askUserConfirmation( const QString& formattedReport, const QString& reportPath )
@@ -316,5 +310,5 @@ CrashHandler::CrashHandler()
 CrashHandler::~CrashHandler()
 {
     memoryUsageTimer_->stop();
-    sentry_shutdown();
+    sentry_close();
 }

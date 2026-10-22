@@ -65,8 +65,21 @@ public:
      */
     static QString applicationPluginDirectory();
 
-    /** The directory a plugin with the given id is installed or updated into. */
+    /**
+     * The directory a plugin with the given id is installed or updated into:
+     * its folder directly under the user plugin directory. Empty for an id
+     * that is not a plain plugin name (PluginMetadata::isValidId), which
+     * could name a folder anywhere else (#819).
+     */
     static QString installDirectory( const QString& pluginId );
+
+    /**
+     * Whether a path is a direct child of the user plugin directory: what an
+     * install may create, rename or remove. The directory itself, a path
+     * below a plugin's folder or one outside is refused, so no rename or
+     * removal reaches it (#819).
+     */
+    static bool isInstallPath( const QString& path );
 
     /**
      * Rescan the default plugin directories. Replaces what was discovered

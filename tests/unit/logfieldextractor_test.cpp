@@ -19,6 +19,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "linelengthcap.h"
 #include "logfieldextractor.h"
 #include "logformatparser.h"
 
@@ -389,5 +390,144 @@ SCENARIO( "Extracting a single field gives what extracting every field gives",
               R"(port=9090 msg="said \"hi\" to \\ you" level=warn extra=ignored)",
               R"(time=2026-09-23T18:00:02Z level=error flag)", "=value", R"({"a":1})", "" },
             { "time", "level", "port", "msg", "extra", "flag", "nosuchfield" } );
+    }
+}
+
+// #826: a Log Line the regex engine gives up on is told apart from one the Log
+// Format does not match, and one past the UI thread's line length cap is
+// neither matched nor parsed.
+namespace {
+
+const char* BacktrackingFormatJson = R"({
+    "backtracking_log": {
+        "title": "Backtracking",
+        "regex": {
+            "basic": { "pattern": "^(?<body>(a|aa)+)$" }
+        },
+        "body-field": "body"
+    }
+})";
+
+const char* AnythingFormatJson = R"({
+    "anything_log": {
+        "title": "Anything",
+        "regex": {
+            "basic": { "pattern": "^(?<head>\\S+) (?<body>.*)$" }
+        },
+        "body-field": "body",
+        "value": { "head": { "kind": "string" } }
+    }
+})";
+
+// A Log Line PCRE2 gives up on with the backtracking pattern (#689).
+QString backtrackingLine()
+{
+    return QString( 5000, QLatin1Char( 'a' ) ) + QLatin1Char( '!' );
+}
+
+} // namespace
+
+SCENARIO( "The extractor tells a Log Line the regex engine gave up on from one it does not match",
+          "[logformat][extractor][undecided]" )
+{
+    GIVEN( "a Log Format whose pattern backtracks catastrophically" )
+    {
+        const auto formats = LogFormatParser::parseJsonString( BacktrackingFormatJson );
+        REQUIRE( formats.size() == 1 );
+        const LogFieldExtractor extractor( formats[ 0 ] );
+
+        THEN( "a Log Line it matches is a valid, decided extraction" )
+        {
+            const auto fields = extractor.extractFields( "aaaa" );
+            REQUIRE( fields.isValid() );
+            REQUIRE_FALSE( fields.isUndecided() );
+            REQUIRE( fields.value( "body" ) == "aaaa" );
+        }
+
+        THEN( "a Log Line it does not match is invalid and decided" )
+        {
+            const auto fields = extractor.extractFields( "b" );
+            REQUIRE_FALSE( fields.isValid() );
+            REQUIRE_FALSE( fields.isUndecided() );
+            REQUIRE_FALSE( extractor.extractField( "b", "body" ).has_value() );
+            REQUIRE_FALSE( extractor.fieldSpans( "b" ).has_value() );
+        }
+
+        THEN( "a Log Line the engine gives up on is invalid and undecided, has no field and no "
+              "spans" )
+        {
+            const auto fields = extractor.extractFields( backtrackingLine() );
+            REQUIRE_FALSE( fields.isValid() );
+            REQUIRE( fields.isUndecided() );
+            REQUIRE_FALSE( extractor.extractField( backtrackingLine(), "body" ).has_value() );
+            REQUIRE_FALSE( extractor.fieldSpans( backtrackingLine() ).has_value() );
+        }
+    }
+}
+
+SCENARIO( "A Log Line past the UI thread's line length cap is neither matched nor parsed",
+          "[logformat][extractor][linecap]" )
+{
+    const auto tooLong = QString( MaxUiThreadLineLength + 1, QLatin1Char( 'x' ) );
+    const auto justShort = QString( MaxUiThreadLineLength - 2, QLatin1Char( 'x' ) );
+
+    GIVEN( "a regex Log Format matching any Log Line with a space" )
+    {
+        const auto formats = LogFormatParser::parseJsonString( AnythingFormatJson );
+        REQUIRE( formats.size() == 1 );
+        const LogFieldExtractor extractor( formats[ 0 ] );
+
+        THEN( "a Log Line at the cap is matched" )
+        {
+            const auto fields = extractor.extractFields( "h " + justShort );
+            REQUIRE( fields.isValid() );
+            REQUIRE( fields.value( "head" ) == "h" );
+            REQUIRE( extractor.fieldSpans( "h " + justShort ).has_value() );
+        }
+
+        THEN( "a Log Line past the cap is not matched, and not undecided either" )
+        {
+            const auto fields = extractor.extractFields( "h " + tooLong );
+            REQUIRE_FALSE( fields.isValid() );
+            REQUIRE_FALSE( fields.isUndecided() );
+            REQUIRE_FALSE( extractor.extractField( "h " + tooLong, "head" ).has_value() );
+            REQUIRE_FALSE( extractor.fieldSpans( "h " + tooLong ).has_value() );
+        }
+    }
+
+    GIVEN( "a JSON Log Format" )
+    {
+        LogFormatDefinition format;
+        format.setName( "json_cap" );
+        format.setKind( LogFormatKind::Json );
+        format.setBodyField( "body" );
+        const LogFieldExtractor extractor( format );
+        const auto object = R"({"body":"x","pad":")" + tooLong + "\"}";
+
+        THEN( "a JSON object past the cap is a Row with every field empty" )
+        {
+            const auto fields = extractor.extractFields( object );
+            REQUIRE( fields.isValid() );
+            REQUIRE( fields.value( "body" ).isEmpty() );
+            REQUIRE( extractor.extractField( object, "body" ) == QString() );
+        }
+    }
+
+    GIVEN( "a logfmt Log Format" )
+    {
+        LogFormatDefinition format;
+        format.setName( "logfmt_cap" );
+        format.setKind( LogFormatKind::Logfmt );
+        format.setBodyField( "msg" );
+        const LogFieldExtractor extractor( format );
+        const auto pairs = "msg=x pad=" + tooLong;
+
+        THEN( "a logfmt Log Line past the cap is a Row with every field empty" )
+        {
+            const auto fields = extractor.extractFields( pairs );
+            REQUIRE( fields.isValid() );
+            REQUIRE( fields.value( "msg" ).isEmpty() );
+            REQUIRE( extractor.extractField( pairs, "msg" ) == QString() );
+        }
     }
 }

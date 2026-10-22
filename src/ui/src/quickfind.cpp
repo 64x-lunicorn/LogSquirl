@@ -458,6 +458,9 @@ QuickFind::SearchResult QuickFind::doSearchForward( const QuickFindLines& lines,
     bool found = false;
     LineColumn found_start_col{};
     LineColumn found_end_col{};
+    // The Log Lines the regex engine gave up on: no match, but no verdict
+    // either, so they are reported with the end of the file (#826).
+    int undecidedLines = 0;
 
     if ( !matcher.isActive() )
         return {};
@@ -497,6 +500,9 @@ QuickFind::SearchResult QuickFind::doSearchForward( const QuickFindLines& lines,
                 found = true;
                 break;
             }
+            if ( matcher.gaveUp() ) {
+                ++undecidedLines;
+            }
         }
         firstBlock = false;
         position += LinesCount( static_cast<LinesCount::UnderlyingType>( block.size() ) );
@@ -514,7 +520,7 @@ QuickFind::SearchResult QuickFind::doSearchForward( const QuickFindLines& lines,
     else {
         if ( !interruptRequested_ ) {
             // Send a notification
-            sendNotification( QFNotificationReachedEndOfFile{} );
+            sendNotification( QFNotificationReachedEndOfFile{ undecidedLines } );
 
             return { Portion{}, true };
         }
@@ -538,6 +544,7 @@ QuickFind::SearchResult QuickFind::doSearchBackward( const QuickFindLines& lines
     bool found = false;
     LineColumn start_col{};
     LineColumn end_col{};
+    int undecidedLines = 0;
 
     if ( !matcher.isActive() )
         return {};
@@ -585,6 +592,9 @@ QuickFind::SearchResult QuickFind::doSearchBackward( const QuickFindLines& lines
                 found = true;
                 break;
             }
+            if ( matcher.gaveUp() ) {
+                ++undecidedLines;
+            }
         }
         firstBlock = false;
         position = position - LinesCount( static_cast<LinesCount::UnderlyingType>( block.size() ) );
@@ -602,7 +612,7 @@ QuickFind::SearchResult QuickFind::doSearchBackward( const QuickFindLines& lines
     else {
         if ( !interruptRequested_ ) {
             // Send a notification
-            sendNotification( QFNotificationReachedBegininningOfFile() );
+            sendNotification( QFNotificationReachedBegininningOfFile( undecidedLines ) );
 
             return { Portion{}, true };
         }

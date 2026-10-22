@@ -51,9 +51,12 @@
 #include <QToolTip>
 
 #include "clipboard.h"
+#include "plaintext.h"
 
 InfoLine::InfoLine()
 {
+    // A file name reads literally (#830).
+    setTextFormat( Qt::PlainText );
     setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Fixed );
     setTextInteractionFlags( Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard );
 }
@@ -118,7 +121,8 @@ bool InfoLine::isElided() const
 bool InfoLine::event( QEvent* event )
 {
     if ( event->type() == QEvent::ToolTip && toolTip().isEmpty() && isElided() ) {
-        QToolTip::showText( static_cast<QHelpEvent*>( event )->globalPos(), text(), this );
+        QToolTip::showText( static_cast<QHelpEvent*>( event )->globalPos(),
+                            logsquirl::plaintext::toolTip( text() ), this );
         return true;
     }
     return QLabel::event( event );

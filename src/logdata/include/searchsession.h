@@ -72,7 +72,8 @@ public:
     // settings: which regex engine to compile on, whether and how far to
     // cache results, and how far Context Lines reach. It reads none
     // itself.
-    SearchSession( const SearchBlockSource& blockSource, const SearchPolicy& searchPolicy );
+    SearchSession( std::shared_ptr<const SearchBlockSource> blockSource,
+                   const SearchPolicy& searchPolicy );
     ~SearchSession() override;
 
     SearchSession( const SearchSession& ) = delete;
@@ -184,7 +185,7 @@ private:
     // fresh (non-continuation) run.
     void resetResults();
 
-    const SearchBlockSource& blockSource_;
+    const std::shared_ptr<const SearchBlockSource> blockSource_;
     SearchPolicy searchPolicy_;
     std::unique_ptr<LogFilteredDataWorker> workerThread_;
 

@@ -20,12 +20,16 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <chrono>
+
 #include "fake_file_watch.h"
+#include "formatrecognition.h"
 #include "logformatcatalog.h"
 #include "savedsearches.h"
 #include "session.h"
@@ -613,6 +617,91 @@ SCENARIO( "A Log File too short to recognize a Log Format from shows the Table V
                 REQUIRE( logFile->logFormat()
                          == catalog->formatByName( "recognition_test_log" ).get() );
                 REQUIRE( logFile->isTableViewToggled() );
+            }
+        }
+    }
+}
+
+// #826: a user Log Format whose pattern backtracks catastrophically on the
+// sample delays the open by Format Recognition's time budget at most, and
+// the Log File opens with no Log Format.
+namespace {
+
+const char* BacktrackingFormatJson = R"({
+    "backtracking_test_log": {
+        "title": "Backtracking",
+        "regex": {
+            "p1": { "pattern": "^(?<body>(a|aa)+)$" },
+            "p2": { "pattern": "^(?<body>(a|aa)+)#$" },
+            "p3": { "pattern": "^(?<body>(a|aa)+)!x$" },
+            "p4": { "pattern": "^(?<body>(a|aa)+)!y$" },
+            "p5": { "pattern": "^(?<body>(a|aa)+)!z$" },
+            "p6": { "pattern": "^(?<body>(a|aa)+)!!$" }
+        },
+        "body-field": "body",
+        "sample": [{ "line": "aaaa" }]
+    }
+})";
+
+bool writeBacktrackingLogFile( const QString& path )
+{
+    QFile file( path );
+    if ( !file.open( QIODevice::WriteOnly | QIODevice::Truncate ) ) {
+        return false;
+    }
+    // Each Log Line makes PCRE2 give up on the pattern (#689).
+    const auto line = ( QString( 5000, QLatin1Char( 'a' ) ) + "!\n" ).toUtf8();
+    for ( int i = 0; i < LineCount; ++i ) {
+        file.write( line );
+    }
+    return file.flush();
+}
+
+} // namespace
+
+SCENARIO( "A Log Format whose pattern backtracks catastrophically on the sample delays the open "
+          "by the time budget at most",
+          "[ui][formatrecognition][budget]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto userFormats = directory.filePath( "formats" );
+    REQUIRE( QDir().mkpath( userFormats ) );
+    {
+        QFile file( QDir( userFormats ).filePath( "backtracking_test.json" ) );
+        REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text ) );
+        file.write( BacktrackingFormatJson );
+    }
+    const auto path = directory.filePath( "backtracking.log" );
+    REQUIRE( writeBacktrackingLogFile( path ) );
+
+    auto catalog = std::make_shared<LogFormatCatalog>( userFormats );
+    catalog->rebuild();
+    REQUIRE( catalog->formatByName( "backtracking_test_log" ) != nullptr );
+
+    Session session{ recognitionEnabled(), catalog };
+    session.savedSearches().clear();
+
+    GIVEN( "a Log File of Log Lines the regex engine gives up on with that Log Format" )
+    {
+        WHEN( "it is opened" )
+        {
+            QElapsedTimer clock;
+            clock.start();
+            auto logFile = openLogFile( session, path );
+            REQUIRE( logFile->waitLoaded( LinesCount( LineCount ) ) );
+            const auto elapsed = std::chrono::milliseconds( clock.elapsed() );
+
+            THEN( "it opened within the time budget, plus the load and one last match" )
+            {
+                REQUIRE( logFile->recognitionCount() == 1 );
+                REQUIRE( elapsed < FormatRecognition::TimeBudget + std::chrono::seconds( 5 ) );
+            }
+
+            THEN( "the Log Format was not recognized: the engine decided no Log Line" )
+            {
+                REQUIRE( logFile->logFormat() == nullptr );
+                REQUIRE_FALSE( logFile->isTableViewToggled() );
             }
         }
     }

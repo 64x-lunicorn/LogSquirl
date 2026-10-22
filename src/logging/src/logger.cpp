@@ -30,8 +30,98 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+
+#ifndef Q_OS_WIN
+#include <unistd.h>
+#endif
 
 namespace logging {
+
+namespace {
+
+constexpr auto OwnerOnlyFile = QFileDevice::ReadOwner | QFileDevice::WriteOwner;
+constexpr auto OwnerOnlyDirectory = OwnerOnlyFile | QFileDevice::ExeOwner;
+// The bits that let anyone but the owner in.
+constexpr auto OthersBits = QFileDevice::ReadGroup | QFileDevice::WriteGroup | QFileDevice::ExeGroup
+                            | QFileDevice::ReadOther | QFileDevice::WriteOther
+                            | QFileDevice::ExeOther;
+
+// The directory `name` under `base`, made or kept the user's own: a directory,
+// not a symbolic link, owned by the user, readable by the owner alone. Empty
+// when it cannot be (#829). On Windows the base is the user's own already and
+// the permissions are left to it.
+QString ownerOnlyDirectory( const QString& base, const QString& name )
+{
+    if ( base.isEmpty() ) {
+        return {};
+    }
+    auto path = QDir( base ).filePath( name );
+    if ( !QDir( base ).mkpath( name ) ) {
+        return {};
+    }
+#ifndef Q_OS_WIN
+    const QFileInfo info( path );
+    if ( info.isSymLink() || !info.isDir() || info.ownerId() != ::getuid() ) {
+        return {};
+    }
+    if ( info.permissions().testAnyFlags( OthersBits )
+         && !QFile::setPermissions( path, OwnerOnlyDirectory ) ) {
+        return {};
+    }
+#endif
+    return path;
+}
+
+// Where the log file goes: `logs` under the data directory, or, without one,
+// `logsquirl_logs_<uid>` under the temporary directory, which is shared on
+// Linux (#829).
+QString logDirectory( const QString& dataDirectory )
+{
+    if ( !dataDirectory.isEmpty() ) {
+        return ownerOnlyDirectory( dataDirectory, QStringLiteral( "logs" ) );
+    }
+#ifdef Q_OS_WIN
+    const auto name = QStringLiteral( "logsquirl_logs" );
+#else
+    const auto name = QStringLiteral( "logsquirl_logs_%1" ).arg( ::getuid() );
+#endif
+    return ownerOnlyDirectory( QDir::tempPath(), name );
+}
+
+// The log file at `path`, open for writing, or null. Created new with
+// owner-only permissions; a symbolic link there is not followed, and a file
+// already there -- logging turned off and on within the same second -- is
+// appended to only if it is the user's own regular file (#829).
+std::unique_ptr<QFile> openLogFile( const QString& path )
+{
+    auto file = std::make_unique<QFile>( path );
+    if ( file->open( QIODevice::WriteOnly | QIODevice::NewOnly ) ) {
+        // Empty until the first write, so the moment before the permissions
+        // are set gives nothing away.
+        if ( !file->setPermissions( OwnerOnlyFile ) ) {
+            file->remove();
+            return nullptr;
+        }
+        return file;
+    }
+
+    const QFileInfo existing( path );
+    if ( existing.isSymLink() || !existing.isFile() ) {
+        return nullptr;
+    }
+#ifndef Q_OS_WIN
+    if ( existing.ownerId() != ::getuid() || existing.permissions().testAnyFlags( OthersBits ) ) {
+        return nullptr;
+    }
+#endif
+    if ( !file->open( QIODevice::WriteOnly | QIODevice::Append ) ) {
+        return nullptr;
+    }
+    return file;
+}
+
+} // namespace
 
 // log.h's inline needLogging() mirrors LogLevel with plain numbers.
 static_assert( detail::logLevelOf( QtFatalMsg ) == static_cast<uint8_t>( LogLevel::Fatal ) );
@@ -116,7 +206,7 @@ public:
         setMessageHandler();
     }
 
-    void enableFileLogging( bool isEnabled, uint8_t logLevel )
+    void enableFileLogging( bool isEnabled, uint8_t logLevel, const QString& dataDirectory )
     {
         ScopedLock lock( mutex_ );
 
@@ -131,9 +221,11 @@ public:
                       .arg( QDateTime::currentDateTime().toString( "yyyy-MM-dd_HH-mm-ss" ) )
                       .arg( QCoreApplication::applicationPid() );
 
-            logFile_ = std::make_unique<QFile>( QDir::temp().filePath( logFileName ) );
-            if ( !logFile_->open( QIODevice::WriteOnly | QIODevice::Append ) ) {
-                logFile_.reset();
+            // Under the user's data directory, never the shared temporary
+            // folder (#829). No directory, no file: the console still logs.
+            const auto directory = logDirectory( dataDirectory );
+            if ( !directory.isEmpty() ) {
+                logFile_ = openLogFile( QDir( directory ).filePath( logFileName ) );
             }
         }
         else if ( !isEnabled && logFile_ ) {
@@ -230,9 +322,10 @@ void enableLogging( bool isEnabled, LogLevel logLevel, ConsoleStream consoleStre
     Logger::instance().enableLogging( isEnabled, static_cast<uint8_t>( logLevel ), consoleStream );
 }
 
-void enableFileLogging( bool isEnabled, LogLevel logLevel )
+void enableFileLogging( bool isEnabled, LogLevel logLevel, const QString& dataDirectory )
 {
-    Logger::instance().enableFileLogging( isEnabled, static_cast<uint8_t>( logLevel ) );
+    Logger::instance().enableFileLogging( isEnabled, static_cast<uint8_t>( logLevel ),
+                                          dataDirectory );
 }
 
 void logsquirlFileMessageHandler( QtMsgType type, const QMessageLogContext& context,

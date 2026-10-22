@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      Entitlements of the main executable (Contents/MacOS/logsquirl) and so of
+      the app bundle, whose signature is the main executable's. Nothing else in
+      the bundle is signed with an entitlements file: the Qt frameworks, the
+      loose dylibs, the Qt plug-ins and the helper executables (logsquirl_grep,
+      logsquirl_crashpad_handler, logsquirl_minidump_dump) get the hardened
+      runtime alone, library validation included
+      (.github/actions/mac-sign-notarize, #835).
+
+      The hardened runtime's library validation only lets a process load
+      libraries signed by Apple or by the same Team ID as the process. The main
+      executable is the one process that loads Plugins, and a Plugin from the
+      user plugin directory (ADR 0014) is signed by its author or not at all,
+      so the main executable alone disables library validation. The helpers
+      load nothing but the bundled frameworks, which carry the same signature,
+      and the crashpad handler needs no entitlement of its own.
+    -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

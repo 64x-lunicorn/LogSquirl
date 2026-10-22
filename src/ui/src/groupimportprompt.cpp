@@ -19,6 +19,8 @@
 
 #include "groupimportprompt.h"
 
+#include "plaintext.h"
+
 #include <QCheckBox>
 #include <QCoreApplication>
 #include <QMessageBox>
@@ -38,6 +40,7 @@ ConflictResolver askUser( QWidget* parent, const QString& title )
 {
     return [ parent, title ]( const ConflictQuestion& question ) {
         QMessageBox box( QMessageBox::Question, title, QString(), QMessageBox::NoButton, parent );
+        box.setTextFormat( Qt::PlainText );
         if ( question.kind == ConflictKind::SameId ) {
             box.setText( Prompt::tr( "The group \"%1\" is already in the list (the imported one "
                                      "is called \"%2\")." )
@@ -105,7 +108,7 @@ void reportImportError( QWidget* parent, const QString& title, const QString& fi
                         const ImportResult& result )
 {
     if ( result.error != ReadError::None ) {
-        QMessageBox::warning( parent, title, importErrorMessage( file, result.error ) );
+        logsquirl::plaintext::warning( parent, title, importErrorMessage( file, result.error ) );
     }
 }
 

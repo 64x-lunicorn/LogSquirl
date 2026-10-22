@@ -311,17 +311,27 @@ constexpr int TabStop = 8;
 // Lines exceeding this after tab expansion are truncated.
 constexpr int MaxExpandedLineLength = 1'000'000;
 
+// What the last columns of a Log Line read as when its tab expansion was cut
+// at MaxExpandedLineLength: the cut shows where it happened, the way a Log
+// Line too long to read reads as a warning (loglinetext.h). The expansion
+// keeps its capped length, which the column mapping counts on (#848).
+inline constexpr QStringView ExpandedLineCutWarning = u" LOGSQUIRL WARNING: tab expansion cut here";
+
 // Replaces tab characters with the appropriate number of spaces using O(n) single-pass
 // algorithm. Also replaces null characters with spaces.
+//
+// Expanded lengths and columns are counted as qsizetype here and below: a
+// Log Line within MaxLogLineLength (loglinetext.h) expands to up to eight
+// times that, more than an int counts, before it is capped (#825).
 inline QString untabify( QString&& line, LineColumn initialPosition = 0_lcol )
 {
     const auto* src = line.constData();
-    const auto srcLen = static_cast<int>( line.size() );
+    const auto srcLen = line.size();
 
     // Fast path: no tabs and no nulls — return as-is
     bool hasTabs = false;
     bool hasNulls = false;
-    for ( int i = 0; i < srcLen; ++i ) {
+    for ( qsizetype i = 0; i < srcLen; ++i ) {
         if ( src[ i ] == QChar::Tabulation ) {
             hasTabs = true;
             break;
@@ -339,11 +349,11 @@ inline QString untabify( QString&& line, LineColumn initialPosition = 0_lcol )
     }
 
     // First pass: compute expanded length
-    int expandedLen = 0;
-    int column = initialPosition.get<int>();
-    for ( int i = 0; i < srcLen; ++i ) {
+    qsizetype expandedLen = 0;
+    qsizetype column = initialPosition.get();
+    for ( qsizetype i = 0; i < srcLen; ++i ) {
         if ( src[ i ] == QChar::Tabulation ) {
-            const int spaces = TabStop - ( column % TabStop );
+            const qsizetype spaces = TabStop - ( column % TabStop );
             expandedLen += spaces;
             column += spaces;
         }
@@ -364,12 +374,12 @@ inline QString untabify( QString&& line, LineColumn initialPosition = 0_lcol )
     QString result( expandedLen, Qt::Uninitialized );
     auto* out = result.data();
 
-    column = initialPosition.get<int>();
-    int outPos = 0;
-    for ( int i = 0; i < srcLen && outPos < expandedLen; ++i ) {
+    column = initialPosition.get();
+    qsizetype outPos = 0;
+    for ( qsizetype i = 0; i < srcLen && outPos < expandedLen; ++i ) {
         if ( src[ i ] == QChar::Tabulation ) {
-            const int spaces = TabStop - ( column % TabStop );
-            const int toWrite = std::min( spaces, expandedLen - outPos );
+            const qsizetype spaces = TabStop - ( column % TabStop );
+            const qsizetype toWrite = std::min( spaces, expandedLen - outPos );
             std::fill_n( out + outPos, toWrite, QChar( QChar::Space ) );
             column += spaces;
             outPos += toWrite;
@@ -379,6 +389,11 @@ inline QString untabify( QString&& line, LineColumn initialPosition = 0_lcol )
             ++column;
             ++outPos;
         }
+    }
+
+    if ( truncated ) {
+        std::copy_n( ExpandedLineCutWarning.data(), ExpandedLineCutWarning.size(),
+                     out + expandedLen - ExpandedLineCutWarning.size() );
     }
 
     return result;
@@ -399,21 +414,25 @@ inline QString untabify( QString&& line, LineColumn initialPosition = 0_lcol )
 inline logsquirl::vector<int> rawToDisplayColumns( QStringView line,
                                                    LineColumn initialPosition = 0_lcol )
 {
-    const auto srcLen = static_cast<int>( line.size() );
+    const auto srcLen = line.size();
 
     logsquirl::vector<int> columns;
     columns.reserve( static_cast<size_t>( srcLen ) + 1 );
 
-    int column = initialPosition.get<int>();
-    columns.push_back( std::min( column, MaxExpandedLineLength ) );
-    for ( int i = 0; i < srcLen; ++i ) {
+    // Every column pushed is capped, so an int holds it.
+    const auto capped = []( qsizetype column ) {
+        return static_cast<int>( std::min<qsizetype>( column, MaxExpandedLineLength ) );
+    };
+    qsizetype column = initialPosition.get();
+    columns.push_back( capped( column ) );
+    for ( qsizetype i = 0; i < srcLen; ++i ) {
         if ( line[ i ] == QChar::Tabulation ) {
             column += TabStop - ( column % TabStop );
         }
         else {
             ++column;
         }
-        columns.push_back( std::min( column, MaxExpandedLineLength ) );
+        columns.push_back( capped( column ) );
     }
 
     return columns;
@@ -444,13 +463,13 @@ LineLength getUntabifiedLength( const LineType& utf8Line )
 inline LineLength getUntabifiedLength( const QString& line )
 {
     const auto* src = line.constData();
-    const auto srcLen = static_cast<int>( line.size() );
-    int expandedLen = 0;
-    int column = 0;
+    const auto srcLen = line.size();
+    qsizetype expandedLen = 0;
+    qsizetype column = 0;
 
-    for ( int i = 0; i < srcLen; ++i ) {
+    for ( qsizetype i = 0; i < srcLen; ++i ) {
         if ( src[ i ] == QChar::Tabulation ) {
-            const int spaces = TabStop - ( column % TabStop );
+            const qsizetype spaces = TabStop - ( column % TabStop );
             expandedLen += spaces;
             column += spaces;
         }
@@ -460,5 +479,5 @@ inline LineLength getUntabifiedLength( const QString& line )
         }
     }
 
-    return LineLength( std::min( expandedLen, MaxExpandedLineLength ) );
+    return LineLength( std::min<qsizetype>( expandedLen, MaxExpandedLineLength ) );
 }

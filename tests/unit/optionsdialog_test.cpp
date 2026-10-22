@@ -53,6 +53,7 @@ namespace {
 // The stored settings the Options Dialog shows. Every other stored setting
 // must pass through the dialog untouched.
 const QStringList DialogSettingNames = {
+    "archives.decompressionBudgetMb",
     "archives.extract",
     "archives.extractAlways",
     "defaultView.encodingMib",

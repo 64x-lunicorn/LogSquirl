@@ -30,6 +30,7 @@
 #include <QFrame>
 #include <QLabel>
 #include <QLineEdit>
+#include <QNetworkAccessManager>
 #include <QPixmap>
 #include <QProgressBar>
 #include <QPushButton>
@@ -64,12 +65,25 @@ public:
                            QWidget* parent = nullptr );
 
     /**
+     * The same dialog, with its catalog and downloads fetched through the
+     * given manager, which must outlive it; the tests serve them (#839).
+     */
+    PluginDialog( logsquirl::plugins::ApplicationPlugins& plugins, QNetworkAccessManager& network,
+                  QWidget* parent = nullptr );
+
+    /**
      * Show in each plugin's details what the Log Format Catalog could not
      * read of the plugin's Log Format files (#793). Read again whenever a
      * plugin is enabled or disabled, so the Catalog must outlive the dialog.
      * Without it, no such warning shows.
      */
     void showLogFormatWarnings( std::shared_ptr<const LogFormatCatalog> logFormatCatalog );
+
+    /**
+     * Show the plugins of a catalog document in place of the fetched one,
+     * as the tests do; nothing is fetched for a schema v1 document (#818).
+     */
+    void showCatalog( const QByteArray& catalogJson );
 
 protected:
     /**
@@ -106,6 +120,7 @@ private:
         QString license;
         QString installedVersion;
         QString latestVersion;
+        QString installRefusal; ///< Why the latest release cannot be installed; empty when it can
         PluginState state = PluginState::NotInstalled;
         bool loaded = false;       ///< Loaded in the Plugin Host
         bool configurable = false; ///< Loaded and exports logsquirl_plugin_configure
@@ -134,6 +149,7 @@ private:
         QLabel* licenseLabel = nullptr;
         QLabel* descriptionLabel = nullptr;
         QLabel* formatWarningLabel = nullptr;
+        QLabel* installRefusalLabel = nullptr;
         QLabel* statusBadge = nullptr;
         QPushButton* actionButton = nullptr;
         QPushButton* toggleButton = nullptr;
@@ -144,6 +160,13 @@ private:
     };
 
     // ── Internal helpers ─────────────────────────────────────────────
+
+    /** Builds the dialog; the repository fetches through network, or its own when null. */
+    PluginDialog( logsquirl::plugins::ApplicationPlugins& plugins, QNetworkAccessManager* network,
+                  QWidget* parent );
+
+    /** Why the release cannot be installed, for the card; empty when it can (#818). */
+    static QString installRefusal( const logsquirl::plugins::ReleaseEntry& release );
 
     /** Rebuild merged plugin list from discovered + catalog data. */
     void rebuildMergedList();
@@ -156,6 +179,12 @@ private:
 
     /** Install or update a plugin from the repository. */
     void installPlugin( const QString& pluginId );
+
+    /**
+     * Give the card its Install or Update button back as it was before
+     * installPlugin() disabled it, after the installation failed (#839).
+     */
+    void restoreActionButton( const QString& pluginId );
 
     /** Toggle a plugin between enabled and disabled. */
     void togglePlugin( const QString& pluginId );
@@ -180,6 +209,7 @@ private:
     logsquirl::plugins::ApplicationPlugins& plugins_;
     logsquirl::plugins::PluginCatalog& catalog_;
     logsquirl::plugins::PluginHost& host_;
+    QNetworkAccessManager* network_; ///< The repository's; before it, as it must outlive it
     logsquirl::plugins::PluginRepository repository_;
     bool catalogFetched_ = false;
     std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;

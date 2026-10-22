@@ -20,10 +20,14 @@
 #include "formatrecognition.h"
 
 #include "abstractlogdata.h"
+#include "hsregularexpression.h"
 #include "jsonlogline.h"
+#include "linelengthcap.h"
 #include "linetypes.h"
+#include "log.h"
 #include "logfmtlogline.h"
 
+#include <QElapsedTimer>
 #include <QJsonObject>
 #include <QRegularExpression>
 #include <QVector>
@@ -35,6 +39,35 @@ namespace {
 
 // Minimum fraction of lines that must match a format for it to be accepted.
 constexpr double MinMatchRatio = 0.5;
+
+// The time budget of one Format Recognition (#826): asked before every regex
+// match, cheaply, and spent once TimeBudget has passed since it started.
+class Budget {
+public:
+    explicit Budget( std::chrono::milliseconds limit )
+        : limit_( limit )
+    {
+        clock_.start();
+    }
+
+    std::chrono::milliseconds limit() const
+    {
+        return limit_;
+    }
+
+    bool spent()
+    {
+        if ( !spent_ && std::chrono::milliseconds( clock_.elapsed() ) >= limit_ ) {
+            spent_ = true;
+        }
+        return spent_;
+    }
+
+private:
+    std::chrono::milliseconds limit_;
+    QElapsedTimer clock_;
+    bool spent_ = false;
+};
 
 // A compiled regex pattern and the name of each of its capture groups.
 struct CompiledPattern {
@@ -69,12 +102,15 @@ QVector<CompiledPattern> compilePatterns( const LogFormatDefinition& format )
 }
 
 // Whether the patterns of one scored regex format accept at least one of the
-// sample lines another Log Format carries (its "sample" section).
-bool acceptsSampleOf( const FormatScore& general, const FormatScore& other )
+// sample lines another Log Format carries (its "sample" section). Not once
+// the budget is spent: the example lines are the definitions' own, but a
+// pattern may backtrack through them all the same.
+bool acceptsSampleOf( const FormatScore& general, const FormatScore& other, Budget& budget )
 {
     return std::ranges::any_of( other.format->sampleLines(), [ & ]( const auto& sample ) {
         return std::ranges::any_of( general.patterns, [ & ]( const CompiledPattern& pattern ) {
-            return pattern.regex.match( sample.line ).hasMatch();
+            return !budget.spent() && sample.line.size() <= MaxUiThreadLineLength
+                   && pattern.regex.match( sample.line ).hasMatch();
         } );
     } );
 }
@@ -82,9 +118,10 @@ bool acceptsSampleOf( const FormatScore& general, const FormatScore& other )
 // A Log Format is more specific than another when the other's patterns accept
 // one of its sample lines, and its own patterns accept none of the other's:
 // spdlog's lines are Apache error log lines too, but not the other way round.
-bool moreSpecific( const FormatScore& candidate, const FormatScore& other )
+bool moreSpecific( const FormatScore& candidate, const FormatScore& other, Budget& budget )
 {
-    return acceptsSampleOf( other, candidate ) && !acceptsSampleOf( candidate, other );
+    return acceptsSampleOf( other, candidate, budget )
+           && !acceptsSampleOf( candidate, other, budget );
 }
 
 // How many distinct named fields a match captured; a group that did not take
@@ -103,9 +140,11 @@ int capturedFieldCount( const QRegularExpressionMatch& match, const QStringList&
 
 // A regex format: how many of the Log Lines match at least one of its
 // patterns, and how many fields the best matching pattern captures of each.
+// A Log Line past the cap, and one the engine gave up on, counts for no
+// pattern; the Log Lines left when the budget is spent are not matched.
 std::optional<FormatScore>
 scoreRegexFormat( const std::shared_ptr<const LogFormatDefinition>& format,
-                  const QStringList& lines )
+                  const QStringList& lines, Budget& budget )
 {
     auto compiledPatterns = compilePatterns( *format );
     if ( compiledPatterns.isEmpty() ) {
@@ -114,21 +153,43 @@ scoreRegexFormat( const std::shared_ptr<const LogFormatDefinition>& format,
 
     int matchCount = 0;
     int capturedFields = 0;
+    int undecidedLines = 0;
     for ( const auto& line : lines ) {
+        if ( line.size() > MaxUiThreadLineLength ) {
+            continue;
+        }
         std::optional<int> bestFields;
+        bool undecided = false;
         for ( const auto& pattern : compiledPatterns ) {
+            if ( budget.spent() ) {
+                break;
+            }
             const auto match = pattern.regex.match( line );
             if ( match.hasMatch() ) {
                 bestFields = std::max( bestFields.value_or( 0 ),
                                        capturedFieldCount( match, pattern.groupNames ) );
+            }
+            else if ( engineGaveUp( match ) ) {
+                undecided = true;
             }
         }
         if ( bestFields ) {
             ++matchCount;
             capturedFields += *bestFields;
         }
+        else if ( undecided ) {
+            ++undecidedLines;
+        }
+        if ( budget.spent() ) {
+            break;
+        }
     }
 
+    if ( undecidedLines > 0 ) {
+        LOG_WARNING << "Format Recognition: the regex engine gave up on " << undecidedLines
+                    << " sample Log Lines for Log Format " << format->name().toStdString()
+                    << ", which count for none of its patterns";
+    }
     if ( matchCount == 0 ) {
         return std::nullopt;
     }
@@ -205,7 +266,7 @@ scoreLogfmtFormat( const std::shared_ptr<const LogFormatDefinition>& format,
 // capture from the Log Lines, and (3) their name, so that the answer never
 // depends on the Catalog's order.
 std::shared_ptr<const LogFormatDefinition> pickBest( const QVector<FormatScore>& scores,
-                                                     qsizetype lineCount )
+                                                     qsizetype lineCount, Budget& budget )
 {
     if ( scores.isEmpty() ) {
         return nullptr;
@@ -234,7 +295,7 @@ std::shared_ptr<const LogFormatDefinition> pickBest( const QVector<FormatScore>&
     for ( const auto* candidate : rivals ) {
         const auto moreSpecificRivals
             = std::ranges::count_if( rivals, [ & ]( const FormatScore* rival ) {
-                  return rival != candidate && moreSpecific( *rival, *candidate );
+                  return rival != candidate && moreSpecific( *rival, *candidate, budget );
               } );
         ranks.append(
             { static_cast<int>( moreSpecificRivals ), candidate->capturedFields, candidate } );
@@ -253,7 +314,8 @@ std::shared_ptr<const LogFormatDefinition> pickBest( const QVector<FormatScore>&
 }
 
 std::shared_ptr<const LogFormatDefinition> bestMatch( const QStringList& lines,
-                                                      const LogFormatCatalog& catalog )
+                                                      const LogFormatCatalog& catalog,
+                                                      std::chrono::milliseconds timeBudget )
 {
     if ( lines.isEmpty() ) {
         return nullptr;
@@ -289,7 +351,16 @@ std::shared_ptr<const LogFormatDefinition> bestMatch( const QStringList& lines,
     QVector<FormatScore> logfmtScores;
     scores.reserve( allFormats.size() );
 
+    Budget budget{ timeBudget };
+    int scored = 0;
     for ( auto it = allFormats.begin(); it != allFormats.end(); ++it ) {
+        if ( budget.spent() ) {
+            LOG_WARNING << "Format Recognition ran out of its time budget of "
+                        << budget.limit().count() << " ms after " << scored << " of "
+                        << allFormats.size() << " Log Formats: the rest were skipped";
+            break;
+        }
+        ++scored;
         const auto& format = it.value();
         switch ( format->kind() ) {
         case LogFormatKind::Json:
@@ -303,7 +374,7 @@ std::shared_ptr<const LogFormatDefinition> bestMatch( const QStringList& lines,
             }
             break;
         case LogFormatKind::Regex:
-            if ( const auto score = scoreRegexFormat( format, regexLines ) ) {
+            if ( const auto score = scoreRegexFormat( format, regexLines, budget ) ) {
                 scores.append( *score );
             }
             break;
@@ -312,10 +383,10 @@ std::shared_ptr<const LogFormatDefinition> bestMatch( const QStringList& lines,
 
     // A regex (or JSON) format keeps precedence: a logfmt format is only chosen
     // when none of them would have been.
-    if ( auto best = pickBest( scores, lines.size() ) ) {
+    if ( auto best = pickBest( scores, lines.size(), budget ) ) {
         return best;
     }
-    return pickBest( logfmtScores, lines.size() );
+    return pickBest( logfmtScores, lines.size(), budget );
 }
 
 } // namespace
@@ -342,18 +413,19 @@ std::shared_ptr<const LogFormatDefinition> recognize( const AbstractLogData& log
         sampleLines << line;
     }
 
-    return bestMatch( sampleLines, catalog );
+    return bestMatch( sampleLines, catalog, TimeBudget );
 }
 
 std::shared_ptr<const LogFormatDefinition> recognize( const QStringList& firstLogLines,
                                                       const RecognitionPolicy& policy,
-                                                      const LogFormatCatalog& catalog )
+                                                      const LogFormatCatalog& catalog,
+                                                      std::chrono::milliseconds timeBudget )
 {
     if ( !policy.enabled ) {
         return nullptr;
     }
 
-    return bestMatch( firstLogLines.mid( 0, SampleDepth ), catalog );
+    return bestMatch( firstLogLines.mid( 0, SampleDepth ), catalog, timeBudget );
 }
 
 } // namespace FormatRecognition

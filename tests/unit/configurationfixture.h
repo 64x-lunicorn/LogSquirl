@@ -207,6 +207,7 @@ inline Configuration nonDefaultConfiguration()
 
     config.setExtractArchives( false );
     config.setExtractArchivesAlways( true );
+    config.setDecompressionBudgetMb( 1234 );
 
     config.setUseParallelSearch( false );
     config.setUseSearchResultsCache( false );

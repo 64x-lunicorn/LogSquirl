@@ -100,6 +100,11 @@ bool isNewer( const Release& release, const QString& runningVersion )
 std::optional<UpdateOffer> findUpdateOffer( const QByteArray& feed, const QString& runningVersion,
                                             bool betaCheckingEnabled )
 {
+    if ( feed.size() > MaxUpdateFeedBytes ) {
+        LOG_WARNING << "Update feed: discarding a reply of " << feed.size()
+                    << " bytes, larger than the " << MaxUpdateFeedBytes << " bytes read at most";
+        return std::nullopt;
+    }
     const auto root = QJsonDocument::fromJson( feed ).object();
     const auto running = baseOf( runningVersion );
     if ( running.isNull() ) {

@@ -68,6 +68,11 @@ SCENARIO( "Configuration default values", "[configuration]" )
             REQUIRE( config.enabledPlugins().isEmpty() );
         }
 
+        THEN( "The enabled plugins have not been chosen yet" )
+        {
+            REQUIRE_FALSE( config.enabledPluginsChosen() );
+        }
+
         THEN( "Native file watch is enabled by default" )
         {
             REQUIRE( config.nativeFileWatchEnabled() );
@@ -127,6 +132,11 @@ SCENARIO( "Configuration default values", "[configuration]" )
         {
             REQUIRE( config.extractArchives() );
             REQUIRE_FALSE( config.extractArchivesAlways() );
+        }
+
+        THEN( "A compressed Log File is decompressed to 16 GiB at most" )
+        {
+            REQUIRE( config.decompressionBudgetMb() == 16 * 1024 );
         }
 
         THEN( "SSL peer verification is on" )
@@ -430,6 +440,76 @@ SCENARIO( "Configuration plugin settings round-trip", "[configuration][plugins]"
                 REQUIRE( ids.contains( "com.example.a" ) );
                 REQUIRE( ids.contains( "com.example.b" ) );
             }
+
+            THEN( "The enabled plugins stay chosen" )
+            {
+                REQUIRE( restored.enabledPluginsChosen() );
+            }
+        }
+    }
+}
+
+// The first start enables every discovered plugin once; from then on the
+// user's choice stands, an empty one included. The choice is recognized by a
+// marker of its own, not by the enabled list being empty (#820).
+SCENARIO( "The enabled plugins are chosen once their list is written", "[configuration][plugins]" )
+{
+    GIVEN( "A Configuration whose last plugin was disabled" )
+    {
+        Configuration config;
+        config.setEnabledPlugins( {} );
+
+        THEN( "The enabled plugins are chosen although none is enabled" )
+        {
+            REQUIRE( config.enabledPluginsChosen() );
+            REQUIRE( config.enabledPlugins().isEmpty() );
+        }
+
+        WHEN( "It is saved and loaded again" )
+        {
+            SettingsFile file;
+            file.write( config );
+            const auto restored = file.load();
+
+            THEN( "The empty choice stands" )
+            {
+                REQUIRE( restored.enabledPluginsChosen() );
+                REQUIRE( restored.enabledPlugins().isEmpty() );
+            }
+        }
+    }
+
+    GIVEN( "A settings file from before the marker, with plugins enabled" )
+    {
+        SettingsFile file;
+        file.setValue( "plugins.enabledPlugins", QStringList{ "com.example.a" } );
+
+        WHEN( "It is loaded" )
+        {
+            const auto config = file.load();
+
+            THEN( "The enabled plugins count as chosen, so nothing changes for the user" )
+            {
+                REQUIRE( config.enabledPluginsChosen() );
+                REQUIRE( config.enabledPlugins() == QStringList{ "com.example.a" } );
+            }
+        }
+    }
+
+    GIVEN( "A settings file from before the marker, with no plugin enabled" )
+    {
+        SettingsFile file;
+        file.setValue( "plugins.autoLoad", true );
+
+        WHEN( "It is loaded" )
+        {
+            const auto config = file.load();
+
+            THEN( "The enabled plugins are not chosen yet, so the first run is still to come" )
+            {
+                REQUIRE_FALSE( config.enabledPluginsChosen() );
+                REQUIRE( config.enabledPlugins().isEmpty() );
+            }
         }
     }
 }
@@ -549,6 +629,7 @@ namespace {
 // ("dark") are only stored when there are some; the settings file test and
 // the dark palette scenario cover them.
 const QStringList StoredSettingNames = {
+    "archives.decompressionBudgetMb",
     "archives.extract",
     "archives.extractAlways",
     "chartPresets",
@@ -592,6 +673,7 @@ const QStringList StoredSettingNames = {
     "perf.useParallelSearch",
     "perf.useSearchResultsCache",
     "plugins.autoLoad",
+    "plugins.chosen",
     "plugins.enabledPlugins",
     "quickfind.ignore_case",
     "quickfind.incremental",
@@ -673,6 +755,7 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.betaVersionCheckingEnabled() == expected.betaVersionCheckingEnabled() );
     CHECK( actual.extractArchives() == expected.extractArchives() );
     CHECK( actual.extractArchivesAlways() == expected.extractArchivesAlways() );
+    CHECK( actual.decompressionBudgetMb() == expected.decompressionBudgetMb() );
 
     CHECK( actual.useParallelSearch() == expected.useParallelSearch() );
     CHECK( actual.useSearchResultsCache() == expected.useSearchResultsCache() );
@@ -715,6 +798,7 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.autoShowTableView() == expected.autoShowTableView() );
     CHECK( actual.pluginsAutoLoad() == expected.pluginsAutoLoad() );
     CHECK( actual.enabledPlugins() == expected.enabledPlugins() );
+    CHECK( actual.enabledPluginsChosen() == expected.enabledPluginsChosen() );
     CHECK( actual.askForFileAssociations() == expected.askForFileAssociations() );
     CHECK( actual.chosenFileAssociations() == expected.chosenFileAssociations() );
     CHECK( actual.dismissedFileAssociations() == expected.dismissedFileAssociations() );
@@ -959,7 +1043,8 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                         "commandSource.recentCommands/size", "view.showValueNames",
                         "fileAssociations.ask", "fileAssociations.chosen",
                         "fileAssociations.chosenTypes", "fileAssociations.dismissed",
-                        "fileAssociations.confirmed" } ) {
+                        "fileAssociations.confirmed", "archives.decompressionBudgetMb",
+                        "plugins.chosen" } ) {
                     stored.remove( added );
                 }
                 CHECK( stored.keys() == releaseValues.keys() );
@@ -990,6 +1075,8 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                 CHECK( config.defaultEncodingMib() == 106 );
                 CHECK( config.splitterSizes() == QList<int>{ 300, 200 } );
                 CHECK( config.enabledPlugins() == QStringList{ "com.example.a", "com.example.b" } );
+                // Enabled before the marker existed: the choice stands (#820).
+                CHECK( config.enabledPluginsChosen() );
                 CHECK( config.shortcuts().at( FixtureShortcutAction ) == FixtureShortcutKeys );
                 CHECK( config.chartPresets().value( "Errors" ) == "[]" );
                 CHECK( config.chartPresets().value( "Latency" )
@@ -1151,6 +1238,26 @@ SCENARIO( "Stored values outside their range are corrected on load", "[configura
         THEN( "It is loaded as the largest size allowed" )
         {
             CHECK( file.load().indexCacheMaxSizeMb() == 8'000'000 );
+        }
+    }
+
+    GIVEN( "A decompression budget of nothing" )
+    {
+        SettingsFile file;
+        file.setValue( "archives.decompressionBudgetMb", 0 );
+        THEN( "It is loaded as one MB: nothing would decompress nothing (#816)" )
+        {
+            CHECK( file.load().decompressionBudgetMb() == 1 );
+        }
+    }
+
+    GIVEN( "A decompression budget too large to count in bytes" )
+    {
+        SettingsFile file;
+        file.setValue( "archives.decompressionBudgetMb", 9'000'000 );
+        THEN( "It is loaded as the largest budget allowed" )
+        {
+            CHECK( file.load().decompressionBudgetMb() == 8'000'000 );
         }
     }
 
