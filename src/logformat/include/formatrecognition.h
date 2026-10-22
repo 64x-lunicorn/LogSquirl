@@ -85,8 +85,10 @@ std::shared_ptr<const LogFormatDefinition> recognize( const AbstractLogData& log
 
 // Recognizes a Log Format from sample Log Lines already read; only the first
 // SampleDepth of them are looked at.
-std::shared_ptr<const LogFormatDefinition> recognize( const QStringList& firstLogLines,
-                                                      const RecognitionPolicy& policy,
-                                                      const LogFormatCatalog& catalog );
+// `timeBudget` is TimeBudget but for a test that must not depend on how fast
+// the machine is.
+std::shared_ptr<const LogFormatDefinition>
+recognize( const QStringList& firstLogLines, const RecognitionPolicy& policy,
+           const LogFormatCatalog& catalog, std::chrono::milliseconds timeBudget = TimeBudget );
 
 } // namespace FormatRecognition

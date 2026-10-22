@@ -107,8 +107,12 @@ KDSingleApplicationLocalSocket::KDSingleApplicationLocalSocket(const QString &na
     m_lockFile = std::move(lockFile);
 
     std::unique_ptr<QLocalServer> server = std::make_unique<QLocalServer>();
-    // LogSquirl (#827): the socket itself is reachable by the user alone.
+#if defined(Q_OS_UNIX)
+    // LogSquirl (#827): the socket itself is reachable by the user alone. On
+    // Windows the named pipe is the session's already, and the option kept a
+    // second instance of the same user from connecting on the CI runner.
     server->setSocketOptions(QLocalServer::UserAccessOption);
+#endif
     if (!server->listen(m_socketName)) {
         // maybe the primary crashed, leaving a stale socket; delete it and try again
         QLocalServer::removeServer(m_socketName);

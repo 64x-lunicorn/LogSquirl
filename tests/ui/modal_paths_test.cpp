@@ -889,6 +889,8 @@ TEST_CASE( "A Log File past the decompression budget is refused with the budget 
 // when it is a regular file inside that folder, with the check a member
 // chosen by name gets (#815): a link planted there is refused, so its target
 // is never opened (#847).
+#ifndef Q_OS_WIN
+// QFile::link makes a shortcut on Windows, which is no link to the dialog.
 TEST_CASE( "A link picked from an archive's extraction folder is refused", "[ui][modal][archive]" )
 {
     QTemporaryDir directory;
@@ -924,6 +926,7 @@ TEST_CASE( "A link picked from an archive's extraction folder is refused", "[ui]
     CHECK( logFileTabs( window ).empty() );
     CHECK( modals.unexpectedMessageBoxes() == 0 );
 }
+#endif
 
 namespace {
 

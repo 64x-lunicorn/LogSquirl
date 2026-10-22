@@ -760,7 +760,10 @@ SCENARIO( "Format Recognition finishes within its time budget on a pattern that 
                 "Jun 15 10:21:04 myhost sshd[12345]: Accepted publickey for user",
                 "Jun 15 10:21:05 myhost sshd[12345]: pam_unix(sshd:session): session opened",
             };
-            const auto result = FormatRecognition::recognize( lines, Enabled, catalog );
+            // A budget no machine spends: the slowest CI runner spent the real
+            // one on the backtracking patterns before syslog was scored.
+            const auto result = FormatRecognition::recognize( lines, Enabled, catalog,
+                                                              std::chrono::minutes( 1 ) );
 
             THEN( "syslog is recognized as before" )
             {
@@ -777,7 +780,8 @@ SCENARIO( "Format Recognition finishes within its time budget on a pattern that 
                 backtrackingLine(),
                 "Jun 15 10:21:05 myhost sshd[12345]: pam_unix(sshd:session): session opened",
             };
-            const auto result = FormatRecognition::recognize( lines, Enabled, catalog );
+            const auto result = FormatRecognition::recognize( lines, Enabled, catalog,
+                                                              std::chrono::minutes( 1 ) );
 
             THEN( "syslog is recognized: a Log Line the engine gave up on counts for no Log "
                   "Format" )

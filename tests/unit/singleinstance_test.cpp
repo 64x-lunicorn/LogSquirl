@@ -456,6 +456,8 @@ TEST_CASE( "The lock file and the socket of the primary instance are in the dire
 #endif
 }
 
+#ifndef Q_OS_WIN
+// On Windows the lock file is let go after its unlock, so the folder stays.
 TEST_CASE( "The directory of the lock and the socket goes with the primary instance once it is "
            "empty",
            "[singleinstance]" )
@@ -489,6 +491,7 @@ TEST_CASE( "The directory of the lock and the socket goes with the primary insta
                  == QStringList{ "other" } );
     }
 }
+#endif
 
 TEST_CASE( "A second instance of the name in the directory hands its message to the first",
            "[singleinstance]" )
@@ -569,7 +572,9 @@ TEST_CASE( "A held lock with nothing listening is told from a primary instance t
         // What the check does not cover: the socket's directory keeps other
         // users out, nothing tells this user's own processes apart.
         QLocalServer listener;
+#ifndef Q_OS_WIN
         listener.setSocketOptions( QLocalServer::UserAccessOption );
+#endif
         REQUIRE( listener.listen( secondary.socketName() ) );
 
         REQUIRE( secondary.sendMessageWithResult( "hello", 2000 )

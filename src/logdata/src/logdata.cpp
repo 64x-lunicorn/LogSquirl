@@ -489,8 +489,12 @@ std::shared_ptr<FileHolder> LogDataBlockSource::attachedFile() const
 
 LogData::ReadHandles LogData::readHandles() const
 {
-    ReadHandles handles{ indexing_data_, attached_file_, codec_.encodingParameters(),
-                         codec_.makeDecoder(), DecodingPolicy{} };
+    // The decoder carries the Encoding's parameters: one lock, not two, on
+    // every read of Log Lines.
+    auto decoder = codec_.makeDecoder();
+    const auto encodingParams = decoder.encodingParams;
+    ReadHandles handles{ indexing_data_, attached_file_, encodingParams, std::move( decoder ),
+                         DecodingPolicy{} };
     // Written under the Index's lock (setDecodingPolicy), so read under it.
     IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
     handles.decodingPolicy = decodingPolicy_;

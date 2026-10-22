@@ -44,21 +44,27 @@ constexpr double MinMatchRatio = 0.5;
 // match, cheaply, and spent once TimeBudget has passed since it started.
 class Budget {
 public:
-    Budget()
+    explicit Budget( std::chrono::milliseconds limit )
+        : limit_( limit )
     {
         clock_.start();
     }
 
+    std::chrono::milliseconds limit() const
+    {
+        return limit_;
+    }
+
     bool spent()
     {
-        if ( !spent_
-             && std::chrono::milliseconds( clock_.elapsed() ) >= FormatRecognition::TimeBudget ) {
+        if ( !spent_ && std::chrono::milliseconds( clock_.elapsed() ) >= limit_ ) {
             spent_ = true;
         }
         return spent_;
     }
 
 private:
+    std::chrono::milliseconds limit_;
     QElapsedTimer clock_;
     bool spent_ = false;
 };
@@ -308,7 +314,8 @@ std::shared_ptr<const LogFormatDefinition> pickBest( const QVector<FormatScore>&
 }
 
 std::shared_ptr<const LogFormatDefinition> bestMatch( const QStringList& lines,
-                                                      const LogFormatCatalog& catalog )
+                                                      const LogFormatCatalog& catalog,
+                                                      std::chrono::milliseconds timeBudget )
 {
     if ( lines.isEmpty() ) {
         return nullptr;
@@ -344,12 +351,12 @@ std::shared_ptr<const LogFormatDefinition> bestMatch( const QStringList& lines,
     QVector<FormatScore> logfmtScores;
     scores.reserve( allFormats.size() );
 
-    Budget budget;
+    Budget budget{ timeBudget };
     int scored = 0;
     for ( auto it = allFormats.begin(); it != allFormats.end(); ++it ) {
         if ( budget.spent() ) {
             LOG_WARNING << "Format Recognition ran out of its time budget of "
-                        << FormatRecognition::TimeBudget.count() << " ms after " << scored << " of "
+                        << budget.limit().count() << " ms after " << scored << " of "
                         << allFormats.size() << " Log Formats: the rest were skipped";
             break;
         }
@@ -406,18 +413,19 @@ std::shared_ptr<const LogFormatDefinition> recognize( const AbstractLogData& log
         sampleLines << line;
     }
 
-    return bestMatch( sampleLines, catalog );
+    return bestMatch( sampleLines, catalog, TimeBudget );
 }
 
 std::shared_ptr<const LogFormatDefinition> recognize( const QStringList& firstLogLines,
                                                       const RecognitionPolicy& policy,
-                                                      const LogFormatCatalog& catalog )
+                                                      const LogFormatCatalog& catalog,
+                                                      std::chrono::milliseconds timeBudget )
 {
     if ( !policy.enabled ) {
         return nullptr;
     }
 
-    return bestMatch( firstLogLines.mid( 0, SampleDepth ), catalog );
+    return bestMatch( firstLogLines.mid( 0, SampleDepth ), catalog, timeBudget );
 }
 
 } // namespace FormatRecognition
