@@ -53,6 +53,11 @@ struct CachedIndex {
 ///
 /// The cache owns its rules; whoever indexes a Log File only asks it for an
 /// Index and hands it one afterwards:
+///  - An Index is handed out only when its entry is sound: the payload has
+///    the digest written with it, every line position is non-negative,
+///    increasing and within the Log File, and nothing it announces is
+///    larger than the entry holds (#824). An entry that is not, or whose
+///    load throws, is deleted.
 ///  - An Index is handed out only while it still fits its Log File: the
 ///    bytes it was built from are unchanged. The Log File is no shorter,
 ///    and the digests the caller asks for, re-hashed at their stored
@@ -118,10 +123,13 @@ private:
     /// Format version — increment when the on-disk layout changes.
     /// 2: a compressed block spanning 4 GiB or more keeps 64-bit offsets (#321).
     /// 3: laid out as 2, but a UTF-16 or UTF-32 Index breaks Log Lines only at
-    ///    whole line feeds (#804). A format 2 Index is still handed out when
-    ///    its Encoding's line feed is one byte, as it was right then.
-    static constexpr quint32 kVersion = 3;
-    static constexpr quint32 kVersionBeforeWholeLineFeeds = 2;
+    ///    whole line feeds (#804).
+    /// 4: a digest of the payload follows the version, and every line position
+    ///    is checked before the Index is handed out (#824). An entry of an
+    ///    earlier format is dropped: nothing in it can be trusted.
+    static constexpr quint32 kVersion = 4;
+    /// The bytes before the payload: the magic, the version and the digest.
+    static constexpr qint64 kHeaderBytes = 2 * sizeof( quint32 ) + sizeof( quint64 );
 
     QString directory_;
     QString excludedDirectory_;

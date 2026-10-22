@@ -110,10 +110,12 @@ PluginAutoLoadResult PluginHost::autoLoadPlugins( const PluginAutoLoad& configur
     PluginAutoLoadResult result;
     auto enabledIds = configuration.enabled;
 
-    // First run: if no plugins have been explicitly configured yet, enable
-    // all discovered plugins by default so they are visible immediately. The
-    // caller keeps them, so this only triggers once.
-    if ( enabledIds.isEmpty() && !catalog_.discoveredPlugins().empty() ) {
+    // First run: until the enabled plugins were chosen, enable every
+    // discovered plugin so they are visible immediately. The caller keeps the
+    // choice, even an empty one, so this happens once; a user who disabled
+    // every plugin gets none back, and a plugin dropped into the plugin folder
+    // later is listed but not loaded (#820).
+    if ( enabledIds.isEmpty() && !configuration.chosen ) {
         for ( const auto& meta : catalog_.discoveredPlugins() ) {
             enabledIds.append( meta.id() );
         }
@@ -174,7 +176,7 @@ QString PluginHost::loadPlugin( const QString& pluginId )
 
     // Create context — PluginHandle has no default ctor so we construct in-place
     auto ctx = std::unique_ptr<PluginContext>(
-        new PluginContext{ std::move( loadResult.value() ), {}, {}, {}, nullptr, this } );
+        new PluginContext{ .handle = std::move( loadResult.value() ), .host = this } );
     ctx->hostApi = buildHostApi();
     ctx->answerContext = std::make_unique<QObject>();
     ctx->loadSerial = ++loadsSoFar_;
@@ -255,13 +257,6 @@ void PluginHost::unloadNow( const QString& pluginId )
     it->second->unloadPending = true;
     cancelConversionsOf( *it->second );
 
-    // Stop any active data source stream
-    if ( it->second->stream ) {
-        it->second->stream->signalEos();
-        it->second->stream.reset();
-        Q_EMIT dataSourceStopped( pluginId );
-    }
-
     // From now on, no answer of the user interface reaches the plugin: a
     // Regex Lab it opened may still answer while it is closed.
     it->second->answerContext.reset();
@@ -271,6 +266,11 @@ void PluginHost::unloadNow( const QString& pluginId )
     // widgets through the host callbacks. Whatever it left behind is taken
     // away before its context and library go.
     it->second->handle.shutdown();
+
+    // Its stream goes only now: a thread of the plugin's may push until
+    // shutdown has returned, and finds a live stream meanwhile (#821).
+    endStream( *it->second, pluginId );
+
     if ( uiPort_ ) {
         uiPort_->removeContributions( pluginId );
     }
@@ -447,8 +447,12 @@ QString PluginHost::startDataSource( const QString& pluginId )
     }
 
     // Create the file-backed stream writer
-    ctx.stream = std::make_unique<StreamWriter>( ctx.handle.metadata().name() );
-    const auto path = ctx.stream->filePath();
+    auto stream = std::make_unique<StreamWriter>( ctx.handle.metadata().name() );
+    const auto path = stream->filePath();
+    {
+        const std::lock_guard lock( ctx.streamMutex );
+        ctx.stream = std::move( stream );
+    }
 
     LOG_INFO << "Started DataSource '" << pluginId << "' writing to " << path;
     Q_EMIT dataSourceStarted( pluginId, ctx.handle.metadata().name(), path );
@@ -463,18 +467,31 @@ void PluginHost::stopDataSource( const QString& pluginId )
     }
 
     LOG_INFO << "Stopping DataSource: " << pluginId;
-    it->second->stream->signalEos();
-    it->second->stream.reset();
+    endStream( *it->second, pluginId );
+}
+
+void PluginHost::endStream( PluginContext& context, const QString& pluginId )
+{
+    {
+        const std::lock_guard lock( context.streamMutex );
+        if ( !context.stream ) {
+            return;
+        }
+        context.stream->signalEos();
+        context.stream.reset();
+    }
+    // Said outside the lock: a slot may ask the host about the stream.
     Q_EMIT dataSourceStopped( pluginId );
 }
 
 StreamWriter* PluginHost::streamWriter( const QString& pluginId )
 {
     auto it = loaded_.find( pluginId );
-    if ( it != loaded_.end() && it->second->stream ) {
-        return it->second->stream.get();
+    if ( it == loaded_.end() ) {
+        return nullptr;
     }
-    return nullptr;
+    const std::lock_guard lock( it->second->streamMutex );
+    return it->second->stream.get();
 }
 
 // ── Converter registry (Phase 4) ───────────────────────────────────────────────
@@ -798,10 +815,16 @@ auto PluginHost::contextFromHandle( void* handle ) -> PluginContext*
     return static_cast<PluginContext*>( handle );
 }
 
+// The pushes run under the context's stream mutex: the host ends the stream
+// under it too, so none finds a stream that is going (#821).
 void PluginHost::hostPushLine( void* handle, const char* data, size_t len )
 {
     auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->stream ) {
+    if ( !ctx ) {
+        return;
+    }
+    const std::lock_guard lock( ctx->streamMutex );
+    if ( !ctx->stream ) {
         return;
     }
     ctx->stream->pushLine( data, len );
@@ -811,7 +834,11 @@ void PluginHost::hostPushLines( void* handle, const char* const* data, const siz
                                 size_t count )
 {
     auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->stream ) {
+    if ( !ctx ) {
+        return;
+    }
+    const std::lock_guard lock( ctx->streamMutex );
+    if ( !ctx->stream ) {
         return;
     }
     ctx->stream->pushLines( data, lens, count );
@@ -820,15 +847,37 @@ void PluginHost::hostPushLines( void* handle, const char* const* data, const siz
 void PluginHost::hostSignalEos( void* handle )
 {
     auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->stream ) {
+    if ( !ctx ) {
         return;
     }
-    ctx->stream->signalEos();
-    LOG_INFO << "DataSource EOS from plugin";
-    if ( ctx->host ) {
-        const auto pluginId = ctx->handle.metadata().id();
-        Q_EMIT ctx->host->dataSourceStopped( pluginId );
+    {
+        const std::lock_guard lock( ctx->streamMutex );
+        if ( !ctx->stream ) {
+            return;
+        }
+        ctx->stream->signalEos();
     }
+    LOG_INFO << "DataSource EOS from plugin";
+    if ( !ctx->host ) {
+        return;
+    }
+    // Said on the host's thread, as every other time a data source stops: a
+    // plugin may signal from a thread of its own, and a directly connected
+    // slot would run there. The plugin may be unloaded before the queued
+    // call runs, and loaded again: the unload said the stream stopped (#843).
+    auto* host = ctx->host;
+    QMetaObject::invokeMethod(
+        host,
+        [ host, loadSerial = ctx->loadSerial, pluginId = ctx->handle.metadata().id() ] {
+            const auto* loaded = host->loadedContext( pluginId );
+            if ( !loaded || loaded->loadSerial != loadSerial ) {
+                LOG_INFO << "Plugin " << pluginId
+                         << " was unloaded; dropping its queued end of stream";
+                return;
+            }
+            Q_EMIT host->dataSourceStopped( pluginId );
+        },
+        Qt::QueuedConnection );
 }
 
 void PluginHost::hostSignalError( void* handle, const char* message )

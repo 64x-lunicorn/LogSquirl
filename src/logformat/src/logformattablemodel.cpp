@@ -129,6 +129,14 @@ bool LogFormatTableModel::rowMatchesFormat( int row ) const
     return cachedRow( row ).matchesFormat;
 }
 
+bool LogFormatTableModel::rowIsUndecided( int row ) const
+{
+    if ( row < 0 || row >= lineCount_ ) {
+        return false;
+    }
+    return cachedRow( row ).undecided;
+}
+
 int LogFormatTableModel::rowCount( const QModelIndex& parent ) const
 {
     if ( parent.isValid() ) {
@@ -162,6 +170,15 @@ QVariant LogFormatTableModel::data( const QModelIndex& index, int role ) const
     // Return the raw unparsed log line for highlighter matching in the delegate.
     if ( role == RawLineRole ) {
         return cached.rawLine;
+    }
+
+    if ( role == Qt::ToolTipRole ) {
+        // A Row the engine gave up on looks like one the Log Format does
+        // not match: said, so that it is not taken for one (#826).
+        if ( cached.undecided ) {
+            return tr( "The regex engine gave up on this Log Line: it may match the Log Format" );
+        }
+        return {};
     }
 
     if ( role != Qt::DisplayRole ) {
@@ -312,7 +329,8 @@ const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) 
         rowCacheList_.pop_back();
     }
 
-    CachedRow entry{ std::move( line ), std::move( computed.cells ), computed.matchesFormat };
+    CachedRow entry{ std::move( line ), std::move( computed.cells ), computed.matchesFormat,
+                     computed.undecided };
     rowCacheList_.emplace_front( logLine.get(), std::move( entry ) );
     rowCacheMap_[ logLine.get() ] = rowCacheList_.begin();
     return rowCacheList_.front().second;

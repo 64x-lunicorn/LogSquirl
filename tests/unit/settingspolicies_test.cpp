@@ -52,7 +52,8 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
         const FileAccessPolicy fileAccess{ .keepFileClosed = true,
                                            .defaultEncodingMib = 106,
                                            .extractArchives = false,
-                                           .extractArchivesAlways = true };
+                                           .extractArchivesAlways = true,
+                                           .decompressionBudgetBytes = 42 };
         const DecodingPolicy decoding{ .hideAnsiColorSequences = true };
         const PresentationPolicy presentation{ .useTextWrap = true,
                                                .fastScrollEnabled = false,
@@ -118,6 +119,7 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE( fileAccess.defaultEncodingMib == 106 );
             REQUIRE_FALSE( fileAccess.extractArchives );
             REQUIRE( fileAccess.extractArchivesAlways );
+            REQUIRE( fileAccess.decompressionBudgetBytes == 42 );
         }
 
         THEN( "they are copyable" )
@@ -182,6 +184,7 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
 
             REQUIRE( fileAccess.defaultEncodingMib == 0 );
             REQUIRE_FALSE( fileAccess.extractArchives );
+            REQUIRE( fileAccess.decompressionBudgetBytes == 0 );
 
             REQUIRE_FALSE( recognition.enabled );
         }
@@ -275,6 +278,7 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
         config.setDefaultEncodingMib( 106 );
         config.setExtractArchives( false );
         config.setExtractArchivesAlways( true );
+        config.setDecompressionBudgetMb( 3 );
 
         // Shipped disabled, so enabling it is the distinctive value.
         config.setAutoDetectLogFormats( true );
@@ -354,6 +358,9 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.fileAccess.defaultEncodingMib == 106 );
                 REQUIRE_FALSE( policies.fileAccess.extractArchives );
                 REQUIRE( policies.fileAccess.extractArchivesAlways );
+                // In bytes, as the engine counts them (#816).
+                REQUIRE( policies.fileAccess.decompressionBudgetBytes
+                         == qint64{ 3 } * 1024 * 1024 );
             }
 
             THEN( "the Recognition Policy carries whether Format Recognition is enabled" )

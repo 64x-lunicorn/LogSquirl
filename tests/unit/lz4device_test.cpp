@@ -25,6 +25,7 @@
 #include <QTimer>
 
 #include <chrono>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -117,7 +118,8 @@ DecompressOutcome decompressWithin( const QString& logFilePath, std::chrono::mil
     struct Run {
         AtomicFlag interrupt;
         QTemporaryFile output;
-        Decompressor decompressor;
+        // No budget to speak of: these tests are about the codec (#816).
+        Decompressor decompressor{ std::numeric_limits<qint64>::max() };
     };
     auto run = std::make_unique<Run>();
 

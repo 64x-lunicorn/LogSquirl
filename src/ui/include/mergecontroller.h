@@ -29,7 +29,10 @@
 
 // Manages the creation and live-updating of a merged log file.
 // Concatenates multiple source files into a single temporary file
-// that can be opened as a regular LogData tab. The sources are watched:
+// that can be opened as a regular LogData tab. That file is written into the
+// folder handed in when the controller is built -- the window's temporary
+// folder, which is the user's own -- never the shared temporary folder, and
+// is removed with the controller (#829). The sources are watched:
 // when one changes, the whole merged file is rewritten from what the sources
 // contain at that moment (so lines appended to a source appear, and lines
 // of a truncated or rewritten source disappear), and mergedFileUpdated()
@@ -44,7 +47,8 @@ class MergeController : public QObject {
     Q_OBJECT
 
 public:
-    explicit MergeController( QObject* parent = nullptr );
+    // `directory` is where the merged file is written.
+    explicit MergeController( const QString& directory, QObject* parent = nullptr );
     ~MergeController() override;
 
     // Sets the source file paths and the output temp file path.
@@ -90,6 +94,7 @@ private:
     // Actually performs the merge (writes the temp file).
     void doMerge();
 
+    QString directory_;
     QStringList sourcePaths_;
     QString mergedFilePath_;
     bool dedup_ = false;

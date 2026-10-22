@@ -62,7 +62,9 @@ inline SettingsPolicies testSettingsPolicies()
         .fileAccess = { .keepFileClosed = false,
                         .defaultEncodingMib = -1,
                         .extractArchives = true,
-                        .extractArchivesAlways = false },
+                        .extractArchivesAlways = false,
+                        // Generous: a test about the budget sets its own (#816).
+                        .decompressionBudgetBytes = qint64{ 1 } << 30 },
 
         .recognition = { .enabled = false },
 

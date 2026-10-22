@@ -22,8 +22,10 @@ An instance started here gets:
   ``QStandardPaths::setTestModeEnabled`` is no help there: Qt 6.11 ignores
   test mode on macOS, its locations come back unchanged.
 - its own single-instance lock: the lock file and the local socket live in
-  ``QDir::tempPath()``, so ``TMPDIR`` points into the temporary directory.
-  A running LogSquirl of the user is neither found nor disturbed.
+  a directory of the user's own under the runtime directory on Linux and
+  under ``QDir::tempPath()`` on macOS (#827), so ``XDG_RUNTIME_DIR`` and
+  ``TMPDIR`` point into the temporary directory. A running LogSquirl of the
+  user is neither found nor disturbed.
 
 Windows (#348) gets the same three guarantees through different levers:
 
@@ -128,7 +130,10 @@ class IsolatedLogSquirl:
         if not supported():
             raise RuntimeError("isolated LogSquirl instances need macOS, Linux or Windows")
 
-        # Short path: the local socket's path must stay below 104 characters.
+        # Short path: the local socket's path must stay within 104 bytes for
+        # the socket to live under this TMPDIR. A deeper one would send it to
+        # /tmp/logsquirl-<uid> (#841), outside the isolation, where only the
+        # instance id in its name keeps it apart from the user's own.
         self.root = Path(tempfile.mkdtemp(prefix="lsq"))
         tmp = self.root / "t"
         tmp.mkdir()
@@ -199,6 +204,11 @@ class IsolatedLogSquirl:
             self.env["XDG_CONFIG_HOME"] = str(config)
             self.env["XDG_CACHE_HOME"] = str(self.home / ".cache")
             self.env["XDG_DATA_HOME"] = str(self.home / ".local" / "share")
+            # The single-instance lock and socket go under the runtime
+            # directory (#827); Qt wants it owned by the user, mode 0700.
+            runtime = self.root / "run"
+            runtime.mkdir(mode=0o700)
+            self.env["XDG_RUNTIME_DIR"] = str(runtime)
             self.binary = binary
             self.app_data_dir = self.home / ".local" / "share" / "logsquirl"
 

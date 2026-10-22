@@ -56,6 +56,7 @@
 #include "highlighterset.h"
 #include "iconloader.h"
 #include "log.h"
+#include "plaintext.h"
 #include "theme.h"
 
 static constexpr QLatin1String DEFAULT_NAME = QLatin1String( "New Highlighter set", 19 );
@@ -240,8 +241,8 @@ void HighlightersDialog::exportHighlighters()
     file = withConfSuffix( file );
 
     if ( !writeGroup( file, group ) ) {
-        QMessageBox::warning( this, tr( "Export highlighters configuration" ),
-                              tr( "The file %1 could not be written." ).arg( file ) );
+        logsquirl::plaintext::warning( this, tr( "Export highlighters configuration" ),
+                                       tr( "The file %1 could not be written." ).arg( file ) );
         return;
     }
     rememberExportFolder( file );

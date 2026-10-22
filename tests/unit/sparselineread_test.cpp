@@ -17,7 +17,11 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "loglinetext.h"
 #include "sparselineread.h"
+
+#include <QBuffer>
+#include <QByteArray>
 
 #include <cstddef>
 #include <cstdint>
@@ -212,6 +216,92 @@ SCENARIO( "A sparse read takes Log Lines as they are asked for", "[sparselinerea
         {
             REQUIRE( plan( index, { 3_lnum, 4_lnum, 7_lnum }, closeLimits() )
                      == std::vector<Read>{ { 30, 20, { { 0, 0, 10 }, { 1, 10, 20 } } } } );
+        }
+    }
+}
+
+namespace {
+
+// An Index of Log Lines of the given lengths, line feed included.
+EndOfLineOffsets offsetsOfLengths( const std::vector<qint64>& lengths )
+{
+    return [ lengths ]( LineNumber first, LinesCount count ) {
+        logsquirl::vector<OffsetInFile> offsets;
+        qint64 end = 0;
+        for ( std::uint64_t line = 0; line < lengths.size(); ++line ) {
+            end += lengths[ static_cast<std::size_t>( line ) ];
+            if ( line >= first.get() && line < first.get() + count.get() ) {
+                offsets.push_back( OffsetInFile( end ) );
+            }
+        }
+        return offsets;
+    };
+}
+
+} // namespace
+
+SCENARIO( "A sparse read reads no byte of a Log Line too long to read (#825)", "[sparselineread]" )
+{
+    GIVEN( "a Log Line of MaxLogLineLength bytes between two short ones" )
+    {
+        const std::vector<qint64> lengths{ 10, MaxLogLineLength + 1, 10 };
+        const std::vector<LineNumber> lines{ 0_lnum, 1_lnum, 2_lnum };
+
+        THEN( "it is in a read of its own that has no bytes, and still says where it lies" )
+        {
+            const auto reads = planSparseRead( lines, 3_lcount, offsetsOfLengths( lengths ) );
+            REQUIRE( reads.size() == 3 );
+            REQUIRE( reads[ 0 ].size == 10 );
+            REQUIRE( reads[ 1 ].firstByte.get() == 10 );
+            REQUIRE( reads[ 1 ].size == 0 );
+            REQUIRE( reads[ 1 ].lines.size() == 1 );
+            REQUIRE( reads[ 1 ].lines[ 0 ].begin == 0 );
+            REQUIRE( reads[ 1 ].lines[ 0 ].end == MaxLogLineLength + 1 );
+            REQUIRE( reads[ 2 ].firstByte.get() == 10 + MaxLogLineLength + 1 );
+            REQUIRE( reads[ 2 ].size == 10 );
+        }
+
+        THEN( "with a two-byte line feed it is one byte short of too long, and is read" )
+        {
+            SparseReadLimits limits;
+            limits.lineFeedWidth = 2;
+            const auto reads
+                = planSparseRead( lines, 3_lcount, offsetsOfLengths( lengths ), limits );
+            REQUIRE( reads.size() == 1 );
+            REQUIRE( reads[ 0 ].size == 10 + MaxLogLineLength + 1 + 10 );
+        }
+    }
+}
+
+// A read of a Log File seeks first; a seek that fails must not read from
+// wherever the file stands, which would be another Log Line's bytes (#845).
+SCENARIO( "A read at an offset says when the device cannot seek there", "[sparselineread]" )
+{
+    GIVEN( "a device of ten bytes, standing at its start" )
+    {
+        QByteArray bytes( "0123456789" );
+        QBuffer device( &bytes );
+        REQUIRE( device.open( QIODevice::ReadOnly ) );
+
+        THEN( "a read inside it reads the bytes at the offset" )
+        {
+            char out[ 4 ] = { 'x', 'x', 'x', 'x' };
+            REQUIRE( readBytesAt( device, 3, out, 4 ) == 4 );
+            REQUIRE( std::string_view( out, 4 ) == "3456" );
+        }
+
+        THEN( "a read where the device cannot seek reads nothing and says so" )
+        {
+            char out[ 4 ] = { 'x', 'x', 'x', 'x' };
+            REQUIRE( readBytesAt( device, 20, out, 4 ) == -1 );
+            REQUIRE( std::string_view( out, 4 ) == "xxxx" );
+        }
+
+        THEN( "a read cut short by the end says how many bytes it read" )
+        {
+            char out[ 4 ] = { 'x', 'x', 'x', 'x' };
+            REQUIRE( readBytesAt( device, 8, out, 4 ) == 2 );
+            REQUIRE( std::string_view( out, 2 ) == "89" );
         }
     }
 }

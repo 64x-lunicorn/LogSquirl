@@ -23,6 +23,7 @@
 // and the next begins (a thousand Log Lines each).
 
 #include "fake_log_data.h"
+#include "linelengthcap.h"
 #include "logdata.h"
 #include "qfnotifications.h"
 #include "quickfind.h"
@@ -31,7 +32,10 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
+#include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QStringList>
+#include <QTranslator>
 
 #include <atomic>
 #include <chrono>
@@ -411,5 +415,184 @@ SCENARIO( "A QuickFind notification queued before its QuickFind is destroyed rea
                 SUCCEED( "the queued notification did not reach the destroyed QuickFind" );
             }
         }
+    }
+}
+
+// #826: Quick Find runs on the UI thread while the views paint. A Log Line
+// past the UI thread's line length cap is not searched, a single-character
+// pattern on a megabyte Log Line finishes in bounded time, and a Log Line the
+// regex engine gave up on is told apart from one without a match.
+namespace {
+
+QuickFindMatcher matcherFor( const QString& pattern )
+{
+    QRegularExpression regexp( pattern );
+    REQUIRE( regexp.isValid() );
+    return QuickFindMatcher( true, regexp );
+}
+
+} // namespace
+
+SCENARIO( "Quick Find with a single-character pattern on a megabyte Log Line finishes in bounded "
+          "time",
+          "[quickfind][linecap]" )
+{
+    GIVEN( "a Log Line as long as the cap, and the pattern matching every character" )
+    {
+        const auto line = QString( MaxUiThreadLineLength, QLatin1Char( 'x' ) );
+        const auto matcher = matcherFor( "." );
+
+        WHEN( "the Log Line is searched for every match, as a paint does" )
+        {
+            QElapsedTimer clock;
+            clock.start();
+            logsquirl::vector<HighlightedMatch> matches;
+            const auto found = matcher.matchLine( line, matches, Qt::yellow );
+            HighlightedMatchRanges ranges;
+            ranges.addMatches( matches );
+            const auto elapsed = clock.elapsed();
+
+            THEN( "every character is a match, found and ranged in bounded time" )
+            {
+                REQUIRE( found );
+                REQUIRE( matches.size() == static_cast<std::size_t>( line.size() ) );
+                REQUIRE( ranges.matches().size() == matches.size() );
+                // A fifth of a second here; the quadratic ranging this replaced
+                // took hours for a million matches, so the bound only has to
+                // stand the sanitizers' slowdown (#826).
+                REQUIRE( elapsed < 30000 );
+            }
+        }
+    }
+
+    GIVEN( "a Log Line past the cap" )
+    {
+        const auto line = QString( MaxUiThreadLineLength + 1, QLatin1Char( 'x' ) );
+        const auto matcher = matcherFor( "x" );
+
+        THEN( "it is not searched, forward, backward nor for every match" )
+        {
+            logsquirl::vector<HighlightedMatch> matches;
+            REQUIRE_FALSE( matcher.matchLine( line, matches, Qt::yellow ) );
+            REQUIRE( matches.empty() );
+            REQUIRE_FALSE( matcher.isLineMatching( line ) );
+            REQUIRE_FALSE( matcher.isLineMatchingBackward( line ) );
+            REQUIRE_FALSE( matcher.gaveUp() );
+        }
+    }
+}
+
+SCENARIO( "Quick Find tells a Log Line the regex engine gave up on", "[quickfind][undecided]" )
+{
+    GIVEN( "a pattern that backtracks catastrophically, and a Log Line it gives up on" )
+    {
+        const auto matcher = matcherFor( "(a|aa)+$" );
+        const auto backtracking = QString( 5000, QLatin1Char( 'a' ) ) + QLatin1Char( '!' );
+
+        THEN( "that Log Line has no match, and the engine gave up on it" )
+        {
+            REQUIRE_FALSE( matcher.isLineMatching( backtracking ) );
+            REQUIRE( matcher.gaveUp() );
+            REQUIRE_FALSE( matcher.isLineMatchingBackward( backtracking ) );
+            REQUIRE( matcher.gaveUp() );
+            logsquirl::vector<HighlightedMatch> matches;
+            REQUIRE_FALSE( matcher.matchLine( backtracking, matches, Qt::yellow ) );
+            REQUIRE( matcher.gaveUp() );
+        }
+
+        THEN( "a Log Line it decides is a match or none, and the engine did not give up" )
+        {
+            REQUIRE( matcher.isLineMatching( "aaaa" ) );
+            REQUIRE_FALSE( matcher.gaveUp() );
+            REQUIRE_FALSE( matcher.isLineMatching( "bbbb" ) );
+            REQUIRE_FALSE( matcher.gaveUp() );
+        }
+    }
+
+    GIVEN( "a QuickFind over Log Lines the engine gives up on" )
+    {
+        const auto backtracking = QString( 5000, QLatin1Char( 'a' ) ) + QLatin1Char( '!' );
+        // A QuickFind starts after the selected Log Line, or before it.
+        FakeLogData logData( { "no a here", backtracking, backtracking } );
+        QuickFindRun run( [ &logData ] { return QuickFindLines::everyLogLine( logData ); } );
+
+        WHEN( "it searches forward from the first Log Line and finds nothing" )
+        {
+            const auto result = run.forwardFrom( 0_lnum, "(a|aa)+$" );
+
+            THEN( "it reports the end of the file, and the Log Lines the engine gave up on, which "
+                  "may match" )
+            {
+                REQUIRE_FALSE( result.hasMatch );
+                REQUIRE( !run.notifications().isEmpty() );
+                REQUIRE( run.notifications().last().contains(
+                    "the regex engine gave up on 2 Log Lines: they may match" ) );
+            }
+        }
+
+        WHEN( "it searches backward from the last Log Line and finds nothing" )
+        {
+            const auto result = run.backwardFrom( 2_lnum, "(a|aa)+$" );
+
+            THEN( "it reports the beginning of the file, and the Log Line the engine gave up on" )
+            {
+                REQUIRE_FALSE( result.hasMatch );
+                REQUIRE( !run.notifications().isEmpty() );
+                REQUIRE( run.notifications().last().contains(
+                    "the regex engine gave up on 1 Log Line: it may match" ) );
+            }
+        }
+    }
+}
+
+namespace {
+
+// A translator that marks every string asked for in the notices' context, so
+// a notice shows whether it goes through tr() (#846).
+class MarkingTranslator : public QTranslator {
+public:
+    QString translate( const char* context, const char* sourceText, const char* disambiguation,
+                       int n ) const override
+    {
+        Q_UNUSED( disambiguation );
+        Q_UNUSED( n );
+        if ( qstrcmp( context, "QFNotification" ) != 0 ) {
+            return {};
+        }
+        return QStringLiteral( "[translated]" ) + QString::fromUtf8( sourceText );
+    }
+
+    bool isEmpty() const override
+    {
+        return false;
+    }
+};
+
+} // namespace
+
+SCENARIO( "Quick Find's notices are translated", "[quickfind][i18n]" )
+{
+    GIVEN( "a translation of the notices" )
+    {
+        MarkingTranslator translator;
+        REQUIRE( QCoreApplication::installTranslator( &translator ) );
+
+        THEN( "every notice reads in that translation, what it says of the Log Lines the regex "
+              "engine gave up on included" )
+        {
+            CHECK( QFNotificationReachedEndOfFile().message()
+                   == "[translated]Reached end of file, no occurrence found." );
+            CHECK( QFNotificationReachedBegininningOfFile().message()
+                   == "[translated]Reached beginning of file, no occurrence found." );
+            CHECK( QFNotificationInterrupted().message() == "[translated]Search interrupted" );
+            CHECK( QFNotificationReachedEndOfFile( 2 ).message()
+                   == "[translated]Reached end of file, no occurrence found."
+                      "[translated] (the regex engine gave up on 2 Log Lines: they may match)" );
+            CHECK( QFNotificationReachedBegininningOfFile( 1 ).message()
+                   == "[translated]Reached beginning of file, no occurrence found."
+                      "[translated] (the regex engine gave up on 1 Log Line: it may match)" );
+        }
+
+        QCoreApplication::removeTranslator( &translator );
     }
 }

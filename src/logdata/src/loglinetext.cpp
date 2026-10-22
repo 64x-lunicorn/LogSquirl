@@ -48,6 +48,11 @@ void logNotEnoughMemory()
     LOG_ERROR << "not enough memory";
 }
 
+void logReadFailed( const char* what )
+{
+    LOG_ERROR << "Reading Log Lines failed: " << what;
+}
+
 QString logLineText( QString&& decodedLine, bool hideAnsiColorSequences )
 {
     if ( hideAnsiColorSequences ) {
@@ -99,7 +104,9 @@ ReadLogLine readLogLine( std::size_t request, std::string_view bytesRead, qint64
     if ( length >= MaxLogLineLength ) {
         line.warning = LineTooLongWarning;
     }
-    else if ( begin + length > static_cast<qint64>( bytesRead.size() ) ) {
+    else if ( begin < 0 || begin + length > static_cast<qint64>( bytesRead.size() ) ) {
+        // A negative begin comes from a tampered Index; substr would throw
+        // on it (#824).
         line.warning = FileReadFailedWarning;
     }
     else if ( length > 0 ) {
@@ -207,7 +214,17 @@ logsquirl::vector<Line> decodeRawLines( const RawLines& rawLines, ToLine toLine 
         // short in the decoder: resetting it for every Log Line would cost a
         // block read up to a sixth of its time.
         bool mayCarryOver = true;
+        auto tooLong = rawLines.tooLongLines.begin();
         for ( const auto& lineEnd : endOfLines ) {
+            // A Log Line too long to read: only its line feed is in the
+            // block, and the decoder was not touched for it (#825).
+            if ( tooLong != rawLines.tooLongLines.end() && *tooLong == decodedLines.size() ) {
+                ++tooLong;
+                decodedLines.push_back( Line{ warningText( LineTooLongWarning ) } );
+                lineStart = lineEnd;
+                continue;
+            }
+
             const auto line = readLogLine( decodedLines.size(), buffer, lineStart,
                                            lineEnd - lineStart - lineFeedWidth,
                                            rawLines.hideAnsiColorSequences );
@@ -639,7 +656,11 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
             }
         }
         else {
-            auto utf16Data = textDecoder.decode( buffer.data(), logsquirl::isize( buffer ) );
+            auto utf16Data
+                = decodeInPieces( logsquirl::ssize( buffer ), MaxLogLineLength,
+                                  [ this ]( qint64 offset, qsizetype size ) {
+                                      return textDecoder.decode( buffer.data() + offset, size );
+                                  } );
             if ( hideAnsiColorSequences ) {
                 removeAnsiColorSequences( utf16Data );
             }
@@ -656,6 +677,14 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
 
             if ( !wholeString.empty() ) {
                 lines.push_back( trimToLogLineText( wholeString ) );
+            }
+        }
+
+        // A Log Line too long to read is in the view as its line feed alone,
+        // whichever way the view was made: it reads as the warning (#825).
+        for ( const auto index : tooLongLines ) {
+            if ( index < lines.size() ) {
+                lines[ index ] = LineTooLongWarning;
             }
         }
 

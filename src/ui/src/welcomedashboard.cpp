@@ -22,6 +22,7 @@
 #include "displayfilepath.h"
 #include "favoritefiles.h"
 #include "logsquirl_version.h"
+#include "plaintext.h"
 #include "plugincatalog.h"
 #include "pluginhost.h"
 #include "recentfiles.h"
@@ -100,7 +101,7 @@ QPushButton* createFileLink( const QString& displayText, const QString& fullPath
     auto* btn = new QPushButton( displayText, dashboard );
     btn->setStyleSheet( kLinkButtonStyle );
     btn->setCursor( Qt::PointingHandCursor );
-    btn->setToolTip( fullPath );
+    btn->setToolTip( logsquirl::plaintext::toolTip( fullPath ) );
     btn->setFlat( true );
     QObject::connect( btn, &QPushButton::clicked, dashboard, [ dashboard, fullPath ] {
         Q_EMIT dashboard->openFileRequested( fullPath );

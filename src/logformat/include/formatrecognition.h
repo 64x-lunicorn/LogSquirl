@@ -25,6 +25,7 @@
 
 #include <QStringList>
 
+#include <chrono>
 #include <memory>
 
 class AbstractLogData;
@@ -57,10 +58,25 @@ class AbstractLogData;
 // reads completely as key/value pairs and contains the format's timestamp
 // field as a key (a JSON object never does). A regex or JSON format keeps
 // precedence: a logfmt format is chosen only when none of them would have been.
+//
+// It runs on the UI thread when a Log File has loaded, against every pattern
+// of every Log Format, which anyone may have written (#826): a sample line
+// longer than MaxUiThreadLineLength counts for no Log Format, a sample line
+// the regex engine gives up on counts for none either, and the matching
+// stops at TimeBudget, the Log Formats not scored by then skipped.
 namespace FormatRecognition {
 
 // How many Log Lines, from the first one, Format Recognition looks at.
 inline constexpr int SampleDepth = 50;
+
+// How long the sample Log Lines are matched against the Catalog, all Log
+// Formats together: past it the Log Formats not yet scored are skipped, and
+// the answer is taken from those that were, with a warning in the log. A
+// pattern that backtracks catastrophically, shared through the user's
+// formats folder or a plugin, delays an open by this much plus one match at
+// most, not by seconds per sample line. A few hundred milliseconds: the
+// built-in Log Formats score a full sample in a few milliseconds.
+inline constexpr std::chrono::milliseconds TimeBudget{ 500 };
 
 // Recognizes the Log Format of a Log File from its first SampleDepth Log Lines.
 std::shared_ptr<const LogFormatDefinition> recognize( const AbstractLogData& logFile,
@@ -69,8 +85,10 @@ std::shared_ptr<const LogFormatDefinition> recognize( const AbstractLogData& log
 
 // Recognizes a Log Format from sample Log Lines already read; only the first
 // SampleDepth of them are looked at.
-std::shared_ptr<const LogFormatDefinition> recognize( const QStringList& firstLogLines,
-                                                      const RecognitionPolicy& policy,
-                                                      const LogFormatCatalog& catalog );
+// `timeBudget` is TimeBudget but for a test that must not depend on how fast
+// the machine is.
+std::shared_ptr<const LogFormatDefinition>
+recognize( const QStringList& firstLogLines, const RecognitionPolicy& policy,
+           const LogFormatCatalog& catalog, std::chrono::milliseconds timeBudget = TimeBudget );
 
 } // namespace FormatRecognition

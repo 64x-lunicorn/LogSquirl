@@ -39,6 +39,7 @@
 #ifndef LOGFILTEREDDATAWORKERTHREAD_H
 #define LOGFILTEREDDATAWORKERTHREAD_H
 
+#include <chrono>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -215,13 +216,22 @@ private:
 // Runs the Searches of one Search Session through a Background Run, which
 // keeps the Log File's reader attached for exactly as long as each run lasts
 // and reports each run finished once.
+//
+// Each run holds the block source and the Search Data through handles of its
+// own: a run left running past the Background Run's shutdown timeout, when
+// this worker and the Log File are gone, reads and writes only what those
+// keep alive (#832).
 class LogFilteredDataWorker : public QObject {
     Q_OBJECT
 
 public:
     // The Search Policy is what this worker knows about the settings; it
-    // reads none itself.
-    LogFilteredDataWorker( const SearchBlockSource& blockSource, const SearchPolicy& searchPolicy );
+    // reads none itself. shutdownTimeout is how long destroying this worker
+    // waits for the run in flight; only a test shortens it.
+    LogFilteredDataWorker( std::shared_ptr<const SearchBlockSource> blockSource,
+                           const SearchPolicy& searchPolicy,
+                           std::chrono::milliseconds shutdownTimeout
+                           = BackgroundRun<SearchPolicy>::DefaultShutdownTimeout );
     ~LogFilteredDataWorker() override = default;
 
     LogFilteredDataWorker( const LogFilteredDataWorker& ) = delete;
@@ -264,13 +274,12 @@ Q_SIGNALS:
     void searchFinished( SearchId searchId, bool interrupted, const QString& failure );
 
 private:
-    const SearchBlockSource& blockSource_;
+    const std::shared_ptr<const SearchBlockSource> blockSource_;
 
-    // Shared indexing data
-    SearchData searchData_;
+    // The results of the runs, which they write to through their own handle.
+    const std::shared_ptr<SearchData> searchData_ = std::make_shared<SearchData>();
 
-    // Declared last, so it shuts down -- and no run touches searchData_ any
-    // more -- before anything else here is destroyed.
+    // Declared last, so it shuts down before anything else here is destroyed.
     BackgroundRun<SearchPolicy> run_;
 };
 

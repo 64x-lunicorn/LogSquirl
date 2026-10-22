@@ -137,6 +137,11 @@ public:
     // Whether the Log Format matched the Row's Log Line: when not, no field
     // has a value, and the last field's cell shows the Log Line whole.
     bool rowMatchesFormat( int row ) const;
+    // Whether the regex engine gave up on the Row's Log Line instead of
+    // deciding it: shown as one the Log Format does not match, and every
+    // cell of the Row says so in its tooltip, as the Search says of the Log
+    // Lines it gave up on (#689, #826).
+    bool rowIsUndecided( int row ) const;
 
     // Return the raw logData pointer so callers can detect stale references.
     const AbstractLogData* logDataPtr() const
@@ -180,6 +185,7 @@ private:
         QString rawLine;
         QStringList cells;
         bool matchesFormat = false;
+        bool undecided = false;
     };
 
     // LRU cache for extracted rows, by Log Line (mutable because data() is

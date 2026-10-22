@@ -92,8 +92,9 @@ SCENARIO( "A Search that fails drops what it found and lets the failure go on", 
 SCENARIO( "A Search that fails reports the failure as how it finished", "[search]" )
 {
     const auto policies = testSettingsPolicies();
-    InMemoryBlockSource blockSource( QStringList{ "match 0", "other 1", "match 2" } );
-    blockSource.failReading( "the Log File could not be read" );
+    auto blockSource
+        = std::make_shared<InMemoryBlockSource>( QStringList{ "match 0", "other 1", "match 2" } );
+    blockSource->failReading( "the Log File could not be read" );
 
     const auto expression = std::make_shared<const RegularExpression>(
         RegularExpressionPattern( "match" ), policies.search.regexpEngine );
@@ -121,7 +122,7 @@ SCENARIO( "A Search that fails reports the failure as how it finished", "[search
 
         THEN( "its reader is detached again, and nothing it found is kept" )
         {
-            REQUIRE( blockSource.attachedReaders() == 0 );
+            REQUIRE( blockSource->attachedReaders() == 0 );
             REQUIRE( worker.getSearchResults().newMatches.isEmpty() );
         }
     }

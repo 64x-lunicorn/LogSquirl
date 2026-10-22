@@ -27,6 +27,7 @@
 
 #include <QString>
 
+#include <cstdarg>
 #include <cstddef>
 #include <functional>
 #include <vector>
@@ -62,5 +63,10 @@ QString crashDumpDirectory( const QString& dataDirectory );
 
 // A Crashpad tool shipped next to the application binary.
 QString crashpadToolPath( const QString& applicationDirectory, const QString& tool );
+
+// A message of Sentry's own logger with its placeholders filled. Sentry hands
+// the printf format and a va_list; Qt's variadic logging functions take
+// neither, so the text is made here first (#833).
+QString formatSentryMessage( const char* message, va_list args ) Q_ATTRIBUTE_FORMAT_PRINTF( 1, 0 );
 
 #endif

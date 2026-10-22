@@ -108,7 +108,7 @@ SCENARIO( "MergeController concatenates files", "[mergecontroller]" )
 
         WHEN( "Merging without dedup" )
         {
-            MergeController controller;
+            MergeController controller( tmpDir.path() );
             const auto merged = controller.merge( { pathA, pathB }, false );
 
             THEN( "The merged file contains all lines in order" )
@@ -119,6 +119,42 @@ SCENARIO( "MergeController concatenates files", "[mergecontroller]" )
                 REQUIRE( lines[ 1 ] == "beta" );
                 REQUIRE( lines[ 2 ] == "gamma" );
                 REQUIRE( lines[ 3 ] == "delta" );
+            }
+        }
+    }
+}
+
+SCENARIO( "The merged file lives in the folder handed to the controller and goes with it",
+          "[mergecontroller]" )
+{
+    QTemporaryDir tmpDir;
+    REQUIRE( tmpDir.isValid() );
+    QTemporaryDir mergeDir;
+    REQUIRE( mergeDir.isValid() );
+
+    GIVEN( "A source file and a folder of the window's own" )
+    {
+        const auto pathA = writeTestFile( tmpDir, "a.log", { "alpha" } );
+
+        WHEN( "Merging" )
+        {
+            QString merged;
+            {
+                MergeController controller( mergeDir.path() );
+                merged = controller.merge( { pathA }, false );
+
+                THEN( "The merged file is in that folder, not the shared temporary one (#829)" )
+                {
+                    REQUIRE( QFileInfo( merged ).absolutePath()
+                             == QDir( mergeDir.path() ).absolutePath() );
+                    REQUIRE( QFileInfo( merged ).fileName().startsWith( "logsquirl_merged_" ) );
+                    REQUIRE( readAllLines( merged ) == QStringList{ "alpha" } );
+                }
+            }
+
+            THEN( "The merged file is gone with the controller" )
+            {
+                REQUIRE_FALSE( QFileInfo::exists( merged ) );
             }
         }
     }
@@ -136,7 +172,7 @@ SCENARIO( "MergeController deduplicates lines", "[mergecontroller]" )
 
         WHEN( "Merging with dedup enabled" )
         {
-            MergeController controller;
+            MergeController controller( tmpDir.path() );
             const auto merged = controller.merge( { pathA, pathB }, true );
 
             THEN( "Duplicate lines are removed, first occurrence kept" )
@@ -154,11 +190,14 @@ SCENARIO( "MergeController deduplicates lines", "[mergecontroller]" )
 
 SCENARIO( "MergeController handles empty file list", "[mergecontroller]" )
 {
+    QTemporaryDir tmpDir;
+    REQUIRE( tmpDir.isValid() );
+
     GIVEN( "An empty source list" )
     {
         WHEN( "Merging" )
         {
-            MergeController controller;
+            MergeController controller( tmpDir.path() );
             const auto merged = controller.merge( {}, false );
 
             THEN( "The merged file is empty" )
@@ -179,7 +218,7 @@ SCENARIO( "MergeController scheduleRebuild re-merges", "[mergecontroller]" )
     {
         const auto pathA = writeTestFile( tmpDir, "a.log", { "line1" } );
 
-        MergeController controller;
+        MergeController controller( tmpDir.path() );
         controller.merge( { pathA }, false );
 
         WHEN( "The source file is modified and rebuild is triggered" )
@@ -223,7 +262,7 @@ SCENARIO( "MergeController follows its sources", "[mergecontroller]" )
 
         // merge() writes the merged file and reports it before it returns, so
         // every update awaited below comes from a change made after it.
-        MergeController controller;
+        MergeController controller( tmpDir.path() );
         int initialUpdates = 0;
         const auto initialConnection
             = QObject::connect( &controller, &MergeController::mergedFileUpdated,
@@ -299,7 +338,7 @@ SCENARIO( "MergeController sees a source grow within one timestamp tick", "[merg
         const auto pathA = writeTestFile( tmpDir, "a.log", { "a1" } );
         const auto pathB = writeTestFile( tmpDir, "b.log", { "b1" } );
 
-        MergeController controller;
+        MergeController controller( tmpDir.path() );
         controller.merge( { pathA, pathB }, false );
 
         WHEN( "A line is appended and the modification time stays what it was" )

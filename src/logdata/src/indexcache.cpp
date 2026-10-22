@@ -20,8 +20,10 @@
 #include "indexcache.h"
 
 #include <algorithm>
+#include <exception>
 #include <utility>
 
+#include <QBuffer>
 #include <QCryptographicHash>
 #include <QDataStream>
 #include <QDateTime>
@@ -30,19 +32,24 @@
 #include <QFileInfo>
 #include <QSaveFile>
 
-#include "encodingdetector.h"
+#include "filedigest.h"
 #include "indexedhash.h"
 #include "log.h"
-#include "textencoding.h"
 
 namespace {
 
-/// Whether the Encoding's line feed is one byte: an Index of the format before
-/// #804 broke Log Lines only at whole line feeds then. One of an Encoding
-/// this build does not know is not trusted.
-bool hasOneByteLineFeed( const TextEncoding* encoding )
+/// The digest of the entry's payload: every byte after the header, read in
+/// chunks so that the payload is never held twice (#824).
+quint64 payloadDigest( QFile& file )
 {
-    return encoding != nullptr && EncodingParameters( encoding ).lineFeedWidth == 1;
+    constexpr qint64 ChunkSize = 1024 * 1024;
+    QByteArray buffer( static_cast<qsizetype>( ChunkSize ), Qt::Uninitialized );
+    FileDigest digest;
+    for ( auto readBytes = file.read( buffer.data(), ChunkSize ); readBytes > 0;
+          readBytes = file.read( buffer.data(), ChunkSize ) ) {
+        digest.addData( buffer.data(), static_cast<size_t>( readBytes ) );
+    }
+    return digest.digest();
 }
 
 /// Build a hex-encoded SHA-256 of the absolute file path for use as a
@@ -118,10 +125,18 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath,
         // Header
         quint32 magic = 0;
         quint32 version = 0;
-        in >> magic >> version;
-        if ( magic != kMagic
-             || ( version != kVersion && version != kVersionBeforeWholeLineFeeds ) ) {
+        quint64 digest = 0;
+        in >> magic >> version >> digest;
+        if ( in.status() != QDataStream::Ok || magic != kMagic || version != kVersion ) {
             LOG_INFO << "Index cache version mismatch for " << filePath;
+            return std::nullopt;
+        }
+
+        // The payload is checked against its digest before any of it is
+        // decoded: an entry edited on disk is found out here (#824).
+        const auto payloadStart = file.pos();
+        if ( payloadDigest( file ) != digest || !file.seek( payloadStart ) ) {
+            LOG_WARNING << "Index cache digest mismatch for " << filePath;
             return std::nullopt;
         }
 
@@ -131,6 +146,11 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath,
         in >> hash.headerSize >> hash.headerDigest;
         in >> hash.tailSize >> hash.tailOffset >> hash.tailDigest;
         if ( in.status() != QDataStream::Ok ) {
+            return std::nullopt;
+        }
+        // trySave() never writes an Index of nothing, and its header digest
+        // always covers bytes: one of nothing would match any Log File.
+        if ( hash.size <= 0 || hash.headerSize <= 0 ) {
             return std::nullopt;
         }
 
@@ -156,16 +176,13 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath,
         // maxLength
         qint32 maxLen = 0;
         in >> maxLen;
+        if ( in.status() != QDataStream::Ok || maxLen < 0 ) {
+            return std::nullopt;
+        }
 
         // Encoding
         QByteArray encodingName;
         in >> encodingName;
-        if ( version == kVersionBeforeWholeLineFeeds
-             && !hasOneByteLineFeed( TextEncoding::forName( encodingName ) ) ) {
-            LOG_INFO << "Index cache of " << filePath << " predates whole "
-                     << encodingName.constData() << " line feeds";
-            return std::nullopt;
-        }
 
         // fakeFinalLF flag
         bool fakeLF = false;
@@ -179,6 +196,16 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath,
         }
 
         if ( in.status() != QDataStream::Ok ) {
+            return std::nullopt;
+        }
+
+        // The positions increase (deserialize() saw to that), so the last
+        // one says whether all of them lie within the Log File the Index
+        // was built from; a fake line feed ends one byte past it (#824).
+        const auto lines = storage.size().get();
+        const auto lastPosition = lines > 0 ? storage.at( lines - 1 ).get() : -1;
+        if ( lines == 0 || lastPosition > hash.size + ( fakeLF ? 1 : 0 ) ) {
+            LOG_WARNING << "Index cache line positions reach past the Log File for " << filePath;
             return std::nullopt;
         }
 
@@ -204,7 +231,17 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath,
         if ( !file.open( QIODevice::ReadOnly ) ) {
             return std::nullopt;
         }
-        result = readEntry( file );
+        try {
+            result = readEntry( file );
+        } catch ( const std::exception& error ) {
+            // Whatever threw, the entry is not trusted: deleted below, so
+            // the next open indexes the Log File again rather than failing
+            // the same way until the cache is cleared by hand (#824).
+            LOG_WARNING << "Index cache entry for " << filePath
+                        << " could not be read: " << error.what();
+            result = std::nullopt;
+            keepEntry = false;
+        }
     }
 
     if ( !result ) {
@@ -250,6 +287,50 @@ bool IndexCache::trySave( const QString& filePath, const LinePositionArray& line
         return false;
     }
 
+    // The payload is serialized first, so that its digest can go into the
+    // header ahead of it (#824).
+    QByteArray payload;
+    {
+        QBuffer buffer( &payload );
+        if ( !buffer.open( QIODevice::WriteOnly ) ) {
+            return false;
+        }
+        QDataStream out( &buffer );
+        out.setVersion( QDataStream::Qt_6_0 );
+
+        // IndexedHash
+        out << hash.size << hash.fullDigest;
+        out << hash.headerSize << hash.headerDigest;
+        out << hash.tailSize << hash.tailOffset << hash.tailDigest;
+
+        // maxLength
+        out << static_cast<qint32>( maxLength.get() );
+
+        // Encoding
+        out << encodingName;
+
+        // fakeFinalLF
+        out << fakeFinalLF;
+
+        // Compressed line positions via direct storage serialization
+        linePosition.storage().serialize( out );
+
+        if ( out.status() != QDataStream::Ok ) {
+            LOG_WARNING << "Failed to serialize index cache for " << filePath;
+            return false;
+        }
+    }
+
+    // The budget is hard: rather than evicting everything else and still not
+    // fitting, an entry that alone exceeds it is dropped before it replaces
+    // anything.
+    const auto entrySize = static_cast<qint64>( kHeaderBytes ) + payload.size();
+    if ( entrySize > budgetBytes_ ) {
+        LOG_INFO << "Index for " << filePath << " (" << entrySize
+                 << " bytes) exceeds the index cache budget of " << budgetBytes_ << " bytes";
+        return false;
+    }
+
     const auto path = cacheFilePath( filePath );
     QSaveFile file( path );
     if ( !file.open( QIODevice::WriteOnly ) ) {
@@ -260,38 +341,14 @@ bool IndexCache::trySave( const QString& filePath, const LinePositionArray& line
     QDataStream out( &file );
     out.setVersion( QDataStream::Qt_6_0 );
 
-    // Header
-    out << kMagic << kVersion;
+    // Header, then the payload
+    FileDigest digest;
+    digest.addData( payload );
+    out << kMagic << kVersion << static_cast<quint64>( digest.digest() );
 
-    // IndexedHash
-    out << hash.size << hash.fullDigest;
-    out << hash.headerSize << hash.headerDigest;
-    out << hash.tailSize << hash.tailOffset << hash.tailDigest;
-
-    // maxLength
-    out << static_cast<qint32>( maxLength.get() );
-
-    // Encoding
-    out << encodingName;
-
-    // fakeFinalLF
-    out << fakeFinalLF;
-
-    // Compressed line positions via direct storage serialization
-    linePosition.storage().serialize( out );
-
-    if ( out.status() != QDataStream::Ok || !file.flush() ) {
+    if ( out.status() != QDataStream::Ok || file.write( payload ) != payload.size()
+         || !file.flush() ) {
         LOG_WARNING << "Failed to write index cache for " << filePath;
-        file.cancelWriting();
-        return false;
-    }
-
-    // The budget is hard: rather than evicting everything else and still not
-    // fitting, an entry that alone exceeds it is dropped before it replaces
-    // anything.
-    if ( file.size() > budgetBytes_ ) {
-        LOG_INFO << "Index for " << filePath << " (" << file.size()
-                 << " bytes) exceeds the index cache budget of " << budgetBytes_ << " bytes";
         file.cancelWriting();
         return false;
     }

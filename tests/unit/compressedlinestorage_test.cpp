@@ -28,6 +28,7 @@
 #include <QDataStream>
 #include <QIODevice>
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -77,6 +78,22 @@ void putBigEndian32( QByteArray& bytes, int position, quint32 value )
     for ( int i = 0; i < 4; ++i ) {
         bytes[ position + i ] = static_cast<char>( ( value >> ( 8 * ( 3 - i ) ) ) & 0xff );
     }
+}
+
+void putBigEndian64( QByteArray& bytes, int position, quint64 value )
+{
+    for ( int i = 0; i < 8; ++i ) {
+        bytes[ position + i ] = static_cast<char>( ( value >> ( 8 * ( 7 - i ) ) ) & 0xff );
+    }
+}
+
+quint64 bigEndian64( const QByteArray& bytes, int position )
+{
+    quint64 value = 0;
+    for ( int i = 0; i < 8; ++i ) {
+        value = ( value << 8 ) | static_cast<unsigned char>( bytes[ position + i ] );
+    }
+    return value;
 }
 
 } // namespace
@@ -275,6 +292,98 @@ SCENARIO( "The disk cache format is read back, and refused when it is damaged",
             // The first block's storage offset is the 64-bit value after the
             // block count (4 bytes) and the block's first offset (8 bytes).
             putBigEndian32( damaged, 4 + 8, 0x7fffffffu );
+            REQUIRE( !deserializes( damaged ) );
+        }
+
+        // The format's parts, for the storage serialized above: the block
+        // count, two blocks of a first position and a storage offset, the
+        // packed size, the packed bytes, the tail's count and positions, the
+        // line count and the last position (#824).
+        constexpr int FirstBlock = 4;
+        constexpr int SecondBlock = FirstBlock + 16;
+        constexpr int PackedSize = SecondBlock + 16;
+        constexpr int PackedBytes = PackedSize + 8;
+
+        THEN( "A block count the stream cannot hold is refused before room is made for it" )
+        {
+            // Under the count refused outright, far past what the bytes hold.
+            QByteArray damaged( 4, '\0' );
+            putBigEndian32( damaged, 0, 50'000'000u );
+            const auto started = std::chrono::steady_clock::now();
+            REQUIRE( !deserializes( damaged ) );
+            REQUIRE( std::chrono::steady_clock::now() - started < std::chrono::seconds( 2 ) );
+        }
+
+        THEN( "A packed size past the end of the stream is refused before room is made for it" )
+        {
+            // No block, then a packed size of 1.5 GB and no packed byte.
+            QByteArray damaged( 12, '\0' );
+            putBigEndian64( damaged, 4, 1'500'000'000u );
+            CompressedLinePositionStorage refused;
+            QDataStream in( damaged );
+            REQUIRE( !refused.deserialize( in ) );
+            REQUIRE( refused.allocatedSize() == 0 );
+        }
+
+        THEN( "A refused entry leaves the storage empty, whatever it held before (#845)" )
+        {
+            // Cut after the blocks, before the packed bytes; a block out of
+            // order; a line count the blocks do not add up to: each is
+            // refused once part of the entry was taken in.
+            auto outOfOrder = bytes;
+            putBigEndian64( outOfOrder, SecondBlock, 0 );
+            auto wrongCount = bytes;
+            wrongCount[ wrongCount.size() - 9 ]
+                = static_cast<char>( wrongCount[ wrongCount.size() - 9 ] + 1 );
+            for ( const auto& damaged : { bytes.left( PackedSize ), outOfOrder, wrongCount } ) {
+                CompressedLinePositionStorage refused;
+                fill( refused, makeOffsets( 3 ) );
+                QDataStream in( damaged );
+                REQUIRE( !refused.deserialize( in ) );
+                REQUIRE( refused.size().get() == 0 );
+                REQUIRE( refused.allocatedSize() == 0 );
+            }
+        }
+
+        THEN( "A block whose first position is negative is refused" )
+        {
+            auto damaged = bytes;
+            putBigEndian64( damaged, FirstBlock, static_cast<quint64>( -1 ) );
+            REQUIRE( !deserializes( damaged ) );
+        }
+
+        THEN( "Blocks whose first positions do not increase are refused" )
+        {
+            auto damaged = bytes;
+            putBigEndian64( damaged, SecondBlock, 0 );
+            REQUIRE( !deserializes( damaged ) );
+        }
+
+        THEN( "Equal positions within a packed block are refused" )
+        {
+            auto damaged = bytes;
+            // The first block's packed bytes: 32 control bytes, then one
+            // byte per position this close together, the first 0 and the
+            // second the gap to it.
+            REQUIRE( damaged[ PackedBytes + 32 ] == 0 );
+            REQUIRE( damaged[ PackedBytes + 33 ] != 0 );
+            damaged[ PackedBytes + 33 ] = 0;
+            REQUIRE( !deserializes( damaged ) );
+        }
+
+        THEN( "A tail that does not continue the packed blocks is refused" )
+        {
+            auto damaged = bytes;
+            const auto tail = PackedBytes + static_cast<int>( bigEndian64( damaged, PackedSize ) );
+            // The tail's first position, after its count.
+            putBigEndian64( damaged, tail + 4, 0 );
+            REQUIRE( !deserializes( damaged ) );
+        }
+
+        THEN( "A last position that is not the last line's is refused" )
+        {
+            auto damaged = bytes;
+            putBigEndian64( damaged, static_cast<int>( damaged.size() ) - 8, 0 );
             REQUIRE( !deserializes( damaged ) );
         }
     }

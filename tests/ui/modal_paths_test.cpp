@@ -842,6 +842,92 @@ TEST_CASE( "A Log File from an archive comes back after a restart, one from a UR
     CHECK_FALSE( modals.seen() );
 }
 
+// A compressed Log File that expands past the decompression budget is not
+// opened; the message names the budget and where to raise it (#816).
+TEST_CASE( "A Log File past the decompression budget is refused with the budget named",
+           "[ui][modal][archive][budget]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto gzPath = directory.filePath( "huge.log.gz" );
+    {
+        KCompressionDevice gz( gzPath, KCompressionDevice::GZip );
+        REQUIRE( gz.open( QIODevice::WriteOnly ) );
+        const QByteArray expanding( 4 * 1024 * 1024, 'x' );
+        REQUIRE( gz.write( expanding ) == expanding.size() );
+    }
+
+    WindowFixture window;
+    auto policies = testSettingsPolicies();
+    policies.fileAccess.decompressionBudgetBytes = 2 * 1024 * 1024;
+    window.session->applyPolicies( policies );
+
+    // The question, the progress -- which may be gone before it is seen, a
+    // few KB stopping at once -- and the warning.
+    ModalAnswers modals;
+    modals.click( QMessageBox::Yes ).answerWith( [ &modals ]( QDialog& modal ) {
+        if ( auto* box = qobject_cast<QMessageBox*>( &modal ) ) {
+            box->done( QMessageBox::Ok );
+            return;
+        }
+        answerProgress()( modal );
+        modals.click( QMessageBox::Ok );
+    } );
+    window.mainWindow->loadInitialFile( gzPath, false );
+    REQUIRE( waitUiState( [ & ] { return modals.messages().size() >= 2; } ) );
+
+    CHECK( logFileTabs( window ).empty() );
+    const auto& message = modals.messages().back();
+    CAPTURE( message.toStdString() );
+    CHECK( message.contains( "2 MB" ) );
+    CHECK( message.contains( "Preferences" ) );
+    CHECK( message.contains( "File" ) );
+    CHECK( message.contains( "Archives" ) );
+}
+
+// A file picked from the extraction folder through the file dialog opens only
+// when it is a regular file inside that folder, with the check a member
+// chosen by name gets (#815): a link planted there is refused, so its target
+// is never opened (#847).
+#ifndef Q_OS_WIN
+// QFile::link makes a shortcut on Windows, which is no link to the dialog.
+TEST_CASE( "A link picked from an archive's extraction folder is refused", "[ui][modal][archive]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto zipPath = directory.filePath( "logs.zip" );
+    {
+        KZip zip( zipPath );
+        REQUIRE( zip.open( QIODevice::WriteOnly ) );
+        REQUIRE( zip.writeFile( "app.log", "first Log Line\nsecond Log Line\n" ) );
+        REQUIRE( zip.writeFile( "other.log", "another Log File\n" ) );
+        zip.close();
+    }
+    const auto secretPath = directory.filePath( "secret.log" );
+    REQUIRE( writeFile( secretPath, "the user's own file\n" ) );
+
+    WindowFixture window;
+    ModalAnswers modals;
+    modals.click( QMessageBox::Yes ).answerWith( answerProgress() );
+    // Where the user would pick in the file dialog: a link to the user's own
+    // file, planted in the extraction folder.
+    bool picked = false;
+    window.mainWindow->setArchiveMemberChooser( [ & ]( QWidget*, const QString& extracted ) {
+        const auto link = QDir( extracted ).filePath( "link.log" );
+        REQUIRE( QFile::link( secretPath, link ) );
+        picked = true;
+        return QStringList{ link };
+    } );
+    window.mainWindow->loadInitialFile( zipPath, false );
+    REQUIRE( waitUiState( [ & ] { return picked; } ) );
+    // A tab would open once the event loop turns.
+    QTest::qWait( 500 );
+
+    CHECK( logFileTabs( window ).empty() );
+    CHECK( modals.unexpectedMessageBoxes() == 0 );
+}
+#endif
+
 namespace {
 
 QStringList recentFiles()

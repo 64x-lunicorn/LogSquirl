@@ -155,6 +155,9 @@ int main( int argc, char* argv[] )
     const TbbWorkersJoinedAtExit tbbWorkers;
     QCoreApplication app( argc, argv );
     CliParameters parameters( app, true );
+    if ( parameters.version_printed ) {
+        return EXIT_SUCCESS;
+    }
 
     // Every log message goes to stderr, the way printFailure() reports a
     // failure: stdout carries only the Log Lines the Search matched, so the

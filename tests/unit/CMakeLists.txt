@@ -71,6 +71,7 @@ add_executable(logsquirl_tests
     valuenamescollection_test.cpp
     menu_test.cpp
     mergecontroller_test.cpp
+    openfilehelper_test.cpp
     optionsdialog_test.cpp
     firststartfileassociationsdialog_test.cpp
     lostfileassociationshint_test.cpp
@@ -99,8 +100,10 @@ add_executable(logsquirl_tests
     searchdata_test.cpp
     searchfailure_test.cpp
     searchsession_test.cpp
+    searchshutdown_test.cpp
     scratchpad_test.cpp
     settingspolicies_test.cpp
+    singleinstance_test.cpp
     sparselineread_test.cpp
     tabbarstyle_test.cpp
     textencoding_test.cpp
@@ -126,7 +129,9 @@ add_executable(logsquirl_tests
 # settings library through the update check. Naming them here as well put four
 # of the archives on the link line twice, and Apple's linker warns about a
 # duplicate library since Xcode 15 (#450).
-target_link_libraries(logsquirl_tests logsquirl_ui Catch2::Catch2 Qt6::Test test_utils)
+# kdsingleapp arrives through no library: the single-instance test drives
+# the guard itself (#827).
+target_link_libraries(logsquirl_tests logsquirl_ui kdsingleapp Catch2::Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_tests PROPERTIES AUTOMOC ON)
 
 # The Options Dialog test needs the dialog's generated form header, and the
@@ -214,6 +219,17 @@ target_compile_definitions(logsquirl_tests PRIVATE
     LOGSQUIRL_CONVERT_PROBE_PATH="$<TARGET_FILE:logsquirl_convert_probe>"
     LOGSQUIRL_CONVERT_PROBE_PLAIN_PATH="$<TARGET_FILE:logsquirl_convert_probe_plain>")
 
+# A data source plugin whose thread pushes lines until its shutdown returns:
+# the tests unload it, stop its stream and let the host go while its lines
+# arrive (#821).
+add_library(logsquirl_stream_probe MODULE plugins/streamprobe.cpp)
+target_link_libraries(logsquirl_stream_probe PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_stream_probe PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_stream_probe PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_stream_probe)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_STREAM_PROBE_PATH="$<TARGET_FILE:logsquirl_stream_probe>")
+
 # On Windows a plugin finds the libraries it ships next to it. The fixture
 # imports a library that is built into a directory of its own, so neither the
 # test's directory nor PATH has it; the test copies both into a plugin
@@ -288,6 +304,8 @@ endif()
 # Qt Widgets (#169).
 add_executable(logsquirl_compression_tests
     compression_tests_main.cpp
+    archiveextraction_test.cpp
+    decompressionbudget_test.cpp
     lz4device_test.cpp
     zstddevice_test.cpp
 )

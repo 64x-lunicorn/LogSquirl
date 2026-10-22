@@ -68,7 +68,7 @@ my_plugin/
 
 | Field          | Required | Description                                                     |
 |----------------|----------|-----------------------------------------------------------------|
-| `id`           | **yes**  | Reverse-domain unique identifier.                               |
+| `id`           | **yes**  | Reverse-domain unique identifier: letters, digits, `.`, `-` and `_`, not starting with a dot. It names the plugin's folder. |
 | `name`         | **yes**  | Human-readable display name.                                    |
 | `version`      | **yes**  | Semver string.                                                  |
 | `type`         | **yes**  | One of `datasource`, `converter`, `ui`.                         |
@@ -397,8 +397,10 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void );
 - `logsquirl_plugin_init` receives the host API table and the opaque handle;
   it returns 0 on success and non-zero on failure. A plugin whose `init` fails
   is not loaded.
-- `logsquirl_plugin_shutdown` releases everything the plugin allocated. The
-  host calls it before it unloads the library.
+- `logsquirl_plugin_shutdown` releases everything the plugin allocated, and
+  stops and joins the threads it started. The host calls it before it unloads
+  the library, and before it ends a stream of the plugin's that is still
+  running.
 
 **Optional** exports, for any plugin type:
 
@@ -745,6 +747,15 @@ api->signal_error( handle, "Device disconnected" );
 ```
 
 Lines pushed while no stream of the plugin is running are dropped.
+
+A stream the user ends -- by disabling or unloading the plugin from the
+Plugin Management dialog, or by closing LogSquirl -- goes in this order: the
+host calls `logsquirl_plugin_shutdown` first and waits for it to return, then
+signals end-of-stream and frees the stream. A thread of the plugin's may push
+until `shutdown` returns; what it pushes meanwhile reaches a live stream.
+`shutdown` must stop and join such a thread before it returns, since nothing
+the plugin calls after that is answered. A stream the host ends on its own,
+with the plugin still loaded, drops what the plugin pushes from then on.
 
 ### Converters
 
@@ -1134,7 +1145,27 @@ releases without touching the central `plugins.json`.
 ```
 
 Releases are ordered newest-first. Assets are filtered by the current platform.
-Downloaded archives are verified against the `sha256` checksum.
+
+### Checksums and URLs
+
+Every asset must carry the SHA-256 of its archive as 64 hex digits: the host
+keeps a download only when its hash is that one, and lists an asset with an
+empty or malformed `sha256` as not installable, saying so on the plugin's card.
+Produce the value from the archive you publish:
+
+```bash
+sha256sum myplugin-1.0.0-macos.zip      # Linux
+shasum -a 256 myplugin-1.0.0-macos.zip  # macOS
+```
+
+`scripts/check_plugin_catalog.py` downloads every archive the public catalog
+offers and compares it with the catalog's hash; the maintainer runs it after a
+catalog change (#817).
+
+Every URL a catalog entry or a release manifest hands out, `releases_url`,
+`icon_url`, `repo_url` and `download_url`, must use `https`. An entry or an
+asset with any other scheme, `http` included, is skipped when the catalog is
+read and nothing is requested from it.
 
 ### Plugin Icons
 
@@ -1165,3 +1196,5 @@ and platform data is inline in `plugins.json`:
   ]
 }
 ```
+
+The same rules apply: `sha256` is required and `download_url` must use `https`.

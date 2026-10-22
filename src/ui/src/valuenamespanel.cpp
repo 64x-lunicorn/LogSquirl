@@ -29,6 +29,7 @@
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 
+#include "plaintext.h"
 #include "valuenamescollection.h"
 
 namespace {
@@ -126,7 +127,7 @@ void ValueNamesPanel::populateTree()
             ruleItem->setText( 0, rule.name.isEmpty()
                                       ? rule.pattern
                                       : rule.name + QStringLiteral( "  —  " ) + rule.pattern );
-            ruleItem->setToolTip( 0, rule.pattern );
+            ruleItem->setToolTip( 0, logsquirl::plaintext::toolTip( rule.pattern ) );
             ruleItem->setFlags( ruleItem->flags() | Qt::ItemIsUserCheckable );
             ruleItem->setData( 0, GroupIdRole, group.id() );
             ruleItem->setData( 0, RuleNameRole, rule.name );

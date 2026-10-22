@@ -53,6 +53,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_conversion_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_follow_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_line_status_theme_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plaintext_test.cpp
 )
 
 if(NOT APPLE)

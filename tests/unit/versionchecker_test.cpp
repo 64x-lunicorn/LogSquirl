@@ -19,6 +19,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "updateoffer.h"
 #include "versionchecker.h"
 
 #include <QCoreApplication>
@@ -155,6 +156,46 @@ SCENARIO( "A failed download moves the deadline as a successful one does",
             {
                 REQUIRE( held.deadlineWrites == 1 );
                 REQUIRE( held.nextDeadline >= started + 7 * 24 * 3600 );
+                REQUIRE( announcements == 0 );
+            }
+        }
+    }
+}
+
+SCENARIO( "A feed reply above the size limit announces nothing", "[versioncheck][versionchecker]" )
+{
+    GIVEN( "A due check whose feed offers a release but is larger than the limit" )
+    {
+        QTemporaryDir directory;
+        REQUIRE( directory.isValid() );
+        QFile feedFile( directory.filePath( "latest.json" ) );
+        REQUIRE( feedFile.open( QIODevice::WriteOnly ) );
+        // Valid JSON that offers the release, followed by padding the parser
+        // would skip: only the size stops it (#828).
+        auto feed = feedOfferingARelease();
+        feed.chop( 1 );
+        feed.append( ",\"padding\":\"" );
+        feed.append( QByteArray( logsquirl::versioncheck::MaxUpdateFeedBytes, 'x' ) );
+        feed.append( "\"}" );
+        REQUIRE( feed.size() > logsquirl::versioncheck::MaxUpdateFeedBytes );
+        feedFile.write( feed );
+        feedFile.close();
+
+        HeldSettings held;
+        VersionChecker checker( held.settings(), QUrl::fromLocalFile( feedFile.fileName() ) );
+
+        int announcements = 0;
+        QObject::connect( &checker, &VersionChecker::newVersionFound,
+                          [ &announcements ] { ++announcements; } );
+
+        WHEN( "The check is started" )
+        {
+            checker.startCheck();
+            processEventsUntil( [ &held ] { return held.deadlineWrites >= 1; } );
+
+            THEN( "The reply is discarded, the deadline moves once and nothing is announced" )
+            {
+                REQUIRE( held.deadlineWrites == 1 );
                 REQUIRE( announcements == 0 );
             }
         }

@@ -19,6 +19,8 @@
 
 #include "sparselineread.h"
 
+#include "loglinetext.h"
+
 #include <algorithm>
 
 namespace {
@@ -103,9 +105,13 @@ logsquirl::vector<SparseRead> planSparseRead( std::span<const LineNumber> lines,
     // Nearby Log Lines merged into reads.
     logsquirl::vector<SparseRead> reads;
     SparseRead* read = nullptr;
+    bool readIsTooLong = false;
     std::uint64_t readLastLine = 0;
     for ( const auto& line : bytes ) {
-        const bool joins = read != nullptr
+        // A Log Line too long to read shares no read, and its own has no
+        // bytes (#825).
+        const bool tooLong = line.end - line.begin - limits.lineFeedWidth >= MaxLogLineLength;
+        const bool joins = read != nullptr && !tooLong && !readIsTooLong
                            && ( line.line <= readLastLine + 1
                                 || ( line.begin - ( read->firstByte.get() + read->size )
                                          <= limits.maxBytesBetween
@@ -113,11 +119,14 @@ logsquirl::vector<SparseRead> planSparseRead( std::span<const LineNumber> lines,
         if ( !joins ) {
             read = &reads.emplace_back();
             read->firstByte = OffsetInFile( line.begin );
+            readIsTooLong = tooLong;
         }
 
         const auto firstByte = read->firstByte.get();
         read->lines.push_back( { line.request, line.begin - firstByte, line.end - firstByte } );
-        read->size = std::max( read->size, line.end - firstByte );
+        if ( !tooLong ) {
+            read->size = std::max( read->size, line.end - firstByte );
+        }
         readLastLine = line.line;
     }
 

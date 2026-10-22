@@ -38,6 +38,7 @@
 #include "configuration.h"
 #include "logdata.h"
 #include "logformatdefinition.h"
+#include "plaintext.h"
 
 ChartPanel::ChartPanel( QWidget* parent )
     : QWidget( parent )
@@ -536,15 +537,16 @@ void ChartPanel::exportPreset()
 
     QFile file( path );
     if ( !file.open( QIODevice::WriteOnly | QIODevice::Text ) ) {
-        QMessageBox::warning( this, tr( "Export" ), tr( "Cannot write to %1" ).arg( path ) );
+        logsquirl::plaintext::warning( this, tr( "Export" ),
+                                       tr( "Cannot write to %1" ).arg( path ) );
         return;
     }
     // Surface I/O failures (disk full, permission errors) to the user so a corrupt or
     // truncated preset file is not silently produced.
     const auto jsonData = seriesToJsonString( series_ ).toUtf8();
     if ( file.write( jsonData ) != jsonData.size() ) {
-        QMessageBox::warning( this, tr( "Export" ),
-                              tr( "Failed to write all data to %1" ).arg( path ) );
+        logsquirl::plaintext::warning( this, tr( "Export" ),
+                                       tr( "Failed to write all data to %1" ).arg( path ) );
     }
 }
 
@@ -558,15 +560,15 @@ void ChartPanel::importPreset()
 
     QFile file( path );
     if ( !file.open( QIODevice::ReadOnly | QIODevice::Text ) ) {
-        QMessageBox::warning( this, tr( "Import" ), tr( "Cannot read %1" ).arg( path ) );
+        logsquirl::plaintext::warning( this, tr( "Import" ), tr( "Cannot read %1" ).arg( path ) );
         return;
     }
 
     const auto json = QString::fromUtf8( file.readAll() );
     auto defs = seriesFromJsonString( json );
     if ( defs.isEmpty() ) {
-        QMessageBox::warning( this, tr( "Import" ),
-                              tr( "No valid series found in %1" ).arg( path ) );
+        logsquirl::plaintext::warning( this, tr( "Import" ),
+                                       tr( "No valid series found in %1" ).arg( path ) );
         return;
     }
 

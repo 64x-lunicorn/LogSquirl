@@ -26,6 +26,7 @@
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QTemporaryDir>
 
 #include <kcompressiondevice.h>
@@ -36,6 +37,9 @@
 namespace {
 
 const QByteArray LogLines = "first Log Line\nsecond Log Line\n";
+
+// A budget these archives are nowhere near (#816).
+constexpr qint64 Generous = 1024 * 1024;
 
 QByteArray gzipped( const QByteArray& data, const QString& scratch )
 {
@@ -83,6 +87,17 @@ SCENARIO( "A saved archive member is decompressed again", "[ui][session][archive
         REQUIRE( zip.writeFile( "other.log", "another Log File\n" ) );
         zip.close();
     }
+    // links.zip holding a link to a file of the user's beside the archive (#815).
+    const auto secretPath = archives.filePath( "secret.log" );
+    REQUIRE( writeFile( secretPath, "the user's own file\n" ) );
+    const auto linksPath = archives.filePath( "links.zip" );
+    {
+        KZip zip( linksPath );
+        REQUIRE( zip.open( QIODevice::WriteOnly ) );
+        REQUIRE( zip.writeFile( "a/app.log", LogLines ) );
+        REQUIRE( zip.writeSymLink( "link.log", secretPath ) );
+        zip.close();
+    }
 
     GIVEN( "a compressed single file" )
     {
@@ -91,7 +106,7 @@ SCENARIO( "A saved archive member is decompressed again", "[ui][session][archive
 
         THEN( "its one file is decompressed into the directory" )
         {
-            const auto path = decompressArchiveMember( member, decompressed.path() );
+            const auto path = decompressArchiveMember( member, decompressed.path(), Generous );
             REQUIRE_FALSE( path.isEmpty() );
             REQUIRE( path.startsWith( decompressed.path() ) );
             REQUIRE( readFile( path ) == LogLines );
@@ -104,7 +119,7 @@ SCENARIO( "A saved archive member is decompressed again", "[ui][session][archive
 
         THEN( "that member, and no other, is what the path names" )
         {
-            const auto path = decompressArchiveMember( member, decompressed.path() );
+            const auto path = decompressArchiveMember( member, decompressed.path(), Generous );
             REQUIRE_FALSE( path.isEmpty() );
             REQUIRE( path.endsWith( "/a/app.log" ) );
             REQUIRE( readFile( path ) == LogLines );
@@ -118,7 +133,7 @@ SCENARIO( "A saved archive member is decompressed again", "[ui][session][archive
 
         THEN( "both levels are decompressed" )
         {
-            const auto path = decompressArchiveMember( member, decompressed.path() );
+            const auto path = decompressArchiveMember( member, decompressed.path(), Generous );
             REQUIRE_FALSE( path.isEmpty() );
             REQUIRE( readFile( path ) == LogLines );
         }
@@ -130,7 +145,7 @@ SCENARIO( "A saved archive member is decompressed again", "[ui][session][archive
 
         THEN( "nothing is decompressed" )
         {
-            REQUIRE( decompressArchiveMember( member, decompressed.path() ).isEmpty() );
+            REQUIRE( decompressArchiveMember( member, decompressed.path(), Generous ).isEmpty() );
         }
     }
 
@@ -141,8 +156,26 @@ SCENARIO( "A saved archive member is decompressed again", "[ui][session][archive
             for ( const auto* name : { "missing.log", "../app.log.gz", "a/../../logs.zip" } ) {
                 INFO( name );
                 const auto member = ArchiveMember{}.inside( zipPath, name );
-                REQUIRE( decompressArchiveMember( member, decompressed.path() ).isEmpty() );
+                REQUIRE(
+                    decompressArchiveMember( member, decompressed.path(), Generous ).isEmpty() );
             }
+        }
+    }
+
+    GIVEN( "a member that is a link to a file outside the archive" )
+    {
+        const auto member = ArchiveMember{}.inside( linksPath, "link.log" );
+
+        THEN( "nothing is named, and the file the link leads to is untouched" )
+        {
+            REQUIRE( decompressArchiveMember( member, decompressed.path(), Generous ).isEmpty() );
+            REQUIRE( readFile( secretPath ) == "the user's own file\n" );
+            // The other member is still there to take.
+            const auto path = decompressArchiveMember(
+                ArchiveMember{}.inside( linksPath, "a/app.log" ), decompressed.path(), Generous );
+            REQUIRE( readFile( path ) == LogLines );
+            REQUIRE_FALSE(
+                QFileInfo{ QFileInfo{ path }.dir().filePath( "../link.log" ) }.isSymLink() );
         }
     }
 
@@ -153,10 +186,10 @@ SCENARIO( "A saved archive member is decompressed again", "[ui][session][archive
             // A compressed single file has no named members, an archive no
             // unnamed one.
             REQUIRE( decompressArchiveMember( ArchiveMember{ gzPath, { "app.log" } },
-                                              decompressed.path() )
+                                              decompressed.path(), Generous )
                          .isEmpty() );
             REQUIRE( decompressArchiveMember( ArchiveMember{ zipPath, { QString{} } },
-                                              decompressed.path() )
+                                              decompressed.path(), Generous )
                          .isEmpty() );
         }
     }
@@ -180,4 +213,66 @@ TEST_CASE( "An archive member is known by one key at every start", "[ui][session
            != ArchiveMember{ "/logs/logs.zip", { "a/app.log" } }.key() );
     CHECK( ArchiveMember{ "/logs/logs.zip", { "a/app.log" } }.key()
            != QStringLiteral( "/logs/logs.zip" ) );
+}
+
+// Past the decompression budget, a member is not decompressed, and nothing
+// of it is left in the directory (#816).
+SCENARIO( "A saved archive member past the decompression budget is not decompressed",
+          "[ui][session][archive][budget]" )
+{
+    QTemporaryDir archives;
+    QTemporaryDir decompressed;
+    REQUIRE( archives.isValid() );
+    REQUIRE( decompressed.isValid() );
+
+    const auto isEmpty = [ & ] {
+        return QDir{ decompressed.path() }
+            .entryList( QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot )
+            .isEmpty();
+    };
+
+    // 4 MiB of one byte, a few KB compressed; the budget below is 1 MiB.
+    const QByteArray expanding( 4 * 1024 * 1024, 'x' );
+    const auto compressed = gzipped( expanding, archives.filePath( "scratch.gz" ) );
+    const auto gzPath = archives.filePath( "huge.log.gz" );
+    REQUIRE( writeFile( gzPath, compressed ) );
+    const auto zipPath = archives.filePath( "huge.zip" );
+    {
+        KZip zip( zipPath );
+        REQUIRE( zip.open( QIODevice::WriteOnly ) );
+        REQUIRE( zip.writeFile( "huge.log", expanding ) );
+        REQUIRE( zip.writeFile( "huge.log.gz", compressed ) );
+        zip.close();
+    }
+
+    GIVEN( "a compressed single file that expands past the budget" )
+    {
+        THEN( "it is not decompressed, and the directory stays empty" )
+        {
+            REQUIRE( decompressArchiveMember( ArchiveMember{}.inside( gzPath, {} ),
+                                              decompressed.path(), Generous )
+                         .isEmpty() );
+            REQUIRE( isEmpty() );
+        }
+    }
+
+    GIVEN( "an archive whose members expand past the budget" )
+    {
+        THEN( "its member is not taken, and the directory stays empty" )
+        {
+            REQUIRE( decompressArchiveMember( ArchiveMember{}.inside( zipPath, "huge.log" ),
+                                              decompressed.path(), Generous )
+                         .isEmpty() );
+            REQUIRE( isEmpty() );
+        }
+
+        THEN( "a member within the budget at every level is taken under a budget that fits" )
+        {
+            const auto path = decompressArchiveMember(
+                ArchiveMember{}.inside( zipPath, "huge.log.gz" ).inside( "huge.log.gz", {} ),
+                decompressed.path(), 8 * 1024 * 1024 );
+            REQUIRE_FALSE( path.isEmpty() );
+            REQUIRE( readFile( path ) == expanding );
+        }
+    }
 }

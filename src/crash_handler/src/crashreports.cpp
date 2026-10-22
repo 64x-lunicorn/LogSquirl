@@ -62,3 +62,8 @@ QString crashpadToolPath( const QString& applicationDirectory, const QString& to
     return applicationDirectory + QChar( '/' ) + tool;
 #endif
 }
+
+QString formatSentryMessage( const char* message, va_list args )
+{
+    return QString::vasprintf( message, args );
+}

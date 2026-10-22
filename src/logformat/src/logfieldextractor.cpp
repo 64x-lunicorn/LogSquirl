@@ -19,7 +19,9 @@
 
 #include "logfieldextractor.h"
 
+#include "hsregularexpression.h"
 #include "jsonlogline.h"
+#include "linelengthcap.h"
 #include "logfmtlogline.h"
 
 LogFieldExtractor::LogFieldExtractor( const LogFormatDefinition& format )
@@ -212,8 +214,12 @@ std::optional<QString> LogFieldExtractor::extractField( const QString& line,
         break;
     }
 
+    if ( line.size() > MaxUiThreadLineLength ) {
+        return std::nullopt;
+    }
     for ( const auto& pattern : compiledPatterns_ ) {
         const auto match = pattern.regex.match( line );
+        // The engine gave up: no verdict from this pattern, the next may give one
         if ( !match.hasMatch() ) {
             continue;
         }
@@ -247,12 +253,13 @@ ExtractedFields LogFieldExtractor::extractLogfmtFields( const QString& line ) co
 std::optional<QHash<QString, std::pair<int, int>>>
 LogFieldExtractor::fieldSpans( const QString& line ) const
 {
-    if ( format_.kind() != LogFormatKind::Regex ) {
+    if ( format_.kind() != LogFormatKind::Regex || line.size() > MaxUiThreadLineLength ) {
         return std::nullopt;
     }
 
     for ( const auto& pattern : compiledPatterns_ ) {
         const auto match = pattern.regex.match( line );
+        // The engine gave up: no verdict from this pattern, the next may give one
         if ( !match.hasMatch() ) {
             continue;
         }
@@ -273,17 +280,25 @@ LogFieldExtractor::fieldSpans( const QString& line ) const
 ExtractedFields LogFieldExtractor::extractRegexFields( const QString& line ) const
 {
     ExtractedFields result;
+    if ( line.size() > MaxUiThreadLineLength ) {
+        return result;
+    }
 
     for ( const auto& pattern : compiledPatterns_ ) {
         auto match = pattern.regex.match( line );
         if ( match.hasMatch() ) {
             result.setValid( true );
+            result.setUndecided( false );
 
             for ( const auto& [ name, index ] : pattern.namedGroups ) {
                 result.setValue( name,
                                  index >= 0 ? match.captured( index ) : match.captured( name ) );
             }
             return result;
+        }
+        if ( engineGaveUp( match ) ) {
+            // No verdict from this pattern; the next may still match
+            result.setUndecided( true );
         }
     }
 

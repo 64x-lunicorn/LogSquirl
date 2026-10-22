@@ -5,6 +5,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/dispatch_to.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/perfcounter.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/openfilehelper.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/systemprogram.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/progress.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/synchronization.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/overload_visitor.h
@@ -19,6 +20,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu_info.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/csv.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/memory_info.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/openfilehelper.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/systemprogram.cpp
 )
 
 set_target_properties(logsquirl_utils PROPERTIES AUTOMOC ON)

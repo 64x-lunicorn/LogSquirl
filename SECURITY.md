@@ -6,8 +6,8 @@ Versions of LogSquirl that are currently supported with security updates:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 26.07   | :white_check_mark: |
-| < 26.07 | :x:                |
+| 26.10   | :white_check_mark: |
+| < 26.10 | :x:                |
 
 ## Reporting a Vulnerability
 

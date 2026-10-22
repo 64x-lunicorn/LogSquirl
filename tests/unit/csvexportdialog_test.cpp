@@ -23,6 +23,7 @@
 
 #include <QCheckBox>
 #include <QFile>
+#include <QLabel>
 #include <QListWidget>
 #include <QPushButton>
 #include <QRadioButton>
@@ -335,5 +336,21 @@ SCENARIO( "The dialog Export as CSV offers options of rows of another kind", "[c
         REQUIRE( !radioButton( dialog, "All shown lines" )->isChecked() );
         REQUIRE( !checkBox( dialog, "Include Context Lines" )->isEnabled() );
         REQUIRE( dialog.choices().rowOptions == std::vector<bool>{ false } );
+    }
+}
+
+SCENARIO( "The dialog Export as CSV says that a field starting like a formula is written as text",
+          "[csvexport][dialog]" )
+{
+    KeptConfiguration kept;
+    CsvExportDialog dialog( tableSetup( false ) );
+
+    THEN( "a note names the apostrophe prefix" )
+    {
+        bool found = false;
+        for ( const auto* label : dialog.findChildren<QLabel*>() ) {
+            found = found || label->text().contains( "apostrophe" );
+        }
+        REQUIRE( found );
     }
 }

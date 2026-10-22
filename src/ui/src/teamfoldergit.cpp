@@ -27,12 +27,12 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QProcessEnvironment>
-#include <QStandardPaths>
 
 #include <cerrno>
 #include <utility>
 
 #include "log.h"
+#include "systemprogram.h"
 
 namespace logsquirl::teamfolder {
 
@@ -62,44 +62,6 @@ void removeOrphanedIndexLock( const QString& workingDirectory, const QDateTime& 
     }
 }
 
-// Why a program is known not to start without starting it: it is not on the
-// PATH, or the path it was given leads nowhere. Empty when it may start, or
-// when only starting it can tell (a relative path, or anything on Windows,
-// whose own lookup differs).
-//
-// On Linux and macOS QProcess looks a bare name up on the PATH the same way,
-// forks, and learns in the child that there is nothing to run. Under
-// ThreadSanitizer Qt then waits for that child's exit through a pipe its
-// SIGCHLD handler writes, and in CI that wait never returned: the child stayed
-// a zombie and the Team Folder's worker thread hung (#482). Not starting what
-// is not there spares that, and a fork, everywhere.
-QString missingProgram( const QString& program )
-{
-#ifdef Q_OS_WIN
-    Q_UNUSED( program );
-    return {};
-#else
-    if ( !program.contains( QLatin1Char( '/' ) ) ) {
-        return QStandardPaths::findExecutable( program ).isEmpty() ? qt_error_string( ENOENT )
-                                                                   : QString{};
-    }
-    if ( QDir::isAbsolutePath( program ) && !QFileInfo::exists( program ) ) {
-        return qt_error_string( ENOENT );
-    }
-    return {};
-#endif
-}
-
-// Whether there is a program to start: a bare name found on the PATH, the
-// way QProcess looks it up, or a path that leads to something.
-bool programExists( const QString& program )
-{
-    if ( !program.contains( QLatin1Char( '/' ) ) && !program.contains( QLatin1Char( '\\' ) ) ) {
-        return !QStandardPaths::findExecutable( program ).isEmpty();
-    }
-    return QFileInfo::exists( program );
-}
-
 QString couldNotStart( const QString& reason )
 {
     return QCoreApplication::translate( "TeamFolder",
@@ -125,8 +87,14 @@ GitResult Git::run( const QStringList& arguments, const QString& workingDirector
 {
     GitResult result;
 
-    if ( const auto missing = missingProgram( program_ ); !missing.isEmpty() ) {
-        result.error = couldNotStart( missing );
+    // The absolute path of the Git to run: a bare name is looked up on the
+    // PATH, never in the working directory (#823). What is not there is not
+    // started, either: on Linux and macOS QProcess would fork and learn in
+    // the child that there is nothing to run, and under ThreadSanitizer Qt's
+    // wait for that child's exit never returned in CI (#482).
+    const auto program = resolvedProgramPath( program_ );
+    if ( program.isEmpty() ) {
+        result.error = couldNotStart( qt_error_string( ENOENT ) );
         result.notFound = true;
         LOG_WARNING << "Team Folder: " << result.error;
         return result;
@@ -147,15 +115,15 @@ GitResult Git::run( const QStringList& arguments, const QString& workingDirector
     if ( !workingDirectory.isEmpty() ) {
         process.setWorkingDirectory( workingDirectory );
     }
-    process.setProgram( program_ );
+    process.setProgram( program );
     process.setArguments( arguments );
 
     const auto runStarted = QDateTime::currentDateTime();
     LOG_DEBUG << "Team Folder runs git " << arguments.join( ' ' );
     process.start( QIODevice::ReadOnly );
     if ( !process.waitForStarted() ) {
+        // The program is there, it was resolved to: not found is not why.
         result.error = couldNotStart( process.errorString() );
-        result.notFound = process.error() == QProcess::FailedToStart && !programExists( program_ );
         LOG_WARNING << "Team Folder: " << result.error;
         return result;
     }

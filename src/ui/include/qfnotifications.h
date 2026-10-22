@@ -20,6 +20,7 @@
 #ifndef QFNOTIFICATIONS_H
 #define QFNOTIFICATIONS_H
 
+#include <QCoreApplication>
 #include <QFontMetrics>
 #include <QObject>
 #include <QWidget>
@@ -27,6 +28,8 @@
 // Notifications sent by the QF for displaying to the user
 // and their translation in UI text.
 class QFNotification {
+    Q_DECLARE_TR_FUNCTIONS( QFNotification )
+
 public:
     explicit QFNotification( const QString& message = "" )
         : message_{ message }
@@ -42,14 +45,20 @@ public:
     static int maxWidth( const QWidget* widget )
     {
         QFontMetrics fm = widget->fontMetrics();
-        return qMax( fm.size( Qt::TextSingleLine, REACHED_BOF ).width(),
-                     fm.size( Qt::TextSingleLine, REACHED_EOF ).width() );
+        return qMax( fm.size( Qt::TextSingleLine, reachedBeginningOfFile() ).width(),
+                     fm.size( Qt::TextSingleLine, reachedEndOfFile() ).width() );
     }
 
 protected:
-    static const QString REACHED_EOF;
-    static const QString REACHED_BOF;
-    static const QString INTERRUPTED;
+    // The notices, translated like the Search Line's (#846).
+    static QString reachedEndOfFile();
+    static QString reachedBeginningOfFile();
+    static QString interrupted();
+
+    // The message, and the Log Lines searched that the regex engine gave up
+    // on when there were any: they may match, as the Search says of its
+    // own (#689, #826).
+    static QString withUndecided( const QString& message, int undecidedLines );
 
 private:
     QString message_;
@@ -57,16 +66,16 @@ private:
 
 class QFNotificationReachedEndOfFile : public QFNotification {
 public:
-    QFNotificationReachedEndOfFile()
-        : QFNotification( REACHED_EOF )
+    explicit QFNotificationReachedEndOfFile( int undecidedLines = 0 )
+        : QFNotification( withUndecided( reachedEndOfFile(), undecidedLines ) )
     {
     }
 };
 
 class QFNotificationReachedBegininningOfFile : public QFNotification {
 public:
-    QFNotificationReachedBegininningOfFile()
-        : QFNotification( REACHED_BOF )
+    explicit QFNotificationReachedBegininningOfFile( int undecidedLines = 0 )
+        : QFNotification( withUndecided( reachedBeginningOfFile(), undecidedLines ) )
     {
     }
 };
@@ -74,7 +83,7 @@ public:
 class QFNotificationInterrupted : public QFNotification {
 public:
     QFNotificationInterrupted()
-        : QFNotification( INTERRUPTED )
+        : QFNotification( interrupted() )
     {
     }
 };

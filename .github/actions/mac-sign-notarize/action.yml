@@ -95,20 +95,36 @@ runs:
     #
     # Apple requires signing nested code before the outer bundle.
     # Using --deep is unreliable — we sign frameworks, dylibs, helpers,
-    # and the main binary one by one, with hardened-runtime entitlements.
+    # and the main binary one by one, all with the hardened runtime.
     # Signing does not change the Mach-O UUIDs, so the dSYM of the CI Build
     # still matches for Sentry.
+    #
+    # Only the main executable, and so the bundle, gets an entitlements file:
+    # it is the one process that loads Plugins, and a Plugin from the user
+    # plugin directory is signed by its author or not at all, so it alone
+    # disables the hardened runtime's library validation
+    # (packaging/osx/entitlements-app.plist). The frameworks, dylibs, Qt
+    # plug-ins and helper executables (logsquirl_grep, the crashpad handler,
+    # the minidump tool) load nothing but the bundled frameworks of the same
+    # signature and are signed with no entitlement at all (#835).
     - name: Mac codesign binaries
       shell: bash
       env:
         SIGN: ${{ steps.identity.outputs.codesign }}
-        ENT: ${{ github.workspace }}/packaging/osx/entitlements.plist
+        ENT_APP: ${{ github.workspace }}/packaging/osx/entitlements-app.plist
         APP: ${{ steps.unpack.outputs.work }}/logsquirl.app
       run: |
         set -euo pipefail
+        # Hardened runtime, no entitlements: every library and helper.
         sign() {
           codesign --force --options runtime --timestamp \
-            --entitlements "$ENT" --sign "$SIGN" "$1"
+            --sign "$SIGN" "$1"
+        }
+        # Hardened runtime with the plugin-loading entitlements: the main
+        # executable and the bundle.
+        sign_app() {
+          codesign --force --options runtime --timestamp \
+            --entitlements "$ENT_APP" --sign "$SIGN" "$1"
         }
 
         echo "::group::Signing individual components"
@@ -128,12 +144,38 @@ runs:
         while IFS= read -r helper; do
           echo "  Signing helper: $helper"; sign "$helper"
         done < <(find "$APP/Contents/MacOS" -type f -perm +111 ! -name 'logsquirl' 2>/dev/null)
-        echo "  Signing main binary"; sign "$APP/Contents/MacOS/logsquirl"
-        echo "  Signing app bundle"; sign "$APP"
+        echo "  Signing main binary"; sign_app "$APP/Contents/MacOS/logsquirl"
+        echo "  Signing app bundle"; sign_app "$APP"
         echo "::endgroup::"
 
         echo "=== Verify signature ==="
         codesign --verify --deep --strict --verbose=2 "$APP"
+
+        # The entitlement is where it belongs and nowhere else: the main
+        # executable disables library validation, and every helper under
+        # Contents/MacOS and every framework carries no entitlement.
+        echo "=== Verify entitlements ==="
+        entitlements() {
+          codesign --display --entitlements - --xml "$1" 2>/dev/null || true
+        }
+        if ! grep -q 'com.apple.security.cs.disable-library-validation' \
+            <<< "$(entitlements "$APP/Contents/MacOS/logsquirl")"; then
+          echo "::error::The main executable lacks com.apple.security.cs.disable-library-validation; Plugins would not load."
+          exit 1
+        fi
+        while IFS= read -r signed; do
+          if grep -q '<key>' <<< "$(entitlements "$signed")"; then
+            echo "::error::$signed carries an entitlement; only the main executable may."
+            entitlements "$signed"
+            exit 1
+          fi
+        done < <(
+          find "$APP/Contents/MacOS" -type f -perm +111 ! -name 'logsquirl' 2>/dev/null
+          find "$APP/Contents/Frameworks" -maxdepth 1 -name '*.framework' 2>/dev/null | sed 's|$|/Versions/A|'
+          find "$APP/Contents/Frameworks" -maxdepth 1 -name '*.dylib' 2>/dev/null
+          find "$APP/Contents/PlugIns" -name '*.dylib' 2>/dev/null
+        )
+        echo "The main executable alone carries the plugin-loading entitlement."
 
     # Stapling the notarization ticket directly onto the .app ensures
     # Gatekeeper accepts it even when extracted from the DMG or downloaded

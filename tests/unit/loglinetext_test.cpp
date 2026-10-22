@@ -31,6 +31,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "textencoding.h"
@@ -537,6 +538,18 @@ SCENARIO( "A Log Line that cannot be read reads as a warning in every shape", "[
         }
     }
 
+    GIVEN( "a Log Line an Index says begins before the bytes read (#824)" )
+    {
+        const std::string_view bytes = "first\n";
+
+        THEN( "it reads as a warning rather than reaching before them" )
+        {
+            const auto line = readLogLine( 0, bytes, -1, 3, false );
+            REQUIRE( line.warning == FileReadFailedWarning );
+            REQUIRE( line.bytes.empty() );
+        }
+    }
+
     GIVEN( "a block whose first Log Line is too long to decode" )
     {
         auto rawLines = rawLinesOfBytes( { "first\n", "second\n" }, "UTF-8", false );
@@ -570,6 +583,111 @@ SCENARIO( "A Log Line that cannot be read reads as a warning in every shape", "[
             REQUIRE( decodeReadLogLinesToUtf8( codec, 3, read )
                      == std::string( LineTooLongWarning ) + "\n"
                             + std::string( LinesNotReadWarning ) + "\nfirst\n" );
+        }
+    }
+}
+
+namespace {
+
+// A block as the log data reads one with a Log Line too long to read (#825):
+// the block holds a line feed in its Encoding in place of the Log Line, and
+// says which Log Line that is.
+RawLines rawLinesWithTooLongLine( std::vector<QByteArray> lines, std::size_t tooLong,
+                                  const char* encoding, bool hideAnsiColorSequences )
+{
+    lines[ tooLong ] = TextEncoding::forName( encoding )->fromUnicode( QStringLiteral( "\n" ) );
+    auto rawLines = rawLinesOfBytes( lines, encoding, hideAnsiColorSequences );
+    rawLines.tooLongLines.push_back( tooLong );
+    return rawLines;
+}
+
+} // namespace
+
+SCENARIO( "A block with a Log Line too long to read (#825)", "[loglinetext][search]" )
+{
+    const auto hideAnsiColorSequences = GENERATE( false, true );
+
+    GIVEN( "a block whose second Log Line was too long to read, in any Encoding" )
+    {
+        // Each Encoding takes another path to the UTF-8 view: UTF-8 Log Line
+        // by Log Line, Latin-1 and UTF-16 converted as a block, windows-1252
+        // decoded as a block.
+        const auto* const encoding
+            = GENERATE( "UTF-8", "UTF-16LE", "UTF-16BE", "ISO-8859-1", "windows-1252" );
+        auto* const codec = TextEncoding::forName( encoding );
+        std::vector<QByteArray> bytes;
+        for ( const auto& line : { QStringLiteral( "first\n" ), QStringLiteral( "<unread>\n" ),
+                                   QStringLiteral( "third \x1B[31mred\x1B[0m\r\n" ) } ) {
+            bytes.push_back( codec->fromUnicode( line ) );
+        }
+        const auto makeRawLines = [ & ] {
+            return rawLinesWithTooLongLine( bytes, 1, encoding, hideAnsiColorSequences );
+        };
+        const auto third = hideAnsiColorSequences ? QStringLiteral( "third red" )
+                                                  : QStringLiteral( "third \x1B[31mred\x1B[0m" );
+
+        THEN( "it reads as the too-long warning and the Log Lines around it as themselves" )
+        {
+            const auto lines = makeRawLines().decodeLines();
+            REQUIRE( std::vector<QString>( lines.begin(), lines.end() )
+                     == std::vector<QString>{ QStringLiteral( "first" ),
+                                              warningText( LineTooLongWarning ), third } );
+
+            const auto colored = makeRawLines().decodeAnsiColoredLines();
+            REQUIRE( colored.size() == 3 );
+            REQUIRE( colored[ 1 ].text == warningText( LineTooLongWarning ) );
+            REQUIRE( colored[ 2 ].text == QStringLiteral( "third red" ) );
+        }
+
+        THEN( "a Search sees it as the too-long warning, with the Log Lines around it" )
+        {
+            const auto rawLines = makeRawLines();
+            const auto view = rawLines.buildUtf8View();
+            REQUIRE( std::vector<std::string>( view.begin(), view.end() )
+                     == std::vector<std::string>{ "first", std::string( LineTooLongWarning ),
+                                                  third.toStdString() } );
+        }
+    }
+}
+
+SCENARIO( "A block is decoded in pieces no decoder narrows (#825)", "[loglinetext][search]" )
+{
+    GIVEN( "a block of more bytes than an int counts" )
+    {
+        const qint64 size = 2 * MaxLogLineLength + 5;
+        std::vector<std::pair<qint64, qsizetype>> pieces;
+
+        THEN( "it is decoded in pieces of at most MaxLogLineLength bytes, in order" )
+        {
+            const auto text = decodeInPieces( size, MaxLogLineLength,
+                                              [ &pieces ]( qint64 offset, qsizetype pieceSize ) {
+                                                  pieces.emplace_back( offset, pieceSize );
+                                                  return QStringLiteral( "." );
+                                              } );
+            REQUIRE( text == QStringLiteral( "..." ) );
+            REQUIRE( pieces
+                     == std::vector<std::pair<qint64, qsizetype>>{
+                         { 0, MaxLogLineLength },
+                         { MaxLogLineLength, MaxLogLineLength },
+                         { 2 * MaxLogLineLength, 5 } } );
+        }
+    }
+
+    GIVEN( "a block whose characters straddle the pieces" )
+    {
+        const auto* const encoding = GENERATE( "UTF-8", "UTF-16LE", "windows-1252" );
+        const TextCodecHolder codec( TextEncoding::forName( encoding ) );
+        const auto expected = QStringLiteral( "caf\u00E9 \u20AC\nsecond" );
+        const auto bytes = codec.codec()->fromUnicode( expected );
+        const auto decoder = codec.makeDecoder();
+
+        THEN( "the pieces decode as the whole does" )
+        {
+            const auto text = decodeInPieces(
+                bytes.size(), 1, [ &decoder, &bytes ]( qint64 offset, qsizetype pieceSize ) {
+                    return decoder.decode( bytes.constData() + offset, pieceSize );
+                } );
+            REQUIRE( text == expected );
         }
     }
 }

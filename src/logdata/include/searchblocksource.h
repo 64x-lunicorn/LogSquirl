@@ -29,6 +29,7 @@
 #include <QString>
 #include <QtGlobal>
 
+#include <cstddef>
 #include <string_view>
 
 // A block of raw Log Lines [startLine, startLine + endOfLines.size()): the
@@ -39,6 +40,13 @@ struct RawLines {
 
     logsquirl::vector<char> buffer;
     logsquirl::vector<qint64> endOfLines;
+    // The Log Lines of the block, by index in it and ascending, that were too
+    // long to read (MaxLogLineLength, loglinetext.h): a line feed in the
+    // block's Encoding stands for each in buffer, so the block still splits
+    // into endOfLines.size() Log Lines, and each reads as LineTooLongWarning
+    // however it is decoded. So a block of N Log Lines holds fewer than N
+    // times MaxLogLineLength bytes, whatever the Log File holds (#825).
+    logsquirl::vector<std::size_t> tooLongLines;
 
     TextDecoder textDecoder;
 
@@ -66,6 +74,16 @@ private:
     mutable QByteArray utf8Data_;
 };
 
+// The most bytes a Search's block holds beyond its first Log Line: a source
+// hands back fewer Log Lines than asked once the next would take the block
+// past this. A Search keeps three blocks per matching thread in flight (its
+// prefetch limit), and a block's readBufferSizeLines Log Lines alone bound
+// nothing -- 10,000 of them can be gigabytes. 64 MiB holds 10,000 ordinary
+// Log Lines many times over, so an ordinary block is never cut, and a Search
+// on an eight-thread machine holds at most 1.5 GiB of blocks, each Log Line
+// within MaxLogLineLength aside (#825).
+inline constexpr qint64 SearchBlockMaxBytes = 64 * 1024 * 1024;
+
 // Where a Search reads the Log Lines it matches from: it hands out blocks of
 // raw Log Lines, one block per call, so a run pays for one call per block and
 // none per Log Line. The log data is one adapter; a test can hand a Search
@@ -74,6 +92,9 @@ private:
 //
 // getLinesRaw() is called from the Search's threads while the Search Session
 // asks getNbLines() on its own, so an adapter must be safe to use from both.
+// A Search holds its source through a shared handle and may keep it past
+// whoever made it, when a run outlasts its Background Run's shutdown timeout:
+// an adapter must then read nothing rather than what is gone (#832).
 class SearchBlockSource {
 public:
     SearchBlockSource() = default;
@@ -87,9 +108,14 @@ public:
     // How many Log Lines there are to search right now.
     virtual LinesCount getNbLines() const = 0;
 
-    // The raw Log Lines [first, first + number). A block that reaches past
-    // the last Log Line comes back empty. May throw: a Search whose block
-    // cannot be read fails.
+    // The raw Log Lines [first, first + number), or fewer of them from first
+    // on when the block's bytes would pass SearchBlockMaxBytes -- the first
+    // is always in it: a Search goes on from the Log Line after the block's
+    // last. A block that reaches past the last Log Line comes back empty.
+    // Never throws (#824): a block whose bytes could not all be read holds
+    // the Log Lines read, and from the first one not read on each reads as a
+    // warning (loglinetext.h); one an absurd Index offset makes unreadable
+    // comes back empty, as past the last Log Line.
     virtual RawLines getLinesRaw( LineNumber first, LinesCount number ) const = 0;
 
     // Bracket one run of a Search: whatever the source needs to keep open

@@ -47,47 +47,31 @@
 #ifndef LOGSQUIRL_OPEN_FILE_HELPER_H
 #define LOGSQUIRL_OPEN_FILE_HELPER_H
 
-#include <QApplication>
-#include <QDir>
-#include <QFileInfo>
+#include <QString>
+#include <QStringList>
 #include <QUrl>
-#include <QtCore/QProcess>
-#include <QtGui/QDesktopServices>
 
-#include "log.h"
+// The platform whose file manager reveals a file, a parameter so every branch
+// is tested everywhere (#822).
+enum class FileExplorerPlatform { Windows, MacOS, Other };
 
-inline void showPathInFileExplorer( const QString& filePath )
-{
-    const QFileInfo fileInfo( filePath );
+// What reveals a file in the file manager: a program run with its arguments,
+// or, when the program is empty, the file's folder opened through the desktop
+// services. The path only ever travels as one argument; no script or command
+// text is composed from it (#822).
+struct FileExplorerAction {
+    QString program;
+    QStringList arguments;
+    QUrl url;
+};
 
-    LOG_INFO << "Show path in explorer: " << filePath;
+// The action for a file, on a platform, with the SystemRoot the environment
+// names (Windows only; empty when unset). The path is used as given.
+FileExplorerAction fileExplorerAction( const QString& filePath, FileExplorerPlatform platform,
+                                       const QString& systemRoot );
 
-#if defined( Q_OS_WIN )
-    const auto explorerArgs
-        = QStringList() << QString( "/select,%1" )
-                               .arg( QDir::toNativeSeparators( fileInfo.canonicalFilePath() ) );
-    QProcess::startDetached( "explorer.exe", explorerArgs );
-#elif defined( Q_OS_MAC )
-    QStringList scriptArgs;
-    scriptArgs << QLatin1String( "-e" )
-               << QString::fromLatin1( "tell application \"Finder\" to reveal POSIX file \"%1\"" )
-                      .arg( fileInfo.canonicalFilePath() );
-    QProcess::execute( QLatin1String( "/usr/bin/osascript" ), scriptArgs );
-    scriptArgs.clear();
-    scriptArgs << QLatin1String( "-e" )
-               << QLatin1String( "tell application \"Finder\" to activate" );
-    QProcess::execute( QLatin1String( "/usr/bin/osascript" ), scriptArgs );
-#else
-    QDesktopServices::openUrl( QUrl::fromLocalFile( fileInfo.canonicalPath() ) );
-#endif
-}
+void showPathInFileExplorer( const QString& filePath );
 
-inline void openFileInDefaultApplication( const QString& filePath )
-{
-    LOG_INFO << "Open file in default app: " << filePath;
-
-    const QFileInfo fileInfo( filePath );
-    QDesktopServices::openUrl( QUrl::fromLocalFile( fileInfo.canonicalFilePath() ) );
-}
+void openFileInDefaultApplication( const QString& filePath );
 
 #endif

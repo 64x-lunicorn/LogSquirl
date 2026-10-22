@@ -224,6 +224,8 @@ public:
     // What the tooltip over pos, in Viewport coordinates, tells: the Named
     // Value there and where its name came from; empty where there is none.
     QString valueNameToolTipAt( const QPoint& pos ) const;
+    // What the tooltip over a Named Value tells, reading literally (#830).
+    static QString valueNameToolTip( const logsquirl::valuenames::NamedValue& value );
 
     void allowFollowMode( bool allow ) override;
 

@@ -259,6 +259,11 @@ bool Highlighter::matchLine( const QString& line,
                              logsquirl::vector<HighlightedMatch>& matches ) const
 {
     matches.clear();
+    // Also for the main Search's and the Color Labels' Highlighters, which
+    // the Line Decorator matches on the UI thread through here (#826).
+    if ( line.size() > MaxHighlightLineLength ) {
+        return false;
+    }
 
     const auto& regexp = compiledRegexp();
     QRegularExpressionMatchIterator matchIterator = regexp.globalMatch( line );

@@ -110,6 +110,10 @@ public:
         // Whether the Log Format matched the Log Line: when not, the last
         // field shows the Log Line whole, and no field has a value.
         bool matchesFormat = false;
+        // Whether the regex engine gave up on the Log Line instead of
+        // deciding it: shown as one the Log Format does not match, but it
+        // may match (#689, #826).
+        bool undecided = false;
     };
     // The Row showing Log Line logLine, whose text is line. Its elapsed time
     // is measured from the nearest earlier Log Line of the Log File within

@@ -22,6 +22,7 @@
 #include "containers.h"
 #include "linetypes.h"
 
+#include <QIODevice>
 #include <QtGlobal>
 
 #include <cstddef>
@@ -39,6 +40,10 @@ struct SparseReadLimits {
     // A read joins a Log Line across a gap only while it is shorter than
     // this. The Log Line right after the last one it holds always joins.
     qint64 maxReadBytes = 1024 * 1024;
+    // How many bytes a line feed takes in the Log File's Encoding: a Log
+    // Line of MaxLogLineLength bytes or more without it (loglinetext.h) is
+    // too long to read (#825).
+    int lineFeedWidth = 1;
 };
 
 // One read of a sparse read: the bytes [firstByte, firstByte + size) of the
@@ -70,7 +75,22 @@ using EndOfLineOffsets
 // Log Lines a few Log Lines apart, so no part of it is decoded twice and the
 // Log Lines between far-apart ones are not decoded at all. lines may come in
 // any order and repeat. A Log Line at or past nbLines, or one the Index has
-// no offset for, is in no read.
+// no offset for, is in no read. A Log Line too long to read is in a read of
+// its own that has no bytes: where it lies is still said, so that
+// readLogLine() reads it as too long, and nothing is read or allocated for
+// it (#825).
 logsquirl::vector<SparseRead> planSparseRead( std::span<const LineNumber> lines, LinesCount nbLines,
                                               const EndOfLineOffsets& endOfLineOffsets,
                                               const SparseReadLimits& limits = {} );
+
+// Reads up to size bytes of device at offset into out: how many were read,
+// fewer than size at the end of the device, or -1 when the device cannot
+// seek there. Nothing is read then: a read from wherever the device stands
+// would be another Log Line's bytes, taken for the one asked for (#845).
+inline qint64 readBytesAt( QIODevice& device, qint64 offset, char* out, qint64 size )
+{
+    if ( !device.seek( offset ) ) {
+        return -1;
+    }
+    return device.read( out, size );
+}

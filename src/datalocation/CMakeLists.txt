@@ -1,9 +1,13 @@
-# Where LogSquirl keeps its settings and data, portable or installed (#602).
+# Where LogSquirl keeps its settings and data, portable or installed (#602),
+# and its single-instance lock (#827).
 # Every library that stores something asks it, so it needs only Qt Core and
 # sits below all of them.
 add_library(
-  logsquirl_datalocation STATIC ${CMAKE_CURRENT_SOURCE_DIR}/include/datalocation.h
-                                ${CMAKE_CURRENT_SOURCE_DIR}/src/datalocation.cpp
+  logsquirl_datalocation STATIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/datalocation.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/singleinstancedirectory.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/datalocation.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/singleinstancedirectory.cpp
 )
 
 target_include_directories(logsquirl_datalocation PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")

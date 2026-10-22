@@ -1,8 +1,13 @@
 add_library(
   logsquirl_compression STATIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/archiveextraction.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/budgeteddevice.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/decompressionfailure.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/decompressor.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/lz4device.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/zstddevice.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/archiveextraction.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/budgeteddevice.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/decompressor.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/lz4device.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/zstddevice.cpp

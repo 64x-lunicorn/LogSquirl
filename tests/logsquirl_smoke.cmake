@@ -33,10 +33,16 @@ set(_home "${WORK_DIR}/home")
 set(_tmp "${WORK_DIR}/tmp")
 file(MAKE_DIRECTORY "${_home}" "${_tmp}")
 
+# The single-instance lock and socket carry this id in their names, so the
+# check below finds what this run left behind and nothing else (#844).
+string(RANDOM LENGTH 8 ALPHABET "abcdefghijklmnopqrstuvwxyz0123456789" _instance_id)
+set(_instance_id "smoke-${_instance_id}")
+
 set(_environment
     "HOME=${_home}"
     "TMPDIR=${_tmp}"
     "QT_QPA_PLATFORM=offscreen"
+    "LOGSQUIRL_INSTANCE_ID=${_instance_id}"
 )
 
 if(APPLE)
@@ -65,6 +71,27 @@ execute_process(
   RESULT_VARIABLE _result
   TIMEOUT 120
 )
+
+# -v ends the application cleanly, so the single-instance lock file and socket
+# go with it (#844). They live in an owner-only folder under the temporary
+# directory, under /tmp when that path is too deep for a socket (#841), or
+# under the runtime directory on Linux; a named pipe on Windows is no file.
+if(NOT WIN32)
+  set(_instance_patterns
+      "${_tmp}/logsquirl-*/*${_instance_id}*"
+      "/tmp/logsquirl-*/*${_instance_id}*"
+  )
+  if(DEFINED ENV{XDG_RUNTIME_DIR})
+    list(APPEND _instance_patterns "$ENV{XDG_RUNTIME_DIR}/logsquirl-*/*${_instance_id}*")
+  endif()
+  file(GLOB _left_behind LIST_DIRECTORIES false ${_instance_patterns})
+  if(_left_behind)
+    file(REMOVE ${_left_behind})
+    file(REMOVE_RECURSE "${WORK_DIR}")
+    string(REPLACE ";" "\n  " _left_behind "${_left_behind}")
+    message(FATAL_ERROR "logsquirl -v left its single-instance lock or socket behind:\n  ${_left_behind}")
+  endif()
+endif()
 
 file(REMOVE_RECURSE "${WORK_DIR}")
 logsquirl_tsan_check("${_tsan_dir}" _tsan_failures _tsan_output)
