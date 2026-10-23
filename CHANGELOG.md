@@ -265,6 +265,13 @@
 
 ## Build and packaging
 
+- **The fuzzers and the CodeQL analysis take Qt from the build image**: the
+  ClusterFuzzLite image copies Qt out of the Ubuntu 24.04 build image and the
+  CodeQL C++ job copies it onto the runner, both from the image of the
+  checkout's docker/ files, verified by signature and pulled by digest like
+  every Linux build, instead of downloading Qt from download.qt.io, which
+  failed both jobs while Qt 6.11.3 was republished without its checksums; a
+  change to that image's inputs now runs the fuzzers too. (#850)
 - **The build images trust no compromised emSign certificate**: the Linux
   build images and the fuzzing image install certifi 2026.10.19 next to
   aqtinstall, which downloads Qt into them, instead of 2026.7.22. The older

@@ -1,0 +1,68 @@
+name: "Qt from the build image"
+description: "Copy Qt out of the build container that docker-pull-or-build resolved (LOGSQUIRL_CONTAINER) to /opt/qt on the runner, and export the variables install-qt-action would"
+# A job that builds on the runner itself (the CodeQL cpp analysis, whose
+# tracer has to see the compiler) takes Qt out of the Ubuntu 24.04 build image
+# instead of downloading it with install-qt-action: download.qt.io republished
+# Qt 6.11.3 without its checksums for hours and the download failed (#850).
+# The image is the one of this checkout's docker/ files, verified by signature
+# and pulled by digest by ./.github/actions/docker-pull-or-build, which the
+# caller runs first; this action reads its LOGSQUIRL_CONTAINER. Qt lands at
+# /opt/qt/<version>/gcc_64 as in the image, so the absolute paths aqtinstall
+# wrote into its .prl and .pc files stay right. Linux only, like the image.
+runs:
+  using: "composite"
+  steps:
+    # What install-qt-action installs on Linux (its install-deps default):
+    # the libraries Qt's shared objects need, which the linker resolves when
+    # an executable is linked against them.
+    - name: Install the packages Qt needs
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends -y \
+          libgl1-mesa-dev libgstreamer-gl1.0-0 libpulse-dev \
+          libxcb-glx0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+          libxcb-randr0 libxcb-render-util0 libxcb-render0 libxcb-shape0 \
+          libxcb-shm0 libxcb-sync1 libxcb-util1 libxcb-xfixes0 \
+          libxcb-xinerama0 libxcb1 libxkbcommon-dev libxkbcommon-x11-0 \
+          libxcb-xkb-dev libxcb-cursor0
+
+    # The Qt directory is the image's Qt6_DIR, checked against the shape
+    # docker/ubuntu24.04 gives it before it reaches GITHUB_ENV and
+    # GITHUB_PATH; the container itself was verified by docker-pull-or-build.
+    # The variables are the ones install-qt-action exports (its set-env), so
+    # the configure step finds Qt the same way with either (#850).
+    - name: Copy Qt out of the build image
+      shell: bash
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
+        if [ -z "${LOGSQUIRL_CONTAINER:-}" ]; then
+          echo "::error::LOGSQUIRL_CONTAINER is not set; run ./.github/actions/docker-pull-or-build first"
+          exit 1
+        fi
+        qt_dir=$(docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
+          "$LOGSQUIRL_CONTAINER" | sed -n 's/^Qt6_DIR=//p')
+        if [[ ! "$qt_dir" =~ ^/opt/qt/[0-9]+\.[0-9]+\.[0-9]+/gcc_64$ ]]; then
+          echo "::error::$LOGSQUIRL_CONTAINER has an unexpected Qt6_DIR '$qt_dir'"
+          exit 1
+        fi
+        sudo mkdir -p /opt/qt
+        sudo chown "$(id -u):$(id -g)" /opt/qt
+        container=$(docker create "$LOGSQUIRL_CONTAINER")
+        docker cp "$container:/opt/qt/." /opt/qt
+        docker rm "$container" > /dev/null
+        if [ ! -x "$qt_dir/bin/qmake" ]; then
+          echo "::error::$qt_dir/bin/qmake is missing after the copy"
+          exit 1
+        fi
+        echo "Qt $(basename "$(dirname "$qt_dir")") from $LOGSQUIRL_CONTAINER at $qt_dir"
+        {
+          echo "QT_ROOT_DIR=$qt_dir"
+          echo "Qt6_DIR=$qt_dir"
+          echo "QT_PLUGIN_PATH=$qt_dir/plugins"
+          echo "QML2_IMPORT_PATH=$qt_dir/qml"
+          echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$qt_dir/lib"
+          echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH:+$PKG_CONFIG_PATH:}$qt_dir/lib/pkgconfig"
+        } >> "$GITHUB_ENV"
+        echo "$qt_dir/bin" >> "$GITHUB_PATH"
