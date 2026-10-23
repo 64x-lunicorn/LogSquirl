@@ -284,6 +284,16 @@
   runtime and no entitlement, and the signing step fails when the entitlement is
   missing on the main executable or present anywhere else. (#835)
 
+## Internal
+
+- **The single-instance hand-over tests run on Windows too**: the two unit
+  tests in which a secondary instance hands its message to a primary instance
+  in the same process now send from a thread of their own while the test runs
+  the event loop. On Windows Qt's named pipe has no buffer, so the send waited
+  for a read in its own thread and timed out with NotSent; the connect, which
+  the tests were skipped for, always succeeded. A failed connect attempt of a
+  secondary instance is now logged once per kind of error. (#849)
+
 ## Documentation
 
 - **Security policy**: SECURITY.md names 26.10 as the supported release, and the

@@ -39,11 +39,10 @@
 #include <QStringList>
 #include <QTemporaryDir>
 
-#include <string>
+#include <chrono>
+#include <future>
 
-#ifdef Q_OS_WIN
-#include <qt_windows.h>
-#else
+#ifndef Q_OS_WIN
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
@@ -118,36 +117,22 @@ bool isOwnerOnlySocket( const QString& path )
 }
 #endif
 
-#ifdef Q_OS_WIN
-// Diagnostics for #849: what the OS itself says to a client of the pipe
-// `name`, apart from what Qt makes of it.
-std::string probePipe( const QString& name )
+// Sends from a thread of its own while this one runs the event loop, as a
+// secondary instance in a process of its own would. On Windows a write to the
+// pipe completes only once the listener reads it: Qt creates the pipe without
+// a buffer, and the listener's socket reads in this thread's event loop. A
+// send from this thread would wait for itself until its timeout and report
+// NotSent (#849).
+KDSingleApplication::SendResult sendFromAnotherThread( KDSingleApplication& secondary,
+                                                       const QByteArray& message, int timeout )
 {
-    const auto path = QStringLiteral( "\\\\.\\pipe\\" ) + name;
-    const auto* widePath = reinterpret_cast<const wchar_t*>( path.utf16() );
-    std::string report = "path " + path.toStdString();
-    const BOOL waited = ::WaitNamedPipeW( widePath, 0 );
-    const DWORD waitError = ::GetLastError();
-    report += waited ? "; WaitNamedPipe: an instance is available"
-                     : "; WaitNamedPipe failed with " + std::to_string( waitError );
-    HANDLE handle = ::CreateFileW( widePath, GENERIC_READ | GENERIC_WRITE, 0, nullptr,
-                                   OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr );
-    const DWORD openError = ::GetLastError();
-    if ( handle == INVALID_HANDLE_VALUE ) {
-        report += "; CreateFile failed with " + std::to_string( openError );
+    auto result = std::async(
+        std::launch::async, [ & ] { return secondary.sendMessageWithResult( message, timeout ); } );
+    while ( result.wait_for( std::chrono::milliseconds( 10 ) ) != std::future_status::ready ) {
+        QCoreApplication::processEvents();
     }
-    else {
-        report += "; CreateFile connected";
-        ::CloseHandle( handle );
-    }
-    return report;
+    return result.get();
 }
-#else
-std::string probePipe( const QString& )
-{
-    return "no probe on this platform";
-}
-#endif
 
 // The lock file a guard of `name` in `directory` takes, learnt from one.
 QString lockFileOf( const QString& name, const QString& directory )
@@ -543,13 +528,10 @@ TEST_CASE( "A second instance of the name in the directory hands its message to 
     REQUIRE_FALSE( secondary.isPrimaryInstance() );
     REQUIRE( secondary.primaryPid() == QCoreApplication::applicationPid() );
 
-    // Diagnostics for #849.
-    CAPTURE( primary.socketName().toStdString(), secondary.socketName().toStdString(),
-             probePipe( secondary.socketName() ) );
-
-    REQUIRE( secondary.sendMessageWithResult( "hello", 2000 )
+    REQUIRE( sendFromAnotherThread( secondary, "hello", 2000 )
              == KDSingleApplication::SendResult::Sent );
-    REQUIRE( received.wait( 5000 ) );
+    // The message may have arrived while the send ran the event loop.
+    REQUIRE( ( !received.isEmpty() || received.wait( 5000 ) ) );
     REQUIRE( received.first().first().toByteArray() == QByteArray( "hello" ) );
 }
 
@@ -616,11 +598,7 @@ TEST_CASE( "A held lock with nothing listening is told from a primary instance t
 #endif
         REQUIRE( listener.listen( secondary.socketName() ) );
 
-        // Diagnostics for #849.
-        CAPTURE( listener.fullServerName().toStdString(), secondary.socketName().toStdString(),
-                 probePipe( secondary.socketName() ) );
-
-        REQUIRE( secondary.sendMessageWithResult( "hello", 2000 )
+        REQUIRE( sendFromAnotherThread( secondary, "hello", 2000 )
                  == KDSingleApplication::SendResult::Sent );
     }
 }

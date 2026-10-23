@@ -187,8 +187,8 @@ KDSingleApplicationLocalSocket::SendResult KDSingleApplicationLocalSocket::sendM
         if (!anyFailureLogged || socket.error() != lastError) {
             anyFailureLogged = true;
             lastError = socket.error();
-            qCWarning(kdsaLocalSocket) << "Attempt" << attempts << "to connect to" << socket.serverName()
-                                       << "(full name" << socket.fullServerName() << ") failed:"
+            // Qt clears the socket's server name when a connect fails.
+            qCWarning(kdsaLocalSocket) << "Attempt" << attempts << "to connect to" << m_socketName << "failed:"
                                        << socket.error() << socket.errorString()
                                        << "state" << socket.state()
                                        << "remaining" << deadline.remainingTime() << "ms";
