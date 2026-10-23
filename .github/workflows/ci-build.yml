@@ -962,9 +962,12 @@ jobs:
             pgo: false
 
     runs-on: ${{ matrix.config.runner }}
-    # Slowest successful run 38 min (cold sccache), median 22 min, before #217's
-    # per-case test processes; #199's changed cache keys start it cold (#218).
-    timeout-minutes: 90
+    # Master took 55 to 79 min in October 2026, about 27 of them linking the
+    # tests and benchmarks with link time optimization (#280); a pull request
+    # run that only reads the sccache took 91 min and was cancelled while
+    # packaging. Before #217's per-case test processes the slowest successful
+    # run took 38 min (cold sccache), the median 22 min.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
