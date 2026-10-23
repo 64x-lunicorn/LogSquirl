@@ -39,6 +39,9 @@
 #include <QStringList>
 #include <QTemporaryDir>
 
+#include <chrono>
+#include <future>
+
 #ifndef Q_OS_WIN
 #include <sys/stat.h>
 #include <unistd.h>
@@ -113,6 +116,23 @@ bool isOwnerOnlySocket( const QString& path )
     return S_ISSOCK( status.st_mode ) && ( status.st_mode & ( S_IRWXG | S_IRWXO ) ) == 0;
 }
 #endif
+
+// Sends from a thread of its own while this one runs the event loop, as a
+// secondary instance in a process of its own would. On Windows a write to the
+// pipe completes only once the listener reads it: Qt creates the pipe without
+// a buffer, and the listener's socket reads in this thread's event loop. A
+// send from this thread would wait for itself until its timeout and report
+// NotSent (#849).
+KDSingleApplication::SendResult sendFromAnotherThread( KDSingleApplication& secondary,
+                                                       const QByteArray& message, int timeout )
+{
+    auto result = std::async(
+        std::launch::async, [ & ] { return secondary.sendMessageWithResult( message, timeout ); } );
+    while ( result.wait_for( std::chrono::milliseconds( 10 ) ) != std::future_status::ready ) {
+        QCoreApplication::processEvents();
+    }
+    return result.get();
+}
 
 // The lock file a guard of `name` in `directory` takes, learnt from one.
 QString lockFileOf( const QString& name, const QString& directory )
@@ -493,10 +513,6 @@ TEST_CASE( "The directory of the lock and the socket goes with the primary insta
 }
 #endif
 
-#ifndef Q_OS_WIN
-// On the Windows CI runner the secondary's connect to the pipe of a primary
-// instance in the same process never succeeds (#849); the Windows hand-over
-// is covered by tests/e2e/test_single_instance.py on a developer machine.
 TEST_CASE( "A second instance of the name in the directory hands its message to the first",
            "[singleinstance]" )
 {
@@ -512,12 +528,12 @@ TEST_CASE( "A second instance of the name in the directory hands its message to 
     REQUIRE_FALSE( secondary.isPrimaryInstance() );
     REQUIRE( secondary.primaryPid() == QCoreApplication::applicationPid() );
 
-    REQUIRE( secondary.sendMessageWithResult( "hello", 2000 )
+    REQUIRE( sendFromAnotherThread( secondary, "hello", 2000 )
              == KDSingleApplication::SendResult::Sent );
-    REQUIRE( received.wait( 5000 ) );
+    // The message may have arrived while the send ran the event loop.
+    REQUIRE( ( !received.isEmpty() || received.wait( 5000 ) ) );
     REQUIRE( received.first().first().toByteArray() == QByteArray( "hello" ) );
 }
-#endif
 
 #ifndef Q_OS_WIN
 TEST_CASE( "A lock file or socket under the old name in the temporary directory does not "
@@ -550,8 +566,6 @@ TEST_CASE( "A lock file or socket under the old name in the temporary directory 
 }
 #endif
 
-#ifndef Q_OS_WIN
-// See #849 as well.
 TEST_CASE( "A held lock with nothing listening is told from a primary instance that is busy",
            "[singleinstance]" )
 {
@@ -584,11 +598,10 @@ TEST_CASE( "A held lock with nothing listening is told from a primary instance t
 #endif
         REQUIRE( listener.listen( secondary.socketName() ) );
 
-        REQUIRE( secondary.sendMessageWithResult( "hello", 2000 )
+        REQUIRE( sendFromAnotherThread( secondary, "hello", 2000 )
                  == KDSingleApplication::SendResult::Sent );
     }
 }
-#endif
 
 TEST_CASE( "An instance without a directory of its own runs unguarded", "[singleinstance]" )
 {

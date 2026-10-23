@@ -27,6 +27,7 @@ jobs:
     permissions:
       actions: read
       contents: read
+      packages: read # cpp: pull the signed build container from GHCR
       security-events: write # upload the analysis to code scanning
     # A hang would otherwise hold the runner for the 6-hour default (#218).
     timeout-minutes: ${{ matrix.timeout }}
@@ -41,16 +42,12 @@ jobs:
           - language: actions
             build-mode: none
             timeout: 10
-          # Slowest successful run 25 min, median 17 min (#218).
+          # Slowest successful run 25 min, median 17 min (#218). Qt comes
+          # out of the Ubuntu 24.04 build image, not from download.qt.io, so
+          # the matrix names no Qt version (#850).
           - language: cpp
             build-mode: manual
             timeout: 50
-            config:
-              os: linux
-              arch: x64
-              qt_version: 6.11.3
-              qt_arch: linux_gcc_64
-              qt_modules: qt5compat
 
     steps:
     - name: Checkout repository
@@ -67,8 +64,32 @@ jobs:
         config-file: ./.github/codeql-config.yml
 
     # Everything up to the analysis builds the C++ code; only cpp needs it.
+    # The build runs on the runner, where CodeQL traces the compiler, with the
+    # Qt of the Ubuntu 24.04 build image of this checkout, verified by
+    # signature and pulled by digest like every Linux build (#215, #216),
+    # instead of a download from download.qt.io that fails while a Qt release
+    # is republished (#850); agent-setup still installs Ninja and Boost.
+    - name: Log in to GHCR
+      if: matrix.language == 'cpp'
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - uses: ./.github/actions/docker-pull-or-build
+      if: matrix.language == 'cpp'
+      with:
+        image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+        container_root: docker/ubuntu24.04
+
+    - uses: ./.github/actions/qt-from-build-image
+      if: matrix.language == 'cpp'
+
     - uses: ./.github/actions/agent-setup
       if: matrix.language == 'cpp'
+      with:
+        qt: none
 
     - name: Prepare compiler env
       if: matrix.language == 'cpp'
