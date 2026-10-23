@@ -1,5 +1,10 @@
 name: "Setup agent"
 description: "Install the native build tooling: Ninja, sccache, Qt and Boost"
+inputs:
+  qt:
+    description: "download: install the matrix's Qt with install-qt-action (the default). none: leave Qt to the caller, as the CodeQL job does, which copies it out of the build image (#850)"
+    required: false
+    default: "download"
 runs:
   using: "composite"
   steps:
@@ -74,7 +79,7 @@ runs:
         fi
 
     - name: Install Qt
-      if: ${{ matrix.config.qt_arch }}
+      if: ${{ inputs.qt == 'download' && matrix.config.qt_arch }}
       uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
       with:
         version: ${{ matrix.config.qt_version }}

@@ -158,13 +158,14 @@
       depTypeTemplate: "check-container",
     },
     {
-      // Qt is one version everywhere: the Mac/Windows CI matrices, CodeQL,
-      // the build images and BUILD.md. No comment per occurrence, so a
-      // new matrix entry or image is picked up as it is written.
+      // Qt is one version everywhere: the Mac/Windows CI matrices, the build
+      // images and BUILD.md (the Linux jobs, CodeQL and the fuzzers take the
+      // images' Qt). No comment per occurrence, so a new matrix entry or
+      // image is picked up as it is written.
       customType: "regex",
       description: "Qt version",
       managerFilePatterns: [
-        "/^\\.github/workflows/(ci-build|codeql-analysis)\\.yml$/",
+        "/^\\.github/workflows/ci-build\\.yml$/",
         "/^docker/[^/]+/Dockerfile$/",
         "/^BUILD\\.md$/",
       ],

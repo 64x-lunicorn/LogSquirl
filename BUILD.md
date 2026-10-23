@@ -712,6 +712,15 @@ inputs are in `tests/fuzz/corpus/<target>/`. CI runs them with ClusterFuzzLite
 (`.github/workflows/cflite.yml`, `.clusterfuzzlite/`): on pull requests for the changed code, weekly for
 every target.
 
+The fuzz image (`.clusterfuzzlite/Dockerfile`, on the OSS-Fuzz Ubuntu 24.04 builder) copies Qt out of the
+`logsquirl-ubuntu-noble` build image instead of downloading it, like the CodeQL C++ analysis: while
+download.qt.io republished Qt 6.11.3, the checksum of the new archive was missing for hours and every job that
+downloaded Qt failed, while the jobs using the prebuilt images passed (#850). Its first stage is
+`FROM ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest`; the workflow resolves the image of the checkout's
+`docker/` files with `docker-pull-or-build` (signature verified, pulled by digest, or built locally) and tags
+it `latest` on the runner before ClusterFuzzLite builds, so that is the image the build copies from. The
+Dockerfile names no Qt version: it links the one Qt it finds under `/opt/qt` to `/opt/qt/gcc_64`.
+
 To run them locally you need Clang with libFuzzer (on macOS Homebrew's `llvm`, not Apple's Clang). The whole
 build must be instrumented with `-fsanitize=fuzzer-no-link`, or the fuzzers see no coverage of the libraries:
 
@@ -836,7 +845,11 @@ the **Docker Images** workflow pushes each image under that hash as its tag (plu
 and never overwrites an existing hash tag. CI Build computes the same hash from its checkout and pulls exactly
 `<image>:<hash>`; when that tag does not exist (a PR that changes `docker/`, or a merge the workflow has not
 published yet) it builds the image locally under the same ref. So an open PR's toolchain changes only when
-its own `docker/` files do.
+its own `docker/` files do. The two jobs that build outside the containers on Linux, the CodeQL C++ analysis
+and the fuzzers, resolve the `logsquirl-ubuntu-noble` image the same way and take its Qt rather than
+downloading one (#850): CodeQL copies `/opt/qt` onto the runner (`.github/actions/qt-from-build-image`), the
+fuzz image copies it in a build stage (see *Fuzzing*). Only the macOS and Windows jobs still download Qt,
+with `install-qt-action`.
 
 The **GHCR Cleanup** workflow (`ghcr-cleanup.yml`, weekly) deletes the image versions no run uses any more: images
 of an earlier hash that are older than 30 days, the old commit SHA tags, and the signatures and manifests that
@@ -1157,7 +1170,8 @@ from the Plugin Catalog or copied into the user plugin directory by hand.
 | `instruction-counts-label.yml` | `perf-accepted` added to or removed from a PR | Re-run CI Build's instruction counts gate and update the comment (see *Instruction counts*) |
 | `performance.yml` | nightly schedule (02:41 UTC), dispatch | Measure master's e2e performance suite and the instruction counts of its benchmarks in an optimized build, find change points and broken Budgets, record the run on the `perf-data` branch and file an issue per scenario with a finding (see *Nightly performance*) |
 | `pgo.yml` | dispatch; pull requests changing the PGO/BOLT actions or what they run on (build only) | Build each platform without and with profile-guided optimization (and BOLT on Linux), measure the micro-benchmarks and the e2e performance suite of all of them on one runner, and report the A/B tables and the build times (see *Profile-guided optimization*) |
-| `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
+| `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages. The C++ build runs on the runner with the Qt copied out of the `logsquirl-ubuntu-noble` image (`qt-from-build-image`, #850) |
+| `cflite.yml` | PR touching the fuzzers, their image or what they build; weekly schedule | Build and run the libFuzzer targets with ClusterFuzzLite, with the Qt of the `logsquirl-ubuntu-noble` image (see *Fuzzing*) |
 
 
 Every pull request runs CI Build, so the required **CI passed** check always reports. Its *Changes* job

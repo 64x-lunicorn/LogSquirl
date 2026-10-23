@@ -1,14 +1,24 @@
 # Build image of the ClusterFuzzLite fuzzers (#477). The base is pinned by
 # digest like the CI images in docker/, and is the Ubuntu 24.04 flavour of the
-# OSS-Fuzz builder so its Clang, libstdc++ and glibc match the Qt build below.
+# OSS-Fuzz builder so its Clang, libstdc++ and glibc match the Qt below.
+#
+# Qt is copied out of the Ubuntu 24.04 build image instead of downloaded: the
+# download failed both fuzz jobs while download.qt.io was mid-update (#850).
+# The Fuzzing workflow verifies the build image of this checkout's docker/
+# files by signature, pulls it by digest and tags it `latest` on the runner's
+# daemon before the build, so the build uses that image (`docker build`
+# without --pull prefers a local tag); a local `docker build` takes GHCR's
+# latest.
+FROM ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest AS build-image
+
 FROM gcr.io/oss-fuzz-base/base-builder:ubuntu-24-04@sha256:76e5325862a2b138737e3348537550f05ee6518470d5190bcb7501cf210d6fc0
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# The same packages as docker/ubuntu24.04, less the packaging tools.
+# The same packages as docker/ubuntu24.04, less the packaging tools and pip.
 RUN apt-get update -y && \
     apt-get install --no-install-recommends -y \
-                    python3 python3-pip python-is-python3 \
+                    python3 \
                     libboost-dev libicu-dev libssl-dev libcurl4-openssl-dev \
                     ragel ninja-build zlib1g-dev git pkg-config zip \
                     wget ca-certificates file \
@@ -20,20 +30,17 @@ RUN apt-get update -y && \
                     libxcb-xinerama0-dev libxcb-image0-dev libxcb-util-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Qt as in docker/ubuntu24.04: same version, aqtinstall from the hash-locked
-# requirements file, nothing of it left in the image. Renovate moves the
-# version there; keep this line equal to it.
-ENV QT_VERSION=6.11.3
-COPY docker/shared/aqtinstall-requirements.txt /tmp/
-RUN pip3 install --no-cache-dir --require-hashes --only-binary :all: \
-        --target /tmp/aqtinstall -r /tmp/aqtinstall-requirements.txt && \
-    PYTHONPATH=/tmp/aqtinstall python3 -m aqt install-qt linux desktop ${QT_VERSION} linux_gcc_64 \
-        --modules qt5compat \
-        --archives qtbase qtdeclarative qtimageformats qtsvg qttools qttranslations icu \
-        --outputdir /opt/qt && \
-    rm -rf /tmp/aqtinstall /tmp/aqtinstall-requirements.txt
+# The build image's Qt, whatever its version (docker/ubuntu24.04 installs it
+# with aqtinstall under /opt/qt/<version>/gcc_64): the fuzzers do not care
+# which, and a fixed version here would go stale when Renovate moves it there.
+COPY --from=build-image /opt/qt /opt/qt
+RUN set -eu; set -- /opt/qt/*/gcc_64; \
+    if [ "$#" -ne 1 ] || [ ! -d "$1" ]; then \
+        echo "expected one Qt under /opt/qt, found: $*" >&2; exit 1; \
+    fi; \
+    ln -s "$1" /opt/qt/gcc_64
 
-ENV Qt6_DIR=/opt/qt/${QT_VERSION}/gcc_64
+ENV Qt6_DIR=/opt/qt/gcc_64
 ENV LD_LIBRARY_PATH=${Qt6_DIR}/lib
 ENV CMAKE_PREFIX_PATH=${Qt6_DIR}
 
