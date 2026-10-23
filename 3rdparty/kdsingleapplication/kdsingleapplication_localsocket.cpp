@@ -175,10 +175,24 @@ KDSingleApplicationLocalSocket::SendResult KDSingleApplicationLocalSocket::sendM
     // Even if the socket lock is held by the server, the server may not
     // be listening yet. So this connection may fail; keep retrying
     // until we hit the timeout.
+    // LogSquirl (#849): what each kind of failed attempt says, once per kind.
+    int attempts = 0;
+    bool anyFailureLogged = false;
+    QLocalSocket::LocalSocketError lastError = QLocalSocket::UnknownSocketError;
     do {
+        ++attempts;
         socket.connectToServer(m_socketName);
         if (socket.waitForConnected(deadline.remainingTime()))
             break;
+        if (!anyFailureLogged || socket.error() != lastError) {
+            anyFailureLogged = true;
+            lastError = socket.error();
+            // Qt clears the socket's server name when a connect fails.
+            qCWarning(kdsaLocalSocket) << "Attempt" << attempts << "to connect to" << m_socketName << "failed:"
+                                       << socket.error() << socket.errorString()
+                                       << "state" << socket.state()
+                                       << "remaining" << deadline.remainingTime() << "ms";
+        }
         // LogSquirl (#827): a refused connection returns at once; without a
         // pause this would spin until the deadline.
         QThread::msleep(20);
@@ -187,7 +201,7 @@ KDSingleApplicationLocalSocket::SendResult KDSingleApplicationLocalSocket::sendM
     qCDebug(kdsaLocalSocket) << "Socket state:" << socket.state() << "Timer remaining" << deadline.remainingTime() << "Expired?" << deadline.hasExpired();
 
     if (deadline.hasExpired()) {
-        qCWarning(kdsaLocalSocket) << "Connection timed out";
+        qCWarning(kdsaLocalSocket) << "Connection timed out after" << attempts << "attempts";
         return SendResult::NotConnected;
     }
 
