@@ -266,6 +266,32 @@ struct Probe {
         return std::vector<size_t>( offsets, offsets + count );
     }
 
+    /// Offset and size of each member of both tables as 26.12 published them (#863).
+    std::vector<size_t> members2612()
+    {
+        using Fn = const size_t* ( * )( size_t* );
+        size_t count = 0;
+        const auto* members
+            = reinterpret_cast<Fn>( library.resolve( "logsquirl_probe_members_2612" ) )( &count );
+        return std::vector<size_t>( members, members + count );
+    }
+
+    size_t convertControlSize()
+    {
+        using Fn = size_t ( * )();
+        return reinterpret_cast<Fn>( library.resolve( "logsquirl_probe_convert_control_size" ) )();
+    }
+
+    /// What the probe's call of get_log_file_encoding returned, and the name.
+    std::pair<int, QString> logFileEncoding( const char* filePath )
+    {
+        using Fn = int ( * )( const char*, const char** );
+        const char* encoding = nullptr;
+        const auto result = reinterpret_cast<Fn>(
+            library.resolve( "logsquirl_probe_log_file_encoding" ) )( filePath, &encoding );
+        return { result, encoding ? QString::fromUtf8( encoding ) : QString() };
+    }
+
     void* shutdownFooterWidget()
     {
         using Fn = void* ( * )();
@@ -1529,6 +1555,133 @@ SCENARIO( "A plugin built against the first plugin header loads and runs unchang
             host.unloadAll();
             probe.library.unload();
         }
+    }
+}
+
+namespace {
+
+/// What logsquirl_probe_log_file_encoding returns on a host without the function.
+constexpr int ProbeNotOffered = 100;
+
+void ignoreFooterWidget( void* /*handle*/, void* /*qwidget_ptr*/ ) {}
+
+} // namespace
+
+SCENARIO( "The host API table and the convert control keep every member as 26.12 published them",
+          "[pluginhost][plugins]" )
+{
+    GIVEN( "The probe plugin built against the header of LogSquirl 26.12.0, and built against the "
+           "current one" )
+    {
+        Probe published( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API2612_PATH ) );
+        Probe current( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( published.library.load() );
+        REQUIRE( current.library.load() );
+
+        THEN( "Each member of then lies where it lies now and is as big (#863)" )
+        {
+            const auto members = published.members2612();
+            // 23 members of LogSquirlHostApi and 4 of LogSquirlConvertControl,
+            // an offset and a size each.
+            REQUIRE( members.size() == 2 * ( 23 + 4 ) );
+            REQUIRE( members == current.members2612() );
+        }
+
+        THEN( "Both tables then ended where the current ones end or later members start" )
+        {
+            REQUIRE( published.hostApiSize()
+                     == offsetof( LogSquirlHostApi, register_encoding_callback )
+                            + sizeof( LogSquirlHostApi::register_encoding_callback ) );
+            REQUIRE( published.hostApiSize() <= sizeof( LogSquirlHostApi ) );
+            REQUIRE( published.convertControlSize()
+                     == offsetof( LogSquirlConvertControl, is_cancelled )
+                            + sizeof( LogSquirlConvertControl::is_cancelled ) );
+            REQUIRE( published.convertControlSize() <= sizeof( LogSquirlConvertControl ) );
+        }
+
+        current.library.unload();
+        published.library.unload();
+    }
+}
+
+SCENARIO( "A plugin built against the 26.12 plugin header loads and finds the 26.12 functions",
+          "[pluginhost][pluginencoding][plugins]" )
+{
+    GIVEN( "The probe plugin built against the header of LogSquirl 26.12.0, loaded by the "
+           "Plugin Host" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path(), QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API2612_PATH ) );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        port.encodingInFront = QStringLiteral( "UTF-16LE" );
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API2612_PATH ) );
+        REQUIRE( probe.library.load() );
+
+        WHEN( "It asks for the Encoding of the tab in front, checking LOGSQUIRL_HOST_API_HAS" )
+        {
+            const auto [ result, encoding ] = probe.logFileEncoding( nullptr );
+
+            THEN( "The host offers the function and answers (#863)" )
+            {
+                REQUIRE( result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( encoding == QStringLiteral( "UTF-16LE" ) );
+                REQUIRE( port.askedForEncodingOf == QStringList{ QString() } );
+            }
+        }
+
+        host.unloadAll();
+        probe.library.unload();
+    }
+
+    GIVEN( "The same probe initialised with the table of a LogSquirl 26.11 host" )
+    {
+        QLibrary library( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API2612_PATH ) );
+        REQUIRE( library.load() );
+        const auto initEx = reinterpret_cast<LogSquirlPluginInitExFn>(
+            library.resolve( LOGSQUIRL_PLUGIN_ENTRY_INIT_EX ) );
+        const auto shutdown = reinterpret_cast<LogSquirlPluginShutdownFn>(
+            library.resolve( LOGSQUIRL_PLUGIN_ENTRY_SHUTDOWN ) );
+        REQUIRE( initEx != nullptr );
+        REQUIRE( shutdown != nullptr );
+
+        // A 26.11 host's table ends where the 26.12 functions start: exactly
+        // that much memory, so that reading past it is caught by the address
+        // sanitizer.
+        constexpr auto size2611 = offsetof( LogSquirlHostApi, get_log_file_encoding );
+        LogSquirlHostApi fullTable{};
+        fullTable.api_version = LOGSQUIRL_PLUGIN_API_VERSION;
+        fullTable.unregister_footer_widget = &ignoreFooterWidget;
+        const auto table2611 = std::make_unique<unsigned char[]>( size2611 );
+        std::memcpy( table2611.get(), &fullTable, size2611 );
+        REQUIRE( initEx( reinterpret_cast<const LogSquirlHostApi*>( table2611.get() ), nullptr,
+                         size2611 )
+                 == 0 );
+
+        WHEN( "It asks for the Encoding, checking LOGSQUIRL_HOST_API_HAS" )
+        {
+            Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API2612_PATH ) );
+            REQUIRE( probe.library.load() );
+            const auto [ result, encoding ] = probe.logFileEncoding( nullptr );
+
+            THEN( "It finds the host does not offer it and does without (#863)" )
+            {
+                REQUIRE( result == ProbeNotOffered );
+                REQUIRE( encoding.isEmpty() );
+            }
+            probe.library.unload();
+        }
+
+        shutdown();
+        library.unload();
     }
 }
 
