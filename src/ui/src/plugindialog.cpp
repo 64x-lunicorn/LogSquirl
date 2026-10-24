@@ -47,6 +47,21 @@ namespace {
 // The height of a card without Log Format warnings.
 constexpr int CardHeight = 135;
 
+// A hidden label of card for one of its warnings, in the warning colour.
+QLabel* addWarningLabel( QWidget* card, QVBoxLayout* layout, const char* objectName )
+{
+    auto* label = new QLabel( card );
+    label->setTextFormat( Qt::PlainText );
+    label->setObjectName( objectName );
+    label->setWordWrap( true );
+    label->setStyleSheet(
+        QStringLiteral( "font-size: 11px; color: %1;" )
+            .arg( Theme::active().color( ColorToken::StatusWarning ).name( QColor::HexRgb ) ) );
+    label->setVisible( false );
+    layout->addWidget( label );
+    return label;
+}
+
 } // namespace
 
 // ── PluginCard ────────────────────────────────────────────────────────
@@ -122,27 +137,12 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     centerLayout->addWidget( descriptionLabel );
 
     // What the Log Format Catalog could not read of the plugin's Log Format
-    // files (#793); hidden while there is nothing to say.
-    formatWarningLabel = new QLabel( this );
-    formatWarningLabel->setTextFormat( Qt::PlainText );
-    formatWarningLabel->setObjectName( "formatWarningLabel" );
-    formatWarningLabel->setWordWrap( true );
-    formatWarningLabel->setStyleSheet(
-        QStringLiteral( "font-size: 11px; color: %1;" )
-            .arg( Theme::active().color( ColorToken::StatusWarning ).name( QColor::HexRgb ) ) );
-    formatWarningLabel->setVisible( false );
-    centerLayout->addWidget( formatWarningLabel );
-
-    // Why the catalog's release cannot be installed (#818); hidden while it can.
-    installRefusalLabel = new QLabel( this );
-    installRefusalLabel->setTextFormat( Qt::PlainText );
-    installRefusalLabel->setObjectName( "installRefusalLabel" );
-    installRefusalLabel->setWordWrap( true );
-    installRefusalLabel->setStyleSheet(
-        QStringLiteral( "font-size: 11px; color: %1;" )
-            .arg( Theme::active().color( ColorToken::StatusWarning ).name( QColor::HexRgb ) ) );
-    installRefusalLabel->setVisible( false );
-    centerLayout->addWidget( installRefusalLabel );
+    // files (#793), why the catalog's release cannot be installed (#818) and
+    // why this LogSquirl's Qt cannot serve the plugin (#862); each hidden
+    // while there is nothing to say.
+    formatWarningLabel = addWarningLabel( this, centerLayout, "formatWarningLabel" );
+    installRefusalLabel = addWarningLabel( this, centerLayout, "installRefusalLabel" );
+    qtRefusalLabel = addWarningLabel( this, centerLayout, "qtRefusalLabel" );
 
     centerLayout->addStretch();
     mainLayout->addLayout( centerLayout, 1 );
@@ -201,13 +201,16 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
                                                     : tr( "License: %1" ).arg( plugin.license ) );
     licenseLabel->setVisible( !plugin.license.isEmpty() );
 
-    // Log Format warnings and an install refusal: a card with some grows to
-    // hold them.
+    // Log Format warnings, an install refusal and a Qt refusal: a card with
+    // some grows to hold them.
     formatWarningLabel->setText( plugin.formatWarnings.join( QChar( '\n' ) ) );
     formatWarningLabel->setVisible( !plugin.formatWarnings.isEmpty() );
     installRefusalLabel->setText( plugin.installRefusal );
     installRefusalLabel->setVisible( !plugin.installRefusal.isEmpty() );
+    qtRefusalLabel->setText( plugin.qtRefusal );
+    qtRefusalLabel->setVisible( !plugin.qtRefusal.isEmpty() );
     setMaximumHeight( plugin.formatWarnings.isEmpty() && plugin.installRefusal.isEmpty()
+                              && plugin.qtRefusal.isEmpty()
                           ? CardHeight
                           : QWIDGETSIZE_MAX );
 
@@ -539,6 +542,7 @@ void PluginDialog::rebuildMergedList()
         const auto* handle = host_.pluginHandle( meta.id() );
         mp.loaded = handle != nullptr;
         mp.configurable = handle != nullptr && handle->hasConfigureUi();
+        mp.qtRefusal = meta.qtRefusal();
         if ( logFormatCatalog_ ) {
             mp.formatWarnings = logFormatCatalog_->pluginFormatWarnings( meta.id() );
         }

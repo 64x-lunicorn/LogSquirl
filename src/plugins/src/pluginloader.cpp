@@ -275,6 +275,13 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
         return std::unexpected( QStringLiteral( "Plugin library path is empty" ) );
     }
 
+    // Refused before its library is loaded: a library built against a Qt the
+    // host cannot serve fails on a missing symbol or crashes inside a widget
+    // (#862).
+    if ( const auto refusal = metadata.qtRefusal(); !refusal.isEmpty() ) {
+        return std::unexpected( refusal );
+    }
+
     LOG_INFO << "Loading plugin library: " << libPath;
 
     auto library = std::make_unique<QLibrary>( libPath );

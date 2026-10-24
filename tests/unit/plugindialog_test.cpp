@@ -41,6 +41,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
+#include <QVersionNumber>
+#include <QtGlobal>
 
 #include <utility>
 
@@ -53,7 +55,8 @@ const auto ProbeId = QStringLiteral( "io.github.logsquirl.test.ui-port-probe" );
 const auto ExampleId = QStringLiteral( "com.example.my-plugin" );
 
 /// Writes a plugin.json for a library into its own subdirectory of root.
-void installPlugin( const QString& root, const QString& id, const QString& library )
+void installPlugin( const QString& root, const QString& id, const QString& library,
+                    const QString& qtVersion = {} )
 {
     const auto pluginDir = QDir( root ).filePath( id );
     REQUIRE( QDir().mkpath( pluginDir ) );
@@ -66,9 +69,12 @@ void installPlugin( const QString& root, const QString& id, const QString& libra
         "version": "1.0.0",
         "type": "ui",
         "library": "%2",
-        "api_version": 1
+        "api_version": 1%3
     })" )
-                        .arg( id, library )
+                        .arg( id, library,
+                              qtVersion.isEmpty()
+                                  ? QString()
+                                  : QStringLiteral( R"(, "qt_version": "%1")" ).arg( qtVersion ) )
                         .toUtf8() );
 }
 
@@ -326,6 +332,58 @@ SCENARIO( "Plugin Management shows what the Catalog could not read of a plugin's
             {
                 CHECK_FALSE( formatWarning( dialog )->isVisibleTo( &dialog ) );
             }
+        }
+    }
+}
+
+// A plugin built against a Qt this LogSquirl cannot serve is not loaded, and
+// its card says why, also when it was refused at start-up (#862).
+SCENARIO( "Plugin Management shows why a plugin's Qt cannot be served", "[plugindialog][plugins]" )
+{
+    QTemporaryDir pluginRoot;
+    REQUIRE( pluginRoot.isValid() );
+    const auto hostQt = QVersionNumber::fromString( QString::fromLatin1( qVersion() ) );
+
+    // The card's Qt refusal, hidden while there is none.
+    const auto qtRefusal = []( const PluginDialog& dialog ) {
+        const auto labels = dialog.findChildren<QLabel*>( "qtRefusalLabel" );
+        REQUIRE( labels.size() == 1 );
+        return labels.front();
+    };
+
+    GIVEN( "a plugin built against a newer Qt minor than the host's" )
+    {
+        const auto newer = QStringLiteral( "%1.%2" )
+                               .arg( hostQt.majorVersion() )
+                               .arg( hostQt.minorVersion() + 1 );
+        installPlugin( pluginRoot.path(), ExampleId, QStringLiteral( LOGSQUIRL_SDK_EXAMPLE_PATH ),
+                       newer );
+        ApplicationPlugins plugins;
+        plugins.catalog().discoverPluginsIn( pluginRoot.path() );
+        REQUIRE_FALSE( plugins.host().loadPlugin( ExampleId ).isEmpty() );
+
+        THEN( "its card names both Qt versions" )
+        {
+            PluginDialog dialog( plugins );
+            const auto* label = qtRefusal( dialog );
+            CHECK( label->isVisibleTo( &dialog ) );
+            CHECK( label->text().contains( "Qt " + newer ) );
+            CHECK( label->text().contains( QString::fromLatin1( qVersion() ) ) );
+        }
+    }
+
+    GIVEN( "a plugin built against the host's Qt" )
+    {
+        installPlugin(
+            pluginRoot.path(), ExampleId, QStringLiteral( LOGSQUIRL_SDK_EXAMPLE_PATH ),
+            QStringLiteral( "%1.%2" ).arg( hostQt.majorVersion() ).arg( hostQt.minorVersion() ) );
+        ApplicationPlugins plugins;
+        plugins.catalog().discoverPluginsIn( pluginRoot.path() );
+
+        THEN( "its card shows no Qt refusal" )
+        {
+            PluginDialog dialog( plugins );
+            CHECK_FALSE( qtRefusal( dialog )->isVisibleTo( &dialog ) );
         }
     }
 }
