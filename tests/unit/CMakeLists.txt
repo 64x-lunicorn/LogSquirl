@@ -175,6 +175,18 @@ add_dependencies(logsquirl_tests logsquirl_ui_port_probe_api1)
 target_compile_definitions(logsquirl_tests PRIVATE
     LOGSQUIRL_UI_PORT_PROBE_API1_PATH="$<TARGET_FILE:logsquirl_ui_port_probe_api1>")
 
+# The same probe built against the plugin header as LogSquirl 26.12.0
+# published it, with the functions 26.11 and 26.12 added: such a plugin loads,
+# runs and finds those functions unchanged (#863).
+add_library(logsquirl_ui_port_probe_api2612 MODULE plugins/uiportprobe.cpp)
+target_link_libraries(logsquirl_ui_port_probe_api2612 PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_ui_port_probe_api2612
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/plugins/api2612")
+set_target_properties(logsquirl_ui_port_probe_api2612 PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_ui_port_probe_api2612)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_UI_PORT_PROBE_API2612_PATH="$<TARGET_FILE:logsquirl_ui_port_probe_api2612>")
+
 # A plugin that opens the Regex Lab and hears what the user applied (#662).
 add_library(logsquirl_regex_lab_plugin MODULE plugins/regexlabplugin.cpp)
 target_link_libraries(logsquirl_regex_lab_plugin PRIVATE project_options project_warnings)

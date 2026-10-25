@@ -30,6 +30,8 @@
 #include <QJsonObject>
 #include <QLibrary>
 #include <QTemporaryDir>
+#include <QVersionNumber>
+#include <QtGlobal>
 
 #include <utility>
 
@@ -42,15 +44,19 @@ using ShutdownCallsFn = int ( * )();
 
 /// Writes a plugin.json for the library at libraryPath and parses it.
 PluginMetadata manifestFor( const QTemporaryDir& dir, const QString& libraryPath,
-                            const QString& type = QStringLiteral( "converter" ) )
+                            const QString& type = QStringLiteral( "converter" ),
+                            const QString& qtVersion = {} )
 {
     const auto manifestPath = QDir( dir.path() ).filePath( "plugin.json" );
     QFile manifest( manifestPath );
     REQUIRE( manifest.open( QIODevice::WriteOnly ) );
     // Built as JSON, not pasted into a string: a Windows path has backslashes.
-    const QJsonObject object{ { "id", "com.test.loader" }, { "name", "Loader Test" },
-                              { "version", "1.0.0" },      { "type", type },
-                              { "library", libraryPath },  { "api_version", 1 } };
+    QJsonObject object{ { "id", "com.test.loader" }, { "name", "Loader Test" },
+                        { "version", "1.0.0" },      { "type", type },
+                        { "library", libraryPath },  { "api_version", 1 } };
+    if ( !qtVersion.isEmpty() ) {
+        object.insert( "qt_version", qtVersion );
+    }
     manifest.write( QJsonDocument( object ).toJson() );
     manifest.close();
 
@@ -163,6 +169,66 @@ SCENARIO( "The Plugin Loader reports why a plugin does not load", "[pluginloader
                 = loadError( QStringLiteral( LOGSQUIRL_LOADER_FIXTURE_BAD_API_VERSION_PATH ) );
             REQUIRE( error.contains( "api_version 99" ) );
             REQUIRE( error.contains( "host supports 1" ) );
+        }
+    }
+}
+
+SCENARIO( "The Plugin Loader refuses a plugin built against a Qt the host cannot serve",
+          "[pluginloader][plugins]" )
+{
+    const auto path = QStringLiteral( LOGSQUIRL_LOADER_FIXTURE_CONVERTER_PATH );
+    const auto hostQt = QVersionNumber::fromString( QString::fromLatin1( qVersion() ) );
+    const auto qt = []( int major, int minor ) {
+        return QStringLiteral( "%1.%2" ).arg( major ).arg( minor );
+    };
+    QTemporaryDir dir;
+
+    GIVEN( "a plugin built against a newer Qt minor than the host's" )
+    {
+        const auto newer = qt( hostQt.majorVersion(), hostQt.minorVersion() + 1 );
+
+        THEN( "it is not loaded, and the error says why (#862)" )
+        {
+            const auto result = PluginLoader::load( manifestFor( dir, path, "converter", newer ) );
+            REQUIRE( !result.has_value() );
+            CHECK( result.error().contains( "Qt " + newer ) );
+            CHECK( result.error().contains( QString::fromLatin1( qVersion() ) ) );
+        }
+    }
+
+    GIVEN( "a plugin built against another Qt major" )
+    {
+        THEN( "it is not loaded (#862)" )
+        {
+            for ( const auto& other :
+                  { qt( hostQt.majorVersion() + 1, 0 ), qt( hostQt.majorVersion() - 1, 15 ) } ) {
+                INFO( other.toStdString() );
+                const auto result
+                    = PluginLoader::load( manifestFor( dir, path, "converter", other ) );
+                REQUIRE( !result.has_value() );
+                CHECK( result.error().contains( "Qt " + other ) );
+            }
+        }
+    }
+
+    GIVEN( "a plugin built against the host's Qt or an older minor" )
+    {
+        THEN( "it loads as before (#862)" )
+        {
+            for ( const auto& servable : { qt( hostQt.majorVersion(), hostQt.minorVersion() ),
+                                           qt( hostQt.majorVersion(), 0 ) } ) {
+                INFO( servable.toStdString() );
+                CHECK( PluginLoader::load( manifestFor( dir, path, "converter", servable ) )
+                           .has_value() );
+            }
+        }
+    }
+
+    GIVEN( "a plugin whose manifest names no Qt" )
+    {
+        THEN( "it loads as before (#862)" )
+        {
+            CHECK( PluginLoader::load( manifestFor( dir, path ) ).has_value() );
         }
     }
 }

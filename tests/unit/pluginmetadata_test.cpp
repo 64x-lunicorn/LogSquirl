@@ -26,6 +26,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QTemporaryDir>
+#include <QVersionNumber>
 
 using logsquirl::plugins::PluginMetadata;
 
@@ -463,6 +464,95 @@ SCENARIO( "A plugin id is a plain name, never a path", "[pluginmetadata][plugins
             REQUIRE_FALSE( result.has_value() );
             CHECK( result.error().contains( "'id'" ) );
             CHECK( result.error().contains( "../../.ssh" ) );
+        }
+    }
+}
+
+SCENARIO( "A plugin manifest names the Qt the plugin was built against",
+          "[pluginmetadata][plugins]" )
+{
+    const auto manifestWithQt = []( const QString& qtVersion ) {
+        return QString( R"({
+                "id": "com.example.qt",
+                "name": "Qt",
+                "version": "1.0.0",
+                "type": "ui",
+                "library": "libqt.dylib",
+                "api_version": 1,
+                "qt_version": %1
+            })" )
+            .arg( qtVersion )
+            .toUtf8();
+    };
+    const QVersionNumber host( 6, 8, 2 );
+
+    GIVEN( "a manifest without qt_version" )
+    {
+        const auto result = PluginMetadata::fromJson( validManifest(), "test" );
+        REQUIRE( result.has_value() );
+
+        THEN( "it names no Qt and every host serves it (#862)" )
+        {
+            CHECK_FALSE( result->qtVersion().has_value() );
+            CHECK( result->qtRefusal( host ).isEmpty() );
+            CHECK( result->qtRefusal( QVersionNumber( 7, 0 ) ).isEmpty() );
+        }
+    }
+
+    GIVEN( "a manifest naming the host's Qt or an older Qt 6 minor" )
+    {
+        THEN( "the host serves it (#862)" )
+        {
+            for ( const auto* qt : { R"("6.8")", R"("6.5")", R"("6.0")" } ) {
+                INFO( qt );
+                const auto result = PluginMetadata::fromJson( manifestWithQt( qt ), "test" );
+                REQUIRE( result.has_value() );
+                CHECK( result->qtRefusal( host ).isEmpty() );
+            }
+            const auto result = PluginMetadata::fromJson( manifestWithQt( R"("6.8")" ), "test" );
+            REQUIRE( result.has_value() );
+            CHECK( result->qtVersion() == QVersionNumber( 6, 8 ) );
+        }
+    }
+
+    GIVEN( "a manifest naming a newer Qt 6 minor than the host's" )
+    {
+        const auto result = PluginMetadata::fromJson( manifestWithQt( R"("6.9")" ), "test" );
+        REQUIRE( result.has_value() );
+
+        THEN( "the host refuses it, naming both Qt versions (#862)" )
+        {
+            const auto refusal = result->qtRefusal( host );
+            CHECK( refusal.contains( "Qt 6.9" ) );
+            CHECK( refusal.contains( "Qt 6.8.2" ) );
+        }
+    }
+
+    GIVEN( "a manifest naming another Qt major than the host's" )
+    {
+        THEN( "the host refuses it, older or newer (#862)" )
+        {
+            for ( const auto* qt : { R"("5.15")", R"("7.0")" } ) {
+                INFO( qt );
+                const auto result = PluginMetadata::fromJson( manifestWithQt( qt ), "test" );
+                REQUIRE( result.has_value() );
+                CHECK_FALSE( result->qtRefusal( host ).isEmpty() );
+            }
+        }
+    }
+
+    GIVEN( "a qt_version that is not major.minor" )
+    {
+        THEN( "the manifest is invalid, naming the field (#862)" )
+        {
+            for ( const auto* qt : { R"("6")", R"("6.8.2")", R"("six")", R"("6.x")", R"("")",
+                                     R"(" 6.8")", R"("6.8 ")", R"("-6.8")", "6.8", "null",
+                                     R"("6.8\n")", R"("6.99999999999")", R"("99999999999.8")" } ) {
+                INFO( qt );
+                const auto result = PluginMetadata::fromJson( manifestWithQt( qt ), "test" );
+                REQUIRE_FALSE( result.has_value() );
+                CHECK( result.error().contains( "qt_version" ) );
+            }
         }
     }
 }

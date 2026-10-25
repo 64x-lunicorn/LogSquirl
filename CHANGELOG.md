@@ -2,6 +2,15 @@
 
 ## Changes
 
+- **LogSquirl refuses a plugin built against a Qt it cannot serve**: a
+  plugin's manifest may name the Qt it was built against in the new optional
+  field `qt_version` (`"6.8"`). A plugin built against a newer Qt 6 minor than
+  the one LogSquirl runs on, or against another Qt major, is not loaded, and
+  its card in Plugin Management says why, instead of the plugin failing on a
+  missing symbol or crashing inside a widget. A plugin without the field loads
+  as before; a `qt_version` that is not `major.minor` makes the manifest
+  invalid. The plugin SDK guide says when to set it and how to let CMake write
+  it. (#862)
 - **A plugin learns which text encoding LogSquirl reads a log file in**: the
   new host function `get_log_file_encoding` returns the encoding of the tab in
   front's log file, or of an open log file the plugin names by path, by its

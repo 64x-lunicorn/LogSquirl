@@ -79,6 +79,7 @@ my_plugin/
 | `license`      | no       | SPDX identifier of the plugin's licence.                        |
 | `icon`         | no       | File name of an icon next to `plugin.json`.                     |
 | `formats`      | no       | Log Format files the plugin ships, see [Shipping Log Formats](#shipping-log-formats). |
+| `qt_version`   | no       | The Qt the plugin is built against, as `major.minor` (`"6.8"`), see [Plugins That Use Qt](#plugins-that-use-qt). |
 
 `library` is resolved relative to the directory containing `plugin.json`. It
 may leave out the platform's prefix and extension: `my_plugin` finds
@@ -357,6 +358,50 @@ and the file. The plugin's other Log Format files and the plugin itself are
 unaffected: it still loads. Plugin Management shows the warning on the
 plugin's card, and the Options dialog's Log Formats page shows every Log
 Format with its Source: *Built-in*, *User*, or the plugin's name.
+
+---
+
+## Plugins That Use Qt
+
+Most plugins don't touch Qt. A plugin that hands a widget to the host
+(`register_status_widget`, `register_sidebar_tab`, `register_footer_widget`)
+or shows a dialog from `logsquirl_plugin_configure` links against the Qt 6
+LogSquirl runs on, and works only with a Qt that can serve it. Qt 6 is
+backward binary compatible: a plugin built against Qt 6.8 runs on Qt 6.8 and
+every later Qt 6, but not on Qt 6.7, and not on another Qt major.
+
+Such a plugin names the Qt it is built against in the optional `qt_version`
+key of `plugin.json` (added in LogSquirl 26.12), as `major.minor`. LogSquirl
+compares it with the Qt it runs on before it loads the plugin's library: a
+plugin built against a newer Qt 6 minor or another Qt major is not loaded,
+and its card in Plugin Management says why, enabled or not. A `qt_version`
+that is not `major.minor` makes the manifest invalid, and the plugin is not
+listed at all. A plugin without the key is loaded as before, so a plugin that
+does not touch Qt leaves it out. An older LogSquirl ignores the key.
+
+Let CMake write the version the plugin is really built against: keep the
+manifest as `plugin.json.in` with
+
+```json
+    "qt_version": "@Qt6_VERSION_MAJOR@.@Qt6_VERSION_MINOR@"
+```
+
+and configure it next to the library:
+
+```cmake
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
+target_link_libraries(my_plugin PRIVATE Qt6::Widgets)
+# The manifest names the Qt the plugin is built against.
+configure_file(plugin.json.in "${CMAKE_CURRENT_BINARY_DIR}/plugin.json" @ONLY)
+```
+
+Build against the oldest Qt 6 you want the plugin to run on. LogSquirl's
+release builds use the Qt named in `BUILD.md`.
+
+On Windows the compiler matters as well: LogSquirl's Windows build uses Qt
+for MSVC (`win64_msvc2022_64`), and a plugin built with MinGW against a MinGW
+Qt does not work with it, whatever its `qt_version`. LogSquirl does not check
+this; build a Windows plugin that uses Qt with MSVC.
 
 ---
 
@@ -853,7 +898,7 @@ unloaded, its items go away, and so does every submenu nothing is left in.
 take a `QWidget*` cast to `void*`: the plugin creates and owns the widget and
 the host parents it. Unregister the widget again before you delete it, at the
 latest in `shutdown`. Such a plugin links against the same Qt 6 LogSquirl
-uses.
+uses and names it in its manifest, see [Plugins That Use Qt](#plugins-that-use-qt).
 
 ### Active File
 
@@ -1054,7 +1099,8 @@ its designated initializers.
 
 **Q: Do I need to link against Qt?**
 A: No. Most plugins don't need Qt at all. Only a plugin that hands widgets to
-the host or shows a Qt dialog links against `Qt6::Widgets`.
+the host or shows a Qt dialog links against `Qt6::Widgets`, and names the Qt it
+is built against in `qt_version`, see [Plugins That Use Qt](#plugins-that-use-qt).
 
 **Q: My plugin needs a background thread. Is that safe?**
 A: Yes. Create threads as needed. All host API functions are safe from any

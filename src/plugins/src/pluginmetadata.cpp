@@ -19,12 +19,15 @@
 
 #include "pluginmetadata.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
+#include <QtGlobal>
 
 #include <algorithm>
 
@@ -75,6 +78,35 @@ std::expected<QStringList, QString> parseFormats( const QJsonObject& obj )
         formats.append( path );
     }
     return formats;
+}
+
+// The optional "qt_version": the Qt the plugin was built against, as
+// major.minor (#862).
+std::expected<std::optional<QVersionNumber>, QString> parseQtVersion( const QJsonObject& obj )
+{
+    if ( !obj.contains( "qt_version" ) ) {
+        return std::nullopt;
+    }
+    const auto invalid
+        = std::unexpected( QStringLiteral( "'qt_version' is not a Qt version as major.minor" ) );
+    const auto value = obj[ "qt_version" ];
+    if ( !value.isString() ) {
+        return invalid;
+    }
+    static const QRegularExpression majorMinor( QStringLiteral( R"(\A(\d+)\.(\d+)\z)" ) );
+    const auto match = majorMinor.match( value.toString() );
+    if ( !match.hasMatch() ) {
+        return invalid;
+    }
+    // A number too big for an int is no Qt version either, not a 0.
+    bool majorOk = false;
+    bool minorOk = false;
+    const auto major = match.captured( 1 ).toInt( &majorOk );
+    const auto minor = match.captured( 2 ).toInt( &minorOk );
+    if ( !majorOk || !minorOk ) {
+        return invalid;
+    }
+    return QVersionNumber( major, minor );
 }
 
 } // namespace
@@ -162,6 +194,11 @@ std::expected<PluginMetadata, QString> PluginMetadata::fromJson( const QByteArra
         return std::unexpected( QString( "%1: %2" ).arg( context, formatsResult.error() ) );
     }
 
+    auto qtVersionResult = parseQtVersion( obj );
+    if ( !qtVersionResult.has_value() ) {
+        return std::unexpected( QString( "%1: %2" ).arg( context, qtVersionResult.error() ) );
+    }
+
     PluginMetadata meta;
     meta.id_ = obj[ "id" ].toString();
     meta.name_ = obj[ "name" ].toString();
@@ -172,6 +209,7 @@ std::expected<PluginMetadata, QString> PluginMetadata::fromJson( const QByteArra
     meta.library_ = obj[ "library" ].toString();
     meta.icon_ = obj[ "icon" ].toString();
     meta.formats_ = std::move( formatsResult.value() );
+    meta.qtVersion_ = std::move( qtVersionResult.value() );
     meta.type_ = typeResult.value();
     meta.apiVersion_ = apiVer;
 
@@ -192,6 +230,31 @@ QString PluginMetadata::iconPath() const
         return {};
     }
     return QDir( directory_ ).filePath( icon_ );
+}
+
+QString PluginMetadata::qtRefusal( const QVersionNumber& hostQt ) const
+{
+    if ( !qtVersion_.has_value() ) {
+        return {};
+    }
+    const auto& pluginQt = *qtVersion_;
+    if ( pluginQt.majorVersion() == hostQt.majorVersion()
+         && pluginQt.minorVersion() <= hostQt.minorVersion() ) {
+        return {};
+    }
+    // Shown on the plugin's card in Plugin Management, so translated.
+    return QCoreApplication::translate( "PluginMetadata",
+                                        "Plugin '%1' is built against Qt %2, but LogSquirl runs on "
+                                        "Qt %3, which serves plugins built against Qt %4.0 to "
+                                        "%4.%5 only" )
+        .arg( id_, pluginQt.toString(), hostQt.toString() )
+        .arg( hostQt.majorVersion() )
+        .arg( hostQt.minorVersion() );
+}
+
+QString PluginMetadata::qtRefusal() const
+{
+    return qtRefusal( QVersionNumber::fromString( QString::fromLatin1( qVersion() ) ) );
 }
 
 QStringList PluginMetadata::formatPaths() const

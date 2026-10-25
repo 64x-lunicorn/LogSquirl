@@ -23,8 +23,10 @@
 
 #include <QString>
 #include <QStringList>
+#include <QVersionNumber>
 
 #include <expected>
+#include <optional>
 
 namespace logsquirl::plugins {
 
@@ -131,6 +133,28 @@ public:
      */
     QStringList formatPaths() const;
 
+    /**
+     * The Qt the plugin was built against, as the manifest's optional
+     * `qt_version` names it (major.minor), or none when the manifest leaves it
+     * out: a plugin that hands no widget to the host needs no Qt (#862).
+     */
+    const std::optional<QVersionNumber>& qtVersion() const
+    {
+        return qtVersion_;
+    }
+
+    /**
+     * Why a host running on Qt hostQt cannot serve this plugin, or empty when
+     * it can. Qt 6 is backward binary compatible: a plugin built against the
+     * host's Qt major and the host's minor or an older one is served, one
+     * built against a newer minor or another major is not. A plugin that
+     * names no Qt is always served (#862).
+     */
+    QString qtRefusal( const QVersionNumber& hostQt ) const;
+
+    /** Why the Qt this LogSquirl runs on (qVersion()) cannot serve this plugin. */
+    QString qtRefusal() const;
+
 private:
     PluginMetadata() = default;
 
@@ -143,6 +167,7 @@ private:
     QString library_;
     QString icon_;
     QStringList formats_;
+    std::optional<QVersionNumber> qtVersion_;
     QString directory_;
     LogSquirlPluginType type_ = LOGSQUIRL_PLUGIN_DATASOURCE;
     int apiVersion_ = 0;
