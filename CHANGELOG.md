@@ -274,6 +274,13 @@
 
 ## Build and packaging
 
+- **The fuzzers and the CodeQL analysis take Qt from the build image**: the
+  ClusterFuzzLite image copies Qt out of the Ubuntu 24.04 build image and the
+  CodeQL C++ job copies it onto the runner, both from the image of the
+  checkout's docker/ files, verified by signature and pulled by digest like
+  every Linux build, instead of downloading Qt from download.qt.io, which
+  failed both jobs while Qt 6.11.3 was republished without its checksums; a
+  change to that image's inputs now runs the fuzzers too. (#850)
 - **The build images trust no compromised emSign certificate**: the Linux
   build images and the fuzzing image install certifi 2026.10.19 next to
   aqtinstall, which downloads Qt into them, instead of 2026.7.22. The older
@@ -292,6 +299,16 @@
   bundled dylibs and Qt plug-ins and the helpers are signed with the hardened
   runtime and no entitlement, and the signing step fails when the entitlement is
   missing on the main executable or present anywhere else. (#835)
+
+## Internal
+
+- **The single-instance hand-over tests run on Windows too**: the two unit
+  tests in which a secondary instance hands its message to a primary instance
+  in the same process now send from a thread of their own while the test runs
+  the event loop. On Windows Qt's named pipe has no buffer, so the send waited
+  for a read in its own thread and timed out with NotSent; the connect, which
+  the tests were skipped for, always succeeded. A failed connect attempt of a
+  secondary instance is now logged once per kind of error. (#849)
 
 ## Documentation
 

@@ -40,3 +40,14 @@ socket. Each change is marked `LogSquirl (#827)` in the code.
 - The destructor removes the directory given once the lock and the socket are
   gone and nothing else is in it, so a run leaves nothing of its own behind
   (a Benchmark Run above all).
+
+## Changes for LogSquirl (#849)
+
+- `sendMessage()` logs each kind of failed connect attempt once, and how many
+  attempts it made before its timeout.
+
+A secondary instance on Windows reports `NotSent` where one on Unix reports
+`Sent` when the primary instance does not run its event loop within the
+timeout: Qt creates the named pipe without a buffer, so a write completes only
+once the primary's socket reads, while a Unix socket buffers the message in
+the kernel. Not a change, but why the tests send from a thread of their own.

@@ -8,13 +8,20 @@ name: "Fuzzing"
 #
 # No storage repository is configured, so the corpus is not kept between runs;
 # the seeds in tests/fuzz/corpus start every run.
+#
+# The fuzz image takes Qt from the Ubuntu 24.04 build image of this checkout
+# (docker-pull-or-build, as every Linux job) instead of downloading it: the
+# download failed while download.qt.io was mid-update (#850). So a change to
+# that image's inputs runs the fuzzers too.
 on:
   pull_request:
     branches: [master]
     paths:
       - '.clusterfuzzlite/**'
+      - '.github/actions/docker-pull-or-build/**'
       - '.github/workflows/cflite.yml'
-      - 'docker/shared/aqtinstall-requirements.txt'
+      - 'docker/ubuntu24.04/**'
+      - 'docker/shared/**'
       - 'src/**'
       - 'tests/fuzz/**'
       - 'CMakeLists.txt'
@@ -35,11 +42,13 @@ jobs:
   fuzz:
     name: Fuzz (${{ matrix.sanitizer }})
     runs-on: ubuntu-24.04
-    # The image installs Qt and builds the third-party libraries and the
-    # targets cold, then fuzzes for at most 10 minutes (#477).
-    timeout-minutes: 60
+    # The image builds the third-party libraries and the targets cold, then
+    # fuzzes for at most 10 minutes (#477); a build image that is not on GHCR
+    # yet is built here first.
+    timeout-minutes: 90
     permissions:
       contents: read
+      packages: read # pull the signed build container from GHCR
 
     strategy:
       fail-fast: false
@@ -53,6 +62,35 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The build image this checkout's docker/ files describe, verified by
+      # the Docker Images workflow's cosign signature and pulled by digest, or
+      # built here when its tag is not on GHCR yet (#215, #216).
+      - uses: ./.github/actions/docker-pull-or-build
+        with:
+          image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+          container_root: docker/ubuntu24.04
+
+      # The fuzz image's first stage is `FROM ghcr.io/.../logsquirl-ubuntu-noble:latest`
+      # (.clusterfuzzlite/Dockerfile). The action clones the repository from
+      # GitHub and runs `docker build` on that clone, without --pull, on the
+      # runner's daemon: the committed Dockerfile is what it builds, and a
+      # local tag beats the registry. So the verified image is tagged `latest`
+      # here, and the build copies Qt out of it, never out of whatever GHCR's
+      # `latest` is (#850).
+      - name: Give the build image the tag the fuzz image names
+        run: |
+          set -euo pipefail
+          docker tag "$LOGSQUIRL_CONTAINER" ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest
+          docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
+            ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest | grep '^QT_VERSION='
 
       - name: Build the fuzzers
         id: build
