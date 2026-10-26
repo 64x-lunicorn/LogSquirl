@@ -908,6 +908,16 @@ typedef struct {
 #define LOGSQUIRL_HOST_API_HAS( size, member )                                                     \
     ( offsetof( LogSquirlHostApi, member ) + LOGSQUIRL_HOST_API_MEMBER_SIZE( member ) <= ( size ) )
 
+/**
+ * Non-zero when a host whose API table is size bytes long calls
+ * logsquirl_datasource_start and logsquirl_datasource_stop (LogSquirl 26.12):
+ * the hosts of LogSquirl 26.12 and later do, and their table reaches
+ * get_log_line_fields, which 26.12 added; an older host's ends before it.
+ * size is as for LOGSQUIRL_HOST_API_HAS.
+ */
+#define LOGSQUIRL_HOST_CALLS_DATASOURCE_START( size )                                              \
+    LOGSQUIRL_HOST_API_HAS( size, get_log_line_fields )
+
 /* ── Plugin-exported entry points ────────────────────────────────────────── */
 
 /*
@@ -1104,8 +1114,8 @@ typedef enum {
  * own to ask which.  Lines pushed from inside the call already reach the
  * stream, and are discarded when it does not start.  While the plugin's
  * stream runs, the host refuses another start without calling the plugin.
- * A host older than LogSquirl 26.12 calls neither start nor stop; the hosts
- * that do pass a LogSquirlHostApi that holds unregister_menu_action.
+ * A host older than LogSquirl 26.12 calls neither start nor stop: tell the
+ * hosts that do by LOGSQUIRL_HOST_CALLS_DATASOURCE_START.
  * @param context  Valid during the call only.
  * @return LOGSQUIRL_DATASOURCE_STARTED when the stream runs: the host opens it
  *         in a tab, and lines pushed from then on reach it.

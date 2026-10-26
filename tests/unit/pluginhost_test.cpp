@@ -3963,6 +3963,23 @@ struct InsidePluginCall {
 
 } // namespace
 
+SCENARIO( "A data source plugin tells by the host's table whether the host calls start and stop",
+          "[pluginhost][plugins][datasource]" )
+{
+    THEN( "The table of this host, of LogSquirl 26.12, says the host calls them (#855)" )
+    {
+        REQUIRE( LOGSQUIRL_HOST_CALLS_DATASOURCE_START( sizeof( LogSquirlHostApi ) ) );
+    }
+
+    THEN( "The table of a LogSquirl 26.11 host, which ends before the 26.12 functions, and the "
+          "base table say the host calls neither" )
+    {
+        REQUIRE_FALSE( LOGSQUIRL_HOST_CALLS_DATASOURCE_START(
+            offsetof( LogSquirlHostApi, get_log_file_encoding ) ) );
+        REQUIRE_FALSE( LOGSQUIRL_HOST_CALLS_DATASOURCE_START( LOGSQUIRL_HOST_API_BASE_SIZE ) );
+    }
+}
+
 SCENARIO( "A data source plugin hears when its stream starts and stops",
           "[pluginhost][plugins][datasource]" )
 {

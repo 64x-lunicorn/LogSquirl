@@ -132,7 +132,8 @@
   optional `logsquirl_datasource_start` runs before the stream counts as
   started and may refuse or cancel it, and `logsquirl_datasource_stop` runs
   once for every stream it let run, before the stream ends, also when the
-  plugin is unloaded or LogSquirl quits. (#855)
+  plugin is unloaded or LogSquirl quits. A plugin tells such a host by
+  `LOGSQUIRL_HOST_CALLS_DATASOURCE_START`. (#855)
 - **A plugin reads the Log Lines of any Open Log File, on any thread, and hears
   when they change**: the new host functions `get_log_line_count` and
   `get_log_lines` count and read the Log Lines of a Log File open in any tab of

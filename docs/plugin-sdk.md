@@ -1004,7 +1004,14 @@ LogSquirl adds host functions without changing `LOGSQUIRL_PLUGIN_API_VERSION`
 
 #define LOGSQUIRL_HOST_API_HAS( size, member )                                                     \
     ( offsetof( LogSquirlHostApi, member ) + LOGSQUIRL_HOST_API_MEMBER_SIZE( member ) <= ( size ) )
+
+#define LOGSQUIRL_HOST_CALLS_DATASOURCE_START( size )                                              \
+    LOGSQUIRL_HOST_API_HAS( size, get_log_line_fields )
 ```
+
+`LOGSQUIRL_HOST_CALLS_DATASOURCE_START` says whether a host whose table is
+that size calls a data source's start and stop, see
+[Data Source Streaming](#data-source-streaming).
 
 Keep the pointer the host passes and read the table through it. Never copy
 `*api` into a `LogSquirlHostApi` of your own: the copy reads the whole struct
@@ -1278,10 +1285,11 @@ stream the host ends on its own, with the plugin still loaded, is stopped in
 the plugin first and drops what the plugin pushes once `stop` has returned;
 its file stays for its tab until the plugin is unloaded.
 A host older than LogSquirl 26.12 knows neither export and never calls them.
-The hosts that call them pass a host API table that holds
-`unregister_menu_action`, which an older host's does not: a plugin that also
-runs on an older host opens its source in `logsquirl_plugin_init_ex` when
-`LOGSQUIRL_HOST_API_HAS( api_size, unregister_menu_action )` is false, and in
+`LOGSQUIRL_HOST_CALLS_DATASOURCE_START( api_size )` tells the hosts that call
+them, LogSquirl 26.12 and later, whose host API table reaches
+`get_log_line_fields`, a function 26.12 added: a plugin that also runs on an
+older host opens its source in `logsquirl_plugin_init_ex` when
+`LOGSQUIRL_HOST_CALLS_DATASOURCE_START( api_size )` is false, and in
 `logsquirl_plugin_init`, and closes it in `shutdown`.
 
 ### Converters
