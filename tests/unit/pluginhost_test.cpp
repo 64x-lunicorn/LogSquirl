@@ -654,6 +654,26 @@ SCENARIO( "A plugin's host callbacks reach the Plugin UI Port",
             }
         }
 
+        WHEN( "The plugin registers the same menu action again and again" )
+        {
+            api->register_menu_action( handle, "Probe", "Probe action", &menuCallback,
+                                       &menuUserData );
+            for ( auto i = 0; i < 3; ++i ) {
+                api->register_menu_action( handle, "Plugins/Probe/", "Probe action", &menuCallback,
+                                           &menuUserData );
+            }
+            api->register_menu_action( handle, "Other", "Probe action", &menuCallback,
+                                       &menuUserData );
+
+            THEN( "A call for a submenu and label the plugin has an item of adds nothing and "
+                  "does not reach the port, while one for another submenu does (#870)" )
+            {
+                REQUIRE( port.calls.size() == 2 );
+                REQUIRE( port.calls[ 0 ].menuPath == "Probe" );
+                REQUIRE( port.calls[ 1 ].menuPath == "Other" );
+            }
+        }
+
         WHEN( "The plugin's menu action unloads the plugin while it runs" )
         {
             UnloadingMenuAction action{ .host = &host, .portCalls = &port.calls };

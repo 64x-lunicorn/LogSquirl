@@ -610,6 +610,14 @@ private:
      */
     static int nextRegistrationId( PluginContext& context );
 
+    /**
+     * Whether the plugin has a menu item, not removed, of that label in that
+     * submenu as pluginSubmenuNames names it (#870). Under the context's
+     * registrationsMutex.
+     */
+    static bool hasLiveMenuAction( const PluginContext& context, const QStringList& submenu,
+                                   const QString& label );
+
     /** The loaded plugin's context, or nullptr when it is not loaded or is being unloaded. */
     PluginContext* loadedContext( const QString& pluginId ) const;
 

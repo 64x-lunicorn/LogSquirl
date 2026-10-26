@@ -1428,17 +1428,23 @@ void PluginHost::hostRegisterMenuAction( void* handle, const char* menuPath, con
     auto* ctx = contextFromHandle( handle );
     const auto menuPathText = QString::fromUtf8( menuPath );
     const auto labelText = QString::fromUtf8( label );
+    auto submenu = pluginSubmenuNames( menuPathText );
     MenuActionCall* call = nullptr;
     {
+        const std::lock_guard lock( ctx->registrationsMutex );
+        // A call for a submenu and label the plugin has an item of adds
+        // nothing, and so keeps no record either (#870).
+        if ( hasLiveMenuAction( *ctx, submenu, labelText ) ) {
+            return;
+        }
         // Kept for its submenu and label also without a callback:
         // register_menu_action_ex adds no second item of them.
-        const std::lock_guard lock( ctx->registrationsMutex );
         call = &ctx->menuActionCalls.emplace_back();
         call->context = ctx;
         call->callback = callback;
         call->userData = userData;
         call->label = labelText;
-        call->submenu = pluginSubmenuNames( menuPathText );
+        call->submenu = std::move( submenu );
     }
     if ( !callback ) {
         port->addMenuAction( pluginId, menuPathText, labelText, nullptr, userData );
@@ -1453,6 +1459,14 @@ int PluginHost::nextRegistrationId( PluginContext& context )
         return -1;
     }
     return ++context.registrationIdsSoFar;
+}
+
+bool PluginHost::hasLiveMenuAction( const PluginContext& context, const QStringList& submenu,
+                                    const QString& label )
+{
+    return std::ranges::any_of( context.menuActionCalls, [ & ]( const auto& other ) {
+        return !other.removed.load() && other.label == label && other.submenu == submenu;
+    } );
 }
 
 int PluginHost::hostRegisterMenuActionEx( void* handle, const char* menuPath, const char* label,
@@ -1472,10 +1486,7 @@ int PluginHost::hostRegisterMenuActionEx( void* handle, const char* menuPath, co
         const std::lock_guard lock( ctx->registrationsMutex );
         // A plugin's items of one submenu have different labels: the Plugin
         // UI Port shows a second one of the same label there not at all (#870).
-        const auto taken = std::ranges::any_of( ctx->menuActionCalls, [ & ]( const auto& other ) {
-            return !other.removed.load() && other.label == labelText && other.submenu == submenu;
-        } );
-        id = taken ? -1 : nextRegistrationId( *ctx );
+        id = hasLiveMenuAction( *ctx, submenu, labelText ) ? -1 : nextRegistrationId( *ctx );
         if ( id < 0 ) {
             return -1;
         }
