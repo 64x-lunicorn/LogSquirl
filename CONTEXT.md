@@ -531,7 +531,11 @@ claims, into the Transient Log File that is shown. It runs in the background wit
 and Cancel; the user sees the Log File it was converted from, never the conversion's output
 path. A cancelled or failed Conversion opens no tab. A plugin converts one file at a time;
 different plugins convert at the same time. Any plugin that exports the converter entry
-points converts, whatever its kind.
+points converts, whatever its kind. A file no converter's extensions match may be claimed
+by its content instead: a converter that exports the check is asked, on a worker thread and
+before the file is decompressed, whether it takes the file by its first bytes. Of several
+converters, by extension or by content, the one with the smallest plugin id converts it
+(ADR 0028).
 _Avoid_: import, transcoding, pre-processing
 
 ### Updates

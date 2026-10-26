@@ -77,6 +77,9 @@ struct PluginAutoLoadResult {
 /** Names a Conversion the Plugin Host started; 0 names none. */
 using ConversionId = std::uint64_t;
 
+/** Names a content check the Plugin Host started (#861); 0 names none. */
+using ContentCheckId = std::uint64_t;
+
 /** How a Conversion ended. */
 enum class ConversionOutcome {
     Succeeded, ///< The converter returned 0: the output is the Log File.
@@ -123,9 +126,10 @@ struct ConversionReport {
  * the tab in front, the active file path, the Marks read) refuse a call from
  * another thread.  A Conversion runs the
  * converter on a worker thread of the host's and reports on the GUI thread
- * (#795).  The Log Lines of an open Log File, and their fields (#867), are
- * read on the plugin's thread, through the Log Files the UI adds to
- * logFiles() (#858).
+ * (#795), and asks the converters whether they claim a file by its content
+ * on a worker thread too (#861).  The Log Lines of an open Log File, and
+ * their fields (#867), are read on the plugin's thread, through the Log Files
+ * the UI adds to logFiles() (#858).
  */
 class PluginHost : public QObject {
     Q_OBJECT
@@ -175,7 +179,8 @@ public:
      * menu action of the plugin's that shows a modal dialog, say -- the
      * plugin counts as unloaded at once, and nothing calls into it any more;
      * it is shut down once that call has returned (#691). Its Conversions
-     * are cancelled first, the one under way waited for (#795). A stream of
+     * are cancelled first, the one under way waited for (#795), and so is a
+     * content check's call into it under way (#861). A stream of
      * the plugin's that runs is stopped in the plugin before the plugin is
      * shut down, and ends after (#855).
      */
@@ -280,13 +285,37 @@ public:
     // ── Converter registry (Phase 4) ────────────────────────────────
 
     /**
-     * Return the plugin ID for the converter that handles the given extension.
-     * Returns an empty string if no converter is registered for it.
+     * Return the plugin ID for the converter that handles the given extension:
+     * of several, the one with the smallest ID (#861). Returns an empty string
+     * if no converter is registered for it.
      */
     QString converterForExtension( const QString& extension ) const;
 
     /** Return all file-dialog filters contributed by converter plugins. */
     QStringList converterFileFilters() const;
+
+    /**
+     * Starts a content check (#861): on a worker thread of the host's, never
+     * this one, reads the first LOGSQUIRL_CONVERTER_CLAIMS_HEAD_LENGTH bytes of
+     * filePath and asks the loaded converters that export
+     * logsquirl_converter_claims, one after the other in plugin-ID order,
+     * whether they convert it. The caller hears, through claimed, on the
+     * host's thread, the ID of the first that claims it; an empty one when
+     * none does, the head could not be read, or the plugin that claimed it was
+     * unloaded meanwhile. A plugin unloaded during the check is not asked any
+     * more, and its unload waits for its call under way.
+     * @return The check's ID, or 0 when no loaded converter exports the
+     *         check: then nothing is reported.
+     */
+    ContentCheckId checkContent( const QString& filePath,
+                                 std::function<void( const QString& pluginId )> claimed );
+
+    /**
+     * Cancels a content check: its caller hears nothing of it, and no plugin
+     * is asked any more. A call under way is not waited for. Nothing for a
+     * check that has finished.
+     */
+    void cancelContentCheck( ContentCheckId id );
 
     /**
      * Starts a Conversion: the converter plugin writes inputPath as plain
@@ -351,6 +380,20 @@ private:
         ConversionReport report;
         // Set while it is under way.
         std::shared_ptr<ConversionControl> control;
+        std::thread thread;
+    };
+
+    /**
+     * What the worker thread of a content check shares with the host: the
+     * plugins to ask, the one being asked and the one that claimed the file.
+     */
+    struct ContentCheckControl;
+
+    /** A content check under way (#861). */
+    struct ContentCheck {
+        ContentCheckId id = 0;
+        std::function<void( const QString& pluginId )> claimed;
+        std::shared_ptr<ContentCheckControl> control;
         std::thread thread;
     };
 
@@ -554,6 +597,21 @@ private:
     PluginContext* loadedContext( const QString& pluginId ) const;
 
     /**
+     * The loaded converters, not being unloaded, in plugin-ID order: the
+     * order a file is offered to them in (#861).
+     */
+    std::vector<PluginContext*> convertersInIdOrder() const;
+
+    /**
+     * Takes the plugin out of every content check under way: none asks it
+     * any more, and a call into it under way has returned when this returns.
+     */
+    void leaveContentChecks( const PluginContext& context );
+
+    /** Finishes the content check id, whose worker has returned: reports it last. */
+    void finishContentCheck( ContentCheckId id );
+
+    /**
      * Runs call as a call into the plugin, unless the plugin is being
      * unloaded: then it returns false and runs nothing. An unload asked for
      * meanwhile is finished once the outermost such call has returned.
@@ -632,6 +690,9 @@ private:
     std::map<QString, std::unique_ptr<PluginContext>> loaded_;
     std::uint64_t loadsSoFar_ = 0;
     ConversionId conversionsSoFar_ = 0;
+    // The content checks under way, UI thread only (#861).
+    std::list<std::unique_ptr<ContentCheck>> contentChecks_;
+    ContentCheckId contentChecksSoFar_ = 0;
 
     PluginUiPort* uiPort_ = nullptr;
 

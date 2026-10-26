@@ -162,6 +162,13 @@ target_compile_definitions(logsquirl_itests PRIVATE
     LOGSQUIRL_CONVERT_PROBE_PATH="$<TARGET_FILE:logsquirl_convert_probe>"
     LOGSQUIRL_CONVERT_PROBE_PLAIN_PATH="$<TARGET_FILE:logsquirl_convert_probe_plain>")
 
+# The converter plugins of the unit tests that claim a file by its content
+# (#861).
+add_dependencies(logsquirl_itests logsquirl_claim_probe_a logsquirl_claim_probe_b)
+target_compile_definitions(logsquirl_itests PRIVATE
+    LOGSQUIRL_CLAIM_PROBE_A_PATH="$<TARGET_FILE:logsquirl_claim_probe_a>"
+    LOGSQUIRL_CLAIM_PROBE_B_PATH="$<TARGET_FILE:logsquirl_claim_probe_b>")
+
 # theme_screenshots_test copies the demo log from test_data/ (#253).
 target_compile_definitions(logsquirl_itests PRIVATE LOGSQUIRL_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 

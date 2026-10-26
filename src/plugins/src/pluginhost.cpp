@@ -24,10 +24,13 @@
 #include "streamwriter.h"
 
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QThread>
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
 #include <cstddef>
 #include <limits>
 #include <numeric>
@@ -73,6 +76,31 @@ struct PluginHost::ConversionControl : std::enable_shared_from_this<PluginHost::
     std::atomic<int> returnCode{ 0 };
 };
 
+// ── Content checks ──────────────────────────────────────────────────────────
+
+/**
+ * What the worker thread of a content check shares with the host (#861),
+ * under mutex: the converters to ask in plugin-ID order, which of them have
+ * left the check, the one being asked and the one that claimed the file. An
+ * unload takes its plugin out and waits, on returned, until a call into it
+ * has returned; the handle of a plugin that left is not touched any more.
+ */
+struct PluginHost::ContentCheckControl {
+    struct Converter {
+        QString pluginId;
+        const PluginHandle* handle = nullptr;
+        bool left = false;
+    };
+
+    std::mutex mutex{};
+    std::condition_variable returned{};
+    std::vector<Converter> converters{};
+    // The handle of the converter being asked, or nullptr.
+    const PluginHandle* calling = nullptr;
+    bool cancelled = false;
+    QString claimedBy{};
+};
+
 // ── Construction / destruction ──────────────────────────────────────────────
 
 PluginHost::PluginHost( const PluginCatalog& catalog, QObject* parent )
@@ -93,6 +121,15 @@ PluginHost::~PluginHost()
             Q_EMIT pluginUnloaded( pluginId );
         }
     }
+
+    // A content check still under way asks no plugin any more, all of them
+    // having left it; it is waited for, and reports nothing (#861).
+    for ( auto& check : contentChecks_ ) {
+        if ( check->thread.joinable() ) {
+            check->thread.join();
+        }
+    }
+    contentChecks_.clear();
 }
 
 // ── Loading / unloading ─────────────────────────────────────────────────────
@@ -235,6 +272,9 @@ void PluginHost::unloadPlugin( const QString& pluginId )
     // for, so the plugin is never shut down under its call (#795).
     context.unloadPending = true;
     cancelConversionsOf( context );
+    // Nor does a content check ask it any more, once a call under way has
+    // returned (#861).
+    leaveContentChecks( context );
 
     // A call into the plugin is still on the stack, below the event loop
     // this unload came from: shutting the plugin down now would pull its
@@ -264,6 +304,7 @@ void PluginHost::unloadNow( const QString& pluginId )
     // nothing its report asks for starts.
     it->second->unloadPending = true;
     cancelConversionsOf( *it->second );
+    leaveContentChecks( *it->second );
 
     // From now on, no answer of the user interface reaches the plugin: a
     // Regex Lab it opened may still answer while it is closed.
@@ -670,25 +711,177 @@ QString bareExtension( const QString& extension )
 
 } // namespace
 
+std::vector<PluginHost::PluginContext*> PluginHost::convertersInIdOrder() const
+{
+    std::vector<PluginContext*> converters;
+    for ( const auto& [ id, ctx ] : loaded_ ) {
+        if ( !ctx->unloadPending && ctx->handle.isConverter() ) {
+            converters.push_back( ctx.get() );
+        }
+    }
+    // Sorted here, not taken from how loaded_ happens to keep them: the order
+    // is what the plugin developer guide promises (#861).
+    std::ranges::sort( converters, []( const PluginContext* left, const PluginContext* right ) {
+        return left->handle.metadata().id() < right->handle.metadata().id();
+    } );
+    return converters;
+}
+
 QString PluginHost::converterForExtension( const QString& extension ) const
 {
     const auto ext = bareExtension( extension );
     if ( ext.isEmpty() ) {
         return {};
     }
-    for ( const auto& [ id, ctx ] : loaded_ ) {
-        if ( ctx->unloadPending || !ctx->handle.isConverter() ) {
-            continue;
-        }
+    for ( const auto* ctx : convertersInIdOrder() ) {
         // Extensions are semicolon-separated, e.g. ".har;.pcap"
         const auto exts = ctx->handle.converterExtensions().split( ';', Qt::SkipEmptyParts );
         for ( const auto& e : exts ) {
             if ( bareExtension( e ) == ext ) {
-                return id;
+                return ctx->handle.metadata().id();
             }
         }
     }
     return {};
+}
+
+namespace {
+
+// The first bytes of the file a converter is asked about, or nothing when it
+// cannot be read (#861).
+std::optional<QByteArray> readHead( const QString& filePath )
+{
+    QFile file( filePath );
+    if ( !file.open( QIODevice::ReadOnly ) ) {
+        return std::nullopt;
+    }
+    auto head = file.read( LOGSQUIRL_CONVERTER_CLAIMS_HEAD_LENGTH );
+    if ( file.error() != QFileDevice::NoError ) {
+        return std::nullopt;
+    }
+    return head;
+}
+
+} // namespace
+
+ContentCheckId PluginHost::checkContent( const QString& filePath,
+                                         std::function<void( const QString& pluginId )> claimed )
+{
+    auto control = std::make_shared<ContentCheckControl>();
+    for ( const auto* ctx : convertersInIdOrder() ) {
+        if ( ctx->handle.claimsByContent() ) {
+            control->converters.push_back( ContentCheckControl::Converter{
+                .pluginId = ctx->handle.metadata().id(), .handle = &ctx->handle, .left = false } );
+        }
+    }
+    if ( control->converters.empty() ) {
+        return 0;
+    }
+
+    auto check = std::make_unique<ContentCheck>();
+    check->id = ++contentChecksSoFar_;
+    check->claimed = std::move( claimed );
+    check->control = control;
+    LOG_INFO << "Asking " << control->converters.size() << " converter plugin(s) whether they "
+             << "claim " << filePath << " by its content";
+
+    // The handles stay while the thread asks them: a plugin's unload takes it
+    // out of the check, waiting for a call under way, before its context goes.
+    check->thread = std::thread(
+        [ this, control, id = check->id, path = QFileInfo( filePath ).absoluteFilePath() ] {
+            if ( const auto head = readHead( path ) ) {
+                const auto pathUtf8 = path.toUtf8();
+                for ( std::size_t next = 0;; ++next ) {
+                    const PluginHandle* handle = nullptr;
+                    {
+                        const std::lock_guard lock( control->mutex );
+                        if ( control->cancelled || next >= control->converters.size() ) {
+                            break;
+                        }
+                        if ( control->converters[ next ].left ) {
+                            continue;
+                        }
+                        handle = control->converters[ next ].handle;
+                        control->calling = handle;
+                    }
+                    const bool claims = handle->claims( pathUtf8, *head );
+                    bool claimed = false;
+                    {
+                        // A plugin unloaded during its call claims nothing: the
+                        // next one is asked.
+                        const std::lock_guard lock( control->mutex );
+                        control->calling = nullptr;
+                        claimed = claims && !control->converters[ next ].left;
+                        if ( claimed ) {
+                            control->claimedBy = control->converters[ next ].pluginId;
+                        }
+                    }
+                    control->returned.notify_all();
+                    if ( claimed ) {
+                        break;
+                    }
+                }
+            }
+            QMetaObject::invokeMethod(
+                this, [ this, id ] { finishContentCheck( id ); }, Qt::QueuedConnection );
+        } );
+    const auto id = check->id;
+    contentChecks_.push_back( std::move( check ) );
+    return id;
+}
+
+void PluginHost::cancelContentCheck( ContentCheckId id )
+{
+    for ( auto& check : contentChecks_ ) {
+        if ( check->id == id ) {
+            check->claimed = nullptr;
+            const std::lock_guard lock( check->control->mutex );
+            check->control->cancelled = true;
+            return;
+        }
+    }
+}
+
+void PluginHost::leaveContentChecks( const PluginContext& context )
+{
+    for ( auto& check : contentChecks_ ) {
+        auto& control = *check->control;
+        std::unique_lock lock( control.mutex );
+        for ( auto& converter : control.converters ) {
+            if ( converter.handle == &context.handle ) {
+                converter.left = true;
+            }
+        }
+        control.returned.wait( lock, [ & ] { return control.calling != &context.handle; } );
+    }
+}
+
+void PluginHost::finishContentCheck( ContentCheckId id )
+{
+    const auto it = std::ranges::find_if( contentChecks_,
+                                          [ id ]( const auto& check ) { return check->id == id; } );
+    if ( it == contentChecks_.end() ) {
+        return;
+    }
+    auto check = std::move( *it );
+    contentChecks_.erase( it );
+    if ( check->thread.joinable() ) {
+        check->thread.join();
+    }
+
+    auto claimedBy = [ &check ] {
+        const std::lock_guard lock( check->control->mutex );
+        return check->control->claimedBy;
+    }();
+    // Unloaded since it claimed the file: no plugin converts it.
+    if ( !claimedBy.isEmpty() && !loadedContext( claimedBy ) ) {
+        LOG_INFO << "Plugin " << claimedBy << " claimed a file and was unloaded meanwhile";
+        claimedBy.clear();
+    }
+    // Last: the report may do anything, even unload the plugin.
+    if ( check->claimed ) {
+        check->claimed( claimedBy );
+    }
 }
 
 QStringList PluginHost::converterFileFilters() const

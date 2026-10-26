@@ -49,6 +49,7 @@ PluginHandle::PluginHandle( PluginMetadata meta, std::unique_ptr<QLibrary> lib,
                             LogSquirlConverterGetExtsFn converterGetExtsFn,
                             LogSquirlConverterConvertFn converterConvertFn,
                             LogSquirlConverterConvertExFn converterConvertExFn,
+                            LogSquirlConverterClaimsFn converterClaimsFn,
                             LogSquirlDataSourceStartFn dataSourceStartFn,
                             LogSquirlDataSourceStopFn dataSourceStopFn )
     : metadata_( std::move( meta ) )
@@ -61,6 +62,7 @@ PluginHandle::PluginHandle( PluginMetadata meta, std::unique_ptr<QLibrary> lib,
     , converterGetExtsFn_( converterGetExtsFn )
     , converterConvertFn_( converterConvertFn )
     , converterConvertExFn_( converterConvertExFn )
+    , converterClaimsFn_( converterClaimsFn )
     , dataSourceStartFn_( dataSourceStartFn )
     , dataSourceStopFn_( dataSourceStopFn )
 {
@@ -84,6 +86,7 @@ PluginHandle::PluginHandle( PluginHandle&& other ) noexcept
     , converterGetExtsFn_( other.converterGetExtsFn_ )
     , converterConvertFn_( other.converterConvertFn_ )
     , converterConvertExFn_( other.converterConvertExFn_ )
+    , converterClaimsFn_( other.converterClaimsFn_ )
     , dataSourceStartFn_( other.dataSourceStartFn_ )
     , dataSourceStopFn_( other.dataSourceStopFn_ )
     , initialised_( other.initialised_ )
@@ -97,6 +100,7 @@ PluginHandle::PluginHandle( PluginHandle&& other ) noexcept
     other.converterGetExtsFn_ = nullptr;
     other.converterConvertFn_ = nullptr;
     other.converterConvertExFn_ = nullptr;
+    other.converterClaimsFn_ = nullptr;
     other.dataSourceStartFn_ = nullptr;
     other.dataSourceStopFn_ = nullptr;
 }
@@ -117,6 +121,7 @@ PluginHandle& PluginHandle::operator=( PluginHandle&& other ) noexcept
         converterGetExtsFn_ = other.converterGetExtsFn_;
         converterConvertFn_ = other.converterConvertFn_;
         converterConvertExFn_ = other.converterConvertExFn_;
+        converterClaimsFn_ = other.converterClaimsFn_;
         dataSourceStartFn_ = other.dataSourceStartFn_;
         dataSourceStopFn_ = other.dataSourceStopFn_;
         initialised_ = other.initialised_;
@@ -130,6 +135,7 @@ PluginHandle& PluginHandle::operator=( PluginHandle&& other ) noexcept
         other.converterGetExtsFn_ = nullptr;
         other.converterConvertFn_ = nullptr;
         other.converterConvertExFn_ = nullptr;
+        other.converterClaimsFn_ = nullptr;
         other.dataSourceStartFn_ = nullptr;
         other.dataSourceStopFn_ = nullptr;
     }
@@ -212,6 +218,18 @@ int PluginHandle::convertEx( const QString& inputPath, const QString& outputPath
     const auto inUtf8 = inputPath.toUtf8();
     const auto outUtf8 = outputPath.toUtf8();
     return converterConvertExFn_( inUtf8.constData(), outUtf8.constData(), control );
+}
+
+bool PluginHandle::claims( const QByteArray& filePathUtf8, const QByteArray& head ) const
+{
+    if ( !converterClaimsFn_ ) {
+        return false;
+    }
+    // Never NULL, also for an empty file: an empty QByteArray's data is "".
+    return converterClaimsFn_( filePathUtf8.constData(),
+                               reinterpret_cast<const unsigned char*>( head.constData() ),
+                               static_cast<size_t>( head.size() ) )
+           != 0;
 }
 
 int PluginHandle::startDataSource( const LogSquirlDataSourceContext* context ) const
@@ -355,6 +373,9 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
     auto converterConvertExFn = resolveSymbol<LogSquirlConverterConvertExFn>(
         *library, LOGSQUIRL_CONVERTER_ENTRY_CONVERT_EX );
 
+    auto converterClaimsFn
+        = resolveSymbol<LogSquirlConverterClaimsFn>( *library, LOGSQUIRL_CONVERTER_ENTRY_CLAIMS );
+
     auto dataSourceStartFn
         = resolveSymbol<LogSquirlDataSourceStartFn>( *library, LOGSQUIRL_DATASOURCE_ENTRY_START );
 
@@ -379,7 +400,7 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
 
     return PluginHandle( metadata, std::move( library ), getInfoFn, initFn, initExFn, shutdownFn,
                          configureFn, converterGetExtsFn, converterConvertFn, converterConvertExFn,
-                         dataSourceStartFn, dataSourceStopFn );
+                         converterClaimsFn, dataSourceStartFn, dataSourceStopFn );
 }
 
 } // namespace logsquirl::plugins

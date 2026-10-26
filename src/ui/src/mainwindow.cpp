@@ -3475,9 +3475,9 @@ bool MainWindow::openLogFile( const QString& fileName, LogFileProvenance provena
         commandSources_[ fileName ] = std::move( provenance.commandSource );
     }
 
-    auto open = [ this, fileName, followFile, origin = provenance.origin,
-                  whenOpened = std::move( provenance.whenOpened ) ] {
-        const auto isOpen = openNow( fileName, followFile, origin );
+    // Once the open is done: at once, or once the converter plugins said
+    // whether one claims the Log File by its content (#861).
+    auto done = [ this, fileName, whenOpened = std::move( provenance.whenOpened ) ]( bool isOpen ) {
         // Nothing of a tab that did not open is kept.
         if ( !isOpen ) {
             forgetOpening( fileName );
@@ -3492,7 +3492,9 @@ bool MainWindow::openLogFile( const QString& fileName, LogFileProvenance provena
             whenOpened( tab >= 0 ? qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( tab ) )
                                  : nullptr );
         }
-        return isOpen;
+    };
+    auto open = [ this, fileName, followFile, origin = provenance.origin, done ] {
+        return openNow( fileName, followFile, origin, done );
     };
 
     // Whether a converter plugin opens this file is only known once the
@@ -3530,31 +3532,83 @@ void MainWindow::stopCommandSource( const QString& fileName )
     }
 }
 
-// Create a CrawlerWidget for the passed file, start its loading
-// and update the title bar.
-// The loading is done asynchronously.
-bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFileOrigin& origin )
+bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFileOrigin& origin,
+                          const OpenDone& done )
 {
+    const auto finish = [ &done ]( bool isOpen ) {
+        done( isOpen );
+        return isOpen;
+    };
+
     // First check if the file is already open, or converted (#615), in any
     // window: the Session knows, and the window showing it brings its tab to
     // the front (#642).
     if ( session_.showOpen( fileName ) ) {
-        return true;
+        return finish( true );
     }
 
     // A converter plugin handling this file's extension converts it, in the
     // background; its tab comes once it is done (#795). Asked for again
-    // meanwhile, it waits for that same Conversion.
-    if ( conversions_.contains( fileName ) ) {
-        return true;
+    // meanwhile, it waits for that same Conversion, or for the converter
+    // plugins to say whether one claims it by its content (#861).
+    if ( conversions_.contains( fileName ) || contentChecks_.contains( fileName ) ) {
+        return finish( true );
     }
     const auto ext = QFileInfo( fileName ).suffix().toLower();
     if ( const auto converterId = plugins_->host().converterForExtension( ext );
          !converterId.isEmpty() ) {
         convertAndOpen( converterId, fileName, followFile, origin );
+        return finish( true );
+    }
+
+    // Else a converter plugin may claim it by its content, as it is on disk,
+    // before it is decompressed (#861). A Transient Log File is LogSquirl's
+    // own -- a stream's spool, a merge, the clipboard's text, what a
+    // Conversion wrote -- and is not offered.
+    if ( origin.lifetime == LogFileLifetime::Ordinary
+         && checkContentAndOpen( fileName, followFile, origin, done ) ) {
         return true;
     }
 
+    return finish( loadNow( fileName, followFile, origin ) );
+}
+
+bool MainWindow::checkContentAndOpen( const QString& fileName, bool followFile,
+                                      const LogFileOrigin& origin, const OpenDone& done )
+{
+    const QPointer<MainWindow> window( this );
+    const auto id
+        = plugins_->host().checkContent( fileName, [ this, window, fileName, followFile, origin,
+                                                     done ]( const QString& converterId ) {
+              if ( !window ) {
+                  return;
+              }
+              contentChecks_.erase( fileName );
+              // Opened in another window meanwhile.
+              if ( session_.showOpen( fileName ) ) {
+                  done( true );
+                  return;
+              }
+              if ( converterId.isEmpty() ) {
+                  done( loadNow( fileName, followFile, origin ) );
+                  return;
+              }
+              convertAndOpen( converterId, fileName, followFile, origin );
+              done( true );
+          } );
+    if ( id == 0 ) {
+        return false;
+    }
+    LOG_INFO << "Opening " << fileName << " once the converter plugins have checked its content";
+    contentChecks_[ fileName ] = id;
+    return true;
+}
+
+// Create a CrawlerWidget for the passed file, start its loading
+// and update the title bar.
+// The loading is done asynchronously.
+bool MainWindow::loadNow( const QString& fileName, bool followFile, const LogFileOrigin& origin )
+{
     const auto decompressAction = Decompressor::action( fileName );
 
     if ( decompressAction == DecompressAction::None
@@ -3763,6 +3817,11 @@ void MainWindow::cancelConversions()
     for ( const auto id : ids ) {
         plugins_->host().cancelConversion( id );
     }
+    // A cancelled content check reports nothing (#861).
+    for ( const auto& [ fileName, id ] : contentChecks_ ) {
+        plugins_->host().cancelContentCheck( id );
+    }
+    contentChecks_.clear();
 }
 
 bool MainWindow::showView( const ViewInterface* view )

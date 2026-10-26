@@ -21,12 +21,16 @@
 // dialog beside it shows how far the converter plugin is and cancels it, and
 // the Transient Log File opens once it is done (#795). The convert probe of
 // the unit tests holds after each line until its gate opens, so each test
-// sees the Conversion under way.
+// sees the Conversion under way. A converter plugin may also claim a file by
+// its first bytes, asked on a worker thread when no converter's extensions
+// match (#861); the claim probes of the unit tests do.
 
 #include "applicationplugins.h"
+#include "claim_probe.h"
 #include "convert_probe.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
+#include "modal_answers.h"
 #include "session.h"
 #include "shown_widget.h"
 #include "tabbedcrawlerwidget.h"
@@ -37,6 +41,7 @@
 #include <QDir>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QEventLoop>
 #include <QFile>
 #include <QLibrary>
 #include <QMessageBox>
@@ -50,6 +55,7 @@
 #include <QUrl>
 
 #include <catch2/catch_test_macros.hpp>
+#include <kcompressiondevice.h>
 
 #include <memory>
 
@@ -157,20 +163,25 @@ private:
 /// A shown window whose convert probes have loaded, and a folder of files to convert.
 struct ConvertingWindow {
     ConvertingWindow()
+        : ConvertingWindow( { ConvertProbeId, PlainConvertProbeId } )
+    {
+    }
+
+    /// A window with the probes enabled loaded only: the convert and claim probes.
+    explicit ConvertingWindow( const QStringList& enabled )
     {
         REQUIRE( pluginRoot.isValid() );
         REQUIRE( fileDir.isValid() );
         installConvertProbe( pluginRoot.path() );
         installPlainConvertProbe( pluginRoot.path() );
+        installClaimProbeA( pluginRoot.path() );
+        installClaimProbeB( pluginRoot.path() );
 
-        plugins = std::make_shared<ApplicationPlugins>(
-            [ this ]( PluginCatalog& catalog, PluginHost& host ) {
-                catalog.discoverPlugins( { pluginRoot.path() } );
-                loadErrors
-                    = host.autoLoadPlugins( { .autoLoad = true,
-                                              .enabled = { ConvertProbeId, PlainConvertProbeId } } )
-                          .errors;
-            } );
+        plugins = std::make_shared<ApplicationPlugins>( [ this, enabled ]( PluginCatalog& catalog,
+                                                                           PluginHost& host ) {
+            catalog.discoverPlugins( { pluginRoot.path() } );
+            loadErrors = host.autoLoadPlugins( { .autoLoad = true, .enabled = enabled } ).errors;
+        } );
         window = std::make_unique<MainWindow>( WindowSession{ newSession(), "Main", 0 }, plugins );
         showUntilExposed( *window );
         REQUIRE( waitUiState( [ this ] { return plugins->isLoaded(); }, 5000 ) );
@@ -440,6 +451,234 @@ SCENARIO( "A failed Conversion is reported and opens no tab", "[ui][plugins][con
                 REQUIRE( waitUiState( [ & ] { return !QFile::exists( probe.outputPath( 0 ) ); },
                                       10000 ) );
                 REQUIRE( conversionDialogs( window ).isEmpty() );
+            }
+        }
+    }
+}
+
+SCENARIO( "Without a converter that claims by content, a file opens at once as before",
+          "[ui][plugins][conversion]" )
+{
+    GIVEN( "A window whose convert probes claim files by their extension only" )
+    {
+        ConvertingWindow converting;
+        const auto path = converting.writeFile( "plain.log", "one\ntwo\n" );
+        auto& window = *converting.window;
+
+        WHEN( "a file no extension matches is opened" )
+        {
+            window.loadInitialFile( path, false );
+
+            THEN( "its tab is there when the call returns, as the file was" )
+            {
+                REQUIRE( logFileTabTexts( window )
+                         == QStringList{ QStringLiteral( "plain.log" ) } );
+                REQUIRE_FALSE( allTabsTransient( window ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A converter plugin claims a file by its content when it is opened",
+          "[ui][plugins][conversion]" )
+{
+    GIVEN( "A window with two claim probes, A's plugin id the smaller" )
+    {
+        ConvertingWindow converting( { ClaimProbeAId, ClaimProbeBId } );
+        ClaimProbe probeA( QStringLiteral( LOGSQUIRL_CLAIM_PROBE_A_PATH ) );
+        ClaimProbe probeB( QStringLiteral( LOGSQUIRL_CLAIM_PROBE_B_PATH ) );
+        auto& window = *converting.window;
+
+        WHEN( "a .log file that starts with the magic both claim is opened" )
+        {
+            const auto path = converting.writeFile( "capture.log", ClaimMagic + "\none\n" );
+            window.loadInitialFile( path, false );
+
+            THEN( "no tab is there when the call returns; the plugin with the smaller id, asked "
+                  "off the UI thread, converts it, and what it wrote opens" )
+            {
+                REQUIRE( logFileTabTexts( window ).isEmpty() );
+                REQUIRE(
+                    waitUiState( [ & ] { return logFileTabTexts( window ).size() == 1; }, 10000 ) );
+                REQUIRE( logFileTabTexts( window ).front().contains(
+                    QStringLiteral( "capture.log.txt" ) ) );
+                REQUIRE( allTabsTransient( window ) );
+                REQUIRE( probeA.conversions() == 1 );
+                REQUIRE( probeB.conversions() == 0 );
+                // Once: what the Conversion wrote is not offered again.
+                REQUIRE( probeA.claimsCalls() == 1 );
+                REQUIRE( probeA.claimsOnInitThread() == 0 );
+                // The first that claims it is the last asked.
+                REQUIRE( probeB.claimsCalls() == 0 );
+            }
+        }
+
+        WHEN( "a file without an extension that starts with the magic is opened" )
+        {
+            const auto path = converting.writeFile( "capture", ClaimMagic + "\none\n" );
+            window.loadInitialFile( path, false );
+
+            THEN( "it is converted all the same" )
+            {
+                REQUIRE(
+                    waitUiState( [ & ] { return logFileTabTexts( window ).size() == 1; }, 10000 ) );
+                REQUIRE(
+                    logFileTabTexts( window ).front().contains( QStringLiteral( "capture.txt" ) ) );
+                REQUIRE( probeA.conversions() == 1 );
+            }
+        }
+
+        WHEN( "a file without the magic is opened" )
+        {
+            const auto path = converting.writeFile( "plain.log", "one\ntwo\n" );
+            window.loadInitialFile( path, false );
+
+            THEN( "both are asked, and it opens as text once they said no" )
+            {
+                REQUIRE(
+                    waitUiState( [ & ] { return logFileTabTexts( window ).size() == 1; }, 10000 ) );
+                REQUIRE( logFileTabTexts( window )
+                         == QStringList{ QStringLiteral( "plain.log" ) } );
+                REQUIRE_FALSE( allTabsTransient( window ) );
+                REQUIRE( probeA.claimsCalls() == 1 );
+                REQUIRE( probeB.claimsCalls() == 1 );
+                REQUIRE( probeA.conversions() == 0 );
+                REQUIRE( probeB.conversions() == 0 );
+            }
+        }
+
+        WHEN( "a file one plugin's extensions match starts with the magic the other claims" )
+        {
+            const auto path = converting.writeFile( "capture.clm", ClaimMagic + "\none\n" );
+            window.loadInitialFile( path, false );
+
+            THEN( "the extension wins: that plugin converts it, though the other's id is "
+                  "smaller, and no plugin is asked about the content" )
+            {
+                REQUIRE(
+                    waitUiState( [ & ] { return logFileTabTexts( window ).size() == 1; }, 10000 ) );
+                REQUIRE( probeB.conversions() == 1 );
+                REQUIRE( probeA.conversions() == 0 );
+                REQUIRE( probeA.claimsCalls() == 0 );
+                REQUIRE( probeB.claimsCalls() == 0 );
+            }
+        }
+
+        WHEN( "a file whose extension both plugins list is opened" )
+        {
+            const auto path = converting.writeFile( "capture.clmboth", "one\n" );
+            window.loadInitialFile( path, false );
+
+            THEN( "the plugin with the smaller id converts it" )
+            {
+                REQUIRE(
+                    waitUiState( [ & ] { return logFileTabTexts( window ).size() == 1; }, 10000 ) );
+                REQUIRE( probeA.conversions() == 1 );
+                REQUIRE( probeB.conversions() == 0 );
+            }
+        }
+
+        WHEN( "a compressed file whose own head a plugin claims is opened" )
+        {
+            const auto path = converting.fileDir.filePath( "archived.log.gz" );
+            {
+                KCompressionDevice archive( path, KCompressionDevice::GZip );
+                REQUIRE( archive.open( QIODevice::WriteOnly ) );
+                REQUIRE( archive.write( "one\ntwo\n" ) > 0 );
+            }
+            // A gzip file starts with these two bytes.
+            probeA.setMagic( QByteArrayLiteral( "\x1f\x8b" ) );
+            ModalAnswers modals;
+            window.loadInitialFile( path, false );
+
+            THEN( "it is converted, not decompressed" )
+            {
+                REQUIRE(
+                    waitUiState( [ & ] { return logFileTabTexts( window ).size() == 1; }, 10000 ) );
+                REQUIRE( logFileTabTexts( window ).front().contains(
+                    QStringLiteral( "archived.log.gz.txt" ) ) );
+                REQUIRE( probeA.conversions() == 1 );
+                REQUIRE( modals.unexpectedMessageBoxes() == 0 );
+            }
+        }
+
+        WHEN( "a compressed file whose decompressed text a plugin claims is opened" )
+        {
+            const auto path = converting.fileDir.filePath( "member.log.gz" );
+            {
+                KCompressionDevice archive( path, KCompressionDevice::GZip );
+                REQUIRE( archive.open( QIODevice::WriteOnly ) );
+                REQUIRE( archive.write( ClaimMagic + "\none\n" ) > 0 );
+            }
+            ModalAnswers modals;
+            modals.click( QMessageBox::Yes ).answerWith( []( QDialog& modal ) {
+                waitUiState( [ &modal ] { return !modal.isVisible(); }, 30'000 );
+            } );
+            window.loadInitialFile( path, false );
+
+            THEN( "it is decompressed, and the decompressed file is offered again and converted" )
+            {
+                REQUIRE(
+                    waitUiState( [ & ] { return logFileTabTexts( window ).size() == 1; }, 30000 ) );
+                REQUIRE( allTabsTransient( window ) );
+                REQUIRE( probeA.conversions() == 1 );
+                // Once for the compressed file, once for what it decompressed to.
+                REQUIRE( probeA.claimsCalls() == 2 );
+            }
+        }
+
+        WHEN( "the check of the file holds" )
+        {
+            probeA.closeGate();
+            // Counts how often the event loop turned meanwhile.
+            int ticks = 0;
+            QTimer ticker;
+            QObject::connect( &ticker, &QTimer::timeout, [ &ticks ] { ++ticks; } );
+            ticker.start( 1 );
+
+            const auto path = converting.writeFile( "capture.log", ClaimMagic + "\none\n" );
+            window.loadInitialFile( path, false );
+            REQUIRE( waitUiState( [ & ] { return probeA.claimsRunning() == 1; }, 10000 ) );
+            const auto ticksBefore = ticks;
+
+            THEN( "the window stays in use, and no tab opens until the check returns" )
+            {
+                REQUIRE( waitUiState( [ & ] { return ticks > ticksBefore + 5; }, 10000 ) );
+                REQUIRE( logFileTabTexts( window ).isEmpty() );
+
+                probeA.openGate();
+                REQUIRE(
+                    waitUiState( [ & ] { return logFileTabTexts( window ).size() == 1; }, 10000 ) );
+                REQUIRE( probeA.conversions() == 1 );
+            }
+
+            AND_WHEN( "the file is opened again meanwhile" )
+            {
+                window.loadInitialFile( path, false );
+                probeA.openGate();
+
+                THEN( "it is checked and converted once" )
+                {
+                    REQUIRE( waitUiState( [ & ] { return logFileTabTexts( window ).size() == 1; },
+                                          10000 ) );
+                    REQUIRE( probeA.claimsCalls() == 1 );
+                    REQUIRE( probeA.conversions() == 1 );
+                }
+            }
+
+            AND_WHEN( "the window goes meanwhile" )
+            {
+                converting.window.reset();
+                probeA.openGate();
+
+                THEN( "nothing is converted for it" )
+                {
+                    REQUIRE( waitUiState( [ & ] { return probeA.claimsRunning() == 0; }, 10000 ) );
+                    QEventLoop loop;
+                    QTimer::singleShot( 100, &loop, &QEventLoop::quit );
+                    loop.exec();
+                    REQUIRE( probeA.conversions() == 0 );
+                }
             }
         }
     }

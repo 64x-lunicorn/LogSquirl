@@ -1018,6 +1018,47 @@ typedef struct LogSquirlConvertControl {
 typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const char* output_path,
                                                 const LogSquirlConvertControl* control );
 
+/**
+ * How many of a file's first bytes logsquirl_converter_claims is handed: this
+ * many, or fewer when the file is shorter (LogSquirl 26.12).
+ */
+#define LOGSQUIRL_CONVERTER_CLAIMS_HEAD_LENGTH 4096
+
+/**
+ * Claim a file by its content (optional, LogSquirl 26.12): whether this plugin
+ * converts the file, judged by its first bytes, when no converter's extensions
+ * match the file's.  A file is offered to the converters in this order, and
+ * the first that takes it converts it:
+ *
+ *   1. a converter whose logsquirl_converter_get_extensions lists the file's
+ *      extension; when several do, the one with the smallest plugin id;
+ *   2. else the converters that export this function, asked one after the
+ *      other in plugin-id order; the first that returns non-zero;
+ *   3. else none: the file is decompressed, if it is compressed or an archive,
+ *      and opened as text.
+ *
+ * The content checked is the file's as it is on disk, before decompression; a
+ * file taken out of an archive is offered again like any other file.  A
+ * converter that claims by content only may return an empty string from
+ * logsquirl_converter_get_extensions.
+ *
+ * Called on a host worker thread, never on the UI thread, and possibly for
+ * several files at the same time, also while a conversion of the plugin runs:
+ * keep no state between calls but what is safe to share between threads, and
+ * return quickly -- the file opens only once the check has returned.  The host
+ * reads the head itself; a file it cannot read is claimed by no plugin, and
+ * the plugin is not asked.  Never called after logsquirl_plugin_shutdown: an
+ * unload waits for a call under way.  A host older than 26.12 never calls it.
+ * @param file_path    Absolute UTF-8 path of the file.
+ * @param head         The file's first head_length bytes; valid during the call
+ *                     only, never NULL.
+ * @param head_length  LOGSQUIRL_CONVERTER_CLAIMS_HEAD_LENGTH, or fewer when the
+ *                     file is shorter; 0 for an empty file.
+ * @return Non-zero when this plugin converts the file, 0 when it does not.
+ */
+typedef int ( *LogSquirlConverterClaimsFn )( const char* file_path, const unsigned char* head,
+                                             size_t head_length );
+
 /* ── DataSource-specific entry points (optional) ─────────────────────────── */
 
 /**
@@ -1096,6 +1137,11 @@ typedef void ( *LogSquirlDataSourceStopFn )( const LogSquirlDataSourceContext* c
  *   LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert_ex( const char*, const char*,
  *                                                               const LogSquirlConvertControl* );
  *
+ * A converter that claims a file by its content as well also exports
+ * (optional, LogSquirl 26.12):
+ *   LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_claims( const char*, const unsigned char*,
+ *                                                           size_t );
+ *
  * A data source that hears when its stream starts and stops also exports
  * (optional, LogSquirl 26.12):
  *   LOGSQUIRL_PLUGIN_EXPORT int  logsquirl_datasource_start( const LogSquirlDataSourceContext* );
@@ -1110,6 +1156,7 @@ typedef void ( *LogSquirlDataSourceStopFn )( const LogSquirlDataSourceContext* c
 #define LOGSQUIRL_CONVERTER_ENTRY_GET_EXTS "logsquirl_converter_get_extensions"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT "logsquirl_converter_convert"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT_EX "logsquirl_converter_convert_ex"
+#define LOGSQUIRL_CONVERTER_ENTRY_CLAIMS "logsquirl_converter_claims"
 #define LOGSQUIRL_DATASOURCE_ENTRY_START "logsquirl_datasource_start"
 #define LOGSQUIRL_DATASOURCE_ENTRY_STOP "logsquirl_datasource_stop"
 

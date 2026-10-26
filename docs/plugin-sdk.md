@@ -628,6 +628,17 @@ A host that knows `logsquirl_converter_convert_ex` calls it instead of
 that exports `convert_ex` still exports `convert`. A plugin may export
 either one, or both. See [Converters](#converters).
 
+A converter that claims a file by its content as well also exports
+(optional, added in LogSquirl 26.12):
+
+```c
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_claims( const char*, const unsigned char*,
+                                                        size_t );
+```
+
+A plugin without it is never asked, and converts the files its extensions
+match as before. See [Claiming a File by Its Content](#claiming-a-file-by-its-content).
+
 A data source that hears when its stream starts and stops also exports
 (optional, added in LogSquirl 26.12):
 
@@ -652,6 +663,7 @@ as constants:
 #define LOGSQUIRL_CONVERTER_ENTRY_GET_EXTS "logsquirl_converter_get_extensions"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT "logsquirl_converter_convert"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT_EX "logsquirl_converter_convert_ex"
+#define LOGSQUIRL_CONVERTER_ENTRY_CLAIMS "logsquirl_converter_claims"
 #define LOGSQUIRL_DATASOURCE_ENTRY_START "logsquirl_datasource_start"
 #define LOGSQUIRL_DATASOURCE_ENTRY_STOP "logsquirl_datasource_stop"
 ```
@@ -669,6 +681,8 @@ typedef const char* ( *LogSquirlConverterGetExtsFn )( void );
 typedef int ( *LogSquirlConverterConvertFn )( const char* input_path, const char* output_path );
 typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const char* output_path,
                                                 const LogSquirlConvertControl* control );
+typedef int ( *LogSquirlConverterClaimsFn )( const char* file_path, const unsigned char* head,
+                                             size_t head_length );
 typedef int ( *LogSquirlDataSourceStartFn )( const LogSquirlDataSourceContext* context );
 typedef void ( *LogSquirlDataSourceStopFn )( const LogSquirlDataSourceContext* context );
 ```
@@ -1257,6 +1271,61 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert( const char* input_path,
 }
 ```
 
+#### Claiming a File by Its Content
+
+A format whose files have no extension of their own -- a capture saved as
+`.log`, `.bin`, `.dat` or without any -- is recognised by its first bytes
+instead. A converter that also exports `logsquirl_converter_claims` (added in
+LogSquirl 26.12) is asked about such a file: it gets the file's absolute UTF-8
+path and its first bytes, and returns non-zero when it converts the file. The
+host reads the bytes itself and hands over this many, or fewer when the file
+is shorter (none for an empty file; `head` is never `NULL`):
+
+```c
+#define LOGSQUIRL_CONVERTER_CLAIMS_HEAD_LENGTH 4096
+```
+
+`head` is valid during the call only. A file the host cannot read is claimed
+by no plugin, and no plugin is asked about it. When a Log File is opened, it
+goes to the first converter in this order that takes it:
+
+1. A converter whose `logsquirl_converter_get_extensions` lists the file's
+   extension. When several do, the one with the smallest plugin `id` converts
+   it, and no plugin is asked about its content.
+2. Else the converters that export `logsquirl_converter_claims`, asked one
+   after the other in the order of their plugin `id`s. The first that returns
+   non-zero converts the file, and the converters after it are not asked.
+3. Else no converter: the file is decompressed if it is compressed or an
+   archive, and opened as text.
+
+The bytes are the file's as it is on disk, before it is decompressed: a
+converter may claim a compressed file, which it then converts. A file taken
+out of an archive or decompressed is offered again like any other file. The
+Conversion runs as it does for an extension, with progress and Cancel, and the
+Log Format of what it wrote is recognised as for any other Log File. A
+converter that claims by its content only returns an empty string from
+`logsquirl_converter_get_extensions`. What LogSquirl writes itself -- what a
+Conversion wrote, a stream, a merge, the text pasted from the clipboard, a
+download -- is not offered.
+
+The check runs on a worker thread of the host's, never on the UI thread, and
+may run for several files at the same time, also while a conversion of the
+plugin runs. The file opens only once the check has returned, so return
+quickly: compare a few bytes, do not parse the file. The host never calls it
+after `logsquirl_plugin_shutdown`: an unload waits for a call under way. A
+host older than 26.12 never calls it, and converts by the extensions only.
+
+```cpp
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_claims( const char* file_path,
+                                                        const unsigned char* head,
+                                                        size_t head_length )
+{
+    (void)file_path; /* judged by the content alone */
+    static const unsigned char magic[] = { 'M', 'Y', 'F', 'M', 'T', '1' };
+    return head_length >= sizeof( magic ) && std::memcmp( head, magic, sizeof( magic ) ) == 0;
+}
+```
+
 ### UI Integration
 
 ```cpp
@@ -1782,6 +1851,8 @@ window the plugin keeps open outlives the dialog.
   `logsquirl_datasource_stop` and menu actions run on the UI thread; `logsquirl_converter_convert` and `logsquirl_converter_convert_ex`
   run on a host worker thread, one call per plugin at a time, and the
   `LogSquirlConvertControl` functions are called on that thread only.
+  `logsquirl_converter_claims` runs on a host worker thread too, possibly for
+  several files at the same time.
 - **String lifetime**: All `const char*` strings you pass to host API functions
   are copied immediately — you may free them after the call returns. A string
   the host returns is valid until your plugin calls the same function again
@@ -1815,8 +1886,9 @@ thread, but for `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`
 and `get_active_file_path`, which are called on the UI thread only; `open_file`
 from a worker thread opens the file on the UI thread. Call `signal_eos` or
 `signal_error` when your thread is done. A converter needs no thread of its
-own: the host calls `logsquirl_converter_convert` and
-`logsquirl_converter_convert_ex` on a worker thread already.
+own: the host calls `logsquirl_converter_convert`,
+`logsquirl_converter_convert_ex` and `logsquirl_converter_claims` on a worker
+thread already.
 
 **Q: How do I handle plugin-specific configuration?**
 A: Use `get_config_dir()` to obtain your private directory, then read/write

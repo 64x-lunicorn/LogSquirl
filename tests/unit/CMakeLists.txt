@@ -79,6 +79,7 @@ add_executable(logsquirl_tests
     patternmatcher_test.cpp
     plugindialog_test.cpp
     pluginhost_test.cpp
+    pluginhost_contentclaim_test.cpp
     pluginregexlab_test.cpp
     pluginloader_test.cpp
     pluginmetadata_test.cpp
@@ -230,6 +231,34 @@ target_compile_definitions(logsquirl_convert_probe_plain PRIVATE CONVERT_PROBE_P
 target_compile_definitions(logsquirl_tests PRIVATE
     LOGSQUIRL_CONVERT_PROBE_PATH="$<TARGET_FILE:logsquirl_convert_probe>"
     LOGSQUIRL_CONVERT_PROBE_PLAIN_PATH="$<TARGET_FILE:logsquirl_convert_probe_plain>")
+
+# The convert probe built against the plugin header as LogSquirl 26.12.0
+# published it, before a converter claimed a file by its content: it converts
+# by its extension as before, and no content check asks it (#861).
+add_library(logsquirl_convert_probe_api2612 MODULE plugins/convertprobe.cpp)
+target_link_libraries(logsquirl_convert_probe_api2612 PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_convert_probe_api2612
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/plugins/api2612")
+set_target_properties(logsquirl_convert_probe_api2612 PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_convert_probe_api2612)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_CONVERT_PROBE_API2612_PATH="$<TARGET_FILE:logsquirl_convert_probe_api2612>")
+
+# Two converter plugins that claim a file by its content, whose check the
+# tests hold, watch and unload meanwhile (#861): probe B's id comes after
+# probe A's, and the two list some extensions alike. The UI tests load the
+# same two libraries.
+foreach(probe_target IN ITEMS logsquirl_claim_probe_a logsquirl_claim_probe_b)
+  add_library(${probe_target} MODULE plugins/claimprobe.cpp)
+  target_link_libraries(${probe_target} PRIVATE project_options project_warnings)
+  target_include_directories(${probe_target} PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+  set_target_properties(${probe_target} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+  add_dependencies(logsquirl_tests ${probe_target})
+endforeach()
+target_compile_definitions(logsquirl_claim_probe_b PRIVATE CLAIM_PROBE_B=1)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_CLAIM_PROBE_A_PATH="$<TARGET_FILE:logsquirl_claim_probe_a>"
+    LOGSQUIRL_CLAIM_PROBE_B_PATH="$<TARGET_FILE:logsquirl_claim_probe_b>")
 
 # A data source plugin whose thread pushes lines until its shutdown returns:
 # the tests unload it, stop its stream and let the host go while its lines
