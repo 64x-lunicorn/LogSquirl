@@ -1062,7 +1062,10 @@ typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const ch
  * return quickly -- the file opens only once the check has returned.  The host
  * reads the head itself; a file it cannot read is claimed by no plugin, and
  * the plugin is not asked.  Never called after logsquirl_plugin_shutdown: an
- * unload waits for a call under way.  A host older than 26.12 never calls it.
+ * unload waits for a call under way, so a slow check delays the unload of its
+ * plugin, and the user interface with it when the plugin is unloaded on the UI
+ * thread, as when the user disables it or LogSquirl quits.  A host older than
+ * 26.12 never calls it.
  * @param file_path    Absolute UTF-8 path of the file.
  * @param head         The file's first head_length bytes; valid during the call
  *                     only, never NULL.

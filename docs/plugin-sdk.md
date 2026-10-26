@@ -1390,8 +1390,11 @@ The check runs on a worker thread of the host's, never on the UI thread, and
 may run for several files at the same time, also while a Conversion of the
 plugin runs. The file opens only once the check has returned, so return
 quickly: compare a few bytes, do not parse the file. The host never calls it
-after `logsquirl_plugin_shutdown`: an unload waits for a call under way. A
-host older than 26.12 never calls it, and converts by the extensions only.
+after `logsquirl_plugin_shutdown`: an unload waits for a call under way, so a
+slow check delays the unload of your plugin, and the user interface with it
+when the plugin is unloaded on the UI thread, as when the user disables it or
+LogSquirl quits. A host older than 26.12 never calls it, and converts by the
+extensions only.
 
 ```cpp
 LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_claims( const char* file_path,
