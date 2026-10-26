@@ -51,6 +51,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_loglines_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_encoding_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_logfile_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin_logfields_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_menu_actions_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_context_menu_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_marks_test.cpp
@@ -135,7 +136,7 @@ target_compile_definitions(logsquirl_itests PRIVATE
     LOGSQUIRL_TEST_CONTEXT_MENU_PLUGIN_PATH="$<TARGET_FILE:logsquirl_test_context_menu_plugin>")
 
 # A plugin that reads the Log Lines of an open Log File by path, on any
-# thread, and hears when they change (#858).
+# thread, and hears when they change (#858), and reads their fields (#867).
 add_library(logsquirl_test_log_file_plugin MODULE plugins/logfileplugin.cpp)
 target_link_libraries(logsquirl_test_log_file_plugin PRIVATE project_options project_warnings)
 target_include_directories(logsquirl_test_log_file_plugin PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")

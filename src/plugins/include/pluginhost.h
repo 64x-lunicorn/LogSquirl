@@ -123,8 +123,9 @@ struct ConversionReport {
  * the tab in front, the active file path, the Marks read) refuse a call from
  * another thread.  A Conversion runs the
  * converter on a worker thread of the host's and reports on the GUI thread
- * (#795).  The Log Lines of an open Log File are read on the plugin's thread,
- * through the Log Files the UI adds to logFiles() (#858).
+ * (#795).  The Log Lines of an open Log File, and their fields (#867), are
+ * read on the plugin's thread, through the Log Files the UI adds to
+ * logFiles() (#858).
  */
 class PluginHost : public QObject {
     Q_OBJECT
@@ -389,23 +390,46 @@ private:
     };
 
     /**
-     * A string the host returns to a plugin that may call on any thread
-     * (#858): each thread of the plugin's has a buffer of its own, valid until
-     * the plugin calls the same function on that thread again or is unloaded.
-     * A buffer stays until the plugin is unloaded; a thread that reuses the id
+     * What the host returns to a plugin that may call on any thread (#858):
+     * each thread of the plugin's has a buffer of its own, valid until the
+     * plugin calls the same function on that thread again or is unloaded. A
+     * buffer stays until the plugin is unloaded; a thread that reuses the id
      * of one that ended reuses its buffer.
      */
-    class PerThreadText {
+    template <typename Buffer>
+    class PerThread {
     public:
-        /** The calling thread's buffer, empty on its first call. */
-        QByteArray& ofThisThread();
+        /** The calling thread's buffer, as it was made on its first call. */
+        Buffer& ofThisThread()
+        {
+            const std::lock_guard lock( mutex_ );
+            return buffers_[ std::this_thread::get_id() ];
+        }
 
     private:
         // Held to find or add a buffer, not while one is written: a buffer
         // is only ever touched by its own thread, and a map's elements stay
         // where they are as others are added.
         std::mutex mutex_;
-        std::map<std::thread::id, QByteArray> buffers_;
+        std::map<std::thread::id, Buffer> buffers_;
+    };
+    using PerThreadText = PerThread<QByteArray>;
+
+    /** What get_log_format_fields hands a plugin's thread (#867). */
+    struct LogFormatFieldsBuffer {
+        QByteArray name;
+        // Each NUL-terminated, where namePointers point.
+        std::vector<QByteArray> fieldNames;
+        std::vector<const char*> namePointers;
+    };
+
+    /** What get_log_line_fields hands a plugin's thread (#867). */
+    struct LogLineFieldsBuffer {
+        // Every value, each followed by a NUL, where valuePointers point.
+        QByteArray text;
+        std::vector<const char*> valuePointers;
+        std::vector<size_t> valueLengths;
+        std::vector<int> parsed;
     };
 
     /** Where a plugin's data source is between its start and its stop (#855). */
@@ -500,6 +524,10 @@ private:
         void* logLinesUserData = nullptr;
         // The get_log_lines text, one per thread of the plugin's (#858).
         PerThreadText logLinesUtf8{};
+        // What get_log_format_fields and get_log_line_fields return, one per
+        // thread of the plugin's (#867).
+        PerThread<LogFormatFieldsBuffer> logFormatFields{};
+        PerThread<LogLineFieldsBuffer> logLineFields{};
         // The get_marks array, valid until the plugin's next call of it
         // (#866). UI thread only.
         std::vector<std::uint64_t> marks{};
@@ -664,6 +692,12 @@ private:
                                 size_t count );
     static int hostGetMarks( void* handle, const char* filePath, const uint64_t** lines,
                              size_t* count );
+    static int hostGetLogFormatFields( void* handle, const char* filePath, const char** formatName,
+                                       const char* const** fieldNames, size_t* fieldCount );
+    static int hostGetLogLineFields( void* handle, const char* filePath, uint64_t firstLine,
+                                     size_t maxLines, const char* const** values,
+                                     const size_t** lengths, const int** parsed, size_t* fieldCount,
+                                     size_t* lineCount );
 
     // The functions of the LogSquirlConvertControl handed to convert_ex,
     // called on the Conversion's worker thread.

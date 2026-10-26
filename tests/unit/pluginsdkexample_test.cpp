@@ -198,8 +198,54 @@ public:
         return std::nullopt;
     }
 
+    std::optional<logsquirl::plugins::PluginLogFormatFields> logFormat() const override
+    {
+        return std::nullopt;
+    }
+
+    std::expected<logsquirl::plugins::PluginLogLineFields,
+                  logsquirl::plugins::PluginLogLineFieldsUnread>
+    readLogLineFields( std::uint64_t, std::size_t, std::size_t ) const override
+    {
+        return std::unexpected( logsquirl::plugins::PluginLogLineFieldsUnread::NoLogFormat );
+    }
+
 private:
     std::uint64_t count_;
+};
+
+/// An open Log File under the Log Format "app_log", whose fields are level
+/// and body: Log Line 1 is "INFO", "started", Log Line 2 one it does not parse.
+class FieldsLogFile final : public logsquirl::plugins::PluginLogFileSource {
+public:
+    std::uint64_t lineCount() const override
+    {
+        return 2;
+    }
+
+    std::optional<logsquirl::plugins::PluginSelectedLogLines>
+    readLogLines( std::uint64_t, std::size_t, std::size_t ) const override
+    {
+        return std::nullopt;
+    }
+
+    std::optional<logsquirl::plugins::PluginLogFormatFields> logFormat() const override
+    {
+        return logsquirl::plugins::PluginLogFormatFields{ .name = QStringLiteral( "app_log" ),
+                                                          .fieldNames = { "level", "body" } };
+    }
+
+    std::expected<logsquirl::plugins::PluginLogLineFields,
+                  logsquirl::plugins::PluginLogLineFieldsUnread>
+    readLogLineFields( std::uint64_t logLine, std::size_t, std::size_t ) const override
+    {
+        logsquirl::plugins::PluginLogLineFields read;
+        read.fieldCount = 2;
+        read.parsed = { logLine == 0 };
+        read.values = logLine == 0 ? std::vector<QByteArray>{ "INFO", "started" }
+                                   : std::vector<QByteArray>{ {}, {} };
+        return read;
+    }
 };
 
 /// Installs the example the way the guide says: its plugin.json and the built
@@ -360,7 +406,7 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
                   "shows the number of the first selected Log Line, how many more there are, "
                   "and the selected word (#859)" )
             {
-                REQUIRE( port.contextMenuActions.size() == 2 );
+                REQUIRE( port.contextMenuActions.size() == 3 );
                 REQUIRE( port.contextMenuActions.front().menuPath
                          == QStringLiteral( "My Plugin" ) );
                 using logsquirl::plugins::PluginContextMenuContext;
@@ -397,6 +443,36 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
                 REQUIRE( port.marked.size() == 1 );
                 REQUIRE( port.marked.front().first == path );
                 REQUIRE( port.marked.front().second == std::vector<std::uint64_t>{ 9, 10, 11 } );
+            }
+
+            THEN( "Its Show Fields, in the same submenu, shows the fields of the first selected "
+                  "Log Line, that it is not parsed, or that there is no Log Format (#867)" )
+            {
+                QTemporaryDir logDir;
+                REQUIRE( logDir.isValid() );
+                const auto path = logDir.filePath( "app.log" );
+                const auto plainPath = logDir.filePath( "plain.log" );
+                const auto id = host.logFiles()->add( path, std::make_shared<FieldsLogFile>() );
+                const auto plainId
+                    = host.logFiles()->add( plainPath, std::make_shared<CountedLogFile>( 3 ) );
+                REQUIRE( port.contextMenuActions.back().label == QStringLiteral( "Show Fields" ) );
+                REQUIRE( port.contextMenuActions.back().menuPath == QStringLiteral( "My Plugin" ) );
+                using logsquirl::plugins::PluginContextMenuContext;
+                port.choose( QStringLiteral( "Show Fields" ),
+                             PluginContextMenuContext{
+                                 .logFile = path, .logLines = { 0 }, .selectedLogLineCount = 1 } );
+                port.choose( QStringLiteral( "Show Fields" ),
+                             PluginContextMenuContext{
+                                 .logFile = path, .logLines = { 1 }, .selectedLogLineCount = 1 } );
+                port.choose( QStringLiteral( "Show Fields" ),
+                             PluginContextMenuContext{ .logFile = plainPath,
+                                                       .logLines = { 0 },
+                                                       .selectedLogLineCount = 1 } );
+                host.logFiles()->remove( id );
+                host.logFiles()->remove( plainId );
+                REQUIRE( notifications
+                         == QStringList{ "app_log: level=INFO, body=started",
+                                         "Not a Log Line of app_log", "No Log Format" } );
             }
 
             THEN( "It unloads again" )

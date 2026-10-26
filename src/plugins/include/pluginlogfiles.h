@@ -21,11 +21,14 @@
 
 #include "pluginuiport.h"
 
+#include <QByteArray>
 #include <QString>
+#include <QStringList>
 
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -34,13 +37,44 @@
 
 namespace logsquirl::plugins {
 
+/** The Log Format that applies to an open Log File, as plugins see it (#867). */
+struct PluginLogFormatFields {
+    /// Its name, as its definition names it.
+    QString name;
+    /// Its fields, in the order of the Table View's columns, named as their headers.
+    QStringList fieldNames;
+
+    bool operator==( const PluginLogFormatFields& ) const = default;
+};
+
+/** The fields of Log Lines read for a plugin, as far as read (#867). */
+struct PluginLogLineFields {
+    /// How many fields the Log Format they were read under has.
+    std::size_t fieldCount = 0;
+    /// One per Log Line read, in the order of the Log File: whether the Log
+    /// Format parsed it.
+    std::vector<bool> parsed;
+    /// fieldCount values for each Log Line read, as UTF-8, row-major: those of
+    /// a Log Line not parsed are empty.
+    std::vector<QByteArray> values;
+    /// Log Lines asked for after those read were left unread for the byte budget.
+    bool more = false;
+};
+
+/** Why no field of Log Lines was read (#867). */
+enum class PluginLogLineFieldsUnread {
+    NoLogFormat, ///< No Log Format applies to the Log File.
+    OutOfRange   ///< The first Log Line asked for is past the last one indexed.
+};
+
 /**
  * An open Log File as plugins read it (#858): its Log Lines as the views show
- * them. The UI layer implements it over the Log File's data, which it keeps
- * for as long as this object lives.
+ * them, and their fields as the Table View shows them (#867). The UI layer
+ * implements it over the Log File's data, which it keeps for as long as this
+ * object lives, and the Log Format its tab applies.
  *
- * Both functions may be called on any thread, several at the same time, also
- * while the Log File loads; neither waits for the UI thread.
+ * Every function may be called on any thread, several at the same time, also
+ * while the Log File loads; none waits for the UI thread.
  */
 class PluginLogFileSource {
 public:
@@ -58,6 +92,20 @@ public:
      */
     virtual std::optional<PluginSelectedLogLines>
     readLogLines( std::uint64_t logLine, std::size_t maxLines, std::size_t maxBytes ) const = 0;
+
+    /** The Log Format that applies now; none when none does. */
+    virtual std::optional<PluginLogFormatFields> logFormat() const = 0;
+
+    /**
+     * The fields of at most maxLines Log Lines from logLine on, counted from
+     * 0, in the order of the Log File, under the Log Format that applies now:
+     * none read after the one whose values took their UTF-8 bytes past
+     * maxBytes, which is the last then; more says Log Lines asked for were
+     * left unread.
+     */
+    virtual std::expected<PluginLogLineFields, PluginLogLineFieldsUnread>
+    readLogLineFields( std::uint64_t logLine, std::size_t maxLines, std::size_t maxBytes ) const
+        = 0;
 };
 
 /** How the Log Lines of an open Log File changed, for the plugins (#858). */

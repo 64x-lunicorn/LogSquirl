@@ -148,6 +148,50 @@ void markSelection( void* /* user_data */, const LogSquirlContextMenuContext* co
                      context->line_number_count );
 }
 
+// Shows the fields of the first selected Log Line as the Table View shows
+// them: named by the Log Format, the values UTF-8 with their lengths, as a
+// value may hold a tab or a line feed. get_log_line_fields may be called from
+// any thread too: statistics per level or per component read ranges of Log
+// Lines on a thread of their own, at most LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES
+// per call.
+void showFields( void* /* user_data */, const LogSquirlContextMenuContext* context )
+{
+    if ( context->line_number_count == 0 ) {
+        return;
+    }
+    const char* format = nullptr;
+    const char* const* names = nullptr;
+    size_t nameCount = 0;
+    if ( host->get_log_format_fields( hostHandle, context->file_path, &format, &names, &nameCount )
+         < 0 ) {
+        host->show_notification( hostHandle, "No Log Format" );
+        return;
+    }
+    const char* const* values = nullptr;
+    const size_t* lengths = nullptr;
+    const int* parsed = nullptr;
+    size_t fieldCount = 0;
+    size_t lineCount = 0;
+    if ( host->get_log_line_fields( hostHandle, context->file_path, context->line_numbers[ 0 ], 1,
+                                    &values, &lengths, &parsed, &fieldCount, &lineCount )
+             < 0
+         || lineCount == 0 || fieldCount != nameCount ) {
+        // Another Log Format applies since the names were read: read them anew.
+        return;
+    }
+    if ( parsed[ 0 ] == 0 ) {
+        host->show_notification( hostHandle,
+                                 ( std::string( "Not a Log Line of " ) + format ).c_str() );
+        return;
+    }
+    std::string text = format;
+    for ( size_t field = 0; field < fieldCount; ++field ) {
+        text += ( field == 0 ? ": " : ", " ) + std::string( names[ field ] ) + "="
+                + std::string( values[ field ], lengths[ field ] );
+    }
+    host->show_notification( hostHandle, text.c_str() );
+}
+
 } // namespace
 
 extern "C" {
@@ -201,6 +245,10 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
         if ( LOGSQUIRL_HOST_API_HAS( api_size, add_marks ) ) {
             api->register_context_menu_action( handle, "My Plugin", "Mark Selected Lines",
                                                &markSelection, nullptr );
+        }
+        if ( LOGSQUIRL_HOST_API_HAS( api_size, get_log_line_fields ) ) {
+            api->register_context_menu_action( handle, "My Plugin", "Show Fields", &showFields,
+                                               nullptr );
         }
     }
     return 0;

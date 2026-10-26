@@ -240,6 +240,50 @@ void markSelection( void* /* user_data */, const LogSquirlContextMenuContext* co
                      context->line_number_count );
 }
 
+// Shows the fields of the first selected Log Line as the Table View shows
+// them: named by the Log Format, the values UTF-8 with their lengths, as a
+// value may hold a tab or a line feed. get_log_line_fields may be called from
+// any thread too: statistics per level or per component read ranges of Log
+// Lines on a thread of their own, at most LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES
+// per call.
+void showFields( void* /* user_data */, const LogSquirlContextMenuContext* context )
+{
+    if ( context->line_number_count == 0 ) {
+        return;
+    }
+    const char* format = nullptr;
+    const char* const* names = nullptr;
+    size_t nameCount = 0;
+    if ( host->get_log_format_fields( hostHandle, context->file_path, &format, &names, &nameCount )
+         < 0 ) {
+        host->show_notification( hostHandle, "No Log Format" );
+        return;
+    }
+    const char* const* values = nullptr;
+    const size_t* lengths = nullptr;
+    const int* parsed = nullptr;
+    size_t fieldCount = 0;
+    size_t lineCount = 0;
+    if ( host->get_log_line_fields( hostHandle, context->file_path, context->line_numbers[ 0 ], 1,
+                                    &values, &lengths, &parsed, &fieldCount, &lineCount )
+             < 0
+         || lineCount == 0 || fieldCount != nameCount ) {
+        // Another Log Format applies since the names were read: read them anew.
+        return;
+    }
+    if ( parsed[ 0 ] == 0 ) {
+        host->show_notification( hostHandle,
+                                 ( std::string( "Not a Log Line of " ) + format ).c_str() );
+        return;
+    }
+    std::string text = format;
+    for ( size_t field = 0; field < fieldCount; ++field ) {
+        text += ( field == 0 ? ": " : ", " ) + std::string( names[ field ] ) + "="
+                + std::string( values[ field ], lengths[ field ] );
+    }
+    host->show_notification( hostHandle, text.c_str() );
+}
+
 } // namespace
 
 extern "C" {
@@ -294,6 +338,10 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
             api->register_context_menu_action( handle, "My Plugin", "Mark Selected Lines",
                                                &markSelection, nullptr );
         }
+        if ( LOGSQUIRL_HOST_API_HAS( api_size, get_log_line_fields ) ) {
+            api->register_context_menu_action( handle, "My Plugin", "Show Fields", &showFields,
+                                               nullptr );
+        }
     }
     return 0;
 }
@@ -319,13 +367,15 @@ The exported functions need C linkage: in C++, define them inside
 `extern "C"`, or the host does not find them by name. The example exports
 `logsquirl_plugin_init_ex` as well as `logsquirl_plugin_init`, so it runs on a
 LogSquirl that knows the Regex Lab, Log Line, encoding, menu item removal,
-Log File reading, context menu and Marks functions and on one that does not.
+Log File reading, context menu, Marks and field functions and on one that
+does not.
 On a LogSquirl that removes menu items, a
 *Stop Saying Hello* item takes *Say Hello* and itself away again; on one with
 plugin items in the context menu of the Log Lines, *My Plugin* → *Show Line
 Number* there shows the number of the selected Log Line, and *My Plugin* →
 *Mark Selected Lines* marks the selected Log Lines on a LogSquirl whose plugins
-set Marks.
+set Marks; *My Plugin* → *Show Fields* shows the fields of the first selected
+Log Line, as the Table View shows them, on one whose plugins read them.
 
 ### 4. Build with CMake
 
@@ -717,10 +767,10 @@ The function-pointer table the host passes to `init`. It is valid from `init`
 until `shutdown`, and its functions are safe to call from any thread, but for
 `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`,
 `get_log_file_encoding`, `get_active_file_path` and `get_marks`, which are
-called on the UI thread only. `get_log_line_count` and `get_log_lines` in
-particular are made for a thread of the plugin's own: they never wait for the
-UI thread; nor do `add_marks` and `remove_marks`, which the host carries out on
-the UI thread.
+called on the UI thread only. `get_log_line_count`, `get_log_lines`,
+`get_log_format_fields` and `get_log_line_fields` in particular are made for a
+thread of the plugin's own: they never wait for the UI thread; nor do
+`add_marks` and `remove_marks`, which the host carries out on the UI thread.
 
 ```c
 typedef struct {
@@ -782,6 +832,12 @@ typedef struct {
                            size_t count );
     int ( *get_marks )( void* handle, const char* file_path, const uint64_t** lines,
                         size_t* count );
+    int ( *get_log_format_fields )( void* handle, const char* file_path, const char** format_name,
+                                    const char* const** field_names, size_t* field_count );
+    int ( *get_log_line_fields )( void* handle, const char* file_path, uint64_t first_line,
+                                  size_t max_lines, const char* const** values,
+                                  const size_t** lengths, const int** parsed, size_t* field_count,
+                                  size_t* line_count );
 } LogSquirlHostApi;
 ```
 
@@ -801,8 +857,11 @@ The functions follow one set of rules for strings and registrations (see
   valid until your plugin calls the same function again or is shut down,
   whatever other plugins call meanwhile. The text of `get_log_lines` is valid
   until your plugin calls it again *on the same thread*, so each thread keeps
-  its own. The array of `get_marks` is valid until your plugin calls it
-  again or is shut down, like those strings. Copy what you keep longer.
+  its own; so are the names of `get_log_format_fields` and the arrays and
+  values of `get_log_line_fields`, each until your plugin calls that same
+  function again on the same thread. The array of `get_marks` is valid until
+  your plugin calls it again or is shut down, like those strings. Copy what
+  you keep longer.
 - **Strings the host passes to a callback** are valid during the call only.
 - **Registrations**: each `register_*` function says whether a second call
   replaces the first registration or adds another, and how a registration is
@@ -899,6 +958,8 @@ tells, for later calls.
 | `add_marks`                      | LogSquirl 26.12 |
 | `remove_marks`                   | LogSquirl 26.12 |
 | `get_marks`                      | LogSquirl 26.12 |
+| `get_log_format_fields`          | LogSquirl 26.12 |
+| `get_log_line_fields`            | LogSquirl 26.12 |
 
 ### Regex Lab Types
 
@@ -920,10 +981,13 @@ typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, cons
 
 The result of `go_to_log_line`, `get_selected_log_lines`,
 `get_log_file_encoding`, `get_log_line_count`, `get_log_lines`, `add_marks`,
-`remove_marks` and `get_marks`, the bounds of the text
-`get_selected_log_lines` and `get_log_lines` return, the most line numbers one
-call of `add_marks` or `remove_marks` takes, and the change and the callback
-of `register_log_lines_callback`:
+`remove_marks`, `get_marks`, `get_log_format_fields` and
+`get_log_line_fields`, the bounds of the text `get_selected_log_lines` and
+`get_log_lines` return and of the Log Lines and values `get_log_line_fields`
+returns, the most line numbers one call of `add_marks` or `remove_marks`
+takes, and the change and the callback of `register_log_lines_callback`.
+`LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT` came with LogSquirl 26.12, which an older
+host never returns:
 
 ```c
 typedef enum {
@@ -933,7 +997,8 @@ typedef enum {
     LOGSQUIRL_LOG_LINES_NO_LOG_FILE = -2,
     LOGSQUIRL_LOG_LINES_OUT_OF_RANGE = -3,
     LOGSQUIRL_LOG_LINES_NO_SELECTION = -4,
-    LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5
+    LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5,
+    LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT = -6
 } LogSquirlLogLinesResult;
 
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES 1000
@@ -1529,13 +1594,104 @@ path, its Log Line count after the change and how it changed:
   where you stopped. The last Log Line you read may have grown longer.
 - `LOGSQUIRL_LOG_LINES_REPLACED`: the Log File was loaded anew -- reloaded,
   truncated, or its first load finished, which settles its encoding -- or it
-  reads differently: the user chose another encoding, or the way LogSquirl
-  decodes its text changed. What you read before may differ; read it again.
+  reads differently: the user chose another encoding, the way LogSquirl
+  decodes its text changed, or another Log Format applies to it, or none, so
+  its fields differ (see [Fields of Log Lines](#fields-of-log-lines)). What
+  you read before may differ; read it again.
 
 Calls may be coalesced, one standing for several changes, so take
 `line_count` from the call rather than adding up. The path is valid during
 the call only. A plugin has one such callback: registering
 another replaces it, and `NULL` removes it.
+
+### Fields of Log Lines
+
+A plugin that analyses structured Log Files -- statistics per level, per
+component, per request -- reads the fields of their Log Lines as the Table
+View shows them, rather than parsing the text itself (added in LogSquirl
+26.12, see
+[ADR 0027](adr/0027-a-plugin-reads-the-fields-of-log-lines-as-the-table-view-shows-them.md)):
+
+```cpp
+/* On a thread of the plugin's own, for the Log File at path. */
+const char* format = NULL;
+const char* const* names = NULL;
+size_t nameCount = 0;
+if ( host->get_log_format_fields( hostHandle, path.c_str(), &format, &names, &nameCount ) < 0 ) {
+    return; /* LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT: no Log Format applies */
+}
+int level = -1; /* the column of the field named "level" */
+for ( size_t field = 0; field < nameCount; ++field ) {
+    if ( std::strcmp( names[ field ], "level" ) == 0 ) {
+        level = static_cast<int>( field );
+    }
+}
+std::map<std::string, uint64_t> perLevel;
+uint64_t next = 1; /* the first Log Line is 1 */
+for ( ;; ) {
+    const char* const* values = NULL;
+    const size_t* lengths = NULL;
+    const int* parsed = NULL;
+    size_t fieldCount = 0;
+    size_t lineCount = 0;
+    int result = host->get_log_line_fields( hostHandle, path.c_str(), next, 1000, &values,
+                                            &lengths, &parsed, &fieldCount, &lineCount );
+    if ( result < 0 || fieldCount != nameCount ) {
+        break; /* past the end, the tab closed, or another Log Format applies */
+    }
+    for ( size_t line = 0; line < lineCount; ++line ) {
+        if ( parsed[ line ] && level >= 0 ) {
+            size_t at = line * fieldCount + static_cast<size_t>( level );
+            ++perLevel[ std::string( values[ at ], lengths[ at ] ) ];
+        }
+    }
+    next += lineCount;
+}
+```
+
+Both name the Log File by its path and may be called on any thread, as
+`get_log_lines`; they never wait for the UI thread, and a tab that closes
+before or during a call gives `LOGSQUIRL_LOG_LINES_NO_LOG_FILE`.
+
+`get_log_format_fields` names the Log Format that applies to the Log File --
+its own name, as the key of its definition names it (`"syslog_log"`) -- and
+its fields in the order of the Table View's columns, named as their headers
+name them. The elapsed time the Table View shows after a timestamp field is no
+field, and is not among them. `format_name` may be `NULL`. When no Log Format
+applies, the result is `LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT`.
+
+`get_log_line_fields` reads the fields of Log Lines from `first_line` on, each
+value as the Table View's cell shows it. The values come row-major:
+`field_count` of them per Log Line, the first Log Line's first, so field `j`
+of the Log Line `first_line + i` is `values[ i * field_count + j ]`, of
+`lengths[ i * field_count + j ]` bytes. A value is UTF-8 and NUL-terminated,
+but it may hold any character, a tab, a line feed or a NUL too: read it by its
+length. A field a Log Line has no value for is `""`. A Log Line the Log Format
+does not parse has no fields, as a Field Term of a Search treats it, though
+the Table View shows it whole in its last column: `parsed[ i ]` is 0 for it
+and its values are `NULL`, of length 0; `parsed[ i ]` is 1 for a Log Line
+parsed. A JSON or logfmt Log Format parses every Log Line: one that is no
+JSON object, or holds no key of the Log Format, has every value `""`, as the
+Table View shows it. `lengths` and `parsed` may be `NULL`.
+
+It holds whole Log Lines, at most `max_lines` and
+`LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES` of them, whose values are at most
+`LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES` bytes together; the values of a first
+Log Line longer than that are cut at a character, and those after the cut are
+`""`. When it holds fewer Log Lines than `max_lines` and the Log File has, the
+result is `LOGSQUIRL_LOG_LINES_TRUNCATED`: go on from `first_line +
+line_count`. A `first_line` of 0, or past the last Log Line indexed so far, is
+`LOGSQUIRL_LOG_LINES_OUT_OF_RANGE`; no Log Format is
+`LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT`.
+
+The Log Format is the one Format Recognition chose. It changes when the Log
+File is recognized anew -- reloaded, truncated, or a Log File too short for a
+Log Format grows -- and the callback of `register_log_lines_callback` tells it
+with `LOGSQUIRL_LOG_LINES_REPLACED`: read the names and the values again. A
+read made while it changes may be under either Log Format; `field_count` says
+how many fields the read was under. The host owns the names, the arrays and
+the values: each is valid until your plugin calls the same function again *on
+the same thread*, or is shut down.
 
 ### Marks
 

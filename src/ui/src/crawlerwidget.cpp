@@ -144,6 +144,7 @@ CrawlerWidget::CrawlerWidget( const ViewBuild& build, QWidget* parent )
     : QSplitter( parent )
     , keptSearches_( build.openLogFile, viewSet_,
                      [ this ]( LogFilteredData* search ) { return buildFilteredView( search ); } )
+    , logFormatForPlugins_( std::make_shared<LogFormatForPlugins>() )
 {
     openLogFile_ = build.openLogFile;
     quickFindPattern_ = build.quickFindPattern;
@@ -258,7 +259,8 @@ CrawlerWidget::logLineTextReader() const
 std::shared_ptr<const logsquirl::plugins::PluginLogFileSource>
 CrawlerWidget::logFileForPlugins() const
 {
-    return std::make_shared<const LogFileForPlugins>( openLogFile_->logData() );
+    return std::make_shared<const LogFileForPlugins>( openLogFile_->logData(),
+                                                      logFormatForPlugins_ );
 }
 
 void CrawlerWidget::setPluginContextMenu( PluginContextMenuSource source )
@@ -1229,10 +1231,15 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
 
     Q_EMIT loadingFinished( load.status, load.failure );
 
+    // The plugins read the fields under the Log Format the Table View now
+    // shows (#867): another one, or none, reads every Log Line differently,
+    // as when Format Recognition finds one as a short Log File grows.
+    const auto otherLogFormat = logFormatForPlugins_->set( recognizedFormat_ );
+
     // A load that only added Log Lines leaves what a plugin read as it was;
     // any other -- the first, a reload, one after a truncation -- may not:
     // the first one settles the Encoding only once it has read the file.
-    Q_EMIT logLinesChanged( openLogFile_->lineCount(), !load.onlyAppended );
+    Q_EMIT logLinesChanged( openLogFile_->lineCount(), !load.onlyAppended || otherLogFormat );
 }
 
 void CrawlerWidget::truncatedHandler( const QString& failure )

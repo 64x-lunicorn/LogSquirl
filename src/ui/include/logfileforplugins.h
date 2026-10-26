@@ -26,11 +26,34 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 
 class LogData;
+class LogFormatDefinition;
+class LogFormatFieldReader;
+
+// The Log Format a tab applies to its Log File, for the plugins that read the
+// fields of its Log Lines on any thread (#867). The tab sets it on the UI
+// thread whenever it shows another Log Format, or none; a read takes the one
+// set as it starts, and keeps it to its end.
+class LogFormatForPlugins {
+public:
+    // Applies format from now on; none for no Log Format. Returns whether it
+    // is another than the one applied before. On the UI thread.
+    bool set( const std::shared_ptr<const LogFormatDefinition>& format );
+
+    // What reads the fields under the Log Format applied now, as a Field Term
+    // and the Table View read them; none when none is. On any thread.
+    std::shared_ptr<const LogFormatFieldReader> reader() const;
+
+private:
+    mutable std::mutex mutex_;
+    std::shared_ptr<const LogFormatFieldReader> reader_;
+};
 
 // The text of logLines as a plugin reads it (#663, #858): in the order given,
 // each decoded as the views decode it and read from at most maxBytes of its
@@ -42,10 +65,12 @@ readLogLineTextsForPlugin( const LogData& logData, std::span<const LineNumber> l
                            qint64 maxBytes );
 
 // A Log File's Log Lines as plugins read them, on any thread (#858): those of
-// its log data, which it holds for as long as it lives.
+// its log data, which it holds for as long as it lives, and their fields under
+// the Log Format its tab applies (#867).
 class LogFileForPlugins final : public logsquirl::plugins::PluginLogFileSource {
 public:
-    explicit LogFileForPlugins( std::shared_ptr<const LogData> logData );
+    LogFileForPlugins( std::shared_ptr<const LogData> logData,
+                       std::shared_ptr<const LogFormatForPlugins> logFormat );
 
     // Lets go of the log data on the thread it lives on: a plugin's read that
     // ends after the tab closed may hold it last, on a thread of its own.
@@ -61,6 +86,16 @@ public:
     readLogLines( std::uint64_t logLine, std::size_t maxLines,
                   std::size_t maxBytes ) const override;
 
+    std::optional<logsquirl::plugins::PluginLogFormatFields> logFormat() const override;
+    // Each Log Line is read whole, up to MaxFieldLineBytes: one longer than
+    // that has more characters than a Log Format parses (MaxUiThreadLineLength),
+    // so it is not parsed, as the Table View does not parse it.
+    std::expected<logsquirl::plugins::PluginLogLineFields,
+                  logsquirl::plugins::PluginLogLineFieldsUnread>
+    readLogLineFields( std::uint64_t logLine, std::size_t maxLines,
+                       std::size_t maxBytes ) const override;
+
 private:
     std::shared_ptr<const LogData> logData_;
+    std::shared_ptr<const LogFormatForPlugins> logFormat_;
 };

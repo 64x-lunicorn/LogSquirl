@@ -87,6 +87,7 @@
 
 class RegexLabWindow;
 class LogFormatCatalog;
+class LogFormatForPlugins;
 namespace logsquirl::plugins {
 class PluginLogFileSource;
 }
@@ -164,8 +165,9 @@ public:
     // thread: it holds on to the Log File's data for as long as it lives.
     std::function<logsquirl::vector<QString>( const logsquirl::vector<LineNumber>& )>
     logLineTextReader() const;
-    // The Log File as plugins read its Log Lines, on any thread (#858): it
-    // holds on to the Log File's data for as long as it lives.
+    // The Log File as plugins read its Log Lines, on any thread (#858), and
+    // their fields under the Log Format the tab applies (#867): it holds on
+    // to the Log File's data for as long as it lives.
     std::shared_ptr<const logsquirl::plugins::PluginLogFileSource> logFileForPlugins() const;
     // What the plugins offer in the context menu of the tab's Text View,
     // Table View and Filtered Views, those of Searches made later included
@@ -372,7 +374,8 @@ Q_SIGNALS:
 
     // The Log Lines changed, for the plugins (#858): Log Lines were added at
     // the end, or -- replaced -- the Log File was loaded anew or reads
-    // differently, in another Encoding or under another Decoding Policy.
+    // differently, in another Encoding or under another Decoding Policy, or
+    // its fields under another Log Format, or none (#867).
     // lineCount is how many Log Lines it has now.
     void logLinesChanged( LinesCount lineCount, bool replaced );
 
@@ -715,6 +718,10 @@ private:
     // The Log Format the Table View shows, if any: the one the Open Log File
     // recognized, kept alive for the Table View until it is handed another.
     std::shared_ptr<const LogFormatDefinition> recognizedFormat_;
+    // The same Log Format for the plugins, which read the fields of the Log
+    // Lines on their own threads (#867): set as a load finishes, and as the
+    // Log Format is forgotten. Shared with what they read through.
+    std::shared_ptr<LogFormatForPlugins> logFormatForPlugins_;
     // Go to timestamp and the Search Limits by time: this widget only
     // forwards to it and tells it what makes a running lookup stale (#636).
     TimeNavigation timeNavigation_{ [ this ] { return timeNavigationSource(); },

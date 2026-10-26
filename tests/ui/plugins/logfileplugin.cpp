@@ -23,7 +23,8 @@
 // and reads only when the host offers get_log_line_count and get_log_lines.
 // It keeps every change of Log Lines the host tells it of. The tests call
 // the reads, on whichever thread they like, and read the changes through
-// extra exports.
+// extra exports. It reads the fields of the Log Lines too (#867), when the
+// host offers get_log_format_fields and get_log_line_fields.
 
 #include "logsquirl_plugin_api.h"
 
@@ -64,6 +65,12 @@ bool offersLogLines( size_t apiSize )
     return LOGSQUIRL_HOST_API_HAS( apiSize, get_log_line_count )
            && LOGSQUIRL_HOST_API_HAS( apiSize, get_log_lines )
            && LOGSQUIRL_HOST_API_HAS( apiSize, register_log_lines_callback );
+}
+
+bool offersFields( size_t apiSize )
+{
+    return LOGSQUIRL_HOST_API_HAS( apiSize, get_log_format_fields )
+           && LOGSQUIRL_HOST_API_HAS( apiSize, get_log_line_fields );
 }
 
 void logLinesChanged( void* /* user_data */, const char* file_path, uint64_t line_count,
@@ -141,6 +148,39 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_logfile_plugin_read( const char* file_path
     }
     return hostApi->get_log_lines( hostHandle, file_path, first_line, max_lines, text, length,
                                    line_count );
+}
+
+/**
+ * get_log_format_fields for file_path, the host's names handed on as they
+ * are. -100 when the plugin is not initialised.
+ */
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_logfile_plugin_format( const char* file_path,
+                                                             const char** format_name,
+                                                             const char* const** field_names,
+                                                             size_t* field_count )
+{
+    if ( !hostApi || !offersFields( hostApiSize ) ) {
+        return -100;
+    }
+    return hostApi->get_log_format_fields( hostHandle, file_path, format_name, field_names,
+                                           field_count );
+}
+
+/**
+ * get_log_line_fields for file_path, the host's arrays handed on as they are:
+ * valid until the next read on the calling thread. -100 when the plugin is
+ * not initialised.
+ */
+LOGSQUIRL_PLUGIN_EXPORT int
+logsquirl_logfile_plugin_fields( const char* file_path, uint64_t first_line, size_t max_lines,
+                                 const char* const** values, const size_t** lengths,
+                                 const int** parsed, size_t* field_count, size_t* line_count )
+{
+    if ( !hostApi || !offersFields( hostApiSize ) ) {
+        return -100;
+    }
+    return hostApi->get_log_line_fields( hostHandle, file_path, first_line, max_lines, values,
+                                         lengths, parsed, field_count, line_count );
 }
 
 /** How many changes the log lines callback was told. */

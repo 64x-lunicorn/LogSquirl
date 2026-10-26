@@ -125,8 +125,9 @@ typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, cons
 
 /**
  * What go_to_log_line, get_selected_log_lines, get_log_file_encoding,
- * get_log_line_count, get_log_lines, add_marks, remove_marks and get_marks
- * return.  Not negative is success; negative says why nothing was done.
+ * get_log_line_count, get_log_lines, add_marks, remove_marks, get_marks,
+ * get_log_format_fields and get_log_line_fields return.  Not negative is
+ * success; negative says why nothing was done.
  */
 typedef enum {
     LOGSQUIRL_LOG_LINES_OK = 0,                /**< Done                                     */
@@ -135,18 +136,21 @@ typedef enum {
     LOGSQUIRL_LOG_LINES_NO_LOG_FILE = -2,      /**< No Log File in front, or none named open */
     LOGSQUIRL_LOG_LINES_OUT_OF_RANGE = -3,     /**< The Log File has no line of that number  */
     LOGSQUIRL_LOG_LINES_NO_SELECTION = -4,     /**< No Log Line is selected                  */
-    LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5  /**< A NULL handle or text                    */
+    LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5, /**< A NULL handle or text                    */
+    LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT = -6     /**< No Log Format applies (LogSquirl 26.12)  */
 } LogSquirlLogLinesResult;
 
 /**
  * At most this many selected Log Lines are returned by get_selected_log_lines,
- * and at most this many Log Lines by get_log_lines.
+ * and at most this many Log Lines by get_log_lines and get_log_line_fields.
  */
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES 1000
 
 /**
  * At most this many bytes (1 MiB, without the NUL) are returned by
- * get_selected_log_lines, and by get_log_lines.
+ * get_selected_log_lines, and by get_log_lines.  The field values
+ * get_log_line_fields returns are at most this many bytes together, without
+ * their NULs.
  */
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES 1048576
 
@@ -283,7 +287,8 @@ typedef void ( *LogSquirlContextMenuCallbackFn )( void* user_data,
  * **Strings**: a string the plugin passes is copied before the call returns.
  * A string the host returns is the host's: it is valid until the plugin calls
  * the same function again or is shut down, whatever other plugins call
- * meanwhile; that of get_log_lines until the plugin calls it again on the
+ * meanwhile; that of get_log_lines, get_log_format_fields and
+ * get_log_line_fields until the plugin calls the same function again on the
  * same thread.  A string the host passes to a callback is valid during the
  * call only.  Each function below says which of these its strings are.
  * **Registrations**: each register_* function says whether a second call
@@ -643,8 +648,9 @@ typedef struct {
      *   but for the last Log Line, which may have grown longer.
      * - LOGSQUIRL_LOG_LINES_REPLACED: the Log File was loaded anew -- reloaded,
      *   truncated, or its first load finished -- or reads differently: another
-     *   encoding, or another way of decoding its text.  What was read before
-     *   may differ: read again.
+     *   encoding, another way of decoding its text, or another Log Format
+     *   (or none) applies to it, so its fields differ (LogSquirl 26.12).
+     *   What was read before may differ: read again.
      * Calls may be coalesced: one call may stand for several changes.  A
      * plugin has one such callback: registering another replaces it, and a
      * NULL callback removes it.
@@ -764,6 +770,106 @@ typedef struct {
      */
     int ( *get_marks )( void* handle, const char* file_path, const uint64_t** lines,
                         size_t* count );
+
+    /**
+     * Name the Log Format that applies to an open Log File, and its fields
+     * (LogSquirl 26.12): the fields in the order of the Table View's columns,
+     * named as its column headers name them, without the elapsed time the
+     * Table View shows after a timestamp field, which is no field.  The Log
+     * Format is the one Format Recognition chose; it changes when the Log
+     * File is recognized anew, and register_log_lines_callback tells it as
+     * LOGSQUIRL_LOG_LINES_REPLACED.
+     *
+     * The name is the Log Format's own, as its definition names it (the key
+     * of its JSON file, e.g. "syslog_log"); the names are UTF-8 and
+     * NUL-terminated.  The host owns the name and the array of field names:
+     * valid until the plugin calls get_log_format_fields again on the same
+     * thread, or is shut down.
+     *
+     * May be called from any thread; it never waits for the UI thread.
+     * @param file_path    The Log File, as for get_log_line_count.
+     * @param format_name  Receives the Log Format's name; NULL when the result
+     *                     is negative.  May be NULL.
+     * @param field_names  Receives an array of field_count field names; NULL
+     *                     when the result is negative or the Log Format has no
+     *                     fields.  Must not be NULL.
+     * @param field_count  Receives how many fields the Log Format has, or 0.
+     *                     Must not be NULL.
+     * @return LOGSQUIRL_LOG_LINES_OK with the fields;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT when no Log Format applies to
+     *         the Log File;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when no tab shows that Log File,
+     *         also when its tab closes during the call;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle,
+     *         file_path, field_names or field_count.
+     */
+    int ( *get_log_format_fields )( void* handle, const char* file_path, const char** format_name,
+                                    const char* const** field_names, size_t* field_count );
+
+    /**
+     * Read the fields of Log Lines of an open Log File, from first_line on
+     * (LogSquirl 26.12): each value as the Table View's cell shows it, under
+     * the Log Format get_log_format_fields names, in the order of its fields.
+     *
+     * The values come row-major: field_count values for each of line_count
+     * Log Lines, the values of the first Log Line first.  values[ i *
+     * field_count + j ] is the value of field j of the Log Line first_line +
+     * i, and lengths[ i * field_count + j ] its length in bytes.  A value is
+     * UTF-8 and NUL-terminated, but may hold any character, a tab, a line
+     * feed or a NUL too: read it by its length.  A field the Log Line has no
+     * value for is "", of length 0.  A Log Line the Log Format does not parse
+     * has no fields -- as a Field Term of a Search treats it -- though the
+     * Table View shows it whole in its last column: parsed[ i ] is 0 for it,
+     * and its values are NULL, of length 0; parsed[ i ] is 1 for one parsed.
+     * A JSON or logfmt Log Format parses every Log Line: one that is no JSON
+     * object, or holds no key of the Log Format, has every value "".
+     *
+     * It holds whole Log Lines, at most max_lines and
+     * LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES of them, whose values are at
+     * most LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES bytes together; the values
+     * of a first Log Line longer than that are cut at a character, those
+     * after the cut "".  When it holds fewer Log Lines than max_lines and the
+     * Log File has, the result is LOGSQUIRL_LOG_LINES_TRUNCATED: read on from
+     * first_line + line_count.  The host owns the arrays and the values:
+     * valid until the plugin calls get_log_line_fields again on the same
+     * thread, or is shut down, so each thread of the plugin keeps its own.
+     *
+     * The values are read under the Log Format that applies as the call
+     * reads; when it changes during the call, the read may be under either,
+     * and register_log_lines_callback tells the change once it is made.
+     * field_count says how many fields the read was under.
+     *
+     * May be called from any thread; it never waits for the UI thread.  The
+     * host keeps the Log File's data for the duration of the call.
+     * @param file_path    The Log File, as for get_log_line_count.
+     * @param first_line   The number of the first Log Line, as the views and
+     *                     go_to_log_line number them: the first Log Line is 1.
+     * @param max_lines    At most this many Log Lines; 0 reads none.
+     * @param values       Receives the array of values; NULL when the result
+     *                     is negative or it holds no value.  Must not be NULL.
+     * @param lengths      Receives the array of the values' lengths, as many
+     *                     as values; NULL when values is.  May be NULL.
+     * @param parsed       Receives an array of line_count flags, 1 for a Log
+     *                     Line the Log Format parsed, 0 for one it did not;
+     *                     NULL when the result is negative or it holds no Log
+     *                     Line.  May be NULL.
+     * @param field_count  Receives how many fields each Log Line has, or 0.
+     *                     Must not be NULL.
+     * @param line_count   Receives how many Log Lines were read, or 0.  Must
+     *                     not be NULL.
+     * @return LOGSQUIRL_LOG_LINES_OK or LOGSQUIRL_LOG_LINES_TRUNCATED with the
+     *         values; LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT when no Log Format
+     *         applies to the Log File; LOGSQUIRL_LOG_LINES_OUT_OF_RANGE for a
+     *         first_line of 0 or past the last Log Line indexed so far;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when no tab shows that Log File,
+     *         also when its tab closes during the call;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle,
+     *         file_path, values, field_count or line_count.
+     */
+    int ( *get_log_line_fields )( void* handle, const char* file_path, uint64_t first_line,
+                                  size_t max_lines, const char* const** values,
+                                  const size_t** lengths, const int** parsed, size_t* field_count,
+                                  size_t* line_count );
 
 } LogSquirlHostApi;
 

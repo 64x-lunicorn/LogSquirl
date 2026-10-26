@@ -43,6 +43,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <expected>
 #include <functional>
 #include <future>
 #include <map>
@@ -63,6 +64,9 @@ using logsquirl::plugins::PluginContextMenuCallbackFn;
 using logsquirl::plugins::PluginContextMenuContext;
 using logsquirl::plugins::PluginHost;
 using logsquirl::plugins::PluginLogFileSource;
+using logsquirl::plugins::PluginLogFormatFields;
+using logsquirl::plugins::PluginLogLineFields;
+using logsquirl::plugins::PluginLogLineFieldsUnread;
 using logsquirl::plugins::PluginLogLineJump;
 using logsquirl::plugins::PluginLogLinesChange;
 using logsquirl::plugins::PluginLogView;
@@ -4080,7 +4084,49 @@ public:
         return read;
     }
 
+    std::optional<PluginLogFormatFields> logFormat() const override
+    {
+        return format;
+    }
+
+    std::expected<PluginLogLineFields, PluginLogLineFieldsUnread>
+    readLogLineFields( std::uint64_t logLine, std::size_t maxLines,
+                       std::size_t maxBytes ) const override
+    {
+        if ( whileReading ) {
+            whileReading();
+        }
+        if ( !format ) {
+            return std::unexpected( PluginLogLineFieldsUnread::NoLogFormat );
+        }
+        if ( logLine >= lineCount() ) {
+            return std::unexpected( PluginLogLineFieldsUnread::OutOfRange );
+        }
+        PluginLogLineFields read;
+        const auto fieldCount = format->fieldNames.size();
+        read.fieldCount = static_cast<std::size_t>( fieldCount );
+        std::size_t bytes = 0;
+        for ( auto line = logLine; line < lineCount() && read.parsed.size() < maxLines; ++line ) {
+            const auto fields = lines_[ static_cast<qsizetype>( line ) ].split( '|' );
+            const auto parsed = fields.size() == fieldCount;
+            read.parsed.push_back( parsed );
+            for ( qsizetype field = 0; field < fieldCount; ++field ) {
+                auto value = parsed ? fields[ field ].toUtf8() : QByteArray{};
+                bytes += static_cast<std::size_t>( value.size() );
+                read.values.push_back( std::move( value ) );
+            }
+            if ( bytes > maxBytes ) {
+                read.more = line + 1 < lineCount() && read.parsed.size() < maxLines;
+                break;
+            }
+        }
+        return read;
+    }
+
     std::function<void()> whileReading;
+    /// The Log Format its fields are read under, none by default: a Log Line
+    /// is parsed when '|' splits it into as many fields as the Log Format has.
+    std::optional<PluginLogFormatFields> format;
 
 private:
     QStringList lines_;
@@ -4490,6 +4536,351 @@ SCENARIO( "A plugin reads the Log Lines of an open Log File by path, on any thre
         }
 
         logFiles->remove( id );
+        host.unloadAll();
+        probe.library.unload();
+    }
+}
+
+namespace {
+
+/// What get_log_format_fields handed back, copied as it came.
+struct LogFormatRead {
+    int result = 0;
+    bool hasName = false;
+    QString name{};
+    QStringList fieldNames{};
+    size_t fieldCount = 99;
+};
+
+LogFormatRead readLogFormat( const LogSquirlHostApi& api, void* handle, const QString& path )
+{
+    const auto pathUtf8 = path.toUtf8();
+    LogFormatRead read;
+    const char* name = "not handed back";
+    const char* const* names = nullptr;
+    read.result = api.get_log_format_fields( handle, pathUtf8.constData(), &name, &names,
+                                             &read.fieldCount );
+    read.hasName = name != nullptr;
+    read.name = QString::fromUtf8( name );
+    for ( size_t field = 0; names != nullptr && field < read.fieldCount; ++field ) {
+        read.fieldNames.append( QString::fromUtf8( names[ field ] ) );
+    }
+    return read;
+}
+
+/// What get_log_line_fields handed back, the values copied as they came: none
+/// for a Log Line not parsed.
+struct LogLineFieldsRead {
+    int result = 0;
+    const char* const* values = nullptr;
+    size_t fieldCount = 99;
+    size_t lineCount = 99;
+    std::vector<std::optional<QStringList>> lines{};
+    // Whether each value of a parsed Log Line is NUL-terminated, and each of
+    // one not parsed NULL and of length 0.
+    bool asDocumented = true;
+
+    /// The values where the host keeps them, as they are now.
+    QString valueNow( size_t line, size_t field ) const
+    {
+        return QString::fromUtf8( values[ line * fieldCount + field ] );
+    }
+};
+
+LogLineFieldsRead readLogLineFields( const LogSquirlHostApi& api, void* handle, const QString& path,
+                                     uint64_t firstLine, size_t maxLines )
+{
+    const auto pathUtf8 = path.toUtf8();
+    LogLineFieldsRead read;
+    const size_t* lengths = nullptr;
+    const int* parsed = nullptr;
+    read.result
+        = api.get_log_line_fields( handle, pathUtf8.constData(), firstLine, maxLines, &read.values,
+                                   &lengths, &parsed, &read.fieldCount, &read.lineCount );
+    for ( size_t line = 0; line < read.lineCount; ++line ) {
+        if ( parsed[ line ] == 0 ) {
+            for ( size_t field = 0; field < read.fieldCount; ++field ) {
+                const auto at = line * read.fieldCount + field;
+                read.asDocumented
+                    = read.asDocumented && read.values[ at ] == nullptr && lengths[ at ] == 0;
+            }
+            read.lines.emplace_back();
+            continue;
+        }
+        QStringList values;
+        for ( size_t field = 0; field < read.fieldCount; ++field ) {
+            const auto at = line * read.fieldCount + field;
+            read.asDocumented = read.asDocumented && parsed[ line ] == 1
+                                && read.values[ at ][ lengths[ at ] ] == '\0';
+            values.append(
+                QString::fromUtf8( read.values[ at ], static_cast<qsizetype>( lengths[ at ] ) ) );
+        }
+        read.lines.emplace_back( std::move( values ) );
+    }
+    return read;
+}
+
+/// Log Lines "INFO|line 1" up to "INFO|line count", as the views number them.
+QStringList numberedFieldLines( int count )
+{
+    QStringList lines;
+    for ( int number = 1; number <= count; ++number ) {
+        lines.append( QStringLiteral( "INFO|line %1" ).arg( number ) );
+    }
+    return lines;
+}
+
+} // namespace
+
+SCENARIO( "A plugin reads the fields of Log Lines of an open Log File by path, on any thread, "
+          "through the Plugin Host",
+          "[pluginhost][pluginlogfields][plugins]" )
+{
+    GIVEN( "A Plugin Host with the probe plugin loaded, and a Log File under a Log Format with "
+           "the fields level and message open" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+        QTemporaryDir logDir;
+        REQUIRE( logDir.isValid() );
+        const auto path = logDir.filePath( "app.log" );
+        const auto plainPath = logDir.filePath( "plain.log" );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+        PluginHost host( catalog );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        REQUIRE( api != nullptr );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), get_log_format_fields ) );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), get_log_line_fields ) );
+
+        const auto appFormat
+            = PluginLogFormatFields{ .name = QStringLiteral( "app_log" ),
+                                     .fieldNames
+                                     = { QStringLiteral( "level" ), QStringLiteral( "message" ) } };
+        auto lines = numberedFieldLines( 3000 );
+        lines[ 1 ] = QStringLiteral( "WARN|a\tb\nc" );
+        lines[ 2 ] = QStringLiteral( "not parsed" );
+        lines[ 3 ] = QStringLiteral( "ERROR|" );
+        lines[ 4 ] = QStringLiteral( "DEBUG|é ü" );
+        auto logFile = std::make_shared<FakeLogFile>( lines );
+        logFile->format = appFormat;
+        const std::weak_ptr<FakeLogFile> heldLogFile = logFile;
+        const auto& logFiles = host.logFiles();
+        const auto id = logFiles->add( path, std::move( logFile ) );
+        const auto plainId = logFiles->add( plainPath, std::make_shared<FakeLogFile>( lines ) );
+
+        WHEN( "The plugin asks for the Log Format of the Log File, and of one without" )
+        {
+            const auto format = readLogFormat( *api, handle, path );
+            const auto none = readLogFormat( *api, handle, plainPath );
+
+            THEN( "It gets its name and its fields in order, and that the other has none" )
+            {
+                REQUIRE( format.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( format.name == QStringLiteral( "app_log" ) );
+                REQUIRE( format.fieldCount == 2 );
+                REQUIRE( format.fieldNames == QStringList{ "level", "message" } );
+                REQUIRE( none.result == LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT );
+                REQUIRE_FALSE( none.hasName );
+                REQUIRE( none.fieldCount == 0 );
+            }
+        }
+
+        WHEN( "The plugin reads the fields of the first Log Lines" )
+        {
+            const auto read = readLogLineFields( *api, handle, path, 1, 5 );
+
+            THEN( "It gets every value, a tab and a line feed too, empty ones as empty, and no "
+                  "fields for the Log Line not parsed" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( read.fieldCount == 2 );
+                REQUIRE( read.lineCount == 5 );
+                REQUIRE( read.asDocumented );
+                REQUIRE( read.lines
+                         == std::vector<std::optional<QStringList>>{
+                             QStringList{ "INFO", "line 1" }, QStringList{ "WARN", "a\tb\nc" },
+                             std::nullopt, QStringList{ "ERROR", "" },
+                             QStringList{ "DEBUG", QStringLiteral( "é ü" ) } } );
+            }
+        }
+
+        WHEN( "The plugin reads the fields of the Log File without a Log Format, past the end, "
+              "of line 0 or of one no tab shows" )
+        {
+            const auto none = readLogLineFields( *api, handle, plainPath, 1, 5 );
+            const auto pastEnd = readLogLineFields( *api, handle, path, 3001, 5 );
+            const auto zero = readLogLineFields( *api, handle, path, 0, 5 );
+            const auto closed
+                = readLogLineFields( *api, handle, logDir.filePath( "closed.log" ), 1, 5 );
+
+            THEN( "It is told why it gets nothing" )
+            {
+                REQUIRE( none.result == LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT );
+                REQUIRE( pastEnd.result == LOGSQUIRL_LOG_LINES_OUT_OF_RANGE );
+                REQUIRE( zero.result == LOGSQUIRL_LOG_LINES_OUT_OF_RANGE );
+                REQUIRE( closed.result == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( readLogFormat( *api, handle, logDir.filePath( "closed.log" ) ).result
+                         == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                for ( const auto& nothing : { none, pastEnd, zero, closed } ) {
+                    REQUIRE( nothing.values == nullptr );
+                    REQUIRE( nothing.fieldCount == 0 );
+                    REQUIRE( nothing.lineCount == 0 );
+                }
+            }
+        }
+
+        WHEN( "The plugin asks with no handle, or nowhere to put the answer" )
+        {
+            const auto pathUtf8 = path.toUtf8();
+            const char* const* values = nullptr;
+            const char* const* names = nullptr;
+            size_t count = 0;
+            const auto noHandle = readLogLineFields( *api, nullptr, path, 1, 1 );
+            const auto noValues = api->get_log_line_fields(
+                handle, pathUtf8.constData(), 1, 1, nullptr, nullptr, nullptr, &count, &count );
+            const auto noCounts = api->get_log_line_fields(
+                handle, pathUtf8.constData(), 1, 1, &values, nullptr, nullptr, nullptr, nullptr );
+            const auto noPath = api->get_log_line_fields( handle, nullptr, 1, 1, &values, nullptr,
+                                                          nullptr, &count, &count );
+            const auto noNames = api->get_log_format_fields( handle, pathUtf8.constData(), nullptr,
+                                                             nullptr, &count );
+            const auto noFieldCount = api->get_log_format_fields( handle, pathUtf8.constData(),
+                                                                  nullptr, &names, nullptr );
+
+            THEN( "It is an invalid argument" )
+            {
+                REQUIRE( noHandle.result == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noValues == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noCounts == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noPath == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noNames == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noFieldCount == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+            }
+        }
+
+        WHEN( "The plugin asks for none, or for more Log Lines than one call returns" )
+        {
+            const auto none = readLogLineFields( *api, handle, path, 10, 0 );
+            const auto many = readLogLineFields( *api, handle, path, 1001, 2500 );
+            const auto rest = readLogLineFields( *api, handle, path, 2001, 2500 );
+
+            THEN( "It gets none, then the first ones that fit and is told there are more" )
+            {
+                REQUIRE( none.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( none.lineCount == 0 );
+                REQUIRE( none.fieldCount == 2 );
+                REQUIRE( many.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( many.lineCount == LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+                REQUIRE( many.lines.back() == QStringList{ "INFO", "line 2000" } );
+                REQUIRE( rest.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( rest.lineCount == 1000 );
+            }
+        }
+
+        WHEN( "The plugin asks for more bytes of values than one call returns" )
+        {
+            // 600 KiB each: two do not fit into 1 MiB. The third is longer
+            // than that, of two-byte characters, the bound inside one.
+            const QString wide( 600 * 1024, QChar( 'w' ) );
+            const QString wider( LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES / 2 + 10, QChar( 0x00e9 ) );
+            const auto widePath = logDir.filePath( "wide.log" );
+            auto wideLogFile = std::make_shared<FakeLogFile>(
+                QStringList{ "INFO|" + wide, "INFO|" + wide,
+                             QStringLiteral( "a|" ) + wider + QStringLiteral( "x" ) } );
+            wideLogFile->format = appFormat;
+            const auto wideId = logFiles->add( widePath, std::move( wideLogFile ) );
+            const auto two = readLogLineFields( *api, handle, widePath, 1, 3 );
+            const auto cut = readLogLineFields( *api, handle, widePath, 3, 1 );
+            logFiles->remove( wideId );
+
+            THEN( "It gets whole Log Lines, but for a first one whose values are longer, cut at "
+                  "a character" )
+            {
+                REQUIRE( two.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( two.lineCount == 1 );
+                REQUIRE( two.lines.front() == QStringList{ "INFO", wide } );
+                REQUIRE( cut.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( cut.lineCount == 1 );
+                REQUIRE( cut.asDocumented );
+                const auto& values = *cut.lines.front();
+                REQUIRE( values.front() == QStringLiteral( "a" ) );
+                REQUIRE( values.back()
+                         == wider.left( ( LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES - 1 ) / 2 ) );
+            }
+        }
+
+        WHEN( "Two threads of the plugin read one after the other" )
+        {
+            std::promise<void> firstRead;
+            std::promise<void> secondRead;
+            QString firstValueAfterwards;
+            QString firstNameAfterwards;
+            LogLineFieldsRead first;
+            LogLineFieldsRead second;
+            std::thread firstThread( [ & ] {
+                first = readLogLineFields( *api, handle, path, 1, 2 );
+                const auto pathUtf8 = path.toUtf8();
+                const char* const* names = nullptr;
+                size_t count = 0;
+                api->get_log_format_fields( handle, pathUtf8.constData(), nullptr, &names, &count );
+                firstRead.set_value();
+                secondRead.get_future().wait();
+                // Still this thread's, though the other thread read since.
+                firstValueAfterwards = first.valueNow( 0, 1 );
+                firstNameAfterwards = QString::fromUtf8( names[ 1 ] );
+            } );
+            std::thread secondThread( [ & ] {
+                firstRead.get_future().wait();
+                second = readLogLineFields( *api, handle, path, 100, 3 );
+                readLogFormat( *api, handle, plainPath );
+                secondRead.set_value();
+            } );
+            firstThread.join();
+            secondThread.join();
+
+            THEN( "Each keeps its own until it reads again" )
+            {
+                REQUIRE( first.values != second.values );
+                REQUIRE( firstValueAfterwards == QStringLiteral( "line 1" ) );
+                REQUIRE( firstNameAfterwards == QStringLiteral( "message" ) );
+                REQUIRE( second.lines.front() == QStringList{ "INFO", "line 100" } );
+            }
+        }
+
+        WHEN( "The tab of the Log File closes while a thread of the plugin reads its fields" )
+        {
+            std::promise<void> reading;
+            std::promise<void> closed;
+            auto closedFuture = closed.get_future().share();
+            heldLogFile.lock()->whileReading = [ &reading, closedFuture ] {
+                reading.set_value();
+                closedFuture.wait();
+            };
+            LogLineFieldsRead read;
+            std::thread reader( [ & ] { read = readLogLineFields( *api, handle, path, 1, 2 ); } );
+            reading.get_future().wait();
+            logFiles->remove( id );
+            closed.set_value();
+            reader.join();
+
+            THEN( "The read finishes, and says there is no Log File" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( read.values == nullptr );
+                REQUIRE( heldLogFile.expired() );
+            }
+        }
+
+        logFiles->remove( id );
+        logFiles->remove( plainId );
         host.unloadAll();
         probe.library.unload();
     }

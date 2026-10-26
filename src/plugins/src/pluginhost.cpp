@@ -28,7 +28,9 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstddef>
 #include <limits>
+#include <numeric>
 #include <utility>
 #include <vector>
 
@@ -515,12 +517,6 @@ void PluginHost::notifyLogLinesChanged( const QString& filePath, std::uint64_t l
     }
 }
 
-QByteArray& PluginHost::PerThreadText::ofThisThread()
-{
-    const std::lock_guard lock( mutex_ );
-    return buffers_[ std::this_thread::get_id() ];
-}
-
 // ── DataSource (Phase 2) ─────────────────────────────────────────────────────────
 
 QString PluginHost::startDataSource( const QString& pluginId )
@@ -973,6 +969,8 @@ LogSquirlHostApi PluginHost::buildHostApi()
     api.add_marks = &PluginHost::hostAddMarks;
     api.remove_marks = &PluginHost::hostRemoveMarks;
     api.get_marks = &PluginHost::hostGetMarks;
+    api.get_log_format_fields = &PluginHost::hostGetLogFormatFields;
+    api.get_log_line_fields = &PluginHost::hostGetLogLineFields;
 
     return api;
 }
@@ -1375,6 +1373,20 @@ struct SelectedLogLinesText {
     bool truncated = false;
 };
 
+/// UTF-8 text longer than maxBytes cut to at most that many, not in the
+/// middle of a character: back to its first byte.
+void cutAtCharacter( QByteArray& utf8, qsizetype maxBytes )
+{
+    if ( utf8.size() <= maxBytes ) {
+        return;
+    }
+    auto cut = maxBytes;
+    while ( cut > 0 && ( static_cast<unsigned char>( utf8[ cut ] ) & 0xC0 ) == 0x80 ) {
+        --cut;
+    }
+    utf8.truncate( cut );
+}
+
 SelectedLogLinesText selectedLogLinesText( const QStringList& lines, bool more )
 {
     constexpr auto MaxBytes = static_cast<qsizetype>( LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
@@ -1386,12 +1398,7 @@ SelectedLogLinesText selectedLogLinesText( const QStringList& lines, bool more )
         if ( result.text.size() + separator + utf8.size() > MaxBytes ) {
             result.truncated = true;
             if ( result.lineCount == 0 ) {
-                // Not in the middle of a character: back to its first byte.
-                auto cut = MaxBytes;
-                while ( cut > 0 && ( static_cast<unsigned char>( utf8[ cut ] ) & 0xC0 ) == 0x80 ) {
-                    --cut;
-                }
-                utf8.truncate( cut );
+                cutAtCharacter( utf8, MaxBytes );
                 result.text = std::move( utf8 );
                 result.lineCount = 1;
             }
@@ -1437,6 +1444,53 @@ void clearLogLinesOutputs( const char** text, size_t* length, size_t* lineCount 
     if ( lineCount != nullptr ) {
         *lineCount = 0;
     }
+}
+
+/// The fields of Log Lines a Log File read for a plugin cut to what the
+/// plugin gets: at most LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES Log Lines
+/// whose values are at most LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES together,
+/// whole Log Lines but for a first one whose values are cut. read holds at
+/// most one Log Line more than the bound, which says there are more. Returns
+/// whether fewer Log Lines are left than were asked for and there are.
+bool boundLogLineFields( PluginLogLineFields& read )
+{
+    constexpr auto MaxBytes = static_cast<qsizetype>( LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+    const auto fieldCount = read.fieldCount;
+    auto lines = read.parsed.size();
+    bool truncated = read.more;
+    if ( lines > LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES ) {
+        lines = LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES;
+        truncated = true;
+    }
+    qsizetype bytes = 0;
+    for ( size_t line = 0; line < lines; ++line ) {
+        const auto first = read.values.begin() + static_cast<std::ptrdiff_t>( line * fieldCount );
+        const auto lineBytes = std::accumulate(
+            first, first + static_cast<std::ptrdiff_t>( fieldCount ), qsizetype{ 0 },
+            []( qsizetype sum, const QByteArray& value ) { return sum + value.size(); } );
+        if ( bytes + lineBytes <= MaxBytes ) {
+            bytes += lineBytes;
+            continue;
+        }
+        truncated = true;
+        if ( line > 0 ) {
+            lines = line;
+            break;
+        }
+        // A first Log Line too long for the bound: its values as far as they
+        // fit, each cut at a character, and those after the cut empty.
+        auto left = MaxBytes;
+        for ( auto value = first; value != first + static_cast<std::ptrdiff_t>( fieldCount );
+              ++value ) {
+            cutAtCharacter( *value, left );
+            left -= value->size();
+        }
+        lines = 1;
+        break;
+    }
+    read.parsed.resize( lines );
+    read.values.resize( lines * fieldCount );
+    return truncated;
 }
 
 } // namespace
@@ -1814,6 +1868,145 @@ int PluginHost::hostGetMarks( void* handle, const char* filePath, const uint64_t
     *lines = ctx->marks.empty() ? nullptr : ctx->marks.data();
     *count = ctx->marks.size();
     return LOGSQUIRL_LOG_LINES_OK;
+}
+
+// The fields of an open Log File are read as its Log Lines are (#867): found
+// on the plugin's thread, held to the end of the call, and kept per thread.
+
+int PluginHost::hostGetLogFormatFields( void* handle, const char* filePath, const char** formatName,
+                                        const char* const** fieldNames, size_t* fieldCount )
+{
+    // Nothing is returned unless the fields are.
+    if ( formatName != nullptr ) {
+        *formatName = nullptr;
+    }
+    if ( fieldNames != nullptr ) {
+        *fieldNames = nullptr;
+    }
+    if ( fieldCount != nullptr ) {
+        *fieldCount = 0;
+    }
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || filePath == nullptr || fieldNames == nullptr
+         || fieldCount == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    const auto logFile = ctx->host->logFiles_->find( QString::fromUtf8( filePath ) );
+    if ( !logFile ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    const auto format = logFile->source().logFormat();
+    if ( !logFile->isOpen() ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    if ( !format ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT;
+    }
+
+    // The calling thread's own: another thread of the plugin's keeps its names.
+    auto& buffer = ctx->logFormatFields.ofThisThread();
+    buffer.name = format->name.toUtf8();
+    buffer.fieldNames.clear();
+    for ( const auto& name : format->fieldNames ) {
+        buffer.fieldNames.push_back( name.toUtf8() );
+    }
+    buffer.namePointers.clear();
+    for ( const auto& name : buffer.fieldNames ) {
+        buffer.namePointers.push_back( name.constData() );
+    }
+    if ( formatName != nullptr ) {
+        *formatName = buffer.name.constData();
+    }
+    *fieldNames = buffer.namePointers.empty() ? nullptr : buffer.namePointers.data();
+    *fieldCount = buffer.namePointers.size();
+    return LOGSQUIRL_LOG_LINES_OK;
+}
+
+int PluginHost::hostGetLogLineFields( void* handle, const char* filePath, uint64_t firstLine,
+                                      size_t maxLines, const char* const** values,
+                                      const size_t** lengths, const int** parsed,
+                                      size_t* fieldCount, size_t* lineCount )
+{
+    // Nothing is returned unless the values are.
+    if ( values != nullptr ) {
+        *values = nullptr;
+    }
+    if ( lengths != nullptr ) {
+        *lengths = nullptr;
+    }
+    if ( parsed != nullptr ) {
+        *parsed = nullptr;
+    }
+    if ( fieldCount != nullptr ) {
+        *fieldCount = 0;
+    }
+    if ( lineCount != nullptr ) {
+        *lineCount = 0;
+    }
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || filePath == nullptr || values == nullptr || fieldCount == nullptr
+         || lineCount == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    const auto logFile = ctx->host->logFiles_->find( QString::fromUtf8( filePath ) );
+    if ( !logFile ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    // Numbered from 1 by the plugin, from 0 by the Log File.
+    if ( firstLine == 0 ) {
+        return LOGSQUIRL_LOG_LINES_OUT_OF_RANGE;
+    }
+
+    // One Log Line more than returned says whether there are more.
+    const auto asked = std::min<size_t>( maxLines, LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 1 );
+    auto read = logFile->source().readLogLineFields( firstLine - 1, asked,
+                                                     LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+    if ( !logFile->isOpen() ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    if ( !read ) {
+        return read.error() == PluginLogLineFieldsUnread::NoLogFormat
+                   ? LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT
+                   : LOGSQUIRL_LOG_LINES_OUT_OF_RANGE;
+    }
+    const auto truncated = boundLogLineFields( *read );
+
+    // The calling thread's own: another thread of the plugin's keeps its
+    // values. Every value follows the one before, with its NUL, in one text.
+    auto& buffer = ctx->logLineFields.ofThisThread();
+    const auto fields = read->fieldCount;
+    buffer.text.clear();
+    buffer.valueLengths.clear();
+    for ( const auto& value : read->values ) {
+        buffer.text.append( value );
+        buffer.text.append( '\0' );
+        buffer.valueLengths.push_back( static_cast<size_t>( value.size() ) );
+    }
+    buffer.valuePointers.clear();
+    buffer.parsed.clear();
+    const char* next = buffer.text.constData();
+    for ( size_t line = 0; line < read->parsed.size(); ++line ) {
+        const bool lineParsed = read->parsed[ line ];
+        buffer.parsed.push_back( lineParsed ? 1 : 0 );
+        for ( size_t field = 0; field < fields; ++field ) {
+            const auto length = buffer.valueLengths[ line * fields + field ];
+            buffer.valuePointers.push_back( lineParsed ? next : nullptr );
+            next += length + 1;
+        }
+    }
+
+    if ( !buffer.valuePointers.empty() ) {
+        *values = buffer.valuePointers.data();
+        if ( lengths != nullptr ) {
+            *lengths = buffer.valueLengths.data();
+        }
+    }
+    if ( parsed != nullptr && !buffer.parsed.empty() ) {
+        *parsed = buffer.parsed.data();
+    }
+    *fieldCount = fields;
+    *lineCount = buffer.parsed.size();
+    return truncated ? LOGSQUIRL_LOG_LINES_TRUNCATED : LOGSQUIRL_LOG_LINES_OK;
 }
 
 } // namespace logsquirl::plugins

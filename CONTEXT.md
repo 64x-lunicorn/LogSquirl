@@ -486,8 +486,10 @@ any open Log File by its path, on any thread, and tells it when they are appende
 replaced (ADR 0024): the UI adds every tab's Log File to the host's open Log Files and
 takes it away when the tab closes. A plugin sets and removes Marks of an open Log File by
 its path from any thread, carried out on the UI thread in every tab showing it, and reads
-them on the UI thread (ADR 0026). The host functions a plugin can call
-only grow, appended to one table whose size tells a plugin which the running LogSquirl
+them on the UI thread (ADR 0026). It names the Log Format of an open Log File and reads
+the fields of its Log Lines as the Table View shows them, on any thread; another Log
+Format, or none, counts as replaced Log Lines (ADR 0027). The host functions a plugin can
+call only grow, appended to one table whose size tells a plugin which the running LogSquirl
 offers (ADR 0017). What a plugin shows goes through the Plugin UI Port.
 A data source plugin may refuse its stream as it starts, and is stopped once for every
 stream it let run, before that stream ends and before the plugin is shut down (ADR 0023).
