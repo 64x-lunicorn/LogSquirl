@@ -644,6 +644,17 @@ private:
     bool callIntoPlugin( PluginContext& context, const std::function<void()>& call );
 
     /**
+     * Tells every loaded plugin that registered a callback in the context's
+     * member callback, with the user data in userData: runs
+     * call( callback, user data ) as a call into the plugin. Both are taken
+     * as one under the registrationsMutex, since a plugin may register
+     * another from its own thread.
+     */
+    template <typename Callback, typename Call>
+    void notifyPlugins( Callback PluginContext::* callback, void* PluginContext::* userData,
+                        const Call& call );
+
+    /**
      * Delivers a Regex Lab answer as a call into the plugin, or parks it
      * while the plugin's unload is pending or earlier answers are parked.
      */

@@ -500,9 +500,10 @@ void PluginHost::setActiveFilePathCallback( std::function<QString()> callback )
     activeFilePathCallback_ = std::move( callback );
 }
 
-void PluginHost::notifyActiveFileChanged( const QString& filePath )
+template <typename Callback, typename Call>
+void PluginHost::notifyPlugins( Callback PluginContext::* callback, void* PluginContext::* userData,
+                                const Call& call )
 {
-    const auto utf8 = filePath.toUtf8();
     // By ID: a plugin's callback may unload another plugin.
     for ( const auto& id : loadedPluginIds() ) {
         auto* ctx = loadedContext( id );
@@ -510,44 +511,37 @@ void PluginHost::notifyActiveFileChanged( const QString& filePath )
             continue;
         }
         // Taken as one: the plugin may register another from its own thread.
-        void ( *callback )( void* user_data, const char* file_path ) = nullptr;
-        void* userData = nullptr;
+        Callback pluginCallback = nullptr;
+        void* pluginUserData = nullptr;
         {
             const std::lock_guard lock( ctx->registrationsMutex );
-            callback = ctx->activeFileCallback;
-            userData = ctx->activeFileUserData;
+            pluginCallback = ctx->*callback;
+            pluginUserData = ctx->*userData;
         }
-        if ( callback ) {
-            callIntoPlugin(
-                *ctx, [ callback, userData, &utf8 ] { callback( userData, utf8.constData() ); } );
+        if ( pluginCallback ) {
+            callIntoPlugin( *ctx, [ &call, pluginCallback, pluginUserData ] {
+                call( pluginCallback, pluginUserData );
+            } );
         }
     }
+}
+
+void PluginHost::notifyActiveFileChanged( const QString& filePath )
+{
+    const auto utf8 = filePath.toUtf8();
+    notifyPlugins(
+        &PluginContext::activeFileCallback, &PluginContext::activeFileUserData,
+        [ &utf8 ]( auto callback, void* userData ) { callback( userData, utf8.constData() ); } );
 }
 
 void PluginHost::notifyEncodingChanged( const QString& filePath, const QString& encoding )
 {
     const auto pathUtf8 = filePath.toUtf8();
     const auto encodingUtf8 = encoding.toUtf8();
-    // By ID: a plugin's callback may unload another plugin.
-    for ( const auto& id : loadedPluginIds() ) {
-        auto* ctx = loadedContext( id );
-        if ( !ctx ) {
-            continue;
-        }
-        // Taken as one: the plugin may register another from its own thread.
-        LogSquirlEncodingCallbackFn callback = nullptr;
-        void* userData = nullptr;
-        {
-            const std::lock_guard lock( ctx->registrationsMutex );
-            callback = ctx->encodingCallback;
-            userData = ctx->encodingUserData;
-        }
-        if ( callback ) {
-            callIntoPlugin( *ctx, [ callback, userData, &pathUtf8, &encodingUtf8 ] {
-                callback( userData, pathUtf8.constData(), encodingUtf8.constData() );
-            } );
-        }
-    }
+    notifyPlugins( &PluginContext::encodingCallback, &PluginContext::encodingUserData,
+                   [ &pathUtf8, &encodingUtf8 ]( auto callback, void* userData ) {
+                       callback( userData, pathUtf8.constData(), encodingUtf8.constData() );
+                   } );
 }
 
 void PluginHost::notifyLogLinesChanged( const QString& filePath, std::uint64_t lineCount,
@@ -556,26 +550,10 @@ void PluginHost::notifyLogLinesChanged( const QString& filePath, std::uint64_t l
     const auto pathUtf8 = filePath.toUtf8();
     const int changed = change == PluginLogLinesChange::Appended ? LOGSQUIRL_LOG_LINES_APPENDED
                                                                  : LOGSQUIRL_LOG_LINES_REPLACED;
-    // By ID: a plugin's callback may unload another plugin.
-    for ( const auto& id : loadedPluginIds() ) {
-        auto* ctx = loadedContext( id );
-        if ( !ctx ) {
-            continue;
-        }
-        // Taken as one: the plugin may register another from its own thread.
-        LogSquirlLogLinesCallbackFn callback = nullptr;
-        void* userData = nullptr;
-        {
-            const std::lock_guard lock( ctx->registrationsMutex );
-            callback = ctx->logLinesCallback;
-            userData = ctx->logLinesUserData;
-        }
-        if ( callback ) {
-            callIntoPlugin( *ctx, [ callback, userData, &pathUtf8, lineCount, changed ] {
-                callback( userData, pathUtf8.constData(), lineCount, changed );
-            } );
-        }
-    }
+    notifyPlugins( &PluginContext::logLinesCallback, &PluginContext::logLinesUserData,
+                   [ &pathUtf8, lineCount, changed ]( auto callback, void* userData ) {
+                       callback( userData, pathUtf8.constData(), lineCount, changed );
+                   } );
 }
 
 // ── DataSource (Phase 2) ─────────────────────────────────────────────────────────
