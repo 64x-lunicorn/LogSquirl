@@ -24,6 +24,7 @@
 #include <QHeaderView>
 #include <QLabel>
 
+#include "containers.h"
 #include "log.h"
 #include "persistentinfo.h"
 #include "plaintext.h"
@@ -102,7 +103,12 @@ void FiltersPanel::showEvent( QShowEvent* event )
 
 void FiltersPanel::refreshFilters()
 {
-    allFilterSets_ = PredefinedFiltersCollection::getSynced().filterSets();
+    auto& collection = PredefinedFiltersCollection::getSynced();
+    allFilterSets_ = collection.filterSets();
+    pluginFilterGroups_ = collection.pluginFilterGroups();
+    for ( const auto& group : logsquirl::as_const( pluginFilterGroups_ ) ) {
+        allFilterSets_.append( group.group );
+    }
     allFilterSets_.append( teamFilterSets_ );
     rebuildFilterIndex();
     populateTree( allFilterSets_ );
@@ -122,13 +128,20 @@ void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
 
     const auto searchText = searchBox_ ? searchBox_->text().trimmed() : QString{};
 
-    // The Team groups come last, after the user's own.
+    // The plugins' groups come after the user's own, and the Team groups last.
     const auto firstTeamGroup = sets.size() - teamFilterSets_.size();
+    const auto firstPluginGroup = firstTeamGroup - pluginFilterGroups_.size();
     for ( qsizetype index = 0; index < sets.size(); ++index ) {
         const auto& set = sets[ index ];
         auto* groupItem = new QTreeWidgetItem( filterTree_ );
         groupItem->setText( 0, set.name() );
-        if ( index >= firstTeamGroup ) {
+        if ( index >= firstPluginGroup && index < firstTeamGroup ) {
+            const auto& pluginName = pluginFilterGroups_[ index - firstPluginGroup ].pluginName;
+            groupItem->setText( 0, pluginGroupShownName( set.name(), pluginName ) );
+            groupItem->setToolTip( 0, logsquirl::plaintext::toolTip(
+                                          tr( "Shipped by the plugin %1" ).arg( pluginName ) ) );
+        }
+        else if ( index >= firstTeamGroup ) {
             groupItem->setText( 0, tr( "%1 (Team)" ).arg( set.name() ) );
             groupItem->setToolTip( 0, tr( "A Team group, shared through the Team Folder" ) );
         }

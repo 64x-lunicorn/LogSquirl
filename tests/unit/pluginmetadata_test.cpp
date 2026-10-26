@@ -418,6 +418,145 @@ SCENARIO( "A plugin manifest names the Log Format files the plugin ships", "[plu
     }
 }
 
+// A plugin ships Filter Groups and Highlighter Sets by naming their files in
+// its manifest, with the path rules of the Log Format files (#865).
+SCENARIO( "A plugin manifest names the Predefined Filter and Highlighter Set files the plugin "
+          "ships",
+          "[pluginmetadata]" )
+{
+    const auto manifestWith = []( const QString& members ) {
+        return QStringLiteral( R"({
+            "id": "com.example.test",
+            "name": "Test Plugin",
+            "version": "1.0.0",
+            "type": "ui",
+            "library": "libtest.dylib",
+            "api_version": 1%1
+        })" )
+            .arg( members )
+            .toUtf8();
+    };
+
+    GIVEN( "a manifest without the keys" )
+    {
+        const auto result = PluginMetadata::fromJson( validManifest(), "test" );
+        REQUIRE( result.has_value() );
+
+        THEN( "the plugin ships no Predefined Filter and no Highlighter Set" )
+        {
+            REQUIRE( result->predefinedFilters().isEmpty() );
+            REQUIRE( result->predefinedFilterPaths().isEmpty() );
+            REQUIRE( result->highlighterSets().isEmpty() );
+            REQUIRE( result->highlighterSetPaths().isEmpty() );
+        }
+    }
+
+    GIVEN( "a manifest naming a Predefined Filter file and two Highlighter Set files" )
+    {
+        const auto json = manifestWith(
+            R"(, "predefined_filters": [ "filters/crashes_filter.conf" ],
+                 "highlighter_sets": [ "levels_highlighter.conf", "sets/more.conf" ])" );
+
+        WHEN( "it is parsed from text" )
+        {
+            const auto result = PluginMetadata::fromJson( json, "test" );
+            REQUIRE( result.has_value() );
+
+            THEN( "the files are kept in the manifest's order, relative to the plugin directory" )
+            {
+                REQUIRE( result->predefinedFilters()
+                         == QStringList{ "filters/crashes_filter.conf" } );
+                REQUIRE( result->highlighterSets()
+                         == QStringList{ "levels_highlighter.conf", "sets/more.conf" } );
+                REQUIRE( result->formats().isEmpty() );
+            }
+
+            THEN( "without a plugin directory there is no absolute path to them" )
+            {
+                REQUIRE( result->predefinedFilterPaths().isEmpty() );
+                REQUIRE( result->highlighterSetPaths().isEmpty() );
+            }
+        }
+
+        WHEN( "it is read from a plugin directory" )
+        {
+            QTemporaryDir pluginDir;
+            REQUIRE( pluginDir.isValid() );
+            const auto manifestPath = QDir( pluginDir.path() ).filePath( "plugin.json" );
+            {
+                QFile manifest( manifestPath );
+                REQUIRE( manifest.open( QIODevice::WriteOnly ) );
+                manifest.write( json );
+            }
+            const auto result = PluginMetadata::fromJsonFile( manifestPath );
+            REQUIRE( result.has_value() );
+
+            THEN( "the files are resolved against the plugin directory" )
+            {
+                const QDir directory( QFileInfo( manifestPath ).absolutePath() );
+                REQUIRE( result->predefinedFilterPaths()
+                         == QStringList{ directory.filePath( "filters/crashes_filter.conf" ) } );
+                REQUIRE( result->highlighterSetPaths()
+                         == QStringList{ directory.filePath( "levels_highlighter.conf" ),
+                                         directory.filePath( "sets/more.conf" ) } );
+            }
+        }
+    }
+
+    GIVEN( "manifests whose keys are not lists of paths inside the plugin directory" )
+    {
+        for ( const auto* key : { "predefined_filters", "highlighter_sets" } ) {
+            const auto manifestWithKey = [ & ]( const char* value ) {
+                return manifestWith( QStringLiteral( R"(, "%1": %2)" ).arg( key, value ) );
+            };
+            INFO( key );
+
+            THEN( "a key that is not a list is rejected" )
+            {
+                const auto result
+                    = PluginMetadata::fromJson( manifestWithKey( R"("x.conf")" ), "test" );
+                REQUIRE_FALSE( result.has_value() );
+                REQUIRE( result.error().contains( key ) );
+            }
+
+            THEN( "an entry that is not a string, or an empty one, is rejected" )
+            {
+                for ( const auto* value : { R"([ "x.conf", 3 ])", R"([ "" ])" } ) {
+                    INFO( value );
+                    const auto result
+                        = PluginMetadata::fromJson( manifestWithKey( value ), "test" );
+                    REQUIRE_FALSE( result.has_value() );
+                    REQUIRE( result.error().contains( key ) );
+                }
+            }
+
+            THEN( "a path that leaves the plugin directory, or an absolute one, is rejected" )
+            {
+                for ( const auto* value : { R"([ "../x.conf" ])", R"([ "sets/../../x.conf" ])",
+                                            R"([ ".." ])", R"([ "/etc/x.conf" ])" } ) {
+                    INFO( value );
+                    const auto result
+                        = PluginMetadata::fromJson( manifestWithKey( value ), "test" );
+                    REQUIRE_FALSE( result.has_value() );
+                    REQUIRE( result.error().contains( key ) );
+                    REQUIRE( result.error().contains( "leaves the plugin directory" ) );
+                }
+            }
+
+            THEN( "a path that stays inside the plugin directory is kept as written" )
+            {
+                const auto result = PluginMetadata::fromJson(
+                    manifestWithKey( R"([ "sets/../x.conf", "./y.conf" ])" ), "test" );
+                REQUIRE( result.has_value() );
+                const auto kept = QString( key ) == "predefined_filters"
+                                      ? result->predefinedFilters()
+                                      : result->highlighterSets();
+                REQUIRE( kept == QStringList{ "sets/../x.conf", "./y.conf" } );
+            }
+        }
+    }
+}
+
 SCENARIO( "A plugin id is a plain name, never a path", "[pluginmetadata][plugins]" )
 {
     GIVEN( "Ids made of letters, digits, dots, dashes and underscores" )

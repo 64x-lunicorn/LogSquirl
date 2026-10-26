@@ -79,6 +79,8 @@ my_plugin/
 | `license`      | no       | SPDX identifier of the plugin's licence.                        |
 | `icon`         | no       | File name of an icon next to `plugin.json`.                     |
 | `formats`      | no       | Log Format files the plugin ships, see [Shipping Log Formats](#shipping-log-formats). |
+| `predefined_filters` | no | Predefined Filter files the plugin ships, see [Shipping Predefined Filters and Highlighter Sets](#shipping-predefined-filters-and-highlighter-sets). |
+| `highlighter_sets` | no   | Highlighter Set files the plugin ships, see [Shipping Predefined Filters and Highlighter Sets](#shipping-predefined-filters-and-highlighter-sets). |
 | `qt_version`   | no       | The Qt the plugin is built against, as `major.minor` (`"6.8"`), see [Plugins That Use Qt](#plugins-that-use-qt). |
 
 `library` is resolved relative to the directory containing `plugin.json`. It
@@ -504,6 +506,67 @@ and the file. The plugin's other Log Format files and the plugin itself are
 unaffected: it still loads. Plugin Management shows the warning on the
 plugin's card, and the Options dialog's Log Formats page shows every Log
 Format with its Source: *Built-in*, *User*, or the plugin's name.
+
+---
+
+## Shipping Predefined Filters and Highlighter Sets
+
+A plugin can ship Predefined Filters and Highlighter Sets for the logs it
+deals with, say a "Crashes" filter group and a set that colours log levels.
+Like Log Formats this is declarative: the plugin names the files in its
+manifest, LogSquirl reads them, and no host function is involved.
+
+Add the optional `predefined_filters` and `highlighter_sets` keys to
+`plugin.json` (added in LogSquirl 26.12), each a list of paths relative to the
+plugin directory, next to `formats`:
+
+```json
+{
+    "id": "com.example.logcat",
+    "name": "Logcat",
+    "version": "1.0.0",
+    "type": "converter",
+    "library": "logcat_plugin",
+    "api_version": 1,
+    "formats": [ "formats/logcat_log.json" ],
+    "predefined_filters": [ "filters/Crashes_filter.conf" ],
+    "highlighter_sets": [ "highlighters/Levels_highlighter.conf" ]
+}
+```
+
+**The files.** Each file has the format the *Predefined Filters* dialog and the
+*Highlighters* dialog export: build the filter group or the Highlighter Set in
+LogSquirl, select it, press *Export*, and put the file into the plugin
+directory. A file may hold more than one group. The path rules are those of
+`formats`: a path that leaves the plugin directory (`../x.conf`, an absolute
+path) makes the manifest invalid, and the plugin is not listed at all. A
+manifest without the keys, or with empty lists, ships none and the plugin
+behaves as before.
+
+**When they are read.** They are read for every *enabled* plugin, whether or
+not its library is loaded, at the points the Log Format Catalog takes the
+plugins' Log Formats: once the plugin manifests have been read after start-up,
+and whenever a plugin is enabled or disabled in Plugin Management.
+
+**How they show.** The Filters panel, the Highlighters menu and the two dialogs
+list them after the user's own, each named with its Source, the plugin's name:
+*Crashes (Logcat)*. They are applied like the user's own, but are read-only:
+the dialogs show them in a section of their own, and *Copy to my groups* makes
+a copy the user owns and can change. A group or set of the user's with the same
+name stays as it is; both are listed, told apart by their Source.
+
+**Never stored.** Nothing of a plugin's groups goes into the user's settings:
+the user's Predefined Filters and Highlighter Sets are stored without them.
+Only whether one of the plugin's Highlighter Sets is switched on is the user's,
+and kept. Disabling the plugin removes its groups; if one of its Highlighter
+Sets was switched on, it is switched off, and when no other is on the Log Lines
+show as with no Highlighter Set chosen. Enabling the plugin again brings them
+back, switched off.
+
+**A file that cannot be read.** A missing file, one that is not an exported
+filter group or Highlighter Set, or one of the other kind is skipped with a
+logged warning naming the plugin and the file. The plugin's other files and the
+plugin itself are unaffected.
 
 ---
 

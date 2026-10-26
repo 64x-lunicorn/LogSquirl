@@ -190,7 +190,8 @@ which shows a match as its Row, selected; the Presentation not shown is never se
 _Avoid_: find, incremental search
 
 **Predefined Filter**:
-A saved, named search pattern the user can apply without retyping it.
+A saved, named search pattern the user can apply without retyping it. The user's own, a
+Team group's, or one an enabled plugin ships (see Plugin group).
 _Avoid_: saved search, bookmark
 
 **Filter Group**:
@@ -225,6 +226,17 @@ to the team; when someone else changed the same group meanwhile the user chooses
 take theirs or save mine as a copy. Nothing is locked (ADR-0008). A personal group is shared
 as a Team copy, a Team group is copied back into the personal groups, each with a fresh id.
 _Avoid_: shared group, remote group
+
+**Plugin group**:
+A Filter Group or Highlighter Set an enabled plugin ships: a file as the dialogs export it,
+named in the plugin's manifest. Read for every enabled plugin, loaded or not, after the
+plugins are discovered and whenever one is enabled or disabled. Listed after the user's own
+groups with its Source, the plugin's name, so that one of the same name as the user's is told
+apart; applied like the user's own, read-only, copied into the personal groups with a fresh
+id, and never written into the user's settings. Whether a plugin's Highlighter Set is active
+is the user's and kept; disabling the plugin removes its groups and switches its sets off
+(ADR 0029).
+_Avoid_: shipped filter, bundled set
 
 **Search Limits**:
 An optional line range a Search is restricted to. Lines outside it are shown but visually
@@ -269,7 +281,9 @@ _Avoid_: rule, colorizer, style
 
 **Highlighter Set**:
 A named group of Highlighters. Exactly one set is active at a time, so switching sets
-re-colors the whole view at once.
+re-colors the whole view at once. The user's own, a Team group, or one an enabled plugin
+ships (a Plugin group); when the active one goes with its plugin, the Log Lines show as with
+no set chosen.
 _Avoid_: theme, profile, palette
 
 **Color Label**:

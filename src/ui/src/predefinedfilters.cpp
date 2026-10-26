@@ -38,6 +38,8 @@
 
 #include "predefinedfilters.h"
 
+#include <algorithm>
+
 #include "log.h"
 #include "uuid.h"
 
@@ -181,6 +183,29 @@ bool PredefinedFiltersCollection::hasSetByName( const QString& name ) const
 {
     return std::any_of( filterSets_.cbegin(), filterSets_.cend(),
                         [ &name ]( const auto& s ) { return s.name() == name; } );
+}
+
+QList<PluginGroup<PredefinedFilterSet>> PredefinedFiltersCollection::pluginFilterGroups() const
+{
+    return pluginGroups_;
+}
+
+bool PredefinedFiltersCollection::setPluginFilterGroups(
+    const QList<PluginGroup<PredefinedFilterSet>>& groups )
+{
+    const auto sameFilters = []( const PredefinedFilter& a, const PredefinedFilter& b ) {
+        return a.name == b.name && a.pattern == b.pattern && a.useRegex == b.useRegex;
+    };
+    const auto sameGroup = [ &sameFilters ]( const auto& a, const auto& b ) {
+        return a.group.id() == b.group.id() && a.group.name() == b.group.name()
+               && a.pluginName == b.pluginName
+               && std::equal( a.group.filters_.cbegin(), a.group.filters_.cend(),
+                              b.group.filters_.cbegin(), b.group.filters_.cend(), sameFilters );
+    };
+    const auto same = std::equal( pluginGroups_.cbegin(), pluginGroups_.cend(), groups.cbegin(),
+                                  groups.cend(), sameGroup );
+    pluginGroups_ = groups;
+    return !same;
 }
 
 PredefinedFiltersCollection::Collection PredefinedFiltersCollection::getAllFilters() const

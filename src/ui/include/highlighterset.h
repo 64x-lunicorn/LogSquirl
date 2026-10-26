@@ -46,6 +46,7 @@
 
 #include "highlighter.h"
 #include "persistable.h"
+#include "plugingroup.h"
 
 #include <optional>
 #include <vector>
@@ -79,6 +80,19 @@ public:
     QList<HighlighterSet> teamHighlighterSets() const;
     bool setTeamHighlighterSets( const QList<HighlighterSet>& sets,
                                  bool dropUnknownActivations = true );
+
+    // The Highlighter Sets the enabled plugins ship, each with its Source
+    // (#865): read-only here and never stored, they come and go as plugins
+    // are enabled and disabled. Whether one is active is the user's own,
+    // stored with the active sets as the Team sets' is. A plugin's set that is
+    // no longer there is no longer active, and when none is left active the
+    // combined active set is the one of no set chosen. Whether this changed a
+    // plugin's set or an activation. dropUnknownActivations false keeps the
+    // activations of plugin sets that are not in sets: for the time before
+    // the plugins were discovered.
+    QList<PluginGroup<HighlighterSet>> pluginHighlighterSets() const;
+    bool setPluginHighlighterSets( const QList<PluginGroup<HighlighterSet>>& sets,
+                                   bool dropUnknownActivations = true );
 
     const HighlighterSet& currentActiveSet() const;
 
@@ -115,6 +129,9 @@ private:
 
     void updateCombinedSet();
 
+    // Whether the set of this id is one of the plugins' sets.
+    bool isPluginSet( const QString& setId ) const;
+
     // Gives every Color Label that still has a built-in Theme's colors those
     // of the Theme applied now. Whether any Color Label changed.
     bool applyThemeColorLabels();
@@ -127,6 +144,10 @@ private:
     // not drop its activation meanwhile.
     QStringList activeTeamSets_;
     QList<HighlighterSet> teamSets_;
+    // The plugins' sets and the active ones of them, kept apart for the same
+    // reason: they are not known until the plugins are discovered.
+    QStringList activePluginSets_;
+    QList<PluginGroup<HighlighterSet>> pluginSets_;
     HighlighterSet combinedActiveSet_;
 
     QList<QuickHighlighter> quickHighlighters_;

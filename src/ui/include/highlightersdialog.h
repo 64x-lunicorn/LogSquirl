@@ -52,6 +52,7 @@ class QPushButton;
 
 #include "highlighterset.h"
 #include "highlightersetedit.h"
+#include "plugingroupssection.h"
 #include "teamfolder.h"
 #include "teamgroupssection.h"
 #include "ui_highlightersdialog.h"
@@ -113,6 +114,11 @@ private Q_SLOTS:
     void copySelectedTeamGroup();
     void deleteSelectedTeamGroup();
 
+    // Shows the selected plugin's Highlighter Set, read-only, and copies it
+    // into the user's own sets.
+    void showSelectedPluginGroup();
+    void copySelectedPluginGroup();
+
 private:
     void populateHighlighterList();
     void setCurrentRow( int row );
@@ -142,6 +148,15 @@ private:
     void updateTeamButtons();
     // The row of the Team set shown, -1 when none is.
     int selectedTeamRow_ = -1;
+
+    // The sets the enabled plugins ship, read-only below the user's own
+    // (#865), as the copy of the collection holds them. No section when there
+    // are none.
+    PluginGroupsSection* plugins_ = nullptr;
+    // The row of the plugin's set shown, -1 when none is.
+    int selectedPluginRow_ = -1;
+    // No plugin's set is shown any more.
+    void clearPluginSelection();
 
     // The color buttons of the Color Labels, in slot order.
     std::vector<QPushButton*> colorLabelForeButtons_;

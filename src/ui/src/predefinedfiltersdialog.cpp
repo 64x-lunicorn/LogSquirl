@@ -94,6 +94,18 @@ PredefinedFiltersDialog::PredefinedFiltersDialog( QWidget* parent )
              &PredefinedFiltersDialog::updateFilterSetProperties );
     connect( buttonBox, &QDialogButtonBox::clicked, this, &PredefinedFiltersDialog::resolveDialog );
 
+    // The plugins' groups below the user's own, read-only: they are copied,
+    // never edited, and OK or Apply stores none of them (#865).
+    pluginGroups_ = PredefinedFiltersCollection::get().pluginFilterGroups();
+    if ( !pluginGroups_.isEmpty() ) {
+        plugins_ = new PluginGroupsSection( leftPanel, leftLayout, tr( "Plugin groups" ) );
+        plugins_->setGroups( pluginGroups_ );
+        connect( plugins_->list(), &QListWidget::itemSelectionChanged, this,
+                 &PredefinedFiltersDialog::showSelectedPluginGroup );
+        connect( plugins_->copyButton(), &QPushButton::clicked, this,
+                 &PredefinedFiltersDialog::copySelectedPluginGroup );
+    }
+
     if ( !filterSets_.empty() ) {
         setCurrentRow( 0 );
     }
@@ -193,7 +205,7 @@ void PredefinedFiltersDialog::moveFilterSetDown()
 
 void PredefinedFiltersDialog::exportFilters()
 {
-    if ( selectedRow_ < 0 && selectedTeamRow_ < 0 ) {
+    if ( selectedRow_ < 0 && selectedTeamRow_ < 0 && selectedPluginRow_ < 0 ) {
         return;
     }
 
@@ -229,8 +241,13 @@ void PredefinedFiltersDialog::importFilters()
 
     using namespace logsquirl::groupexchange;
     const auto title = tr( "Import predefined filters" );
-    // A group of a Team group's id is a copy of it, not that group.
-    ImportSession session( askUser( this, title ), idsOf( teamEdits_.groups() ) );
+    // A group of a Team group's id is a copy of it, not that group, and so is
+    // one of a plugin's group's id.
+    auto reserved = idsOf( teamEdits_.groups() );
+    for ( const auto& group : logsquirl::as_const( pluginGroups_ ) ) {
+        reserved.insert( group.group.id() );
+    }
+    ImportSession session( askUser( this, title ), reserved );
 
     // The imported groups are only in this dialog's copy: OK / Apply take
     // them over, Cancel discards them.
@@ -307,11 +324,13 @@ void PredefinedFiltersDialog::updatePropertyFields()
     }
 
     if ( selectedRow_ >= 0 ) {
-        // One group is shown at a time: one of the user's own, or a Team group.
+        // One group is shown at a time: one of the user's own, a Team group or
+        // a plugin's group.
         if ( team_ != nullptr ) {
             team_->list()->clearSelection();
         }
         selectedTeamRow_ = -1;
+        clearPluginSelection();
         filterSetEdit_->setReadOnly( false );
         filterSetEdit_->setFilterSet( filterSets_.at( selectedRow_ ) );
 
@@ -322,7 +341,7 @@ void PredefinedFiltersDialog::updatePropertyFields()
         downSetButton->setEnabled( selectedRow_ < setListWidget->count() - 1 );
         exportButton->setEnabled( true );
     }
-    else if ( selectedTeamRow_ < 0 ) {
+    else if ( selectedTeamRow_ < 0 && selectedPluginRow_ < 0 ) {
         exportButton->setEnabled( false );
         filterSetEdit_->reset();
         removeSetButton->setEnabled( false );
@@ -456,6 +475,7 @@ void PredefinedFiltersDialog::showSelectedTeamGroup()
     // Leaves the user's own group; what was changed in it stays in this
     // dialog's copy until OK, Apply or Cancel.
     setListWidget->clearSelection();
+    clearPluginSelection();
 
     selectedTeamRow_ = row;
     filterSetEdit_->setReadOnly( !teamEdits_.isEditable() );
@@ -465,6 +485,58 @@ void PredefinedFiltersDialog::showSelectedTeamGroup()
     downSetButton->setEnabled( false );
     exportButton->setEnabled( true );
     updateTeamButtons();
+}
+
+// --- The plugins' groups ---
+
+void PredefinedFiltersDialog::showSelectedPluginGroup()
+{
+    const auto selected = plugins_->list()->selectedItems();
+    if ( selected.isEmpty() ) {
+        return;
+    }
+    const auto row = plugins_->list()->row( selected.at( 0 ) );
+
+    // Leaves the group shown before; what was changed in one of the user's
+    // own stays in this dialog's copy until OK, Apply or Cancel.
+    setListWidget->clearSelection();
+    if ( team_ != nullptr ) {
+        team_->list()->clearSelection();
+    }
+    selectedTeamRow_ = -1;
+
+    selectedPluginRow_ = row;
+    filterSetEdit_->setReadOnly( true );
+    filterSetEdit_->setFilterSet( pluginGroups_.at( row ).group );
+    removeSetButton->setEnabled( false );
+    upSetButton->setEnabled( false );
+    downSetButton->setEnabled( false );
+    exportButton->setEnabled( true );
+    updateTeamButtons();
+    plugins_->updateButtons( true );
+}
+
+void PredefinedFiltersDialog::copySelectedPluginGroup()
+{
+    if ( selectedPluginRow_ < 0 ) {
+        return;
+    }
+
+    const auto copy = logsquirl::teamfolder::copyOfGroup(
+        pluginGroups_.at( selectedPluginRow_ ).group,
+        TeamGroupEdits<PredefinedFilterSet>::namesOf( filterSets_ ) );
+    filterSets_.append( copy );
+    setListWidget->addItem( copy.name() );
+    setCurrentRow( setListWidget->count() - 1 );
+}
+
+void PredefinedFiltersDialog::clearPluginSelection()
+{
+    selectedPluginRow_ = -1;
+    if ( plugins_ != nullptr ) {
+        plugins_->list()->clearSelection();
+        plugins_->updateButtons( false );
+    }
 }
 
 // --- Helpers ---

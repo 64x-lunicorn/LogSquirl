@@ -497,6 +497,9 @@ private:
     void applyTeamHighlighterSets( bool dropUnknownActivations = true );
     // Hands the Team Naming Groups to ValueNamesCollection (#647).
     void applyTeamNamingGroups();
+    // Reads the Filter Groups and Highlighter Sets the enabled plugins ship
+    // and hands them to their collections, which never store them (#865).
+    void applyPluginGroups();
     // Asks what to do with a Team group somebody else changed while the user
     // was changing it too: keep mine, take theirs, or save mine as a copy.
     void askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome );

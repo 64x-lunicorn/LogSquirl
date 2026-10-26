@@ -60,6 +60,20 @@ void HighlightersMenu::populateHighlightersMenu()
         setAction->setData( highlighter.id() );
     }
 
+    // The plugins' sets are the plugins', but switching one on is the user's
+    // own; each is named with its Source (#865).
+    const auto pluginSets = highlightersCollection.pluginHighlighterSets();
+    if ( !pluginSets.isEmpty() ) {
+        addSection( tr( "Plugins" ) );
+        for ( const auto& set : pluginSets ) {
+            auto setAction = addAction( pluginGroupShownName( set.group.name(), set.pluginName ) );
+            setAction->setActionGroup( highLighters_ );
+            setAction->setCheckable( true );
+            setAction->setChecked( activeSetIds.contains( set.group.id() ) );
+            setAction->setData( set.group.id() );
+        }
+    }
+
     // The Team sets are the team's, but switching one on is the user's own.
     const auto& teamSets = highlightersCollection.teamHighlighterSets();
     if ( !teamSets.isEmpty() ) {

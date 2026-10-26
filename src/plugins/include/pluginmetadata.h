@@ -134,6 +134,29 @@ public:
     QStringList formatPaths() const;
 
     /**
+     * The Filter Group files the plugin ships, as the manifest's optional
+     * `predefined_filters` list names them, and the Highlighter Set files, as
+     * its optional `highlighter_sets` list names them: files as the
+     * Predefined Filters and the Highlighters dialogs export them, with the
+     * path rules of formats() (#865). Empty when the plugin ships none.
+     */
+    const QStringList& predefinedFilters() const
+    {
+        return predefinedFilters_;
+    }
+    const QStringList& highlighterSets() const
+    {
+        return highlighterSets_;
+    }
+
+    /**
+     * Absolute paths to those files (directory + each of them), empty when
+     * the metadata was not read from a file.
+     */
+    QStringList predefinedFilterPaths() const;
+    QStringList highlighterSetPaths() const;
+
+    /**
      * The Qt the plugin was built against, as the manifest's optional
      * `qt_version` names it (major.minor), or none when the manifest leaves it
      * out: a plugin that hands no widget to the host needs no Qt (#862).
@@ -167,6 +190,8 @@ private:
     QString library_;
     QString icon_;
     QStringList formats_;
+    QStringList predefinedFilters_;
+    QStringList highlighterSets_;
     std::optional<QVersionNumber> qtVersion_;
     QString directory_;
     LogSquirlPluginType type_ = LOGSQUIRL_PLUGIN_DATASOURCE;

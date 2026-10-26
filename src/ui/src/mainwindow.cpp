@@ -125,6 +125,7 @@
 #include "optionsdialog.h"
 #include "plaintext.h"
 #include "plugindialog.h"
+#include "plugingroups.h"
 #include "predefinedfiltersdialog.h"
 #include "progress.h"
 #include "readablesize.h"
@@ -418,7 +419,13 @@ MainWindow::MainWindow( WindowSession session,
         if ( welcomeDashboard_ ) {
             welcomeDashboard_->refresh();
         }
+        applyPluginGroups();
     } );
+    // The Filter Groups and Highlighter Sets the plugins ship come and go as
+    // plugins are enabled and disabled, in this window's Plugins dialog or
+    // another's (#865).
+    connect( plugins_.get(), &logsquirl::plugins::ApplicationPlugins::enabledPluginsChanged, this,
+             &MainWindow::applyPluginGroups );
 
     // A plugin installed, enabled or disabled later -- from this window's
     // Plugins dialog or another's -- shows on the dashboard right away (#710).
@@ -2258,6 +2265,29 @@ void MainWindow::applyTeamHighlighterSets( bool dropUnknownActivations )
     auto& collection = HighlighterSetCollection::get();
     if ( collection.setTeamHighlighterSets( teamFolder->highlighterGroups(),
                                             dropUnknownActivations ) ) {
+        collection.save();
+        session_.applyChange( Changed::HighlighterSets );
+    }
+    updateHighlightersMenu();
+}
+
+void MainWindow::applyPluginGroups()
+{
+    // The enabled plugins stand in the configuration, which Plugin Management
+    // writes before it says that one was enabled or disabled.
+    const auto groups = logsquirl::plugingroups::readEnabled(
+        plugins_->catalog().discoveredPlugins(), Configuration::get().enabledPlugins() );
+
+    // Every window comes here for the same change; the first one changes the
+    // collections, the others only bring their panel and menu up to date.
+    // Neither collection stores the plugins' groups: saving the Highlighter
+    // Sets keeps only which of them are active, and a plugin's set that is
+    // gone is no longer.
+    PredefinedFiltersCollection::get().setPluginFilterGroups( groups.filterGroups );
+    filtersPanel_.refreshFilters();
+
+    auto& collection = HighlighterSetCollection::get();
+    if ( collection.setPluginHighlighterSets( groups.highlighterSets ) ) {
         collection.save();
         session_.applyChange( Changed::HighlighterSets );
     }
