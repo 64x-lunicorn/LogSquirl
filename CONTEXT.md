@@ -483,6 +483,8 @@ file, opening files, notifications, the Regex Lab, and the Log Lines of the tab 
 going to one and reading the selected ones. The host functions a plugin can call
 only grow, appended to one table whose size tells a plugin which the running LogSquirl
 offers (ADR 0017). What a plugin shows goes through the Plugin UI Port.
+A data source plugin may refuse its stream as it starts, and is stopped once for every
+stream it let run, before that stream ends and before the plugin is shut down (ADR 0023).
 A plugin is loaded when the host has initialised it, and enabled when the configuration
 says to load it. The first start enables every discovered plugin once and the
 configuration keeps that choice; from then on only the enabled plugins are loaded, none

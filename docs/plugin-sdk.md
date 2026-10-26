@@ -471,7 +471,8 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void );
 - `logsquirl_plugin_shutdown` releases everything the plugin allocated, and
   stops and joins the threads it started. The host calls it before it unloads
   the library, and before it ends a stream of the plugin's that is still
-  running.
+  running, but after it stopped that stream through
+  `logsquirl_datasource_stop`.
 
 **Optional** exports, for any plugin type:
 
@@ -507,6 +508,18 @@ A host that knows `logsquirl_converter_convert_ex` calls it instead of
 that exports `convert_ex` still exports `convert`. A plugin may export
 either one, or both. See [Converters](#converters).
 
+A data source that hears when its stream starts and stops also exports
+(optional, added in LogSquirl 26.12):
+
+```c
+LOGSQUIRL_PLUGIN_EXPORT int  logsquirl_datasource_start( const LogSquirlDataSourceContext* );
+LOGSQUIRL_PLUGIN_EXPORT void logsquirl_datasource_stop( const LogSquirlDataSourceContext* );
+```
+
+Each is optional on its own; a plugin without them streams as before. An older
+host never calls them: such a plugin opens its source in `init` there, see
+[Data Source Streaming](#data-source-streaming).
+
 The host resolves the functions by these names, which the header also defines
 as constants:
 
@@ -519,6 +532,8 @@ as constants:
 #define LOGSQUIRL_CONVERTER_ENTRY_GET_EXTS "logsquirl_converter_get_extensions"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT "logsquirl_converter_convert"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT_EX "logsquirl_converter_convert_ex"
+#define LOGSQUIRL_DATASOURCE_ENTRY_START "logsquirl_datasource_start"
+#define LOGSQUIRL_DATASOURCE_ENTRY_STOP "logsquirl_datasource_stop"
 ```
 
 and the function pointer types it casts them to:
@@ -534,6 +549,8 @@ typedef const char* ( *LogSquirlConverterGetExtsFn )( void );
 typedef int ( *LogSquirlConverterConvertFn )( const char* input_path, const char* output_path );
 typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const char* output_path,
                                                 const LogSquirlConvertControl* control );
+typedef int ( *LogSquirlDataSourceStartFn )( const LogSquirlDataSourceContext* context );
+typedef void ( *LogSquirlDataSourceStopFn )( const LogSquirlDataSourceContext* context );
 ```
 
 ### `LogSquirlConvertControl`
@@ -566,6 +583,31 @@ typedef struct LogSquirlConvertControl {
           + sizeof( ( (const LogSquirlConvertControl*)0 )->member )                                \
       <= ( control )->size )
 ```
+
+### `LogSquirlDataSourceContext`
+
+What the host hands `logsquirl_datasource_start` and
+`logsquirl_datasource_stop` (added in LogSquirl 26.12). The host owns it: it
+is valid during the call only, so keep no pointer to it, and never copy the
+struct. It holds only its size for now, and grows by appending members, as
+`LogSquirlConvertControl` does: read a member added later only when `size`
+holds the whole member.
+
+```c
+typedef struct LogSquirlDataSourceContext {
+    size_t size; /* sizeof( LogSquirlDataSourceContext ) in the host's build */
+} LogSquirlDataSourceContext;
+
+typedef enum {
+    LOGSQUIRL_DATASOURCE_STARTED = 0,  /* the stream runs                                */
+    LOGSQUIRL_DATASOURCE_FAILED = 1,   /* not started: the user is told it failed       */
+    LOGSQUIRL_DATASOURCE_CANCELLED = 2 /* not started: the user cancelled, nothing said */
+} LogSquirlDataSourceStartResult;
+```
+
+`LogSquirlDataSourceStartResult` is what `logsquirl_datasource_start`
+returns. Any value other than these three counts as failed, as
+`LOGSQUIRL_DATASOURCE_FAILED` does.
 
 ### `LogSquirlPluginType`
 
@@ -850,16 +892,87 @@ api->signal_eos( handle );
 api->signal_error( handle, "Device disconnected" );
 ```
 
-Lines pushed while no stream of the plugin is running are dropped.
+Lines pushed while no stream of the plugin is running are dropped. A plugin
+has one stream at a time: while it runs, choosing the plugin again in the
+`Sources` menu does not start another.
 
-A stream the user ends -- by disabling or unloading the plugin from the
-Plugin Management dialog, or by closing LogSquirl -- goes in this order: the
-host calls `logsquirl_plugin_shutdown` first and waits for it to return, then
-signals end-of-stream and frees the stream. A thread of the plugin's may push
-until `shutdown` returns; what it pushes meanwhile reaches a live stream.
-`shutdown` must stop and join such a thread before it returns, since nothing
-the plugin calls after that is answered. A stream the host ends on its own,
-with the plugin still loaded, drops what the plugin pushes from then on.
+A plugin learns when its stream starts and stops from two optional exports
+(added in LogSquirl 26.12, see
+[ADR 0023](adr/0023-a-data-source-is-stopped-once-for-every-start-it-let-run-before-its-stream-ends.md)),
+both called on the UI thread with a
+[`LogSquirlDataSourceContext`](#logsquirldatasourcecontext) that is valid
+during the call only:
+
+- `logsquirl_datasource_start` is called when the user starts the data
+  source, before the stream counts as started. Open the device, socket or
+  process here; the plugin may show a modal dialog of its own to ask which.
+  Lines pushed from inside the call already reach the stream. Return
+  `LOGSQUIRL_DATASOURCE_STARTED` to let the stream run: it opens in a tab,
+  and lines pushed from then on reach it. Return
+  `LOGSQUIRL_DATASOURCE_CANCELLED` when the user cancelled: nothing opens and
+  the user is told nothing. Return `LOGSQUIRL_DATASOURCE_FAILED`, or any other
+  non-zero value, when it failed: nothing opens, and the user is told that the
+  data source did not start, with the value; say why with
+  `show_notification` first. What was pushed is discarded when the stream
+  does not start.
+- `logsquirl_datasource_stop` is called exactly once for every start that
+  returned `LOGSQUIRL_DATASOURCE_STARTED`, however the stream ends: the user
+  stops it, the plugin is disabled or unloaded, or LogSquirl quits. It is
+  called before the host signals end-of-stream, so push the last lines here
+  and close the source. A push that returns after `stop` has returned may be
+  dropped. A plugin that signalled end-of-stream itself is still stopped.
+
+A start the plugin refused is never stopped. A plugin without
+`logsquirl_datasource_start` counts as having let every stream run, and a
+plugin without `logsquirl_datasource_stop` is simply not told.
+
+```cpp
+/* A data source that reads a device from a thread of its own. */
+std::thread reader;
+std::atomic<bool> reading{ false };
+
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_datasource_start( const LogSquirlDataSourceContext* )
+{
+    if ( !askWhichDevice() ) {
+        return LOGSQUIRL_DATASOURCE_CANCELLED; /* the user closed the dialog */
+    }
+    if ( !openDevice() ) {
+        host->show_notification( hostHandle, "The device is busy" );
+        return LOGSQUIRL_DATASOURCE_FAILED;
+    }
+    reading = true;
+    reader = std::thread( [] {
+        std::string line;
+        while ( reading && readLine( line ) ) {
+            host->push_line( hostHandle, line.data(), line.size() );
+        }
+    } );
+    return LOGSQUIRL_DATASOURCE_STARTED;
+}
+
+LOGSQUIRL_PLUGIN_EXPORT void logsquirl_datasource_stop( const LogSquirlDataSourceContext* )
+{
+    reading = false;
+    reader.join(); /* its last lines still reach the stream */
+    closeDevice();
+}
+```
+
+A stream that ends because the plugin is disabled or unloaded from the
+Plugin Management dialog, or because LogSquirl closes, goes in this order: the
+host calls `logsquirl_datasource_stop` first, then `logsquirl_plugin_shutdown`
+and waits for it to return, then signals end-of-stream and frees the stream.
+A thread of the plugin's may push until `shutdown` returns; what it pushes
+meanwhile reaches a live stream. `shutdown` must stop and join such a thread
+before it returns, since nothing the plugin calls after that is answered. A
+stream the host ends on its own, with the plugin still loaded, is stopped in
+the plugin first and drops what the plugin pushes once `stop` has returned.
+A host older than LogSquirl 26.12 knows neither export and never calls them.
+The hosts that call them pass a host API table that holds
+`unregister_menu_action`, which an older host's does not: a plugin that also
+runs on an older host opens its source in `logsquirl_plugin_init_ex` when
+`LOGSQUIRL_HOST_API_HAS( api_size, unregister_menu_action )` is false, and in
+`logsquirl_plugin_init`, and closes it in `shutdown`.
 
 ### Converters
 
@@ -1163,8 +1276,8 @@ window the plugin keeps open outlives the dialog.
   `get_log_file_encoding` and `get_active_file_path`, which are called on the
   UI thread only. The host
   dispatches UI-modifying calls, `open_file` included, to the UI thread
-  internally. `init`, `shutdown`, `configure` and menu actions run on the UI
-  thread; `logsquirl_converter_convert` and `logsquirl_converter_convert_ex`
+  internally. `init`, `shutdown`, `configure`, `logsquirl_datasource_start`,
+  `logsquirl_datasource_stop` and menu actions run on the UI thread; `logsquirl_converter_convert` and `logsquirl_converter_convert_ex`
   run on a host worker thread, one call per plugin at a time, and the
   `LogSquirlConvertControl` functions are called on that thread only.
 - **String lifetime**: All `const char*` strings you pass to host API functions

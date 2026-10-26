@@ -264,6 +264,10 @@ void PluginHost::unloadNow( const QString& pluginId )
     it->second->answerContext.reset();
     it->second->parkedAnswers.clear();
 
+    // A stream that runs is stopped in the plugin first, while the plugin is
+    // still initialised: it closes its source before it is shut down (#855).
+    stopInPlugin( *it->second );
+
     // Shut the plugin down while it is still loaded: it unregisters its
     // widgets through the host callbacks. Whatever it left behind is taken
     // away before its context and library go.
@@ -446,16 +450,55 @@ QString PluginHost::startDataSource( const QString& pluginId )
         return QString( "Plugin '%1' is not a DataSource plugin" ).arg( pluginId );
     }
 
-    if ( ctx.stream ) {
+    // Also while the plugin's start is still running, a modal dialog of its
+    // own open: the second start does not reach the plugin (#855).
+    if ( ctx.stream || ctx.dataSourceState != DataSourceState::Idle ) {
         return QString( "DataSource '%1' is already running" ).arg( pluginId );
     }
 
-    // Create the file-backed stream writer
+    // Create the file-backed stream writer. It is there before the plugin's
+    // start, so that what the plugin pushes from inside it is kept.
     auto stream = std::make_unique<StreamWriter>( ctx.handle.metadata().name() );
     const auto path = stream->filePath();
     {
         const std::lock_guard lock( ctx.streamMutex );
         ctx.stream = std::move( stream );
+    }
+
+    // The plugin opens its device, socket or process, and may ask the user
+    // which in a dialog of its own. Its unload, asked for meanwhile, waits
+    // until the call has returned, so the context stays.
+    ctx.dataSourceState = DataSourceState::Starting;
+    int result = LOGSQUIRL_DATASOURCE_STARTED;
+    if ( ctx.handle.hasDataSourceStart() ) {
+        if ( !callIntoPlugin( ctx, [ &ctx, &result ] {
+                 result = ctx.handle.startDataSource( &ctx.dataSourceContext );
+             } ) ) {
+            result = LOGSQUIRL_DATASOURCE_FAILED;
+        }
+    }
+
+    if ( result != LOGSQUIRL_DATASOURCE_STARTED ) {
+        // Not started: the stream goes without an end, nobody has opened it.
+        {
+            const std::lock_guard lock( ctx.streamMutex );
+            ctx.stream.reset();
+        }
+        ctx.dataSourceState = DataSourceState::Idle;
+        if ( result == LOGSQUIRL_DATASOURCE_CANCELLED ) {
+            LOG_INFO << "DataSource '" << pluginId << "' was cancelled as it started";
+            return {};
+        }
+        LOG_WARNING << "DataSource '" << pluginId << "' did not start: " << result;
+        return QString( "DataSource '%1' did not start (code %2)" ).arg( pluginId ).arg( result );
+    }
+
+    // The stream runs: the plugin is owed its stop, however the stream ends.
+    ctx.dataSourceState = DataSourceState::Running;
+    if ( ctx.unloadPending ) {
+        // Unloaded while it started: its unload stops and ends the stream,
+        // and no tab opens for a plugin that counts as unloaded.
+        return QString( "Plugin '%1' is not loaded" ).arg( pluginId );
     }
 
     LOG_INFO << "Started DataSource '" << pluginId << "' writing to " << path;
@@ -469,9 +512,39 @@ void PluginHost::stopDataSource( const QString& pluginId )
     if ( it == loaded_.end() || !it->second->stream ) {
         return;
     }
+    auto& context = *it->second;
+    // A stop asked for while the plugin starts or stops: that call ends as
+    // it ends, and a stopping stream ends once the stop has returned.
+    if ( context.dataSourceState == DataSourceState::Starting
+         || context.dataSourceState == DataSourceState::Stopping ) {
+        return;
+    }
 
     LOG_INFO << "Stopping DataSource: " << pluginId;
-    endStream( *it->second, pluginId );
+    // The plugin pushes its last lines and closes its source before the
+    // stream ends. Its unload, asked for meanwhile, waits until the call has
+    // returned, so the context stays.
+    stopInPlugin( context );
+    endStream( context, pluginId );
+}
+
+void PluginHost::stopInPlugin( PluginContext& context )
+{
+    if ( context.dataSourceState != DataSourceState::Running ) {
+        return;
+    }
+    context.dataSourceState = DataSourceState::Stopping;
+    if ( !context.handle.hasDataSourceStop() ) {
+        return;
+    }
+    const auto stop = [ &context ] { context.handle.stopDataSource( &context.dataSourceContext ); };
+    if ( !callIntoPlugin( context, stop ) ) {
+        // Its unload is pending, but it is not shut down yet: it is still
+        // owed the stop, and gets it before its shutdown.
+        ++context.callsRunning;
+        stop();
+        --context.callsRunning;
+    }
 }
 
 void PluginHost::endStream( PluginContext& context, const QString& pluginId )
@@ -484,6 +557,7 @@ void PluginHost::endStream( PluginContext& context, const QString& pluginId )
         context.stream->signalEos();
         context.stream.reset();
     }
+    context.dataSourceState = DataSourceState::Idle;
     // Said outside the lock: a slot may ask the host about the stream.
     Q_EMIT dataSourceStopped( pluginId );
 }

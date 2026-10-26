@@ -612,6 +612,62 @@ typedef struct LogSquirlConvertControl {
 typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const char* output_path,
                                                 const LogSquirlConvertControl* control );
 
+/* ── DataSource-specific entry points (optional) ─────────────────────────── */
+
+/**
+ * What the host hands logsquirl_datasource_start and logsquirl_datasource_stop
+ * (LogSquirl 26.12).  The host owns it: it is valid during the call only, so
+ * keep no pointer to it, and never copy the struct.  It grows by appending
+ * members, and size says how far the running host filled it: read a member
+ * added later only when size holds the whole member.
+ */
+typedef struct LogSquirlDataSourceContext {
+    /** sizeof( LogSquirlDataSourceContext ) in the host's build: how far the host filled it. */
+    size_t size;
+} LogSquirlDataSourceContext;
+
+/** What logsquirl_datasource_start returns. */
+typedef enum {
+    LOGSQUIRL_DATASOURCE_STARTED = 0,  /**< The stream runs                                */
+    LOGSQUIRL_DATASOURCE_FAILED = 1,   /**< Not started: the user is told it failed       */
+    LOGSQUIRL_DATASOURCE_CANCELLED = 2 /**< Not started: the user cancelled, nothing said */
+} LogSquirlDataSourceStartResult;
+
+/**
+ * Start the plugin's stream (optional).  Called on the UI thread when the user
+ * starts the data source, before the stream counts as started: open the
+ * device, socket or process here.  The plugin may show a modal dialog of its
+ * own to ask which.  Lines pushed from inside the call already reach the
+ * stream, and are discarded when it does not start.  While the plugin's
+ * stream runs, the host refuses another start without calling the plugin.
+ * A host older than LogSquirl 26.12 calls neither start nor stop; the hosts
+ * that do pass a LogSquirlHostApi that holds unregister_menu_action.
+ * @param context  Valid during the call only.
+ * @return LOGSQUIRL_DATASOURCE_STARTED when the stream runs: the host opens it
+ *         in a tab, and lines pushed from then on reach it.
+ *         LOGSQUIRL_DATASOURCE_CANCELLED when the user cancelled: nothing
+ *         opens, and the user is told nothing.  LOGSQUIRL_DATASOURCE_FAILED,
+ *         or any other value, when it failed: nothing opens, and the user is
+ *         told that the data source did not start, with the value; tell why
+ *         with show_notification.  Only after LOGSQUIRL_DATASOURCE_STARTED is
+ *         logsquirl_datasource_stop called.
+ */
+typedef int ( *LogSquirlDataSourceStartFn )( const LogSquirlDataSourceContext* context );
+
+/**
+ * Stop the plugin's stream (optional).  Called on the UI thread exactly once
+ * for every start that returned LOGSQUIRL_DATASOURCE_STARTED, or for every
+ * stream of a plugin that does not export logsquirl_datasource_start, however
+ * the stream ends: the user stops it, the plugin is unloaded, or LogSquirl
+ * quits.  It is called before the host signals end-of-stream, and on an
+ * unload before logsquirl_plugin_shutdown: push the last lines and close the
+ * device, socket or process here.  A line pushed until it returns reaches the
+ * stream; a push that returns after it has returned may be dropped.  A plugin
+ * that signalled end-of-stream itself is still stopped.
+ * @param context  Valid during the call only.
+ */
+typedef void ( *LogSquirlDataSourceStopFn )( const LogSquirlDataSourceContext* context );
+
 /* ── Canonical exported symbol names ─────────────────────────────────────── */
 
 /*
@@ -633,6 +689,11 @@ typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const ch
  * (optional):
  *   LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert_ex( const char*, const char*,
  *                                                               const LogSquirlConvertControl* );
+ *
+ * A data source that hears when its stream starts and stops also exports
+ * (optional, LogSquirl 26.12):
+ *   LOGSQUIRL_PLUGIN_EXPORT int  logsquirl_datasource_start( const LogSquirlDataSourceContext* );
+ *   LOGSQUIRL_PLUGIN_EXPORT void logsquirl_datasource_stop( const LogSquirlDataSourceContext* );
  */
 
 #define LOGSQUIRL_PLUGIN_ENTRY_GET_INFO "logsquirl_plugin_get_info"
@@ -643,6 +704,8 @@ typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const ch
 #define LOGSQUIRL_CONVERTER_ENTRY_GET_EXTS "logsquirl_converter_get_extensions"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT "logsquirl_converter_convert"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT_EX "logsquirl_converter_convert_ex"
+#define LOGSQUIRL_DATASOURCE_ENTRY_START "logsquirl_datasource_start"
+#define LOGSQUIRL_DATASOURCE_ENTRY_STOP "logsquirl_datasource_stop"
 
 #ifdef __cplusplus
 } /* extern "C" */

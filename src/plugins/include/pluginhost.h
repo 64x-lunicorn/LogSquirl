@@ -169,7 +169,9 @@ public:
      * menu action of the plugin's that shows a modal dialog, say -- the
      * plugin counts as unloaded at once, and nothing calls into it any more;
      * it is shut down once that call has returned (#691). Its Conversions
-     * are cancelled first, the one under way waited for (#795).
+     * are cancelled first, the one under way waited for (#795). A stream of
+     * the plugin's that runs is stopped in the plugin before the plugin is
+     * shut down, and ends after (#855).
      */
     void unloadPlugin( const QString& pluginId );
 
@@ -227,13 +229,24 @@ public:
     // ── DataSource (Phase 2) ─────────────────────────────────────────
 
     /**
-     * Start a DataSource plugin.  Creates a temp-file-backed stream and
-     * emits dataSourceStarted() so MainWindow can open it.
-     * @return Empty string on success, error message on failure.
+     * Start a DataSource plugin.  Creates a temp-file-backed stream, calls
+     * the plugin's logsquirl_datasource_start, if it exports it, as a call
+     * into the plugin, and emits dataSourceStarted() so MainWindow can open
+     * the stream once the plugin let it start (#855). A start the plugin
+     * refuses frees the stream again, and nothing is emitted. A start while
+     * the plugin's stream runs, or is starting, is refused without calling
+     * the plugin.
+     * @return Empty string when the stream started or when the plugin said
+     *         the user cancelled; an error message when it did not start for
+     *         another reason.
      */
     QString startDataSource( const QString& pluginId );
 
-    /** Stop a running DataSource plugin by closing its stream. */
+    /**
+     * Stop a running DataSource plugin: calls its logsquirl_datasource_stop,
+     * if it exports it, then closes its stream. Nothing while the plugin's
+     * start or stop is still running.
+     */
     void stopDataSource( const QString& pluginId );
 
     /** Return the StreamWriter for an active DataSource (nullptr if none). */
@@ -335,6 +348,14 @@ private:
         std::atomic<bool> removed{ false };
     };
 
+    /** Where a plugin's data source is between its start and its stop (#855). */
+    enum class DataSourceState {
+        Idle,     ///< No stream.
+        Starting, ///< The stream exists; logsquirl_datasource_start is running.
+        Running,  ///< The stream runs; logsquirl_datasource_stop is owed.
+        Stopping  ///< logsquirl_datasource_stop is running or has returned; the stream ends next.
+    };
+
     // Per-plugin context stored alongside the handle
     struct PluginContext {
         PluginHandle handle;
@@ -347,6 +368,12 @@ private:
         // returned before the stream goes, and a later one finds none (#821).
         std::mutex streamMutex{};
         std::unique_ptr<StreamWriter> stream{};
+        // Where the data source is between the plugin's start and stop, so
+        // that stop is called once for every start that let the stream run,
+        // before the stream ends (#855). UI thread only.
+        DataSourceState dataSourceState = DataSourceState::Idle;
+        // What start and stop are handed, valid during their call.
+        LogSquirlDataSourceContext dataSourceContext{ sizeof( LogSquirlDataSourceContext ) };
         // Back-pointer to the owning PluginHost (for static trampolines)
         PluginHost* host = nullptr;
         // Which load of the plugin this is, from any thread: a call queued to
@@ -438,6 +465,13 @@ private:
      * returned: signals end-of-stream, frees it and says it stopped.
      */
     void endStream( PluginContext& context, const QString& pluginId );
+
+    /**
+     * Calls the plugin's logsquirl_datasource_stop, if its stream runs and it
+     * exports it, as a call into the plugin; also while the plugin's unload
+     * is pending, since it is not shut down yet and is owed the stop (#855).
+     */
+    void stopInPlugin( PluginContext& context );
 
     /** Starts the plugin's next queued Conversion, unless one is under way. */
     void startNextConversion( PluginContext& context );

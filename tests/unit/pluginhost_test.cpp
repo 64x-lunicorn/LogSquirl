@@ -39,6 +39,7 @@
 #include <QThread>
 #include <QTimer>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -2948,30 +2949,40 @@ namespace {
 
 const auto StreamProbeId = QStringLiteral( "io.github.logsquirl.test.stream-probe" );
 
-/// Writes a plugin.json for the stream probe into its own subdirectory of root.
-void installStreamProbe( const QString& root )
+/// Writes a plugin.json for a data source plugin into the subdirectory directory of root.
+void installDataSource( const QString& root, const QString& directory, const QString& id,
+                        const QString& name, const QString& library )
 {
-    const auto pluginDir = QDir( root ).filePath( "stream-probe" );
+    const auto pluginDir = QDir( root ).filePath( directory );
     REQUIRE( QDir().mkpath( pluginDir ) );
 
     QFile manifest( QDir( pluginDir ).filePath( "plugin.json" ) );
     REQUIRE( manifest.open( QIODevice::WriteOnly ) );
     manifest.write( QStringLiteral( R"({
         "id": "%1",
-        "name": "Stream Probe",
+        "name": "%2",
         "version": "1.0.0",
         "type": "datasource",
-        "library": "%2",
+        "library": "%3",
         "api_version": 1
     })" )
-                        .arg( StreamProbeId, QStringLiteral( LOGSQUIRL_STREAM_PROBE_PATH ) )
+                        .arg( id, name, library )
                         .toUtf8() );
+}
+
+/// Writes a plugin.json for the stream probe, built from library, into its own subdirectory of
+/// root.
+void installStreamProbe( const QString& root,
+                         const QString& library = QStringLiteral( LOGSQUIRL_STREAM_PROBE_PATH ) )
+{
+    installDataSource( root, QStringLiteral( "stream-probe" ), StreamProbeId,
+                       QStringLiteral( "Stream Probe" ), library );
 }
 
 /// The exported functions of the stream probe the tests read behind the host's back.
 struct StreamProbe {
-    StreamProbe()
-        : library( QStringLiteral( LOGSQUIRL_STREAM_PROBE_PATH ) )
+    explicit StreamProbe( const QString& path = QStringLiteral( LOGSQUIRL_STREAM_PROBE_PATH ) )
+        : library( path )
     {
         REQUIRE( library.load() );
     }
@@ -3162,6 +3173,435 @@ SCENARIO( "A streaming plugin is shut down before its stream goes away",
                 REQUIRE_FALSE( heard.stoppedBeforeShutdown );
                 REQUIRE_FALSE( QFile::exists( path ) );
             }
+        }
+    }
+}
+
+SCENARIO( "A data source without start and stop starts and stops as before",
+          "[pluginhost][plugins][datasource]" )
+{
+    // The stream probe exports neither entry point: built against the current
+    // header, and against the header as 26.12.0 published it (#855).
+    for ( const auto& library : { QStringLiteral( LOGSQUIRL_STREAM_PROBE_PATH ),
+                                  QStringLiteral( LOGSQUIRL_STREAM_PROBE_API2612_PATH ) } ) {
+        INFO( library.toStdString() );
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installStreamProbe( pluginRoot.path(), library );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+
+        StreamProbe probe( library );
+        probe.reset();
+        int started = 0;
+        int stopped = 0;
+        QObject::connect( &host, &PluginHost::dataSourceStarted, [ & ] { ++started; } );
+        QObject::connect( &host, &PluginHost::dataSourceStopped, [ & ] { ++stopped; } );
+
+        REQUIRE( host.loadPlugin( StreamProbeId ).isEmpty() );
+        REQUIRE( host.startDataSource( StreamProbeId ).isEmpty() );
+        REQUIRE( started == 1 );
+        REQUIRE( host.streamWriter( StreamProbeId ) != nullptr );
+        REQUIRE_FALSE( host.startDataSource( StreamProbeId ).isEmpty() );
+        REQUIRE( started == 1 );
+
+        host.stopDataSource( StreamProbeId );
+        REQUIRE( stopped == 1 );
+        REQUIRE( host.streamWriter( StreamProbeId ) == nullptr );
+        REQUIRE( host.isLoaded( StreamProbeId ) );
+
+        REQUIRE( host.startDataSource( StreamProbeId ).isEmpty() );
+        REQUIRE( started == 2 );
+        host.unloadPlugin( StreamProbeId );
+        REQUIRE( stopped == 2 );
+        REQUIRE( probe.shutdownCalls() == 1 );
+    }
+}
+
+namespace {
+
+const auto LifecycleProbeId = QStringLiteral( "io.github.logsquirl.test.lifecycle-probe" );
+
+/// The exported functions of the lifecycle probe the tests use behind the host's back.
+struct LifecycleProbe {
+    using Hook = void ( * )( void* userData );
+
+    LifecycleProbe()
+        : library( QStringLiteral( LOGSQUIRL_LIFECYCLE_PROBE_PATH ) )
+    {
+        REQUIRE( library.load() );
+    }
+
+    LifecycleProbe( const LifecycleProbe& ) = delete;
+    LifecycleProbe& operator=( const LifecycleProbe& ) = delete;
+
+    /// What the probe wrote down, comma-separated.
+    QString events()
+    {
+        using Fn = const char* ( * )();
+        return QString::fromUtf8(
+            reinterpret_cast<Fn>( library.resolve( "logsquirl_lifecycle_probe_events" ) )() );
+    }
+
+    void note( const char* event )
+    {
+        using Fn = void ( * )( const char* );
+        reinterpret_cast<Fn>( library.resolve( "logsquirl_lifecycle_probe_note" ) )( event );
+    }
+
+    void setStartResult( int result )
+    {
+        using Fn = void ( * )( int );
+        reinterpret_cast<Fn>( library.resolve( "logsquirl_lifecycle_probe_set_start_result" ) )(
+            result );
+    }
+
+    size_t contextSize()
+    {
+        using Fn = size_t ( * )();
+        return reinterpret_cast<Fn>(
+            library.resolve( "logsquirl_lifecycle_probe_context_size" ) )();
+    }
+
+    void setHooks( Hook onStart, Hook onStop, Hook onMenu, void* userData )
+    {
+        using Fn = void ( * )( Hook, Hook, Hook, void* );
+        reinterpret_cast<Fn>( library.resolve( "logsquirl_lifecycle_probe_set_hooks" ) )(
+            onStart, onStop, onMenu, userData );
+    }
+
+    void reset()
+    {
+        using Fn = void ( * )();
+        reinterpret_cast<Fn>( library.resolve( "logsquirl_lifecycle_probe_reset" ) )();
+    }
+
+    QLibrary library;
+};
+
+/// What runs inside the probe's start or stop, as a dialog of a plugin's would.
+struct InsidePluginCall {
+    PluginHost* host = nullptr;
+    std::function<void()> work;
+    QThread* ranOn = nullptr;
+
+    static void run( void* userData )
+    {
+        auto* self = static_cast<InsidePluginCall*>( userData );
+        self->ranOn = QThread::currentThread();
+        if ( self->work ) {
+            self->work();
+        }
+    }
+};
+
+} // namespace
+
+SCENARIO( "A data source plugin hears when its stream starts and stops",
+          "[pluginhost][plugins][datasource]" )
+{
+    GIVEN( "A Plugin Host with the lifecycle probe loaded, which exports start and stop" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installDataSource( pluginRoot.path(), QStringLiteral( "lifecycle-probe" ), LifecycleProbeId,
+                           QStringLiteral( "Lifecycle Probe" ),
+                           QStringLiteral( LOGSQUIRL_LIFECYCLE_PROBE_PATH ) );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        auto host = std::make_unique<PluginHost>( catalog );
+        host->setUiPort( &port );
+
+        LifecycleProbe probe;
+        probe.reset();
+        // What the host says goes into the probe's own list, so one list
+        // shows the order of the host's calls and signals.
+        QObject::connect( host.get(), &PluginHost::dataSourceStarted,
+                          [ & ] { probe.note( "started" ); } );
+        QObject::connect( host.get(), &PluginHost::dataSourceStopped,
+                          [ & ] { probe.note( "stopped" ); } );
+
+        InsidePluginCall inside;
+        inside.host = host.get();
+        probe.setHooks( &InsidePluginCall::run, &InsidePluginCall::run, nullptr, &inside );
+
+        REQUIRE( host->loadPlugin( LifecycleProbeId ).isEmpty() );
+
+        WHEN( "The user starts the data source" )
+        {
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+
+            THEN( "The plugin's start ran on the UI thread with a context of the host's size, "
+                  "before the stream counted as started, and what it pushed meanwhile is in the "
+                  "stream" )
+            {
+                REQUIRE( probe.events() == "init,start,started" );
+                REQUIRE( inside.ranOn == QThread::currentThread() );
+                REQUIRE( probe.contextSize() == sizeof( LogSquirlDataSourceContext ) );
+                auto* stream = host->streamWriter( LifecycleProbeId );
+                REQUIRE( stream != nullptr );
+                REQUIRE( readAll( stream->filePath() ) == "lifecycle probe opened\n" );
+            }
+
+            AND_WHEN( "The user starts it again while it runs" )
+            {
+                const auto error = host->startDataSource( LifecycleProbeId );
+
+                THEN( "The host refuses, and the plugin hears nothing of it" )
+                {
+                    REQUIRE_FALSE( error.isEmpty() );
+                    REQUIRE( probe.events() == "init,start,started" );
+                }
+            }
+
+            AND_WHEN( "The user stops it" )
+            {
+                QByteArray inStreamDuringStop;
+                inside.ranOn = nullptr;
+                inside.work = [ & ] {
+                    inStreamDuringStop
+                        = readAll( host->streamWriter( LifecycleProbeId )->filePath() );
+                };
+                host->stopDataSource( LifecycleProbeId );
+
+                THEN( "The plugin's stop ran once on the UI thread, with the stream still "
+                      "taking its last line, before the stream ended; the plugin stays loaded" )
+                {
+                    REQUIRE( probe.events() == "init,start,started,stop,stopped" );
+                    REQUIRE( inside.ranOn == QThread::currentThread() );
+                    REQUIRE( probe.contextSize() == sizeof( LogSquirlDataSourceContext ) );
+                    REQUIRE( inStreamDuringStop
+                             == "lifecycle probe opened\nlifecycle probe closing\n" );
+                    REQUIRE( host->streamWriter( LifecycleProbeId ) == nullptr );
+                    REQUIRE( host->isLoaded( LifecycleProbeId ) );
+                }
+
+                AND_WHEN( "The user stops it again, and then unloads the plugin" )
+                {
+                    host->stopDataSource( LifecycleProbeId );
+                    host->unloadPlugin( LifecycleProbeId );
+
+                    THEN( "The plugin was stopped only once" )
+                    {
+                        REQUIRE( probe.events() == "init,start,started,stop,stopped,shutdown" );
+                    }
+                }
+
+                AND_WHEN( "The user starts it once more" )
+                {
+                    REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+
+                    THEN( "The plugin starts again" )
+                    {
+                        REQUIRE( probe.events()
+                                 == "init,start,started,stop,stopped,start,started" );
+                    }
+                }
+            }
+
+            AND_WHEN( "The plugin is unloaded" )
+            {
+                host->unloadPlugin( LifecycleProbeId );
+
+                THEN( "It is stopped once, then shut down, and then the stream ends" )
+                {
+                    REQUIRE( probe.events() == "init,start,started,stop,shutdown,stopped" );
+                }
+            }
+
+            AND_WHEN( "The Plugin Host goes, as LogSquirl quits" )
+            {
+                host.reset();
+
+                THEN( "The plugin is stopped once, then shut down, and then the stream ends" )
+                {
+                    REQUIRE( probe.events() == "init,start,started,stop,shutdown,stopped" );
+                }
+            }
+        }
+
+        WHEN( "The plugin's start fails" )
+        {
+            probe.setStartResult( LOGSQUIRL_DATASOURCE_FAILED );
+            const auto error = host->startDataSource( LifecycleProbeId );
+
+            THEN( "The start is refused with the plugin's code, no stream remains and nothing "
+                  "said it started" )
+            {
+                REQUIRE( error.contains( QStringLiteral( "code 1" ) ) );
+                REQUIRE( probe.events() == "init,start" );
+                REQUIRE( host->streamWriter( LifecycleProbeId ) == nullptr );
+            }
+
+            AND_WHEN( "The plugin is unloaded" )
+            {
+                host->unloadPlugin( LifecycleProbeId );
+
+                THEN( "It is not stopped, and no stream ends" )
+                {
+                    REQUIRE( probe.events() == "init,start,shutdown" );
+                }
+            }
+
+            AND_WHEN( "The user starts it again, and it lets the stream run" )
+            {
+                probe.setStartResult( LOGSQUIRL_DATASOURCE_STARTED );
+                REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+
+                THEN( "It starts" )
+                {
+                    REQUIRE( probe.events() == "init,start,start,started" );
+                }
+            }
+        }
+
+        WHEN( "The plugin's start returns a code of its own" )
+        {
+            probe.setStartResult( 42 );
+            const auto error = host->startDataSource( LifecycleProbeId );
+
+            THEN( "It failed, with that code" )
+            {
+                REQUIRE( error.contains( QStringLiteral( "code 42" ) ) );
+                REQUIRE( host->streamWriter( LifecycleProbeId ) == nullptr );
+                host.reset();
+                REQUIRE( probe.events() == "init,start,shutdown" );
+            }
+        }
+
+        WHEN( "The user cancels in the plugin's start" )
+        {
+            probe.setStartResult( LOGSQUIRL_DATASOURCE_CANCELLED );
+            const auto error = host->startDataSource( LifecycleProbeId );
+
+            THEN( "Nothing is reported, no stream remains, and the plugin is not stopped" )
+            {
+                REQUIRE( error.isEmpty() );
+                REQUIRE( host->streamWriter( LifecycleProbeId ) == nullptr );
+                host->stopDataSource( LifecycleProbeId );
+                host.reset();
+                REQUIRE( probe.events() == "init,start,shutdown" );
+            }
+        }
+
+        WHEN( "The data source is started again from inside the plugin's start" )
+        {
+            QString nestedError;
+            inside.work = [ & ] { nestedError = host->startDataSource( LifecycleProbeId ); };
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+
+            THEN( "The second start is refused without reaching the plugin" )
+            {
+                REQUIRE_FALSE( nestedError.isEmpty() );
+                REQUIRE( probe.events() == "init,start,started" );
+            }
+        }
+
+        WHEN( "The data source is stopped from inside the plugin's start" )
+        {
+            inside.work = [ & ] { host->stopDataSource( LifecycleProbeId ); };
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+
+            THEN( "The stop does nothing, and the stream starts" )
+            {
+                REQUIRE( probe.events() == "init,start,started" );
+                REQUIRE( host->streamWriter( LifecycleProbeId ) != nullptr );
+            }
+        }
+
+        WHEN( "The plugin is unloaded from inside its start, which lets the stream run" )
+        {
+            inside.work = [ & ] { host->unloadPlugin( LifecycleProbeId ); };
+            const auto error = host->startDataSource( LifecycleProbeId );
+
+            THEN( "Nothing said it started, and once the call has returned the plugin is "
+                  "stopped, shut down and its stream ended" )
+            {
+                REQUIRE_FALSE( error.isEmpty() );
+                REQUIRE( probe.events() == "init,start" );
+                REQUIRE( waitUiState(
+                    [ & ] { return probe.events() == "init,start,stop,shutdown,stopped"; },
+                    5000 ) );
+                REQUIRE( host->streamWriter( LifecycleProbeId ) == nullptr );
+            }
+        }
+
+        WHEN( "The user stops the data source and the plugin is unloaded from inside its stop" )
+        {
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            inside.work = [ & ] { host->unloadPlugin( LifecycleProbeId ); };
+            host->stopDataSource( LifecycleProbeId );
+
+            THEN( "The stream ends once the stop has returned, and the plugin is shut down "
+                  "after, stopped once" )
+            {
+                REQUIRE( probe.events() == "init,start,started,stop,stopped" );
+                REQUIRE( waitUiState(
+                    [ & ] { return probe.events() == "init,start,started,stop,stopped,shutdown"; },
+                    5000 ) );
+            }
+        }
+
+        // The menu action of the plugin's, as the host handed it to the port:
+        // triggering it is a call into the plugin, which may show a dialog.
+        const auto triggerMenuAction = [ & ] {
+            const auto action
+                = std::ranges::find( port.calls, PortCall::Kind::AddMenuAction, &PortCall::kind );
+            REQUIRE( action != port.calls.end() );
+            action->callback( action->userData );
+        };
+
+        WHEN( "The plugin is unloaded from inside a menu action of its own while its stream "
+              "runs" )
+        {
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            inside.work = [ & ] { host->unloadPlugin( LifecycleProbeId ); };
+            probe.setHooks( nullptr, nullptr, &InsidePluginCall::run, &inside );
+            triggerMenuAction();
+
+            THEN( "Once the menu action has returned, the plugin is stopped once, shut down, and "
+                  "its stream ended" )
+            {
+                REQUIRE( probe.events() == "init,start,started" );
+                REQUIRE( waitUiState(
+                    [ & ] { return probe.events() == "init,start,started,stop,shutdown,stopped"; },
+                    5000 ) );
+            }
+        }
+
+        WHEN( "The plugin is unloaded from inside a menu action of its own, and its stream is "
+              "stopped there too" )
+        {
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            inside.work = [ & ] {
+                host->unloadPlugin( LifecycleProbeId );
+                host->stopDataSource( LifecycleProbeId );
+            };
+            probe.setHooks( nullptr, nullptr, &InsidePluginCall::run, &inside );
+            triggerMenuAction();
+
+            THEN( "The plugin, not shut down yet, is stopped before its stream ends, and shut "
+                  "down once the menu action has returned, stopped once" )
+            {
+                REQUIRE( probe.events() == "init,start,started,stop,stopped" );
+                REQUIRE( waitUiState(
+                    [ & ] { return probe.events() == "init,start,started,stop,stopped,shutdown"; },
+                    5000 ) );
+            }
+        }
+
+        // What a section set to run inside the plugin refers to its locals.
+        inside.work = nullptr;
+        if ( host ) {
+            host->unloadAll();
         }
     }
 }

@@ -242,6 +242,28 @@ add_dependencies(logsquirl_tests logsquirl_stream_probe)
 target_compile_definitions(logsquirl_tests PRIVATE
     LOGSQUIRL_STREAM_PROBE_PATH="$<TARGET_FILE:logsquirl_stream_probe>")
 
+# The same probe built against the plugin header as LogSquirl 26.12.0
+# published it, before a data source heard when its stream starts and stops:
+# it starts and stops as before (#855).
+add_library(logsquirl_stream_probe_api2612 MODULE plugins/streamprobe.cpp)
+target_link_libraries(logsquirl_stream_probe_api2612 PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_stream_probe_api2612
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/plugins/api2612")
+set_target_properties(logsquirl_stream_probe_api2612 PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_stream_probe_api2612)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_STREAM_PROBE_API2612_PATH="$<TARGET_FILE:logsquirl_stream_probe_api2612>")
+
+# A data source plugin that exports logsquirl_datasource_start and
+# logsquirl_datasource_stop and writes down when the host calls them (#855).
+add_library(logsquirl_lifecycle_probe MODULE plugins/lifecycleprobe.cpp)
+target_link_libraries(logsquirl_lifecycle_probe PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_lifecycle_probe PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_lifecycle_probe PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_lifecycle_probe)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_LIFECYCLE_PROBE_PATH="$<TARGET_FILE:logsquirl_lifecycle_probe>")
+
 # On Windows a plugin finds the libraries it ships next to it. The fixture
 # imports a library that is built into a directory of its own, so neither the
 # test's directory nor PATH has it; the test copies both into a plugin
