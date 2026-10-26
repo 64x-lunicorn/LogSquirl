@@ -105,6 +105,32 @@ public:
         action.callback( action.userData );
     }
 
+    /// The context menu items plugins add, with their menu paths (#859).
+    struct ContextMenuAction {
+        QString menuPath;
+        QString label;
+        logsquirl::plugins::PluginContextMenuCallbackFn callback = nullptr;
+        void* userData = nullptr;
+    };
+    std::vector<ContextMenuAction> contextMenuActions;
+
+    void addContextMenuAction( const QString& /* pluginId */, const QString& menuPath,
+                               const QString& label,
+                               logsquirl::plugins::PluginContextMenuCallbackFn callback,
+                               void* userData ) override
+    {
+        contextMenuActions.push_back( { menuPath, label, callback, userData } );
+    }
+
+    /// Chooses the context menu item with the label, which must be shown.
+    void choose( const QString& label,
+                 const logsquirl::plugins::PluginContextMenuContext& context ) const
+    {
+        const auto it = std::ranges::find( contextMenuActions, label, &ContextMenuAction::label );
+        REQUIRE( it != contextMenuActions.end() );
+        it->callback( it->userData, context );
+    }
+
     void removeContributions( const QString& pluginId ) override
     {
         removedContributions.append( pluginId );
@@ -320,6 +346,29 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
                     }
                 }
                 REQUIRE( notifications.isEmpty() );
+            }
+
+            THEN( "Its Show Line Number, in a submenu of the context menu of the Log Lines, "
+                  "shows the number of the first selected Log Line, how many more there are, "
+                  "and the selected word (#859)" )
+            {
+                REQUIRE( port.contextMenuActions.size() == 1 );
+                REQUIRE( port.contextMenuActions.front().menuPath
+                         == QStringLiteral( "My Plugin" ) );
+                using logsquirl::plugins::PluginContextMenuContext;
+                port.choose(
+                    QStringLiteral( "Show Line Number" ),
+                    PluginContextMenuContext{ .logLines = { 41 }, .selectedLogLineCount = 1 } );
+                port.choose( QStringLiteral( "Show Line Number" ),
+                             PluginContextMenuContext{ .logLines = { 9, 10, 11 },
+                                                       .selectedLogLineCount = 3 } );
+                port.choose( QStringLiteral( "Show Line Number" ),
+                             PluginContextMenuContext{ .logLines = { 2 },
+                                                       .selectedLogLineCount = 1,
+                                                       .selectedText = QStringLiteral( "id-7" ) } );
+                port.choose( QStringLiteral( "Show Line Number" ), PluginContextMenuContext{} );
+                REQUIRE( notifications
+                         == QStringList{ "Line 42", "Line 10 and 2 more", "Line 3: id-7" } );
             }
 
             THEN( "It unloads again" )

@@ -230,11 +230,43 @@ void SharedPluginUiPort::removeMenuAction( const QString& pluginId, void* userDa
     }
 }
 
+void SharedPluginUiPort::addContextMenuAction( const QString& pluginId, const QString& menuPath,
+                                               const QString& label,
+                                               PluginContextMenuCallbackFn callback,
+                                               void* userData )
+{
+    const std::scoped_lock lock( mutex_ );
+    contextMenuActions_.push_back(
+        PluginContextMenuAction{ .pluginId = pluginId,
+                                 .menuPath = menuPath,
+                                 .label = label,
+                                 .callback = callback,
+                                 .userData = userData,
+                                 .serial = ++contextMenuActionsSoFar_ } );
+}
+
+void SharedPluginUiPort::removeContextMenuAction( const QString& pluginId, void* userData )
+{
+    const std::scoped_lock lock( mutex_ );
+    std::erase_if( contextMenuActions_, [ & ]( const PluginContextMenuAction& action ) {
+        return action.pluginId == pluginId && action.userData == userData;
+    } );
+}
+
+std::vector<PluginContextMenuAction> SharedPluginUiPort::contextMenuActions() const
+{
+    const std::scoped_lock lock( mutex_ );
+    return contextMenuActions_;
+}
+
 void SharedPluginUiPort::removeContributions( const QString& pluginId )
 {
     const std::scoped_lock lock( mutex_ );
     std::erase_if( menuActions_,
                    [ & ]( const MenuAction& action ) { return action.pluginId == pluginId; } );
+    std::erase_if( contextMenuActions_, [ & ]( const PluginContextMenuAction& action ) {
+        return action.pluginId == pluginId;
+    } );
     std::erase_if( widgets_,
                    [ & ]( const Widget& widget ) { return widget.pluginId == pluginId; } );
     for ( auto* window : windows_ ) {

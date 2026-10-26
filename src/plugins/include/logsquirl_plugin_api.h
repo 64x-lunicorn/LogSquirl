@@ -188,6 +188,80 @@ typedef void ( *LogSquirlLogLinesCallbackFn )( void* user_data, const char* file
 typedef void ( *LogSquirlEncodingCallbackFn )( void* user_data, const char* file_path,
                                                const char* encoding );
 
+/* ── Context menu ────────────────────────────────────────────────────────── */
+
+/** The view of Log Lines a context menu was opened in (LogSquirl 26.12). */
+typedef enum {
+    LOGSQUIRL_LOG_VIEW_TEXT = 0,    /**< The Text View, the Log File's Log Lines as text  */
+    LOGSQUIRL_LOG_VIEW_TABLE = 1,   /**< The Table View, a Row per Log Line               */
+    LOGSQUIRL_LOG_VIEW_FILTERED = 2 /**< The Filtered View, the Log Lines a Search shows */
+} LogSquirlLogView;
+
+/**
+ * What the host hands an item of the context menu when the user chooses it
+ * (see register_context_menu_action, LogSquirl 26.12): what was selected as
+ * the menu opened.  The host owns it and everything it points to: valid
+ * during the call only, so keep no pointer to it, and never copy the struct.
+ * It grows by appending members, and size says how far the running host
+ * filled it: check LOGSQUIRL_CONTEXT_MENU_CONTEXT_HAS before reading a member
+ * added later.  The members below are always there.
+ */
+typedef struct LogSquirlContextMenuContext {
+    /** sizeof( LogSquirlContextMenuContext ) in the host's build: how far the host filled it. */
+    size_t size;
+
+    /** The Log File (UTF-8), as get_active_file_path names it. */
+    const char* file_path;
+
+    /** One of LogSquirlLogView: the view the menu was opened in. */
+    int view;
+
+    /**
+     * The numbers of the selected Log Lines, in the order of the Log File, as
+     * the views and go_to_log_line number them: the first Log Line is 1.  In
+     * the Filtered View too, they are the Log File's numbers.  At most
+     * LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES of them, the first ones selected.
+     * A right-click on a Log Line outside the selection selects that Log Line
+     * first.  NULL, with a count of 0, when no Log Line is selected, as when
+     * the menu opens below the last Log Line with none selected.
+     */
+    const uint64_t* line_numbers;
+    size_t line_number_count;
+
+    /**
+     * How many Log Lines were selected: more than line_number_count when the
+     * list holds only the first of them.
+     */
+    uint64_t selected_line_count;
+
+    /**
+     * The text selected within one Log Line or one cell of the Table View (a
+     * word, an id), UTF-8 and NUL-terminated; NULL when whole Log Lines are
+     * selected.  Read the text of whole Log Lines with get_log_lines.
+     */
+    const char* selected_text;
+    /** The length of selected_text in bytes, without the NUL; 0 when it is NULL. */
+    size_t selected_text_length;
+} LogSquirlContextMenuContext;
+
+/**
+ * Non-zero when the context the host passed holds the whole member, i.e. the
+ * running host filled it; the members above are always there.
+ */
+#define LOGSQUIRL_CONTEXT_MENU_CONTEXT_HAS( context, member )                                      \
+    ( offsetof( LogSquirlContextMenuContext, member )                                              \
+          + sizeof( ( (const LogSquirlContextMenuContext*)0 )->member )                            \
+      <= ( context )->size )
+
+/**
+ * Called on the UI thread when the user chooses an item a plugin added to the
+ * context menu (see register_context_menu_action).
+ * @param user_data  The user_data passed to register_context_menu_action, unchanged.
+ * @param context    What was selected as the menu opened; valid during the call only.
+ */
+typedef void ( *LogSquirlContextMenuCallbackFn )( void* user_data,
+                                                  const LogSquirlContextMenuContext* context );
+
 /* ── Host API (provided by host, called by plugin) ───────────────────────── */
 
 /**
@@ -576,6 +650,46 @@ typedef struct {
      */
     void ( *register_log_lines_callback )( void* handle, LogSquirlLogLinesCallbackFn callback,
                                            void* user_data );
+
+    /**
+     * Add an item to the context menu of the Log Lines (LogSquirl 26.12): that
+     * of the Text View, the Table View and the Filtered View, in every window
+     * and every tab, those opened later included.  The items of all plugins
+     * sit below a separator at the end of the menu, in the order they were
+     * registered; without any, there is no separator.  An item is always
+     * shown and enabled: the host does not call the plugin as the menu opens.
+     * Each call adds an item of its own.  unregister_context_menu_action
+     * removes it, and so does unloading the plugin.  May be called from any
+     * thread: the id is returned at once.
+     * @param menu_path  Slash-separated path of submenus of that section the
+     *                   item goes into, e.g. "My Plugin/Decode"; an empty
+     *                   path, or NULL, puts it into the section itself.
+     * @param label      Menu item label (UTF-8); must not be NULL or empty.
+     * @param callback   Function called, on the UI thread, once the user chose
+     *                   the item and the menu has closed, with what was
+     *                   selected as it opened; must not be NULL.  It is not
+     *                   called when the view the menu was opened in, or its
+     *                   tab, closed meanwhile.
+     * @param user_data  Passed back to callback unchanged.
+     * @return The item's id, greater than 0; negative when no item was added:
+     *         a host without a user interface, a NULL handle, a NULL or empty
+     *         label, or a NULL callback.
+     */
+    int ( *register_context_menu_action )( void* handle, const char* menu_path, const char* label,
+                                           LogSquirlContextMenuCallbackFn callback,
+                                           void* user_data );
+
+    /**
+     * Remove an item register_context_menu_action added (LogSquirl 26.12):
+     * a context menu opened later does not show it.  Once the call returns,
+     * the item's callback is not called again: a choice of it still queued is
+     * dropped, and only a call of it already running on the UI thread
+     * finishes.  An id the plugin was not given, or one already removed,
+     * does nothing.  May be called from any thread, from the item's own
+     * callback too.
+     * @param id  What register_context_menu_action returned.
+     */
+    void ( *unregister_context_menu_action )( void* handle, int id );
 
 } LogSquirlHostApi;
 

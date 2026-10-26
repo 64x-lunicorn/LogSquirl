@@ -213,6 +213,24 @@ void logLinesChanged( void* /* user_data */, const char* file_path, uint64_t lin
         ( std::string( file_path ) + how + std::to_string( line_count ) + " Log Lines" ).c_str() );
 }
 
+// Called on the UI thread once the user chose Show Line Number in the context
+// menu of the Log Lines: with what was selected as it opened, the Log Lines
+// numbered from 1, and a word selected within one, if any.
+void showLineNumber( void* /* user_data */, const LogSquirlContextMenuContext* context )
+{
+    if ( context->line_number_count == 0 ) {
+        return;
+    }
+    std::string text = "Line " + std::to_string( context->line_numbers[ 0 ] );
+    if ( context->selected_line_count > 1 ) {
+        text += " and " + std::to_string( context->selected_line_count - 1 ) + " more";
+    }
+    if ( context->selected_text != nullptr ) {
+        text += ": " + std::string( context->selected_text, context->selected_text_length );
+    }
+    host->show_notification( hostHandle, text.c_str() );
+}
+
 } // namespace
 
 extern "C" {
@@ -259,6 +277,11 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
         api->register_menu_action( handle, "Plugins", "Count Lines", &countLines, nullptr );
         api->register_log_lines_callback( handle, &logLinesChanged, nullptr );
     }
+    // An item at the end of the context menu of the Log Lines, in a submenu.
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, register_context_menu_action ) ) {
+        api->register_context_menu_action( handle, "My Plugin", "Show Line Number", &showLineNumber,
+                                           nullptr );
+    }
     return 0;
 }
 
@@ -282,9 +305,11 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 The exported functions need C linkage: in C++, define them inside
 `extern "C"`, or the host does not find them by name. The example exports
 `logsquirl_plugin_init_ex` as well as `logsquirl_plugin_init`, so it runs on a
-LogSquirl that knows the Regex Lab, Log Line, encoding, menu item removal and
-Log File reading functions and on one that does not. On a LogSquirl that removes menu items, a
-*Stop Saying Hello* item takes *Say Hello* and itself away again.
+LogSquirl that knows the Regex Lab, Log Line, encoding, menu item removal,
+Log File reading and context menu functions and on one that does not. On a LogSquirl that removes menu items, a
+*Stop Saying Hello* item takes *Say Hello* and itself away again; on one with
+plugin items in the context menu of the Log Lines, *My Plugin* → *Show Line
+Number* there shows the number of the selected Log Line.
 
 ### 4. Build with CMake
 
@@ -730,6 +755,10 @@ typedef struct {
                             size_t* line_count );
     void ( *register_log_lines_callback )( void* handle, LogSquirlLogLinesCallbackFn callback,
                                            void* user_data );
+    int ( *register_context_menu_action )( void* handle, const char* menu_path, const char* label,
+                                           LogSquirlContextMenuCallbackFn callback,
+                                           void* user_data );
+    void ( *unregister_context_menu_action )( void* handle, int id );
 } LogSquirlHostApi;
 ```
 
@@ -766,6 +795,7 @@ The functions follow one set of rules for strings and registrations (see
 | `register_footer_widget`        | adds another widget; the same widget again does nothing | `unregister_footer_widget`  |
 | `register_menu_action`          | adds another item, but none of a label the plugin already has | unloading the plugin only |
 | `register_menu_action_ex`       | adds another item with an id of its own; a label the plugin already has fails | `unregister_menu_action` |
+| `register_context_menu_action`  | adds another item with an id of its own, whatever its label | `unregister_context_menu_action` |
 | `register_active_file_callback` | replaces the callback                            | a `NULL` callback                  |
 | `register_encoding_callback`    | replaces the callback                            | a `NULL` callback                  |
 | `register_log_lines_callback`   | replaces the callback                            | a `NULL` callback                  |
@@ -828,18 +858,20 @@ The example plugin shows the pattern: `logsquirl_plugin_init` forwards to
 `LOGSQUIRL_HOST_API_HAS( api_size, open_regex_lab )`. Keep the size, or what it
 tells, for later calls.
 
-| Function                      | Added in        |
-|-------------------------------|-----------------|
-| `open_regex_lab`              | LogSquirl 26.11 |
-| `go_to_log_line`              | LogSquirl 26.11 |
-| `get_selected_log_lines`      | LogSquirl 26.11 |
-| `get_log_file_encoding`       | LogSquirl 26.12 |
-| `register_encoding_callback`  | LogSquirl 26.12 |
-| `register_menu_action_ex`     | LogSquirl 26.12 |
-| `unregister_menu_action`      | LogSquirl 26.12 |
-| `get_log_line_count`          | LogSquirl 26.12 |
-| `get_log_lines`               | LogSquirl 26.12 |
-| `register_log_lines_callback` | LogSquirl 26.12 |
+| Function                         | Added in        |
+|----------------------------------|-----------------|
+| `open_regex_lab`                 | LogSquirl 26.11 |
+| `go_to_log_line`                 | LogSquirl 26.11 |
+| `get_selected_log_lines`         | LogSquirl 26.11 |
+| `get_log_file_encoding`          | LogSquirl 26.12 |
+| `register_encoding_callback`     | LogSquirl 26.12 |
+| `register_menu_action_ex`        | LogSquirl 26.12 |
+| `unregister_menu_action`         | LogSquirl 26.12 |
+| `get_log_line_count`             | LogSquirl 26.12 |
+| `get_log_lines`                  | LogSquirl 26.12 |
+| `register_log_lines_callback`    | LogSquirl 26.12 |
+| `register_context_menu_action`   | LogSquirl 26.12 |
+| `unregister_context_menu_action` | LogSquirl 26.12 |
 
 ### Regex Lab Types
 
@@ -894,6 +926,45 @@ The callback of `register_encoding_callback`:
 ```c
 typedef void ( *LogSquirlEncodingCallbackFn )( void* user_data, const char* file_path,
                                                const char* encoding );
+```
+
+### Context Menu Types
+
+The view, the context and the callback of `register_context_menu_action`
+(added in LogSquirl 26.12). The host owns the context and everything it
+points to: it is valid during the call only, so keep no pointer to it, and
+never copy the struct. It grows by appending members, as
+`LogSquirlConvertControl` does: check
+`LOGSQUIRL_CONTEXT_MENU_CONTEXT_HAS( context, member )` before reading a
+member added later (the members below are always there).
+
+```c
+typedef enum {
+    LOGSQUIRL_LOG_VIEW_TEXT = 0,    /* the Text View     */
+    LOGSQUIRL_LOG_VIEW_TABLE = 1,   /* the Table View    */
+    LOGSQUIRL_LOG_VIEW_FILTERED = 2 /* the Filtered View */
+} LogSquirlLogView;
+
+typedef struct LogSquirlContextMenuContext {
+    size_t size;           /* sizeof( LogSquirlContextMenuContext ) in the host's build */
+    const char* file_path; /* the Log File, as get_active_file_path names it */
+    int view;              /* one of LogSquirlLogView */
+    /* the selected Log Lines, numbered from 1, in the order of the Log File */
+    const uint64_t* line_numbers;
+    size_t line_number_count;
+    uint64_t selected_line_count; /* how many were selected, those not listed too */
+    /* the text selected within one Log Line or cell; NULL for whole Log Lines */
+    const char* selected_text;
+    size_t selected_text_length; /* in bytes, without the NUL */
+} LogSquirlContextMenuContext;
+
+#define LOGSQUIRL_CONTEXT_MENU_CONTEXT_HAS( context, member )                                      \
+    ( offsetof( LogSquirlContextMenuContext, member )                                              \
+          + sizeof( ( (const LogSquirlContextMenuContext*)0 )->member )                            \
+      <= ( context )->size )
+
+typedef void ( *LogSquirlContextMenuCallbackFn )( void* user_data,
+                                                  const LogSquirlContextMenuContext* context );
 ```
 
 ---
@@ -1147,6 +1218,65 @@ take a `QWidget*` cast to `void*`: the plugin creates and owns the widget and
 the host parents it. Unregister the widget again before you delete it, at the
 latest in `shutdown`. Such a plugin links against the same Qt 6 LogSquirl
 uses and names it in its manifest, see [Plugins That Use Qt](#plugins-that-use-qt).
+
+### Context Menu
+
+`register_context_menu_action` (added in LogSquirl 26.12, see
+[ADR 0025](adr/0025-a-context-menu-item-is-called-from-the-event-loop-with-what-was-selected-as-the-menu-opened.md))
+adds an item to the context menu of the Log Lines: that of the Text View, the
+Table View and the Filtered View, in every window and every tab, those opened
+later included. The items of all plugins sit below a separator at the end of
+the menu, in the order they were registered; without any, there is no
+separator. `menu_path` makes submenus of that section as it does for the
+Plugins menu (`"My Plugin/Decode"`), and an empty path, or `NULL`, puts the
+item directly into the section.
+
+```c
+/* Called on the UI thread once the user chose the item and the menu closed. */
+void decode( void* user_data, const LogSquirlContextMenuContext* context )
+{
+    if ( context->selected_text != NULL ) {
+        /* a word or an id selected within one Log Line or table cell */
+    }
+    for ( size_t i = 0; i < context->line_number_count; ++i ) {
+        /* read context->line_numbers[ i ] with get_log_lines( handle,
+           context->file_path, context->line_numbers[ i ], 1, ... ) */
+    }
+}
+
+if ( LOGSQUIRL_HOST_API_HAS( api_size, register_context_menu_action )
+     && LOGSQUIRL_HOST_API_HAS( api_size, unregister_context_menu_action ) ) {
+    int id = api->register_context_menu_action( handle, "My Plugin", "Decode", &decode, userData );
+    /* ... later, from any thread, from the item's own callback too */
+    api->unregister_context_menu_action( handle, id );
+}
+```
+
+An item is always shown and enabled: LogSquirl does not call the plugin as
+the menu opens, so it cannot hide an item that does not fit the selection.
+When the user chooses it, the callback is called on the UI thread once the
+menu has closed, with a `LogSquirlContextMenuContext` of what was selected as
+the menu opened (see [Context Menu Types](#context-menu-types)):
+
+- `file_path` is the Log File, as `get_active_file_path` names it, and `view`
+  says which view the menu was opened in.
+- `line_numbers` lists the selected Log Lines, numbered from 1 as the views
+  number them and in the order of the Log File; in the Filtered View too, they
+  are the numbers of the Log File. A right-click on a Log Line outside the
+  selection selects that Log Line first. At most
+  `LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES` are listed, the first ones;
+  `selected_line_count` says how many were selected.
+- `selected_text` is the text selected within one Log Line or one table cell,
+  UTF-8, with its length in bytes; `NULL` when whole Log Lines are selected.
+  Read the text of whole Log Lines with `get_log_lines`.
+
+The callback is not called when the view the menu was opened in, or its tab,
+was closed meanwhile, nor once `unregister_context_menu_action` has returned
+for it, a choice still queued included. Each call of
+`register_context_menu_action` adds an item of its own and returns its id,
+greater than 0; a negative value means no item was added: a `NULL` or empty
+`label` or a `NULL` callback. An id the plugin was not given, or one already
+removed, does nothing.
 
 ### Active File
 

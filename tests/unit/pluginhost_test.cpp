@@ -59,10 +59,13 @@ using logsquirl::plugins::ConversionOutcome;
 using logsquirl::plugins::ConversionReport;
 using logsquirl::plugins::PluginCallbackFn;
 using logsquirl::plugins::PluginCatalog;
+using logsquirl::plugins::PluginContextMenuCallbackFn;
+using logsquirl::plugins::PluginContextMenuContext;
 using logsquirl::plugins::PluginHost;
 using logsquirl::plugins::PluginLogFileSource;
 using logsquirl::plugins::PluginLogLineJump;
 using logsquirl::plugins::PluginLogLinesChange;
+using logsquirl::plugins::PluginLogView;
 using logsquirl::plugins::PluginPattern;
 using logsquirl::plugins::PluginRegexLabAnswer;
 using logsquirl::plugins::PluginSelectedLogLines;
@@ -84,6 +87,8 @@ struct PortCall {
         RemoveFooterWidget,
         AddMenuAction,
         RemoveMenuAction,
+        AddContextMenuAction,
+        RemoveContextMenuAction,
         RemoveContributions,
     };
 
@@ -94,6 +99,7 @@ struct PortCall {
     PluginWidgetHandle widget{};
     PluginCallbackFn callback = nullptr;
     void* userData = nullptr;
+    PluginContextMenuCallbackFn contextMenuCallback = nullptr;
 };
 
 /// Records every call instead of showing anything.
@@ -157,6 +163,25 @@ public:
     void removeMenuAction( const QString& pluginId, void* userData ) override
     {
         calls.push_back( { .kind = PortCall::Kind::RemoveMenuAction,
+                           .pluginId = pluginId,
+                           .userData = userData } );
+    }
+
+    void addContextMenuAction( const QString& pluginId, const QString& menuPath,
+                               const QString& label, PluginContextMenuCallbackFn callback,
+                               void* userData ) override
+    {
+        calls.push_back( { .kind = PortCall::Kind::AddContextMenuAction,
+                           .pluginId = pluginId,
+                           .menuPath = menuPath,
+                           .label = label,
+                           .userData = userData,
+                           .contextMenuCallback = callback } );
+    }
+
+    void removeContextMenuAction( const QString& pluginId, void* userData ) override
+    {
+        calls.push_back( { .kind = PortCall::Kind::RemoveContextMenuAction,
                            .pluginId = pluginId,
                            .userData = userData } );
     }
@@ -1188,6 +1213,375 @@ SCENARIO( "A plugin removes a menu item it registered with an id", "[pluginhost]
             const auto id = api->register_menu_action_ex( handle, "Plugins", "Nowhere",
                                                           &menuCallback, &runs );
             api->unregister_menu_action( handle, id );
+
+            THEN( "It gets a negative value, and unregistering it does nothing" )
+            {
+                REQUIRE( id < 0 );
+            }
+        }
+
+        host.unloadAll();
+        probe.library.unload();
+    }
+}
+
+namespace {
+
+/// What a context menu item of the plugin's was handed when it was chosen, copied.
+struct ContextMenuChoice {
+    size_t size = 0;
+    QString filePath;
+    int view = -1;
+    std::vector<uint64_t> lineNumbers;
+    bool lineNumbersNull = false;
+    uint64_t selectedLineCount = 0;
+    std::optional<QByteArray> selectedText;
+    size_t selectedTextLength = 0;
+};
+
+/// The choices of the items a test registers, and what an item does as it is chosen.
+struct ContextMenuChoices {
+    std::vector<ContextMenuChoice> choices;
+    // Set for an item that removes itself as it is chosen.
+    const LogSquirlHostApi* api = nullptr;
+    void* handle = nullptr;
+    int removeId = 0;
+};
+
+void recordContextMenuChoice( void* userData, const LogSquirlContextMenuContext* context )
+{
+    auto* recorded = static_cast<ContextMenuChoices*>( userData );
+    ContextMenuChoice choice;
+    choice.size = context->size;
+    choice.filePath = QString::fromUtf8( context->file_path );
+    choice.view = context->view;
+    choice.lineNumbersNull = context->line_numbers == nullptr;
+    if ( context->line_numbers != nullptr ) {
+        choice.lineNumbers.assign( context->line_numbers,
+                                   context->line_numbers + context->line_number_count );
+    }
+    choice.selectedLineCount = context->selected_line_count;
+    if ( context->selected_text != nullptr ) {
+        choice.selectedText = QByteArray( context->selected_text,
+                                          static_cast<qsizetype>( context->selected_text_length ) );
+    }
+    choice.selectedTextLength = context->selected_text_length;
+    recorded->choices.push_back( std::move( choice ) );
+    if ( recorded->api != nullptr ) {
+        recorded->api->unregister_context_menu_action( recorded->handle, recorded->removeId );
+    }
+}
+
+/// Chooses the item the port was handed in call, as the view does with what was selected.
+void choose( const PortCall& call, const PluginContextMenuContext& context )
+{
+    REQUIRE( call.contextMenuCallback != nullptr );
+    call.contextMenuCallback( call.userData, context );
+}
+
+} // namespace
+
+SCENARIO( "A plugin adds items to the context menu of the Log Lines through the Plugin Host",
+          "[pluginhost][plugincontextmenu][plugins]" )
+{
+    GIVEN( "A Plugin Host with a fake Plugin UI Port and the probe plugin loaded" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        REQUIRE( api != nullptr );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), register_context_menu_action ) );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), unregister_context_menu_action ) );
+
+        ContextMenuChoices decoded;
+        ContextMenuChoices copied;
+
+        WHEN( "The plugin registers a menu item with an id, then two context menu items (#859)" )
+        {
+            int menuRuns = 0;
+            const auto menuId = api->register_menu_action_ex( handle, "Plugins", "Menu",
+                                                              &menuCallback, &menuRuns );
+            const auto decodeId = api->register_context_menu_action(
+                handle, "Probe/Decode", "Decode", &recordContextMenuChoice, &decoded );
+            const auto copyId = api->register_context_menu_action(
+                handle, nullptr, "Copy id", &recordContextMenuChoice, &copied );
+            REQUIRE( port.calls.size() == 3 );
+            const auto decode = port.calls[ 1 ];
+            const auto copy = port.calls[ 2 ];
+
+            THEN( "Each gets an id of its own from the plugin's one counter, and the port adds "
+                  "both in that order" )
+            {
+                REQUIRE( menuId > 0 );
+                REQUIRE( decodeId > menuId );
+                REQUIRE( copyId > decodeId );
+                REQUIRE( decode.kind == PortCall::Kind::AddContextMenuAction );
+                REQUIRE( decode.pluginId == ProbeId );
+                REQUIRE( decode.menuPath == QStringLiteral( "Probe/Decode" ) );
+                REQUIRE( decode.label == QStringLiteral( "Decode" ) );
+                REQUIRE( copy.kind == PortCall::Kind::AddContextMenuAction );
+                REQUIRE( copy.menuPath.isEmpty() );
+                REQUIRE( copy.label == QStringLiteral( "Copy id" ) );
+                REQUIRE( decode.userData != copy.userData );
+            }
+
+            AND_WHEN( "The user chooses one in the Filtered View, on three Log Lines selected" )
+            {
+                choose( decode, PluginContextMenuContext{
+                                    .logFile = QStringLiteral( "/logs/app.log" ),
+                                    .view = PluginLogView::Filtered,
+                                    .logLines = { 0, 41, 99 },
+                                    .selectedLogLineCount = 3,
+                                    .selectedText = std::nullopt,
+                                } );
+
+                THEN( "Its callback is handed the Log File, the view and the Log Lines "
+                      "numbered from 1, and no selected text" )
+                {
+                    REQUIRE( decoded.choices.size() == 1 );
+                    REQUIRE( copied.choices.empty() );
+                    const auto& choice = decoded.choices.front();
+                    REQUIRE( choice.size == sizeof( LogSquirlContextMenuContext ) );
+                    REQUIRE( choice.filePath == QStringLiteral( "/logs/app.log" ) );
+                    REQUIRE( choice.view == LOGSQUIRL_LOG_VIEW_FILTERED );
+                    REQUIRE( choice.lineNumbers == std::vector<uint64_t>{ 1, 42, 100 } );
+                    REQUIRE( choice.selectedLineCount == 3 );
+                    REQUIRE_FALSE( choice.selectedText.has_value() );
+                    REQUIRE( choice.selectedTextLength == 0 );
+                }
+            }
+
+            AND_WHEN( "The user chooses one in the Table View, on a word selected in a cell" )
+            {
+                choose( copy, PluginContextMenuContext{
+                                  .logFile = QStringLiteral( "/logs/app.log" ),
+                                  .view = PluginLogView::Table,
+                                  .logLines = { 7 },
+                                  .selectedLogLineCount = 1,
+                                  .selectedText = QStringLiteral( "größe" ),
+                              } );
+
+                THEN( "Its callback is handed the word in UTF-8, with its length in bytes" )
+                {
+                    REQUIRE( copied.choices.size() == 1 );
+                    const auto& choice = copied.choices.front();
+                    REQUIRE( choice.view == LOGSQUIRL_LOG_VIEW_TABLE );
+                    REQUIRE( choice.lineNumbers == std::vector<uint64_t>{ 8 } );
+                    REQUIRE( choice.selectedText == QStringLiteral( "größe" ).toUtf8() );
+                    REQUIRE( choice.selectedTextLength == 7 );
+                }
+            }
+
+            AND_WHEN( "The user chooses one in the Text View, on more Log Lines than it is "
+                      "handed" )
+            {
+                PluginContextMenuContext many{ .logFile = QStringLiteral( "/logs/app.log" ),
+                                               .view = PluginLogView::Text,
+                                               .logLines = {},
+                                               .selectedLogLineCount = 5000,
+                                               .selectedText = std::nullopt };
+                for ( uint64_t line = 0; line < 1200; ++line ) {
+                    many.logLines.push_back( line );
+                }
+                choose( decode, many );
+
+                THEN( "Its callback is handed the first of them only, and how many there were" )
+                {
+                    REQUIRE( decoded.choices.size() == 1 );
+                    const auto& choice = decoded.choices.front();
+                    REQUIRE( choice.view == LOGSQUIRL_LOG_VIEW_TEXT );
+                    REQUIRE( choice.lineNumbers.size() == LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+                    REQUIRE( choice.lineNumbers.front() == 1 );
+                    REQUIRE( choice.lineNumbers.back() == LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+                    REQUIRE( choice.selectedLineCount == 5000 );
+                }
+            }
+
+            AND_WHEN( "It unregisters one of them" )
+            {
+                api->unregister_context_menu_action( handle, decodeId );
+
+                THEN( "The port removes that one, a choice of it does not reach the plugin, and "
+                      "the other still does" )
+                {
+                    REQUIRE( port.calls.back().kind == PortCall::Kind::RemoveContextMenuAction );
+                    REQUIRE( port.calls.back().pluginId == ProbeId );
+                    REQUIRE( port.calls.back().userData == decode.userData );
+                    choose( decode, PluginContextMenuContext{ .logLines = { 1 },
+                                                              .selectedLogLineCount = 1 } );
+                    choose( copy, PluginContextMenuContext{ .logLines = { 1 },
+                                                            .selectedLogLineCount = 1 } );
+                    REQUIRE( decoded.choices.empty() );
+                    REQUIRE( copied.choices.size() == 1 );
+                }
+
+                AND_WHEN( "It unregisters the same id again, ids it was never given, and the id "
+                          "of its menu item" )
+                {
+                    const auto callsBefore = port.calls.size();
+                    api->unregister_context_menu_action( handle, decodeId );
+                    api->unregister_context_menu_action( handle, 0 );
+                    api->unregister_context_menu_action( handle, -3 );
+                    api->unregister_context_menu_action( handle, copyId + 100 );
+                    api->unregister_context_menu_action( handle, menuId );
+
+                    THEN( "Nothing happens, and the menu item stays" )
+                    {
+                        REQUIRE( port.calls.size() == callsBefore );
+                        port.calls[ 0 ].callback( port.calls[ 0 ].userData );
+                        REQUIRE( menuRuns == 1 );
+                    }
+                }
+            }
+
+            AND_WHEN( "It unregisters the id of a context menu item with unregister_menu_action" )
+            {
+                const auto callsBefore = port.calls.size();
+                api->unregister_menu_action( handle, copyId );
+
+                THEN( "Nothing happens" )
+                {
+                    REQUIRE( port.calls.size() == callsBefore );
+                }
+            }
+
+            AND_WHEN( "It unregisters one from a thread of its own" )
+            {
+                std::thread( [ & ] {
+                    api->unregister_context_menu_action( handle, copyId );
+                } ).join();
+
+                THEN( "A choice of it after that does not reach the plugin" )
+                {
+                    choose( copy, PluginContextMenuContext{ .logLines = { 1 },
+                                                            .selectedLogLineCount = 1 } );
+                    REQUIRE( copied.choices.empty() );
+                }
+            }
+
+            AND_WHEN( "The plugin is unloaded" )
+            {
+                host.unloadPlugin( ProbeId );
+
+                THEN( "Its items go with all its contributions" )
+                {
+                    REQUIRE( port.calls.back().kind == PortCall::Kind::RemoveContributions );
+                }
+            }
+        }
+
+        WHEN( "The plugin registers an item from a thread of its own" )
+        {
+            int id = 0;
+            std::thread( [ & ] {
+                id = api->register_context_menu_action( handle, "", "Threaded",
+                                                        &recordContextMenuChoice, &copied );
+            } ).join();
+
+            THEN( "It gets the id at once" )
+            {
+                REQUIRE( id > 0 );
+                REQUIRE( port.calls.size() == 1 );
+                REQUIRE( port.calls.back().kind == PortCall::Kind::AddContextMenuAction );
+            }
+        }
+
+        WHEN( "The plugin registers an item that removes itself when chosen" )
+        {
+            copied.api = api;
+            copied.handle = handle;
+            copied.removeId = api->register_context_menu_action(
+                handle, "", "Once", &recordContextMenuChoice, &copied );
+            const auto added = port.calls.back();
+            choose( added,
+                    PluginContextMenuContext{ .logLines = { 1 }, .selectedLogLineCount = 1 } );
+            choose( added,
+                    PluginContextMenuContext{ .logLines = { 1 }, .selectedLogLineCount = 1 } );
+
+            THEN( "It runs once, and the port removes it" )
+            {
+                REQUIRE( copied.choices.size() == 1 );
+                REQUIRE( port.calls.back().kind == PortCall::Kind::RemoveContextMenuAction );
+                REQUIRE( port.calls.back().userData == added.userData );
+            }
+        }
+
+        WHEN( "The plugin registers items that cannot be added" )
+        {
+            const auto noLabel = api->register_context_menu_action(
+                handle, "", nullptr, &recordContextMenuChoice, &copied );
+            const auto emptyLabel = api->register_context_menu_action(
+                handle, "", "", &recordContextMenuChoice, &copied );
+            const auto noCallback
+                = api->register_context_menu_action( handle, "", "Nothing", nullptr, &copied );
+            const auto noHandle = api->register_context_menu_action(
+                nullptr, "", "Lost", &recordContextMenuChoice, &copied );
+
+            THEN( "It gets a negative value, and nothing is added" )
+            {
+                REQUIRE( noLabel < 0 );
+                REQUIRE( emptyLabel < 0 );
+                REQUIRE( noCallback < 0 );
+                REQUIRE( noHandle < 0 );
+                REQUIRE( port.calls.empty() );
+            }
+        }
+
+        WHEN( "The plugin registers two items of the same label" )
+        {
+            const auto first = api->register_context_menu_action(
+                handle, "", "Same", &recordContextMenuChoice, &copied );
+            const auto second = api->register_context_menu_action(
+                handle, "", "Same", &recordContextMenuChoice, &decoded );
+
+            THEN( "Each is an item of its own" )
+            {
+                REQUIRE( first > 0 );
+                REQUIRE( second > first );
+                REQUIRE( port.calls.size() == 2 );
+            }
+        }
+
+        host.unloadAll();
+        probe.library.unload();
+    }
+
+    GIVEN( "A Plugin Host without a Plugin UI Port and the probe plugin loaded" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        PluginHost host( catalog );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        ContextMenuChoices nowhere;
+
+        WHEN( "The plugin registers a context menu item" )
+        {
+            const auto id = api->register_context_menu_action( handle, "", "Nowhere",
+                                                               &recordContextMenuChoice, &nowhere );
+            api->unregister_context_menu_action( handle, id );
 
             THEN( "It gets a negative value, and unregistering it does nothing" )
             {

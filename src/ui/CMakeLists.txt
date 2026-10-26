@@ -109,6 +109,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/colorlabelsmanager.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/plugindialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfileforplugins.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/plugincontextmenu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginlogformats.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginuiadapter.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighteredit.ui
@@ -214,6 +215,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/commandpalette.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/plugindialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfileforplugins.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/plugincontextmenu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginlogformats.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginuiadapter.cpp
 )

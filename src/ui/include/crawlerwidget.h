@@ -157,6 +157,10 @@ public:
     // The Log File as plugins read its Log Lines, on any thread (#858): it
     // holds on to the Log File's data for as long as it lives.
     std::shared_ptr<const logsquirl::plugins::PluginLogFileSource> logFileForPlugins() const;
+    // What the plugins offer in the context menu of the tab's Text View,
+    // Table View and Filtered Views, those of Searches made later included
+    // (#859); asked whenever one opens. Without it, the menus have none.
+    void setPluginContextMenu( PluginContextMenuSource source );
 
     // Instructs the widget to select all the text in the window the user
     // is interacting with
@@ -712,6 +716,12 @@ private:
     QToolButton* tableViewToggle_ = nullptr;
     // The Presentation the upper pane shows: logMainView_ or logTableView_
     LogPresentation* presentation_ = nullptr;
+
+    // What the plugins offer in the views' context menus (#859).
+    PluginContextMenuSource pluginContextMenu_;
+    // What each view asks as its context menu opens: pluginContextMenu_ as
+    // it is then.
+    PluginContextMenuSource pluginContextMenuOfViews();
 };
 
 #endif

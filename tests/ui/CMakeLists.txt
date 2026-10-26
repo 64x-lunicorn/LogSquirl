@@ -52,6 +52,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_encoding_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_logfile_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_menu_actions_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin_context_menu_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_conversion_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_follow_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_line_status_theme_test.cpp
@@ -122,6 +123,15 @@ set_target_properties(logsquirl_test_menu_actions_plugin PROPERTIES CXX_VISIBILI
 add_dependencies(logsquirl_itests logsquirl_test_menu_actions_plugin)
 target_compile_definitions(logsquirl_itests PRIVATE
     LOGSQUIRL_TEST_MENU_ACTIONS_PLUGIN_PATH="$<TARGET_FILE:logsquirl_test_menu_actions_plugin>")
+
+# A plugin that adds items to the context menu of the Log Lines (#859).
+add_library(logsquirl_test_context_menu_plugin MODULE plugins/contextmenuplugin.cpp)
+target_link_libraries(logsquirl_test_context_menu_plugin PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_test_context_menu_plugin PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_test_context_menu_plugin PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_itests logsquirl_test_context_menu_plugin)
+target_compile_definitions(logsquirl_itests PRIVATE
+    LOGSQUIRL_TEST_CONTEXT_MENU_PLUGIN_PATH="$<TARGET_FILE:logsquirl_test_context_menu_plugin>")
 
 # A plugin that reads the Log Lines of an open Log File by path, on any
 # thread, and hears when they change (#858).

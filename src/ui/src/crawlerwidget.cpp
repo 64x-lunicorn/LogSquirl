@@ -261,6 +261,18 @@ CrawlerWidget::logFileForPlugins() const
     return std::make_shared<const LogFileForPlugins>( openLogFile_->logData() );
 }
 
+void CrawlerWidget::setPluginContextMenu( PluginContextMenuSource source )
+{
+    pluginContextMenu_ = std::move( source );
+}
+
+PluginContextMenuSource CrawlerWidget::pluginContextMenuOfViews()
+{
+    // The views go with this widget, and with them what they were handed.
+    return
+        [ this ] { return pluginContextMenu_ ? pluginContextMenu_() : PluginContextMenuOffer{}; };
+}
+
 bool CrawlerWidget::filteredViewWasLastFocused() const
 {
     const auto* focused = window()->focusWidget();
@@ -1378,6 +1390,7 @@ void CrawlerWidget::setup()
         = new LogMainView( openLogFile_->logData().get(), quickFindPattern_.get(), &overview_,
                            overviewWidget_, viewSet_.presentationPolicy().useTextWrap );
     logMainView_->setContentsMargins( 2, 0, 2, 0 );
+    logMainView_->setPluginContextMenu( pluginContextMenuOfViews() );
     // A tab starts showing Value Names as the Presentation Policy says, and
     // then as the View menu switches them for it (#647); its Filtered Views
     // show them as its Text View does.
@@ -1512,6 +1525,7 @@ void CrawlerWidget::setup()
     // The table view's overview strip shares the same Overview data as the
     // text view so matches/marks are always in sync.
     logTableView_->setOverview( &overview_, new OverviewWidget() );
+    logTableView_->setPluginContextMenu( pluginContextMenuOfViews() );
 
     mainViewStack_->addWidget( logMainView_ );
     mainViewStack_->addWidget( logTableView_ );
@@ -1782,6 +1796,7 @@ FilteredView* CrawlerWidget::buildFilteredView( LogFilteredData* search )
                                                openLogFile_->lastModified().date(),
                                                openLogFile_->fileName() };
     } );
+    view->setPluginContextMenu( pluginContextMenuOfViews() );
     return view;
 }
 

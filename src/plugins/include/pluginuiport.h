@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <vector>
 
 class QObject;
 
@@ -75,6 +76,54 @@ struct PluginSelectedLogLines {
     bool more = false;
 
     bool operator==( const PluginSelectedLogLines& ) const = default;
+};
+
+/** The view of Log Lines a context menu was opened in (#859). */
+enum class PluginLogView {
+    Text,    ///< The Text View.
+    Table,   ///< The Table View.
+    Filtered ///< A Filtered View.
+};
+
+/**
+ * At most this many of the selected Log Lines a context menu hands a plugin's
+ * item, the first ones (#859).
+ */
+inline constexpr std::size_t PluginContextMenuMaxLogLines = 1000;
+
+/** What was selected as a context menu with plugin items opened (#859). */
+struct PluginContextMenuContext {
+    /// The Log File of the view, by the path its tab was added under.
+    QString logFile{};
+    PluginLogView view = PluginLogView::Text;
+    /// The selected Log Lines, counted from 0 as the Log File's lines are,
+    /// in its order: at most PluginContextMenuMaxLogLines, the first ones.
+    std::vector<std::uint64_t> logLines{};
+    /// How many Log Lines were selected: more than logLines holds when it
+    /// holds only the first ones.
+    std::uint64_t selectedLogLineCount = 0;
+    /// The text selected within one Log Line or one cell; none when whole Log
+    /// Lines are selected.
+    std::optional<QString> selectedText{};
+
+    bool operator==( const PluginContextMenuContext& ) const = default;
+};
+
+/// Called, on the UI thread, when the user chose an item of the context menu.
+using PluginContextMenuCallbackFn
+    = void ( * )( void* userData, const PluginContextMenuContext& context );
+
+/** An item a plugin added to the context menu of the Log Lines (#859). */
+struct PluginContextMenuAction {
+    QString pluginId{};
+    /// Slash-separated path of the submenus of the plugin section it goes into.
+    QString menuPath{};
+    QString label{};
+    PluginContextMenuCallbackFn callback = nullptr;
+    void* userData = nullptr;
+    /// Given by the port, never twice: what names the item while a choice of
+    /// it waits to be delivered.
+    std::uint64_t serial = 0;
 };
 
 /** How going to a Log Line a plugin asked for ended (#663). */
@@ -138,8 +187,37 @@ public:
     virtual void removeMenuAction( const QString& pluginId, void* userData ) = 0;
 
     /**
-     * Take away everything a plugin still contributes: its menu actions and
-     * any widget it did not remove itself. Called after the plugin was shut
+     * Add an item of a plugin to the context menu of the Log Lines (#859),
+     * after those added before; userData, which the Plugin Host makes unique
+     * per item, names it. A port that shows no Log Lines adds none.
+     * @param menuPath  Slash-separated path of the submenus of the plugin
+     *                  section the item goes into; empty for the section itself.
+     * @param callback  Called with userData and what was selected when the
+     *                  user chose the item.
+     */
+    virtual void addContextMenuAction( const QString& /* pluginId */, const QString& /* menuPath */,
+                                       const QString& /* label */,
+                                       PluginContextMenuCallbackFn /* callback */,
+                                       void* /* userData */ )
+    {
+    }
+
+    /** Take the context menu item added with userData away again; nothing when it is not there. */
+    virtual void removeContextMenuAction( const QString& /* pluginId */, void* /* userData */ ) {}
+
+    /**
+     * The items of the context menu of the Log Lines, in the order they were
+     * added, from any thread: what the views of Log Lines show as their menu
+     * opens.
+     */
+    virtual std::vector<PluginContextMenuAction> contextMenuActions() const
+    {
+        return {};
+    }
+
+    /**
+     * Take away everything a plugin still contributes: its menu actions, its
+     * context menu items and any widget it did not remove itself. Called after the plugin was shut
      * down and before its library is released.
      */
     virtual void removeContributions( const QString& pluginId ) = 0;

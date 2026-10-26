@@ -504,16 +504,20 @@ _Avoid_: plugin registry, per-window plugins
 
 **Plugin UI Port**:
 Everything the plugin layer needs from the user interface to show what a plugin
-contributes — status widgets, sidebar tabs, footer widgets, menu actions, the parent
-of its configuration dialog, a Regex Lab it opens, and the tab in front, where it goes to a
+contributes — status widgets, sidebar tabs, footer widgets, menu actions, context menu
+items, the parent of its configuration dialog, a Regex Lab it opens, and the tab in front, where it goes to a
 Log Line and reads the selected Log Lines for a plugin. The plugin layer calls it and knows no widgets; every main
 window implements it. The Application Plugins hand each contribution on to every window: a
 menu action shows in all of them, a widget, which exists once, in the most recently active
 window, and it moves to another window when that one closes; a Regex Lab opens in the most
-recently active window too, whose tab in front is the one a plugin goes to a Log Line of. Every contribution belongs to
+recently active window too, whose tab in front is the one a plugin goes to a Log Line of. A
+context menu item stays with the Application Plugins: the Text View, the Table View and the
+Filtered View of every tab ask for the items each time their context menu opens and end it
+with them, and a chosen one is called from the event loop with the Log Lines selected as the
+menu opened (ADR 0025). Every contribution belongs to
 one plugin, and all of them are taken away again when that plugin is unloaded; the plugin
-takes a widget away earlier by the widget, a menu action it registered with an id by that id,
-from every window (ADR 0022).
+takes a widget away earlier by the widget, a menu action or a context menu item it registered
+with an id by that id, from every window (ADR 0022).
 _Avoid_: plugin UI bridge, widget signals, UI host
 
 **Conversion**:

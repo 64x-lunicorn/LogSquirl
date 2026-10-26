@@ -3830,6 +3830,22 @@ void MainWindow::tellPluginsOfLogFile( CrawlerWidget* crawler, const QString& fi
                      open->remove( id );
                  }
              } );
+
+    // Its views end their context menus with the plugins' items, as the
+    // Application Plugins' Plugin UI Port holds them when a menu opens
+    // (#859), by a weak hold as well. A tab that is closing -- it is deleted
+    // from the event loop -- offers none, so an item chosen before it closed
+    // is not called.
+    crawler->setPluginContextMenu(
+        [ window = QPointer<MainWindow>( this ), crawler,
+          plugins = std::weak_ptr<logsquirl::plugins::ApplicationPlugins>( plugins_ ), fileName ] {
+            PluginContextMenuOffer offer{ .logFile = fileName, .actions = {} };
+            const auto shared = plugins.lock();
+            if ( shared && window && window->mainTabWidget_.indexOf( crawler ) >= 0 ) {
+                offer.actions = shared->uiPort().contextMenuActions();
+            }
+            return offer;
+        } );
 }
 
 void MainWindow::hideLogFileFromPlugins( const CrawlerWidget* crawler )

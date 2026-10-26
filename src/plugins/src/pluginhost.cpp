@@ -30,8 +30,12 @@
 #include <atomic>
 #include <limits>
 #include <utility>
+#include <vector>
 
 namespace logsquirl::plugins {
+
+// The views hand a context menu item no more Log Lines than it passes on.
+static_assert( PluginContextMenuMaxLogLines == LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
 
 // ── Conversions ─────────────────────────────────────────────────────────────
 
@@ -360,6 +364,53 @@ void PluginHost::runMenuAction( void* menuActionCall )
     }
     call->context->host->callIntoPlugin( *call->context,
                                          [ call ] { call->callback( call->userData ); } );
+}
+
+void PluginHost::runContextMenuAction( void* contextMenuActionCall,
+                                       const PluginContextMenuContext& context )
+{
+    const auto* call = static_cast<const ContextMenuActionCall*>( contextMenuActionCall );
+    // Removed meanwhile: a choice delivered after unregister_context_menu_action
+    // returned is dropped, as a menu action's trigger is (#857, #859).
+    if ( !call->callback || call->removed.load() ) {
+        return;
+    }
+
+    const auto filePath = context.logFile.toUtf8();
+    // Numbered as the views number them, from 1.
+    std::vector<uint64_t> lineNumbers;
+    const auto count
+        = std::min<std::size_t>( context.logLines.size(), LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+    lineNumbers.reserve( count );
+    for ( std::size_t i = 0; i < count; ++i ) {
+        lineNumbers.push_back( context.logLines[ i ] + 1 );
+    }
+    const auto selectedText = context.selectedText ? context.selectedText->toUtf8() : QByteArray{};
+    const auto view = [ &context ] {
+        switch ( context.view ) {
+        case PluginLogView::Table:
+            return LOGSQUIRL_LOG_VIEW_TABLE;
+        case PluginLogView::Filtered:
+            return LOGSQUIRL_LOG_VIEW_FILTERED;
+        case PluginLogView::Text:
+            break;
+        }
+        return LOGSQUIRL_LOG_VIEW_TEXT;
+    }();
+
+    const LogSquirlContextMenuContext handed{
+        .size = sizeof( LogSquirlContextMenuContext ),
+        .file_path = filePath.constData(),
+        .view = view,
+        .line_numbers = lineNumbers.empty() ? nullptr : lineNumbers.data(),
+        .line_number_count = lineNumbers.size(),
+        .selected_line_count = std::max<uint64_t>( context.selectedLogLineCount, count ),
+        .selected_text = context.selectedText ? selectedText.constData() : nullptr,
+        .selected_text_length
+        = context.selectedText ? static_cast<std::size_t>( selectedText.size() ) : 0,
+    };
+    call->context->host->callIntoPlugin(
+        *call->context, [ call, &handed ] { call->callback( call->userData, &handed ); } );
 }
 
 void PluginHost::unloadAll()
@@ -917,6 +968,8 @@ LogSquirlHostApi PluginHost::buildHostApi()
     api.get_log_line_count = &PluginHost::hostGetLogLineCount;
     api.get_log_lines = &PluginHost::hostGetLogLines;
     api.register_log_lines_callback = &PluginHost::hostRegisterLogLinesCallback;
+    api.register_context_menu_action = &PluginHost::hostRegisterContextMenuAction;
+    api.unregister_context_menu_action = &PluginHost::hostUnregisterContextMenuAction;
 
     return api;
 }
@@ -1587,6 +1640,60 @@ void PluginHost::hostRegisterLogLinesCallback( void* handle, LogSquirlLogLinesCa
     const std::lock_guard lock( ctx->registrationsMutex );
     ctx->logLinesCallback = callback;
     ctx->logLinesUserData = userData;
+}
+
+int PluginHost::hostRegisterContextMenuAction( void* handle, const char* menuPath,
+                                               const char* label,
+                                               LogSquirlContextMenuCallbackFn callback,
+                                               void* userData )
+{
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port || label == nullptr || *label == '\0' || callback == nullptr ) {
+        return -1;
+    }
+    auto* ctx = contextFromHandle( handle );
+    ContextMenuActionCall* call = nullptr;
+    int id = -1;
+    {
+        // The id from the counter every registration with an id shares (#857).
+        const std::lock_guard lock( ctx->registrationsMutex );
+        id = nextRegistrationId( *ctx );
+        if ( id < 0 ) {
+            return -1;
+        }
+        call = &ctx->contextMenuActionCalls.emplace_back();
+        call->context = ctx;
+        call->callback = callback;
+        call->userData = userData;
+        call->id = id;
+        ctx->contextMenuActionsById.emplace( id, call );
+    }
+    port->addContextMenuAction( pluginId, QString::fromUtf8( menuPath ), QString::fromUtf8( label ),
+                                &PluginHost::runContextMenuAction, call );
+    return id;
+}
+
+void PluginHost::hostUnregisterContextMenuAction( void* handle, int id )
+{
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
+        return;
+    }
+    auto* ctx = contextFromHandle( handle );
+    ContextMenuActionCall* call = nullptr;
+    {
+        const std::lock_guard lock( ctx->registrationsMutex );
+        const auto it = ctx->contextMenuActionsById.find( id );
+        if ( it == ctx->contextMenuActionsById.end() ) {
+            return;
+        }
+        call = it->second;
+        ctx->contextMenuActionsById.erase( it );
+        // From here on no choice of the item reaches the plugin, one already
+        // waiting for the event loop included; the record stays for it.
+        call->removed.store( true );
+    }
+    port->removeContextMenuAction( pluginId, call );
 }
 
 } // namespace logsquirl::plugins

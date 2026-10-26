@@ -420,3 +420,101 @@ SCENARIO( "A plugin reads the Encoding of a Log File in any window",
         }
     }
 }
+
+namespace {
+
+void noContextMenuAction( void* /* userData */,
+                          const logsquirl::plugins::PluginContextMenuContext& /* context */ )
+{
+}
+
+/// The labels of the context menu items, in their order.
+QStringList contextMenuLabels( const SharedPluginUiPort& port )
+{
+    QStringList labels;
+    for ( const auto& action : port.contextMenuActions() ) {
+        labels.append( action.label );
+    }
+    return labels;
+}
+
+} // namespace
+
+SCENARIO( "The plugins' context menu items are kept in the order they were added",
+          "[sharedpluginuiport][plugincontextmenu][plugins]" )
+{
+    GIVEN( "A window and two plugins that added context menu items in turn" )
+    {
+        SharedPluginUiPort port;
+        FakeWindowPort window;
+        port.addWindow( &window );
+        const auto otherId = QStringLiteral( "com.test.other" );
+        int first = 0;
+        int second = 0;
+        int third = 0;
+        port.addContextMenuAction( PluginId, QStringLiteral( "Mine/Sub" ),
+                                   QStringLiteral( "First" ), noContextMenuAction, &first );
+        port.addContextMenuAction( otherId, QString(), QStringLiteral( "Second" ),
+                                   noContextMenuAction, &second );
+        port.addContextMenuAction( PluginId, QString(), QStringLiteral( "Third" ),
+                                   noContextMenuAction, &third );
+
+        THEN( "the views get them in that order, each with what it was added with and a serial "
+              "of its own, and the window's port is not asked to show them" )
+        {
+            const auto actions = port.contextMenuActions();
+            REQUIRE( contextMenuLabels( port )
+                     == QStringList{ QStringLiteral( "First" ), QStringLiteral( "Second" ),
+                                     QStringLiteral( "Third" ) } );
+            REQUIRE( actions[ 0 ].pluginId == PluginId );
+            REQUIRE( actions[ 0 ].menuPath == QStringLiteral( "Mine/Sub" ) );
+            REQUIRE( actions[ 0 ].callback == &noContextMenuAction );
+            REQUIRE( actions[ 0 ].userData == &first );
+            REQUIRE( actions[ 1 ].pluginId == otherId );
+            REQUIRE( actions[ 0 ].serial != actions[ 1 ].serial );
+            REQUIRE( actions[ 1 ].serial != actions[ 2 ].serial );
+            REQUIRE( window.menuActions.isEmpty() );
+        }
+
+        WHEN( "a plugin removes one, and one it never added" )
+        {
+            int never = 0;
+            port.removeContextMenuAction( PluginId, &first );
+            port.removeContextMenuAction( PluginId, &never );
+            port.removeContextMenuAction( PluginId, &second );
+
+            THEN( "only that one goes" )
+            {
+                REQUIRE( contextMenuLabels( port )
+                         == QStringList{ QStringLiteral( "Second" ), QStringLiteral( "Third" ) } );
+            }
+
+            AND_WHEN( "it adds one again" )
+            {
+                port.addContextMenuAction( PluginId, QString(), QStringLiteral( "First" ),
+                                           noContextMenuAction, &first );
+
+                THEN( "it comes last, with a serial never given before" )
+                {
+                    const auto actions = port.contextMenuActions();
+                    REQUIRE( actions.back().label == QStringLiteral( "First" ) );
+                    REQUIRE( actions.back().serial > actions[ 0 ].serial );
+                    REQUIRE( actions.back().serial > actions[ 1 ].serial );
+                    REQUIRE( actions.back().serial > 3 );
+                }
+            }
+        }
+
+        WHEN( "a plugin's contributions are removed" )
+        {
+            port.removeContributions( PluginId );
+
+            THEN( "its items go, the other plugin's stay" )
+            {
+                REQUIRE( contextMenuLabels( port ) == QStringList{ QStringLiteral( "Second" ) } );
+            }
+        }
+
+        port.removeWindow( &window );
+    }
+}

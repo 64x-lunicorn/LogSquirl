@@ -121,6 +121,24 @@ void logLinesChanged( void* /* user_data */, const char* file_path, uint64_t lin
         ( std::string( file_path ) + how + std::to_string( line_count ) + " Log Lines" ).c_str() );
 }
 
+// Called on the UI thread once the user chose Show Line Number in the context
+// menu of the Log Lines: with what was selected as it opened, the Log Lines
+// numbered from 1, and a word selected within one, if any.
+void showLineNumber( void* /* user_data */, const LogSquirlContextMenuContext* context )
+{
+    if ( context->line_number_count == 0 ) {
+        return;
+    }
+    std::string text = "Line " + std::to_string( context->line_numbers[ 0 ] );
+    if ( context->selected_line_count > 1 ) {
+        text += " and " + std::to_string( context->selected_line_count - 1 ) + " more";
+    }
+    if ( context->selected_text != nullptr ) {
+        text += ": " + std::string( context->selected_text, context->selected_text_length );
+    }
+    host->show_notification( hostHandle, text.c_str() );
+}
+
 } // namespace
 
 extern "C" {
@@ -166,6 +184,11 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
          && LOGSQUIRL_HOST_API_HAS( api_size, register_log_lines_callback ) ) {
         api->register_menu_action( handle, "Plugins", "Count Lines", &countLines, nullptr );
         api->register_log_lines_callback( handle, &logLinesChanged, nullptr );
+    }
+    // An item at the end of the context menu of the Log Lines, in a submenu.
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, register_context_menu_action ) ) {
+        api->register_context_menu_action( handle, "My Plugin", "Show Line Number", &showLineNumber,
+                                           nullptr );
     }
     return 0;
 }

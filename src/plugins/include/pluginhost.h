@@ -371,6 +371,22 @@ private:
     };
 
     /**
+     * A context menu item's callback as the plugin registered it (#859),
+     * handed to the Plugin UI Port as a menu action's is: created in place
+     * and never moved, its address names the item.
+     */
+    struct ContextMenuActionCall {
+        PluginContext* context = nullptr;
+        LogSquirlContextMenuCallbackFn callback = nullptr;
+        void* userData = nullptr;
+        // The id register_context_menu_action returned.
+        int id = 0;
+        // Set by unregister_context_menu_action, from any thread: a choice of
+        // the item delivered later does not reach the plugin.
+        std::atomic<bool> removed{ false };
+    };
+
+    /**
      * A string the host returns to a plugin that may call on any thread
      * (#858): each thread of the plugin's has a buffer of its own, valid until
      * the plugin calls the same function on that thread again or is unloaded.
@@ -472,6 +488,10 @@ private:
         int registrationIdsSoFar = 0;
         // The menu actions of register_menu_action_ex not removed yet, by id.
         std::map<int, MenuActionCall*> menuActionsById{};
+        // The context menu items, kept as the menu actions are (#859), and
+        // those not removed yet by id.
+        std::list<ContextMenuActionCall> contextMenuActionCalls{};
+        std::map<int, ContextMenuActionCall*> contextMenuActionsById{};
         // Log-lines-change callback registered by plugin (optional, #858),
         // under registrationsMutex: it may register from any thread.
         LogSquirlLogLinesCallbackFn logLinesCallback = nullptr;
@@ -548,6 +568,13 @@ private:
     /** The callback the host hands the Plugin UI Port for a plugin's menu action. */
     static void runMenuAction( void* menuActionCall );
 
+    /**
+     * The callback the host hands the Plugin UI Port for a plugin's context
+     * menu item, on the UI thread: what was selected, as the plugin reads it.
+     */
+    static void runContextMenuAction( void* contextMenuActionCall,
+                                      const PluginContextMenuContext& context );
+
     /** Extract a PluginContext from the opaque handle passed through host API. */
     static PluginContext* contextFromHandle( void* handle );
 
@@ -611,6 +638,10 @@ private:
                                 size_t* lineCount );
     static void hostRegisterLogLinesCallback( void* handle, LogSquirlLogLinesCallbackFn callback,
                                               void* userData );
+    static int hostRegisterContextMenuAction( void* handle, const char* menuPath, const char* label,
+                                              LogSquirlContextMenuCallbackFn callback,
+                                              void* userData );
+    static void hostUnregisterContextMenuAction( void* handle, int id );
 
     // The functions of the LogSquirlConvertControl handed to convert_ex,
     // called on the Conversion's worker thread.

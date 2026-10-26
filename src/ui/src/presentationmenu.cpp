@@ -20,6 +20,7 @@
 #include "presentationmenu.h"
 
 #include <algorithm>
+#include <map>
 #include <optional>
 
 #include <QAction>
@@ -108,6 +109,34 @@ void addColorLabels( QMenu& colorLabelsMenu, const PresentationMenu::Report& rep
     }
     colorLabelsMenu.addSeparator();
     addEntry( colorLabelsMenu, tr( "Clear all" ), entries.clearColorLabels );
+}
+
+// The plugins' entries at the end of menu, each in the submenus its path
+// names, which entries naming the same path share (#859).
+void addPluginEntries( QMenu& menu, const std::vector<PresentationMenu::PluginEntry>& plugins )
+{
+    if ( plugins.empty() ) {
+        return;
+    }
+    menu.addSeparator();
+    std::map<QString, QMenu*> submenus;
+    for ( const auto& plugin : plugins ) {
+        auto* parent = &menu;
+        QString path;
+        for ( const auto& segment : plugin.menuPath.split( u'/' ) ) {
+            const auto name = segment.trimmed();
+            if ( name.isEmpty() ) {
+                continue;
+            }
+            path += u'/' + name;
+            auto& submenu = submenus[ path ];
+            if ( submenu == nullptr ) {
+                submenu = parent->addMenu( name );
+            }
+            parent = submenu;
+        }
+        addEntry( *parent, plugin.label, plugin.choose );
+    }
 }
 
 } // namespace
@@ -240,6 +269,8 @@ std::unique_ptr<QMenu> PresentationMenu::create( QWidget* parent, const Report& 
     if ( entries.exportAsCsv ) {
         addEntry( *menu, tr( "Export as CSV..." ), entries.exportAsCsv );
     }
+
+    addPluginEntries( *menu, entries.plugins );
 
     return menu;
 }
