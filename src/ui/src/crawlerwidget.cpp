@@ -90,6 +90,7 @@
 #include "highlightersmenu.h"
 #include "infoline.h"
 #include "issuereporter.h"
+#include "logfileforplugins.h"
 #include "logformatcatalog.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
@@ -252,6 +253,12 @@ CrawlerWidget::logLineTextReader() const
         const AttachedReader attached( *logData );
         return logData->getLinesSparse( lines );
     };
+}
+
+std::shared_ptr<const logsquirl::plugins::PluginLogFileSource>
+CrawlerWidget::logFileForPlugins() const
+{
+    return std::make_shared<const LogFileForPlugins>( openLogFile_->logData() );
 }
 
 bool CrawlerWidget::filteredViewWasLastFocused() const
@@ -444,29 +451,12 @@ void CrawlerWidget::goToLine()
 CrawlerWidget::SelectedLogLineTexts CrawlerWidget::selectedLogLineTexts( LinesCount count,
                                                                          qint64 maxBytes ) const
 {
-    SelectedLogLineTexts texts;
+    // Read as a plugin reads a range of the Log File (#858).
     const auto logLines = selectedLogLines( count );
-    if ( logLines.empty() ) {
-        return texts;
-    }
-
-    const auto& logData = openLogFile_->logData();
-    logData->attachReader();
-    qint64 utf8Bytes = 0;
-    std::size_t read = 0;
-    logData->readLinePrefixes( logLines, maxBytes, [ & ]( QString&& text, bool cut ) {
-        utf8Bytes += ( texts.lines.isEmpty() ? 0 : 1 ) + text.toUtf8().size();
-        texts.lines.append( std::move( text ) );
-        ++read;
-        texts.lastCut = cut;
-        if ( cut || utf8Bytes > maxBytes ) {
-            texts.more = read < logLines.size();
-            return false;
-        }
-        return true;
-    } );
-    logData->detachReader();
-    return texts;
+    auto read = readLogLineTextsForPlugin( *openLogFile_->logData(), logLines, maxBytes );
+    return SelectedLogLineTexts{ .lines = std::move( read.lines ),
+                                 .lastCut = read.lastCut,
+                                 .more = read.more };
 }
 
 bool CrawlerWidget::goToLogLine( LineNumber line )
@@ -1110,6 +1100,7 @@ void CrawlerWidget::applyDecodingPolicyChange()
     // The Filtered Views of kept Searches included.
     viewSet_.rereadLogLines();
     restartChartExtraction();
+    Q_EMIT logLinesChanged( openLogFile_->lineCount(), true );
 }
 
 void CrawlerWidget::enteringQuickFind()
@@ -1199,6 +1190,11 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     }
 
     Q_EMIT loadingFinished( load.status, load.failure );
+
+    // A load that only added Log Lines leaves what a plugin read as it was;
+    // any other -- the first, a reload, one after a truncation -- may not:
+    // the first one settles the Encoding only once it has read the file.
+    Q_EMIT logLinesChanged( openLogFile_->lineCount(), !load.onlyAppended );
 }
 
 void CrawlerWidget::truncatedHandler( const QString& failure )
@@ -2197,6 +2193,7 @@ void CrawlerWidget::applyEncodingChange()
     viewSet_.rereadLogLines();
     restartChartExtraction();
     Q_EMIT encodingChanged();
+    Q_EMIT logLinesChanged( openLogFile_->lineCount(), true );
 }
 
 void CrawlerWidget::restartChartExtraction()

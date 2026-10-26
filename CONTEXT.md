@@ -480,7 +480,10 @@ _Avoid_: plugin manager, plugin registry, plugin list
 Loads and initialises the plugins the Plugin Catalog lists, shuts them down again, and
 answers what a loaded plugin calls back: its data-source stream, its converter, the active
 file, opening files, notifications, the Regex Lab, and the Log Lines of the tab in front:
-going to one and reading the selected ones. The host functions a plugin can call
+going to one and reading the selected ones. It also lets a plugin read the Log Lines of
+any open Log File by its path, on any thread, and tells it when they are appended or
+replaced (ADR 0024): the UI adds every tab's Log File to the host's open Log Files and
+takes it away when the tab closes. The host functions a plugin can call
 only grow, appended to one table whose size tells a plugin which the running LogSquirl
 offers (ADR 0017). What a plugin shows goes through the Plugin UI Port.
 A data source plugin may refuse its stream as it starts, and is stopped once for every

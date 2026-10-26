@@ -447,8 +447,11 @@ private:
     // The tab showing the Log File at path, or nullptr (#803).
     CrawlerWidget* tabOfLogFile( const QString& path ) const;
     // Tells the plugins whenever the tab's Log File, added under fileName,
-    // is read in another Encoding (#803).
-    void tellPluginsOfEncodingChanges( CrawlerWidget* crawler, const QString& fileName );
+    // is read in another Encoding (#803) or its Log Lines change, and lets
+    // them read its Log Lines by that name until the tab closes (#858).
+    void tellPluginsOfLogFile( CrawlerWidget* crawler, const QString& fileName );
+    // The tab is closing: plugins find its Log File no more (#858).
+    void hideLogFileFromPlugins( const CrawlerWidget* crawler );
     void displayQuickFindBar( QuickFindMux::QFDirection direction );
     // Connects the window to the Log File in front, and it alone: the
     // connections to the tab shown before go (#635). Nothing is connected for
@@ -647,6 +650,10 @@ private:
     // The Conversions this window started that have not finished, by the Log
     // File asked for: asked for again meanwhile, it is not converted twice.
     std::map<QString, logsquirl::plugins::ConversionId> conversions_;
+    // What each tab's Log File was added to the Plugin Host's open Log Files
+    // as, until the tab closes (#858). Only looked at when a tab closes: a tab
+    // that goes with the window takes its Log File away as it is destroyed.
+    std::map<const CrawlerWidget*, logsquirl::plugins::PluginLogFiles::Id> pluginLogFiles_;
 
     // The window's Regex Lab while it is open; it closes with the window.
     QPointer<RegexLabWindow> regexLab_;

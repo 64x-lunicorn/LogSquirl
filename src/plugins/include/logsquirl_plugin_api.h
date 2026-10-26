@@ -124,8 +124,9 @@ typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, cons
 /* ── Log Lines ───────────────────────────────────────────────────────────── */
 
 /**
- * What go_to_log_line, get_selected_log_lines and get_log_file_encoding
- * return.  Not negative is success; negative says why nothing was done.
+ * What go_to_log_line, get_selected_log_lines, get_log_file_encoding,
+ * get_log_line_count and get_log_lines return.  Not negative is success;
+ * negative says why nothing was done.
  */
 typedef enum {
     LOGSQUIRL_LOG_LINES_OK = 0,                /**< Done                                     */
@@ -137,11 +138,41 @@ typedef enum {
     LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5  /**< A NULL handle or text                    */
 } LogSquirlLogLinesResult;
 
-/** At most this many selected Log Lines are returned by get_selected_log_lines. */
+/**
+ * At most this many selected Log Lines are returned by get_selected_log_lines,
+ * and at most this many Log Lines by get_log_lines.
+ */
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES 1000
 
-/** At most this many bytes (1 MiB, without the NUL) are returned by get_selected_log_lines. */
+/**
+ * At most this many bytes (1 MiB, without the NUL) are returned by
+ * get_selected_log_lines, and by get_log_lines.
+ */
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES 1048576
+
+/** How the Log Lines of an open Log File changed (see register_log_lines_callback). */
+typedef enum {
+    /**
+     * Log Lines were added at the end: what was read before stays as it was,
+     * but for the last Log Line, which may have grown longer.
+     */
+    LOGSQUIRL_LOG_LINES_APPENDED = 0,
+    /** The Log File was loaded anew, or reads differently: read again what you keep. */
+    LOGSQUIRL_LOG_LINES_REPLACED = 1
+} LogSquirlLogLinesChange;
+
+/**
+ * Called on the UI thread when the Log Lines of an open Log File change (see
+ * register_log_lines_callback).
+ * @param user_data   The user_data passed to register_log_lines_callback, unchanged.
+ * @param file_path   The Log File (UTF-8), as get_active_file_path names it;
+ *                    valid during the call only.
+ * @param line_count  How many Log Lines it has now, as get_log_line_count
+ *                    counts them.
+ * @param change      One of LogSquirlLogLinesChange.
+ */
+typedef void ( *LogSquirlLogLinesCallbackFn )( void* user_data, const char* file_path,
+                                               uint64_t line_count, int change );
 
 /* ── Encoding ────────────────────────────────────────────────────────────── */
 
@@ -174,8 +205,9 @@ typedef void ( *LogSquirlEncodingCallbackFn )( void* user_data, const char* file
  * **Strings**: a string the plugin passes is copied before the call returns.
  * A string the host returns is the host's: it is valid until the plugin calls
  * the same function again or is shut down, whatever other plugins call
- * meanwhile.  A string the host passes to a callback is valid during the call
- * only.  Each function below says which of these its strings are.
+ * meanwhile; that of get_log_lines until the plugin calls it again on the
+ * same thread.  A string the host passes to a callback is valid during the
+ * call only.  Each function below says which of these its strings are.
  * **Registrations**: each register_* function says whether a second call
  * replaces the first registration or adds another, and how a registration is
  * removed.  Whatever a plugin still has registered is removed when it is
@@ -464,6 +496,86 @@ typedef struct {
      * @param id  What register_menu_action_ex returned.
      */
     void ( *unregister_menu_action )( void* handle, int id );
+
+    /**
+     * Count the Log Lines of an open Log File (LogSquirl 26.12): those
+     * LogSquirl has indexed so far, so fewer while the Log File still loads.
+     *
+     * May be called from any thread; it never waits for the UI thread.
+     * @param file_path  The Log File (UTF-8 path), as get_active_file_path or
+     *                   the active-file callback names it, open in a tab of
+     *                   any window, in front or not.
+     * @param count      Receives the count; 0 when the result is negative.
+     *                   Must not be NULL.
+     * @return LOGSQUIRL_LOG_LINES_OK with the count;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when no tab shows that Log File,
+     *         also when its tab closes during the call;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle,
+     *         file_path or count.
+     */
+    int ( *get_log_line_count )( void* handle, const char* file_path, uint64_t* count );
+
+    /**
+     * Read the text of Log Lines of an open Log File, from first_line on
+     * (LogSquirl 26.12): as the views show them, in the Log File's encoding,
+     * and for a converted or decompressed Log File the text LogSquirl shows,
+     * not the bytes of the original file.
+     *
+     * The text is UTF-8, the Log Lines separated by '\n', with no '\n' after
+     * the last one, and NUL-terminated.  It holds whole Log Lines, at most
+     * max_lines and LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES of them and at most
+     * LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES bytes; a first Log Line longer
+     * than that is cut at a character.  When it holds fewer Log Lines than
+     * max_lines and the Log File has, the result is
+     * LOGSQUIRL_LOG_LINES_TRUNCATED: read on from first_line + line_count.
+     * The host owns the text: it is valid until the plugin calls get_log_lines
+     * again on the same thread, or is shut down, so each thread of the plugin
+     * keeps its own.
+     *
+     * May be called from any thread; it never waits for the UI thread.  The
+     * host keeps the Log File's data for the duration of the call.
+     * @param file_path   The Log File, as for get_log_line_count.
+     * @param first_line  The number of the first Log Line, as the views and
+     *                    go_to_log_line number them: the first Log Line is 1.
+     * @param max_lines   At most this many Log Lines; 0 reads none.
+     * @param text        Receives the text; NULL when the result is negative.
+     *                    Must not be NULL.
+     * @param length      Receives the length of the text in bytes, without the
+     *                    NUL, or 0; may be NULL.
+     * @param line_count  Receives how many Log Lines the text holds, or 0;
+     *                    may be NULL.
+     * @return LOGSQUIRL_LOG_LINES_OK or LOGSQUIRL_LOG_LINES_TRUNCATED with the
+     *         text; LOGSQUIRL_LOG_LINES_OUT_OF_RANGE for a first_line of 0 or
+     *         past the last Log Line indexed so far;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when no tab shows that Log File,
+     *         also when its tab closes during the call;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle,
+     *         file_path or text.
+     */
+    int ( *get_log_lines )( void* handle, const char* file_path, uint64_t first_line,
+                            size_t max_lines, const char** text, size_t* length,
+                            size_t* line_count );
+
+    /**
+     * Register a callback invoked, on the UI thread, whenever the Log Lines of
+     * an open Log File change (LogSquirl 26.12), for the Log File of any tab,
+     * in front or not:
+     * - LOGSQUIRL_LOG_LINES_APPENDED: Log Lines were added at the end, the
+     *   file grew -- followed or not.  What was read before stays as it was,
+     *   but for the last Log Line, which may have grown longer.
+     * - LOGSQUIRL_LOG_LINES_REPLACED: the Log File was loaded anew -- reloaded,
+     *   truncated, or its first load finished -- or reads differently: another
+     *   encoding, or another way of decoding its text.  What was read before
+     *   may differ: read again.
+     * Calls may be coalesced: one call may stand for several changes.  A
+     * plugin has one such callback: registering another replaces it, and a
+     * NULL callback removes it.
+     * @param callback   Function called with the Log File, its Log Line count
+     *                   after the change and the change.
+     * @param user_data  Passed back to callback unchanged.
+     */
+    void ( *register_log_lines_callback )( void* handle, LogSquirlLogLinesCallbackFn callback,
+                                           void* user_data );
 
 } LogSquirlHostApi;
 

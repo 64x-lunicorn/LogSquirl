@@ -25,6 +25,7 @@
 
 #include "plugincatalog.h"
 #include "pluginhost.h"
+#include "pluginlogfiles.h"
 #include "pluginuiport.h"
 
 #include <QDir>
@@ -144,6 +145,29 @@ public:
     }
 };
 
+/// An open Log File of count Log Lines, which reads none.
+class CountedLogFile final : public logsquirl::plugins::PluginLogFileSource {
+public:
+    explicit CountedLogFile( std::uint64_t count )
+        : count_( count )
+    {
+    }
+
+    std::uint64_t lineCount() const override
+    {
+        return count_;
+    }
+
+    std::optional<logsquirl::plugins::PluginSelectedLogLines>
+    readLogLines( std::uint64_t, std::size_t, std::size_t ) const override
+    {
+        return std::nullopt;
+    }
+
+private:
+    std::uint64_t count_;
+};
+
 /// Installs the example the way the guide says: its plugin.json and the built
 /// library in a subdirectory of its own under the plugin directory root.
 void installExample( const QString& root )
@@ -202,14 +226,15 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
             const auto error = host.loadPlugin( ExampleId );
 
             THEN( "It is initialised and adds its menu actions, stopping saying hello, testing "
-                  "a pattern, going to and reading Log Lines and showing the encoding as well, "
-                  "since this host offers them" )
+                  "a pattern, going to and reading Log Lines, showing the encoding and counting "
+                  "Log Lines as well, since this host offers them" )
             {
                 REQUIRE( error.isEmpty() );
                 REQUIRE( host.isLoaded( ExampleId ) );
                 REQUIRE( port.labels()
                          == QStringList{ "Say Hello", "Stop Saying Hello", "Test Pattern",
-                                         "Show Selection", "Go to First Line", "Show Encoding" } );
+                                         "Show Selection", "Go to First Line", "Show Encoding",
+                                         "Count Lines" } );
                 for ( const auto& action : port.actions ) {
                     REQUIRE( action.pluginId == ExampleId );
                 }
@@ -223,6 +248,27 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
                 port.trigger( QStringLiteral( "Show Encoding" ) );
                 REQUIRE( notifications
                          == QStringList{ "No Log File in front", "Read as UTF-16LE" } );
+            }
+
+            THEN( "Its Count Lines counts the Log Lines of the tab in front, or says there is no "
+                  "Log File (#858)" )
+            {
+                QTemporaryDir logDir;
+                REQUIRE( logDir.isValid() );
+                const auto path = logDir.filePath( "app.log" );
+                {
+                    QFile file( path );
+                    REQUIRE( file.open( QIODevice::WriteOnly ) );
+                }
+                QString inFront;
+                host.setActiveFilePathCallback( [ &inFront ] { return inFront; } );
+                port.trigger( QStringLiteral( "Count Lines" ) );
+                inFront = path;
+                const auto id
+                    = host.logFiles()->add( path, std::make_shared<CountedLogFile>( 3000 ) );
+                port.trigger( QStringLiteral( "Count Lines" ) );
+                host.logFiles()->remove( id );
+                REQUIRE( notifications == QStringList{ "No Log File in front", "3000 Log Lines" } );
             }
 
             THEN( "Its Show Selection shows the selected Log Lines, and nothing without" )
@@ -265,7 +311,7 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
                 port.trigger( QStringLiteral( "Stop Saying Hello" ) );
                 REQUIRE( port.labels()
                          == QStringList{ "Test Pattern", "Show Selection", "Go to First Line",
-                                         "Show Encoding" } );
+                                         "Show Encoding", "Count Lines" } );
 
                 // A trigger of either still queued does not reach the plugin.
                 for ( const auto& action : actions ) {

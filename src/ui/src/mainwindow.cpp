@@ -490,7 +490,7 @@ std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
         // temporary path (#609).
         mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary,
                                    archiveMembers_.value( fileName ).key() );
-        tellPluginsOfEncodingChanges( crawlerWidget, fileName );
+        tellPluginsOfLogFile( crawlerWidget, fileName );
 
         if ( followFileOnLoad ) {
             followOnOpen( crawlerWidget );
@@ -571,7 +571,7 @@ void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& m
     // Its name and group are found by its archive (#609).
     mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary, member.key(),
                                tabIndex );
-    tellPluginsOfEncodingChanges( crawlerWidget, fileName );
+    tellPluginsOfLogFile( crawlerWidget, fileName );
     if ( !opened.inFront && front ) {
         mainTabWidget_.setCurrentWidget( front );
     }
@@ -2976,6 +2976,8 @@ void MainWindow::closeTabs( const QList<int>& indices, ActionInitiator initiator
 
         crawler->stopLoading();
         mainTabWidget_.removeCrawler( index );
+        // A plugin's read under way finishes, and says the Log File is gone.
+        hideLogFileFromPlugins( crawler );
         session_.close( crawler );
         crawler->deleteLater();
 
@@ -3586,7 +3588,7 @@ bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFil
             // archive keeps its name and group by the archive (#609).
             int index = mainTabWidget_.addCrawler( crawlerWidget, fileName, origin.lifetime,
                                                    origin.storedKey( fileName ) );
-            tellPluginsOfEncodingChanges( crawlerWidget, fileName );
+            tellPluginsOfLogFile( crawlerWidget, fileName );
 
             // Setting the new tab, the user will see a blank page for the duration
             // of the loading, with no way to switch to another tab
@@ -3794,7 +3796,7 @@ CrawlerWidget* MainWindow::tabOfLogFile( const QString& path ) const
     return nullptr;
 }
 
-void MainWindow::tellPluginsOfEncodingChanges( CrawlerWidget* crawler, const QString& fileName )
+void MainWindow::tellPluginsOfLogFile( CrawlerWidget* crawler, const QString& fileName )
 {
     // By the path the tab was added under: a load that finishes while its
     // tab closes still settles the Encoding, after the Session let go of the
@@ -3805,6 +3807,39 @@ void MainWindow::tellPluginsOfEncodingChanges( CrawlerWidget* crawler, const QSt
             plugins_->host().notifyEncodingChanged( fileName, crawler->encodingName() );
         }
     } );
+    connect( crawler, &CrawlerWidget::logLinesChanged, this,
+             [ this, crawler, fileName ]( LinesCount lineCount, bool replaced ) {
+                 if ( mainTabWidget_.indexOf( crawler ) >= 0 ) {
+                     plugins_->host().notifyLogLinesChanged(
+                         fileName, lineCount.get(),
+                         replaced ? logsquirl::plugins::PluginLogLinesChange::Replaced
+                                  : logsquirl::plugins::PluginLogLinesChange::Appended );
+                 }
+             } );
+
+    // Plugins read its Log Lines on their own threads, by the same path,
+    // until the tab closes. A tab that goes with the window -- or after the
+    // Plugin Host -- takes its Log File away as it is destroyed: by a weak
+    // hold, connected to nothing of the window's, which is gone by then.
+    const auto& logFiles = plugins_->host().logFiles();
+    const auto id = logFiles->add( fileName, crawler->logFileForPlugins() );
+    pluginLogFiles_[ crawler ] = id;
+    connect( crawler, &QObject::destroyed,
+             [ logFiles = std::weak_ptr<logsquirl::plugins::PluginLogFiles>( logFiles ), id ] {
+                 if ( const auto open = logFiles.lock() ) {
+                     open->remove( id );
+                 }
+             } );
+}
+
+void MainWindow::hideLogFileFromPlugins( const CrawlerWidget* crawler )
+{
+    const auto it = pluginLogFiles_.find( crawler );
+    if ( it == pluginLogFiles_.end() ) {
+        return;
+    }
+    plugins_->host().logFiles()->remove( it->second );
+    pluginLogFiles_.erase( it );
 }
 
 // Return the currently active CrawlerWidget, or NULL if none

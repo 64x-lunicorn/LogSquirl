@@ -22,6 +22,7 @@
 #include "logsquirl_plugin_api.h"
 #include "plugincatalog.h"
 #include "pluginloader.h"
+#include "pluginlogfiles.h"
 #include "pluginuiport.h"
 #include "streamwriter.h"
 
@@ -117,9 +118,11 @@ struct ConversionReport {
  * from any thread: the PluginUiPort is called on the plugin's thread and moves
  * widget work to the GUI thread itself, signals use queued connections, and
  * open_file is queued to the GUI thread.  The functions documented as
- * UI-thread-only (the Regex Lab, the Log Lines, the active file path) refuse
- * a call from another thread.  A Conversion runs the converter on a worker
- * thread of the host's and reports on the GUI thread (#795).
+ * UI-thread-only (the Regex Lab, the Log Lines of the tab in front, the
+ * active file path) refuse a call from another thread.  A Conversion runs the
+ * converter on a worker thread of the host's and reports on the GUI thread
+ * (#795).  The Log Lines of an open Log File are read on the plugin's thread,
+ * through the Log Files the UI adds to logFiles() (#858).
  */
 class PluginHost : public QObject {
     Q_OBJECT
@@ -225,6 +228,25 @@ public:
      * File is read in another Encoding now (#803). On the host's thread only.
      */
     void notifyEncodingChanged( const QString& filePath, const QString& encoding );
+
+    /**
+     * The Log Files open in every window, by path, which plugins read on any
+     * thread (#858). The UI adds each when its tab opens and removes it when
+     * the tab closes. Shared, so that a tab outliving the host lets go of an
+     * id the host no longer knows.
+     */
+    const std::shared_ptr<PluginLogFiles>& logFiles() const
+    {
+        return logFiles_;
+    }
+
+    /**
+     * Notify all plugins that registered a log lines callback that the Log
+     * Lines of an open Log File changed: lineCount is how many it has now
+     * (#858). On the host's thread only.
+     */
+    void notifyLogLinesChanged( const QString& filePath, std::uint64_t lineCount,
+                                PluginLogLinesChange change );
 
     // ── DataSource (Phase 2) ─────────────────────────────────────────
 
@@ -348,6 +370,26 @@ private:
         std::atomic<bool> removed{ false };
     };
 
+    /**
+     * A string the host returns to a plugin that may call on any thread
+     * (#858): each thread of the plugin's has a buffer of its own, valid until
+     * the plugin calls the same function on that thread again or is unloaded.
+     * A buffer stays until the plugin is unloaded; a thread that reuses the id
+     * of one that ended reuses its buffer.
+     */
+    class PerThreadText {
+    public:
+        /** The calling thread's buffer, empty on its first call. */
+        QByteArray& ofThisThread();
+
+    private:
+        // Held to find or add a buffer, not while one is written: a buffer
+        // is only ever touched by its own thread, and a map's elements stay
+        // where they are as others are added.
+        std::mutex mutex_;
+        std::map<std::thread::id, QByteArray> buffers_;
+    };
+
     /** Where a plugin's data source is between its start and its stop (#855). */
     enum class DataSourceState {
         Idle,     ///< No stream.
@@ -430,6 +472,12 @@ private:
         int registrationIdsSoFar = 0;
         // The menu actions of register_menu_action_ex not removed yet, by id.
         std::map<int, MenuActionCall*> menuActionsById{};
+        // Log-lines-change callback registered by plugin (optional, #858),
+        // under registrationsMutex: it may register from any thread.
+        LogSquirlLogLinesCallbackFn logLinesCallback = nullptr;
+        void* logLinesUserData = nullptr;
+        // The get_log_lines text, one per thread of the plugin's (#858).
+        PerThreadText logLinesUtf8{};
     };
 
     /**
@@ -519,6 +567,8 @@ private:
     std::function<void( const QString&, bool )> openFileCallback_;
     std::function<QString()> activeFilePathCallback_;
 
+    const std::shared_ptr<PluginLogFiles> logFiles_ = std::make_shared<PluginLogFiles>();
+
     // ── Static host API trampolines ──────────────────────────────────
     // These are the actual C function pointers stored in LogSquirlHostApi.
     // The void* handle is a PluginContext* which routes back to this host.
@@ -555,6 +605,12 @@ private:
     static int hostRegisterMenuActionEx( void* handle, const char* menuPath, const char* label,
                                          PluginCallbackFn callback, void* userData );
     static void hostUnregisterMenuAction( void* handle, int id );
+    static int hostGetLogLineCount( void* handle, const char* filePath, uint64_t* count );
+    static int hostGetLogLines( void* handle, const char* filePath, uint64_t firstLine,
+                                size_t maxLines, const char** text, size_t* length,
+                                size_t* lineCount );
+    static void hostRegisterLogLinesCallback( void* handle, LogSquirlLogLinesCallbackFn callback,
+                                              void* userData );
 
     // The functions of the LogSquirlConvertControl handed to convert_ex,
     // called on the Conversion's worker thread.

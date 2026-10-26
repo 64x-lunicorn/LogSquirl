@@ -25,6 +25,7 @@
 #include "logsquirl_plugin_api.h"
 #include "plugincatalog.h"
 #include "pluginhost.h"
+#include "pluginlogfiles.h"
 #include "pluginuiport.h"
 #include "test_utils.h"
 
@@ -43,6 +44,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <future>
 #include <map>
 #include <memory>
 #include <optional>
@@ -58,7 +60,9 @@ using logsquirl::plugins::ConversionReport;
 using logsquirl::plugins::PluginCallbackFn;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
+using logsquirl::plugins::PluginLogFileSource;
 using logsquirl::plugins::PluginLogLineJump;
+using logsquirl::plugins::PluginLogLinesChange;
 using logsquirl::plugins::PluginPattern;
 using logsquirl::plugins::PluginRegexLabAnswer;
 using logsquirl::plugins::PluginSelectedLogLines;
@@ -3603,5 +3607,467 @@ SCENARIO( "A data source plugin hears when its stream starts and stops",
         if ( host ) {
             host->unloadAll();
         }
+    }
+}
+
+namespace {
+
+/// An open Log File whose Log Lines are held in memory, read as the UI reads
+/// a Log File's: at most maxLines of them, none after one cut for the bytes
+/// or after their bytes passed the bound. whileReading, set before any read,
+/// runs inside every read, on the reading thread.
+class FakeLogFile final : public PluginLogFileSource {
+public:
+    explicit FakeLogFile( QStringList lines )
+        : lines_( std::move( lines ) )
+    {
+    }
+
+    std::uint64_t lineCount() const override
+    {
+        return static_cast<std::uint64_t>( lines_.size() );
+    }
+
+    std::optional<PluginSelectedLogLines> readLogLines( std::uint64_t logLine, std::size_t maxLines,
+                                                        std::size_t maxBytes ) const override
+    {
+        if ( whileReading ) {
+            whileReading();
+        }
+        if ( logLine >= lineCount() ) {
+            return std::nullopt;
+        }
+        PluginSelectedLogLines read;
+        std::size_t bytes = 0;
+        for ( auto line = logLine;
+              line < lineCount() && static_cast<std::size_t>( read.lines.size() ) < maxLines;
+              ++line ) {
+            const auto utf8 = lines_[ static_cast<qsizetype>( line ) ].toUtf8();
+            const auto cut = static_cast<std::size_t>( utf8.size() ) > maxBytes;
+            read.lines.append(
+                QString::fromUtf8( cut ? utf8.left( static_cast<qsizetype>( maxBytes ) ) : utf8 ) );
+            read.lastCut = cut;
+            bytes += ( read.lines.size() > 1 ? 1 : 0 ) + static_cast<std::size_t>( utf8.size() );
+            if ( cut || bytes > maxBytes ) {
+                read.more = line + 1 < lineCount()
+                            && static_cast<std::size_t>( read.lines.size() ) < maxLines;
+                break;
+            }
+        }
+        return read;
+    }
+
+    std::function<void()> whileReading;
+
+private:
+    QStringList lines_;
+};
+
+/// Log Lines "line 1" up to "line count", as the views number them.
+QStringList numberedLines( int count )
+{
+    QStringList lines;
+    for ( int number = 1; number <= count; ++number ) {
+        lines.append( QStringLiteral( "line %1" ).arg( number ) );
+    }
+    return lines;
+}
+
+/// The Log Lines from first up to last, as the views number them, joined as get_log_lines joins
+/// them.
+QString numberedText( int first, int last )
+{
+    return numberedLines( last ).mid( first - 1 ).join( '\n' );
+}
+
+/// What get_log_lines handed back, and the text copied as it came: the host's
+/// text is valid until the next call on the same thread only.
+struct LogLinesRead {
+    int result = 0;
+    const char* text = nullptr;
+    size_t length = 0;
+    size_t lineCount = 0;
+    QString copied{};
+    bool terminated = false;
+
+    /// The text where the host keeps it, as it is now.
+    QString textNow() const
+    {
+        return text != nullptr ? QString::fromUtf8( text, static_cast<qsizetype>( length ) )
+                               : QString();
+    }
+};
+
+LogLinesRead readLogLines( const LogSquirlHostApi& api, void* handle, const QString& path,
+                           uint64_t firstLine, size_t maxLines )
+{
+    const auto pathUtf8 = path.toUtf8();
+    LogLinesRead read;
+    read.result = api.get_log_lines( handle, pathUtf8.constData(), firstLine, maxLines, &read.text,
+                                     &read.length, &read.lineCount );
+    read.copied = read.textNow();
+    read.terminated = read.text != nullptr && read.text[ read.length ] == '\0';
+    return read;
+}
+
+std::pair<int, uint64_t> countLogLines( const LogSquirlHostApi& api, void* handle,
+                                        const QString& path )
+{
+    const auto pathUtf8 = path.toUtf8();
+    uint64_t count = 99;
+    const auto result = api.get_log_line_count( handle, pathUtf8.constData(), &count );
+    return { result, count };
+}
+
+/// The Log Lines changes the callback a test registers was told, in order.
+struct LogLinesChanges {
+    struct Change {
+        QString path;
+        uint64_t lineCount = 0;
+        int change = -1;
+
+        bool operator==( const Change& ) const = default;
+    };
+    std::vector<Change> told;
+
+    static void record( void* userData, const char* filePath, uint64_t lineCount, int change )
+    {
+        static_cast<LogLinesChanges*>( userData )
+            ->told.push_back( { QString::fromUtf8( filePath ), lineCount, change } );
+    }
+};
+
+} // namespace
+
+SCENARIO( "A plugin reads the Log Lines of an open Log File by path, on any thread, through the "
+          "Plugin Host",
+          "[pluginhost][pluginloglines][plugins]" )
+{
+    GIVEN( "A Plugin Host with the probe plugin loaded, and a Log File of 3000 Log Lines open" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+        QTemporaryDir logDir;
+        REQUIRE( logDir.isValid() );
+        const auto path = logDir.filePath( "app.log" );
+        {
+            QFile file( path );
+            REQUIRE( file.open( QIODevice::WriteOnly ) );
+        }
+        const auto closedPath = logDir.filePath( "closed.log" );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+        PluginHost host( catalog );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        REQUIRE( api != nullptr );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), get_log_line_count ) );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), get_log_lines ) );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), register_log_lines_callback ) );
+
+        auto logFile = std::make_shared<FakeLogFile>( numberedLines( 3000 ) );
+        const std::weak_ptr<FakeLogFile> heldLogFile = logFile;
+        const auto& logFiles = host.logFiles();
+        const auto id = logFiles->add( path, std::move( logFile ) );
+
+        WHEN( "The plugin counts its Log Lines, by its path and by another spelling of it" )
+        {
+            const auto byPath = countLogLines( *api, handle, path );
+            const auto spelledOtherwise
+                = countLogLines( *api, handle, logDir.path() + QStringLiteral( "/./app.log" ) );
+
+            THEN( "It gets the count of both" )
+            {
+                REQUIRE( byPath == std::pair<int, uint64_t>{ LOGSQUIRL_LOG_LINES_OK, 3000 } );
+                REQUIRE( spelledOtherwise
+                         == std::pair<int, uint64_t>{ LOGSQUIRL_LOG_LINES_OK, 3000 } );
+            }
+        }
+
+        WHEN( "The plugin reads the first Log Lines, some in the middle, the last ones and past "
+              "the end" )
+        {
+            const auto first = readLogLines( *api, handle, path, 1, 3 );
+            const auto middle = readLogLines( *api, handle, path, 1500, 2 );
+            const auto last = readLogLines( *api, handle, path, 2999, 5 );
+            const auto pastEnd = readLogLines( *api, handle, path, 3001, 5 );
+            const auto zero = readLogLines( *api, handle, path, 0, 5 );
+
+            THEN( "It gets them numbered as the views number them, and no text past the end" )
+            {
+                REQUIRE( first.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( first.lineCount == 3 );
+                REQUIRE( first.copied == numberedText( 1, 3 ) );
+                REQUIRE( first.terminated );
+                REQUIRE( middle.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( middle.copied == numberedText( 1500, 1501 ) );
+                // Fewer than asked for, but every one there is: whole.
+                REQUIRE( last.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( last.lineCount == 2 );
+                REQUIRE( last.copied == numberedText( 2999, 3000 ) );
+                REQUIRE( pastEnd.result == LOGSQUIRL_LOG_LINES_OUT_OF_RANGE );
+                REQUIRE( pastEnd.text == nullptr );
+                REQUIRE( pastEnd.lineCount == 0 );
+                REQUIRE( zero.result == LOGSQUIRL_LOG_LINES_OUT_OF_RANGE );
+            }
+        }
+
+        WHEN( "The plugin asks for none" )
+        {
+            const auto none = readLogLines( *api, handle, path, 10, 0 );
+
+            THEN( "It gets an empty text" )
+            {
+                REQUIRE( none.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( none.text != nullptr );
+                REQUIRE( none.length == 0 );
+                REQUIRE( none.lineCount == 0 );
+            }
+        }
+
+        WHEN( "The plugin asks for more Log Lines than one call returns" )
+        {
+            const auto many = readLogLines( *api, handle, path, 1, 2500 );
+            const auto exactly
+                = readLogLines( *api, handle, path, 2001, LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+            const auto rest = readLogLines( *api, handle, path, 2001, 2500 );
+
+            THEN( "It gets the first ones that fit, whole, and is told there are more" )
+            {
+                REQUIRE( many.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( many.lineCount == LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+                REQUIRE( many.copied == numberedText( 1, 1000 ) );
+                REQUIRE( exactly.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( exactly.lineCount == LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+                // As many as are left, though more were asked for.
+                REQUIRE( rest.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( rest.copied == numberedText( 2001, 3000 ) );
+            }
+        }
+
+        WHEN( "The plugin asks for more bytes than one call returns" )
+        {
+            // 600 KiB each: two do not fit into 1 MiB, and a third is longer still.
+            const QString wide( 600 * 1024, QChar( 'w' ) );
+            const QString wider( LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES + 10, QChar( 'x' ) );
+            const auto widePath = logDir.filePath( "wide.log" );
+            {
+                QFile file( widePath );
+                REQUIRE( file.open( QIODevice::WriteOnly ) );
+            }
+            const auto wideId = logFiles->add(
+                widePath, std::make_shared<FakeLogFile>( QStringList{ wide, wide, wider } ) );
+            const auto two = readLogLines( *api, handle, widePath, 1, 3 );
+            const auto cut = readLogLines( *api, handle, widePath, 3, 1 );
+            logFiles->remove( wideId );
+
+            THEN( "It gets whole Log Lines, but for a first one longer than that, cut" )
+            {
+                REQUIRE( two.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( two.lineCount == 1 );
+                REQUIRE( two.copied == wide );
+                REQUIRE( cut.result == LOGSQUIRL_LOG_LINES_TRUNCATED );
+                REQUIRE( cut.lineCount == 1 );
+                REQUIRE( cut.length == LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+            }
+        }
+
+        WHEN( "The plugin names a Log File no tab shows, an empty path or none" )
+        {
+            const auto closedCount = countLogLines( *api, handle, closedPath );
+            const auto closedRead = readLogLines( *api, handle, closedPath, 1, 1 );
+            const auto emptyRead = readLogLines( *api, handle, QString(), 1, 1 );
+            const char* text = nullptr;
+            uint64_t count = 0;
+            const auto noPathRead
+                = api->get_log_lines( handle, nullptr, 1, 1, &text, nullptr, nullptr );
+            const auto noPathCount = api->get_log_line_count( handle, nullptr, &count );
+
+            THEN( "There is no such Log File, and a missing path is an invalid argument" )
+            {
+                REQUIRE( closedCount.first == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( closedCount.second == 0 );
+                REQUIRE( closedRead.result == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( closedRead.text == nullptr );
+                REQUIRE( emptyRead.result == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( noPathRead == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noPathCount == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+            }
+        }
+
+        WHEN( "The plugin asks with no handle, or nowhere to put the answer" )
+        {
+            const auto pathUtf8 = path.toUtf8();
+            const auto noHandle = readLogLines( *api, nullptr, path, 1, 1 );
+            const auto noText = api->get_log_lines( handle, pathUtf8.constData(), 1, 1, nullptr,
+                                                    nullptr, nullptr );
+            const auto noCount = api->get_log_line_count( handle, pathUtf8.constData(), nullptr );
+
+            THEN( "It is an invalid argument" )
+            {
+                REQUIRE( noHandle.result == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noText == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noCount == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+            }
+        }
+
+        WHEN( "The plugin reads on a thread of its own while the UI thread waits for that thread" )
+        {
+            // The UI thread is busy: it does nothing but wait for the reads.
+            LogLinesRead read;
+            std::pair<int, uint64_t> counted;
+            std::thread( [ & ] {
+                counted = countLogLines( *api, handle, path );
+                read = readLogLines( *api, handle, path, 10, 2 );
+            } ).join();
+
+            THEN( "Both answer without the UI thread" )
+            {
+                REQUIRE( counted == std::pair<int, uint64_t>{ LOGSQUIRL_LOG_LINES_OK, 3000 } );
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( read.copied == numberedText( 10, 11 ) );
+            }
+        }
+
+        WHEN( "Two threads of the plugin read one after the other" )
+        {
+            std::promise<void> firstRead;
+            std::promise<void> secondRead;
+            QString firstText;
+            QString firstTextAfterwards;
+            QString secondText;
+            const char* firstBuffer = nullptr;
+            const char* secondBuffer = nullptr;
+            std::thread first( [ & ] {
+                const auto read = readLogLines( *api, handle, path, 1, 2 );
+                firstBuffer = read.text;
+                firstText = read.copied;
+                firstRead.set_value();
+                secondRead.get_future().wait();
+                // Still this thread's text, though the other thread read since.
+                firstTextAfterwards = read.textNow();
+            } );
+            std::thread second( [ & ] {
+                firstRead.get_future().wait();
+                const auto read = readLogLines( *api, handle, path, 100, 3 );
+                secondBuffer = read.text;
+                secondText = read.copied;
+                secondRead.set_value();
+            } );
+            first.join();
+            second.join();
+
+            THEN( "Each keeps its own text until it reads again" )
+            {
+                REQUIRE( firstBuffer != secondBuffer );
+                REQUIRE( firstText == numberedText( 1, 2 ) );
+                REQUIRE( firstTextAfterwards == numberedText( 1, 2 ) );
+                REQUIRE( secondText == numberedText( 100, 102 ) );
+            }
+        }
+
+        WHEN( "The tab of the Log File closes while a thread of the plugin reads it" )
+        {
+            std::promise<void> reading;
+            std::promise<void> closed;
+            auto closedFuture = closed.get_future().share();
+            // Through the hold the host keeps: the test's own goes.
+            heldLogFile.lock()->whileReading = [ &reading, closedFuture ] {
+                reading.set_value();
+                closedFuture.wait();
+            };
+            LogLinesRead read;
+            std::thread reader( [ & ] { read = readLogLines( *api, handle, path, 1, 2 ); } );
+            reading.get_future().wait();
+            logFiles->remove( id );
+            const auto heldWhileReading = !heldLogFile.expired();
+            closed.set_value();
+            reader.join();
+
+            THEN( "The read finishes on the Log File's data, and says there is no Log File" )
+            {
+                REQUIRE( heldWhileReading );
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( read.text == nullptr );
+                REQUIRE( heldLogFile.expired() );
+            }
+
+            AND_WHEN( "The plugin reads it again" )
+            {
+                THEN( "There is no Log File" )
+                {
+                    REQUIRE( countLogLines( *api, handle, path ).first
+                             == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                    REQUIRE( readLogLines( *api, handle, path, 1, 1 ).result
+                             == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                }
+            }
+        }
+
+        WHEN( "The plugin registered a log lines callback and the Log Lines change" )
+        {
+            LogLinesChanges changes;
+            api->register_log_lines_callback( handle, &LogLinesChanges::record, &changes );
+            host.notifyLogLinesChanged( path, 3010, PluginLogLinesChange::Appended );
+            host.notifyLogLinesChanged( path, 12, PluginLogLinesChange::Replaced );
+
+            THEN( "The callback is told the Log File, its count and how it changed" )
+            {
+                REQUIRE( changes.told
+                         == std::vector<LogLinesChanges::Change>{
+                             { path, 3010, LOGSQUIRL_LOG_LINES_APPENDED },
+                             { path, 12, LOGSQUIRL_LOG_LINES_REPLACED } } );
+            }
+
+            AND_WHEN( "The plugin registers another one" )
+            {
+                LogLinesChanges others;
+                api->register_log_lines_callback( handle, &LogLinesChanges::record, &others );
+                host.notifyLogLinesChanged( path, 3020, PluginLogLinesChange::Appended );
+
+                THEN( "Only the other one is told" )
+                {
+                    REQUIRE( changes.told.size() == 2 );
+                    REQUIRE( others.told.size() == 1 );
+                }
+            }
+
+            AND_WHEN( "The plugin removes its callback, from a thread of its own, and another "
+                      "change comes" )
+            {
+                std::thread( [ & ] {
+                    api->register_log_lines_callback( handle, nullptr, nullptr );
+                } ).join();
+                host.notifyLogLinesChanged( path, 3020, PluginLogLinesChange::Appended );
+
+                THEN( "It is not told" )
+                {
+                    REQUIRE( changes.told.size() == 2 );
+                }
+            }
+        }
+
+        WHEN( "The plugin registered a log lines callback and is unloaded" )
+        {
+            LogLinesChanges changes;
+            api->register_log_lines_callback( handle, &LogLinesChanges::record, &changes );
+            host.unloadAll();
+            host.notifyLogLinesChanged( path, 3010, PluginLogLinesChange::Appended );
+
+            THEN( "It is not told any more" )
+            {
+                REQUIRE( changes.told.empty() );
+            }
+        }
+
+        logFiles->remove( id );
+        host.unloadAll();
+        probe.library.unload();
     }
 }

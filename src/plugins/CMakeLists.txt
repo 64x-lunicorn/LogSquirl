@@ -25,6 +25,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/applicationplugins.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginhost.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginlogfiles.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginrepository.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginuiport.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/sharedpluginuiport.h
@@ -33,6 +34,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/applicationplugins.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginhost.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginlogfiles.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginrepository.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sharedpluginuiport.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/stdinpump.cpp

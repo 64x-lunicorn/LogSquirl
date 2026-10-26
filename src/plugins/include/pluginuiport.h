@@ -62,13 +62,16 @@ struct PluginPattern {
  */
 using PluginRegexLabAnswer = std::function<void( std::optional<PluginPattern> applied )>;
 
-/** The text of the Log Lines selected in the tab in front, as far as read (#663). */
+/**
+ * The text of Log Lines read for a plugin, as far as read: those selected in
+ * the tab in front (#663), or a range of an open Log File (#858).
+ */
 struct PluginSelectedLogLines {
     /// In the order of the Log File.
     QStringList lines;
     /// The last of lines was cut short for the byte budget.
     bool lastCut = false;
-    /// Selected Log Lines after lines were left unread for the byte budget.
+    /// Log Lines asked for after lines were left unread for the byte budget.
     bool more = false;
 
     bool operator==( const PluginSelectedLogLines& ) const = default;

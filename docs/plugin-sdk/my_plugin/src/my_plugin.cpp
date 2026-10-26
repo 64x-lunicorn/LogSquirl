@@ -97,6 +97,30 @@ void encodingChanged( void* /* user_data */, const char* file_path, const char* 
                        ( std::string( file_path ) + " is read as " + encoding ).c_str() );
 }
 
+// Counts the Log Lines of the tab in front. get_log_line_count and
+// get_log_lines may be called from any thread too: a long analysis reads the
+// Log File by its path on a thread of its own.
+void countLines( void* /* user_data */ )
+{
+    const char* path = host->get_active_file_path( hostHandle );
+    uint64_t count = 0;
+    if ( host->get_log_line_count( hostHandle, path, &count ) < 0 ) {
+        host->show_notification( hostHandle, "No Log File in front" );
+        return;
+    }
+    host->show_notification( hostHandle, ( std::to_string( count ) + " Log Lines" ).c_str() );
+}
+
+// Called on the UI thread whenever the Log Lines of an open Log File change.
+void logLinesChanged( void* /* user_data */, const char* file_path, uint64_t line_count,
+                      int change )
+{
+    const char* how = change == LOGSQUIRL_LOG_LINES_APPENDED ? " grew to " : " was loaded anew: ";
+    host->log_message(
+        hostHandle, LOGSQUIRL_LOG_INFO,
+        ( std::string( file_path ) + how + std::to_string( line_count ) + " Log Lines" ).c_str() );
+}
+
 } // namespace
 
 extern "C" {
@@ -137,6 +161,11 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
          && LOGSQUIRL_HOST_API_HAS( api_size, register_encoding_callback ) ) {
         api->register_menu_action( handle, "Plugins", "Show Encoding", &showEncoding, nullptr );
         api->register_encoding_callback( handle, &encodingChanged, nullptr );
+    }
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, get_log_line_count )
+         && LOGSQUIRL_HOST_API_HAS( api_size, register_log_lines_callback ) ) {
+        api->register_menu_action( handle, "Plugins", "Count Lines", &countLines, nullptr );
+        api->register_log_lines_callback( handle, &logLinesChanged, nullptr );
     }
     return 0;
 }

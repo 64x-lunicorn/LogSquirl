@@ -436,6 +436,40 @@ void PluginHost::notifyEncodingChanged( const QString& filePath, const QString& 
     }
 }
 
+void PluginHost::notifyLogLinesChanged( const QString& filePath, std::uint64_t lineCount,
+                                        PluginLogLinesChange change )
+{
+    const auto pathUtf8 = filePath.toUtf8();
+    const int changed = change == PluginLogLinesChange::Appended ? LOGSQUIRL_LOG_LINES_APPENDED
+                                                                 : LOGSQUIRL_LOG_LINES_REPLACED;
+    // By ID: a plugin's callback may unload another plugin.
+    for ( const auto& id : loadedPluginIds() ) {
+        auto* ctx = loadedContext( id );
+        if ( !ctx ) {
+            continue;
+        }
+        // Taken as one: the plugin may register another from its own thread.
+        LogSquirlLogLinesCallbackFn callback = nullptr;
+        void* userData = nullptr;
+        {
+            const std::lock_guard lock( ctx->registrationsMutex );
+            callback = ctx->logLinesCallback;
+            userData = ctx->logLinesUserData;
+        }
+        if ( callback ) {
+            callIntoPlugin( *ctx, [ callback, userData, &pathUtf8, lineCount, changed ] {
+                callback( userData, pathUtf8.constData(), lineCount, changed );
+            } );
+        }
+    }
+}
+
+QByteArray& PluginHost::PerThreadText::ofThisThread()
+{
+    const std::lock_guard lock( mutex_ );
+    return buffers_[ std::this_thread::get_id() ];
+}
+
 // ── DataSource (Phase 2) ─────────────────────────────────────────────────────────
 
 QString PluginHost::startDataSource( const QString& pluginId )
@@ -880,6 +914,9 @@ LogSquirlHostApi PluginHost::buildHostApi()
     api.register_encoding_callback = &PluginHost::hostRegisterEncodingCallback;
     api.register_menu_action_ex = &PluginHost::hostRegisterMenuActionEx;
     api.unregister_menu_action = &PluginHost::hostUnregisterMenuAction;
+    api.get_log_line_count = &PluginHost::hostGetLogLineCount;
+    api.get_log_lines = &PluginHost::hostGetLogLines;
+    api.register_log_lines_callback = &PluginHost::hostRegisterLogLinesCallback;
 
     return api;
 }
@@ -1313,6 +1350,39 @@ SelectedLogLinesText selectedLogLinesText( const QStringList& lines, bool more )
     return result;
 }
 
+/// What a port or a Log File read for a plugin, as the plugin gets it: at
+/// most LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES Log Lines, whole ones but for
+/// a first one cut, and truncated when there were more of those asked for.
+/// read holds at most one Log Line more than the bound, which says there are.
+SelectedLogLinesText logLinesTextFor( PluginSelectedLogLines read )
+{
+    auto& lines = read.lines;
+    bool more = read.more || read.lastCut;
+    if ( lines.size() > LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES ) {
+        lines.resize( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+        more = true;
+    }
+    // Only a first Log Line comes cut: one cut after whole ones is left out.
+    else if ( read.lastCut && lines.size() > 1 ) {
+        lines.removeLast();
+    }
+    return selectedLogLinesText( lines, more );
+}
+
+/// Nothing is returned unless the text is.
+void clearLogLinesOutputs( const char** text, size_t* length, size_t* lineCount )
+{
+    if ( text != nullptr ) {
+        *text = nullptr;
+    }
+    if ( length != nullptr ) {
+        *length = 0;
+    }
+    if ( lineCount != nullptr ) {
+        *lineCount = 0;
+    }
+}
+
 } // namespace
 
 int PluginHost::hostGoToLogLine( void* handle, uint64_t lineNumber )
@@ -1350,16 +1420,7 @@ int PluginHost::hostGoToLogLine( void* handle, uint64_t lineNumber )
 int PluginHost::hostGetSelectedLogLines( void* handle, const char** text, size_t* length,
                                          size_t* lineCount )
 {
-    // Nothing is returned unless the text is.
-    if ( text != nullptr ) {
-        *text = nullptr;
-    }
-    if ( length != nullptr ) {
-        *length = 0;
-    }
-    if ( lineCount != nullptr ) {
-        *lineCount = 0;
-    }
+    clearLogLinesOutputs( text, length, lineCount );
 
     auto* ctx = contextFromHandle( handle );
     if ( !ctx || !ctx->host || text == nullptr ) {
@@ -1384,21 +1445,11 @@ int PluginHost::hostGetSelectedLogLines( void* handle, const char** text, size_t
     if ( !selected ) {
         return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
     }
-    auto& lines = selected->lines;
-    if ( lines.isEmpty() ) {
+    if ( selected->lines.isEmpty() ) {
         return LOGSQUIRL_LOG_LINES_NO_SELECTION;
     }
-    bool more = selected->more || selected->lastCut;
-    if ( lines.size() > LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES ) {
-        lines.resize( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
-        more = true;
-    }
-    // Only a first Log Line comes cut: one cut after whole ones is left out.
-    else if ( selected->lastCut && lines.size() > 1 ) {
-        lines.removeLast();
-    }
 
-    auto result = selectedLogLinesText( lines, more );
+    auto result = logLinesTextFor( std::move( *selected ) );
     ctx->selectedLogLinesUtf8 = std::move( result.text );
     *text = ctx->selectedLogLinesUtf8.constData();
     if ( length != nullptr ) {
@@ -1452,6 +1503,90 @@ void PluginHost::hostRegisterEncodingCallback( void* handle, LogSquirlEncodingCa
     }
     ctx->encodingCallback = callback;
     ctx->encodingUserData = userData;
+}
+
+// The open Log Files are found on the plugin's thread, never through the UI
+// thread: a worker waiting for it while it waits for the worker would
+// deadlock. What is found is held to the end of the call, so a tab closing
+// meanwhile takes nothing away under the read; it answers as a closed one.
+
+int PluginHost::hostGetLogLineCount( void* handle, const char* filePath, uint64_t* count )
+{
+    if ( count != nullptr ) {
+        *count = 0;
+    }
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || filePath == nullptr || count == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    const auto logFile = ctx->host->logFiles_->find( QString::fromUtf8( filePath ) );
+    if ( !logFile ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    const auto lineCount = logFile->source().lineCount();
+    if ( !logFile->isOpen() ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    *count = lineCount;
+    return LOGSQUIRL_LOG_LINES_OK;
+}
+
+int PluginHost::hostGetLogLines( void* handle, const char* filePath, uint64_t firstLine,
+                                 size_t maxLines, const char** text, size_t* length,
+                                 size_t* lineCount )
+{
+    clearLogLinesOutputs( text, length, lineCount );
+
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || filePath == nullptr || text == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    const auto logFile = ctx->host->logFiles_->find( QString::fromUtf8( filePath ) );
+    if ( !logFile ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    // The plugin counts as the views' line numbers do, from 1; the Log File
+    // from 0.
+    if ( firstLine == 0 ) {
+        return LOGSQUIRL_LOG_LINES_OUT_OF_RANGE;
+    }
+
+    // One line more than returned says whether there are more; the source
+    // reads no more than the byte bound lets through.
+    const auto asked = std::min<size_t>( maxLines, LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 1 );
+    auto read = logFile->source().readLogLines( firstLine - 1, asked,
+                                                LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+    if ( !logFile->isOpen() ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    if ( !read ) {
+        return LOGSQUIRL_LOG_LINES_OUT_OF_RANGE;
+    }
+
+    auto result = logLinesTextFor( std::move( *read ) );
+    // The calling thread's own: another thread of the plugin's keeps its text.
+    auto& buffer = ctx->logLinesUtf8.ofThisThread();
+    buffer = std::move( result.text );
+    *text = buffer.constData();
+    if ( length != nullptr ) {
+        *length = static_cast<size_t>( buffer.size() );
+    }
+    if ( lineCount != nullptr ) {
+        *lineCount = result.lineCount;
+    }
+    return result.truncated ? LOGSQUIRL_LOG_LINES_TRUNCATED : LOGSQUIRL_LOG_LINES_OK;
+}
+
+void PluginHost::hostRegisterLogLinesCallback( void* handle, LogSquirlLogLinesCallbackFn callback,
+                                               void* userData )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx ) {
+        return;
+    }
+    const std::lock_guard lock( ctx->registrationsMutex );
+    ctx->logLinesCallback = callback;
+    ctx->logLinesUserData = userData;
 }
 
 } // namespace logsquirl::plugins

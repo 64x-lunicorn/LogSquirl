@@ -189,6 +189,30 @@ void encodingChanged( void* /* user_data */, const char* file_path, const char* 
                        ( std::string( file_path ) + " is read as " + encoding ).c_str() );
 }
 
+// Counts the Log Lines of the tab in front. get_log_line_count and
+// get_log_lines may be called from any thread too: a long analysis reads the
+// Log File by its path on a thread of its own.
+void countLines( void* /* user_data */ )
+{
+    const char* path = host->get_active_file_path( hostHandle );
+    uint64_t count = 0;
+    if ( host->get_log_line_count( hostHandle, path, &count ) < 0 ) {
+        host->show_notification( hostHandle, "No Log File in front" );
+        return;
+    }
+    host->show_notification( hostHandle, ( std::to_string( count ) + " Log Lines" ).c_str() );
+}
+
+// Called on the UI thread whenever the Log Lines of an open Log File change.
+void logLinesChanged( void* /* user_data */, const char* file_path, uint64_t line_count,
+                      int change )
+{
+    const char* how = change == LOGSQUIRL_LOG_LINES_APPENDED ? " grew to " : " was loaded anew: ";
+    host->log_message(
+        hostHandle, LOGSQUIRL_LOG_INFO,
+        ( std::string( file_path ) + how + std::to_string( line_count ) + " Log Lines" ).c_str() );
+}
+
 } // namespace
 
 extern "C" {
@@ -230,6 +254,11 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
         api->register_menu_action( handle, "Plugins", "Show Encoding", &showEncoding, nullptr );
         api->register_encoding_callback( handle, &encodingChanged, nullptr );
     }
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, get_log_line_count )
+         && LOGSQUIRL_HOST_API_HAS( api_size, register_log_lines_callback ) ) {
+        api->register_menu_action( handle, "Plugins", "Count Lines", &countLines, nullptr );
+        api->register_log_lines_callback( handle, &logLinesChanged, nullptr );
+    }
     return 0;
 }
 
@@ -253,8 +282,8 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 The exported functions need C linkage: in C++, define them inside
 `extern "C"`, or the host does not find them by name. The example exports
 `logsquirl_plugin_init_ex` as well as `logsquirl_plugin_init`, so it runs on a
-LogSquirl that knows the Regex Lab, Log Line, encoding and menu item removal
-functions and on one that does not. On a LogSquirl that removes menu items, a
+LogSquirl that knows the Regex Lab, Log Line, encoding, menu item removal and
+Log File reading functions and on one that does not. On a LogSquirl that removes menu items, a
 *Stop Saying Hello* item takes *Say Hello* and itself away again.
 
 ### 4. Build with CMake
@@ -647,7 +676,8 @@ The function-pointer table the host passes to `init`. It is valid from `init`
 until `shutdown`, and its functions are safe to call from any thread, but for
 `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`,
 `get_log_file_encoding` and `get_active_file_path`, which are called on the UI
-thread only.
+thread only. `get_log_line_count` and `get_log_lines` in particular are made
+for a thread of the plugin's own: they never wait for the UI thread.
 
 ```c
 typedef struct {
@@ -694,6 +724,12 @@ typedef struct {
     int ( *register_menu_action_ex )( void* handle, const char* menu_path, const char* label,
                                       void ( *callback )( void* user_data ), void* user_data );
     void ( *unregister_menu_action )( void* handle, int id );
+    int ( *get_log_line_count )( void* handle, const char* file_path, uint64_t* count );
+    int ( *get_log_lines )( void* handle, const char* file_path, uint64_t first_line,
+                            size_t max_lines, const char** text, size_t* length,
+                            size_t* line_count );
+    void ( *register_log_lines_callback )( void* handle, LogSquirlLogLinesCallbackFn callback,
+                                           void* user_data );
 } LogSquirlHostApi;
 ```
 
@@ -711,7 +747,9 @@ The functions follow one set of rules for strings and registrations (see
 - **Strings the host returns** (`get_config_dir`, `get_active_file_path`,
   `get_selected_log_lines`, `get_log_file_encoding`) are the host's: each is
   valid until your plugin calls the same function again or is shut down,
-  whatever other plugins call meanwhile. Copy what you keep longer.
+  whatever other plugins call meanwhile. The text of `get_log_lines` is valid
+  until your plugin calls it again *on the same thread*, so each thread keeps
+  its own. Copy what you keep longer.
 - **Strings the host passes to a callback** are valid during the call only.
 - **Registrations**: each `register_*` function says whether a second call
   replaces the first registration or adds another, and how a registration is
@@ -730,6 +768,7 @@ The functions follow one set of rules for strings and registrations (see
 | `register_menu_action_ex`       | adds another item with an id of its own; a label the plugin already has fails | `unregister_menu_action` |
 | `register_active_file_callback` | replaces the callback                            | a `NULL` callback                  |
 | `register_encoding_callback`    | replaces the callback                            | a `NULL` callback                  |
+| `register_log_lines_callback`   | replaces the callback                            | a `NULL` callback                  |
 
 ### `LogSquirlLogLevel`
 
@@ -789,15 +828,18 @@ The example plugin shows the pattern: `logsquirl_plugin_init` forwards to
 `LOGSQUIRL_HOST_API_HAS( api_size, open_regex_lab )`. Keep the size, or what it
 tells, for later calls.
 
-| Function                     | Added in        |
-|------------------------------|-----------------|
-| `open_regex_lab`             | LogSquirl 26.11 |
-| `go_to_log_line`             | LogSquirl 26.11 |
-| `get_selected_log_lines`     | LogSquirl 26.11 |
-| `get_log_file_encoding`      | LogSquirl 26.12 |
-| `register_encoding_callback` | LogSquirl 26.12 |
-| `register_menu_action_ex`    | LogSquirl 26.12 |
-| `unregister_menu_action`     | LogSquirl 26.12 |
+| Function                      | Added in        |
+|-------------------------------|-----------------|
+| `open_regex_lab`              | LogSquirl 26.11 |
+| `go_to_log_line`              | LogSquirl 26.11 |
+| `get_selected_log_lines`      | LogSquirl 26.11 |
+| `get_log_file_encoding`       | LogSquirl 26.12 |
+| `register_encoding_callback`  | LogSquirl 26.12 |
+| `register_menu_action_ex`     | LogSquirl 26.12 |
+| `unregister_menu_action`      | LogSquirl 26.12 |
+| `get_log_line_count`          | LogSquirl 26.12 |
+| `get_log_lines`               | LogSquirl 26.12 |
+| `register_log_lines_callback` | LogSquirl 26.12 |
 
 ### Regex Lab Types
 
@@ -817,9 +859,10 @@ typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, cons
 
 ### Log Lines Types
 
-The result of `go_to_log_line`, `get_selected_log_lines` and
-`get_log_file_encoding`, and the bounds of the text `get_selected_log_lines`
-returns:
+The result of `go_to_log_line`, `get_selected_log_lines`,
+`get_log_file_encoding`, `get_log_line_count` and `get_log_lines`, the bounds
+of the text `get_selected_log_lines` and `get_log_lines` return, and the
+change and the callback of `register_log_lines_callback`:
 
 ```c
 typedef enum {
@@ -834,6 +877,14 @@ typedef enum {
 
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES 1000
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES 1048576
+
+typedef enum {
+    LOGSQUIRL_LOG_LINES_APPENDED = 0,
+    LOGSQUIRL_LOG_LINES_REPLACED = 1
+} LogSquirlLogLinesChange;
+
+typedef void ( *LogSquirlLogLinesCallbackFn )( void* user_data, const char* file_path,
+                                               uint64_t line_count, int change );
 ```
 
 ### Encoding Types
@@ -1246,6 +1297,84 @@ each tab whose encoding changes. A plugin has one such callback: registering
 another replaces it, and `NULL` removes it. When the user switches tabs, the
 active-file callback is called instead; ask for the encoding of the new tab in
 front there.
+
+### Reading a Log File
+
+A plugin that analyses a whole Log File reads its Log Lines from LogSquirl
+rather than opening the file itself (added in LogSquirl 26.12, see
+[ADR 0024](adr/0024-a-plugin-reads-an-open-log-file-by-path-on-any-thread-and-each-thread-keeps-its-text.md)):
+it gets them decoded in the encoding the tab reads them in, numbered as the
+views number them, and for a converted or decompressed Log File the text
+LogSquirl shows rather than the bytes of the original file.
+
+```cpp
+/* On a thread of the plugin's own: the UI stays in use meanwhile. */
+std::thread analysis( [ path = std::string( pathFromActiveFileCallback ) ] {
+    uint64_t count = 0;
+    if ( host->get_log_line_count( hostHandle, path.c_str(), &count ) < 0 ) {
+        return; /* the tab closed */
+    }
+    uint64_t next = 1; /* the first Log Line is 1 */
+    while ( next <= count ) {
+        const char* text = NULL;
+        size_t lineCount = 0;
+        int result = host->get_log_lines( hostHandle, path.c_str(), next, 1000, &text,
+                                          NULL, &lineCount );
+        if ( result < 0 ) {
+            break; /* LOGSQUIRL_LOG_LINES_NO_LOG_FILE once the tab closed */
+        }
+        analyse( text ); /* lineCount Log Lines, joined by '\n' */
+        next += lineCount;
+    }
+} );
+```
+
+Both functions name the Log File by its path, as `get_active_file_path` and
+the active-file callback name it: that of a tab in any window, in front or
+not. A path no tab shows gives `LOGSQUIRL_LOG_LINES_NO_LOG_FILE`; a `NULL`
+path is `LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT`.
+
+`get_log_line_count` counts the Log Lines LogSquirl has indexed so far, so
+fewer while the Log File still loads.
+
+`get_log_lines` returns the text of Log Lines from `first_line` on, in the
+format of `get_selected_log_lines`: UTF-8, the lines joined by `'\n'` with none
+after the last, and NUL-terminated; `length` and `line_count` may be `NULL`.
+It holds whole Log Lines, at most `max_lines` and
+`LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES` of them and at most
+`LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES` bytes; a first Log Line longer than
+that is cut at a character. When it holds fewer Log Lines than `max_lines` and
+the Log File has, the result is `LOGSQUIRL_LOG_LINES_TRUNCATED`: go on from
+`first_line + line_count`. A `first_line` of 0, or past the last Log Line
+indexed so far, is `LOGSQUIRL_LOG_LINES_OUT_OF_RANGE`; a `max_lines` of 0 reads
+an empty text.
+
+Both may be called on any thread and never wait for the UI thread, so a
+thread of the plugin's may read while the UI thread is busy, and a modal
+dialog of the plugin's own may wait for that thread. The host keeps the Log
+File's data for the duration of the call: when the user closes the tab before
+or during a call, the call returns `LOGSQUIRL_LOG_LINES_NO_LOG_FILE`, and
+nothing it read is handed back. The host owns the text: it is valid until your
+plugin calls `get_log_lines` again *on the same thread*, or is shut down, so
+two threads of one plugin each keep their own text. Stop and join your threads
+in `shutdown`.
+
+The callback of `register_log_lines_callback` is called on the UI thread
+whenever the Log Lines of a tab's Log File change, in front or not, with its
+path, its Log Line count after the change and how it changed:
+
+- `LOGSQUIRL_LOG_LINES_APPENDED`: Log Lines were added at the end -- the file
+  grew, followed or not. What you read before stays as it was; read on from
+  where you stopped. The last Log Line you read may have grown longer.
+- `LOGSQUIRL_LOG_LINES_REPLACED`: the Log File was loaded anew -- reloaded,
+  truncated, or its first load finished, which settles its encoding -- or it
+  reads differently: the user chose another encoding, or the way LogSquirl
+  decodes its text changed. What you read before may differ; read it again.
+
+Calls may be coalesced, one standing for several changes, so take
+`line_count` from the call rather than adding up. The path is valid during
+the call only. A plugin has one such callback: registering
+another replaces it, and `NULL` removes it.
 
 ### Configuration Dialog
 

@@ -86,6 +86,9 @@
 
 class RegexLabWindow;
 class LogFormatCatalog;
+namespace logsquirl::plugins {
+class PluginLogFileSource;
+}
 class LogTableView;
 class QuickFindPattern;
 class SavedSearches;
@@ -151,6 +154,9 @@ public:
     // thread: it holds on to the Log File's data for as long as it lives.
     std::function<logsquirl::vector<QString>( const logsquirl::vector<LineNumber>& )>
     logLineTextReader() const;
+    // The Log File as plugins read its Log Lines, on any thread (#858): it
+    // holds on to the Log File's data for as long as it lives.
+    std::shared_ptr<const logsquirl::plugins::PluginLogFileSource> logFileForPlugins() const;
 
     // Instructs the widget to select all the text in the window the user
     // is interacting with
@@ -349,6 +355,12 @@ Q_SIGNALS:
     // The Log File is read in another Encoding now, chosen or detected by a
     // load: encodingName() names it (#803).
     void encodingChanged();
+
+    // The Log Lines changed, for the plugins (#858): Log Lines were added at
+    // the end, or -- replaced -- the Log File was loaded anew or reads
+    // differently, in another Encoding or under another Decoding Policy.
+    // lineCount is how many Log Lines it has now.
+    void logLinesChanged( LinesCount lineCount, bool replaced );
 
     // The current Search progressed, completed or failed, as the Search Line
     // and the views were just told: for the benchmark mode, which times a
