@@ -1196,9 +1196,10 @@ the process exited, the device went away, the file was read to its end. The
 stream takes no more lines from then on, and the lines pushed after
 `signal_eos` are dropped. Once the UI thread's event loop turns, the host ends
 the stream as it ends any other: it calls `logsquirl_datasource_stop`, if the
-plugin exports it, frees the stream and counts the data source as stopped.
-Its tab stays open, and the user can start the data source again from the
-`Sources` menu, which opens a new tab.
+plugin exports it, and counts the data source as stopped. Its tab stays open
+and keeps showing what was pushed: the stream's file stays until the plugin is
+disabled or unloaded, or LogSquirl closes. The user can start the data source
+again from the `Sources` menu, which opens a new tab with a stream of its own.
 
 A plugin learns when its stream starts and stops from two optional exports
 (added in LogSquirl 26.12, see
@@ -1268,12 +1269,14 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_datasource_stop( const LogSquirlDataSourc
 A stream that ends because the plugin is disabled or unloaded from the
 Plugin Management dialog, or because LogSquirl closes, goes in this order: the
 host calls `logsquirl_datasource_stop` first, then `logsquirl_plugin_shutdown`
-and waits for it to return, then signals end-of-stream and frees the stream.
+and waits for it to return, then signals end-of-stream and frees the stream,
+and with it the files of this and every earlier stream of the plugin.
 A thread of the plugin's may push until `shutdown` returns; what it pushes
 meanwhile reaches a live stream. `shutdown` must stop and join such a thread
 before it returns, since nothing the plugin calls after that is answered. A
 stream the host ends on its own, with the plugin still loaded, is stopped in
-the plugin first and drops what the plugin pushes once `stop` has returned.
+the plugin first and drops what the plugin pushes once `stop` has returned;
+its file stays for its tab until the plugin is unloaded.
 A host older than LogSquirl 26.12 knows neither export and never calls them.
 The hosts that call them pass a host API table that holds
 `unregister_menu_action`, which an older host's does not: a plugin that also

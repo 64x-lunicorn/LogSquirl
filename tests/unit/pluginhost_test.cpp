@@ -34,6 +34,7 @@
 #include <QEvent>
 #include <QEventLoop>
 #include <QFile>
+#include <QFileInfo>
 #include <QLibrary>
 #include <QPointer>
 #include <QTemporaryDir>
@@ -3664,25 +3665,29 @@ SCENARIO( "A streaming plugin is shut down before its stream goes away",
             const auto pushedBefore = probe.linesPushed();
             host->stopDataSource( StreamProbeId );
 
-            THEN( "The stream ended and its file is gone, the plugin stays loaded, and what its "
-                  "thread pushes from then on is dropped" )
+            THEN( "The stream ended, its file stays for its tab while the plugin stays loaded, "
+                  "and what its thread pushes from then on is dropped" )
             {
                 REQUIRE( heard.stopped == 1 );
-                REQUIRE_FALSE( QFile::exists( path ) );
                 REQUIRE( host->isLoaded( StreamProbeId ) );
                 REQUIRE( host->streamWriter( StreamProbeId ) == nullptr );
                 REQUIRE( probe.shutdownCalls() == 0 );
+                REQUIRE( QFile::exists( path ) );
+                const auto sizeWhenStopped = QFileInfo( path ).size();
                 REQUIRE( waitUiState( [ & ] { return probe.linesPushed() > pushedBefore + 300; },
                                       10000 ) );
+                REQUIRE( QFileInfo( path ).size() == sizeWhenStopped );
 
                 AND_WHEN( "It is unloaded" )
                 {
                     host->unloadPlugin( StreamProbeId );
 
-                    THEN( "It was shut down once, and the host said nothing more of the stream" )
+                    THEN( "It was shut down once, the host said nothing more of the stream, and "
+                          "the file is gone" )
                     {
                         REQUIRE( probe.shutdownCalls() == 1 );
                         REQUIRE( heard.stopped == 1 );
+                        REQUIRE_FALSE( QFile::exists( path ) );
                     }
                 }
             }
@@ -3696,8 +3701,8 @@ SCENARIO( "A streaming plugin is shut down before its stream goes away",
             probe.signalEosFromThread();
 
             THEN( "The host ends the stream on its own thread, once the event loop turns, as "
-                  "any other stop: it frees the stream, says it stopped once, and the plugin "
-                  "stays loaded" )
+                  "any other stop: the stream is over and said stopped once, its file stays for "
+                  "its tab, and the plugin stays loaded" )
             {
                 REQUIRE( heard.stopped == 0 );
                 REQUIRE( host->streamWriter( StreamProbeId ) != nullptr );
@@ -3707,8 +3712,11 @@ SCENARIO( "A streaming plugin is shut down before its stream goes away",
                 REQUIRE( host->isLoaded( StreamProbeId ) );
                 REQUIRE( probe.shutdownCalls() == 0 );
                 REQUIRE( host->streamWriter( StreamProbeId ) == nullptr );
-                REQUIRE_FALSE( QFile::exists( path ) );
+                REQUIRE( QFile::exists( path ) );
                 turnFor( 50 );
+                REQUIRE( heard.stopped == 1 );
+                host->unloadPlugin( StreamProbeId );
+                REQUIRE_FALSE( QFile::exists( path ) );
                 REQUIRE( heard.stopped == 1 );
             }
         }
@@ -3827,20 +3835,26 @@ SCENARIO( "A data source without start and stop that ends its own stream starts 
         probe.signalEosFromThread();
         REQUIRE( waitUiState( [ & ] { return stopped == 1; }, 5000 ) );
         REQUIRE( host.streamWriter( StreamProbeId ) == nullptr );
-        REQUIRE_FALSE( QFile::exists( firstPath ) );
+        // Its tab still reads it.
+        const auto firstSize = QFileInfo( firstPath ).size();
+        REQUIRE( firstSize > 0 );
 
         REQUIRE( host.startDataSource( StreamProbeId ).isEmpty() );
         REQUIRE( started == 2 );
         auto* second = host.streamWriter( StreamProbeId );
         REQUIRE( second != nullptr );
         REQUIRE_FALSE( second->isFinished() );
-        REQUIRE( second->filePath() != firstPath );
+        const auto secondPath = second->filePath();
+        REQUIRE( secondPath != firstPath );
         turnFor( 50 );
         REQUIRE( stopped == 1 );
+        REQUIRE( QFileInfo( firstPath ).size() == firstSize );
 
         host.unloadPlugin( StreamProbeId );
         REQUIRE( stopped == 2 );
         REQUIRE( probe.shutdownCalls() == 1 );
+        REQUIRE_FALSE( QFile::exists( firstPath ) );
+        REQUIRE_FALSE( QFile::exists( secondPath ) );
     }
 }
 
@@ -4192,7 +4206,8 @@ SCENARIO( "A data source plugin hears when its stream starts and stops",
 
             THEN( "The stream is finished at once, and once the event loop turns the plugin is "
                   "stopped once on the UI thread, what it pushes then is dropped, the stream "
-                  "is freed and the host says once that it stopped" )
+                  "is over, its file stays for its tab, and the host says once that it "
+                  "stopped" )
             {
                 REQUIRE( probe.events() == "init,start,started,eos" );
                 REQUIRE( host->streamWriter( LifecycleProbeId ) != nullptr );
@@ -4203,7 +4218,7 @@ SCENARIO( "A data source plugin hears when its stream starts and stops",
                 REQUIRE( inside.ranOn == QThread::currentThread() );
                 REQUIRE( inStreamDuringStop == "lifecycle probe opened\n" );
                 REQUIRE( host->streamWriter( LifecycleProbeId ) == nullptr );
-                REQUIRE_FALSE( QFile::exists( firstPath ) );
+                REQUIRE( readAll( firstPath ) == "lifecycle probe opened\n" );
                 REQUIRE( host->isLoaded( LifecycleProbeId ) );
                 turnFor( 50 );
                 REQUIRE( probe.events() == "init,start,started,eos,stop,stopped" );
@@ -4217,17 +4232,26 @@ SCENARIO( "A data source plugin hears when its stream starts and stops",
                 inside.work = nullptr;
                 REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
 
-                THEN( "It starts with a new stream, which is stopped once more when it ends" )
+                THEN( "It starts with a new stream, which is stopped once more when it ends; "
+                      "the first stream's file stays with its lines until the plugin is "
+                      "unloaded" )
                 {
                     REQUIRE( probe.events()
                              == "init,start,started,eos,stop,stopped,start,started" );
                     auto* stream = host->streamWriter( LifecycleProbeId );
                     REQUIRE( stream != nullptr );
                     REQUIRE_FALSE( stream->isFinished() );
-                    REQUIRE( stream->filePath() != firstPath );
+                    const auto secondPath = stream->filePath();
+                    REQUIRE( secondPath != firstPath );
+                    REQUIRE( readAll( firstPath ) == "lifecycle probe opened\n" );
                     host->stopDataSource( LifecycleProbeId );
                     REQUIRE( probe.events()
                              == "init,start,started,eos,stop,stopped,start,started,stop,stopped" );
+                    REQUIRE( readAll( firstPath ) == "lifecycle probe opened\n" );
+                    REQUIRE( QFile::exists( secondPath ) );
+                    host->unloadPlugin( LifecycleProbeId );
+                    REQUIRE_FALSE( QFile::exists( firstPath ) );
+                    REQUIRE_FALSE( QFile::exists( secondPath ) );
                 }
             }
         }

@@ -505,6 +505,11 @@ private:
         // streamMutex: the host then ends it on its own thread, as any other
         // stop (#871). Reset with every new stream.
         bool streamEndedByPlugin = false;
+        // The streams of this load of the plugin that ended, finished: their
+        // tabs still read their files, which go with the context when the
+        // plugin is unloaded or the host goes, as the last stream's did
+        // before a stream ended this way (#871). UI thread only.
+        std::vector<std::unique_ptr<StreamWriter>> endedStreams{};
         // Where the data source is between the plugin's start and stop, so
         // that stop is called once for every start that let the stream run,
         // before the stream ends (#855). UI thread only.
@@ -644,7 +649,9 @@ private:
 
     /**
      * Ends the plugin's stream, if one runs, once a push under way has
-     * returned: signals end-of-stream, frees it and says it stopped.
+     * returned: signals end-of-stream, keeps it with the ended streams, whose
+     * files the tabs still read until the plugin is unloaded (#871), and says
+     * it stopped.
      */
     void endStream( PluginContext& context, const QString& pluginId );
 
@@ -663,7 +670,7 @@ private:
 
     /**
      * Ends the stream the plugin signalled the end of as any other stop:
-     * stops the plugin, frees the stream and says it stopped. Nothing when
+     * stops the plugin, ends the stream and says it stopped. Nothing when
      * that load of the plugin is gone (#843), when the stream was ended or
      * replaced meanwhile, or while the plugin's stop runs, which ends it
      * anyway; while its start runs, the start asks for this again once it

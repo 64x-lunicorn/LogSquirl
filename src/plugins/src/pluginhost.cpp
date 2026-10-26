@@ -711,7 +711,9 @@ void PluginHost::endStream( PluginContext& context, const QString& pluginId )
             return;
         }
         context.stream->signalEos();
-        context.stream.reset();
+        // The stream is over, but its tab still reads its file: the file
+        // goes with the context, when the plugin is unloaded (#871).
+        context.endedStreams.push_back( std::move( context.stream ) );
     }
     context.dataSourceState = DataSourceState::Idle;
     // Said outside the lock: a slot may ask the host about the stream.

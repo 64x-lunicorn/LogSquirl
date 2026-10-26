@@ -325,7 +325,8 @@ typedef struct {
      * host then ends the stream on the UI thread as any other stop, once its
      * event loop turns: it calls logsquirl_datasource_stop, if the plugin
      * exports it, and the stream is over, so that the user can start the
-     * data source again.  Nothing while no stream runs.
+     * data source again.  Its tab keeps what was pushed until the plugin is
+     * unloaded.  Nothing while no stream runs.
      */
     void ( *signal_eos )( void* handle );
 

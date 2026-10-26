@@ -21,8 +21,10 @@
 
 #include "applicationplugins.h"
 #include "configuration.h"
+#include "crawlerwidget.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
+#include "openlogfile.h"
 #include "recentfiles.h"
 #include "session.h"
 #include "sessioninfo.h"
@@ -51,6 +53,23 @@
 
 #include <algorithm>
 #include <memory>
+
+struct ApplicationPluginsWindowTest {};
+
+template <>
+struct CrawlerWidget::access_by<ApplicationPluginsWindowTest> {
+    static LinesCount lineCount( const CrawlerWidget& crawler )
+    {
+        return crawler.openLogFile_->logData()->getNbLine();
+    }
+
+    static QString firstLine( const CrawlerWidget& crawler )
+    {
+        return crawler.openLogFile_->logData()->getLineString( LineNumber( 0 ) );
+    }
+};
+
+using CrawlerAccess = CrawlerWidget::access_by<ApplicationPluginsWindowTest>;
 
 using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
@@ -888,6 +907,12 @@ SCENARIO( "A data source that ended its own stream starts again from the Sources
             action->trigger();
             REQUIRE( waitUiState( [ & ] { return tabs->logFileTabs().size() == tabsBefore + 1; },
                                   10000 ) );
+            const QPointer<CrawlerWidget> firstTab
+                = qobject_cast<CrawlerWidget*>( tabs->widget( tabs->logFileTabs().back() ) );
+            REQUIRE( firstTab );
+            const auto firstPath = plugins->host().streamWriter( LifecycleProbeId )->filePath();
+            REQUIRE( waitUiState(
+                [ & ] { return CrawlerAccess::lineCount( *firstTab ) == 1_lcount; }, 10000 ) );
             reinterpret_cast<Command>( probe.resolve( "logsquirl_lifecycle_probe_signal_eos" ) )();
             REQUIRE( waitUiState( [ & ] { return events() == "init,start,eos,stop"; }, 5000 ) );
             REQUIRE( plugins->host().streamWriter( LifecycleProbeId ) == nullptr );
@@ -898,12 +923,19 @@ SCENARIO( "A data source that ended its own stream starts again from the Sources
                 REQUIRE( action != nullptr );
                 action->trigger();
 
-                THEN( "it starts, and a new tab opens" )
+                THEN( "it starts, a new tab opens, and the first tab still shows the lines of the "
+                      "first stream, whose file stays" )
                 {
                     REQUIRE( events() == "init,start,eos,stop,start" );
                     REQUIRE( plugins->host().streamWriter( LifecycleProbeId ) != nullptr );
                     REQUIRE( waitUiState(
                         [ & ] { return tabs->logFileTabs().size() == tabsBefore + 2; }, 10000 ) );
+                    // Long enough for the tab to hear of a file that went.
+                    QTest::qWait( 1000 );
+                    REQUIRE( QFile::exists( firstPath ) );
+                    REQUIRE( firstTab );
+                    REQUIRE( CrawlerAccess::lineCount( *firstTab ) == 1_lcount );
+                    REQUIRE( CrawlerAccess::firstLine( *firstTab ) == "lifecycle probe opened" );
                 }
             }
         }
