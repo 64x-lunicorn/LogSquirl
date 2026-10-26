@@ -512,7 +512,7 @@ Format with its Source: *Built-in*, *User*, or the plugin's name.
 ## Shipping Predefined Filters and Highlighter Sets
 
 A plugin can ship Predefined Filters and Highlighter Sets for the logs it
-deals with, say a "Crashes" filter group and a set that colours log levels.
+deals with, say a "Crashes" Filter Group and a set that colors log levels.
 Like Log Formats this is declarative: the plugin names the files in its
 manifest, LogSquirl reads them, and no host function is involved.
 
@@ -535,7 +535,7 @@ plugin directory, next to `formats`:
 ```
 
 **The files.** Each file has the format the *Predefined Filters* dialog and the
-*Highlighters* dialog export: build the filter group or the Highlighter Set in
+*Highlighters* dialog export: build the Filter Group or the Highlighter Set in
 LogSquirl, select it, press *Export*, and put the file into the plugin
 directory. A file may hold more than one group. The path rules are those of
 `formats`: a path that leaves the plugin directory (`../x.conf`, an absolute
@@ -564,7 +564,7 @@ show as with no Highlighter Set chosen. Enabling the plugin again brings them
 back, switched off.
 
 **A file that cannot be read.** A missing file, one that is not an exported
-filter group or Highlighter Set, or one of the other kind is skipped with a
+Filter Group or Highlighter Set, or one of the other kind is skipped with a
 logged warning naming the plugin and the file. The plugin's other files and the
 plugin itself are unaffected.
 
@@ -1387,7 +1387,7 @@ Conversion wrote, a stream, a merge, the text pasted from the clipboard, a
 download -- is not offered.
 
 The check runs on a worker thread of the host's, never on the UI thread, and
-may run for several files at the same time, also while a conversion of the
+may run for several files at the same time, also while a Conversion of the
 plugin runs. The file opens only once the check has returned, so return
 quickly: compare a few bytes, do not parse the file. The host never calls it
 after `logsquirl_plugin_shutdown`: an unload waits for a call under way. A

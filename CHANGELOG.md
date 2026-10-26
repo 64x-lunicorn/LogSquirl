@@ -133,46 +133,46 @@
   started and may refuse or cancel it, and `logsquirl_datasource_stop` runs
   once for every stream it let run, before the stream ends, also when the
   plugin is unloaded or LogSquirl quits. (#855)
-- **A plugin reads the lines of any open log file, on any thread, and hears
+- **A plugin reads the Log Lines of any Open Log File, on any thread, and hears
   when they change**: the new host functions `get_log_line_count` and
-  `get_log_lines` count and read the lines of a log file open in any tab of
+  `get_log_lines` count and read the Log Lines of a Log File open in any tab of
   any window, named by its path, numbered as the views number them and decoded
-  as they show them, a converted or decompressed log file included; one call
+  as they show them, a converted or decompressed Log File included; one call
   returns at most 1000 lines or 1 MiB, and says when there are more. Both may
   be called on a thread of the plugin's own and never wait for the user
-  interface; a tab closed during a read answers that there is no log file.
-  `register_log_lines_callback` tells a plugin when lines were appended, or
-  when the log file was replaced: reloaded, truncated, or read in another
-  encoding. Plugins detect them with `LOGSQUIRL_HOST_API_HAS`; older plugins
+  interface; a tab closed during a read answers that there is no Log File.
+  `register_log_lines_callback` tells a plugin when Log Lines were appended, or
+  when the Log File was replaced: reloaded, truncated, or read in another
+  Encoding. Plugins detect them with `LOGSQUIRL_HOST_API_HAS`; older plugins
   are unaffected. The plugin SDK guide and its example plugin show them.
   (#858)
-- **A plugin adds items to the context menu of the log lines**: the new host
+- **A plugin adds items to the context menu of the Log Lines**: the new host
   function `register_context_menu_action` adds an item below a separator at
-  the end of the context menu of the text view, the table view and the
-  filtered view, in every tab of every window, optionally in submenus, and
+  the end of the context menu of the Text View, the Table View and the
+  Filtered View, in every tab of every window, optionally in submenus, and
   returns its id; `unregister_context_menu_action` removes it again. When the
-  user chooses it, the plugin is told the log file, the view, the numbers of
-  the selected lines as the log file numbers them (at most 1000, and how many
+  user chooses it, the plugin is told the Log File, the view, the numbers of
+  the selected lines as the Log File numbers them (at most 1000, and how many
   were selected) and any word selected within a line or table cell; a
   right-click outside the selection selects the line under the pointer first.
   Plugins detect both with `LOGSQUIRL_HOST_API_HAS`; older plugins are
   unaffected. The plugin SDK guide and its example plugin show them. (#859)
-- **A plugin sets, removes and reads marks**: the new host functions
-  `add_marks` and `remove_marks` mark and unmark lines of an open log file,
+- **A plugin sets, removes and reads Marks**: the new host functions
+  `add_marks` and `remove_marks` mark and unmark Log Lines of an Open Log File,
   named by its path, in every tab that shows it; they may be called from any
   thread, take at most 10000 lines per call and skip lines past the end.
-  `get_marks` reads the marks of the log file on the user interface thread. A
-  mark a plugin sets is an ordinary mark: the bullet margin shows it, Next
-  Mark visits it and the session keeps it. Plugins detect the functions with
+  `get_marks` reads the Marks of the Log File on the user interface thread. A
+  Mark a plugin sets is an ordinary Mark: the bullet margin shows it, Next
+  Mark visits it and the Session keeps it. Plugins detect the functions with
   `LOGSQUIRL_HOST_API_HAS`; older plugins are unaffected. (#866)
-- **A plugin reads the fields of log lines as the Table View shows them**: the
+- **A plugin reads the fields of Log Lines as the Table View shows them**: the
   new host functions `get_log_format_fields` and `get_log_line_fields` name
-  the Log Format of an open log file, by its path, with its fields in the
+  the Log Format of an Open Log File, by its path, with its fields in the
   order of the Table View's columns, and read the field values of up to 1000
-  log lines per call, UTF-8 with their lengths, on any thread. A log line the
-  Log Format does not parse is marked and has no fields; a log file without a
+  Log Lines per call, UTF-8 with their lengths, on any thread. A Log Line the
+  Log Format does not parse is marked and has no fields; a Log File without a
   Log Format answers `LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT`. When Format
-  Recognition finds another Log Format for a log file, the log lines callback
+  Recognition finds another Log Format for a Log File, the log lines callback
   reports `LOGSQUIRL_LOG_LINES_REPLACED`. The plugin SDK guide and its example
   plugin show how. (#867)
 - **A converter plugin claims a file by its content**: a converter may export

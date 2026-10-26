@@ -1056,7 +1056,7 @@ typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const ch
  * logsquirl_converter_get_extensions.
  *
  * Called on a host worker thread, never on the UI thread, and possibly for
- * several files at the same time, also while a conversion of the plugin runs:
+ * several files at the same time, also while a Conversion of the plugin runs:
  * keep no state between calls but what is safe to share between threads, and
  * return quickly -- the file opens only once the check has returned.  The host
  * reads the head itself; a file it cannot read is claimed by no plugin, and

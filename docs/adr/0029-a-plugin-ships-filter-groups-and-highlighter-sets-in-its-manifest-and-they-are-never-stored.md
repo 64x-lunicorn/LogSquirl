@@ -1,6 +1,6 @@
 # A plugin ships Filter Groups and Highlighter Sets in its manifest, and they are never stored
 
-#860 decided that a plugin brings Predefined Filters and Highlighter Sets the way it brings Log Formats: declaratively, in its manifest (ADR 0021), with no host function. A Logcat plugin wants to offer a "Crashes" filter group and a set that colours log levels. The Log Formats a plugin names in `formats` go into the Log Format Catalog, which is rebuilt in memory and never written anywhere. Filter Groups and Highlighter Sets, though, live in collections the user edits and that are saved to the settings store as a whole, and so do the Team groups, which come from elsewhere and are kept out of the user's settings by hand (#694).
+#860 decided that a plugin brings Predefined Filters and Highlighter Sets the way it brings Log Formats: declaratively, in its manifest (ADR 0021), with no host function. A Logcat plugin wants to offer a "Crashes" Filter Group and a set that colors log levels. The Log Formats a plugin names in `formats` go into the Log Format Catalog, which is rebuilt in memory and never written anywhere. Filter Groups and Highlighter Sets, though, live in collections the user edits and that are saved to the settings store as a whole, and so do the Team groups, which come from elsewhere and are kept out of the user's settings by hand (#694).
 
 ## Decision
 
