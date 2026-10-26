@@ -117,6 +117,82 @@
   cut there, with its last columns reading `LOGSQUIRL WARNING: tab expansion
   cut here` instead of being truncated silently, the way a line too long to
   read reads as a warning. Ordinary Log Lines expand as before. (#848)
+- **A plugin removes the menu items it added, and the strings LogSquirl hands
+  a plugin stay valid**: the new host function `register_menu_action_ex` adds
+  a Plugins menu item as `register_menu_action` does and returns its id, and
+  `unregister_menu_action` removes that item from every window again, along
+  with a submenu nothing is left in; a click still pending when it is removed
+  no longer reaches the plugin. The path `get_active_file_path` returns now
+  stays valid until the same plugin asks again, instead of being overwritten
+  when any other plugin asks. The plugin SDK guide states, for every host
+  function, whether a second registration replaces or adds and how it is
+  removed, and how long a returned string lives. Plugins detect both functions
+  with `LOGSQUIRL_HOST_API_HAS`; older plugins are unaffected. (#857)
+- **A data source plugin learns when its stream starts and stops**: the
+  optional `logsquirl_datasource_start` runs before the stream counts as
+  started and may refuse or cancel it, and `logsquirl_datasource_stop` runs
+  once for every stream it let run, before the stream ends, also when the
+  plugin is unloaded or LogSquirl quits. (#855)
+- **A plugin reads the lines of any open log file, on any thread, and hears
+  when they change**: the new host functions `get_log_line_count` and
+  `get_log_lines` count and read the lines of a log file open in any tab of
+  any window, named by its path, numbered as the views number them and decoded
+  as they show them, a converted or decompressed log file included; one call
+  returns at most 1000 lines or 1 MiB, and says when there are more. Both may
+  be called on a thread of the plugin's own and never wait for the user
+  interface; a tab closed during a read answers that there is no log file.
+  `register_log_lines_callback` tells a plugin when lines were appended, or
+  when the log file was replaced: reloaded, truncated, or read in another
+  encoding. Plugins detect them with `LOGSQUIRL_HOST_API_HAS`; older plugins
+  are unaffected. The plugin SDK guide and its example plugin show them.
+  (#858)
+- **A plugin adds items to the context menu of the log lines**: the new host
+  function `register_context_menu_action` adds an item below a separator at
+  the end of the context menu of the text view, the table view and the
+  filtered view, in every tab of every window, optionally in submenus, and
+  returns its id; `unregister_context_menu_action` removes it again. When the
+  user chooses it, the plugin is told the log file, the view, the numbers of
+  the selected lines as the log file numbers them (at most 1000, and how many
+  were selected) and any word selected within a line or table cell; a
+  right-click outside the selection selects the line under the pointer first.
+  Plugins detect both with `LOGSQUIRL_HOST_API_HAS`; older plugins are
+  unaffected. The plugin SDK guide and its example plugin show them. (#859)
+- **A plugin sets, removes and reads marks**: the new host functions
+  `add_marks` and `remove_marks` mark and unmark lines of an open log file,
+  named by its path, in every tab that shows it; they may be called from any
+  thread, take at most 10000 lines per call and skip lines past the end.
+  `get_marks` reads the marks of the log file on the user interface thread. A
+  mark a plugin sets is an ordinary mark: the bullet margin shows it, Next
+  Mark visits it and the session keeps it. Plugins detect the functions with
+  `LOGSQUIRL_HOST_API_HAS`; older plugins are unaffected. (#866)
+- **A plugin reads the fields of log lines as the Table View shows them**: the
+  new host functions `get_log_format_fields` and `get_log_line_fields` name
+  the Log Format of an open log file, by its path, with its fields in the
+  order of the Table View's columns, and read the field values of up to 1000
+  log lines per call, UTF-8 with their lengths, on any thread. A log line the
+  Log Format does not parse is marked and has no fields; a log file without a
+  Log Format answers `LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT`. When Format
+  Recognition finds another Log Format for a log file, the log lines callback
+  reports `LOGSQUIRL_LOG_LINES_REPLACED`. The plugin SDK guide and its example
+  plugin show how. (#867)
+- **A converter plugin claims a file by its content**: a converter may export
+  the optional `logsquirl_converter_claims`, which is handed the path and the
+  first 4096 bytes of a file no converter's extensions match, and returns
+  whether it converts the file: a `.log`, `.bin` or extensionless capture
+  included, and a compressed file by its own head, before it is decompressed.
+  The converters are asked on a worker thread, one after the other by plugin
+  id, and the first that claims the file converts it in the background as for
+  an extension; the window stays in use meanwhile, and a file none claims
+  opens as before. When two converters list the same extension, the one with
+  the smallest plugin id converts the file, and an extension always wins over
+  a claim by content. Without a converter that exports the check, opening a
+  file is unchanged; older plugins are unaffected. The plugin SDK guide shows
+  how. (#861)
+- **A plugin ships Predefined Filters and Highlighter Sets**: the manifest
+  keys `predefined_filters` and `highlighter_sets` name files as the dialogs
+  export them, and LogSquirl lists them next to your own with the plugin as
+  Source, read-only and never saved with your settings; disabling the plugin
+  removes them. The plugin SDK guide shows how. (#865)
 
 ## Security
 
@@ -271,6 +347,21 @@
   member chosen by name gets; a link planted there is refused and logged, so
   the file it leads to never opens. A file picked beside the folder opens as
   a log file of its own, as before. (#847)
+- **A plugin that registers or removes its active-file or encoding callback
+  from a worker thread no longer races with the notifications**: each one
+  calls the callback with its own user data, and none comes after it is
+  removed. (#869)
+- **Two menu items of one plugin with the same label in different submenus
+  both show**: before, the second, such as Report > Export next to Tools >
+  Export, was dropped without notice. `register_menu_action_ex` now refuses an
+  item only when its menu path and label both match one the plugin already
+  has. (#870)
+- **A data source plugin that ends its own stream can be started again**: it
+  is stopped like any other data source (it is told through
+  `logsquirl_datasource_stop`), its tab keeps the captured lines, and the user
+  can start it again from the Sources menu, which opens a new tab. (#871)
+- **The Highlighters dialog no longer crashes when it is closed with OK**
+  while one of your own Highlighter Sets is selected. (#872)
 
 ## Build and packaging
 
