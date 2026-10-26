@@ -24,7 +24,8 @@
 // exported function, so one list shows the order of both. start pushes a
 // line and returns what the test chose; stop pushes a last line. A hook the
 // test sets runs inside start, inside stop and inside a menu action of the
-// plugin's, as a dialog of the plugin's would. It uses the C and C++ standard libraries only.
+// plugin's, as a dialog of the plugin's would. The test may make it signal the
+// end of its own stream (#871). It uses the C and C++ standard libraries only.
 
 #include "logsquirl_plugin_api.h"
 
@@ -136,6 +137,14 @@ LOGSQUIRL_PLUGIN_EXPORT const char* logsquirl_lifecycle_probe_events( void )
 LOGSQUIRL_PLUGIN_EXPORT void logsquirl_lifecycle_probe_note( const char* event )
 {
     note( event );
+}
+
+/** Writes down "eos" and signals the end of the stream, as the plugin may when its source
+ * is done (#871); call on the UI thread while it is initialised. */
+LOGSQUIRL_PLUGIN_EXPORT void logsquirl_lifecycle_probe_signal_eos( void )
+{
+    note( "eos" );
+    hostApi->signal_eos( hostHandle );
 }
 
 /** What logsquirl_datasource_start returns from now on. */

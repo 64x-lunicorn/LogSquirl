@@ -357,7 +357,11 @@ Q_SIGNALS:
     void dataSourceStarted( const QString& pluginId, const QString& displayName,
                             const QString& filePath );
 
-    /** Emitted when a DataSource plugin stream has ended. */
+    /**
+     * Emitted on the host's thread, once per stream, when a DataSource
+     * plugin stream has ended: stopped by the host, or ended by the plugin's
+     * own end-of-stream once the event loop turns (#871).
+     */
     void dataSourceStopped( const QString& pluginId );
 
 private:
@@ -497,6 +501,10 @@ private:
         // returned before the stream goes, and a later one finds none (#821).
         std::mutex streamMutex{};
         std::unique_ptr<StreamWriter> stream{};
+        // Whether the plugin signalled the end of this stream itself, under
+        // streamMutex: the host then ends it on its own thread, as any other
+        // stop (#871). Reset with every new stream.
+        bool streamEndedByPlugin = false;
         // Where the data source is between the plugin's start and stop, so
         // that stop is called once for every start that let the stream run,
         // before the stream ends (#855). UI thread only.
@@ -646,6 +654,22 @@ private:
      * is pending, since it is not shut down yet and is owed the stop (#855).
      */
     void stopInPlugin( PluginContext& context );
+
+    /**
+     * Has the host's thread end the stream the plugin signalled the end of,
+     * from the event loop: the plugin may signal from any thread (#871).
+     */
+    static void endStreamThePluginEndedLater( PluginContext& context );
+
+    /**
+     * Ends the stream the plugin signalled the end of as any other stop:
+     * stops the plugin, frees the stream and says it stopped. Nothing when
+     * that load of the plugin is gone (#843), when the stream was ended or
+     * replaced meanwhile, or while the plugin's stop runs, which ends it
+     * anyway; while its start runs, the start asks for this again once it
+     * has returned.
+     */
+    void endStreamThePluginEnded( const QString& pluginId, std::uint64_t loadSerial );
 
     /** Starts the plugin's next queued Conversion, unless one is under way. */
     void startNextConversion( PluginContext& context );

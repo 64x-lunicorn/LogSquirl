@@ -3695,15 +3695,21 @@ SCENARIO( "A streaming plugin is shut down before its stream goes away",
             const auto path = startStreaming();
             probe.signalEosFromThread();
 
-            THEN( "The host says the stream stopped on its own thread, once the event loop "
-                  "turns, and the plugin stays loaded" )
+            THEN( "The host ends the stream on its own thread, once the event loop turns, as "
+                  "any other stop: it frees the stream, says it stopped once, and the plugin "
+                  "stays loaded" )
             {
                 REQUIRE( heard.stopped == 0 );
+                REQUIRE( host->streamWriter( StreamProbeId ) != nullptr );
+                REQUIRE( host->streamWriter( StreamProbeId )->isFinished() );
                 REQUIRE( waitUiState( [ & ] { return heard.stopped == 1; }, 5000 ) );
                 REQUIRE( heard.stoppedOn == QThread::currentThread() );
                 REQUIRE( host->isLoaded( StreamProbeId ) );
                 REQUIRE( probe.shutdownCalls() == 0 );
-                REQUIRE( QFile::exists( path ) );
+                REQUIRE( host->streamWriter( StreamProbeId ) == nullptr );
+                REQUIRE_FALSE( QFile::exists( path ) );
+                turnFor( 50 );
+                REQUIRE( heard.stopped == 1 );
             }
         }
 
@@ -3787,6 +3793,57 @@ SCENARIO( "A data source without start and stop starts and stops as before",
     }
 }
 
+SCENARIO( "A data source without start and stop that ends its own stream starts again",
+          "[pluginhost][plugins][datasource]" )
+{
+    // Built against the current header, and against the header as 26.12.0
+    // published it (#871).
+    for ( const auto& library : { QStringLiteral( LOGSQUIRL_STREAM_PROBE_PATH ),
+                                  QStringLiteral( LOGSQUIRL_STREAM_PROBE_API2612_PATH ) } ) {
+        INFO( library.toStdString() );
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installStreamProbe( pluginRoot.path(), library );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+
+        StreamProbe probe( library );
+        probe.reset();
+        int started = 0;
+        int stopped = 0;
+        QObject::connect( &host, &PluginHost::dataSourceStarted, [ & ] { ++started; } );
+        QObject::connect( &host, &PluginHost::dataSourceStopped, [ & ] { ++stopped; } );
+
+        REQUIRE( host.loadPlugin( StreamProbeId ).isEmpty() );
+        REQUIRE( host.startDataSource( StreamProbeId ).isEmpty() );
+        const auto firstPath = host.streamWriter( StreamProbeId )->filePath();
+
+        // From a thread of its own, as a reader that hit the end of its source.
+        probe.signalEosFromThread();
+        REQUIRE( waitUiState( [ & ] { return stopped == 1; }, 5000 ) );
+        REQUIRE( host.streamWriter( StreamProbeId ) == nullptr );
+        REQUIRE_FALSE( QFile::exists( firstPath ) );
+
+        REQUIRE( host.startDataSource( StreamProbeId ).isEmpty() );
+        REQUIRE( started == 2 );
+        auto* second = host.streamWriter( StreamProbeId );
+        REQUIRE( second != nullptr );
+        REQUIRE_FALSE( second->isFinished() );
+        REQUIRE( second->filePath() != firstPath );
+        turnFor( 50 );
+        REQUIRE( stopped == 1 );
+
+        host.unloadPlugin( StreamProbeId );
+        REQUIRE( stopped == 2 );
+        REQUIRE( probe.shutdownCalls() == 1 );
+    }
+}
+
 namespace {
 
 const auto LifecycleProbeId = QStringLiteral( "io.github.logsquirl.test.lifecycle-probe" );
@@ -3816,6 +3873,12 @@ struct LifecycleProbe {
     {
         using Fn = void ( * )( const char* );
         reinterpret_cast<Fn>( library.resolve( "logsquirl_lifecycle_probe_note" ) )( event );
+    }
+
+    void signalEos()
+    {
+        using Fn = void ( * )();
+        reinterpret_cast<Fn>( library.resolve( "logsquirl_lifecycle_probe_signal_eos" ) )();
     }
 
     void setStartResult( int result )
@@ -4111,6 +4174,210 @@ SCENARIO( "A data source plugin hears when its stream starts and stops",
                 REQUIRE( waitUiState(
                     [ & ] { return probe.events() == "init,start,started,stop,stopped,shutdown"; },
                     5000 ) );
+            }
+        }
+
+        // A plugin that ends its own stream is stopped as by any other stop,
+        // on the UI thread, and may be started again (#871).
+        WHEN( "The data source runs and the plugin signals the end of its own stream" )
+        {
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            const auto firstPath = host->streamWriter( LifecycleProbeId )->filePath();
+            QByteArray inStreamDuringStop;
+            inside.ranOn = nullptr;
+            inside.work = [ & ] {
+                inStreamDuringStop = readAll( host->streamWriter( LifecycleProbeId )->filePath() );
+            };
+            probe.signalEos();
+
+            THEN( "The stream is finished at once, and once the event loop turns the plugin is "
+                  "stopped once on the UI thread, what it pushes then is dropped, the stream "
+                  "is freed and the host says once that it stopped" )
+            {
+                REQUIRE( probe.events() == "init,start,started,eos" );
+                REQUIRE( host->streamWriter( LifecycleProbeId ) != nullptr );
+                REQUIRE( host->streamWriter( LifecycleProbeId )->isFinished() );
+                REQUIRE( waitUiState(
+                    [ & ] { return probe.events() == "init,start,started,eos,stop,stopped"; },
+                    5000 ) );
+                REQUIRE( inside.ranOn == QThread::currentThread() );
+                REQUIRE( inStreamDuringStop == "lifecycle probe opened\n" );
+                REQUIRE( host->streamWriter( LifecycleProbeId ) == nullptr );
+                REQUIRE_FALSE( QFile::exists( firstPath ) );
+                REQUIRE( host->isLoaded( LifecycleProbeId ) );
+                turnFor( 50 );
+                REQUIRE( probe.events() == "init,start,started,eos,stop,stopped" );
+            }
+
+            AND_WHEN( "The user starts it again" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] { return probe.events() == "init,start,started,eos,stop,stopped"; },
+                    5000 ) );
+                inside.work = nullptr;
+                REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+
+                THEN( "It starts with a new stream, which is stopped once more when it ends" )
+                {
+                    REQUIRE( probe.events()
+                             == "init,start,started,eos,stop,stopped,start,started" );
+                    auto* stream = host->streamWriter( LifecycleProbeId );
+                    REQUIRE( stream != nullptr );
+                    REQUIRE_FALSE( stream->isFinished() );
+                    REQUIRE( stream->filePath() != firstPath );
+                    host->stopDataSource( LifecycleProbeId );
+                    REQUIRE( probe.events()
+                             == "init,start,started,eos,stop,stopped,start,started,stop,stopped" );
+                }
+            }
+        }
+
+        WHEN( "The plugin signals the end of its stream twice" )
+        {
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            probe.signalEos();
+            probe.signalEos();
+
+            THEN( "It is stopped once, and the host says once that the stream stopped" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] { return probe.events() == "init,start,started,eos,eos,stop,stopped"; },
+                    5000 ) );
+                turnFor( 50 );
+                REQUIRE( probe.events() == "init,start,started,eos,eos,stop,stopped" );
+            }
+        }
+
+        WHEN( "The plugin signals the end of its stream and the user stops it before the event "
+              "loop turns" )
+        {
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            probe.signalEos();
+            host->stopDataSource( LifecycleProbeId );
+
+            THEN( "It is stopped once, and the end it signalled adds nothing" )
+            {
+                REQUIRE( probe.events() == "init,start,started,eos,stop,stopped" );
+                turnFor( 50 );
+                REQUIRE( probe.events() == "init,start,started,eos,stop,stopped" );
+            }
+        }
+
+        WHEN( "The plugin signals the end of its stream, and the user stops and starts it again "
+              "before the event loop turns" )
+        {
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            probe.signalEos();
+            host->stopDataSource( LifecycleProbeId );
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            turnFor( 50 );
+
+            THEN( "The new stream runs on" )
+            {
+                REQUIRE( probe.events() == "init,start,started,eos,stop,stopped,start,started" );
+                auto* stream = host->streamWriter( LifecycleProbeId );
+                REQUIRE( stream != nullptr );
+                REQUIRE_FALSE( stream->isFinished() );
+            }
+        }
+
+        WHEN( "The plugin signals the end of its stream from inside its start" )
+        {
+            bool signalled = false;
+            inside.work = [ & ] {
+                if ( !signalled ) {
+                    signalled = true;
+                    probe.signalEos();
+                }
+            };
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+
+            THEN( "The stream starts, and once the event loop turns it is stopped once and ends" )
+            {
+                REQUIRE( probe.events() == "init,start,eos,started" );
+                REQUIRE( waitUiState(
+                    [ & ] { return probe.events() == "init,start,eos,started,stop,stopped"; },
+                    5000 ) );
+                REQUIRE( host->streamWriter( LifecycleProbeId ) == nullptr );
+                REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            }
+        }
+
+        WHEN( "The plugin signals the end of its stream from inside its start, whose dialog "
+              "keeps the event loop turning" )
+        {
+            bool signalled = false;
+            inside.work = [ & ] {
+                if ( !signalled ) {
+                    signalled = true;
+                    probe.signalEos();
+                    turnFor( 50 );
+                }
+            };
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+
+            THEN( "The stream starts, and is stopped once and ends only after the start "
+                  "returned" )
+            {
+                REQUIRE( probe.events() == "init,start,eos,started" );
+                REQUIRE( waitUiState(
+                    [ & ] { return probe.events() == "init,start,eos,started,stop,stopped"; },
+                    5000 ) );
+                REQUIRE( host->streamWriter( LifecycleProbeId ) == nullptr );
+            }
+        }
+
+        WHEN( "The plugin signals the end of its stream from inside its start, and then fails" )
+        {
+            probe.setStartResult( LOGSQUIRL_DATASOURCE_FAILED );
+            inside.work = [ & ] { probe.signalEos(); };
+            REQUIRE_FALSE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            turnFor( 50 );
+
+            THEN( "It is not stopped, nothing said the stream stopped, and it starts again" )
+            {
+                REQUIRE( probe.events() == "init,start,eos" );
+                inside.work = nullptr;
+                probe.setStartResult( LOGSQUIRL_DATASOURCE_STARTED );
+                REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+                turnFor( 50 );
+                REQUIRE( probe.events() == "init,start,eos,start,started" );
+            }
+        }
+
+        WHEN( "The user stops the data source and the plugin signals the end of its stream from "
+              "inside its stop" )
+        {
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            inside.work = [ & ] { probe.signalEos(); };
+            host->stopDataSource( LifecycleProbeId );
+
+            THEN( "It is stopped once, and the host says once that the stream stopped" )
+            {
+                REQUIRE( probe.events() == "init,start,started,stop,eos,stopped" );
+                turnFor( 50 );
+                REQUIRE( probe.events() == "init,start,started,stop,eos,stopped" );
+            }
+        }
+
+        WHEN( "The plugin signals the end of its stream, and is unloaded and loaded again and "
+              "started before the event loop turns" )
+        {
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            probe.signalEos();
+            host->unloadPlugin( LifecycleProbeId );
+            REQUIRE( host->loadPlugin( LifecycleProbeId ).isEmpty() );
+            REQUIRE( host->startDataSource( LifecycleProbeId ).isEmpty() );
+            turnFor( 50 );
+
+            THEN( "The unload stopped the old stream once, and the end the plugin signalled "
+                  "before it is dropped: the new stream runs on" )
+            {
+                REQUIRE( probe.events()
+                         == "init,start,started,eos,stop,shutdown,stopped,init,start,started" );
+                auto* stream = host->streamWriter( LifecycleProbeId );
+                REQUIRE( stream != nullptr );
+                REQUIRE_FALSE( stream->isFinished() );
             }
         }
 

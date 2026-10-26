@@ -1191,6 +1191,15 @@ Lines pushed while no stream of the plugin is running are dropped. A plugin
 has one stream at a time: while it runs, choosing the plugin again in the
 `Sources` menu does not start another.
 
+Call `signal_eos`, from any thread, when the source has nothing more to give:
+the process exited, the device went away, the file was read to its end. The
+stream takes no more lines from then on, and the lines pushed after
+`signal_eos` are dropped. Once the UI thread's event loop turns, the host ends
+the stream as it ends any other: it calls `logsquirl_datasource_stop`, if the
+plugin exports it, frees the stream and counts the data source as stopped.
+Its tab stays open, and the user can start the data source again from the
+`Sources` menu, which opens a new tab.
+
 A plugin learns when its stream starts and stops from two optional exports
 (added in LogSquirl 26.12, see
 [ADR 0023](adr/0023-a-data-source-is-stopped-once-for-every-start-it-let-run-before-its-stream-ends.md)),
@@ -1212,10 +1221,13 @@ during the call only:
   does not start.
 - `logsquirl_datasource_stop` is called exactly once for every start that
   returned `LOGSQUIRL_DATASOURCE_STARTED`, however the stream ends: the user
-  stops it, the plugin is disabled or unloaded, or LogSquirl quits. It is
-  called before the host signals end-of-stream, so push the last lines here
-  and close the source. A push that returns after `stop` has returned may be
-  dropped. A plugin that signalled end-of-stream itself is still stopped.
+  stops it, the plugin signals end-of-stream itself, the plugin is disabled
+  or unloaded, or LogSquirl quits. It is called before the host signals
+  end-of-stream, so push the last lines here and close the source. A push
+  that returns after `stop` has returned may be dropped. A plugin that
+  signalled end-of-stream itself is stopped once the event loop turns, after
+  its own end-of-stream: what it pushes in `stop` then is dropped, and `stop`
+  only closes the source.
 
 A start the plugin refused is never stopped. A plugin without
 `logsquirl_datasource_start` counts as having let every stream run, and a
@@ -1952,7 +1964,9 @@ A: Yes. Create threads as needed. All host API functions are safe from any
 thread, but for `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`
 and `get_active_file_path`, which are called on the UI thread only; `open_file`
 from a worker thread opens the file on the UI thread. Call `signal_eos` or
-`signal_error` when your thread is done. A converter needs no thread of its
+`signal_error` when your thread is done; `signal_eos` ends the stream, and
+the host then calls `logsquirl_datasource_stop` on the UI thread. A
+converter needs no thread of its
 own: the host calls `logsquirl_converter_convert`,
 `logsquirl_converter_convert_ex` and `logsquirl_converter_claims` on a worker
 thread already.

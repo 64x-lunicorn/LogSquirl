@@ -170,6 +170,13 @@ target_compile_definitions(logsquirl_itests PRIVATE
     LOGSQUIRL_CLAIM_PROBE_A_PATH="$<TARGET_FILE:logsquirl_claim_probe_a>"
     LOGSQUIRL_CLAIM_PROBE_B_PATH="$<TARGET_FILE:logsquirl_claim_probe_b>")
 
+# The data source plugin of the unit tests that writes down when its stream
+# starts and stops, and ends its own stream when the test asks: started from
+# the Sources menu again once it did (#871).
+add_dependencies(logsquirl_itests logsquirl_lifecycle_probe)
+target_compile_definitions(logsquirl_itests PRIVATE
+    LOGSQUIRL_LIFECYCLE_PROBE_PATH="$<TARGET_FILE:logsquirl_lifecycle_probe>")
+
 # theme_screenshots_test copies the demo log from test_data/ (#253).
 target_compile_definitions(logsquirl_itests PRIVATE LOGSQUIRL_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 

@@ -605,6 +605,7 @@ QString PluginHost::startDataSource( const QString& pluginId )
     {
         const std::lock_guard lock( ctx.streamMutex );
         ctx.stream = std::move( stream );
+        ctx.streamEndedByPlugin = false;
     }
 
     // The plugin opens its device, socket or process, and may ask the user
@@ -641,6 +642,19 @@ QString PluginHost::startDataSource( const QString& pluginId )
         // Unloaded while it started: its unload stops and ends the stream,
         // and no tab opens for a plugin that counts as unloaded.
         return QString( "Plugin '%1' is not loaded" ).arg( pluginId );
+    }
+
+    // The plugin signalled the end of its stream from inside its start: the
+    // tab opens all the same, and the stream ends from the event loop, as
+    // it would have, had the plugin signalled once start returned (#871).
+    // Asked for before the signal, whose slot may unload the plugin.
+    bool endedByPlugin = false;
+    {
+        const std::lock_guard lock( ctx.streamMutex );
+        endedByPlugin = ctx.streamEndedByPlugin;
+    }
+    if ( endedByPlugin ) {
+        endStreamThePluginEndedLater( ctx );
     }
 
     LOG_INFO << "Started DataSource '" << pluginId << "' writing to " << path;
@@ -1234,34 +1248,62 @@ void PluginHost::hostSignalEos( void* handle )
     if ( !ctx ) {
         return;
     }
+    // The plugin's word is final: the stream takes no more lines from now
+    // on, also none its stop pushes.
     {
         const std::lock_guard lock( ctx->streamMutex );
         if ( !ctx->stream ) {
             return;
         }
         ctx->stream->signalEos();
+        ctx->streamEndedByPlugin = true;
     }
     LOG_INFO << "DataSource EOS from plugin";
-    if ( !ctx->host ) {
+    endStreamThePluginEndedLater( *ctx );
+}
+
+void PluginHost::endStreamThePluginEndedLater( PluginContext& context )
+{
+    // Ended on the host's thread, as every other time a data source stops: a
+    // plugin may signal from a thread of its own, its stop runs on the UI
+    // thread, and a directly connected slot would run on the plugin's.
+    auto* host = context.host;
+    if ( !host ) {
         return;
     }
-    // Said on the host's thread, as every other time a data source stops: a
-    // plugin may signal from a thread of its own, and a directly connected
-    // slot would run there. The plugin may be unloaded before the queued
-    // call runs, and loaded again: the unload said the stream stopped (#843).
-    auto* host = ctx->host;
     QMetaObject::invokeMethod(
         host,
-        [ host, loadSerial = ctx->loadSerial, pluginId = ctx->handle.metadata().id() ] {
-            const auto* loaded = host->loadedContext( pluginId );
-            if ( !loaded || loaded->loadSerial != loadSerial ) {
-                LOG_INFO << "Plugin " << pluginId
-                         << " was unloaded; dropping its queued end of stream";
-                return;
-            }
-            Q_EMIT host->dataSourceStopped( pluginId );
+        [ host, loadSerial = context.loadSerial, pluginId = context.handle.metadata().id() ] {
+            host->endStreamThePluginEnded( pluginId, loadSerial );
         },
         Qt::QueuedConnection );
+}
+
+void PluginHost::endStreamThePluginEnded( const QString& pluginId, std::uint64_t loadSerial )
+{
+    // The plugin may be unloaded before the queued call runs, and loaded
+    // again: the unload stopped it and said the stream stopped (#843).
+    auto* loaded = loadedContext( pluginId );
+    if ( !loaded || loaded->loadSerial != loadSerial ) {
+        LOG_INFO << "Plugin " << pluginId << " was unloaded; dropping its queued end of stream";
+        return;
+    }
+    auto& context = *loaded;
+    {
+        // Stopped meanwhile, and maybe started again: that stream runs on.
+        const std::lock_guard lock( context.streamMutex );
+        if ( !context.stream || !context.streamEndedByPlugin ) {
+            return;
+        }
+    }
+    // A start under way, its dialog turning the event loop, asks again once
+    // it has returned; a stop under way ends the stream as it returns.
+    if ( context.dataSourceState != DataSourceState::Running ) {
+        return;
+    }
+    LOG_INFO << "Ending DataSource the plugin ended: " << pluginId;
+    stopInPlugin( context );
+    endStream( context, pluginId );
 }
 
 void PluginHost::hostSignalError( void* handle, const char* message )

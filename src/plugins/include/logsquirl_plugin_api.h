@@ -318,7 +318,15 @@ typedef struct {
     /** Push multiple log lines in one call. */
     void ( *push_lines )( void* handle, const char* const* data, const size_t* lens, size_t count );
 
-    /** Signal that the data source has reached end-of-stream. */
+    /**
+     * Signal that the data source has reached end-of-stream.  May be called
+     * from any thread.  The stream takes no more lines from then on: a line
+     * pushed after it, from logsquirl_datasource_stop too, is dropped.  The
+     * host then ends the stream on the UI thread as any other stop, once its
+     * event loop turns: it calls logsquirl_datasource_stop, if the plugin
+     * exports it, and the stream is over, so that the user can start the
+     * data source again.  Nothing while no stream runs.
+     */
     void ( *signal_eos )( void* handle );
 
     /** Signal an error in the data source. */
@@ -1109,12 +1117,14 @@ typedef int ( *LogSquirlDataSourceStartFn )( const LogSquirlDataSourceContext* c
  * Stop the plugin's stream (optional).  Called on the UI thread exactly once
  * for every start that returned LOGSQUIRL_DATASOURCE_STARTED, or for every
  * stream of a plugin that does not export logsquirl_datasource_start, however
- * the stream ends: the user stops it, the plugin is unloaded, or LogSquirl
- * quits.  It is called before the host signals end-of-stream, and on an
- * unload before logsquirl_plugin_shutdown: push the last lines and close the
- * device, socket or process here.  A line pushed until it returns reaches the
- * stream; a push that returns after it has returned may be dropped.  A plugin
- * that signalled end-of-stream itself is still stopped.
+ * the stream ends: the user stops it, the plugin signals end-of-stream itself,
+ * the plugin is unloaded, or LogSquirl quits.  It is called before the host
+ * signals end-of-stream, and on an unload before logsquirl_plugin_shutdown:
+ * push the last lines and close the device, socket or process here.  A line
+ * pushed until it returns reaches the stream; a push that returns after it
+ * has returned may be dropped.  A plugin that signalled end-of-stream itself
+ * is stopped once the host's event loop turns, after its end-of-stream: the
+ * lines it pushes then are dropped, and it only closes its source.
  * @param context  Valid during the call only.
  */
 typedef void ( *LogSquirlDataSourceStopFn )( const LogSquirlDataSourceContext* context );
