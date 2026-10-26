@@ -41,6 +41,7 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <expected>
@@ -451,6 +452,48 @@ void recordActiveFile( void* userData, const char* filePath )
     static_cast<ActiveFileCalls*>( userData )->paths.append( QString::fromUtf8( filePath ) );
 }
 
+/// The user data of a callback a plugin registers and removes from a thread
+/// of its own while notifications come on the UI thread (#869). Each callback
+/// is only ever registered with the user data of its own tag: called with
+/// the other one, the host mixed an old pair with a new one. Counted on the
+/// UI thread only.
+struct SwappedCallback {
+    int tag = 0;
+    int calls = 0;
+    int mixed = 0;
+
+    void count( int expectedTag )
+    {
+        ++calls;
+        if ( tag != expectedTag ) {
+            ++mixed;
+        }
+    }
+};
+
+void firstActiveFile( void* userData, const char* /*filePath*/ )
+{
+    static_cast<SwappedCallback*>( userData )->count( 1 );
+}
+
+void secondActiveFile( void* userData, const char* /*filePath*/ )
+{
+    static_cast<SwappedCallback*>( userData )->count( 2 );
+}
+
+void firstEncoding( void* userData, const char* /*filePath*/, const char* /*encoding*/ )
+{
+    static_cast<SwappedCallback*>( userData )->count( 1 );
+}
+
+void secondEncoding( void* userData, const char* /*filePath*/, const char* /*encoding*/ )
+{
+    static_cast<SwappedCallback*>( userData )->count( 2 );
+}
+
+/// How often the plugin's thread swaps its callback while the UI thread notifies.
+constexpr int CallbackSwaps = 2000;
+
 /// What the Regex Lab callback a test passes through the probe received.
 struct RegexLabAnswers {
     struct Answer {
@@ -762,6 +805,35 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
                     REQUIRE( activeFiles.paths.isEmpty() );
                     REQUIRE( secondFiles.paths == QStringList{ "/logs/app.log" } );
                 }
+            }
+        }
+
+        WHEN( "The plugin registers and removes active-file callbacks from a thread of its own "
+              "while the active file changes (#869)" )
+        {
+            SwappedCallback first{ .tag = 1 };
+            SwappedCallback second{ .tag = 2 };
+            std::atomic<bool> swapping = true;
+            std::thread plugin( [ & ] {
+                for ( int i = 0; i < CallbackSwaps; ++i ) {
+                    api->register_active_file_callback( handle, &firstActiveFile, &first );
+                    api->register_active_file_callback( handle, &secondActiveFile, &second );
+                    api->register_active_file_callback( handle, nullptr, nullptr );
+                }
+                swapping = false;
+            } );
+            while ( swapping ) {
+                host.notifyActiveFileChanged( QStringLiteral( "/logs/app.log" ) );
+            }
+            plugin.join();
+            const auto callsWhileSwapping = first.calls + second.calls;
+            host.notifyActiveFileChanged( QStringLiteral( "/logs/app.log" ) );
+
+            THEN( "Each call has its own callback's user data, and none comes once removed" )
+            {
+                REQUIRE( first.mixed == 0 );
+                REQUIRE( second.mixed == 0 );
+                REQUIRE( first.calls + second.calls == callsWhileSwapping );
             }
         }
 
@@ -3354,6 +3426,37 @@ SCENARIO( "A plugin reads which Encoding a Log File is read in through the Plugi
                 {
                     REQUIRE( changes.told.size() == 1 );
                 }
+            }
+        }
+
+        WHEN( "The plugin registers and removes encoding callbacks from a thread of its own "
+              "while Encodings change (#869)" )
+        {
+            SwappedCallback first{ .tag = 1 };
+            SwappedCallback second{ .tag = 2 };
+            std::atomic<bool> swapping = true;
+            std::thread plugin( [ & ] {
+                for ( int i = 0; i < CallbackSwaps; ++i ) {
+                    api->register_encoding_callback( handle, &firstEncoding, &first );
+                    api->register_encoding_callback( handle, &secondEncoding, &second );
+                    api->register_encoding_callback( handle, nullptr, nullptr );
+                }
+                swapping = false;
+            } );
+            while ( swapping ) {
+                host.notifyEncodingChanged( QStringLiteral( "/logs/other.log" ),
+                                            QStringLiteral( "UTF-8" ) );
+            }
+            plugin.join();
+            const auto callsWhileSwapping = first.calls + second.calls;
+            host.notifyEncodingChanged( QStringLiteral( "/logs/other.log" ),
+                                        QStringLiteral( "UTF-8" ) );
+
+            THEN( "Each call has its own callback's user data, and none comes once removed" )
+            {
+                REQUIRE( first.mixed == 0 );
+                REQUIRE( second.mixed == 0 );
+                REQUIRE( first.calls + second.calls == callsWhileSwapping );
             }
         }
 

@@ -506,10 +506,20 @@ void PluginHost::notifyActiveFileChanged( const QString& filePath )
     // By ID: a plugin's callback may unload another plugin.
     for ( const auto& id : loadedPluginIds() ) {
         auto* ctx = loadedContext( id );
-        if ( ctx && ctx->activeFileCallback ) {
-            callIntoPlugin( *ctx, [ ctx, &utf8 ] {
-                ctx->activeFileCallback( ctx->activeFileUserData, utf8.constData() );
-            } );
+        if ( !ctx ) {
+            continue;
+        }
+        // Taken as one: the plugin may register another from its own thread.
+        void ( *callback )( void* user_data, const char* file_path ) = nullptr;
+        void* userData = nullptr;
+        {
+            const std::lock_guard lock( ctx->registrationsMutex );
+            callback = ctx->activeFileCallback;
+            userData = ctx->activeFileUserData;
+        }
+        if ( callback ) {
+            callIntoPlugin(
+                *ctx, [ callback, userData, &utf8 ] { callback( userData, utf8.constData() ); } );
         }
     }
 }
@@ -521,10 +531,20 @@ void PluginHost::notifyEncodingChanged( const QString& filePath, const QString& 
     // By ID: a plugin's callback may unload another plugin.
     for ( const auto& id : loadedPluginIds() ) {
         auto* ctx = loadedContext( id );
-        if ( ctx && ctx->encodingCallback ) {
-            callIntoPlugin( *ctx, [ ctx, &pathUtf8, &encodingUtf8 ] {
-                ctx->encodingCallback( ctx->encodingUserData, pathUtf8.constData(),
-                                       encodingUtf8.constData() );
+        if ( !ctx ) {
+            continue;
+        }
+        // Taken as one: the plugin may register another from its own thread.
+        LogSquirlEncodingCallbackFn callback = nullptr;
+        void* userData = nullptr;
+        {
+            const std::lock_guard lock( ctx->registrationsMutex );
+            callback = ctx->encodingCallback;
+            userData = ctx->encodingUserData;
+        }
+        if ( callback ) {
+            callIntoPlugin( *ctx, [ callback, userData, &pathUtf8, &encodingUtf8 ] {
+                callback( userData, pathUtf8.constData(), encodingUtf8.constData() );
             } );
         }
     }
@@ -1508,6 +1528,7 @@ void PluginHost::hostRegisterActiveFileCallback(
     if ( !ctx ) {
         return;
     }
+    const std::lock_guard lock( ctx->registrationsMutex );
     ctx->activeFileCallback = callback;
     ctx->activeFileUserData = user_data;
 }
@@ -1804,6 +1825,7 @@ void PluginHost::hostRegisterEncodingCallback( void* handle, LogSquirlEncodingCa
     if ( !ctx ) {
         return;
     }
+    const std::lock_guard lock( ctx->registrationsMutex );
     ctx->encodingCallback = callback;
     ctx->encodingUserData = userData;
 }

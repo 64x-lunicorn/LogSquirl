@@ -507,10 +507,12 @@ private:
         // the host's thread is dropped when the plugin was unloaded meanwhile,
         // also when it was loaded again since.
         std::uint64_t loadSerial = 0;
-        // Active-file-change callback registered by plugin (optional)
+        // Active-file-change callback registered by plugin (optional), under
+        // registrationsMutex: it may register from any thread (#869).
         void ( *activeFileCallback )( void* user_data, const char* file_path ) = nullptr;
         void* activeFileUserData = nullptr;
-        // Encoding-change callback registered by plugin (optional, #803)
+        // Encoding-change callback registered by plugin (optional, #803),
+        // under registrationsMutex as the one above.
         LogSquirlEncodingCallbackFn encodingCallback = nullptr;
         void* encodingUserData = nullptr;
         // What the user interface answers the plugin through is connected
