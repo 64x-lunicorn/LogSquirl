@@ -200,8 +200,11 @@ void SharedPluginUiPort::addMenuAction( const QString& pluginId, const QString& 
 {
     const std::scoped_lock lock( mutex_ );
     // A plugin enabled again without a restart registers its actions again.
+    // An action of the same label in another submenu is one of its own (#870).
+    const auto submenu = pluginSubmenuNames( menuPath );
     const auto alreadyAdded = std::ranges::any_of( menuActions_, [ & ]( const MenuAction& action ) {
-        return action.pluginId == pluginId && action.label == label;
+        return action.pluginId == pluginId && action.label == label
+               && pluginSubmenuNames( action.menuPath ) == submenu;
     } );
     if ( alreadyAdded ) {
         return;

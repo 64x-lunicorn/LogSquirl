@@ -366,10 +366,12 @@ typedef struct {
 
     /**
      * Add a custom action to the host's Plugins menu.  Each call adds an
-     * item, but for a label the plugin already has an item of: then it adds
-     * nothing.  The item goes away when the plugin is unloaded, not before:
-     * an item to be removed earlier is registered with
-     * register_menu_action_ex.
+     * item, but for a menu path and label the plugin already has an item of:
+     * then it adds nothing.  Paths that name the same submenu, such as
+     * "Tools" and "Plugins/Tools/", count as the same; an item of the same
+     * label in another submenu is one of its own.  The item goes away when
+     * the plugin is unloaded, not before: an item to be removed earlier is
+     * registered with register_menu_action_ex.
      * @param menu_path  Slash-separated path of submenus of the Plugins menu the
      *                   item goes into, e.g. "My Plugin/Sub" for
      *                   Plugins > My Plugin > Sub. An empty path (or "Plugins")
@@ -553,7 +555,8 @@ typedef struct {
      * Add an item to the host's Plugins menu, as register_menu_action does,
      * and return an id that removes it again with unregister_menu_action
      * (LogSquirl 26.12).  Each call adds an item of its own; a plugin's items
-     * have different labels.  May be called from any thread: the id is
+     * in one submenu have different labels, while items of the same label in
+     * different submenus are fine.  May be called from any thread: the id is
      * returned at once, also when the item appears on the UI thread later.
      * @param menu_path  As for register_menu_action; NULL is an empty path.
      * @param label      Menu item label; must not be NULL or empty.
@@ -562,8 +565,9 @@ typedef struct {
      * @param user_data  Passed back to callback unchanged.
      * @return The item's id, greater than 0; negative when no item was added:
      *         a host without a user interface, a NULL handle, a NULL or empty
-     *         label, a NULL callback, or a label the plugin already has an
-     *         item of.
+     *         label, a NULL callback, or a menu path and label the plugin
+     *         already has an item of (paths that name the same submenu count
+     *         as the same, as for register_menu_action).
      */
     int ( *register_menu_action_ex )( void* handle, const char* menu_path, const char* label,
                                       void ( *callback )( void* user_data ), void* user_data );

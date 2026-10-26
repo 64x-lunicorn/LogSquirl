@@ -49,6 +49,27 @@ struct PluginWidgetHandle {
     bool operator==( const PluginWidgetHandle& ) const = default;
 };
 
+/**
+ * The names of the submenus of the Plugins menu a menu path names, outermost
+ * first. Spaces around a name and empty segments do not count, and a first
+ * segment "Plugins" names the Plugins menu itself: "", "Plugins" and "/" all
+ * name the Plugins menu, "Tools" and "Plugins/ Tools /" the same submenu.
+ */
+inline QStringList pluginSubmenuNames( const QString& menuPath )
+{
+    QStringList names;
+    for ( const auto& segment : menuPath.split( u'/' ) ) {
+        const auto name = segment.trimmed();
+        if ( !name.isEmpty() ) {
+            names.append( name );
+        }
+    }
+    if ( !names.isEmpty() && names.front() == QStringLiteral( "Plugins" ) ) {
+        names.removeFirst();
+    }
+    return names;
+}
+
 /** A pattern a plugin has the user test in the Regex Lab, and how it reads it. */
 struct PluginPattern {
     QString pattern;

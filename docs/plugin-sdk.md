@@ -953,8 +953,8 @@ The functions follow one set of rules for strings and registrations (see
 | `register_status_widget`        | adds another widget; the same widget again does nothing | `unregister_status_widget`  |
 | `register_sidebar_tab`          | adds another tab; the same widget again does nothing    | `unregister_sidebar_tab`    |
 | `register_footer_widget`        | adds another widget; the same widget again does nothing | `unregister_footer_widget`  |
-| `register_menu_action`          | adds another item, but none of a label the plugin already has | unloading the plugin only |
-| `register_menu_action_ex`       | adds another item with an id of its own; a label the plugin already has fails | `unregister_menu_action` |
+| `register_menu_action`          | adds another item, but none of a menu path and label the plugin already has | unloading the plugin only |
+| `register_menu_action_ex`       | adds another item with an id of its own; a menu path and label the plugin already has fails | `unregister_menu_action` |
 | `register_context_menu_action`  | adds another item with an id of its own, whatever its label | `unregister_context_menu_action` |
 | `register_active_file_callback` | replaces the callback                            | a `NULL` callback                  |
 | `register_encoding_callback`    | replaces the callback                            | a `NULL` callback                  |
@@ -1415,8 +1415,12 @@ without that first segment. The last segment is a submenu too, the item's own
 text is always `label`. Items and submenus go above `Plugin Management...`,
 and plugins naming the same path share its submenus. When the plugin is
 unloaded, its items go away, and so does every submenu nothing is left in.
-A plugin's items have different labels: a second `register_menu_action` of a
-label the plugin already has adds nothing.
+A plugin's items in one submenu have different labels: a second
+`register_menu_action` of a menu path and label the plugin already has adds
+nothing. Paths that name the same submenu, such as `"Tools"` and
+`"Plugins/Tools/"`, count as the same; an item of the same label in another
+submenu, such as `"Tools"`/`"Export"` and `"Report"`/`"Export"`, is an item
+of its own.
 
 An item of `register_menu_action` stays until the plugin is unloaded. To
 remove one earlier, register it with `register_menu_action_ex` (added in
@@ -1434,8 +1438,8 @@ if ( LOGSQUIRL_HOST_API_HAS( api_size, register_menu_action_ex )
 The id is greater than 0 and unique within the plugin while it is loaded; it
 comes back at once, also when called on another thread, before the item
 appears on the UI thread. A negative value means no item was added: a `NULL`
-or empty `label`, a `NULL` callback, or a label the plugin already has an item
-of. `unregister_menu_action` removes the item from every window, and a
+or empty `label`, a `NULL` callback, or a menu path and label the plugin
+already has an item of. `unregister_menu_action` removes the item from every window, and a
 submenu the host created for it once nothing is left in it. Once it returns,
 the item's callback is not called again: a trigger still queued is dropped.
 An id the plugin was not given, or one already removed, does nothing. To

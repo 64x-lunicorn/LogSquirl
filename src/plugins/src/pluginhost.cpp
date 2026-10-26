@@ -1382,25 +1382,25 @@ void PluginHost::hostRegisterMenuAction( void* handle, const char* menuPath, con
         return;
     }
     auto* ctx = contextFromHandle( handle );
+    const auto menuPathText = QString::fromUtf8( menuPath );
     const auto labelText = QString::fromUtf8( label );
     MenuActionCall* call = nullptr;
     {
-        // Kept for its label also without a callback: register_menu_action_ex
-        // adds no second item of it.
+        // Kept for its submenu and label also without a callback:
+        // register_menu_action_ex adds no second item of them.
         const std::lock_guard lock( ctx->registrationsMutex );
         call = &ctx->menuActionCalls.emplace_back();
         call->context = ctx;
         call->callback = callback;
         call->userData = userData;
         call->label = labelText;
+        call->submenu = pluginSubmenuNames( menuPathText );
     }
     if ( !callback ) {
-        port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), labelText, nullptr,
-                             userData );
+        port->addMenuAction( pluginId, menuPathText, labelText, nullptr, userData );
         return;
     }
-    port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), labelText,
-                         &PluginHost::runMenuAction, call );
+    port->addMenuAction( pluginId, menuPathText, labelText, &PluginHost::runMenuAction, call );
 }
 
 int PluginHost::nextRegistrationId( PluginContext& context )
@@ -1419,15 +1419,17 @@ int PluginHost::hostRegisterMenuActionEx( void* handle, const char* menuPath, co
         return -1;
     }
     auto* ctx = contextFromHandle( handle );
+    const auto menuPathText = QString::fromUtf8( menuPath );
     const auto labelText = QString::fromUtf8( label );
+    const auto submenu = pluginSubmenuNames( menuPathText );
     MenuActionCall* call = nullptr;
     int id = -1;
     {
         const std::lock_guard lock( ctx->registrationsMutex );
-        // A plugin's items have different labels: the Plugin UI Port shows a
-        // second one of the same label not at all.
+        // A plugin's items of one submenu have different labels: the Plugin
+        // UI Port shows a second one of the same label there not at all (#870).
         const auto taken = std::ranges::any_of( ctx->menuActionCalls, [ & ]( const auto& other ) {
-            return !other.removed.load() && other.label == labelText;
+            return !other.removed.load() && other.label == labelText && other.submenu == submenu;
         } );
         id = taken ? -1 : nextRegistrationId( *ctx );
         if ( id < 0 ) {
@@ -1438,11 +1440,11 @@ int PluginHost::hostRegisterMenuActionEx( void* handle, const char* menuPath, co
         call->callback = callback;
         call->userData = userData;
         call->label = labelText;
+        call->submenu = submenu;
         call->id = id;
         ctx->menuActionsById.emplace( id, call );
     }
-    port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), labelText,
-                         &PluginHost::runMenuAction, call );
+    port->addMenuAction( pluginId, menuPathText, labelText, &PluginHost::runMenuAction, call );
     return id;
 }
 

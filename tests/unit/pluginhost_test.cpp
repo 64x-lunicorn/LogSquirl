@@ -1274,8 +1274,10 @@ SCENARIO( "A plugin removes a menu item it registered with an id", "[pluginhost]
                 = api->register_menu_action_ex( handle, "Plugins", "Nothing", nullptr, nullptr );
             const auto noHandle = api->register_menu_action_ex( nullptr, "Plugins", "Lost",
                                                                 &menuCallback, nullptr );
-            const auto taken
-                = api->register_menu_action_ex( handle, "Other", "Taken", &menuCallback, nullptr );
+            const auto taken = api->register_menu_action_ex( handle, "Plugins", "Taken",
+                                                             &menuCallback, nullptr );
+            const auto takenByAnotherPath
+                = api->register_menu_action_ex( handle, "/", "Taken", &menuCallback, nullptr );
             const auto old
                 = api->register_menu_action_ex( handle, "Plugins", "Old", &menuCallback, nullptr );
 
@@ -1286,8 +1288,36 @@ SCENARIO( "A plugin removes a menu item it registered with an id", "[pluginhost]
                 REQUIRE( noCallback < 0 );
                 REQUIRE( noHandle < 0 );
                 REQUIRE( taken < 0 );
+                REQUIRE( takenByAnotherPath < 0 );
                 REQUIRE( old < 0 );
                 REQUIRE( port.calls.size() == callsBefore );
+            }
+        }
+
+        WHEN( "The plugin registers items with register_menu_action_ex of a label it has an "
+              "item of in another submenu (#870)" )
+        {
+            api->register_menu_action( handle, "Tools", "Export", &menuCallback, &staysRuns );
+            const auto report = api->register_menu_action_ex( handle, "Report", "Export",
+                                                              &menuCallback, nullptr );
+            const auto toolsSub = api->register_menu_action_ex( handle, "Tools/Sub", "Export",
+                                                                &menuCallback, nullptr );
+            const auto tools = api->register_menu_action_ex( handle, "Plugins/Tools/", "Export",
+                                                             &menuCallback, nullptr );
+            const auto reportAgain = api->register_menu_action_ex( handle, " Report ", "Export",
+                                                                   &menuCallback, nullptr );
+
+            THEN( "Each in another submenu gets an id and is added, one in the same submenu "
+                  "fails" )
+            {
+                REQUIRE( report > 0 );
+                REQUIRE( toolsSub > 0 );
+                REQUIRE( report != toolsSub );
+                REQUIRE( tools < 0 );
+                REQUIRE( reportAgain < 0 );
+                REQUIRE( port.calls.size() == 3 );
+                REQUIRE( port.calls[ 1 ].menuPath == "Report" );
+                REQUIRE( port.calls[ 2 ].menuPath == "Tools/Sub" );
             }
         }
 

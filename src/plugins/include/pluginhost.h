@@ -408,6 +408,8 @@ private:
         PluginCallbackFn callback = nullptr;
         void* userData = nullptr;
         QString label{};
+        // The submenu it is in, as pluginSubmenuNames names it (#870).
+        QStringList submenu{};
         // The id register_menu_action_ex returned; 0 for an action of
         // register_menu_action, which no id removes (#857).
         int id = 0;

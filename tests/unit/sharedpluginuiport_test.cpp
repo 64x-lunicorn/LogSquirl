@@ -51,6 +51,8 @@ public:
     std::vector<std::pair<QString, PluginWidgetHandle>> sidebarTabs;
     std::vector<PluginWidgetHandle> footerWidgets;
     QStringList menuActions;
+    /// The menu path each of menuActions was added with.
+    QStringList menuActionPaths;
     /// The user data each of menuActions was added with.
     std::vector<void*> menuActionUserData;
     /// How often a menu action was asked to go.
@@ -81,10 +83,11 @@ public:
     {
         std::erase( footerWidgets, widget );
     }
-    void addMenuAction( const QString&, const QString&, const QString& label, PluginCallbackFn,
-                        void* userData ) override
+    void addMenuAction( const QString&, const QString& menuPath, const QString& label,
+                        PluginCallbackFn, void* userData ) override
     {
         menuActions.append( label );
+        menuActionPaths.append( menuPath );
         menuActionUserData.push_back( userData );
     }
     void removeMenuAction( const QString&, void* userData ) override
@@ -92,6 +95,7 @@ public:
         const auto it = std::ranges::find( menuActionUserData, userData );
         if ( it != menuActionUserData.end() ) {
             menuActions.removeAt( it - menuActionUserData.begin() );
+            menuActionPaths.removeAt( it - menuActionUserData.begin() );
             menuActionUserData.erase( it );
         }
         ++menuActionRemovals;
@@ -99,6 +103,7 @@ public:
     void removeContributions( const QString& pluginId ) override
     {
         menuActions.clear();
+        menuActionPaths.clear();
         menuActionUserData.clear();
         std::erase_if( statusWidgets, [ & ]( const auto& w ) { return w.first == pluginId; } );
         sidebarTabs.clear();
@@ -344,6 +349,60 @@ SCENARIO( "A plugin's menu action goes from every window when it is removed",
 
         port.removeWindow( &first );
         port.removeWindow( &second );
+    }
+}
+
+SCENARIO( "A plugin's menu actions of one label in different submenus each show",
+          "[sharedpluginuiport][plugins]" )
+{
+    GIVEN( "A window and a plugin with an action of one label in two submenus (#870)" )
+    {
+        SharedPluginUiPort port;
+        FakeWindowPort window;
+        port.addWindow( &window );
+        int toolsExport = 0;
+        int reportExport = 0;
+        port.addMenuAction( PluginId, QStringLiteral( "Tools" ), QStringLiteral( "Export" ),
+                            noAction, &toolsExport );
+        port.addMenuAction( PluginId, QStringLiteral( "Report" ), QStringLiteral( "Export" ),
+                            noAction, &reportExport );
+
+        THEN( "the window shows both, each with what it was added with" )
+        {
+            REQUIRE( window.menuActions
+                     == QStringList{ QStringLiteral( "Export" ), QStringLiteral( "Export" ) } );
+            REQUIRE( window.menuActionPaths
+                     == QStringList{ QStringLiteral( "Tools" ), QStringLiteral( "Report" ) } );
+            REQUIRE( window.menuActionUserData
+                     == std::vector<void*>{ &toolsExport, &reportExport } );
+        }
+
+        THEN( "a window added later shows both as well" )
+        {
+            FakeWindowPort later;
+            port.addWindow( &later );
+            REQUIRE( later.menuActions.size() == 2 );
+            port.removeWindow( &later );
+        }
+
+        WHEN( "the plugin adds one of them again, as when it is enabled again, also with the "
+              "Plugins menu named in its path" )
+        {
+            int again = 0;
+            port.addMenuAction( PluginId, QStringLiteral( "Tools" ), QStringLiteral( "Export" ),
+                                noAction, &again );
+            port.addMenuAction( PluginId, QStringLiteral( "Plugins/ Tools /" ),
+                                QStringLiteral( "Export" ), noAction, &again );
+
+            THEN( "the window still shows each once" )
+            {
+                REQUIRE( window.menuActions.size() == 2 );
+                REQUIRE( window.menuActionUserData
+                         == std::vector<void*>{ &toolsExport, &reportExport } );
+            }
+        }
+
+        port.removeWindow( &window );
     }
 }
 

@@ -20,8 +20,9 @@
 // A plugin built only for the tests (#857) that registers two menu items with
 // register_menu_action_ex, as a plugin built against the current header does:
 // "Stays" directly in the Plugins menu and "Goes" in Plugins > Menu Probe >
-// Sub, a submenu nothing else is in. It counts how often each one ran. The
-// tests read the ids and the counts, and unregister ids, through extra
+// Sub, a submenu nothing else is in. A third item has the label of the first,
+// "Stays", in Plugins > Menu Twin (#870). It counts how often each one ran.
+// The tests read the ids and the counts, and unregister ids, through extra
 // exports.
 
 #include "logsquirl_plugin_api.h"
@@ -32,9 +33,9 @@ const LogSquirlHostApi* hostApi = nullptr;
 void* hostHandle = nullptr;
 size_t hostApiSize = 0;
 
-// The ids of "Stays" and "Goes", and how often each ran.
-int ids[ 2 ] = { 0, 0 };
-int runs[ 2 ] = { 0, 0 };
+// The ids of "Stays", "Goes" and the "Stays" in Menu Twin, and how often each ran.
+int ids[ 3 ] = { 0, 0, 0 };
+int runs[ 3 ] = { 0, 0, 0 };
 
 const LogSquirlPluginInfo pluginInfo = {
     "io.github.logsquirl.test.menu-actions-plugin",
@@ -75,11 +76,14 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
     hostApiSize = api_size;
     runs[ 0 ] = 0;
     runs[ 1 ] = 0;
+    runs[ 2 ] = 0;
     if ( offersIds( api_size ) ) {
         ids[ 0 ]
             = api->register_menu_action_ex( handle, "Plugins", "Stays", &countRun, &runs[ 0 ] );
         ids[ 1 ] = api->register_menu_action_ex( handle, "Menu Probe/Sub", "Goes", &countRun,
                                                  &runs[ 1 ] );
+        ids[ 2 ]
+            = api->register_menu_action_ex( handle, "Menu Twin", "Stays", &countRun, &runs[ 2 ] );
     }
     return 0;
 }
@@ -97,13 +101,13 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 
 // ── For the tests only ──────────────────────────────────────────────────────
 
-/** The id of "Stays" (0) or "Goes" (1) the host returned. */
+/** The id of "Stays" (0), "Goes" (1) or the "Stays" in Menu Twin (2) the host returned. */
 LOGSQUIRL_PLUGIN_EXPORT int logsquirl_menu_actions_plugin_id( int item )
 {
     return ids[ item ];
 }
 
-/** How often "Stays" (0) or "Goes" (1) ran. */
+/** How often "Stays" (0), "Goes" (1) or the "Stays" in Menu Twin (2) ran. */
 LOGSQUIRL_PLUGIN_EXPORT int logsquirl_menu_actions_plugin_runs( int item )
 {
     return runs[ item ];

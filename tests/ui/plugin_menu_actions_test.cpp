@@ -102,6 +102,7 @@ struct PluginLibrary {
 
     static constexpr int Stays = 0;
     static constexpr int Goes = 1;
+    static constexpr int TwinStays = 2;
 
     int id( int item )
     {
@@ -171,6 +172,14 @@ QAction* staysActionOf( const MainWindow& window )
     return plugins ? actionNamed( *plugins, QStringLiteral( "Stays" ) ) : nullptr;
 }
 
+/// The "Stays" item in Plugins > Menu Twin of the window, or nullptr.
+QAction* twinStaysActionOf( const MainWindow& window )
+{
+    auto* plugins = pluginsMenuOf( window );
+    auto* twin = plugins ? submenuNamed( *plugins, QStringLiteral( "Menu Twin" ) ) : nullptr;
+    return twin ? actionNamed( *twin, QStringLiteral( "Stays" ) ) : nullptr;
+}
+
 std::shared_ptr<Session> newSession()
 {
     return std::make_shared<Session>( testSettingsPolicies(),
@@ -220,6 +229,25 @@ SCENARIO( "A plugin removes a menu item it registered with an id from every wind
                 REQUIRE( staysActionOf( *window ) != nullptr );
                 REQUIRE( goesActionOf( *window ) != nullptr );
             }
+        }
+
+        THEN( "an item of the same label in another submenu shows in both windows as well, and "
+              "each runs its own callback (#870)" )
+        {
+            const auto twinId = plugin.id( PluginLibrary::TwinStays );
+            REQUIRE( twinId > 0 );
+            REQUIRE( twinId != staysId );
+            for ( const auto* window : { first.get(), second.get() } ) {
+                REQUIRE( twinStaysActionOf( *window ) != nullptr );
+                REQUIRE( twinStaysActionOf( *window ) != staysActionOf( *window ) );
+            }
+
+            twinStaysActionOf( *first )->trigger();
+            REQUIRE( plugin.runs( PluginLibrary::TwinStays ) == 1 );
+            REQUIRE( plugin.runs( PluginLibrary::Stays ) == 0 );
+            staysActionOf( *second )->trigger();
+            REQUIRE( plugin.runs( PluginLibrary::Stays ) == 1 );
+            REQUIRE( plugin.runs( PluginLibrary::TwinStays ) == 1 );
         }
 
         WHEN( "the plugin unregisters the item in the submenu" )

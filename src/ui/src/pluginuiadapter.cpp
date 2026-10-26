@@ -40,6 +40,7 @@ using logsquirl::plugins::PluginLogLineJump;
 using logsquirl::plugins::PluginPattern;
 using logsquirl::plugins::PluginRegexLabAnswer;
 using logsquirl::plugins::PluginSelectedLogLines;
+using logsquirl::plugins::pluginSubmenuNames;
 using logsquirl::plugins::PluginWidgetHandle;
 
 namespace {
@@ -48,24 +49,6 @@ namespace {
 QWidget* widgetFrom( PluginWidgetHandle handle )
 {
     return static_cast<QWidget*>( handle.widget );
-}
-
-// The submenus of the Plugins menu a menu path names, outermost first. Empty
-// segments do not count, and a first segment "Plugins" names the Plugins menu
-// itself: "", "Plugins" and "/" all name the Plugins menu.
-QStringList submenuNamesOf( const QString& menuPath )
-{
-    QStringList names;
-    for ( const auto& segment : menuPath.split( u'/' ) ) {
-        const auto name = segment.trimmed();
-        if ( !name.isEmpty() ) {
-            names.append( name );
-        }
-    }
-    if ( !names.isEmpty() && names.front() == QStringLiteral( "Plugins" ) ) {
-        names.removeFirst();
-    }
-    return names;
 }
 
 } // namespace
@@ -313,7 +296,7 @@ void PluginUiAdapter::addMenuAction( const QString& pluginId, const QString& men
                                      void* userData )
 {
     onWindowThread( pluginId, [ this, pluginId, menuPath, label, callback, userData ] {
-        auto& menu = menuAt( submenuNamesOf( menuPath ) );
+        auto& menu = menuAt( pluginSubmenuNames( menuPath ) );
         auto& actions = menuActions_[ pluginId ];
 
         // Prevent duplicate entries when a plugin is re-enabled without restart.

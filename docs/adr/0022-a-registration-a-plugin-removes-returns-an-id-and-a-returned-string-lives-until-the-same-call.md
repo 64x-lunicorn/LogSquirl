@@ -21,4 +21,4 @@ The plugin API grew one function at a time, and each settled its own rules. Ever
 
 - A later registration that returns an id (#859 context menu items, and those after it) takes its id from the same per-plugin counter, keeps its record in the plugin's context until the context goes, and drops a queued trigger the same way.
 - A removed menu action's record stays in the plugin's context until the plugin is unloaded, so that a trigger still queued finds it marked; a plugin that registers and removes items in a loop grows that list by a few dozen bytes each time.
-- A plugin's items have different labels: `register_menu_action_ex` fails for a label the plugin already has an item of, as the Plugin UI Port shows no second item of a label.
+- A plugin's items in one submenu have different labels: `register_menu_action_ex` fails for a menu path and label the plugin already has an item of, as the Plugin UI Port shows no second item of a label in a submenu. Items of the same label in different submenus are items of their own (#870); paths that name the same submenu count as the same.
