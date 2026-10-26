@@ -819,19 +819,19 @@ ContentCheckId PluginHost::checkContent( const QString& filePath,
                         control->calling = handle;
                     }
                     const bool claims = handle->claims( pathUtf8, *head );
-                    bool claimed = false;
+                    bool wonTheFile = false;
                     {
                         // A plugin unloaded during its call claims nothing: the
                         // next one is asked.
                         const std::lock_guard lock( control->mutex );
                         control->calling = nullptr;
-                        claimed = claims && !control->converters[ next ].left;
-                        if ( claimed ) {
+                        wonTheFile = claims && !control->converters[ next ].left;
+                        if ( wonTheFile ) {
                             control->claimedBy = control->converters[ next ].pluginId;
                         }
                     }
                     control->returned.notify_all();
-                    if ( claimed ) {
+                    if ( wonTheFile ) {
                         break;
                     }
                 }
