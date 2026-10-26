@@ -3031,11 +3031,12 @@ void writeInput( const QString& path, const QByteArray& content )
     file.write( content );
 }
 
-/// The whole of the file at path.
+/// The whole of the file at path, with Windows line ends read as '\n' (a
+/// Stream Writer writes in text mode).
 QByteArray readAll( const QString& path )
 {
     QFile file( path );
-    REQUIRE( file.open( QIODevice::ReadOnly ) );
+    REQUIRE( file.open( QIODevice::ReadOnly | QIODevice::Text ) );
     return file.readAll();
 }
 
@@ -3914,6 +3915,8 @@ SCENARIO( "A data source without start and stop that ends its own stream starts 
         REQUIRE( host.loadPlugin( StreamProbeId ).isEmpty() );
         REQUIRE( host.startDataSource( StreamProbeId ).isEmpty() );
         const auto firstPath = host.streamWriter( StreamProbeId )->filePath();
+        // Its pusher thread got some lines into the stream.
+        REQUIRE( waitUiState( [ & ] { return QFileInfo( firstPath ).size() > 0; }, 5000 ) );
 
         // From a thread of its own, as a reader that hit the end of its source.
         probe.signalEosFromThread();
