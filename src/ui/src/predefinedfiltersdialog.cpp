@@ -157,18 +157,20 @@ void PredefinedFiltersDialog::removeFilterSet()
     }
 
     setCurrentRow( -1 );
-    dispatchToMainThread( [ this, index ] {
-        filterSets_.removeAt( index );
-        delete setListWidget->takeItem( index );
+    dispatchToObject(
+        [ this, index ] {
+            filterSets_.removeAt( index );
+            delete setListWidget->takeItem( index );
 
-        const int count = setListWidget->count();
-        if ( index < count ) {
-            setCurrentRow( index );
-        }
-        else {
-            setCurrentRow( count - 1 );
-        }
-    } );
+            const int count = setListWidget->count();
+            if ( index < count ) {
+                setCurrentRow( index );
+            }
+            else {
+                setCurrentRow( count - 1 );
+            }
+        },
+        this );
 }
 
 void PredefinedFiltersDialog::moveFilterSetUp()
@@ -179,11 +181,13 @@ void PredefinedFiltersDialog::moveFilterSetUp()
     }
 
     filterSets_.move( index, index - 1 );
-    dispatchToMainThread( [ this, index ] {
-        auto* item = setListWidget->takeItem( index );
-        setListWidget->insertItem( index - 1, item );
-        setCurrentRow( index - 1 );
-    } );
+    dispatchToObject(
+        [ this, index ] {
+            auto* item = setListWidget->takeItem( index );
+            setListWidget->insertItem( index - 1, item );
+            setCurrentRow( index - 1 );
+        },
+        this );
 }
 
 void PredefinedFiltersDialog::moveFilterSetDown()
@@ -194,11 +198,13 @@ void PredefinedFiltersDialog::moveFilterSetDown()
     }
 
     filterSets_.move( index, index + 1 );
-    dispatchToMainThread( [ this, index ] {
-        auto* item = setListWidget->takeItem( index );
-        setListWidget->insertItem( index + 1, item );
-        setCurrentRow( index + 1 );
-    } );
+    dispatchToObject(
+        [ this, index ] {
+            auto* item = setListWidget->takeItem( index );
+            setListWidget->insertItem( index + 1, item );
+            setCurrentRow( index + 1 );
+        },
+        this );
 }
 
 // --- Import / Export ---
@@ -309,9 +315,11 @@ void PredefinedFiltersDialog::resolveDialog( QAbstractButton* button )
 
 // --- Selection / property sync ---
 
+// The work this dialog hands to the event loop is queued on the dialog, so it
+// is dropped once the dialog is gone (#875).
 void PredefinedFiltersDialog::setCurrentRow( int row )
 {
-    dispatchToMainThread( [ this, row ]() { setListWidget->setCurrentRow( row ); } );
+    dispatchToObject( [ this, row ]() { setListWidget->setCurrentRow( row ); }, this );
 }
 
 void PredefinedFiltersDialog::updatePropertyFields()

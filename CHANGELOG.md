@@ -363,6 +363,11 @@
   can start it again from the Sources menu, which opens a new tab. (#871)
 - **The Highlighters dialog no longer crashes when it is closed with OK**
   while one of your own Highlighter Sets is selected. (#872)
+- **The Predefined Filters dialog no longer reaches into itself after it is
+  gone**: selecting, removing or moving a group right before the dialog closes
+  queued work that ran on the destroyed dialog once the event loop turned. That
+  work is now dropped with the dialog, as is the main window's minimize to tray
+  and the focus of the switch to file dialog. (#875)
 
 ## Build and packaging
 
