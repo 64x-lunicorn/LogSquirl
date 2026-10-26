@@ -75,6 +75,7 @@
 #include "logpresentation.h"
 #include "openlogfile.h"
 #include "overview.h"
+#include "pluginlogfiles.h"
 #include "predefinedfilters.h"
 #include "searchline.h"
 #include "searchlinewidget.h"
@@ -373,11 +374,11 @@ Q_SIGNALS:
     void encodingChanged();
 
     // The Log Lines changed, for the plugins (#858): Log Lines were added at
-    // the end, or -- replaced -- the Log File was loaded anew or reads
+    // the end (Appended), or the Log File was loaded anew or reads
     // differently, in another Encoding or under another Decoding Policy, or
-    // its fields under another Log Format, or none (#867).
+    // its fields under another Log Format, or none (#867) (Replaced).
     // lineCount is how many Log Lines it has now.
-    void logLinesChanged( LinesCount lineCount, bool replaced );
+    void logLinesChanged( LinesCount lineCount, logsquirl::plugins::PluginLogLinesChange change );
 
     // The current Search progressed, completed or failed, as the Search Line
     // and the views were just told: for the benchmark mode, which times a

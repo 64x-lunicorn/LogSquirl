@@ -1140,7 +1140,8 @@ void CrawlerWidget::applyDecodingPolicyChange()
     // The Filtered Views of kept Searches included.
     viewSet_.rereadLogLines();
     restartChartExtraction();
-    Q_EMIT logLinesChanged( openLogFile_->lineCount(), true );
+    Q_EMIT logLinesChanged( openLogFile_->lineCount(),
+                            logsquirl::plugins::PluginLogLinesChange::Replaced );
 }
 
 void CrawlerWidget::enteringQuickFind()
@@ -1239,7 +1240,10 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     // A load that only added Log Lines leaves what a plugin read as it was;
     // any other -- the first, a reload, one after a truncation -- may not:
     // the first one settles the Encoding only once it has read the file.
-    Q_EMIT logLinesChanged( openLogFile_->lineCount(), !load.onlyAppended || otherLogFormat );
+    Q_EMIT logLinesChanged( openLogFile_->lineCount(),
+                            load.onlyAppended && !otherLogFormat
+                                ? logsquirl::plugins::PluginLogLinesChange::Appended
+                                : logsquirl::plugins::PluginLogLinesChange::Replaced );
 }
 
 void CrawlerWidget::truncatedHandler( const QString& failure )
@@ -2241,7 +2245,8 @@ void CrawlerWidget::applyEncodingChange()
     viewSet_.rereadLogLines();
     restartChartExtraction();
     Q_EMIT encodingChanged();
-    Q_EMIT logLinesChanged( openLogFile_->lineCount(), true );
+    Q_EMIT logLinesChanged( openLogFile_->lineCount(),
+                            logsquirl::plugins::PluginLogLinesChange::Replaced );
 }
 
 void CrawlerWidget::restartChartExtraction()

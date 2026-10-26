@@ -3900,12 +3900,10 @@ void MainWindow::tellPluginsOfLogFile( CrawlerWidget* crawler, const QString& fi
         }
     } );
     connect( crawler, &CrawlerWidget::logLinesChanged, this,
-             [ this, crawler, fileName ]( LinesCount lineCount, bool replaced ) {
+             [ this, crawler, fileName ]( LinesCount lineCount,
+                                          logsquirl::plugins::PluginLogLinesChange change ) {
                  if ( mainTabWidget_.indexOf( crawler ) >= 0 ) {
-                     plugins_->host().notifyLogLinesChanged(
-                         fileName, lineCount.get(),
-                         replaced ? logsquirl::plugins::PluginLogLinesChange::Replaced
-                                  : logsquirl::plugins::PluginLogLinesChange::Appended );
+                     plugins_->host().notifyLogLinesChanged( fileName, lineCount.get(), change );
                  }
              } );
 
