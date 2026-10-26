@@ -1822,7 +1822,8 @@ does not parse has no fields, as a Field Term of a Search treats it, though
 the Table View shows it whole in its last column: `parsed[ i ]` is 0 for it
 and its values are `NULL`, of length 0; `parsed[ i ]` is 1 for a Log Line
 parsed. A JSON or logfmt Log Format parses every Log Line: one that is no
-JSON object, or holds no key of the Log Format, has every value `""`, as the
+JSON object, or holds no key of the Log Format, has every value `""` and
+`parsed[ i ]` 1, as a Field Term reads it too and as the
 Table View shows it. `lengths` and `parsed` may be `NULL`.
 
 It holds whole Log Lines, at most `max_lines` and

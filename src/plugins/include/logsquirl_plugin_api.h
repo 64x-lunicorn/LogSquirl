@@ -835,7 +835,8 @@ typedef struct {
      * Table View shows it whole in its last column: parsed[ i ] is 0 for it,
      * and its values are NULL, of length 0; parsed[ i ] is 1 for one parsed.
      * A JSON or logfmt Log Format parses every Log Line: one that is no JSON
-     * object, or holds no key of the Log Format, has every value "".
+     * object, or holds no key of the Log Format, has every value "" and
+     * parsed[ i ] 1, as a Field Term reads it too: its fields are all empty.
      *
      * It holds whole Log Lines, at most max_lines and
      * LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES of them, whose values are at
