@@ -506,7 +506,9 @@ window implements it. The Application Plugins hand each contribution on to every
 menu action shows in all of them, a widget, which exists once, in the most recently active
 window, and it moves to another window when that one closes; a Regex Lab opens in the most
 recently active window too, whose tab in front is the one a plugin goes to a Log Line of. Every contribution belongs to
-one plugin, and all of them are taken away again when that plugin is unloaded.
+one plugin, and all of them are taken away again when that plugin is unloaded; the plugin
+takes a widget away earlier by the widget, a menu action it registered with an id by that id,
+from every window (ADR 0022).
 _Avoid_: plugin UI bridge, widget signals, UI host
 
 **Conversion**:

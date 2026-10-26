@@ -21,9 +21,22 @@ const LogSquirlPluginInfo pluginInfo = {
 const LogSquirlHostApi* host = nullptr;
 void* hostHandle = nullptr;
 
+// The ids of the items a host that removes menu items gave: 0 for none.
+int sayHelloItem = 0;
+int stopItem = 0;
+
 void sayHello( void* /* user_data */ )
 {
     host->show_notification( hostHandle, "Hello from My Plugin" );
+}
+
+// Removes both items, from the callback of one of them: neither runs again.
+void stopSayingHello( void* /* user_data */ )
+{
+    host->unregister_menu_action( hostHandle, sayHelloItem );
+    host->unregister_menu_action( hostHandle, stopItem );
+    sayHelloItem = 0;
+    stopItem = 0;
 }
 
 // Called once, on the UI thread, with what the user did in the Regex Lab.
@@ -100,7 +113,17 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
     host = api;
     hostHandle = handle;
     api->log_message( handle, LOGSQUIRL_LOG_INFO, "My Plugin initialised" );
-    api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+    // A host that removes menu items gets an item that removes Say Hello again.
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, register_menu_action_ex )
+         && LOGSQUIRL_HOST_API_HAS( api_size, unregister_menu_action ) ) {
+        sayHelloItem
+            = api->register_menu_action_ex( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+        stopItem = api->register_menu_action_ex( handle, "Plugins", "Stop Saying Hello",
+                                                 &stopSayingHello, nullptr );
+    }
+    else {
+        api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+    }
     // Only a host that offers the Regex Lab gets the item that opens it.
     if ( LOGSQUIRL_HOST_API_HAS( api_size, open_regex_lab ) ) {
         api->register_menu_action( handle, "Plugins", "Test Pattern", &testPattern, nullptr );
@@ -128,6 +151,8 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 {
     host = nullptr;
     hostHandle = nullptr;
+    sayHelloItem = 0;
+    stopItem = 0;
 }
 
 } // extern "C"

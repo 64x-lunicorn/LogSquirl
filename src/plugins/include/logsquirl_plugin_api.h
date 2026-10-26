@@ -171,6 +171,18 @@ typedef void ( *LogSquirlEncodingCallbackFn )( void* user_data, const char* file
  * get_log_file_encoding and get_active_file_path, which must be called on the
  * UI thread; a call that changes the user interface, open_file included, is
  * dispatched to the UI thread by the host.
+ * **Strings**: a string the plugin passes is copied before the call returns.
+ * A string the host returns is the host's: it is valid until the plugin calls
+ * the same function again or is shut down, whatever other plugins call
+ * meanwhile.  A string the host passes to a callback is valid during the call
+ * only.  Each function below says which of these its strings are.
+ * **Registrations**: each register_* function says whether a second call
+ * replaces the first registration or adds another, and how a registration is
+ * removed.  Whatever a plugin still has registered is removed when it is
+ * unloaded.  A registration that returns an id returns one greater than 0,
+ * never handed out twice while the plugin is loaded, or a negative value
+ * when nothing was registered; the matching unregister_* function does
+ * nothing for an id it does not know, or no longer knows.
  * **Growth**: functions added later are appended at the end, below "Added
  * later"; nothing is reordered, removed or changed in size, and only function
  * pointers are appended.  A host older than a function passes a shorter
@@ -205,7 +217,8 @@ typedef struct {
     /**
      * Return the plugin-private configuration directory (UTF-8 path).
      * The host creates the directory if it does not exist.
-     * The returned string is valid until the next call to get_config_dir.
+     * The host owns the path: it is valid until the plugin calls
+     * get_config_dir again or is shut down.
      */
     const char* ( *get_config_dir )( void* handle );
 
@@ -227,7 +240,9 @@ typedef struct {
     /**
      * Register a QWidget* for the status bar area.
      * The plugin creates and owns the widget; the host parents it.
-     * Cast your QWidget* to void* before passing.
+     * Cast your QWidget* to void* before passing.  Each widget is registered
+     * once: registering another adds it, registering the same one again does
+     * nothing.  unregister_status_widget removes it.
      */
     void ( *register_status_widget )( void* handle, void* qwidget_ptr );
 
@@ -235,7 +250,11 @@ typedef struct {
     void ( *unregister_status_widget )( void* handle, void* qwidget_ptr );
 
     /**
-     * Add a custom action to the host's Plugins menu.
+     * Add a custom action to the host's Plugins menu.  Each call adds an
+     * item, but for a label the plugin already has an item of: then it adds
+     * nothing.  The item goes away when the plugin is unloaded, not before:
+     * an item to be removed earlier is registered with
+     * register_menu_action_ex.
      * @param menu_path  Slash-separated path of submenus of the Plugins menu the
      *                   item goes into, e.g. "My Plugin/Sub" for
      *                   Plugins > My Plugin > Sub. An empty path (or "Plugins")
@@ -250,7 +269,9 @@ typedef struct {
     /**
      * Register a QWidget* as a new tab in the host sidebar.
      * The plugin creates and owns the widget; the host parents it.
-     * The sidebar is shown automatically when a tab is added.
+     * The sidebar is shown automatically when a tab is added.  Each widget is
+     * registered once: registering another adds a tab, registering the same
+     * one again does nothing.  unregister_sidebar_tab removes it.
      * @param label         Tab label (UTF-8).
      * @param qwidget_ptr   Cast of a QWidget* to void*.
      */
@@ -261,7 +282,9 @@ typedef struct {
 
     /**
      * Register a QWidget* for the footer area (bottom of the window).
-     * The plugin creates and owns the widget; the host parents it.
+     * The plugin creates and owns the widget; the host parents it.  Each
+     * widget is registered once: registering another adds it, registering
+     * the same one again does nothing.  unregister_footer_widget removes it.
      */
     void ( *register_footer_widget )( void* handle, void* qwidget_ptr );
 
@@ -273,16 +296,20 @@ typedef struct {
     /**
      * Return the file path of the currently active (focused) log tab.
      * Returns an empty string if no file is open.
-     * The returned pointer is valid until the next host API call.
+     * The host owns the path: it is valid until the plugin calls
+     * get_active_file_path again or is shut down.
      * Call on the UI thread only: called on another thread, it returns an
      * empty string, as without a file.
      */
     const char* ( *get_active_file_path )( void* handle );
 
     /**
-     * Register a callback invoked whenever the active log file changes
-     * (e.g. when the user switches tabs or opens a new file).
-     * @param callback   Function called with the new file path (UTF-8).
+     * Register a callback invoked, on the UI thread, whenever the active log
+     * file changes (e.g. when the user switches tabs or opens a new file).
+     * A plugin has one such callback: registering another replaces it, and a
+     * NULL callback removes it.
+     * @param callback   Function called with the new file path (UTF-8),
+     *                   valid during the call only.
      * @param user_data  Passed back to callback unchanged.
      */
     void ( *register_active_file_callback )( void* handle,
@@ -343,9 +370,9 @@ typedef struct {
      * LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES of them and at most
      * LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES bytes; a first Log Line longer
      * than that is cut at a character.  When it holds less than is selected,
-     * the result is LOGSQUIRL_LOG_LINES_TRUNCATED.  The text is owned by the
-     * host and valid until the plugin calls get_selected_log_lines again or
-     * is shut down.
+     * the result is LOGSQUIRL_LOG_LINES_TRUNCATED.  The host owns the text: it
+     * is valid until the plugin calls get_selected_log_lines again or is shut
+     * down.
      *
      * Call on the UI thread only.
      * @param text        Receives the text; NULL when the result is negative.
@@ -370,8 +397,8 @@ typedef struct {
      *
      * The name is the encoding's IANA name, e.g. "UTF-8", "UTF-16LE",
      * "UTF-16BE", "ISO-8859-1" or "windows-1252", NUL-terminated.  The host
-     * owns it: it is valid until the plugin calls get_log_file_encoding again
-     * or is shut down.
+     * owns the name: it is valid until the plugin calls get_log_file_encoding
+     * again or is shut down.
      *
      * The encoding changes when the user chooses another one for the tab,
      * and may change when a load of the Log File detects another one: the
@@ -406,6 +433,37 @@ typedef struct {
      */
     void ( *register_encoding_callback )( void* handle, LogSquirlEncodingCallbackFn callback,
                                           void* user_data );
+
+    /**
+     * Add an item to the host's Plugins menu, as register_menu_action does,
+     * and return an id that removes it again with unregister_menu_action
+     * (LogSquirl 26.12).  Each call adds an item of its own; a plugin's items
+     * have different labels.  May be called from any thread: the id is
+     * returned at once, also when the item appears on the UI thread later.
+     * @param menu_path  As for register_menu_action; NULL is an empty path.
+     * @param label      Menu item label; must not be NULL or empty.
+     * @param callback   Function called, on the UI thread, when the item is
+     *                   triggered; must not be NULL.
+     * @param user_data  Passed back to callback unchanged.
+     * @return The item's id, greater than 0; negative when no item was added:
+     *         a host without a user interface, a NULL handle, a NULL or empty
+     *         label, a NULL callback, or a label the plugin already has an
+     *         item of.
+     */
+    int ( *register_menu_action_ex )( void* handle, const char* menu_path, const char* label,
+                                      void ( *callback )( void* user_data ), void* user_data );
+
+    /**
+     * Remove an item register_menu_action_ex added, from every window
+     * (LogSquirl 26.12).  A submenu the host created for it goes too once
+     * nothing is left in it.  Once the call returns, the item's callback is
+     * not called again: a trigger still queued is dropped, and only a call
+     * of it already running on the UI thread finishes.  An id the plugin
+     * was not given, or one already removed, does nothing.  May be called
+     * from any thread, from the item's own callback too.
+     * @param id  What register_menu_action_ex returned.
+     */
+    void ( *unregister_menu_action )( void* handle, int id );
 
 } LogSquirlHostApi;
 

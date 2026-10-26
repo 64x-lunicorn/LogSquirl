@@ -80,6 +80,7 @@ public:
     void removeFooterWidget( const QString& pluginId, PluginWidgetHandle widget ) override;
     void addMenuAction( const QString& pluginId, const QString& menuPath, const QString& label,
                         PluginCallbackFn callback, void* userData ) override;
+    void removeMenuAction( const QString& pluginId, void* userData ) override;
     void removeContributions( const QString& pluginId ) override;
 
     /** The most recently active window's, or a null handle without a window. */

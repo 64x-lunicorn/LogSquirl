@@ -81,6 +81,7 @@ public:
                              logsquirl::plugins::PluginWidgetHandle widget ) override;
     void addMenuAction( const QString& pluginId, const QString& menuPath, const QString& label,
                         logsquirl::plugins::PluginCallbackFn callback, void* userData ) override;
+    void removeMenuAction( const QString& pluginId, void* userData ) override;
     void removeContributions( const QString& pluginId ) override;
     logsquirl::plugins::PluginWidgetHandle configurationParent() override;
     bool openRegexLab( const QString& pluginId, const logsquirl::plugins::PluginPattern& pattern,
@@ -126,10 +127,18 @@ private:
         QPointer<QAction> toolBarAction;
     };
 
-    /// A menu action a plugin added, and the menu (or submenu) it sits in.
+    /// A menu action a plugin added, the menu (or submenu) it sits in, and
+    /// the user data it was added with, which names it for removeMenuAction().
     struct PluginMenuAction {
         QPointer<QAction> action;
         QPointer<QMenu> menu;
+        void* userData = nullptr;
+    };
+
+    /// How the plugin submenus nothing is in any more are deleted.
+    enum class SubmenuDeletion {
+        Now,  ///< At once.
+        Later ///< Taken out of their menus at once, deleted from the event loop.
     };
 
     /// A toolbar of the window that shows plugin widgets; created when the first one arrives.
@@ -168,7 +177,7 @@ private:
     QMenu& menuAt( const QStringList& submenuNames );
 
     /// Deletes the plugin submenus that nothing is in any more.
-    void removeEmptySubmenus();
+    void removeEmptySubmenus( SubmenuDeletion deletion = SubmenuDeletion::Now );
 
     QMainWindow& window_;
     QMenu& pluginsMenu_;

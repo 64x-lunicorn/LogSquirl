@@ -126,6 +126,15 @@ public:
         = 0;
 
     /**
+     * Take one menu action of a plugin away again (#857): the one added with
+     * userData, which the Plugin Host makes unique per action. A submenu
+     * created for it goes too once nothing is left in it. Nothing for an
+     * action that is not there. It may come from the action's own callback,
+     * so the action must not be deleted under its own trigger.
+     */
+    virtual void removeMenuAction( const QString& pluginId, void* userData ) = 0;
+
+    /**
      * Take away everything a plugin still contributes: its menu actions and
      * any widget it did not remove itself. Called after the plugin was shut
      * down and before its library is released.

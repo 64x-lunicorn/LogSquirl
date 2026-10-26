@@ -50,6 +50,10 @@ public:
     std::vector<std::pair<QString, PluginWidgetHandle>> sidebarTabs;
     std::vector<PluginWidgetHandle> footerWidgets;
     QStringList menuActions;
+    /// The user data each of menuActions was added with.
+    std::vector<void*> menuActionUserData;
+    /// How often a menu action was asked to go.
+    int menuActionRemovals = 0;
     PluginWidgetHandle parent;
 
     void addStatusWidget( const QString& pluginId, PluginWidgetHandle widget ) override
@@ -77,13 +81,24 @@ public:
         std::erase( footerWidgets, widget );
     }
     void addMenuAction( const QString&, const QString&, const QString& label, PluginCallbackFn,
-                        void* ) override
+                        void* userData ) override
     {
         menuActions.append( label );
+        menuActionUserData.push_back( userData );
+    }
+    void removeMenuAction( const QString&, void* userData ) override
+    {
+        const auto it = std::ranges::find( menuActionUserData, userData );
+        if ( it != menuActionUserData.end() ) {
+            menuActions.removeAt( it - menuActionUserData.begin() );
+            menuActionUserData.erase( it );
+        }
+        ++menuActionRemovals;
     }
     void removeContributions( const QString& pluginId ) override
     {
         menuActions.clear();
+        menuActionUserData.clear();
         std::erase_if( statusWidgets, [ & ]( const auto& w ) { return w.first == pluginId; } );
         sidebarTabs.clear();
         footerWidgets.clear();
@@ -249,6 +264,57 @@ SCENARIO( "What plugins contribute shows in every window", "[sharedpluginuiport]
                 }
             }
         }
+    }
+}
+
+SCENARIO( "A plugin's menu action goes from every window when it is removed",
+          "[sharedpluginuiport][plugins]" )
+{
+    GIVEN( "Two windows and a plugin with two menu actions" )
+    {
+        SharedPluginUiPort port;
+        FakeWindowPort first;
+        FakeWindowPort second;
+        port.addWindow( &first );
+        port.addWindow( &second );
+        int stays = 0;
+        int goes = 0;
+        port.addMenuAction( PluginId, QString(), QStringLiteral( "Stays" ), noAction, &stays );
+        port.addMenuAction( PluginId, QString(), QStringLiteral( "Goes" ), noAction, &goes );
+
+        WHEN( "the plugin removes one of them (#857)" )
+        {
+            port.removeMenuAction( PluginId, &goes );
+
+            THEN( "both windows show only the other one, and so does a window added later" )
+            {
+                REQUIRE( first.menuActions == QStringList{ QStringLiteral( "Stays" ) } );
+                REQUIRE( second.menuActions == QStringList{ QStringLiteral( "Stays" ) } );
+                FakeWindowPort later;
+                port.addWindow( &later );
+                REQUIRE( later.menuActions == QStringList{ QStringLiteral( "Stays" ) } );
+                port.removeWindow( &later );
+            }
+
+            AND_WHEN( "it removes the same one again, or one it never added" )
+            {
+                int never = 0;
+                port.removeMenuAction( PluginId, &goes );
+                port.removeMenuAction( PluginId, &never );
+                port.removeMenuAction( QStringLiteral( "com.test.other" ), &stays );
+
+                THEN( "nothing changes, and no window is asked" )
+                {
+                    REQUIRE( first.menuActions == QStringList{ QStringLiteral( "Stays" ) } );
+                    REQUIRE( second.menuActions == QStringList{ QStringLiteral( "Stays" ) } );
+                    REQUIRE( first.menuActionRemovals == 1 );
+                    REQUIRE( second.menuActionRemovals == 1 );
+                }
+            }
+        }
+
+        port.removeWindow( &first );
+        port.removeWindow( &second );
     }
 }
 

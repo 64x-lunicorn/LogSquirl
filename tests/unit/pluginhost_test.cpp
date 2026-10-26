@@ -78,6 +78,7 @@ struct PortCall {
         AddFooterWidget,
         RemoveFooterWidget,
         AddMenuAction,
+        RemoveMenuAction,
         RemoveContributions,
     };
 
@@ -145,6 +146,13 @@ public:
                            .menuPath = menuPath,
                            .label = label,
                            .callback = callback,
+                           .userData = userData } );
+    }
+
+    void removeMenuAction( const QString& pluginId, void* userData ) override
+    {
+        calls.push_back( { .kind = PortCall::Kind::RemoveMenuAction,
+                           .pluginId = pluginId,
                            .userData = userData } );
     }
 
@@ -667,6 +675,33 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
             }
         }
 
+        WHEN( "The plugin registers a second active-file callback, and the active file "
+              "changes (#857)" )
+        {
+            ActiveFileCalls secondFiles;
+            api->register_active_file_callback( handle, &recordActiveFile, &activeFiles );
+            api->register_active_file_callback( handle, &recordActiveFile, &secondFiles );
+            host.notifyActiveFileChanged( QStringLiteral( "/logs/app.log" ) );
+
+            THEN( "Only the second one is called: it replaced the first" )
+            {
+                REQUIRE( activeFiles.paths.isEmpty() );
+                REQUIRE( secondFiles.paths == QStringList{ "/logs/app.log" } );
+            }
+
+            AND_WHEN( "It registers a NULL callback" )
+            {
+                api->register_active_file_callback( handle, nullptr, &secondFiles );
+                host.notifyActiveFileChanged( QStringLiteral( "/logs/other.log" ) );
+
+                THEN( "No callback is called any more" )
+                {
+                    REQUIRE( activeFiles.paths.isEmpty() );
+                    REQUIRE( secondFiles.paths == QStringList{ "/logs/app.log" } );
+                }
+            }
+        }
+
         WHEN( "The plugin is unloaded after registering an active-file callback" )
         {
             api->register_active_file_callback( handle, &recordActiveFile, &activeFiles );
@@ -800,6 +835,358 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
             {
                 REQUIRE( configDir.endsWith( "/plugin_config/" + ProbeId ) );
                 REQUIRE( QDir( configDir ).exists() );
+            }
+        }
+
+        host.unloadAll();
+        probe.library.unload();
+    }
+}
+
+namespace {
+
+/// The id of the probe built against the 26.12 header, installed beside the current one.
+const auto OtherProbeId = QStringLiteral( "io.github.logsquirl.test.ui-port-probe-2612" );
+
+/// Writes a plugin.json for a probe library under the id, into its own subdirectory of root.
+void installProbeAs( const QString& root, const QString& id, const QString& library )
+{
+    const auto pluginDir = QDir( root ).filePath( id );
+    QDir().mkpath( pluginDir );
+
+    QFile manifest( QDir( pluginDir ).filePath( "plugin.json" ) );
+    REQUIRE( manifest.open( QIODevice::WriteOnly ) );
+    manifest.write( QStringLiteral( R"({
+        "id": "%1",
+        "name": "UI Port Probe",
+        "version": "1.0.0",
+        "type": "ui",
+        "library": "%2",
+        "api_version": 1
+    })" )
+                        .arg( id, library )
+                        .toUtf8() );
+}
+
+} // namespace
+
+SCENARIO( "The active file path a plugin got stays intact when another plugin asks",
+          "[pluginhost][plugins]" )
+{
+    GIVEN( "Two plugins loaded, each a library of its own" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+        installProbeAs( pluginRoot.path(), OtherProbeId,
+                        QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API2612_PATH ) );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+        REQUIRE( host.loadPlugin( OtherProbeId ).isEmpty() );
+
+        Probe first( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        Probe second( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_API2612_PATH ) );
+        REQUIRE( first.library.load() );
+        REQUIRE( second.library.load() );
+        REQUIRE( first.hostHandle() != second.hostHandle() );
+
+        auto activeFile = QStringLiteral( "/logs/first.log" );
+        host.setActiveFilePathCallback( [ & ] { return activeFile; } );
+
+        WHEN( "The first plugin asks for the active file path, the file changes and the second "
+              "plugin asks (#857)" )
+        {
+            const char* firstPath = first.hostApi()->get_active_file_path( first.hostHandle() );
+            activeFile = QStringLiteral( "/logs/a much longer path than the first one.log" );
+            const char* secondPath = second.hostApi()->get_active_file_path( second.hostHandle() );
+
+            THEN( "Each plugin's string holds the path it was given" )
+            {
+                REQUIRE( QString::fromUtf8( firstPath ) == "/logs/first.log" );
+                REQUIRE( QString::fromUtf8( secondPath )
+                         == "/logs/a much longer path than the first one.log" );
+            }
+
+            AND_WHEN( "The first plugin asks again" )
+            {
+                const char* again = first.hostApi()->get_active_file_path( first.hostHandle() );
+
+                THEN( "It gets the new path, and the second plugin's string is intact" )
+                {
+                    REQUIRE( QString::fromUtf8( again )
+                             == "/logs/a much longer path than the first one.log" );
+                    REQUIRE( QString::fromUtf8( secondPath )
+                             == "/logs/a much longer path than the first one.log" );
+                }
+            }
+        }
+
+        host.unloadAll();
+        second.library.unload();
+        first.library.unload();
+    }
+}
+
+namespace {
+
+/// What a menu action registered with an id saw of the host when it ran.
+struct SelfRemovingMenuAction {
+    const LogSquirlHostApi* api = nullptr;
+    void* handle = nullptr;
+    int id = 0;
+    int runs = 0;
+};
+
+void removeOwnMenuAction( void* userData )
+{
+    auto* action = static_cast<SelfRemovingMenuAction*>( userData );
+    ++action->runs;
+    action->api->unregister_menu_action( action->handle, action->id );
+}
+
+} // namespace
+
+SCENARIO( "A plugin removes a menu item it registered with an id", "[pluginhost][plugins]" )
+{
+    GIVEN( "A Plugin Host with a fake Plugin UI Port and the probe plugin loaded" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        FakePluginUiPort port;
+        PluginHost host( catalog );
+        host.setUiPort( &port );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        REQUIRE( api != nullptr );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), unregister_menu_action ) );
+
+        int staysRuns = 0;
+        int goesRuns = 0;
+
+        WHEN( "The plugin registers two menu items with register_menu_action_ex (#857)" )
+        {
+            const auto stays = api->register_menu_action_ex( handle, "Plugins", "Stays",
+                                                             &menuCallback, &staysRuns );
+            const auto goes = api->register_menu_action_ex( handle, "Probe/Sub", "Goes",
+                                                            &menuCallback, &goesRuns );
+            REQUIRE( port.calls.size() == 2 );
+            const auto staysAdded = port.calls[ 0 ];
+            const auto goesAdded = port.calls[ 1 ];
+
+            THEN( "Each gets an id greater than 0 of its own, and the port adds both" )
+            {
+                REQUIRE( stays > 0 );
+                REQUIRE( goes > 0 );
+                REQUIRE( stays != goes );
+                REQUIRE( staysAdded.kind == PortCall::Kind::AddMenuAction );
+                REQUIRE( staysAdded.label == "Stays" );
+                REQUIRE( goesAdded.kind == PortCall::Kind::AddMenuAction );
+                REQUIRE( goesAdded.menuPath == "Probe/Sub" );
+                REQUIRE( goesAdded.label == "Goes" );
+                REQUIRE( staysAdded.userData != goesAdded.userData );
+            }
+
+            AND_WHEN( "It unregisters one of them" )
+            {
+                api->unregister_menu_action( handle, goes );
+
+                THEN( "The port removes that one, and the other still runs its callback" )
+                {
+                    REQUIRE( port.calls.size() == 3 );
+                    REQUIRE( port.calls[ 2 ].kind == PortCall::Kind::RemoveMenuAction );
+                    REQUIRE( port.calls[ 2 ].pluginId == ProbeId );
+                    REQUIRE( port.calls[ 2 ].userData == goesAdded.userData );
+
+                    staysAdded.callback( staysAdded.userData );
+                    REQUIRE( staysRuns == 1 );
+                }
+
+                THEN( "A trigger of the removed one does not reach the plugin" )
+                {
+                    goesAdded.callback( goesAdded.userData );
+                    REQUIRE( goesRuns == 0 );
+                }
+
+                AND_WHEN( "It unregisters the same id again, and ids it was never given" )
+                {
+                    api->unregister_menu_action( handle, goes );
+                    api->unregister_menu_action( handle, 0 );
+                    api->unregister_menu_action( handle, -1 );
+                    api->unregister_menu_action( handle, stays + goes + 100 );
+
+                    THEN( "Nothing happens" )
+                    {
+                        REQUIRE( port.calls.size() == 3 );
+                        staysAdded.callback( staysAdded.userData );
+                        REQUIRE( staysRuns == 1 );
+                    }
+                }
+
+                AND_WHEN( "It registers an item of the removed one's label again" )
+                {
+                    const auto again = api->register_menu_action_ex( handle, "Probe/Sub", "Goes",
+                                                                     &menuCallback, &goesRuns );
+
+                    THEN( "It gets a new id, never handed out before" )
+                    {
+                        REQUIRE( again > 0 );
+                        REQUIRE( again != stays );
+                        REQUIRE( again != goes );
+                        REQUIRE( port.calls.back().kind == PortCall::Kind::AddMenuAction );
+                    }
+                }
+            }
+
+            AND_WHEN( "A trigger of one is queued, and the plugin unregisters it before the "
+                      "event loop turns" )
+            {
+                QMetaObject::invokeMethod(
+                    &host, [ goesAdded ] { goesAdded.callback( goesAdded.userData ); },
+                    Qt::QueuedConnection );
+                api->unregister_menu_action( handle, goes );
+                QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+                THEN( "The queued trigger does not call the plugin" )
+                {
+                    REQUIRE( goesRuns == 0 );
+                }
+            }
+
+            AND_WHEN( "It unregisters one from a thread of its own" )
+            {
+                std::thread( [ & ] { api->unregister_menu_action( handle, goes ); } ).join();
+
+                THEN( "A trigger after that does not call the plugin" )
+                {
+                    goesAdded.callback( goesAdded.userData );
+                    REQUIRE( goesRuns == 0 );
+                    REQUIRE( port.calls.back().kind == PortCall::Kind::RemoveMenuAction );
+                }
+            }
+
+            AND_WHEN( "The plugin is unloaded" )
+            {
+                host.unloadPlugin( ProbeId );
+
+                THEN( "Its items go with all its contributions, and no id removes one" )
+                {
+                    REQUIRE( port.calls.back().kind == PortCall::Kind::RemoveContributions );
+                }
+            }
+        }
+
+        WHEN( "The plugin registers an item with register_menu_action_ex from a thread of its "
+              "own" )
+        {
+            int id = 0;
+            std::thread( [ & ] {
+                id = api->register_menu_action_ex( handle, "", "Threaded", &menuCallback,
+                                                   &staysRuns );
+            } ).join();
+
+            THEN( "It gets the id at once" )
+            {
+                REQUIRE( id > 0 );
+                REQUIRE( port.calls.size() == 1 );
+            }
+        }
+
+        WHEN( "The plugin registers an item that removes itself when triggered" )
+        {
+            SelfRemovingMenuAction action{ .api = api, .handle = handle };
+            action.id = api->register_menu_action_ex( handle, "Plugins", "Once",
+                                                      &removeOwnMenuAction, &action );
+            const auto added = port.calls.back();
+            added.callback( added.userData );
+            added.callback( added.userData );
+
+            THEN( "It runs once, and the port removes it" )
+            {
+                REQUIRE( action.runs == 1 );
+                REQUIRE( port.calls.back().kind == PortCall::Kind::RemoveMenuAction );
+                REQUIRE( port.calls.back().userData == added.userData );
+            }
+        }
+
+        WHEN( "The plugin registers an item with register_menu_action_ex that cannot be added" )
+        {
+            api->register_menu_action( handle, "Plugins", "Old", &menuCallback, &staysRuns );
+            REQUIRE( api->register_menu_action_ex( handle, "Plugins", "Taken", &menuCallback,
+                                                   &staysRuns )
+                     > 0 );
+            const auto callsBefore = port.calls.size();
+
+            const auto noLabel = api->register_menu_action_ex( handle, "Plugins", nullptr,
+                                                               &menuCallback, nullptr );
+            const auto emptyLabel
+                = api->register_menu_action_ex( handle, "Plugins", "", &menuCallback, nullptr );
+            const auto noCallback
+                = api->register_menu_action_ex( handle, "Plugins", "Nothing", nullptr, nullptr );
+            const auto noHandle = api->register_menu_action_ex( nullptr, "Plugins", "Lost",
+                                                                &menuCallback, nullptr );
+            const auto taken
+                = api->register_menu_action_ex( handle, "Other", "Taken", &menuCallback, nullptr );
+            const auto old
+                = api->register_menu_action_ex( handle, "Plugins", "Old", &menuCallback, nullptr );
+
+            THEN( "It gets a negative value, and nothing is added" )
+            {
+                REQUIRE( noLabel < 0 );
+                REQUIRE( emptyLabel < 0 );
+                REQUIRE( noCallback < 0 );
+                REQUIRE( noHandle < 0 );
+                REQUIRE( taken < 0 );
+                REQUIRE( old < 0 );
+                REQUIRE( port.calls.size() == callsBefore );
+            }
+        }
+
+        host.unloadAll();
+        probe.library.unload();
+    }
+
+    GIVEN( "A Plugin Host without a Plugin UI Port and the probe plugin loaded" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+
+        PluginHost host( catalog );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        int runs = 0;
+
+        WHEN( "The plugin registers a menu item with register_menu_action_ex" )
+        {
+            const auto id = api->register_menu_action_ex( handle, "Plugins", "Nowhere",
+                                                          &menuCallback, &runs );
+            api->unregister_menu_action( handle, id );
+
+            THEN( "It gets a negative value, and unregistering it does nothing" )
+            {
+                REQUIRE( id < 0 );
             }
         }
 

@@ -113,9 +113,22 @@ const LogSquirlPluginInfo pluginInfo = {
 const LogSquirlHostApi* host = nullptr;
 void* hostHandle = nullptr;
 
+// The ids of the items a host that removes menu items gave: 0 for none.
+int sayHelloItem = 0;
+int stopItem = 0;
+
 void sayHello( void* /* user_data */ )
 {
     host->show_notification( hostHandle, "Hello from My Plugin" );
+}
+
+// Removes both items, from the callback of one of them: neither runs again.
+void stopSayingHello( void* /* user_data */ )
+{
+    host->unregister_menu_action( hostHandle, sayHelloItem );
+    host->unregister_menu_action( hostHandle, stopItem );
+    sayHelloItem = 0;
+    stopItem = 0;
 }
 
 // Called once, on the UI thread, with what the user did in the Regex Lab.
@@ -192,7 +205,17 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
     host = api;
     hostHandle = handle;
     api->log_message( handle, LOGSQUIRL_LOG_INFO, "My Plugin initialised" );
-    api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+    // A host that removes menu items gets an item that removes Say Hello again.
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, register_menu_action_ex )
+         && LOGSQUIRL_HOST_API_HAS( api_size, unregister_menu_action ) ) {
+        sayHelloItem
+            = api->register_menu_action_ex( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+        stopItem = api->register_menu_action_ex( handle, "Plugins", "Stop Saying Hello",
+                                                 &stopSayingHello, nullptr );
+    }
+    else {
+        api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+    }
     // Only a host that offers the Regex Lab gets the item that opens it.
     if ( LOGSQUIRL_HOST_API_HAS( api_size, open_regex_lab ) ) {
         api->register_menu_action( handle, "Plugins", "Test Pattern", &testPattern, nullptr );
@@ -220,6 +243,8 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 {
     host = nullptr;
     hostHandle = nullptr;
+    sayHelloItem = 0;
+    stopItem = 0;
 }
 
 } // extern "C"
@@ -228,8 +253,9 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 The exported functions need C linkage: in C++, define them inside
 `extern "C"`, or the host does not find them by name. The example exports
 `logsquirl_plugin_init_ex` as well as `logsquirl_plugin_init`, so it runs on a
-LogSquirl that knows the Regex Lab, Log Line and encoding functions and on one
-that does not.
+LogSquirl that knows the Regex Lab, Log Line, encoding and menu item removal
+functions and on one that does not. On a LogSquirl that removes menu items, a
+*Stop Saying Hello* item takes *Say Hello* and itself away again.
 
 ### 4. Build with CMake
 
@@ -623,6 +649,9 @@ typedef struct {
     int ( *get_log_file_encoding )( void* handle, const char* file_path, const char** encoding );
     void ( *register_encoding_callback )( void* handle, LogSquirlEncodingCallbackFn callback,
                                           void* user_data );
+    int ( *register_menu_action_ex )( void* handle, const char* menu_path, const char* label,
+                                      void ( *callback )( void* user_data ), void* user_data );
+    void ( *unregister_menu_action )( void* handle, int id );
 } LogSquirlHostApi;
 ```
 
@@ -632,6 +661,33 @@ call one, check that the running host offers it (see
 
 The `handle` is an opaque pointer — always pass the same `handle` value that
 was given to your `init` function. **Never** dereference or interpret it.
+
+The functions follow one set of rules for strings and registrations (see
+[ADR 0022](adr/0022-a-registration-a-plugin-removes-returns-an-id-and-a-returned-string-lives-until-the-same-call.md)):
+
+- **Strings you pass** are copied before the call returns; free them after.
+- **Strings the host returns** (`get_config_dir`, `get_active_file_path`,
+  `get_selected_log_lines`, `get_log_file_encoding`) are the host's: each is
+  valid until your plugin calls the same function again or is shut down,
+  whatever other plugins call meanwhile. Copy what you keep longer.
+- **Strings the host passes to a callback** are valid during the call only.
+- **Registrations**: each `register_*` function says whether a second call
+  replaces the first registration or adds another, and how a registration is
+  removed; see the table below. Whatever your plugin still has registered is
+  removed when it is unloaded. A registration that returns an id returns one
+  greater than 0, never handed out twice while the plugin is loaded, or a
+  negative value when nothing was registered; its `unregister_*` function does
+  nothing for an id it does not know, or no longer knows.
+
+| Function                        | A second call                                    | Removed by                         |
+|---------------------------------|--------------------------------------------------|------------------------------------|
+| `register_status_widget`        | adds another widget; the same widget again does nothing | `unregister_status_widget`  |
+| `register_sidebar_tab`          | adds another tab; the same widget again does nothing    | `unregister_sidebar_tab`    |
+| `register_footer_widget`        | adds another widget; the same widget again does nothing | `unregister_footer_widget`  |
+| `register_menu_action`          | adds another item, but none of a label the plugin already has | unloading the plugin only |
+| `register_menu_action_ex`       | adds another item with an id of its own; a label the plugin already has fails | `unregister_menu_action` |
+| `register_active_file_callback` | replaces the callback                            | a `NULL` callback                  |
+| `register_encoding_callback`    | replaces the callback                            | a `NULL` callback                  |
 
 ### `LogSquirlLogLevel`
 
@@ -698,6 +754,8 @@ tells, for later calls.
 | `get_selected_log_lines`     | LogSquirl 26.11 |
 | `get_log_file_encoding`      | LogSquirl 26.12 |
 | `register_encoding_callback` | LogSquirl 26.12 |
+| `register_menu_action_ex`    | LogSquirl 26.12 |
+| `unregister_menu_action`     | LogSquirl 26.12 |
 
 ### Regex Lab Types
 
@@ -767,8 +825,9 @@ const char* dir = api->get_config_dir( handle );
 
 The directory is `plugin_config/<plugin id>` next to the user plugin directory,
 beside the executable in a portable LogSquirl, and is created before `init` is
-called. The returned string is valid until the
-next call to `get_config_dir`. Use it to persist any plugin-specific settings.
+called. The host owns the returned string: it is valid until your plugin calls
+`get_config_dir` again or is shut down. Use it to persist any plugin-specific
+settings.
 
 ### Data Source Streaming
 
@@ -893,6 +952,31 @@ without that first segment. The last segment is a submenu too, the item's own
 text is always `label`. Items and submenus go above `Plugin Management...`,
 and plugins naming the same path share its submenus. When the plugin is
 unloaded, its items go away, and so does every submenu nothing is left in.
+A plugin's items have different labels: a second `register_menu_action` of a
+label the plugin already has adds nothing.
+
+An item of `register_menu_action` stays until the plugin is unloaded. To
+remove one earlier, register it with `register_menu_action_ex` (added in
+LogSquirl 26.12), which takes the same arguments and returns the item's id:
+
+```c
+if ( LOGSQUIRL_HOST_API_HAS( api_size, register_menu_action_ex )
+     && LOGSQUIRL_HOST_API_HAS( api_size, unregister_menu_action ) ) {
+    int id = api->register_menu_action_ex( handle, "My Plugin", "Connect", &connect, userData );
+    /* ... later, from any thread, from the item's own callback too */
+    api->unregister_menu_action( handle, id );
+}
+```
+
+The id is greater than 0 and unique within the plugin while it is loaded; it
+comes back at once, also when called on another thread, before the item
+appears on the UI thread. A negative value means no item was added: a `NULL`
+or empty `label`, a `NULL` callback, or a label the plugin already has an item
+of. `unregister_menu_action` removes the item from every window, and a
+submenu the host created for it once nothing is left in it. Once it returns,
+the item's callback is not called again: a trigger still queued is dropped.
+An id the plugin was not given, or one already removed, does nothing. To
+relabel an item, remove it and register it again.
 
 `register_status_widget`, `register_sidebar_tab` and `register_footer_widget`
 take a `QWidget*` cast to `void*`: the plugin creates and owns the widget and
@@ -910,9 +994,14 @@ const char* path = api->get_active_file_path( handle );
 api->register_active_file_callback( handle, &onActiveFile, userData );
 ```
 
-The string `get_active_file_path` returns is valid until the next host API
-call. Call it on the UI thread only: called on another thread, it touches no
-window and returns an empty string, as without a file.
+The host owns the string `get_active_file_path` returns: it is valid until
+your plugin calls `get_active_file_path` again or is shut down, whatever other
+plugins ask meanwhile. Call it on the UI thread only: called on another
+thread, it touches no window and returns an empty string, as without a file.
+
+The active-file callback is called on the UI thread with the new path, valid
+during the call only. A plugin has one such callback: registering another
+replaces it, and `NULL` removes it.
 
 ### Regex Lab
 
@@ -1079,7 +1168,10 @@ window the plugin keeps open outlives the dialog.
   run on a host worker thread, one call per plugin at a time, and the
   `LogSquirlConvertControl` functions are called on that thread only.
 - **String lifetime**: All `const char*` strings you pass to host API functions
-  are copied immediately — you may free them after the call returns.
+  are copied immediately — you may free them after the call returns. A string
+  the host returns is valid until your plugin calls the same function again
+  or is shut down; one passed to a callback, during the call only (see
+  [`LogSquirlHostApi`](#logsquirlhostapi)).
 - **Error reporting**: Return non-zero from `init` on failure; the host logs
   the code and does not load the plugin.
 - **No host headers**: Never include any host header other than

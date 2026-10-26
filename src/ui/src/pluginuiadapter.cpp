@@ -275,7 +275,7 @@ QMenu& PluginUiAdapter::menuAt( const QStringList& submenuNames )
     return *menu;
 }
 
-void PluginUiAdapter::removeEmptySubmenus()
+void PluginUiAdapter::removeEmptySubmenus( SubmenuDeletion deletion )
 {
     // Innermost first: a submenu whose only entry is an empty submenu is
     // empty once that one is gone.
@@ -286,12 +286,25 @@ void PluginUiAdapter::removeEmptySubmenus()
     std::ranges::sort( byDepth, std::ranges::greater{},
                        []( const auto& it ) { return it->first.count( u'/' ); } );
     for ( const auto& it : byDepth ) {
-        if ( it->second && !it->second->actions().isEmpty() ) {
+        auto* submenu = it->second.data();
+        if ( submenu && !submenu->actions().isEmpty() ) {
             continue;
         }
-        // Deleting the menu also deletes the action that shows it in its parent.
-        delete it->second.data();
         submenus_.erase( it );
+        if ( !submenu ) {
+            continue;
+        }
+        if ( deletion == SubmenuDeletion::Now ) {
+            // Deleting the menu also deletes the action that shows it in its parent.
+            delete submenu;
+            continue;
+        }
+        // The menu may be delivering the trigger of the action that went:
+        // gone from its parent at once, deleted once that has returned.
+        if ( auto* parent = qobject_cast<QMenu*>( submenu->parent() ) ) {
+            parent->removeAction( submenu->menuAction() );
+        }
+        submenu->deleteLater();
     }
 }
 
@@ -330,7 +343,41 @@ void PluginUiAdapter::addMenuAction( const QString& pluginId, const QString& men
         else {
             menu.addAction( action );
         }
-        actions.push_back( { action, &menu } );
+        actions.push_back( { action, &menu, userData } );
+    } );
+}
+
+void PluginUiAdapter::removeMenuAction( const QString& pluginId, void* userData )
+{
+    onWindowThread( pluginId, [ this, pluginId, userData ] {
+        const auto it = menuActions_.find( pluginId );
+        if ( it == menuActions_.end() ) {
+            return;
+        }
+        const auto removed
+            = std::erase_if( it->second, [ userData ]( const PluginMenuAction& entry ) {
+                  if ( entry.userData != userData ) {
+                      return false;
+                  }
+                  if ( entry.action ) {
+                      if ( entry.menu ) {
+                          entry.menu->removeAction( entry.action );
+                      }
+                      // The plugin may remove the action from its own callback,
+                      // which the action's trigger is still delivering.
+                      entry.action->deleteLater();
+                  }
+                  return true;
+              } );
+        if ( removed == 0 ) {
+            return;
+        }
+        if ( it->second.empty() ) {
+            menuActions_.erase( it );
+        }
+        // Submenus shared with another action stay.
+        removeEmptySubmenus( SubmenuDeletion::Later );
+        LOG_INFO << "Plugin " << pluginId << " removed a menu action";
     } );
 }
 
@@ -345,12 +392,12 @@ void PluginUiAdapter::removeContributions( const QString& pluginId )
 
     onWindowThread( pluginId, [ this, pluginId ] {
         if ( const auto it = menuActions_.find( pluginId ); it != menuActions_.end() ) {
-            for ( const auto& [ action, menu ] : it->second ) {
-                if ( action ) {
-                    if ( menu ) {
-                        menu->removeAction( action );
+            for ( const auto& entry : it->second ) {
+                if ( entry.action ) {
+                    if ( entry.menu ) {
+                        entry.menu->removeAction( entry.action );
                     }
-                    delete action.data();
+                    delete entry.action.data();
                 }
             }
             menuActions_.erase( it );

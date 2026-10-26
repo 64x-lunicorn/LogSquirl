@@ -29,6 +29,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <atomic>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -318,12 +319,20 @@ private:
     /**
      * A menu action's callback as the plugin registered it. The host hands
      * the Plugin UI Port its own callback with this as the user data, so that
-     * the plugin's runs as a call into the plugin (#691).
+     * the plugin's runs as a call into the plugin (#691). Created in place
+     * and never moved: its address names the action.
      */
     struct MenuActionCall {
         PluginContext* context = nullptr;
         PluginCallbackFn callback = nullptr;
         void* userData = nullptr;
+        QString label{};
+        // The id register_menu_action_ex returned; 0 for an action of
+        // register_menu_action, which no id removes (#857).
+        int id = 0;
+        // Set by unregister_menu_action, from any thread: a trigger of the
+        // action that comes later, queued or not, does not reach the plugin.
+        std::atomic<bool> removed{ false };
     };
 
     // Per-plugin context stored alongside the handle
@@ -361,6 +370,10 @@ private:
         // Cached UTF-8 so the get_log_file_encoding name stays valid until
         // the plugin's next call of it (#803).
         QByteArray logFileEncodingUtf8{};
+        // Cached UTF-8 so the get_active_file_path path stays valid until
+        // the plugin's next call of it, whatever other plugins ask (#857).
+        // UI thread only.
+        QByteArray activeFilePathUtf8{};
         // The host's calls into the plugin, nested ones on the UI thread and
         // a Conversion under way on its worker thread included: one of them
         // may run an event loop -- a modal dialog -- in which the user unloads
@@ -379,12 +392,24 @@ private:
         // order asked. UI thread only.
         std::deque<std::unique_ptr<Conversion>> queuedConversions{};
         std::unique_ptr<Conversion> runningConversion{};
-        // The menu actions the plugin registered, from any thread; their
-        // addresses are the user data of the host's callbacks, so they stay
-        // until the context goes, after the actions are removed.
-        std::mutex menuActionCallsMutex{};
+        // What the plugin registered from any thread, under
+        // registrationsMutex. The menu actions' addresses are the user data
+        // of the host's callbacks, so they stay until the context goes, also
+        // once removed: a trigger still queued then finds them marked.
+        std::mutex registrationsMutex{};
         std::list<MenuActionCall> menuActionCalls{};
+        // The ids handed out so far, by every registration that returns one
+        // (#857): the next one is one more, so none is handed out twice.
+        int registrationIdsSoFar = 0;
+        // The menu actions of register_menu_action_ex not removed yet, by id.
+        std::map<int, MenuActionCall*> menuActionsById{};
     };
+
+    /**
+     * The next id for a registration of the plugin, greater than 0; negative
+     * once all are used up. Under the context's registrationsMutex.
+     */
+    static int nextRegistrationId( PluginContext& context );
 
     /** The loaded plugin's context, or nullptr when it is not loaded or is being unloaded. */
     PluginContext* loadedContext( const QString& pluginId ) const;
@@ -459,7 +484,6 @@ private:
 
     std::function<void( const QString&, bool )> openFileCallback_;
     std::function<QString()> activeFilePathCallback_;
-    QByteArray activeFilePathUtf8_; ///< Cached for get_active_file_path pointer stability
 
     // ── Static host API trampolines ──────────────────────────────────
     // These are the actual C function pointers stored in LogSquirlHostApi.
@@ -494,6 +518,9 @@ private:
     static int hostGetLogFileEncoding( void* handle, const char* filePath, const char** encoding );
     static void hostRegisterEncodingCallback( void* handle, LogSquirlEncodingCallbackFn callback,
                                               void* userData );
+    static int hostRegisterMenuActionEx( void* handle, const char* menuPath, const char* label,
+                                         PluginCallbackFn callback, void* userData );
+    static void hostUnregisterMenuAction( void* handle, int id );
 
     // The functions of the LogSquirlConvertControl handed to convert_ex,
     // called on the Conversion's worker thread.

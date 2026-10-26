@@ -33,6 +33,7 @@
 #include <QLibrary>
 #include <QTemporaryDir>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -74,6 +75,33 @@ public:
                         const QString& label, PluginCallbackFn callback, void* userData ) override
     {
         actions.push_back( { pluginId, label, callback, userData } );
+    }
+
+    void removeMenuAction( const QString& /* pluginId */, void* userData ) override
+    {
+        std::erase_if( actions, [ userData ]( const MenuAction& action ) {
+            return action.userData == userData;
+        } );
+    }
+
+    /// The labels of the menu actions shown, in the order added.
+    QStringList labels() const
+    {
+        QStringList shown;
+        for ( const auto& action : actions ) {
+            shown.append( action.label );
+        }
+        return shown;
+    }
+
+    /// Triggers the menu action with the label, which must be shown.
+    void trigger( const QString& label ) const
+    {
+        const auto it = std::ranges::find( actions, label, &MenuAction::label );
+        REQUIRE( it != actions.end() );
+        // A copy: the callback may remove the action.
+        const auto action = *it;
+        action.callback( action.userData );
     }
 
     void removeContributions( const QString& pluginId ) override
@@ -173,55 +201,47 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
 
             const auto error = host.loadPlugin( ExampleId );
 
-            THEN( "It is initialised and adds its menu actions, testing a pattern, going to "
-                  "and reading Log Lines and showing the encoding as well, since this host "
-                  "offers them" )
+            THEN( "It is initialised and adds its menu actions, stopping saying hello, testing "
+                  "a pattern, going to and reading Log Lines and showing the encoding as well, "
+                  "since this host offers them" )
             {
                 REQUIRE( error.isEmpty() );
                 REQUIRE( host.isLoaded( ExampleId ) );
-                REQUIRE( port.actions.size() == 5 );
-                REQUIRE( port.actions[ 0 ].pluginId == ExampleId );
-                REQUIRE( port.actions[ 0 ].label == "Say Hello" );
-                REQUIRE( port.actions[ 1 ].pluginId == ExampleId );
-                REQUIRE( port.actions[ 1 ].label == "Test Pattern" );
-                REQUIRE( port.actions[ 2 ].label == "Show Selection" );
-                REQUIRE( port.actions[ 3 ].label == "Go to First Line" );
-                REQUIRE( port.actions[ 4 ].label == "Show Encoding" );
+                REQUIRE( port.labels()
+                         == QStringList{ "Say Hello", "Stop Saying Hello", "Test Pattern",
+                                         "Show Selection", "Go to First Line", "Show Encoding" } );
+                for ( const auto& action : port.actions ) {
+                    REQUIRE( action.pluginId == ExampleId );
+                }
             }
 
             THEN( "Its Show Encoding shows the encoding of the tab in front, or that there is "
                   "no Log File" )
             {
-                REQUIRE( port.actions.size() == 5 );
-                const auto& showEncoding = port.actions[ 4 ];
-                showEncoding.callback( showEncoding.userData );
+                port.trigger( QStringLiteral( "Show Encoding" ) );
                 port.encodingInFront = QStringLiteral( "UTF-16LE" );
-                showEncoding.callback( showEncoding.userData );
+                port.trigger( QStringLiteral( "Show Encoding" ) );
                 REQUIRE( notifications
                          == QStringList{ "No Log File in front", "Read as UTF-16LE" } );
             }
 
             THEN( "Its Show Selection shows the selected Log Lines, and nothing without" )
             {
-                REQUIRE( port.actions.size() == 5 );
-                const auto& showSelection = port.actions[ 2 ];
-                showSelection.callback( showSelection.userData );
+                port.trigger( QStringLiteral( "Show Selection" ) );
                 REQUIRE( notifications.isEmpty() );
 
                 port.selected = QStringList{ QStringLiteral( "ERROR 42" ) };
-                showSelection.callback( showSelection.userData );
+                port.trigger( QStringLiteral( "Show Selection" ) );
                 REQUIRE( notifications == QStringList{ "ERROR 42" } );
             }
 
             THEN( "Its Show Selection shows only the beginning of a long selection, whole "
                   "characters" )
             {
-                REQUIRE( port.actions.size() == 5 );
-                const auto& showSelection = port.actions[ 2 ];
                 // "a", then two-byte characters: 200 bytes end inside one.
                 port.selected
                     = QStringList{ QStringLiteral( "a" ) + QString( 300, QChar( 0x00e9 ) ) };
-                showSelection.callback( showSelection.userData );
+                port.trigger( QStringLiteral( "Show Selection" ) );
                 REQUIRE( notifications.size() == 1 );
                 REQUIRE( notifications.front().toUtf8().size() == 199 );
                 REQUIRE( notifications.front() == port.selected->front().left( 100 ) );
@@ -229,18 +249,31 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
 
             THEN( "Its Go to First Line goes to the first Log Line" )
             {
-                REQUIRE( port.actions.size() == 5 );
-                const auto& goToFirstLine = port.actions[ 3 ];
-                goToFirstLine.callback( goToFirstLine.userData );
+                port.trigger( QStringLiteral( "Go to First Line" ) );
                 REQUIRE( port.wentTo == std::vector<std::uint64_t>{ 0 } );
             }
 
             THEN( "Its menu action shows a notification" )
             {
-                REQUIRE( port.actions.size() == 5 );
-                const auto& action = port.actions.front();
-                action.callback( action.userData );
+                port.trigger( QStringLiteral( "Say Hello" ) );
                 REQUIRE( notifications == QStringList{ "Hello from My Plugin" } );
+            }
+
+            THEN( "Its Stop Saying Hello removes Say Hello and itself (#857)" )
+            {
+                const auto actions = port.actions;
+                port.trigger( QStringLiteral( "Stop Saying Hello" ) );
+                REQUIRE( port.labels()
+                         == QStringList{ "Test Pattern", "Show Selection", "Go to First Line",
+                                         "Show Encoding" } );
+
+                // A trigger of either still queued does not reach the plugin.
+                for ( const auto& action : actions ) {
+                    if ( action.label == "Say Hello" || action.label == "Stop Saying Hello" ) {
+                        action.callback( action.userData );
+                    }
+                }
+                REQUIRE( notifications.isEmpty() );
             }
 
             THEN( "It unloads again" )

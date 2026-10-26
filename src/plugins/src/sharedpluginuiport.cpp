@@ -216,6 +216,20 @@ void SharedPluginUiPort::addMenuAction( const QString& pluginId, const QString& 
     }
 }
 
+void SharedPluginUiPort::removeMenuAction( const QString& pluginId, void* userData )
+{
+    const std::scoped_lock lock( mutex_ );
+    const auto removed = std::erase_if( menuActions_, [ & ]( const MenuAction& action ) {
+        return action.pluginId == pluginId && action.userData == userData;
+    } );
+    if ( removed == 0 ) {
+        return;
+    }
+    for ( auto* window : windows_ ) {
+        window->removeMenuAction( pluginId, userData );
+    }
+}
+
 void SharedPluginUiPort::removeContributions( const QString& pluginId )
 {
     const std::scoped_lock lock( mutex_ );

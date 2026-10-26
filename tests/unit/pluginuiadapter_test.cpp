@@ -22,6 +22,8 @@
 #include "pluginuiadapter.h"
 
 #include <QAction>
+#include <QCoreApplication>
+#include <QEvent>
 #include <QLabel>
 #include <QMainWindow>
 #include <QMenu>
@@ -260,6 +262,94 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
                     REQUIRE( actions.size() == 2 );
                     REQUIRE( actions[ 0 ] == separator );
                 }
+            }
+        }
+
+        WHEN( "A plugin adds a menu action to the Plugins menu and one under \"Mine/Sub\", and "
+              "removes the second one (#857)" )
+        {
+            int stays = 1;
+            int goes = 10;
+            triggeredCount = 0;
+            adapter.addMenuAction( pluginId, QString(), QStringLiteral( "Stays" ), &countTrigger,
+                                   &stays );
+            adapter.addMenuAction( pluginId, QStringLiteral( "Mine/Sub" ), QStringLiteral( "Goes" ),
+                                   &countTrigger, &goes );
+            QPointer<QMenu> mine = submenuNamed( pluginsMenu, QStringLiteral( "Mine" ) );
+            REQUIRE( mine != nullptr );
+
+            adapter.removeMenuAction( pluginId, &goes );
+
+            THEN( "The submenus nothing is left in are gone, deleted once the event loop turns" )
+            {
+                REQUIRE( submenuNamed( pluginsMenu, QStringLiteral( "Mine" ) ) == nullptr );
+                QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+                REQUIRE( mine == nullptr );
+            }
+
+            THEN( "The other action stays and still runs the plugin's callback" )
+            {
+                auto* action = menuActionNamed( pluginsMenu, QStringLiteral( "Stays" ) );
+                REQUIRE( action != nullptr );
+                action->trigger();
+                REQUIRE( triggeredCount == 1 );
+            }
+
+            AND_WHEN( "It removes the same action again, or one it never added" )
+            {
+                int never = 0;
+                adapter.removeMenuAction( pluginId, &goes );
+                adapter.removeMenuAction( pluginId, &never );
+
+                THEN( "Nothing else changes" )
+                {
+                    REQUIRE( menuActionNamed( pluginsMenu, QStringLiteral( "Stays" ) ) != nullptr );
+                    REQUIRE( pluginsMenu.actions().size() == 3 );
+                }
+            }
+        }
+
+        WHEN( "A plugin's menu action removes itself from its own callback, in a submenu" )
+        {
+            struct SelfRemoval {
+                PluginUiAdapter* adapter = nullptr;
+                QString pluginId;
+            };
+            SelfRemoval removal{ &adapter, pluginId };
+            adapter.addMenuAction(
+                pluginId, QStringLiteral( "Once" ), QStringLiteral( "Only once" ),
+                []( void* userData ) {
+                    auto* self = static_cast<SelfRemoval*>( userData );
+                    self->adapter->removeMenuAction( self->pluginId, userData );
+                },
+                &removal );
+            auto* once = submenuNamed( pluginsMenu, QStringLiteral( "Once" ) );
+            REQUIRE( once != nullptr );
+            QPointer<QAction> action = menuActionNamed( *once, QStringLiteral( "Only once" ) );
+            REQUIRE( action != nullptr );
+
+            action->trigger();
+
+            THEN( "The action and its submenu are gone, deleted once its trigger has returned" )
+            {
+                REQUIRE( submenuNamed( pluginsMenu, QStringLiteral( "Once" ) ) == nullptr );
+                QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+                REQUIRE( action == nullptr );
+            }
+        }
+
+        WHEN( "A plugin removes a menu action from a thread of its own" )
+        {
+            int goes = 0;
+            adapter.addMenuAction( pluginId, QString(), QStringLiteral( "Goes" ), nullptr, &goes );
+            std::thread( [ & ] { adapter.removeMenuAction( pluginId, &goes ); } ).join();
+
+            THEN( "It goes on the window's thread" )
+            {
+                REQUIRE( menuActionNamed( pluginsMenu, QStringLiteral( "Goes" ) ) != nullptr );
+                REQUIRE( QTest::qWaitFor( [ & ] {
+                    return menuActionNamed( pluginsMenu, QStringLiteral( "Goes" ) ) == nullptr;
+                } ) );
             }
         }
 

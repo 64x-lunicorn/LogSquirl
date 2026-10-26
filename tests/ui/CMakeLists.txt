@@ -50,6 +50,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/fieldterm_searchline_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_loglines_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_encoding_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin_menu_actions_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_conversion_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_follow_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_line_status_theme_test.cpp
@@ -111,6 +112,15 @@ set_target_properties(logsquirl_test_encoding_plugin PROPERTIES CXX_VISIBILITY_P
 add_dependencies(logsquirl_itests logsquirl_test_encoding_plugin)
 target_compile_definitions(logsquirl_itests PRIVATE
     LOGSQUIRL_TEST_ENCODING_PLUGIN_PATH="$<TARGET_FILE:logsquirl_test_encoding_plugin>")
+
+# A plugin that registers menu items with an id and removes them again (#857).
+add_library(logsquirl_test_menu_actions_plugin MODULE plugins/menuactionsplugin.cpp)
+target_link_libraries(logsquirl_test_menu_actions_plugin PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_test_menu_actions_plugin PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_test_menu_actions_plugin PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_itests logsquirl_test_menu_actions_plugin)
+target_compile_definitions(logsquirl_itests PRIVATE
+    LOGSQUIRL_TEST_MENU_ACTIONS_PLUGIN_PATH="$<TARGET_FILE:logsquirl_test_menu_actions_plugin>")
 
 # The converter plugins of the unit tests, whose Conversion a test holds and
 # cancels: one with convert_ex, of kind "ui", and one with the plain convert

@@ -26,7 +26,9 @@
 #include <QDir>
 #include <QThread>
 
+#include <algorithm>
 #include <atomic>
+#include <limits>
 #include <utility>
 
 namespace logsquirl::plugins {
@@ -347,7 +349,9 @@ void PluginHost::deliverParkedAnswersLater( PluginContext& context )
 void PluginHost::runMenuAction( void* menuActionCall )
 {
     const auto* call = static_cast<const MenuActionCall*>( menuActionCall );
-    if ( !call->callback ) {
+    // Removed meanwhile: a trigger queued before unregister_menu_action
+    // returned is dropped (#857).
+    if ( !call->callback || call->removed.load() ) {
         return;
     }
     call->context->host->callIntoPlugin( *call->context,
@@ -800,6 +804,8 @@ LogSquirlHostApi PluginHost::buildHostApi()
     api.get_selected_log_lines = &PluginHost::hostGetSelectedLogLines;
     api.get_log_file_encoding = &PluginHost::hostGetLogFileEncoding;
     api.register_encoding_callback = &PluginHost::hostRegisterEncodingCallback;
+    api.register_menu_action_ex = &PluginHost::hostRegisterMenuActionEx;
+    api.unregister_menu_action = &PluginHost::hostUnregisterMenuAction;
 
     return api;
 }
@@ -997,20 +1003,92 @@ void PluginHost::hostRegisterMenuAction( void* handle, const char* menuPath, con
     if ( !port ) {
         return;
     }
+    auto* ctx = contextFromHandle( handle );
+    const auto labelText = QString::fromUtf8( label );
+    MenuActionCall* call = nullptr;
+    {
+        // Kept for its label also without a callback: register_menu_action_ex
+        // adds no second item of it.
+        const std::lock_guard lock( ctx->registrationsMutex );
+        call = &ctx->menuActionCalls.emplace_back();
+        call->context = ctx;
+        call->callback = callback;
+        call->userData = userData;
+        call->label = labelText;
+    }
     if ( !callback ) {
-        port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), QString::fromUtf8( label ),
-                             nullptr, userData );
+        port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), labelText, nullptr,
+                             userData );
+        return;
+    }
+    port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), labelText,
+                         &PluginHost::runMenuAction, call );
+}
+
+int PluginHost::nextRegistrationId( PluginContext& context )
+{
+    if ( context.registrationIdsSoFar == std::numeric_limits<int>::max() ) {
+        return -1;
+    }
+    return ++context.registrationIdsSoFar;
+}
+
+int PluginHost::hostRegisterMenuActionEx( void* handle, const char* menuPath, const char* label,
+                                          PluginCallbackFn callback, void* userData )
+{
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port || label == nullptr || *label == '\0' || callback == nullptr ) {
+        return -1;
+    }
+    auto* ctx = contextFromHandle( handle );
+    const auto labelText = QString::fromUtf8( label );
+    MenuActionCall* call = nullptr;
+    int id = -1;
+    {
+        const std::lock_guard lock( ctx->registrationsMutex );
+        // A plugin's items have different labels: the Plugin UI Port shows a
+        // second one of the same label not at all.
+        const auto taken = std::ranges::any_of( ctx->menuActionCalls, [ & ]( const auto& other ) {
+            return !other.removed.load() && other.label == labelText;
+        } );
+        id = taken ? -1 : nextRegistrationId( *ctx );
+        if ( id < 0 ) {
+            return -1;
+        }
+        call = &ctx->menuActionCalls.emplace_back();
+        call->context = ctx;
+        call->callback = callback;
+        call->userData = userData;
+        call->label = labelText;
+        call->id = id;
+        ctx->menuActionsById.emplace( id, call );
+    }
+    port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), labelText,
+                         &PluginHost::runMenuAction, call );
+    return id;
+}
+
+void PluginHost::hostUnregisterMenuAction( void* handle, int id )
+{
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
         return;
     }
     auto* ctx = contextFromHandle( handle );
     MenuActionCall* call = nullptr;
     {
-        const std::lock_guard lock( ctx->menuActionCallsMutex );
-        call = &ctx->menuActionCalls.emplace_back(
-            MenuActionCall{ .context = ctx, .callback = callback, .userData = userData } );
+        const std::lock_guard lock( ctx->registrationsMutex );
+        const auto it = ctx->menuActionsById.find( id );
+        if ( it == ctx->menuActionsById.end() ) {
+            return;
+        }
+        call = it->second;
+        ctx->menuActionsById.erase( it );
+        // From here on no trigger reaches the plugin, one queued already
+        // included; the record stays for such a trigger to find.
+        call->removed.store( true );
     }
-    port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), QString::fromUtf8( label ),
-                         &PluginHost::runMenuAction, call );
+    port->removeMenuAction( pluginId, call );
 }
 
 void PluginHost::hostRegisterSidebarTab( void* handle, const char* label, void* qwidgetPtr )
@@ -1060,9 +1138,9 @@ const char* PluginHost::hostGetActiveFilePath( void* handle )
     if ( !ctx->host->activeFilePathCallback_ ) {
         return "";
     }
-    // Cache the UTF-8 bytes so the returned pointer remains valid
-    ctx->host->activeFilePathUtf8_ = ctx->host->activeFilePathCallback_().toUtf8();
-    return ctx->host->activeFilePathUtf8_.constData();
+    // The plugin's own: another plugin's call leaves it as it is (#857).
+    ctx->activeFilePathUtf8 = ctx->host->activeFilePathCallback_().toUtf8();
+    return ctx->activeFilePathUtf8.constData();
 }
 
 void PluginHost::hostRegisterActiveFileCallback(
