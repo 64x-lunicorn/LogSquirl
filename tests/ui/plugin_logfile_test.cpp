@@ -264,12 +264,9 @@ struct LogFileWindow {
                 loadErrors
                     = host.autoLoadPlugins( { .autoLoad = true, .enabled = { PluginId } } ).errors;
             } );
-        window = std::make_unique<MainWindow>(
-            WindowSession{ std::make_shared<Session>( testSettingsPolicies(),
-                                                      std::make_shared<LogFormatCatalog>(),
-                                                      fileWatch ),
-                           "Main", 0 },
-            plugins );
+        session = std::make_shared<Session>( policies, std::make_shared<LogFormatCatalog>(),
+                                             fileWatch );
+        window = std::make_unique<MainWindow>( WindowSession{ session, "Main", 0 }, plugins );
         showUntilExposed( *window );
         REQUIRE( waitUiState( [ this ] { return plugins->isLoaded(); }, 5000 ) );
         REQUIRE( loadErrors.isEmpty() );
@@ -327,6 +324,9 @@ struct LogFileWindow {
     QTemporaryDir fileDir;
     QStringList loadErrors;
     std::shared_ptr<FakeFileWatch> fileWatch = std::make_shared<FakeFileWatch>();
+    // As the window's Session applies them; a test changes and applies them again.
+    SettingsPolicies policies = testSettingsPolicies();
+    std::shared_ptr<Session> session;
     std::shared_ptr<ApplicationPlugins> plugins;
     std::unique_ptr<MainWindow> window;
     TabbedCrawlerWidget* tabs = nullptr;
@@ -602,6 +602,43 @@ SCENARIO( "A plugin hears when the Log Lines of an open Log File change",
                 const auto read = plugin.read( path, 1, 1 );
                 REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
                 REQUIRE( read.text == QStringLiteral( "line number 1 Ã¤" ) );
+                REQUIRE( read.text == CrawlerAccess::textOf( crawler, 1, 1 ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A plugin hears when an open Log File reads under another Decoding Policy",
+          "[ui][plugins][pluginlogfile]" )
+{
+    GIVEN( "A window with the plugin loaded, and a Log File with ANSI color sequences open "
+           "with its sequences shown" )
+    {
+        LogFileWindow window;
+        PluginLibrary plugin;
+        REQUIRE_FALSE( window.policies.decoding.hideAnsiColorSequences );
+        const auto path = window.writeFile( QStringLiteral( "ansi.log" ),
+                                            "\x1B[31mERROR\x1B[0m: disk full\nall well\n" );
+        auto& crawler = window.open( path, 2_lcount );
+        REQUIRE( plugin.read( path, 1, 1 ).text.contains( QChar( 0x1B ) ) );
+        const auto toldBefore = plugin.changes().size();
+
+        WHEN( "the Policies after hiding ANSI color sequences was ticked are applied" )
+        {
+            window.policies.decoding.hideAnsiColorSequences = true;
+            window.session->applyPolicies( window.policies );
+
+            THEN( "the plugin is told it was replaced, with its count, and reads it without the "
+                  "sequences, as the Text View shows it" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] {
+                        return plugin.toldOf( toldBefore, path, 2, LOGSQUIRL_LOG_LINES_REPLACED );
+                    },
+                    10'000 ) );
+                const auto read = plugin.read( path, 1, 1 );
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( read.text == QStringLiteral( "ERROR: disk full" ) );
                 REQUIRE( read.text == CrawlerAccess::textOf( crawler, 1, 1 ) );
             }
         }
