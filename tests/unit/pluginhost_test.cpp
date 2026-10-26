@@ -339,7 +339,8 @@ struct Probe {
         return std::vector<size_t>( offsets, offsets + count );
     }
 
-    /// Offset and size of each member of both tables as 26.12 published them (#863).
+    /// Offset and size of each member of the host API table, the convert
+    /// control and the two context structs as 26.12 published them (#863, #873).
     std::vector<size_t> members2612()
     {
         using Fn = const size_t* ( * )( size_t* );
@@ -353,6 +354,44 @@ struct Probe {
     {
         using Fn = size_t ( * )();
         return reinterpret_cast<Fn>( library.resolve( "logsquirl_probe_convert_control_size" ) )();
+    }
+
+    size_t contextMenuContextSize()
+    {
+        using Fn = size_t ( * )();
+        return reinterpret_cast<Fn>(
+            library.resolve( "logsquirl_probe_context_menu_context_size" ) )();
+    }
+
+    size_t dataSourceContextSize()
+    {
+        using Fn = size_t ( * )();
+        return reinterpret_cast<Fn>(
+            library.resolve( "logsquirl_probe_datasource_context_size" ) )();
+    }
+
+    /// The values of the constants as 26.12 published them (#873).
+    std::vector<int64_t> constants2612()
+    {
+        using Fn = const int64_t* ( * )( size_t* );
+        size_t count = 0;
+        const auto* constants
+            = reinterpret_cast<Fn>( library.resolve( "logsquirl_probe_constants_2612" ) )( &count );
+        return std::vector<int64_t>( constants, constants + count );
+    }
+
+    /// The names of the entry points as 26.12 published them (#873).
+    QStringList entryNames2612()
+    {
+        using Fn = const char* const* ( * )( size_t* );
+        size_t count = 0;
+        const auto* names = reinterpret_cast<Fn>(
+            library.resolve( "logsquirl_probe_entry_names_2612" ) )( &count );
+        QStringList result;
+        for ( size_t i = 0; i < count; ++i ) {
+            result.append( QString::fromUtf8( names[ i ] ) );
+        }
+        return result;
     }
 
     /// What the probe's call of get_log_file_encoding returned, and the name.
@@ -2520,25 +2559,50 @@ SCENARIO( "The host API table and the convert control keep every member as 26.12
         REQUIRE( published.library.load() );
         REQUIRE( current.library.load() );
 
-        THEN( "Each member of then lies where it lies now and is as big (#863)" )
+        THEN( "Each member of then lies where it lies now and is as big (#863, #873)" )
         {
             const auto members = published.members2612();
-            // 23 members of LogSquirlHostApi and 4 of LogSquirlConvertControl,
+            // 35 members of LogSquirlHostApi, 4 of LogSquirlConvertControl, 8
+            // of LogSquirlContextMenuContext and 1 of LogSquirlDataSourceContext,
             // an offset and a size each.
-            REQUIRE( members.size() == 2 * ( 23 + 4 ) );
+            REQUIRE( members.size() == 2 * ( 35 + 4 + 8 + 1 ) );
             REQUIRE( members == current.members2612() );
         }
 
-        THEN( "Both tables then ended where the current ones end or later members start" )
+        THEN( "The tables and structs then ended where the current ones end or later members "
+              "start" )
         {
             REQUIRE( published.hostApiSize()
-                     == offsetof( LogSquirlHostApi, register_encoding_callback )
-                            + sizeof( LogSquirlHostApi::register_encoding_callback ) );
+                     == offsetof( LogSquirlHostApi, get_log_line_fields )
+                            + sizeof( LogSquirlHostApi::get_log_line_fields ) );
             REQUIRE( published.hostApiSize() <= sizeof( LogSquirlHostApi ) );
             REQUIRE( published.convertControlSize()
                      == offsetof( LogSquirlConvertControl, is_cancelled )
                             + sizeof( LogSquirlConvertControl::is_cancelled ) );
             REQUIRE( published.convertControlSize() <= sizeof( LogSquirlConvertControl ) );
+            REQUIRE( published.contextMenuContextSize()
+                     == offsetof( LogSquirlContextMenuContext, selected_text_length )
+                            + sizeof( LogSquirlContextMenuContext::selected_text_length ) );
+            REQUIRE( published.contextMenuContextSize() <= sizeof( LogSquirlContextMenuContext ) );
+            REQUIRE( published.dataSourceContextSize()
+                     == offsetof( LogSquirlDataSourceContext, size )
+                            + sizeof( LogSquirlDataSourceContext::size ) );
+            REQUIRE( published.dataSourceContextSize() <= sizeof( LogSquirlDataSourceContext ) );
+        }
+
+        THEN( "Each constant and entry point name then has the value it has now (#873)" )
+        {
+            const auto constants = published.constants2612();
+            REQUIRE( constants.size() == 36 );
+            REQUIRE( constants == current.constants2612() );
+            // A table that ends just before get_log_line_fields is not from a
+            // host that calls start and stop; one that holds it is.
+            REQUIRE( constants[ 34 ] == 0 );
+            REQUIRE( constants[ 35 ] != 0 );
+
+            const auto entryNames = published.entryNames2612();
+            REQUIRE( entryNames.size() == 11 );
+            REQUIRE( entryNames == current.entryNames2612() );
         }
 
         current.library.unload();
