@@ -27,6 +27,7 @@
 #include <QStringList>
 
 #include <algorithm>
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <utility>
@@ -127,6 +128,34 @@ public:
         }
         const auto tab = encodingOf.find( logFile );
         return tab != encodingOf.end() ? std::optional( tab->second ) : std::nullopt;
+    }
+
+    /// The Marks of each Log File a tab of the window shows (#866).
+    std::map<QString, std::vector<std::uint64_t>> marksOf;
+
+    void addMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override
+    {
+        const auto tab = marksOf.find( logFile );
+        if ( tab == marksOf.end() ) {
+            return;
+        }
+        tab->second.insert( tab->second.end(), logLines.begin(), logLines.end() );
+        std::ranges::sort( tab->second );
+    }
+    void removeMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override
+    {
+        const auto tab = marksOf.find( logFile );
+        if ( tab == marksOf.end() ) {
+            return;
+        }
+        std::erase_if( tab->second, [ & ]( std::uint64_t line ) {
+            return std::ranges::find( logLines, line ) != logLines.end();
+        } );
+    }
+    std::optional<std::vector<std::uint64_t>> marks( const QString& logFile ) override
+    {
+        const auto tab = marksOf.find( logFile );
+        return tab != marksOf.end() ? std::optional( tab->second ) : std::nullopt;
     }
 
     bool showsAnything() const
@@ -418,6 +447,65 @@ SCENARIO( "A plugin reads the Encoding of a Log File in any window",
             port.removeWindow( &first );
             port.removeWindow( &second );
         }
+    }
+}
+
+SCENARIO( "A plugin sets, removes and reads the Marks of a Log File in every window",
+          "[sharedpluginuiport][pluginmarks][plugins]" )
+{
+    GIVEN( "No window" )
+    {
+        SharedPluginUiPort port;
+
+        THEN( "no Log File has Marks, and setting some does nothing" )
+        {
+            port.addMarks( QStringLiteral( "/logs/a.log" ), { 1 } );
+            REQUIRE_FALSE( port.marks( QStringLiteral( "/logs/a.log" ) ).has_value() );
+        }
+    }
+
+    GIVEN( "Two windows that both show a.log, with Marks of their own, and one that shows b.log" )
+    {
+        SharedPluginUiPort port;
+        FakeWindowPort first;
+        FakeWindowPort second;
+        first.marksOf[ QStringLiteral( "/logs/a.log" ) ] = { 2, 7 };
+        second.marksOf[ QStringLiteral( "/logs/a.log" ) ] = { 7, 9 };
+        second.marksOf[ QStringLiteral( "/logs/b.log" ) ] = {};
+        port.addWindow( &first );
+        port.addWindow( &second );
+
+        THEN( "the Marks of a.log are those of both windows, in order and each once" )
+        {
+            REQUIRE( port.marks( QStringLiteral( "/logs/a.log" ) )
+                     == std::vector<std::uint64_t>{ 2, 7, 9 } );
+        }
+
+        THEN( "b.log has no Marks, and a Log File no window shows has none at all" )
+        {
+            REQUIRE( port.marks( QStringLiteral( "/logs/b.log" ) )
+                     == std::vector<std::uint64_t>{} );
+            REQUIRE_FALSE( port.marks( QStringLiteral( "/logs/c.log" ) ).has_value() );
+        }
+
+        WHEN( "a plugin sets Marks on a.log, and removes one" )
+        {
+            port.addMarks( QStringLiteral( "/logs/a.log" ), { 4 } );
+            port.removeMarks( QStringLiteral( "/logs/a.log" ), { 7 } );
+
+            THEN( "both windows set and remove them" )
+            {
+                REQUIRE( first.marksOf[ QStringLiteral( "/logs/a.log" ) ]
+                         == std::vector<std::uint64_t>{ 2, 4 } );
+                REQUIRE( second.marksOf[ QStringLiteral( "/logs/a.log" ) ]
+                         == std::vector<std::uint64_t>{ 4, 9 } );
+                REQUIRE( port.marks( QStringLiteral( "/logs/a.log" ) )
+                         == std::vector<std::uint64_t>{ 2, 4, 9 } );
+            }
+        }
+
+        port.removeWindow( &first );
+        port.removeWindow( &second );
     }
 }
 

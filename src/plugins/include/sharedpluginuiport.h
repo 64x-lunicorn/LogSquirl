@@ -107,6 +107,12 @@ public:
      */
     std::optional<QString> logFileEncoding( const QString& logFile ) override;
 
+    /** In every window: each marks the tabs showing the Log File (#866). */
+    void addMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override;
+    void removeMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override;
+    /** Those of every window showing the Log File together; none when no window shows it. */
+    std::optional<std::vector<std::uint64_t>> marks( const QString& logFile ) override;
+
 private:
     enum class WidgetPlace { Status, Sidebar, Footer };
 

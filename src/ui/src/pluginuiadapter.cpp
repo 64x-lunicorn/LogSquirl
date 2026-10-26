@@ -484,10 +484,18 @@ void PluginUiAdapter::setTabInFront( std::function<CrawlerWidget*()> tabInFront 
     tabInFront_ = std::move( tabInFront );
 }
 
-void PluginUiAdapter::setTabOfLogFile(
-    std::function<CrawlerWidget*( const QString& )> tabOfLogFile )
+void PluginUiAdapter::setTabsOfLogFile(
+    std::function<std::vector<CrawlerWidget*>( const QString& )> tabsOfLogFile )
 {
-    tabOfLogFile_ = std::move( tabOfLogFile );
+    tabsOfLogFile_ = std::move( tabsOfLogFile );
+}
+
+std::vector<CrawlerWidget*> PluginUiAdapter::tabsOf( const QString& logFile ) const
+{
+    if ( QThread::currentThread() != window_.thread() || !tabsOfLogFile_ || logFile.isEmpty() ) {
+        return {};
+    }
+    return tabsOfLogFile_( logFile );
 }
 
 std::optional<QString> PluginUiAdapter::logFileEncoding( const QString& logFile )
@@ -499,13 +507,63 @@ std::optional<QString> PluginUiAdapter::logFileEncoding( const QString& logFile 
     if ( logFile.isEmpty() ) {
         tab = tabInFront_ ? tabInFront_() : nullptr;
     }
-    else {
-        tab = tabOfLogFile_ ? tabOfLogFile_( logFile ) : nullptr;
+    else if ( const auto tabs = tabsOf( logFile ); !tabs.empty() ) {
+        tab = tabs.front();
     }
     if ( tab == nullptr ) {
         return std::nullopt;
     }
     return tab->encodingName();
+}
+
+namespace {
+
+std::vector<LineNumber> lineNumbersOf( const std::vector<std::uint64_t>& logLines )
+{
+    std::vector<LineNumber> lines;
+    lines.reserve( logLines.size() );
+    for ( const auto logLine : logLines ) {
+        lines.emplace_back( logLine );
+    }
+    return lines;
+}
+
+} // namespace
+
+void PluginUiAdapter::addMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines )
+{
+    const auto lines = lineNumbersOf( logLines );
+    for ( auto* tab : tabsOf( logFile ) ) {
+        tab->addMarks( lines );
+    }
+}
+
+void PluginUiAdapter::removeMarks( const QString& logFile,
+                                   const std::vector<std::uint64_t>& logLines )
+{
+    const auto lines = lineNumbersOf( logLines );
+    for ( auto* tab : tabsOf( logFile ) ) {
+        tab->removeMarks( lines );
+    }
+}
+
+std::optional<std::vector<std::uint64_t>> PluginUiAdapter::marks( const QString& logFile )
+{
+    const auto tabs = tabsOf( logFile );
+    if ( tabs.empty() ) {
+        return std::nullopt;
+    }
+    std::vector<std::uint64_t> marked;
+    for ( const auto* tab : tabs ) {
+        for ( const auto line : tab->marks() ) {
+            marked.push_back( line.get() );
+        }
+    }
+    // Each tab's in order; several tabs mark some Log Lines twice.
+    std::ranges::sort( marked );
+    const auto duplicates = std::ranges::unique( marked );
+    marked.erase( duplicates.begin(), duplicates.end() );
+    return marked;
 }
 
 PluginLogLineJump PluginUiAdapter::goToLogLine( std::uint64_t logLine )

@@ -320,4 +320,43 @@ std::optional<QString> SharedPluginUiPort::logFileEncoding( const QString& logFi
     return std::nullopt;
 }
 
+void SharedPluginUiPort::addMarks( const QString& logFile,
+                                   const std::vector<std::uint64_t>& logLines )
+{
+    const std::scoped_lock lock( mutex_ );
+    for ( auto* window : windows_ ) {
+        window->addMarks( logFile, logLines );
+    }
+}
+
+void SharedPluginUiPort::removeMarks( const QString& logFile,
+                                      const std::vector<std::uint64_t>& logLines )
+{
+    const std::scoped_lock lock( mutex_ );
+    for ( auto* window : windows_ ) {
+        window->removeMarks( logFile, logLines );
+    }
+}
+
+std::optional<std::vector<std::uint64_t>> SharedPluginUiPort::marks( const QString& logFile )
+{
+    const std::scoped_lock lock( mutex_ );
+    std::optional<std::vector<std::uint64_t>> all;
+    for ( auto* window : windows_ ) {
+        auto ofWindow = window->marks( logFile );
+        if ( !ofWindow ) {
+            continue;
+        }
+        if ( !all ) {
+            all = std::move( ofWindow );
+            continue;
+        }
+        all->insert( all->end(), ofWindow->begin(), ofWindow->end() );
+        std::ranges::sort( *all );
+        const auto duplicates = std::ranges::unique( *all );
+        all->erase( duplicates.begin(), duplicates.end() );
+    }
+    return all;
+}
+
 } // namespace logsquirl::plugins

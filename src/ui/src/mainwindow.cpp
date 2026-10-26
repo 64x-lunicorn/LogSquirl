@@ -399,8 +399,10 @@ MainWindow::MainWindow( WindowSession session,
     // Log Lines (#663).
     pluginUi_->setTabInFront( [ this ]() { return currentCrawlerWidget(); } );
     // A plugin reads the Encoding of the tab in front, or of a Log File it
-    // names (#803).
-    pluginUi_->setTabOfLogFile( [ this ]( const QString& path ) { return tabOfLogFile( path ); } );
+    // names (#803), and sets, removes and reads the Marks of the tabs
+    // showing a Log File (#866).
+    pluginUi_->setTabsOfLogFile(
+        [ this ]( const QString& path ) { return tabsOfLogFile( path ); } );
     plugins_->uiPort().addWindow( pluginUi_.get() );
     servePluginCallbacks();
 
@@ -3782,18 +3784,19 @@ QString MainWindow::strippedName( const QString& fullFileName ) const
     return QFileInfo( fullFileName ).fileName();
 }
 
-CrawlerWidget* MainWindow::tabOfLogFile( const QString& path ) const
+std::vector<CrawlerWidget*> MainWindow::tabsOfLogFile( const QString& path ) const
 {
     // As the file system names it: the same file by another spelling of its
     // path, or in another case where case does not count, is the same.
     const QFileInfo wanted( path );
+    std::vector<CrawlerWidget*> tabs;
     for ( const auto i : mainTabWidget_.logFileTabs() ) {
         auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( i ) );
         if ( crawler != nullptr && QFileInfo( session_.getFilename( crawler ) ) == wanted ) {
-            return crawler;
+            tabs.push_back( crawler );
         }
     }
-    return nullptr;
+    return tabs;
 }
 
 void MainWindow::tellPluginsOfLogFile( CrawlerWidget* crawler, const QString& fileName )

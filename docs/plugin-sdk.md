@@ -231,6 +231,15 @@ void showLineNumber( void* /* user_data */, const LogSquirlContextMenuContext* c
     host->show_notification( hostHandle, text.c_str() );
 }
 
+// Marks the selected Log Lines, as the user would: Next Mark visits them.
+// add_marks may be called from any thread too: a long analysis marks what it
+// found on a thread of its own, at most LOGSQUIRL_MARKS_MAX_LINES per call.
+void markSelection( void* /* user_data */, const LogSquirlContextMenuContext* context )
+{
+    host->add_marks( hostHandle, context->file_path, context->line_numbers,
+                     context->line_number_count );
+}
+
 } // namespace
 
 extern "C" {
@@ -281,6 +290,10 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
     if ( LOGSQUIRL_HOST_API_HAS( api_size, register_context_menu_action ) ) {
         api->register_context_menu_action( handle, "My Plugin", "Show Line Number", &showLineNumber,
                                            nullptr );
+        if ( LOGSQUIRL_HOST_API_HAS( api_size, add_marks ) ) {
+            api->register_context_menu_action( handle, "My Plugin", "Mark Selected Lines",
+                                               &markSelection, nullptr );
+        }
     }
     return 0;
 }
@@ -306,10 +319,13 @@ The exported functions need C linkage: in C++, define them inside
 `extern "C"`, or the host does not find them by name. The example exports
 `logsquirl_plugin_init_ex` as well as `logsquirl_plugin_init`, so it runs on a
 LogSquirl that knows the Regex Lab, Log Line, encoding, menu item removal,
-Log File reading and context menu functions and on one that does not. On a LogSquirl that removes menu items, a
+Log File reading, context menu and Marks functions and on one that does not.
+On a LogSquirl that removes menu items, a
 *Stop Saying Hello* item takes *Say Hello* and itself away again; on one with
 plugin items in the context menu of the Log Lines, *My Plugin* → *Show Line
-Number* there shows the number of the selected Log Line.
+Number* there shows the number of the selected Log Line, and *My Plugin* →
+*Mark Selected Lines* marks the selected Log Lines on a LogSquirl whose plugins
+set Marks.
 
 ### 4. Build with CMake
 
@@ -700,9 +716,11 @@ come from `plugin.json`.
 The function-pointer table the host passes to `init`. It is valid from `init`
 until `shutdown`, and its functions are safe to call from any thread, but for
 `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`,
-`get_log_file_encoding` and `get_active_file_path`, which are called on the UI
-thread only. `get_log_line_count` and `get_log_lines` in particular are made
-for a thread of the plugin's own: they never wait for the UI thread.
+`get_log_file_encoding`, `get_active_file_path` and `get_marks`, which are
+called on the UI thread only. `get_log_line_count` and `get_log_lines` in
+particular are made for a thread of the plugin's own: they never wait for the
+UI thread; nor do `add_marks` and `remove_marks`, which the host carries out on
+the UI thread.
 
 ```c
 typedef struct {
@@ -759,6 +777,11 @@ typedef struct {
                                            LogSquirlContextMenuCallbackFn callback,
                                            void* user_data );
     void ( *unregister_context_menu_action )( void* handle, int id );
+    int ( *add_marks )( void* handle, const char* file_path, const uint64_t* lines, size_t count );
+    int ( *remove_marks )( void* handle, const char* file_path, const uint64_t* lines,
+                           size_t count );
+    int ( *get_marks )( void* handle, const char* file_path, const uint64_t** lines,
+                        size_t* count );
 } LogSquirlHostApi;
 ```
 
@@ -778,7 +801,8 @@ The functions follow one set of rules for strings and registrations (see
   valid until your plugin calls the same function again or is shut down,
   whatever other plugins call meanwhile. The text of `get_log_lines` is valid
   until your plugin calls it again *on the same thread*, so each thread keeps
-  its own. Copy what you keep longer.
+  its own. The array of `get_marks` is valid until your plugin calls it
+  again or is shut down, like those strings. Copy what you keep longer.
 - **Strings the host passes to a callback** are valid during the call only.
 - **Registrations**: each `register_*` function says whether a second call
   replaces the first registration or adds another, and how a registration is
@@ -872,6 +896,9 @@ tells, for later calls.
 | `register_log_lines_callback`    | LogSquirl 26.12 |
 | `register_context_menu_action`   | LogSquirl 26.12 |
 | `unregister_context_menu_action` | LogSquirl 26.12 |
+| `add_marks`                      | LogSquirl 26.12 |
+| `remove_marks`                   | LogSquirl 26.12 |
+| `get_marks`                      | LogSquirl 26.12 |
 
 ### Regex Lab Types
 
@@ -892,9 +919,11 @@ typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, cons
 ### Log Lines Types
 
 The result of `go_to_log_line`, `get_selected_log_lines`,
-`get_log_file_encoding`, `get_log_line_count` and `get_log_lines`, the bounds
-of the text `get_selected_log_lines` and `get_log_lines` return, and the
-change and the callback of `register_log_lines_callback`:
+`get_log_file_encoding`, `get_log_line_count`, `get_log_lines`, `add_marks`,
+`remove_marks` and `get_marks`, the bounds of the text
+`get_selected_log_lines` and `get_log_lines` return, the most line numbers one
+call of `add_marks` or `remove_marks` takes, and the change and the callback
+of `register_log_lines_callback`:
 
 ```c
 typedef enum {
@@ -909,6 +938,8 @@ typedef enum {
 
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES 1000
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES 1048576
+
+#define LOGSQUIRL_MARKS_MAX_LINES 10000
 
 typedef enum {
     LOGSQUIRL_LOG_LINES_APPENDED = 0,
@@ -1506,6 +1537,62 @@ Calls may be coalesced, one standing for several changes, so take
 the call only. A plugin has one such callback: registering
 another replaces it, and `NULL` removes it.
 
+### Marks
+
+An analysis plugin marks what it found -- an error burst, an anomaly, the
+start of a request -- and the user walks through the findings with Next Mark
+and Previous Mark (added in LogSquirl 26.12, see
+[ADR 0026](adr/0026-a-plugin-sets-marks-in-every-tab-of-the-log-file-from-any-thread.md)):
+
+```cpp
+/* On the plugin's analysis thread, with the Log Lines it found, numbered from 1. */
+std::vector<uint64_t> found = analyse( path );
+for ( size_t at = 0; at < found.size(); at += LOGSQUIRL_MARKS_MAX_LINES ) {
+    size_t count = std::min<size_t>( found.size() - at, LOGSQUIRL_MARKS_MAX_LINES );
+    if ( host->add_marks( hostHandle, path.c_str(), found.data() + at, count ) < 0 ) {
+        break; /* LOGSQUIRL_LOG_LINES_NO_LOG_FILE once the tab closed */
+    }
+}
+```
+
+A Mark a plugin sets is an ordinary Mark: the bullet margin and the Filtered
+View show it, Next Mark visits it, the Session keeps it, and the user removes
+it like any other. LogSquirl does not tell the user's Marks from a plugin's:
+`remove_marks` removes either, and `get_marks` reads both.
+
+All three name the Log File by its path, as `get_log_lines` does, and number
+its Log Lines as the views do: the first Log Line is 1.
+
+- `add_marks` and `remove_marks` take at most `LOGSQUIRL_MARKS_MAX_LINES`
+  numbers per call, in any order; a count above is
+  `LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT` and changes nothing. A line of 0, or
+  past the last Log Line indexed so far, is skipped, and so is one already
+  marked (for `add_marks`) or not marked (for `remove_marks`): none of them
+  fails the call.
+- They may be called from any thread and never wait for the UI thread: they
+  tell at once whether a tab shows the Log File -- else
+  `LOGSQUIRL_LOG_LINES_NO_LOG_FILE` -- and the host carries the change out on
+  the UI thread, at once when called there, else once its event loop turns,
+  in the order the calls of one thread were made. A call still queued when
+  your plugin is unloaded is dropped; a tab that closes meanwhile marks
+  nothing.
+- `get_marks` is called on the UI thread only. It hands back the Marks in the
+  order of the Log File, each once, and how many there are: `NULL` and 0 when
+  there are none. A Mark set from another thread is read once the host has
+  carried that call out. The host owns the array: it is valid until your
+  plugin calls `get_marks` again or is shut down.
+
+Each tab keeps Marks of its own, the user's as well. When several tabs show
+the same Log File -- in different windows, say -- `add_marks` and
+`remove_marks` change the Marks of every one of them, in front or not, and
+`get_marks` reads a Log Line as marked when any of them marks it.
+
+LogSquirl does not tell your plugin when the user changes Marks; read them
+again with `get_marks` when you need them. Marks do not survive a reload or a
+truncation of the Log File, the user's included: the callback of
+`register_log_lines_callback` tells of both with
+`LOGSQUIRL_LOG_LINES_REPLACED`.
+
 ### Configuration Dialog
 
 A plugin may export `logsquirl_plugin_configure`; the host passes it a
@@ -1532,10 +1619,10 @@ window the plugin keeps open outlives the dialog.
 
 - **Thread safety**: Host API calls are safe from any thread, but for
   `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`,
-  `get_log_file_encoding` and `get_active_file_path`, which are called on the
-  UI thread only. The host
-  dispatches UI-modifying calls, `open_file` included, to the UI thread
-  internally. `init`, `shutdown`, `configure`, `logsquirl_datasource_start`,
+  `get_log_file_encoding`, `get_active_file_path` and `get_marks`, which are
+  called on the UI thread only. The host
+  dispatches UI-modifying calls, `open_file`, `add_marks` and `remove_marks`
+  included, to the UI thread internally. `init`, `shutdown`, `configure`, `logsquirl_datasource_start`,
   `logsquirl_datasource_stop` and menu actions run on the UI thread; `logsquirl_converter_convert` and `logsquirl_converter_convert_ex`
   run on a host worker thread, one call per plugin at a time, and the
   `LogSquirlConvertControl` functions are called on that thread only.

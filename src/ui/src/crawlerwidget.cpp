@@ -1020,6 +1020,32 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
     viewSet_.refreshMatchesAndMarks( openLogFile_->lineCount() );
 }
 
+void CrawlerWidget::addMarks( std::span<const LineNumber> lines )
+{
+    for ( const auto& line : lines ) {
+        if ( line < openLogFile_->lineCount() ) {
+            openLogFile_->addMark( line );
+        }
+    }
+    viewSet_.refreshMatchesAndMarks( openLogFile_->lineCount() );
+}
+
+void CrawlerWidget::removeMarks( std::span<const LineNumber> lines )
+{
+    for ( const auto& line : lines ) {
+        if ( line < openLogFile_->lineCount()
+             && openLogFile_->lineType( line ).testFlag( AbstractLogData::LineTypeFlags::Mark ) ) {
+            openLogFile_->toggleMark( line );
+        }
+    }
+    viewSet_.refreshMatchesAndMarks( openLogFile_->lineCount() );
+}
+
+QList<LineNumber> CrawlerWidget::marks() const
+{
+    return openLogFile_->marks();
+}
+
 void CrawlerWidget::broughtToFront()
 {
     LOG_DEBUG << "CrawlerWidget::broughtToFront";

@@ -970,6 +970,9 @@ LogSquirlHostApi PluginHost::buildHostApi()
     api.register_log_lines_callback = &PluginHost::hostRegisterLogLinesCallback;
     api.register_context_menu_action = &PluginHost::hostRegisterContextMenuAction;
     api.unregister_context_menu_action = &PluginHost::hostUnregisterContextMenuAction;
+    api.add_marks = &PluginHost::hostAddMarks;
+    api.remove_marks = &PluginHost::hostRemoveMarks;
+    api.get_marks = &PluginHost::hostGetMarks;
 
     return api;
 }
@@ -1694,6 +1697,123 @@ void PluginHost::hostUnregisterContextMenuAction( void* handle, int id )
         call->removed.store( true );
     }
     port->removeContextMenuAction( pluginId, call );
+}
+
+// The Marks are the tabs' own, so they are set on the UI thread only; the
+// plugin is told at once whether its Log File is open, found as the Log Lines
+// are, without waiting for the UI thread (#866).
+int PluginHost::changeMarks( void* handle, const char* filePath, const uint64_t* lines,
+                             size_t count, MarksChange change )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || filePath == nullptr || ( lines == nullptr && count > 0 )
+         || count > LOGSQUIRL_MARKS_MAX_LINES ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    auto path = QString::fromUtf8( filePath );
+    if ( !ctx->host->logFiles_->find( path ) ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+
+    // The plugin counts as the views' line numbers do, from 1; the Log File
+    // from 0. A line of 0 is skipped, as one past the end is by the tabs.
+    std::vector<std::uint64_t> logLines;
+    logLines.reserve( count );
+    for ( size_t i = 0; i < count; ++i ) {
+        if ( lines[ i ] > 0 ) {
+            logLines.push_back( lines[ i ] - 1 );
+        }
+    }
+    if ( logLines.empty() ) {
+        return LOGSQUIRL_LOG_LINES_OK;
+    }
+
+    auto* host = ctx->host;
+    const auto carryOut
+        = [ host, change ]( const QString& logFile, const std::vector<std::uint64_t>& marked ) {
+              if ( !host->uiPort_ ) {
+                  return;
+              }
+              if ( change == MarksChange::Add ) {
+                  host->uiPort_->addMarks( logFile, marked );
+              }
+              else {
+                  host->uiPort_->removeMarks( logFile, marked );
+              }
+          };
+    if ( QThread::currentThread() == host->thread() ) {
+        carryOut( path, logLines );
+        return LOGSQUIRL_LOG_LINES_OK;
+    }
+    // Queued in the order the plugin's thread called; the plugin may be
+    // unloaded before the call runs, and loaded again: then nothing of that
+    // load is marked any more.
+    QMetaObject::invokeMethod(
+        host,
+        [ host, carryOut, loadSerial = ctx->loadSerial, pluginId = ctx->handle.metadata().id(),
+          path = std::move( path ), logLines = std::move( logLines ) ] {
+            const auto* loaded = host->loadedContext( pluginId );
+            if ( !loaded || loaded->loadSerial != loadSerial ) {
+                LOG_INFO << "Plugin " << pluginId
+                         << " was unloaded; dropping its queued change of Marks";
+                return;
+            }
+            carryOut( path, logLines );
+        },
+        Qt::QueuedConnection );
+    return LOGSQUIRL_LOG_LINES_OK;
+}
+
+int PluginHost::hostAddMarks( void* handle, const char* filePath, const uint64_t* lines,
+                              size_t count )
+{
+    return changeMarks( handle, filePath, lines, count, MarksChange::Add );
+}
+
+int PluginHost::hostRemoveMarks( void* handle, const char* filePath, const uint64_t* lines,
+                                 size_t count )
+{
+    return changeMarks( handle, filePath, lines, count, MarksChange::Remove );
+}
+
+int PluginHost::hostGetMarks( void* handle, const char* filePath, const uint64_t** lines,
+                              size_t* count )
+{
+    // Nothing is returned unless the Marks are.
+    if ( lines != nullptr ) {
+        *lines = nullptr;
+    }
+    if ( count != nullptr ) {
+        *count = 0;
+    }
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || filePath == nullptr || lines == nullptr || count == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    // Checked first: the tabs and the cached array are only touched on the UI
+    // thread.
+    if ( QThread::currentThread() != ctx->host->thread() ) {
+        LOG_WARNING << "Plugin " << ctx->handle.metadata().id()
+                    << " read the Marks off the UI thread; none read";
+        return LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD;
+    }
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    auto marks = port->marks( QString::fromUtf8( filePath ) );
+    if ( !marks ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+
+    // Numbered from 1, as the plugin counts.
+    ctx->marks = std::move( *marks );
+    for ( auto& line : ctx->marks ) {
+        ++line;
+    }
+    *lines = ctx->marks.empty() ? nullptr : ctx->marks.data();
+    *count = ctx->marks.size();
+    return LOGSQUIRL_LOG_LINES_OK;
 }
 
 } // namespace logsquirl::plugins

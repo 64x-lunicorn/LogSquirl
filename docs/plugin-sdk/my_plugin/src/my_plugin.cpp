@@ -139,6 +139,15 @@ void showLineNumber( void* /* user_data */, const LogSquirlContextMenuContext* c
     host->show_notification( hostHandle, text.c_str() );
 }
 
+// Marks the selected Log Lines, as the user would: Next Mark visits them.
+// add_marks may be called from any thread too: a long analysis marks what it
+// found on a thread of its own, at most LOGSQUIRL_MARKS_MAX_LINES per call.
+void markSelection( void* /* user_data */, const LogSquirlContextMenuContext* context )
+{
+    host->add_marks( hostHandle, context->file_path, context->line_numbers,
+                     context->line_number_count );
+}
+
 } // namespace
 
 extern "C" {
@@ -189,6 +198,10 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
     if ( LOGSQUIRL_HOST_API_HAS( api_size, register_context_menu_action ) ) {
         api->register_context_menu_action( handle, "My Plugin", "Show Line Number", &showLineNumber,
                                            nullptr );
+        if ( LOGSQUIRL_HOST_API_HAS( api_size, add_marks ) ) {
+            api->register_context_menu_action( handle, "My Plugin", "Mark Selected Lines",
+                                               &markSelection, nullptr );
+        }
     }
     return 0;
 }

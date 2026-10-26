@@ -125,8 +125,8 @@ typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, cons
 
 /**
  * What go_to_log_line, get_selected_log_lines, get_log_file_encoding,
- * get_log_line_count and get_log_lines return.  Not negative is success;
- * negative says why nothing was done.
+ * get_log_line_count, get_log_lines, add_marks, remove_marks and get_marks
+ * return.  Not negative is success; negative says why nothing was done.
  */
 typedef enum {
     LOGSQUIRL_LOG_LINES_OK = 0,                /**< Done                                     */
@@ -149,6 +149,9 @@ typedef enum {
  * get_selected_log_lines, and by get_log_lines.
  */
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES 1048576
+
+/** At most this many line numbers are taken by one call of add_marks or remove_marks. */
+#define LOGSQUIRL_MARKS_MAX_LINES 10000
 
 /** How the Log Lines of an open Log File changed (see register_log_lines_callback). */
 typedef enum {
@@ -273,9 +276,10 @@ typedef void ( *LogSquirlContextMenuCallbackFn )( void* user_data,
  * **Lifetime**: the struct is valid from init until shutdown.
  * **Thread safety**: all functions are safe to call from any thread, except
  * open_regex_lab, go_to_log_line, get_selected_log_lines,
- * get_log_file_encoding and get_active_file_path, which must be called on the
- * UI thread; a call that changes the user interface, open_file included, is
- * dispatched to the UI thread by the host.
+ * get_log_file_encoding, get_active_file_path and get_marks, which must be
+ * called on the UI thread; a call that changes the user interface, open_file,
+ * add_marks and remove_marks included, is dispatched to the UI thread by the
+ * host.
  * **Strings**: a string the plugin passes is copied before the call returns.
  * A string the host returns is the host's: it is valid until the plugin calls
  * the same function again or is shut down, whatever other plugins call
@@ -690,6 +694,76 @@ typedef struct {
      * @param id  What register_context_menu_action returned.
      */
     void ( *unregister_context_menu_action )( void* handle, int id );
+
+    /**
+     * Mark Log Lines of an open Log File (LogSquirl 26.12): an analysis marks
+     * what it found, and the user walks through it with Next Mark and
+     * Previous Mark.  A Mark a plugin sets is an ordinary Mark: the bullet
+     * margin and the Filtered View show it, the Session keeps it, and the
+     * user removes it like any other.  It is set in every tab that shows the
+     * Log File, in every window; each tab keeps its own Marks, as it does for
+     * the user's.
+     *
+     * May be called from any thread: the host carries the call out on the UI
+     * thread, at once when called there, else once the host's event loop
+     * turns; a call queued by a plugin that is unloaded before then is
+     * dropped, and a tab that closes meanwhile marks nothing.  Calls of one
+     * thread are carried out in the order they were made.  A line of 0, or
+     * past the last Log Line indexed when the call is carried out, is
+     * skipped, and so is a line marked already: neither fails the call.
+     * @param file_path  The Log File (UTF-8 path), as for get_log_line_count.
+     * @param lines      The numbers of the Log Lines, as the views and
+     *                   go_to_log_line number them: the first Log Line is 1.
+     *                   In any order; copied before the call returns.  May be
+     *                   NULL when count is 0.
+     * @param count      How many numbers lines holds; at most
+     *                   LOGSQUIRL_MARKS_MAX_LINES.
+     * @return LOGSQUIRL_LOG_LINES_OK when the Marks are set, or will be;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when no tab shows that Log File;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle or
+     *         file_path, NULL lines with a count, or a count above
+     *         LOGSQUIRL_MARKS_MAX_LINES: then nothing is marked.
+     */
+    int ( *add_marks )( void* handle, const char* file_path, const uint64_t* lines, size_t count );
+
+    /**
+     * Remove Marks of an open Log File (LogSquirl 26.12): the user's as well
+     * as those a plugin set, for the host knows no difference.  As add_marks
+     * does: in every tab that shows the Log File, from any thread, carried
+     * out on the UI thread, with the same limits and results.  A line that is
+     * not marked, of 0 or past the end is skipped.
+     * @param file_path  The Log File (UTF-8 path), as for get_log_line_count.
+     * @param lines      The numbers of the Log Lines, the first Log Line is 1;
+     *                   may be NULL when count is 0.
+     * @param count      At most LOGSQUIRL_MARKS_MAX_LINES.
+     * @return As for add_marks.
+     */
+    int ( *remove_marks )( void* handle, const char* file_path, const uint64_t* lines,
+                           size_t count );
+
+    /**
+     * Read the Marks of an open Log File (LogSquirl 26.12): the user's and
+     * those plugins set, as numbers of Log Lines, the first Log Line being 1,
+     * in the order of the Log File and each once.  When several tabs show
+     * the Log File, a Log Line marked in any of them.  A Mark that add_marks
+     * set from another thread is read once the host has carried that call
+     * out.  The host owns the array: it is valid until the plugin calls
+     * get_marks again or is shut down.
+     *
+     * Call on the UI thread only.
+     * @param file_path  The Log File (UTF-8 path), as for get_log_line_count.
+     * @param lines      Receives the array; NULL when there are no Marks or
+     *                   the result is negative.  Must not be NULL.
+     * @param count      Receives how many numbers the array holds, or 0.
+     *                   Must not be NULL.
+     * @return LOGSQUIRL_LOG_LINES_OK with the Marks, none included;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when no tab shows that Log File;
+     *         LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD off the UI thread;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle,
+     *         file_path, lines or count.
+     */
+    int ( *get_marks )( void* handle, const char* file_path, const uint64_t** lines,
+                        size_t* count );
 
 } LogSquirlHostApi;
 

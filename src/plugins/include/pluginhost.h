@@ -41,6 +41,7 @@
 #include <optional>
 #include <thread>
 #include <utility>
+#include <vector>
 
 namespace logsquirl::plugins {
 
@@ -117,9 +118,10 @@ struct ConversionReport {
  * Must be created on the main (GUI) thread.  Host API callbacks may be called
  * from any thread: the PluginUiPort is called on the plugin's thread and moves
  * widget work to the GUI thread itself, signals use queued connections, and
- * open_file is queued to the GUI thread.  The functions documented as
- * UI-thread-only (the Regex Lab, the Log Lines of the tab in front, the
- * active file path) refuse a call from another thread.  A Conversion runs the
+ * open_file, add_marks and remove_marks are queued to the GUI thread (#866).
+ * The functions documented as UI-thread-only (the Regex Lab, the Log Lines of
+ * the tab in front, the active file path, the Marks read) refuse a call from
+ * another thread.  A Conversion runs the
  * converter on a worker thread of the host's and reports on the GUI thread
  * (#795).  The Log Lines of an open Log File are read on the plugin's thread,
  * through the Log Files the UI adds to logFiles() (#858).
@@ -498,7 +500,21 @@ private:
         void* logLinesUserData = nullptr;
         // The get_log_lines text, one per thread of the plugin's (#858).
         PerThreadText logLinesUtf8{};
+        // The get_marks array, valid until the plugin's next call of it
+        // (#866). UI thread only.
+        std::vector<std::uint64_t> marks{};
     };
+
+    /** Whether add_marks or remove_marks is carried out. */
+    enum class MarksChange { Add, Remove };
+
+    /**
+     * add_marks and remove_marks (#866): checks the call and has the Plugin
+     * UI Port carry it out on the host's thread, at once when called there,
+     * else from the event loop unless the plugin was unloaded meanwhile.
+     */
+    static int changeMarks( void* handle, const char* filePath, const uint64_t* lines, size_t count,
+                            MarksChange change );
 
     /**
      * The next id for a registration of the plugin, greater than 0; negative
@@ -642,6 +658,12 @@ private:
                                               LogSquirlContextMenuCallbackFn callback,
                                               void* userData );
     static void hostUnregisterContextMenuAction( void* handle, int id );
+    static int hostAddMarks( void* handle, const char* filePath, const uint64_t* lines,
+                             size_t count );
+    static int hostRemoveMarks( void* handle, const char* filePath, const uint64_t* lines,
+                                size_t count );
+    static int hostGetMarks( void* handle, const char* filePath, const uint64_t** lines,
+                             size_t* count );
 
     // The functions of the LogSquirlConvertControl handed to convert_ex,
     // called on the Conversion's worker thread.

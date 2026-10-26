@@ -262,6 +262,35 @@ public:
         const auto tab = encodingOf.find( logFile );
         return tab != encodingOf.end() ? std::optional( tab->second ) : std::nullopt;
     }
+
+    /// A change of Marks a plugin had carried out (#866), and on which thread.
+    struct MarksChange {
+        bool added = true;
+        QString logFile{};
+        std::vector<std::uint64_t> logLines{};
+        QThread* on = nullptr;
+    };
+    std::vector<MarksChange> marksChanges;
+    /// The Marks of each Log File a tab shows; the Log Files a plugin asked about.
+    std::map<QString, std::vector<std::uint64_t>> marksOf;
+    QStringList askedForMarksOf;
+
+    void addMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override
+    {
+        marksChanges.push_back( { true, logFile, logLines, QThread::currentThread() } );
+    }
+
+    void removeMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override
+    {
+        marksChanges.push_back( { false, logFile, logLines, QThread::currentThread() } );
+    }
+
+    std::optional<std::vector<std::uint64_t>> marks( const QString& logFile ) override
+    {
+        askedForMarksOf.append( logFile );
+        const auto tab = marksOf.find( logFile );
+        return tab != marksOf.end() ? std::optional( tab->second ) : std::nullopt;
+    }
 };
 
 /// The exported functions of the probe plugin the tests reach behind the host's back.
@@ -4457,6 +4486,282 @@ SCENARIO( "A plugin reads the Log Lines of an open Log File by path, on any thre
             THEN( "It is not told any more" )
             {
                 REQUIRE( changes.told.empty() );
+            }
+        }
+
+        logFiles->remove( id );
+        host.unloadAll();
+        probe.library.unload();
+    }
+}
+
+namespace {
+
+int changeMarks( decltype( LogSquirlHostApi::add_marks ) change, void* handle, const QString& path,
+                 const std::vector<uint64_t>& lines )
+{
+    const auto pathUtf8 = path.toUtf8();
+    return change( handle, pathUtf8.constData(), lines.data(), lines.size() );
+}
+
+/// What get_marks handed back, and the numbers copied as they came.
+struct MarksRead {
+    int result = 0;
+    const uint64_t* lines = nullptr;
+    size_t count = 99;
+    std::vector<uint64_t> copied{};
+};
+
+MarksRead readMarks( const LogSquirlHostApi& api, void* handle, const QString& path )
+{
+    const auto pathUtf8 = path.toUtf8();
+    // Something to overwrite, so that a NULL handed back is seen.
+    static const uint64_t notHandedBack = 0;
+    MarksRead read;
+    read.lines = &notHandedBack;
+    read.result = api.get_marks( handle, pathUtf8.constData(), &read.lines, &read.count );
+    if ( read.lines != nullptr ) {
+        read.copied.assign( read.lines, read.lines + read.count );
+    }
+    return read;
+}
+
+} // namespace
+
+SCENARIO( "A plugin sets, removes and reads Marks of an open Log File through the Plugin Host",
+          "[pluginhost][pluginmarks][plugins]" )
+{
+    GIVEN( "A Plugin Host with the probe plugin loaded and a Plugin UI Port, and a Log File open" )
+    {
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installProbe( pluginRoot.path() );
+        QTemporaryDir logDir;
+        REQUIRE( logDir.isValid() );
+        const auto path = logDir.filePath( "app.log" );
+        const auto closedPath = logDir.filePath( "closed.log" );
+
+        PluginCatalog catalog;
+        catalog.discoverPluginsIn( pluginRoot.path() );
+        PluginHost host( catalog );
+        FakePluginUiPort port;
+        host.setUiPort( &port );
+        REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+
+        Probe probe( QStringLiteral( LOGSQUIRL_UI_PORT_PROBE_PATH ) );
+        REQUIRE( probe.library.load() );
+        const auto* api = probe.hostApi();
+        auto* handle = probe.hostHandle();
+        REQUIRE( api != nullptr );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), add_marks ) );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), remove_marks ) );
+        REQUIRE( LOGSQUIRL_HOST_API_HAS( probe.hostApiSize(), get_marks ) );
+
+        const auto& logFiles = host.logFiles();
+        const auto id = logFiles->add( path, std::make_shared<FakeLogFile>( numberedLines( 30 ) ) );
+
+        WHEN( "The plugin sets Marks on the UI thread, numbered from 1, one of them 0" )
+        {
+            const auto result = changeMarks( api->add_marks, handle, path, { 5, 0, 2, 30, 31 } );
+
+            THEN( "The port sets them at once, numbered from 0, without the 0; it skips a line "
+                  "past the end itself" )
+            {
+                REQUIRE( result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( port.marksChanges.size() == 1 );
+                REQUIRE( port.marksChanges[ 0 ].added );
+                REQUIRE( port.marksChanges[ 0 ].logFile == path );
+                REQUIRE( port.marksChanges[ 0 ].logLines
+                         == std::vector<std::uint64_t>{ 4, 1, 29, 30 } );
+            }
+        }
+
+        WHEN( "The plugin removes Marks on the UI thread" )
+        {
+            const auto result = changeMarks( api->remove_marks, handle, path, { 3 } );
+
+            THEN( "The port removes them at once" )
+            {
+                REQUIRE( result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( port.marksChanges.size() == 1 );
+                REQUIRE_FALSE( port.marksChanges[ 0 ].added );
+                REQUIRE( port.marksChanges[ 0 ].logLines == std::vector<std::uint64_t>{ 2 } );
+            }
+        }
+
+        WHEN( "The plugin sets and removes Marks on a thread of its own" )
+        {
+            int added = -100;
+            int removed = -100;
+            std::thread( [ & ] {
+                added = changeMarks( api->add_marks, handle, path, { 7, 8 } );
+                removed = changeMarks( api->remove_marks, handle, path, { 7 } );
+            } ).join();
+
+            THEN( "It is told at once that they are set, and the port carries them out on the "
+                  "host's thread, in order, once the event loop turns" )
+            {
+                REQUIRE( added == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( removed == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( port.marksChanges.empty() );
+
+                QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+                REQUIRE( port.marksChanges.size() == 2 );
+                REQUIRE( port.marksChanges[ 0 ].added );
+                REQUIRE( port.marksChanges[ 0 ].logLines == std::vector<std::uint64_t>{ 6, 7 } );
+                REQUIRE( port.marksChanges[ 0 ].on == host.thread() );
+                REQUIRE_FALSE( port.marksChanges[ 1 ].added );
+                REQUIRE( port.marksChanges[ 1 ].logLines == std::vector<std::uint64_t>{ 6 } );
+                REQUIRE( port.marksChanges[ 1 ].on == host.thread() );
+            }
+
+            AND_WHEN( "The plugin is unloaded, and loaded again, before the event loop turns" )
+            {
+                host.unloadPlugin( ProbeId );
+                REQUIRE( host.loadPlugin( ProbeId ).isEmpty() );
+                QCoreApplication::sendPostedEvents( &host, QEvent::MetaCall );
+
+                THEN( "Nothing is marked: the calls were the unloaded plugin's" )
+                {
+                    REQUIRE( port.marksChanges.empty() );
+                }
+            }
+        }
+
+        WHEN( "The plugin names a Log File no tab shows, or its tab has closed" )
+        {
+            const auto closed = changeMarks( api->add_marks, handle, closedPath, { 1 } );
+            logFiles->remove( id );
+            const auto added = changeMarks( api->add_marks, handle, path, { 1 } );
+            const auto removed = changeMarks( api->remove_marks, handle, path, { 1 } );
+
+            THEN( "It is told there is no Log File, and nothing is marked" )
+            {
+                REQUIRE( closed == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( added == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( removed == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( port.marksChanges.empty() );
+            }
+        }
+
+        WHEN( "The plugin passes no line, only 0, the most one call takes, and one more" )
+        {
+            const auto none = api->add_marks( handle, path.toUtf8().constData(), nullptr, 0 );
+            const auto zero = changeMarks( api->add_marks, handle, path, { 0 } );
+            const std::vector<uint64_t> most( LOGSQUIRL_MARKS_MAX_LINES, 1 );
+            const auto atMost = changeMarks( api->add_marks, handle, path, most );
+            const std::vector<uint64_t> tooMany( LOGSQUIRL_MARKS_MAX_LINES + 1, 1 );
+            const auto added = changeMarks( api->add_marks, handle, path, tooMany );
+            const auto removed = changeMarks( api->remove_marks, handle, path, tooMany );
+
+            THEN( "Up to the most it is done, with nothing to mark for no line or 0, and above "
+                  "it nothing is done" )
+            {
+                REQUIRE( none == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( zero == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( atMost == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( added == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( removed == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( port.marksChanges.size() == 1 );
+                REQUIRE( port.marksChanges[ 0 ].logLines.size() == LOGSQUIRL_MARKS_MAX_LINES );
+            }
+        }
+
+        WHEN( "The plugin passes no Log File, or no lines for a count" )
+        {
+            const uint64_t line = 1;
+            const auto noPath = api->add_marks( handle, nullptr, &line, 1 );
+            const auto noLines = api->remove_marks( handle, path.toUtf8().constData(), nullptr, 1 );
+            const auto noHandle = api->add_marks( nullptr, path.toUtf8().constData(), &line, 1 );
+
+            THEN( "Nothing is done" )
+            {
+                REQUIRE( noPath == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noLines == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noHandle == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( port.marksChanges.empty() );
+            }
+        }
+
+        WHEN( "The plugin reads the Marks of a Log File a tab shows" )
+        {
+            port.marksOf[ path ] = { 0, 4, 29 };
+            const auto read = readMarks( *api, handle, path );
+
+            THEN( "It gets them numbered from 1, in order" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( read.count == 3 );
+                REQUIRE( read.copied == std::vector<uint64_t>{ 1, 5, 30 } );
+                REQUIRE( port.askedForMarksOf == QStringList{ path } );
+            }
+
+            AND_WHEN( "Another plugin call reads other things, and the plugin reads again" )
+            {
+                port.encodingInFront = QStringLiteral( "UTF-8" );
+                const char* encoding = nullptr;
+                api->get_log_file_encoding( handle, nullptr, &encoding );
+
+                THEN( "The array is as it was until the plugin reads the Marks again" )
+                {
+                    REQUIRE( std::vector<uint64_t>( read.lines, read.lines + read.count )
+                             == read.copied );
+
+                    port.marksOf[ path ] = { 9 };
+                    const auto again = readMarks( *api, handle, path );
+                    REQUIRE( again.copied == std::vector<uint64_t>{ 10 } );
+                }
+            }
+        }
+
+        WHEN( "The plugin reads the Marks of a Log File without any" )
+        {
+            port.marksOf[ path ] = {};
+            const auto read = readMarks( *api, handle, path );
+
+            THEN( "It gets none, and no array" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_OK );
+                REQUIRE( read.count == 0 );
+                REQUIRE( read.lines == nullptr );
+            }
+        }
+
+        WHEN( "The plugin reads the Marks of a Log File no tab shows" )
+        {
+            const auto read = readMarks( *api, handle, closedPath );
+
+            THEN( "It is told there is no Log File" )
+            {
+                REQUIRE( read.result == LOGSQUIRL_LOG_LINES_NO_LOG_FILE );
+                REQUIRE( read.count == 0 );
+                REQUIRE( read.lines == nullptr );
+            }
+        }
+
+        WHEN( "The plugin reads the Marks off the UI thread, or without a place to put them" )
+        {
+            port.marksOf[ path ] = { 1 };
+            MarksRead offThread;
+            std::thread( [ & ] { offThread = readMarks( *api, handle, path ); } ).join();
+            size_t count = 0;
+            const auto noLines
+                = api->get_marks( handle, path.toUtf8().constData(), nullptr, &count );
+            const uint64_t* lines = nullptr;
+            const auto noCount
+                = api->get_marks( handle, path.toUtf8().constData(), &lines, nullptr );
+            const auto noPath = api->get_marks( handle, nullptr, &lines, &count );
+
+            THEN( "None are read, and the port is not asked" )
+            {
+                REQUIRE( offThread.result == LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD );
+                REQUIRE( offThread.lines == nullptr );
+                REQUIRE( offThread.count == 0 );
+                REQUIRE( noLines == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noCount == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( noPath == LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT );
+                REQUIRE( port.askedForMarksOf.isEmpty() );
             }
         }
 

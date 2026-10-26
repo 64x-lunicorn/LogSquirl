@@ -444,8 +444,9 @@ private:
     void updateHighlightersMenu();
     QString strippedName( const QString& fullFileName ) const;
     CrawlerWidget* currentCrawlerWidget() const;
-    // The tab showing the Log File at path, or nullptr (#803).
-    CrawlerWidget* tabOfLogFile( const QString& path ) const;
+    // The tabs showing the Log File at path, in the order of the tabs; none
+    // when no tab shows it (#803, #866).
+    std::vector<CrawlerWidget*> tabsOfLogFile( const QString& path ) const;
     // Tells the plugins whenever the tab's Log File, added under fileName,
     // is read in another Encoding (#803) or its Log Lines change, and lets
     // them read its Log Lines by that name until the tab closes (#858).

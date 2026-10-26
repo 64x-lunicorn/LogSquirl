@@ -169,6 +169,14 @@ public:
     {
         return logFile.isEmpty() ? encodingInFront : std::nullopt;
     }
+
+    /// The Marks plugins set, by Log File, numbered from 0 (#866).
+    std::vector<std::pair<QString, std::vector<std::uint64_t>>> marked;
+
+    void addMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override
+    {
+        marked.emplace_back( logFile, logLines );
+    }
 };
 
 /// An open Log File of count Log Lines, which reads none.
@@ -352,7 +360,7 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
                   "shows the number of the first selected Log Line, how many more there are, "
                   "and the selected word (#859)" )
             {
-                REQUIRE( port.contextMenuActions.size() == 1 );
+                REQUIRE( port.contextMenuActions.size() == 2 );
                 REQUIRE( port.contextMenuActions.front().menuPath
                          == QStringLiteral( "My Plugin" ) );
                 using logsquirl::plugins::PluginContextMenuContext;
@@ -369,6 +377,26 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
                 port.choose( QStringLiteral( "Show Line Number" ), PluginContextMenuContext{} );
                 REQUIRE( notifications
                          == QStringList{ "Line 42", "Line 10 and 2 more", "Line 3: id-7" } );
+            }
+
+            THEN( "Its Mark Selected Lines, in the same submenu, marks the selected Log Lines "
+                  "of the Log File (#866)" )
+            {
+                QTemporaryDir logDir;
+                REQUIRE( logDir.isValid() );
+                const auto path = logDir.filePath( "app.log" );
+                const auto id
+                    = host.logFiles()->add( path, std::make_shared<CountedLogFile>( 3000 ) );
+                REQUIRE( port.contextMenuActions.back().menuPath == QStringLiteral( "My Plugin" ) );
+                using logsquirl::plugins::PluginContextMenuContext;
+                port.choose( QStringLiteral( "Mark Selected Lines" ),
+                             PluginContextMenuContext{ .logFile = path,
+                                                       .logLines = { 9, 10, 11 },
+                                                       .selectedLogLineCount = 3 } );
+                host.logFiles()->remove( id );
+                REQUIRE( port.marked.size() == 1 );
+                REQUIRE( port.marked.front().first == path );
+                REQUIRE( port.marked.front().second == std::vector<std::uint64_t>{ 9, 10, 11 } );
             }
 
             THEN( "It unloads again" )

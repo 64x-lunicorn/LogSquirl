@@ -280,6 +280,39 @@ public:
     {
         return std::nullopt;
     }
+
+    /**
+     * Mark Log Lines of a Log File as the user marks them (#866), on the UI
+     * thread only: in every tab showing logFile, each tab skipping a Log Line
+     * past its end or marked already.
+     * @param logLines  Counted from 0, as the Log File's lines are.
+     * A port that shows no Log File marks none.
+     */
+    virtual void addMarks( const QString& /* logFile */,
+                           const std::vector<std::uint64_t>& /* logLines */ )
+    {
+    }
+
+    /**
+     * Remove Marks of a Log File (#866), on the UI thread only: in every tab
+     * showing logFile, each tab skipping a Log Line it has not marked.
+     * @param logLines  Counted from 0, as the Log File's lines are.
+     */
+    virtual void removeMarks( const QString& /* logFile */,
+                              const std::vector<std::uint64_t>& /* logLines */ )
+    {
+    }
+
+    /**
+     * The Marks of a Log File (#866), on the UI thread only: counted from 0,
+     * in the order of the Log File, each once, a Log Line marked in any tab
+     * showing logFile. None when no tab shows it; a port that shows no Log
+     * File shows none.
+     */
+    virtual std::optional<std::vector<std::uint64_t>> marks( const QString& /* logFile */ )
+    {
+        return std::nullopt;
+    }
 };
 
 } // namespace logsquirl::plugins

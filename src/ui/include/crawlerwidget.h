@@ -45,6 +45,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <utility>
 
 #include <QCheckBox>
@@ -140,6 +141,15 @@ public:
     // View shows in that. False, and nothing changes, when the Log File has
     // no such line.
     bool goToLogLine( LineNumber line );
+
+    // Marks the Log Lines for a plugin, as the user marks them, or removes
+    // their Marks (#866): the views and the Session show it as they would
+    // the user's. A Log Line past the end, marked already or -- to remove --
+    // not marked is skipped.
+    void addMarks( std::span<const LineNumber> lines );
+    void removeMarks( std::span<const LineNumber> lines );
+    // The Marks of the Log File, in its order, as the Session keeps them.
+    QList<LineNumber> marks() const;
 
     // Opens the Search Line's pattern, with the options it reads it with, in
     // the Regex Lab (#661): tied to this tab, matching with the engine its
