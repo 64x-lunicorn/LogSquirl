@@ -533,14 +533,14 @@ SCENARIO( "The dialogs show a plugin's groups read-only, and copy one into the u
                 CHECK_FALSE( edit->isEnabled() );
             }
 
-            AND_WHEN( "it is copied, and Apply is pressed" )
+            AND_WHEN( "it is copied, and OK is pressed" )
             {
                 REQUIRE( copy->isEnabled() );
                 const auto own = dialog.highlighterListWidget->count();
                 copy->click();
                 QCoreApplication::processEvents();
                 CHECK( dialog.highlighterListWidget->count() == own + 1 );
-                dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+                dialog.buttonBox->button( QDialogButtonBox::Ok )->click();
                 QCoreApplication::processEvents();
 
                 THEN( "the copy is the user's own; the plugin's set stays the plugin's and is not "

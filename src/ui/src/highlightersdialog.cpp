@@ -400,7 +400,9 @@ void HighlightersDialog::resolveDialog( QAbstractButton* button )
     // Nor are the plugins' sets: they stay as the enabled plugins ship them.
     const auto pluginSets = persistentHighlighterSet.pluginHighlighterSets();
     if ( role == QDialogButtonBox::AcceptRole ) {
-        persistentHighlighterSet = std::move( highlighterSetCollection_ );
+        // Copied, not moved: the dialog keeps a set selected, and its editor
+        // may still report a change into the dialog's copy while it closes.
+        persistentHighlighterSet = highlighterSetCollection_;
         accept();
     }
     else if ( role == QDialogButtonBox::ApplyRole ) {

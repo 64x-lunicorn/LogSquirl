@@ -29,6 +29,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/applicationplugins_window_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/pluginlogformats_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugingroups_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/highlightersdialog_test.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_screenshots_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sidebar_layout_test.cpp
