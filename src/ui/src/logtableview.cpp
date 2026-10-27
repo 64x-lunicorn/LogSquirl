@@ -1413,8 +1413,19 @@ std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
     if ( model_ && format_ ) {
         entries.exportAsCsv = [ this ]() { exportAsCsv(); };
     }
+    // The Rows the menu opens on, and the characters selected in a cell
+    // (#859).
+    entries.plugins = pluginContextMenuEntries(
+        *this, pluginContextMenu_, logsquirl::plugins::PluginLogView::Table,
+        report.selectedLogLines,
+        report.textWithinLogLine && model_ ? std::optional( report.selectedText ) : std::nullopt );
 
     return PresentationMenu::create( this, report, entries );
+}
+
+void LogTableView::setPluginContextMenu( PluginContextMenuSource source )
+{
+    pluginContextMenu_ = std::move( source );
 }
 
 void LogTableView::findSelected( bool forward )

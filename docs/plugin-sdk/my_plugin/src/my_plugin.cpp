@@ -21,9 +21,22 @@ const LogSquirlPluginInfo pluginInfo = {
 const LogSquirlHostApi* host = nullptr;
 void* hostHandle = nullptr;
 
+// The ids of the items a host that removes menu items gave: 0 for none.
+int sayHelloItem = 0;
+int stopItem = 0;
+
 void sayHello( void* /* user_data */ )
 {
     host->show_notification( hostHandle, "Hello from My Plugin" );
+}
+
+// Removes both items, from the callback of one of them: neither runs again.
+void stopSayingHello( void* /* user_data */ )
+{
+    host->unregister_menu_action( hostHandle, sayHelloItem );
+    host->unregister_menu_action( hostHandle, stopItem );
+    sayHelloItem = 0;
+    stopItem = 0;
 }
 
 // Called once, on the UI thread, with what the user did in the Regex Lab.
@@ -84,6 +97,101 @@ void encodingChanged( void* /* user_data */, const char* file_path, const char* 
                        ( std::string( file_path ) + " is read as " + encoding ).c_str() );
 }
 
+// Counts the Log Lines of the tab in front. get_log_line_count and
+// get_log_lines may be called from any thread too: a long analysis reads the
+// Log File by its path on a thread of its own.
+void countLines( void* /* user_data */ )
+{
+    const char* path = host->get_active_file_path( hostHandle );
+    uint64_t count = 0;
+    if ( host->get_log_line_count( hostHandle, path, &count ) < 0 ) {
+        host->show_notification( hostHandle, "No Log File in front" );
+        return;
+    }
+    host->show_notification( hostHandle, ( std::to_string( count ) + " Log Lines" ).c_str() );
+}
+
+// Called on the UI thread whenever the Log Lines of an open Log File change.
+void logLinesChanged( void* /* user_data */, const char* file_path, uint64_t line_count,
+                      int change )
+{
+    const char* how = change == LOGSQUIRL_LOG_LINES_APPENDED ? " grew to " : " was loaded anew: ";
+    host->log_message(
+        hostHandle, LOGSQUIRL_LOG_INFO,
+        ( std::string( file_path ) + how + std::to_string( line_count ) + " Log Lines" ).c_str() );
+}
+
+// Called on the UI thread once the user chose Show Line Number in the context
+// menu of the Log Lines: with what was selected as it opened, the Log Lines
+// numbered from 1, and a word selected within one, if any.
+void showLineNumber( void* /* user_data */, const LogSquirlContextMenuContext* context )
+{
+    if ( context->line_number_count == 0 ) {
+        return;
+    }
+    std::string text = "Line " + std::to_string( context->line_numbers[ 0 ] );
+    if ( context->selected_line_count > 1 ) {
+        text += " and " + std::to_string( context->selected_line_count - 1 ) + " more";
+    }
+    if ( context->selected_text != nullptr ) {
+        text += ": " + std::string( context->selected_text, context->selected_text_length );
+    }
+    host->show_notification( hostHandle, text.c_str() );
+}
+
+// Marks the selected Log Lines, as the user would: Next Mark visits them.
+// add_marks may be called from any thread too: a long analysis marks what it
+// found on a thread of its own, at most LOGSQUIRL_MARKS_MAX_LINES per call.
+void markSelection( void* /* user_data */, const LogSquirlContextMenuContext* context )
+{
+    host->add_marks( hostHandle, context->file_path, context->line_numbers,
+                     context->line_number_count );
+}
+
+// Shows the fields of the first selected Log Line as the Table View shows
+// them: named by the Log Format, the values UTF-8 with their lengths, as a
+// value may hold a tab or a line feed. get_log_line_fields may be called from
+// any thread too: statistics per level or per component read ranges of Log
+// Lines on a thread of their own, at most LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES
+// per call.
+void showFields( void* /* user_data */, const LogSquirlContextMenuContext* context )
+{
+    if ( context->line_number_count == 0 ) {
+        return;
+    }
+    const char* format = nullptr;
+    const char* const* names = nullptr;
+    size_t nameCount = 0;
+    if ( host->get_log_format_fields( hostHandle, context->file_path, &format, &names, &nameCount )
+         < 0 ) {
+        host->show_notification( hostHandle, "No Log Format" );
+        return;
+    }
+    const char* const* values = nullptr;
+    const size_t* lengths = nullptr;
+    const int* parsed = nullptr;
+    size_t fieldCount = 0;
+    size_t lineCount = 0;
+    if ( host->get_log_line_fields( hostHandle, context->file_path, context->line_numbers[ 0 ], 1,
+                                    &values, &lengths, &parsed, &fieldCount, &lineCount )
+             < 0
+         || lineCount == 0 || fieldCount != nameCount ) {
+        // Another Log Format applies since the names were read: read them anew.
+        return;
+    }
+    if ( parsed[ 0 ] == 0 ) {
+        host->show_notification( hostHandle,
+                                 ( std::string( "Not a Log Line of " ) + format ).c_str() );
+        return;
+    }
+    std::string text = format;
+    for ( size_t field = 0; field < fieldCount; ++field ) {
+        text += ( field == 0 ? ": " : ", " ) + std::string( names[ field ] ) + "="
+                + std::string( values[ field ], lengths[ field ] );
+    }
+    host->show_notification( hostHandle, text.c_str() );
+}
+
 } // namespace
 
 extern "C" {
@@ -100,7 +208,17 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
     host = api;
     hostHandle = handle;
     api->log_message( handle, LOGSQUIRL_LOG_INFO, "My Plugin initialised" );
-    api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+    // A host that removes menu items gets an item that removes Say Hello again.
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, register_menu_action_ex )
+         && LOGSQUIRL_HOST_API_HAS( api_size, unregister_menu_action ) ) {
+        sayHelloItem
+            = api->register_menu_action_ex( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+        stopItem = api->register_menu_action_ex( handle, "Plugins", "Stop Saying Hello",
+                                                 &stopSayingHello, nullptr );
+    }
+    else {
+        api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+    }
     // Only a host that offers the Regex Lab gets the item that opens it.
     if ( LOGSQUIRL_HOST_API_HAS( api_size, open_regex_lab ) ) {
         api->register_menu_action( handle, "Plugins", "Test Pattern", &testPattern, nullptr );
@@ -115,6 +233,24 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
         api->register_menu_action( handle, "Plugins", "Show Encoding", &showEncoding, nullptr );
         api->register_encoding_callback( handle, &encodingChanged, nullptr );
     }
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, get_log_line_count )
+         && LOGSQUIRL_HOST_API_HAS( api_size, register_log_lines_callback ) ) {
+        api->register_menu_action( handle, "Plugins", "Count Lines", &countLines, nullptr );
+        api->register_log_lines_callback( handle, &logLinesChanged, nullptr );
+    }
+    // An item at the end of the context menu of the Log Lines, in a submenu.
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, register_context_menu_action ) ) {
+        api->register_context_menu_action( handle, "My Plugin", "Show Line Number", &showLineNumber,
+                                           nullptr );
+        if ( LOGSQUIRL_HOST_API_HAS( api_size, add_marks ) ) {
+            api->register_context_menu_action( handle, "My Plugin", "Mark Selected Lines",
+                                               &markSelection, nullptr );
+        }
+        if ( LOGSQUIRL_HOST_API_HAS( api_size, get_log_line_fields ) ) {
+            api->register_context_menu_action( handle, "My Plugin", "Show Fields", &showFields,
+                                               nullptr );
+        }
+    }
     return 0;
 }
 
@@ -128,6 +264,8 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 {
     host = nullptr;
     hostHandle = nullptr;
+    sayHelloItem = 0;
+    stopItem = 0;
 }
 
 } // extern "C"

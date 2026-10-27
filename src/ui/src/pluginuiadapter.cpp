@@ -40,6 +40,7 @@ using logsquirl::plugins::PluginLogLineJump;
 using logsquirl::plugins::PluginPattern;
 using logsquirl::plugins::PluginRegexLabAnswer;
 using logsquirl::plugins::PluginSelectedLogLines;
+using logsquirl::plugins::pluginSubmenuNames;
 using logsquirl::plugins::PluginWidgetHandle;
 
 namespace {
@@ -48,24 +49,6 @@ namespace {
 QWidget* widgetFrom( PluginWidgetHandle handle )
 {
     return static_cast<QWidget*>( handle.widget );
-}
-
-// The submenus of the Plugins menu a menu path names, outermost first. Empty
-// segments do not count, and a first segment "Plugins" names the Plugins menu
-// itself: "", "Plugins" and "/" all name the Plugins menu.
-QStringList submenuNamesOf( const QString& menuPath )
-{
-    QStringList names;
-    for ( const auto& segment : menuPath.split( u'/' ) ) {
-        const auto name = segment.trimmed();
-        if ( !name.isEmpty() ) {
-            names.append( name );
-        }
-    }
-    if ( !names.isEmpty() && names.front() == QStringLiteral( "Plugins" ) ) {
-        names.removeFirst();
-    }
-    return names;
 }
 
 } // namespace
@@ -275,7 +258,7 @@ QMenu& PluginUiAdapter::menuAt( const QStringList& submenuNames )
     return *menu;
 }
 
-void PluginUiAdapter::removeEmptySubmenus()
+void PluginUiAdapter::removeEmptySubmenus( SubmenuDeletion deletion )
 {
     // Innermost first: a submenu whose only entry is an empty submenu is
     // empty once that one is gone.
@@ -286,12 +269,25 @@ void PluginUiAdapter::removeEmptySubmenus()
     std::ranges::sort( byDepth, std::ranges::greater{},
                        []( const auto& it ) { return it->first.count( u'/' ); } );
     for ( const auto& it : byDepth ) {
-        if ( it->second && !it->second->actions().isEmpty() ) {
+        auto* submenu = it->second.data();
+        if ( submenu && !submenu->actions().isEmpty() ) {
             continue;
         }
-        // Deleting the menu also deletes the action that shows it in its parent.
-        delete it->second.data();
         submenus_.erase( it );
+        if ( !submenu ) {
+            continue;
+        }
+        if ( deletion == SubmenuDeletion::Now ) {
+            // Deleting the menu also deletes the action that shows it in its parent.
+            delete submenu;
+            continue;
+        }
+        // The menu may be delivering the trigger of the action that went:
+        // gone from its parent at once, deleted once that has returned.
+        if ( auto* parent = qobject_cast<QMenu*>( submenu->parent() ) ) {
+            parent->removeAction( submenu->menuAction() );
+        }
+        submenu->deleteLater();
     }
 }
 
@@ -300,7 +296,7 @@ void PluginUiAdapter::addMenuAction( const QString& pluginId, const QString& men
                                      void* userData )
 {
     onWindowThread( pluginId, [ this, pluginId, menuPath, label, callback, userData ] {
-        auto& menu = menuAt( submenuNamesOf( menuPath ) );
+        auto& menu = menuAt( pluginSubmenuNames( menuPath ) );
         auto& actions = menuActions_[ pluginId ];
 
         // Prevent duplicate entries when a plugin is re-enabled without restart.
@@ -330,7 +326,41 @@ void PluginUiAdapter::addMenuAction( const QString& pluginId, const QString& men
         else {
             menu.addAction( action );
         }
-        actions.push_back( { action, &menu } );
+        actions.push_back( { action, &menu, userData } );
+    } );
+}
+
+void PluginUiAdapter::removeMenuAction( const QString& pluginId, void* userData )
+{
+    onWindowThread( pluginId, [ this, pluginId, userData ] {
+        const auto it = menuActions_.find( pluginId );
+        if ( it == menuActions_.end() ) {
+            return;
+        }
+        const auto removed
+            = std::erase_if( it->second, [ userData ]( const PluginMenuAction& entry ) {
+                  if ( entry.userData != userData ) {
+                      return false;
+                  }
+                  if ( entry.action ) {
+                      if ( entry.menu ) {
+                          entry.menu->removeAction( entry.action );
+                      }
+                      // The plugin may remove the action from its own callback,
+                      // which the action's trigger is still delivering.
+                      entry.action->deleteLater();
+                  }
+                  return true;
+              } );
+        if ( removed == 0 ) {
+            return;
+        }
+        if ( it->second.empty() ) {
+            menuActions_.erase( it );
+        }
+        // Submenus shared with another action stay.
+        removeEmptySubmenus( SubmenuDeletion::Later );
+        LOG_INFO << "Plugin " << pluginId << " removed a menu action";
     } );
 }
 
@@ -345,12 +375,12 @@ void PluginUiAdapter::removeContributions( const QString& pluginId )
 
     onWindowThread( pluginId, [ this, pluginId ] {
         if ( const auto it = menuActions_.find( pluginId ); it != menuActions_.end() ) {
-            for ( const auto& [ action, menu ] : it->second ) {
-                if ( action ) {
-                    if ( menu ) {
-                        menu->removeAction( action );
+            for ( const auto& entry : it->second ) {
+                if ( entry.action ) {
+                    if ( entry.menu ) {
+                        entry.menu->removeAction( entry.action );
                     }
-                    delete action.data();
+                    delete entry.action.data();
                 }
             }
             menuActions_.erase( it );
@@ -437,10 +467,18 @@ void PluginUiAdapter::setTabInFront( std::function<CrawlerWidget*()> tabInFront 
     tabInFront_ = std::move( tabInFront );
 }
 
-void PluginUiAdapter::setTabOfLogFile(
-    std::function<CrawlerWidget*( const QString& )> tabOfLogFile )
+void PluginUiAdapter::setTabsOfLogFile(
+    std::function<std::vector<CrawlerWidget*>( const QString& )> tabsOfLogFile )
 {
-    tabOfLogFile_ = std::move( tabOfLogFile );
+    tabsOfLogFile_ = std::move( tabsOfLogFile );
+}
+
+std::vector<CrawlerWidget*> PluginUiAdapter::tabsOf( const QString& logFile ) const
+{
+    if ( QThread::currentThread() != window_.thread() || !tabsOfLogFile_ || logFile.isEmpty() ) {
+        return {};
+    }
+    return tabsOfLogFile_( logFile );
 }
 
 std::optional<QString> PluginUiAdapter::logFileEncoding( const QString& logFile )
@@ -452,13 +490,63 @@ std::optional<QString> PluginUiAdapter::logFileEncoding( const QString& logFile 
     if ( logFile.isEmpty() ) {
         tab = tabInFront_ ? tabInFront_() : nullptr;
     }
-    else {
-        tab = tabOfLogFile_ ? tabOfLogFile_( logFile ) : nullptr;
+    else if ( const auto tabs = tabsOf( logFile ); !tabs.empty() ) {
+        tab = tabs.front();
     }
     if ( tab == nullptr ) {
         return std::nullopt;
     }
     return tab->encodingName();
+}
+
+namespace {
+
+std::vector<LineNumber> lineNumbersOf( const std::vector<std::uint64_t>& logLines )
+{
+    std::vector<LineNumber> lines;
+    lines.reserve( logLines.size() );
+    for ( const auto logLine : logLines ) {
+        lines.emplace_back( logLine );
+    }
+    return lines;
+}
+
+} // namespace
+
+void PluginUiAdapter::addMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines )
+{
+    const auto lines = lineNumbersOf( logLines );
+    for ( auto* tab : tabsOf( logFile ) ) {
+        tab->addMarks( lines );
+    }
+}
+
+void PluginUiAdapter::removeMarks( const QString& logFile,
+                                   const std::vector<std::uint64_t>& logLines )
+{
+    const auto lines = lineNumbersOf( logLines );
+    for ( auto* tab : tabsOf( logFile ) ) {
+        tab->removeMarks( lines );
+    }
+}
+
+std::optional<std::vector<std::uint64_t>> PluginUiAdapter::marks( const QString& logFile )
+{
+    const auto tabs = tabsOf( logFile );
+    if ( tabs.empty() ) {
+        return std::nullopt;
+    }
+    std::vector<std::uint64_t> marked;
+    for ( const auto* tab : tabs ) {
+        for ( const auto line : tab->marks() ) {
+            marked.push_back( line.get() );
+        }
+    }
+    // Each tab's in order; several tabs mark some Log Lines twice.
+    std::ranges::sort( marked );
+    const auto duplicates = std::ranges::unique( marked );
+    marked.erase( duplicates.begin(), duplicates.end() );
+    return marked;
 }
 
 PluginLogLineJump PluginUiAdapter::goToLogLine( std::uint64_t logLine )

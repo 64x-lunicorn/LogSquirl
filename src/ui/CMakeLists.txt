@@ -108,7 +108,12 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fontutils.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/colorlabelsmanager.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/plugindialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/logfileforplugins.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/plugincontextmenu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginlogformats.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/plugingroup.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/plugingroups.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/plugingroupssection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginuiadapter.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighteredit.ui
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersetedit.ui
@@ -212,7 +217,11 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/colorlabelsmanager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/commandpalette.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/plugindialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/logfileforplugins.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/plugincontextmenu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginlogformats.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/plugingroups.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/plugingroupssection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginuiadapter.cpp
 )
 

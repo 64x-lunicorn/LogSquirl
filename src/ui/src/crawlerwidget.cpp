@@ -90,6 +90,7 @@
 #include "highlightersmenu.h"
 #include "infoline.h"
 #include "issuereporter.h"
+#include "logfileforplugins.h"
 #include "logformatcatalog.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
@@ -143,6 +144,7 @@ CrawlerWidget::CrawlerWidget( const ViewBuild& build, QWidget* parent )
     : QSplitter( parent )
     , keptSearches_( build.openLogFile, viewSet_,
                      [ this ]( LogFilteredData* search ) { return buildFilteredView( search ); } )
+    , logFormatForPlugins_( std::make_shared<LogFormatForPlugins>() )
 {
     openLogFile_ = build.openLogFile;
     quickFindPattern_ = build.quickFindPattern;
@@ -252,6 +254,25 @@ CrawlerWidget::logLineTextReader() const
         const AttachedReader attached( *logData );
         return logData->getLinesSparse( lines );
     };
+}
+
+std::shared_ptr<const logsquirl::plugins::PluginLogFileSource>
+CrawlerWidget::logFileForPlugins() const
+{
+    return std::make_shared<const LogFileForPlugins>( openLogFile_->logData(),
+                                                      logFormatForPlugins_ );
+}
+
+void CrawlerWidget::setPluginContextMenu( PluginContextMenuSource source )
+{
+    pluginContextMenu_ = std::move( source );
+}
+
+PluginContextMenuSource CrawlerWidget::pluginContextMenuOfViews()
+{
+    // The views go with this widget, and with them what they were handed.
+    return
+        [ this ] { return pluginContextMenu_ ? pluginContextMenu_() : PluginContextMenuOffer{}; };
 }
 
 bool CrawlerWidget::filteredViewWasLastFocused() const
@@ -444,29 +465,12 @@ void CrawlerWidget::goToLine()
 CrawlerWidget::SelectedLogLineTexts CrawlerWidget::selectedLogLineTexts( LinesCount count,
                                                                          qint64 maxBytes ) const
 {
-    SelectedLogLineTexts texts;
+    // Read as a plugin reads a range of the Log File (#858).
     const auto logLines = selectedLogLines( count );
-    if ( logLines.empty() ) {
-        return texts;
-    }
-
-    const auto& logData = openLogFile_->logData();
-    logData->attachReader();
-    qint64 utf8Bytes = 0;
-    std::size_t read = 0;
-    logData->readLinePrefixes( logLines, maxBytes, [ & ]( QString&& text, bool cut ) {
-        utf8Bytes += ( texts.lines.isEmpty() ? 0 : 1 ) + text.toUtf8().size();
-        texts.lines.append( std::move( text ) );
-        ++read;
-        texts.lastCut = cut;
-        if ( cut || utf8Bytes > maxBytes ) {
-            texts.more = read < logLines.size();
-            return false;
-        }
-        return true;
-    } );
-    logData->detachReader();
-    return texts;
+    auto read = readLogLineTextsForPlugin( *openLogFile_->logData(), logLines, maxBytes );
+    return SelectedLogLineTexts{ .lines = std::move( read.lines ),
+                                 .lastCut = read.lastCut,
+                                 .more = read.more };
 }
 
 bool CrawlerWidget::goToLogLine( LineNumber line )
@@ -1018,6 +1022,32 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
     viewSet_.refreshMatchesAndMarks( openLogFile_->lineCount() );
 }
 
+void CrawlerWidget::addMarks( std::span<const LineNumber> lines )
+{
+    for ( const auto& line : lines ) {
+        if ( line < openLogFile_->lineCount() ) {
+            openLogFile_->addMark( line );
+        }
+    }
+    viewSet_.refreshMatchesAndMarks( openLogFile_->lineCount() );
+}
+
+void CrawlerWidget::removeMarks( std::span<const LineNumber> lines )
+{
+    for ( const auto& line : lines ) {
+        if ( line < openLogFile_->lineCount()
+             && openLogFile_->lineType( line ).testFlag( AbstractLogData::LineTypeFlags::Mark ) ) {
+            openLogFile_->toggleMark( line );
+        }
+    }
+    viewSet_.refreshMatchesAndMarks( openLogFile_->lineCount() );
+}
+
+QList<LineNumber> CrawlerWidget::marks() const
+{
+    return openLogFile_->marks();
+}
+
 void CrawlerWidget::broughtToFront()
 {
     LOG_DEBUG << "CrawlerWidget::broughtToFront";
@@ -1110,6 +1140,8 @@ void CrawlerWidget::applyDecodingPolicyChange()
     // The Filtered Views of kept Searches included.
     viewSet_.rereadLogLines();
     restartChartExtraction();
+    Q_EMIT logLinesChanged( openLogFile_->lineCount(),
+                            logsquirl::plugins::PluginLogLinesChange::Replaced );
 }
 
 void CrawlerWidget::enteringQuickFind()
@@ -1199,6 +1231,19 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     }
 
     Q_EMIT loadingFinished( load.status, load.failure );
+
+    // The plugins read the fields under the Log Format the Table View now
+    // shows (#867): another one, or none, reads every Log Line differently,
+    // as when Format Recognition finds one as a short Log File grows.
+    const auto otherLogFormat = logFormatForPlugins_->set( recognizedFormat_ );
+
+    // A load that only added Log Lines leaves what a plugin read as it was;
+    // any other -- the first, a reload, one after a truncation -- may not:
+    // the first one settles the Encoding only once it has read the file.
+    Q_EMIT logLinesChanged( openLogFile_->lineCount(),
+                            load.onlyAppended && !otherLogFormat
+                                ? logsquirl::plugins::PluginLogLinesChange::Appended
+                                : logsquirl::plugins::PluginLogLinesChange::Replaced );
 }
 
 void CrawlerWidget::truncatedHandler( const QString& failure )
@@ -1382,6 +1427,7 @@ void CrawlerWidget::setup()
         = new LogMainView( openLogFile_->logData().get(), quickFindPattern_.get(), &overview_,
                            overviewWidget_, viewSet_.presentationPolicy().useTextWrap );
     logMainView_->setContentsMargins( 2, 0, 2, 0 );
+    logMainView_->setPluginContextMenu( pluginContextMenuOfViews() );
     // A tab starts showing Value Names as the Presentation Policy says, and
     // then as the View menu switches them for it (#647); its Filtered Views
     // show them as its Text View does.
@@ -1516,6 +1562,7 @@ void CrawlerWidget::setup()
     // The table view's overview strip shares the same Overview data as the
     // text view so matches/marks are always in sync.
     logTableView_->setOverview( &overview_, new OverviewWidget() );
+    logTableView_->setPluginContextMenu( pluginContextMenuOfViews() );
 
     mainViewStack_->addWidget( logMainView_ );
     mainViewStack_->addWidget( logTableView_ );
@@ -1786,6 +1833,7 @@ FilteredView* CrawlerWidget::buildFilteredView( LogFilteredData* search )
                                                openLogFile_->lastModified().date(),
                                                openLogFile_->fileName() };
     } );
+    view->setPluginContextMenu( pluginContextMenuOfViews() );
     return view;
 }
 
@@ -2197,6 +2245,8 @@ void CrawlerWidget::applyEncodingChange()
     viewSet_.rereadLogLines();
     restartChartExtraction();
     Q_EMIT encodingChanged();
+    Q_EMIT logLinesChanged( openLogFile_->lineCount(),
+                            logsquirl::plugins::PluginLogLinesChange::Replaced );
 }
 
 void CrawlerWidget::restartChartExtraction()

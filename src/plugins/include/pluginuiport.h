@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <vector>
 
 class QObject;
 
@@ -48,6 +49,27 @@ struct PluginWidgetHandle {
     bool operator==( const PluginWidgetHandle& ) const = default;
 };
 
+/**
+ * The names of the submenus of the Plugins menu a menu path names, outermost
+ * first. Spaces around a name and empty segments do not count, and a first
+ * segment "Plugins" names the Plugins menu itself: "", "Plugins" and "/" all
+ * name the Plugins menu, "Tools" and "Plugins/ Tools /" the same submenu.
+ */
+inline QStringList pluginSubmenuNames( const QString& menuPath )
+{
+    QStringList names;
+    for ( const auto& segment : menuPath.split( u'/' ) ) {
+        const auto name = segment.trimmed();
+        if ( !name.isEmpty() ) {
+            names.append( name );
+        }
+    }
+    if ( !names.isEmpty() && names.front() == QStringLiteral( "Plugins" ) ) {
+        names.removeFirst();
+    }
+    return names;
+}
+
 /** A pattern a plugin has the user test in the Regex Lab, and how it reads it. */
 struct PluginPattern {
     QString pattern;
@@ -62,16 +84,67 @@ struct PluginPattern {
  */
 using PluginRegexLabAnswer = std::function<void( std::optional<PluginPattern> applied )>;
 
-/** The text of the Log Lines selected in the tab in front, as far as read (#663). */
+/**
+ * The text of Log Lines read for a plugin, as far as read: those selected in
+ * the tab in front (#663), or a range of an open Log File (#858).
+ */
 struct PluginSelectedLogLines {
     /// In the order of the Log File.
     QStringList lines;
     /// The last of lines was cut short for the byte budget.
     bool lastCut = false;
-    /// Selected Log Lines after lines were left unread for the byte budget.
+    /// Log Lines asked for after lines were left unread for the byte budget.
     bool more = false;
 
     bool operator==( const PluginSelectedLogLines& ) const = default;
+};
+
+/** The view of Log Lines a context menu was opened in (#859). */
+enum class PluginLogView {
+    Text,    ///< The Text View.
+    Table,   ///< The Table View.
+    Filtered ///< A Filtered View.
+};
+
+/**
+ * At most this many of the selected Log Lines a context menu hands a plugin's
+ * item, the first ones (#859).
+ */
+inline constexpr std::size_t PluginContextMenuMaxLogLines = 1000;
+
+/** What was selected as a context menu with plugin items opened (#859). */
+struct PluginContextMenuContext {
+    /// The Log File of the view, by the path its tab was added under.
+    QString logFile{};
+    PluginLogView view = PluginLogView::Text;
+    /// The selected Log Lines, counted from 0 as the Log File's lines are,
+    /// in its order: at most PluginContextMenuMaxLogLines, the first ones.
+    std::vector<std::uint64_t> logLines{};
+    /// How many Log Lines were selected: more than logLines holds when it
+    /// holds only the first ones.
+    std::uint64_t selectedLogLineCount = 0;
+    /// The text selected within one Log Line or one cell; none when whole Log
+    /// Lines are selected.
+    std::optional<QString> selectedText{};
+
+    bool operator==( const PluginContextMenuContext& ) const = default;
+};
+
+/// Called, on the UI thread, when the user chose an item of the context menu.
+using PluginContextMenuCallbackFn
+    = void ( * )( void* userData, const PluginContextMenuContext& context );
+
+/** An item a plugin added to the context menu of the Log Lines (#859). */
+struct PluginContextMenuAction {
+    QString pluginId{};
+    /// Slash-separated path of the submenus of the plugin section it goes into.
+    QString menuPath{};
+    QString label{};
+    PluginContextMenuCallbackFn callback = nullptr;
+    void* userData = nullptr;
+    /// Given by the port, never twice: what names the item while a choice of
+    /// it waits to be delivered.
+    std::uint64_t serial = 0;
 };
 
 /** How going to a Log Line a plugin asked for ended (#663). */
@@ -126,8 +199,46 @@ public:
         = 0;
 
     /**
-     * Take away everything a plugin still contributes: its menu actions and
-     * any widget it did not remove itself. Called after the plugin was shut
+     * Take one menu action of a plugin away again (#857): the one added with
+     * userData, which the Plugin Host makes unique per action. A submenu
+     * created for it goes too once nothing is left in it. Nothing for an
+     * action that is not there. It may come from the action's own callback,
+     * so the action must not be deleted under its own trigger.
+     */
+    virtual void removeMenuAction( const QString& pluginId, void* userData ) = 0;
+
+    /**
+     * Add an item of a plugin to the context menu of the Log Lines (#859),
+     * after those added before; userData, which the Plugin Host makes unique
+     * per item, names it. A port that shows no Log Lines adds none.
+     * @param menuPath  Slash-separated path of the submenus of the plugin
+     *                  section the item goes into; empty for the section itself.
+     * @param callback  Called with userData and what was selected when the
+     *                  user chose the item.
+     */
+    virtual void addContextMenuAction( const QString& /* pluginId */, const QString& /* menuPath */,
+                                       const QString& /* label */,
+                                       PluginContextMenuCallbackFn /* callback */,
+                                       void* /* userData */ )
+    {
+    }
+
+    /** Take the context menu item added with userData away again; nothing when it is not there. */
+    virtual void removeContextMenuAction( const QString& /* pluginId */, void* /* userData */ ) {}
+
+    /**
+     * The items of the context menu of the Log Lines, in the order they were
+     * added, from any thread: what the views of Log Lines show as their menu
+     * opens.
+     */
+    virtual std::vector<PluginContextMenuAction> contextMenuActions() const
+    {
+        return {};
+    }
+
+    /**
+     * Take away everything a plugin still contributes: its menu actions, its
+     * context menu items and any widget it did not remove itself. Called after the plugin was shut
      * down and before its library is released.
      */
     virtual void removeContributions( const QString& pluginId ) = 0;
@@ -187,6 +298,39 @@ public:
      * no Log File shows none.
      */
     virtual std::optional<QString> logFileEncoding( const QString& /* logFile */ )
+    {
+        return std::nullopt;
+    }
+
+    /**
+     * Mark Log Lines of a Log File as the user marks them (#866), on the UI
+     * thread only: in every tab showing logFile, each tab skipping a Log Line
+     * past its end or marked already.
+     * @param logLines  Counted from 0, as the Log File's lines are.
+     * A port that shows no Log File marks none.
+     */
+    virtual void addMarks( const QString& /* logFile */,
+                           const std::vector<std::uint64_t>& /* logLines */ )
+    {
+    }
+
+    /**
+     * Remove Marks of a Log File (#866), on the UI thread only: in every tab
+     * showing logFile, each tab skipping a Log Line it has not marked.
+     * @param logLines  Counted from 0, as the Log File's lines are.
+     */
+    virtual void removeMarks( const QString& /* logFile */,
+                              const std::vector<std::uint64_t>& /* logLines */ )
+    {
+    }
+
+    /**
+     * The Marks of a Log File (#866), on the UI thread only: counted from 0,
+     * in the order of the Log File, each once, a Log Line marked in any tab
+     * showing logFile. None when no tab shows it; a port that shows no Log
+     * File shows none.
+     */
+    virtual std::optional<std::vector<std::uint64_t>> marks( const QString& /* logFile */ )
     {
         return std::nullopt;
     }

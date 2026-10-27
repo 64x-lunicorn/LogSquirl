@@ -24,12 +24,23 @@
 #include "streamwriter.h"
 
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QThread>
 
+#include <algorithm>
 #include <atomic>
+#include <condition_variable>
+#include <cstddef>
+#include <limits>
+#include <numeric>
 #include <utility>
+#include <vector>
 
 namespace logsquirl::plugins {
+
+// The views hand a context menu item no more Log Lines than it passes on.
+static_assert( PluginContextMenuMaxLogLines == LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
 
 // ── Conversions ─────────────────────────────────────────────────────────────
 
@@ -65,6 +76,31 @@ struct PluginHost::ConversionControl : std::enable_shared_from_this<PluginHost::
     std::atomic<int> returnCode{ 0 };
 };
 
+// ── Content checks ──────────────────────────────────────────────────────────
+
+/**
+ * What the worker thread of a content check shares with the host (#861),
+ * under mutex: the converters to ask in plugin-ID order, which of them have
+ * left the check, the one being asked and the one that claimed the file. An
+ * unload takes its plugin out and waits, on returned, until a call into it
+ * has returned; the handle of a plugin that left is not touched any more.
+ */
+struct PluginHost::ContentCheckControl {
+    struct Converter {
+        QString pluginId;
+        const PluginHandle* handle = nullptr;
+        bool left = false;
+    };
+
+    std::mutex mutex{};
+    std::condition_variable returned{};
+    std::vector<Converter> converters{};
+    // The handle of the converter being asked, or nullptr.
+    const PluginHandle* calling = nullptr;
+    bool cancelled = false;
+    QString claimedBy{};
+};
+
 // ── Construction / destruction ──────────────────────────────────────────────
 
 PluginHost::PluginHost( const PluginCatalog& catalog, QObject* parent )
@@ -85,6 +121,15 @@ PluginHost::~PluginHost()
             Q_EMIT pluginUnloaded( pluginId );
         }
     }
+
+    // A content check still under way asks no plugin any more, all of them
+    // having left it; it is waited for, and reports nothing (#861).
+    for ( auto& check : contentChecks_ ) {
+        if ( check->thread.joinable() ) {
+            check->thread.join();
+        }
+    }
+    contentChecks_.clear();
 }
 
 // ── Loading / unloading ─────────────────────────────────────────────────────
@@ -227,6 +272,9 @@ void PluginHost::unloadPlugin( const QString& pluginId )
     // for, so the plugin is never shut down under its call (#795).
     context.unloadPending = true;
     cancelConversionsOf( context );
+    // Nor does a content check ask it any more, once a call under way has
+    // returned (#861).
+    leaveContentChecks( context );
 
     // A call into the plugin is still on the stack, below the event loop
     // this unload came from: shutting the plugin down now would pull its
@@ -256,11 +304,16 @@ void PluginHost::unloadNow( const QString& pluginId )
     // nothing its report asks for starts.
     it->second->unloadPending = true;
     cancelConversionsOf( *it->second );
+    leaveContentChecks( *it->second );
 
     // From now on, no answer of the user interface reaches the plugin: a
     // Regex Lab it opened may still answer while it is closed.
     it->second->answerContext.reset();
     it->second->parkedAnswers.clear();
+
+    // A stream that runs is stopped in the plugin first, while the plugin is
+    // still initialised: it closes its source before it is shut down (#855).
+    stopInPlugin( *it->second );
 
     // Shut the plugin down while it is still loaded: it unregisters its
     // widgets through the host callbacks. Whatever it left behind is taken
@@ -347,11 +400,60 @@ void PluginHost::deliverParkedAnswersLater( PluginContext& context )
 void PluginHost::runMenuAction( void* menuActionCall )
 {
     const auto* call = static_cast<const MenuActionCall*>( menuActionCall );
-    if ( !call->callback ) {
+    // Removed meanwhile: a trigger queued before unregister_menu_action
+    // returned is dropped (#857).
+    if ( !call->callback || call->removed.load() ) {
         return;
     }
     call->context->host->callIntoPlugin( *call->context,
                                          [ call ] { call->callback( call->userData ); } );
+}
+
+void PluginHost::runContextMenuAction( void* contextMenuActionCall,
+                                       const PluginContextMenuContext& context )
+{
+    const auto* call = static_cast<const ContextMenuActionCall*>( contextMenuActionCall );
+    // Removed meanwhile: a choice delivered after unregister_context_menu_action
+    // returned is dropped, as a menu action's trigger is (#857, #859).
+    if ( !call->callback || call->removed.load() ) {
+        return;
+    }
+
+    const auto filePath = context.logFile.toUtf8();
+    // Numbered as the views number them, from 1.
+    std::vector<uint64_t> lineNumbers;
+    const auto count
+        = std::min<std::size_t>( context.logLines.size(), LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+    lineNumbers.reserve( count );
+    for ( std::size_t i = 0; i < count; ++i ) {
+        lineNumbers.push_back( context.logLines[ i ] + 1 );
+    }
+    const auto selectedText = context.selectedText ? context.selectedText->toUtf8() : QByteArray{};
+    const auto view = [ &context ] {
+        switch ( context.view ) {
+        case PluginLogView::Table:
+            return LOGSQUIRL_LOG_VIEW_TABLE;
+        case PluginLogView::Filtered:
+            return LOGSQUIRL_LOG_VIEW_FILTERED;
+        case PluginLogView::Text:
+            break;
+        }
+        return LOGSQUIRL_LOG_VIEW_TEXT;
+    }();
+
+    const LogSquirlContextMenuContext handed{
+        .size = sizeof( LogSquirlContextMenuContext ),
+        .file_path = filePath.constData(),
+        .view = view,
+        .line_numbers = lineNumbers.empty() ? nullptr : lineNumbers.data(),
+        .line_number_count = lineNumbers.size(),
+        .selected_line_count = std::max<uint64_t>( context.selectedLogLineCount, count ),
+        .selected_text = context.selectedText ? selectedText.constData() : nullptr,
+        .selected_text_length
+        = context.selectedText ? static_cast<std::size_t>( selectedText.size() ) : 0,
+    };
+    call->context->host->callIntoPlugin(
+        *call->context, [ call, &handed ] { call->callback( call->userData, &handed ); } );
 }
 
 void PluginHost::unloadAll()
@@ -398,34 +500,60 @@ void PluginHost::setActiveFilePathCallback( std::function<QString()> callback )
     activeFilePathCallback_ = std::move( callback );
 }
 
-void PluginHost::notifyActiveFileChanged( const QString& filePath )
+template <typename Callback, typename Call>
+void PluginHost::notifyPlugins( Callback PluginContext::* callback, void* PluginContext::* userData,
+                                const Call& call )
 {
-    const auto utf8 = filePath.toUtf8();
     // By ID: a plugin's callback may unload another plugin.
     for ( const auto& id : loadedPluginIds() ) {
         auto* ctx = loadedContext( id );
-        if ( ctx && ctx->activeFileCallback ) {
-            callIntoPlugin( *ctx, [ ctx, &utf8 ] {
-                ctx->activeFileCallback( ctx->activeFileUserData, utf8.constData() );
+        if ( !ctx ) {
+            continue;
+        }
+        // Taken as one: the plugin may register another from its own thread.
+        Callback pluginCallback = nullptr;
+        void* pluginUserData = nullptr;
+        {
+            const std::lock_guard lock( ctx->registrationsMutex );
+            pluginCallback = ctx->*callback;
+            pluginUserData = ctx->*userData;
+        }
+        if ( pluginCallback ) {
+            callIntoPlugin( *ctx, [ &call, pluginCallback, pluginUserData ] {
+                call( pluginCallback, pluginUserData );
             } );
         }
     }
+}
+
+void PluginHost::notifyActiveFileChanged( const QString& filePath )
+{
+    const auto utf8 = filePath.toUtf8();
+    notifyPlugins(
+        &PluginContext::activeFileCallback, &PluginContext::activeFileUserData,
+        [ &utf8 ]( auto callback, void* userData ) { callback( userData, utf8.constData() ); } );
 }
 
 void PluginHost::notifyEncodingChanged( const QString& filePath, const QString& encoding )
 {
     const auto pathUtf8 = filePath.toUtf8();
     const auto encodingUtf8 = encoding.toUtf8();
-    // By ID: a plugin's callback may unload another plugin.
-    for ( const auto& id : loadedPluginIds() ) {
-        auto* ctx = loadedContext( id );
-        if ( ctx && ctx->encodingCallback ) {
-            callIntoPlugin( *ctx, [ ctx, &pathUtf8, &encodingUtf8 ] {
-                ctx->encodingCallback( ctx->encodingUserData, pathUtf8.constData(),
-                                       encodingUtf8.constData() );
-            } );
-        }
-    }
+    notifyPlugins( &PluginContext::encodingCallback, &PluginContext::encodingUserData,
+                   [ &pathUtf8, &encodingUtf8 ]( auto callback, void* userData ) {
+                       callback( userData, pathUtf8.constData(), encodingUtf8.constData() );
+                   } );
+}
+
+void PluginHost::notifyLogLinesChanged( const QString& filePath, std::uint64_t lineCount,
+                                        PluginLogLinesChange change )
+{
+    const auto pathUtf8 = filePath.toUtf8();
+    const int changed = change == PluginLogLinesChange::Appended ? LOGSQUIRL_LOG_LINES_APPENDED
+                                                                 : LOGSQUIRL_LOG_LINES_REPLACED;
+    notifyPlugins( &PluginContext::logLinesCallback, &PluginContext::logLinesUserData,
+                   [ &pathUtf8, lineCount, changed ]( auto callback, void* userData ) {
+                       callback( userData, pathUtf8.constData(), lineCount, changed );
+                   } );
 }
 
 // ── DataSource (Phase 2) ─────────────────────────────────────────────────────────
@@ -442,16 +570,69 @@ QString PluginHost::startDataSource( const QString& pluginId )
         return QString( "Plugin '%1' is not a DataSource plugin" ).arg( pluginId );
     }
 
-    if ( ctx.stream ) {
+    // Also while the plugin's start is still running, a modal dialog of its
+    // own open: the second start does not reach the plugin (#855).
+    if ( ctx.stream || ctx.dataSourceState != DataSourceState::Idle ) {
         return QString( "DataSource '%1' is already running" ).arg( pluginId );
     }
 
-    // Create the file-backed stream writer
+    // Create the file-backed stream writer. It is there before the plugin's
+    // start, so that what the plugin pushes from inside it is kept.
     auto stream = std::make_unique<StreamWriter>( ctx.handle.metadata().name() );
     const auto path = stream->filePath();
     {
         const std::lock_guard lock( ctx.streamMutex );
         ctx.stream = std::move( stream );
+        ctx.streamEndedByPlugin = false;
+    }
+
+    // The plugin opens its device, socket or process, and may ask the user
+    // which in a dialog of its own. Its unload, asked for meanwhile, waits
+    // until the call has returned, so the context stays.
+    ctx.dataSourceState = DataSourceState::Starting;
+    int result = LOGSQUIRL_DATASOURCE_STARTED;
+    if ( ctx.handle.hasDataSourceStart() ) {
+        if ( !callIntoPlugin( ctx, [ &ctx, &result ] {
+                 result = ctx.handle.startDataSource( &ctx.dataSourceContext );
+             } ) ) {
+            result = LOGSQUIRL_DATASOURCE_FAILED;
+        }
+    }
+
+    if ( result != LOGSQUIRL_DATASOURCE_STARTED ) {
+        // Not started: the stream goes without an end, nobody has opened it.
+        {
+            const std::lock_guard lock( ctx.streamMutex );
+            ctx.stream.reset();
+        }
+        ctx.dataSourceState = DataSourceState::Idle;
+        if ( result == LOGSQUIRL_DATASOURCE_CANCELLED ) {
+            LOG_INFO << "DataSource '" << pluginId << "' was cancelled as it started";
+            return {};
+        }
+        LOG_WARNING << "DataSource '" << pluginId << "' did not start: " << result;
+        return QString( "DataSource '%1' did not start (code %2)" ).arg( pluginId ).arg( result );
+    }
+
+    // The stream runs: the plugin is owed its stop, however the stream ends.
+    ctx.dataSourceState = DataSourceState::Running;
+    if ( ctx.unloadPending ) {
+        // Unloaded while it started: its unload stops and ends the stream,
+        // and no tab opens for a plugin that counts as unloaded.
+        return QString( "Plugin '%1' is not loaded" ).arg( pluginId );
+    }
+
+    // The plugin signalled the end of its stream from inside its start: the
+    // tab opens all the same, and the stream ends from the event loop, as
+    // it would have, had the plugin signalled once start returned (#871).
+    // Asked for before the signal, whose slot may unload the plugin.
+    bool endedByPlugin = false;
+    {
+        const std::lock_guard lock( ctx.streamMutex );
+        endedByPlugin = ctx.streamEndedByPlugin;
+    }
+    if ( endedByPlugin ) {
+        endStreamThePluginEndedLater( ctx );
     }
 
     LOG_INFO << "Started DataSource '" << pluginId << "' writing to " << path;
@@ -465,9 +646,39 @@ void PluginHost::stopDataSource( const QString& pluginId )
     if ( it == loaded_.end() || !it->second->stream ) {
         return;
     }
+    auto& context = *it->second;
+    // A stop asked for while the plugin starts or stops: that call ends as
+    // it ends, and a stopping stream ends once the stop has returned.
+    if ( context.dataSourceState == DataSourceState::Starting
+         || context.dataSourceState == DataSourceState::Stopping ) {
+        return;
+    }
 
     LOG_INFO << "Stopping DataSource: " << pluginId;
-    endStream( *it->second, pluginId );
+    // The plugin pushes its last lines and closes its source before the
+    // stream ends. Its unload, asked for meanwhile, waits until the call has
+    // returned, so the context stays.
+    stopInPlugin( context );
+    endStream( context, pluginId );
+}
+
+void PluginHost::stopInPlugin( PluginContext& context )
+{
+    if ( context.dataSourceState != DataSourceState::Running ) {
+        return;
+    }
+    context.dataSourceState = DataSourceState::Stopping;
+    if ( !context.handle.hasDataSourceStop() ) {
+        return;
+    }
+    const auto stop = [ &context ] { context.handle.stopDataSource( &context.dataSourceContext ); };
+    if ( !callIntoPlugin( context, stop ) ) {
+        // Its unload is pending, but it is not shut down yet: it is still
+        // owed the stop, and gets it before its shutdown.
+        ++context.callsRunning;
+        stop();
+        --context.callsRunning;
+    }
 }
 
 void PluginHost::endStream( PluginContext& context, const QString& pluginId )
@@ -478,8 +689,11 @@ void PluginHost::endStream( PluginContext& context, const QString& pluginId )
             return;
         }
         context.stream->signalEos();
-        context.stream.reset();
+        // The stream is over, but its tab still reads its file: the file
+        // goes with the context, when the plugin is unloaded (#871).
+        context.endedStreams.push_back( std::move( context.stream ) );
     }
+    context.dataSourceState = DataSourceState::Idle;
     // Said outside the lock: a slot may ask the host about the stream.
     Q_EMIT dataSourceStopped( pluginId );
 }
@@ -511,25 +725,177 @@ QString bareExtension( const QString& extension )
 
 } // namespace
 
+std::vector<PluginHost::PluginContext*> PluginHost::convertersInIdOrder() const
+{
+    std::vector<PluginContext*> converters;
+    for ( const auto& [ id, ctx ] : loaded_ ) {
+        if ( !ctx->unloadPending && ctx->handle.isConverter() ) {
+            converters.push_back( ctx.get() );
+        }
+    }
+    // Sorted here, not taken from how loaded_ happens to keep them: the order
+    // is what the plugin developer guide promises (#861).
+    std::ranges::sort( converters, []( const PluginContext* left, const PluginContext* right ) {
+        return left->handle.metadata().id() < right->handle.metadata().id();
+    } );
+    return converters;
+}
+
 QString PluginHost::converterForExtension( const QString& extension ) const
 {
     const auto ext = bareExtension( extension );
     if ( ext.isEmpty() ) {
         return {};
     }
-    for ( const auto& [ id, ctx ] : loaded_ ) {
-        if ( ctx->unloadPending || !ctx->handle.isConverter() ) {
-            continue;
-        }
+    for ( const auto* ctx : convertersInIdOrder() ) {
         // Extensions are semicolon-separated, e.g. ".har;.pcap"
         const auto exts = ctx->handle.converterExtensions().split( ';', Qt::SkipEmptyParts );
         for ( const auto& e : exts ) {
             if ( bareExtension( e ) == ext ) {
-                return id;
+                return ctx->handle.metadata().id();
             }
         }
     }
     return {};
+}
+
+namespace {
+
+// The first bytes of the file a converter is asked about, or nothing when it
+// cannot be read (#861).
+std::optional<QByteArray> readHead( const QString& filePath )
+{
+    QFile file( filePath );
+    if ( !file.open( QIODevice::ReadOnly ) ) {
+        return std::nullopt;
+    }
+    auto head = file.read( LOGSQUIRL_CONVERTER_CLAIMS_HEAD_LENGTH );
+    if ( file.error() != QFileDevice::NoError ) {
+        return std::nullopt;
+    }
+    return head;
+}
+
+} // namespace
+
+ContentCheckId PluginHost::checkContent( const QString& filePath,
+                                         std::function<void( const QString& pluginId )> claimed )
+{
+    auto control = std::make_shared<ContentCheckControl>();
+    for ( const auto* ctx : convertersInIdOrder() ) {
+        if ( ctx->handle.claimsByContent() ) {
+            control->converters.push_back( ContentCheckControl::Converter{
+                .pluginId = ctx->handle.metadata().id(), .handle = &ctx->handle, .left = false } );
+        }
+    }
+    if ( control->converters.empty() ) {
+        return 0;
+    }
+
+    auto check = std::make_unique<ContentCheck>();
+    check->id = ++contentChecksSoFar_;
+    check->claimed = std::move( claimed );
+    check->control = control;
+    LOG_INFO << "Asking " << control->converters.size() << " converter plugin(s) whether they "
+             << "claim " << filePath << " by its content";
+
+    // The handles stay while the thread asks them: a plugin's unload takes it
+    // out of the check, waiting for a call under way, before its context goes.
+    check->thread = std::thread(
+        [ this, control, id = check->id, path = QFileInfo( filePath ).absoluteFilePath() ] {
+            if ( const auto head = readHead( path ) ) {
+                const auto pathUtf8 = path.toUtf8();
+                for ( std::size_t next = 0;; ++next ) {
+                    const PluginHandle* handle = nullptr;
+                    {
+                        const std::lock_guard lock( control->mutex );
+                        if ( control->cancelled || next >= control->converters.size() ) {
+                            break;
+                        }
+                        if ( control->converters[ next ].left ) {
+                            continue;
+                        }
+                        handle = control->converters[ next ].handle;
+                        control->calling = handle;
+                    }
+                    const bool claims = handle->claims( pathUtf8, *head );
+                    bool wonTheFile = false;
+                    {
+                        // A plugin unloaded during its call claims nothing: the
+                        // next one is asked.
+                        const std::lock_guard lock( control->mutex );
+                        control->calling = nullptr;
+                        wonTheFile = claims && !control->converters[ next ].left;
+                        if ( wonTheFile ) {
+                            control->claimedBy = control->converters[ next ].pluginId;
+                        }
+                    }
+                    control->returned.notify_all();
+                    if ( wonTheFile ) {
+                        break;
+                    }
+                }
+            }
+            QMetaObject::invokeMethod(
+                this, [ this, id ] { finishContentCheck( id ); }, Qt::QueuedConnection );
+        } );
+    const auto id = check->id;
+    contentChecks_.push_back( std::move( check ) );
+    return id;
+}
+
+void PluginHost::cancelContentCheck( ContentCheckId id )
+{
+    for ( auto& check : contentChecks_ ) {
+        if ( check->id == id ) {
+            check->claimed = nullptr;
+            const std::lock_guard lock( check->control->mutex );
+            check->control->cancelled = true;
+            return;
+        }
+    }
+}
+
+void PluginHost::leaveContentChecks( const PluginContext& context )
+{
+    for ( auto& check : contentChecks_ ) {
+        auto& control = *check->control;
+        std::unique_lock lock( control.mutex );
+        for ( auto& converter : control.converters ) {
+            if ( converter.handle == &context.handle ) {
+                converter.left = true;
+            }
+        }
+        control.returned.wait( lock, [ & ] { return control.calling != &context.handle; } );
+    }
+}
+
+void PluginHost::finishContentCheck( ContentCheckId id )
+{
+    const auto it = std::ranges::find_if( contentChecks_,
+                                          [ id ]( const auto& check ) { return check->id == id; } );
+    if ( it == contentChecks_.end() ) {
+        return;
+    }
+    auto check = std::move( *it );
+    contentChecks_.erase( it );
+    if ( check->thread.joinable() ) {
+        check->thread.join();
+    }
+
+    auto claimedBy = [ &check ] {
+        const std::lock_guard lock( check->control->mutex );
+        return check->control->claimedBy;
+    }();
+    // Unloaded since it claimed the file: no plugin converts it.
+    if ( !claimedBy.isEmpty() && !loadedContext( claimedBy ) ) {
+        LOG_INFO << "Plugin " << claimedBy << " claimed a file and was unloaded meanwhile";
+        claimedBy.clear();
+    }
+    // Last: the report may do anything, even unload the plugin.
+    if ( check->claimed ) {
+        check->claimed( claimedBy );
+    }
 }
 
 QStringList PluginHost::converterFileFilters() const
@@ -800,6 +1166,18 @@ LogSquirlHostApi PluginHost::buildHostApi()
     api.get_selected_log_lines = &PluginHost::hostGetSelectedLogLines;
     api.get_log_file_encoding = &PluginHost::hostGetLogFileEncoding;
     api.register_encoding_callback = &PluginHost::hostRegisterEncodingCallback;
+    api.register_menu_action_ex = &PluginHost::hostRegisterMenuActionEx;
+    api.unregister_menu_action = &PluginHost::hostUnregisterMenuAction;
+    api.get_log_line_count = &PluginHost::hostGetLogLineCount;
+    api.get_log_lines = &PluginHost::hostGetLogLines;
+    api.register_log_lines_callback = &PluginHost::hostRegisterLogLinesCallback;
+    api.register_context_menu_action = &PluginHost::hostRegisterContextMenuAction;
+    api.unregister_context_menu_action = &PluginHost::hostUnregisterContextMenuAction;
+    api.add_marks = &PluginHost::hostAddMarks;
+    api.remove_marks = &PluginHost::hostRemoveMarks;
+    api.get_marks = &PluginHost::hostGetMarks;
+    api.get_log_format_fields = &PluginHost::hostGetLogFormatFields;
+    api.get_log_line_fields = &PluginHost::hostGetLogLineFields;
 
     return api;
 }
@@ -850,34 +1228,62 @@ void PluginHost::hostSignalEos( void* handle )
     if ( !ctx ) {
         return;
     }
+    // The plugin's word is final: the stream takes no more lines from now
+    // on, also none its stop pushes.
     {
         const std::lock_guard lock( ctx->streamMutex );
         if ( !ctx->stream ) {
             return;
         }
         ctx->stream->signalEos();
+        ctx->streamEndedByPlugin = true;
     }
     LOG_INFO << "DataSource EOS from plugin";
-    if ( !ctx->host ) {
+    endStreamThePluginEndedLater( *ctx );
+}
+
+void PluginHost::endStreamThePluginEndedLater( PluginContext& context )
+{
+    // Ended on the host's thread, as every other time a data source stops: a
+    // plugin may signal from a thread of its own, its stop runs on the UI
+    // thread, and a directly connected slot would run on the plugin's.
+    auto* host = context.host;
+    if ( !host ) {
         return;
     }
-    // Said on the host's thread, as every other time a data source stops: a
-    // plugin may signal from a thread of its own, and a directly connected
-    // slot would run there. The plugin may be unloaded before the queued
-    // call runs, and loaded again: the unload said the stream stopped (#843).
-    auto* host = ctx->host;
     QMetaObject::invokeMethod(
         host,
-        [ host, loadSerial = ctx->loadSerial, pluginId = ctx->handle.metadata().id() ] {
-            const auto* loaded = host->loadedContext( pluginId );
-            if ( !loaded || loaded->loadSerial != loadSerial ) {
-                LOG_INFO << "Plugin " << pluginId
-                         << " was unloaded; dropping its queued end of stream";
-                return;
-            }
-            Q_EMIT host->dataSourceStopped( pluginId );
+        [ host, loadSerial = context.loadSerial, pluginId = context.handle.metadata().id() ] {
+            host->endStreamThePluginEnded( pluginId, loadSerial );
         },
         Qt::QueuedConnection );
+}
+
+void PluginHost::endStreamThePluginEnded( const QString& pluginId, std::uint64_t loadSerial )
+{
+    // The plugin may be unloaded before the queued call runs, and loaded
+    // again: the unload stopped it and said the stream stopped (#843).
+    auto* loaded = loadedContext( pluginId );
+    if ( !loaded || loaded->loadSerial != loadSerial ) {
+        LOG_INFO << "Plugin " << pluginId << " was unloaded; dropping its queued end of stream";
+        return;
+    }
+    auto& context = *loaded;
+    {
+        // Stopped meanwhile, and maybe started again: that stream runs on.
+        const std::lock_guard lock( context.streamMutex );
+        if ( !context.stream || !context.streamEndedByPlugin ) {
+            return;
+        }
+    }
+    // A start under way, its dialog turning the event loop, asks again once
+    // it has returned; a stop under way ends the stream as it returns.
+    if ( context.dataSourceState != DataSourceState::Running ) {
+        return;
+    }
+    LOG_INFO << "Ending DataSource the plugin ended: " << pluginId;
+    stopInPlugin( context );
+    endStream( context, pluginId );
 }
 
 void PluginHost::hostSignalError( void* handle, const char* message )
@@ -997,20 +1403,105 @@ void PluginHost::hostRegisterMenuAction( void* handle, const char* menuPath, con
     if ( !port ) {
         return;
     }
+    auto* ctx = contextFromHandle( handle );
+    const auto menuPathText = QString::fromUtf8( menuPath );
+    const auto labelText = QString::fromUtf8( label );
+    auto submenu = pluginSubmenuNames( menuPathText );
+    MenuActionCall* call = nullptr;
+    {
+        const std::lock_guard lock( ctx->registrationsMutex );
+        // A call for a submenu and label the plugin has an item of adds
+        // nothing, and so keeps no record either (#870).
+        if ( hasLiveMenuAction( *ctx, submenu, labelText ) ) {
+            return;
+        }
+        // Kept for its submenu and label also without a callback:
+        // register_menu_action_ex adds no second item of them.
+        call = &ctx->menuActionCalls.emplace_back();
+        call->context = ctx;
+        call->callback = callback;
+        call->userData = userData;
+        call->label = labelText;
+        call->submenu = std::move( submenu );
+    }
     if ( !callback ) {
-        port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), QString::fromUtf8( label ),
-                             nullptr, userData );
+        port->addMenuAction( pluginId, menuPathText, labelText, nullptr, userData );
+        return;
+    }
+    port->addMenuAction( pluginId, menuPathText, labelText, &PluginHost::runMenuAction, call );
+}
+
+int PluginHost::nextRegistrationId( PluginContext& context )
+{
+    if ( context.registrationIdsSoFar == std::numeric_limits<int>::max() ) {
+        return -1;
+    }
+    return ++context.registrationIdsSoFar;
+}
+
+bool PluginHost::hasLiveMenuAction( const PluginContext& context, const QStringList& submenu,
+                                    const QString& label )
+{
+    return std::ranges::any_of( context.menuActionCalls, [ & ]( const auto& other ) {
+        return !other.removed.load() && other.label == label && other.submenu == submenu;
+    } );
+}
+
+int PluginHost::hostRegisterMenuActionEx( void* handle, const char* menuPath, const char* label,
+                                          PluginCallbackFn callback, void* userData )
+{
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port || label == nullptr || *label == '\0' || callback == nullptr ) {
+        return -1;
+    }
+    auto* ctx = contextFromHandle( handle );
+    const auto menuPathText = QString::fromUtf8( menuPath );
+    const auto labelText = QString::fromUtf8( label );
+    const auto submenu = pluginSubmenuNames( menuPathText );
+    MenuActionCall* call = nullptr;
+    int id = -1;
+    {
+        const std::lock_guard lock( ctx->registrationsMutex );
+        // A plugin's items of one submenu have different labels: the Plugin
+        // UI Port shows a second one of the same label there not at all (#870).
+        id = hasLiveMenuAction( *ctx, submenu, labelText ) ? -1 : nextRegistrationId( *ctx );
+        if ( id < 0 ) {
+            return -1;
+        }
+        call = &ctx->menuActionCalls.emplace_back();
+        call->context = ctx;
+        call->callback = callback;
+        call->userData = userData;
+        call->label = labelText;
+        call->submenu = submenu;
+        call->id = id;
+        ctx->menuActionsById.emplace( id, call );
+    }
+    port->addMenuAction( pluginId, menuPathText, labelText, &PluginHost::runMenuAction, call );
+    return id;
+}
+
+void PluginHost::hostUnregisterMenuAction( void* handle, int id )
+{
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
         return;
     }
     auto* ctx = contextFromHandle( handle );
     MenuActionCall* call = nullptr;
     {
-        const std::lock_guard lock( ctx->menuActionCallsMutex );
-        call = &ctx->menuActionCalls.emplace_back(
-            MenuActionCall{ .context = ctx, .callback = callback, .userData = userData } );
+        const std::lock_guard lock( ctx->registrationsMutex );
+        const auto it = ctx->menuActionsById.find( id );
+        if ( it == ctx->menuActionsById.end() ) {
+            return;
+        }
+        call = it->second;
+        ctx->menuActionsById.erase( it );
+        // From here on no trigger reaches the plugin, one queued already
+        // included; the record stays for such a trigger to find.
+        call->removed.store( true );
     }
-    port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), QString::fromUtf8( label ),
-                         &PluginHost::runMenuAction, call );
+    port->removeMenuAction( pluginId, call );
 }
 
 void PluginHost::hostRegisterSidebarTab( void* handle, const char* label, void* qwidgetPtr )
@@ -1060,9 +1551,9 @@ const char* PluginHost::hostGetActiveFilePath( void* handle )
     if ( !ctx->host->activeFilePathCallback_ ) {
         return "";
     }
-    // Cache the UTF-8 bytes so the returned pointer remains valid
-    ctx->host->activeFilePathUtf8_ = ctx->host->activeFilePathCallback_().toUtf8();
-    return ctx->host->activeFilePathUtf8_.constData();
+    // The plugin's own: another plugin's call leaves it as it is (#857).
+    ctx->activeFilePathUtf8 = ctx->host->activeFilePathCallback_().toUtf8();
+    return ctx->activeFilePathUtf8.constData();
 }
 
 void PluginHost::hostRegisterActiveFileCallback(
@@ -1072,6 +1563,7 @@ void PluginHost::hostRegisterActiveFileCallback(
     if ( !ctx ) {
         return;
     }
+    const std::lock_guard lock( ctx->registrationsMutex );
     ctx->activeFileCallback = callback;
     ctx->activeFileUserData = user_data;
 }
@@ -1130,6 +1622,20 @@ struct SelectedLogLinesText {
     bool truncated = false;
 };
 
+/// UTF-8 text longer than maxBytes cut to at most that many, not in the
+/// middle of a character: back to its first byte.
+void cutAtCharacter( QByteArray& utf8, qsizetype maxBytes )
+{
+    if ( utf8.size() <= maxBytes ) {
+        return;
+    }
+    auto cut = maxBytes;
+    while ( cut > 0 && ( static_cast<unsigned char>( utf8[ cut ] ) & 0xC0 ) == 0x80 ) {
+        --cut;
+    }
+    utf8.truncate( cut );
+}
+
 SelectedLogLinesText selectedLogLinesText( const QStringList& lines, bool more )
 {
     constexpr auto MaxBytes = static_cast<qsizetype>( LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
@@ -1141,12 +1647,7 @@ SelectedLogLinesText selectedLogLinesText( const QStringList& lines, bool more )
         if ( result.text.size() + separator + utf8.size() > MaxBytes ) {
             result.truncated = true;
             if ( result.lineCount == 0 ) {
-                // Not in the middle of a character: back to its first byte.
-                auto cut = MaxBytes;
-                while ( cut > 0 && ( static_cast<unsigned char>( utf8[ cut ] ) & 0xC0 ) == 0x80 ) {
-                    --cut;
-                }
-                utf8.truncate( cut );
+                cutAtCharacter( utf8, MaxBytes );
                 result.text = std::move( utf8 );
                 result.lineCount = 1;
             }
@@ -1159,6 +1660,86 @@ SelectedLogLinesText selectedLogLinesText( const QStringList& lines, bool more )
         ++result.lineCount;
     }
     return result;
+}
+
+/// What a port or a Log File read for a plugin, as the plugin gets it: at
+/// most LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES Log Lines, whole ones but for
+/// a first one cut, and truncated when there were more of those asked for.
+/// read holds at most one Log Line more than the bound, which says there are.
+SelectedLogLinesText logLinesTextFor( PluginSelectedLogLines read )
+{
+    auto& lines = read.lines;
+    bool more = read.more || read.lastCut;
+    if ( lines.size() > LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES ) {
+        lines.resize( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
+        more = true;
+    }
+    // Only a first Log Line comes cut: one cut after whole ones is left out.
+    else if ( read.lastCut && lines.size() > 1 ) {
+        lines.removeLast();
+    }
+    return selectedLogLinesText( lines, more );
+}
+
+/// Nothing is returned unless the text is.
+void clearLogLinesOutputs( const char** text, size_t* length, size_t* lineCount )
+{
+    if ( text != nullptr ) {
+        *text = nullptr;
+    }
+    if ( length != nullptr ) {
+        *length = 0;
+    }
+    if ( lineCount != nullptr ) {
+        *lineCount = 0;
+    }
+}
+
+/// The fields of Log Lines a Log File read for a plugin cut to what the
+/// plugin gets: at most LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES Log Lines
+/// whose values are at most LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES together,
+/// whole Log Lines but for a first one whose values are cut. read holds at
+/// most one Log Line more than the bound, which says there are more. Returns
+/// whether fewer Log Lines are left than were asked for and there are.
+bool boundLogLineFields( PluginLogLineFields& read )
+{
+    constexpr auto MaxBytes = static_cast<qsizetype>( LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+    const auto fieldCount = read.fieldCount;
+    auto lines = read.parsed.size();
+    bool truncated = read.more;
+    if ( lines > LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES ) {
+        lines = LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES;
+        truncated = true;
+    }
+    qsizetype bytes = 0;
+    for ( size_t line = 0; line < lines; ++line ) {
+        const auto first = read.values.begin() + static_cast<std::ptrdiff_t>( line * fieldCount );
+        const auto lineBytes = std::accumulate(
+            first, first + static_cast<std::ptrdiff_t>( fieldCount ), qsizetype{ 0 },
+            []( qsizetype sum, const QByteArray& value ) { return sum + value.size(); } );
+        if ( bytes + lineBytes <= MaxBytes ) {
+            bytes += lineBytes;
+            continue;
+        }
+        truncated = true;
+        if ( line > 0 ) {
+            lines = line;
+            break;
+        }
+        // A first Log Line too long for the bound: its values as far as they
+        // fit, each cut at a character, and those after the cut empty.
+        auto left = MaxBytes;
+        for ( auto value = first; value != first + static_cast<std::ptrdiff_t>( fieldCount );
+              ++value ) {
+            cutAtCharacter( *value, left );
+            left -= value->size();
+        }
+        lines = 1;
+        break;
+    }
+    read.parsed.resize( lines );
+    read.values.resize( lines * fieldCount );
+    return truncated;
 }
 
 } // namespace
@@ -1198,16 +1779,7 @@ int PluginHost::hostGoToLogLine( void* handle, uint64_t lineNumber )
 int PluginHost::hostGetSelectedLogLines( void* handle, const char** text, size_t* length,
                                          size_t* lineCount )
 {
-    // Nothing is returned unless the text is.
-    if ( text != nullptr ) {
-        *text = nullptr;
-    }
-    if ( length != nullptr ) {
-        *length = 0;
-    }
-    if ( lineCount != nullptr ) {
-        *lineCount = 0;
-    }
+    clearLogLinesOutputs( text, length, lineCount );
 
     auto* ctx = contextFromHandle( handle );
     if ( !ctx || !ctx->host || text == nullptr ) {
@@ -1232,21 +1804,11 @@ int PluginHost::hostGetSelectedLogLines( void* handle, const char** text, size_t
     if ( !selected ) {
         return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
     }
-    auto& lines = selected->lines;
-    if ( lines.isEmpty() ) {
+    if ( selected->lines.isEmpty() ) {
         return LOGSQUIRL_LOG_LINES_NO_SELECTION;
     }
-    bool more = selected->more || selected->lastCut;
-    if ( lines.size() > LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES ) {
-        lines.resize( LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES );
-        more = true;
-    }
-    // Only a first Log Line comes cut: one cut after whole ones is left out.
-    else if ( selected->lastCut && lines.size() > 1 ) {
-        lines.removeLast();
-    }
 
-    auto result = selectedLogLinesText( lines, more );
+    auto result = logLinesTextFor( std::move( *selected ) );
     ctx->selectedLogLinesUtf8 = std::move( result.text );
     *text = ctx->selectedLogLinesUtf8.constData();
     if ( length != nullptr ) {
@@ -1298,8 +1860,403 @@ void PluginHost::hostRegisterEncodingCallback( void* handle, LogSquirlEncodingCa
     if ( !ctx ) {
         return;
     }
+    const std::lock_guard lock( ctx->registrationsMutex );
     ctx->encodingCallback = callback;
     ctx->encodingUserData = userData;
+}
+
+// The open Log Files are found on the plugin's thread, never through the UI
+// thread: a worker waiting for it while it waits for the worker would
+// deadlock. What is found is held to the end of the call, so a tab closing
+// meanwhile takes nothing away under the read; it answers as a closed one.
+
+int PluginHost::hostGetLogLineCount( void* handle, const char* filePath, uint64_t* count )
+{
+    if ( count != nullptr ) {
+        *count = 0;
+    }
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || filePath == nullptr || count == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    const auto logFile = ctx->host->logFiles_->find( QString::fromUtf8( filePath ) );
+    if ( !logFile ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    const auto lineCount = logFile->source().lineCount();
+    if ( !logFile->isOpen() ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    *count = lineCount;
+    return LOGSQUIRL_LOG_LINES_OK;
+}
+
+int PluginHost::hostGetLogLines( void* handle, const char* filePath, uint64_t firstLine,
+                                 size_t maxLines, const char** text, size_t* length,
+                                 size_t* lineCount )
+{
+    clearLogLinesOutputs( text, length, lineCount );
+
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || filePath == nullptr || text == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    const auto logFile = ctx->host->logFiles_->find( QString::fromUtf8( filePath ) );
+    if ( !logFile ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    // The plugin counts as the views' line numbers do, from 1; the Log File
+    // from 0.
+    if ( firstLine == 0 ) {
+        return LOGSQUIRL_LOG_LINES_OUT_OF_RANGE;
+    }
+
+    // One line more than returned says whether there are more; the source
+    // reads no more than the byte bound lets through.
+    const auto asked = std::min<size_t>( maxLines, LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 1 );
+    auto read = logFile->source().readLogLines( firstLine - 1, asked,
+                                                LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+    if ( !logFile->isOpen() ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    if ( !read ) {
+        return LOGSQUIRL_LOG_LINES_OUT_OF_RANGE;
+    }
+
+    auto result = logLinesTextFor( std::move( *read ) );
+    // The calling thread's own: another thread of the plugin's keeps its text.
+    auto& buffer = ctx->logLinesUtf8.ofThisThread();
+    buffer = std::move( result.text );
+    *text = buffer.constData();
+    if ( length != nullptr ) {
+        *length = static_cast<size_t>( buffer.size() );
+    }
+    if ( lineCount != nullptr ) {
+        *lineCount = result.lineCount;
+    }
+    return result.truncated ? LOGSQUIRL_LOG_LINES_TRUNCATED : LOGSQUIRL_LOG_LINES_OK;
+}
+
+void PluginHost::hostRegisterLogLinesCallback( void* handle, LogSquirlLogLinesCallbackFn callback,
+                                               void* userData )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx ) {
+        return;
+    }
+    const std::lock_guard lock( ctx->registrationsMutex );
+    ctx->logLinesCallback = callback;
+    ctx->logLinesUserData = userData;
+}
+
+int PluginHost::hostRegisterContextMenuAction( void* handle, const char* menuPath,
+                                               const char* label,
+                                               LogSquirlContextMenuCallbackFn callback,
+                                               void* userData )
+{
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port || label == nullptr || *label == '\0' || callback == nullptr ) {
+        return -1;
+    }
+    auto* ctx = contextFromHandle( handle );
+    ContextMenuActionCall* call = nullptr;
+    int id = -1;
+    {
+        // The id from the counter every registration with an id shares (#857).
+        const std::lock_guard lock( ctx->registrationsMutex );
+        id = nextRegistrationId( *ctx );
+        if ( id < 0 ) {
+            return -1;
+        }
+        call = &ctx->contextMenuActionCalls.emplace_back();
+        call->context = ctx;
+        call->callback = callback;
+        call->userData = userData;
+        call->id = id;
+        ctx->contextMenuActionsById.emplace( id, call );
+    }
+    port->addContextMenuAction( pluginId, QString::fromUtf8( menuPath ), QString::fromUtf8( label ),
+                                &PluginHost::runContextMenuAction, call );
+    return id;
+}
+
+void PluginHost::hostUnregisterContextMenuAction( void* handle, int id )
+{
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
+        return;
+    }
+    auto* ctx = contextFromHandle( handle );
+    ContextMenuActionCall* call = nullptr;
+    {
+        const std::lock_guard lock( ctx->registrationsMutex );
+        const auto it = ctx->contextMenuActionsById.find( id );
+        if ( it == ctx->contextMenuActionsById.end() ) {
+            return;
+        }
+        call = it->second;
+        ctx->contextMenuActionsById.erase( it );
+        // From here on no choice of the item reaches the plugin, one already
+        // waiting for the event loop included; the record stays for it.
+        call->removed.store( true );
+    }
+    port->removeContextMenuAction( pluginId, call );
+}
+
+// The Marks are the tabs' own, so they are set on the UI thread only; the
+// plugin is told at once whether its Log File is open, found as the Log Lines
+// are, without waiting for the UI thread (#866).
+int PluginHost::changeMarks( void* handle, const char* filePath, const uint64_t* lines,
+                             size_t count, MarksChange change )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || filePath == nullptr || ( lines == nullptr && count > 0 )
+         || count > LOGSQUIRL_MARKS_MAX_LINES ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    auto path = QString::fromUtf8( filePath );
+    if ( !ctx->host->logFiles_->find( path ) ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+
+    // The plugin counts as the views' line numbers do, from 1; the Log File
+    // from 0. A line of 0 is skipped, as one past the end is by the tabs.
+    std::vector<std::uint64_t> logLines;
+    logLines.reserve( count );
+    for ( size_t i = 0; i < count; ++i ) {
+        if ( lines[ i ] > 0 ) {
+            logLines.push_back( lines[ i ] - 1 );
+        }
+    }
+    if ( logLines.empty() ) {
+        return LOGSQUIRL_LOG_LINES_OK;
+    }
+
+    auto* host = ctx->host;
+    const auto carryOut
+        = [ host, change ]( const QString& logFile, const std::vector<std::uint64_t>& marked ) {
+              if ( !host->uiPort_ ) {
+                  return;
+              }
+              if ( change == MarksChange::Add ) {
+                  host->uiPort_->addMarks( logFile, marked );
+              }
+              else {
+                  host->uiPort_->removeMarks( logFile, marked );
+              }
+          };
+    if ( QThread::currentThread() == host->thread() ) {
+        carryOut( path, logLines );
+        return LOGSQUIRL_LOG_LINES_OK;
+    }
+    // Queued in the order the plugin's thread called; the plugin may be
+    // unloaded before the call runs, and loaded again: then nothing of that
+    // load is marked any more.
+    QMetaObject::invokeMethod(
+        host,
+        [ host, carryOut, loadSerial = ctx->loadSerial, pluginId = ctx->handle.metadata().id(),
+          path = std::move( path ), logLines = std::move( logLines ) ] {
+            const auto* loaded = host->loadedContext( pluginId );
+            if ( !loaded || loaded->loadSerial != loadSerial ) {
+                LOG_INFO << "Plugin " << pluginId
+                         << " was unloaded; dropping its queued change of Marks";
+                return;
+            }
+            carryOut( path, logLines );
+        },
+        Qt::QueuedConnection );
+    return LOGSQUIRL_LOG_LINES_OK;
+}
+
+int PluginHost::hostAddMarks( void* handle, const char* filePath, const uint64_t* lines,
+                              size_t count )
+{
+    return changeMarks( handle, filePath, lines, count, MarksChange::Add );
+}
+
+int PluginHost::hostRemoveMarks( void* handle, const char* filePath, const uint64_t* lines,
+                                 size_t count )
+{
+    return changeMarks( handle, filePath, lines, count, MarksChange::Remove );
+}
+
+int PluginHost::hostGetMarks( void* handle, const char* filePath, const uint64_t** lines,
+                              size_t* count )
+{
+    // Nothing is returned unless the Marks are.
+    if ( lines != nullptr ) {
+        *lines = nullptr;
+    }
+    if ( count != nullptr ) {
+        *count = 0;
+    }
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || filePath == nullptr || lines == nullptr || count == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    // Checked first: the tabs and the cached array are only touched on the UI
+    // thread.
+    if ( QThread::currentThread() != ctx->host->thread() ) {
+        LOG_WARNING << "Plugin " << ctx->handle.metadata().id()
+                    << " read the Marks off the UI thread; none read";
+        return LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD;
+    }
+    const auto [ port, pluginId ] = uiPortFor( handle );
+    if ( !port ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    auto marks = port->marks( QString::fromUtf8( filePath ) );
+    if ( !marks ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+
+    // Numbered from 1, as the plugin counts.
+    ctx->marks = std::move( *marks );
+    for ( auto& line : ctx->marks ) {
+        ++line;
+    }
+    *lines = ctx->marks.empty() ? nullptr : ctx->marks.data();
+    *count = ctx->marks.size();
+    return LOGSQUIRL_LOG_LINES_OK;
+}
+
+// The fields of an open Log File are read as its Log Lines are (#867): found
+// on the plugin's thread, held to the end of the call, and kept per thread.
+
+int PluginHost::hostGetLogFormatFields( void* handle, const char* filePath, const char** formatName,
+                                        const char* const** fieldNames, size_t* fieldCount )
+{
+    // Nothing is returned unless the fields are.
+    if ( formatName != nullptr ) {
+        *formatName = nullptr;
+    }
+    if ( fieldNames != nullptr ) {
+        *fieldNames = nullptr;
+    }
+    if ( fieldCount != nullptr ) {
+        *fieldCount = 0;
+    }
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || filePath == nullptr || fieldNames == nullptr
+         || fieldCount == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    const auto logFile = ctx->host->logFiles_->find( QString::fromUtf8( filePath ) );
+    if ( !logFile ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    const auto format = logFile->source().logFormat();
+    if ( !logFile->isOpen() ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    if ( !format ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT;
+    }
+
+    // The calling thread's own: another thread of the plugin's keeps its names.
+    auto& buffer = ctx->logFormatFields.ofThisThread();
+    buffer.name = format->name.toUtf8();
+    buffer.fieldNames.clear();
+    for ( const auto& name : format->fieldNames ) {
+        buffer.fieldNames.push_back( name.toUtf8() );
+    }
+    buffer.namePointers.clear();
+    for ( const auto& name : buffer.fieldNames ) {
+        buffer.namePointers.push_back( name.constData() );
+    }
+    if ( formatName != nullptr ) {
+        *formatName = buffer.name.constData();
+    }
+    *fieldNames = buffer.namePointers.empty() ? nullptr : buffer.namePointers.data();
+    *fieldCount = buffer.namePointers.size();
+    return LOGSQUIRL_LOG_LINES_OK;
+}
+
+int PluginHost::hostGetLogLineFields( void* handle, const char* filePath, uint64_t firstLine,
+                                      size_t maxLines, const char* const** values,
+                                      const size_t** lengths, const int** parsed,
+                                      size_t* fieldCount, size_t* lineCount )
+{
+    // Nothing is returned unless the values are.
+    if ( values != nullptr ) {
+        *values = nullptr;
+    }
+    if ( lengths != nullptr ) {
+        *lengths = nullptr;
+    }
+    if ( parsed != nullptr ) {
+        *parsed = nullptr;
+    }
+    if ( fieldCount != nullptr ) {
+        *fieldCount = 0;
+    }
+    if ( lineCount != nullptr ) {
+        *lineCount = 0;
+    }
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || filePath == nullptr || values == nullptr || fieldCount == nullptr
+         || lineCount == nullptr ) {
+        return LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT;
+    }
+    const auto logFile = ctx->host->logFiles_->find( QString::fromUtf8( filePath ) );
+    if ( !logFile ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    // Numbered from 1 by the plugin, from 0 by the Log File.
+    if ( firstLine == 0 ) {
+        return LOGSQUIRL_LOG_LINES_OUT_OF_RANGE;
+    }
+
+    // One Log Line more than returned says whether there are more.
+    const auto asked = std::min<size_t>( maxLines, LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES + 1 );
+    auto read = logFile->source().readLogLineFields( firstLine - 1, asked,
+                                                     LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES );
+    if ( !logFile->isOpen() ) {
+        return LOGSQUIRL_LOG_LINES_NO_LOG_FILE;
+    }
+    if ( !read ) {
+        return read.error() == PluginLogLineFieldsUnread::NoLogFormat
+                   ? LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT
+                   : LOGSQUIRL_LOG_LINES_OUT_OF_RANGE;
+    }
+    const auto truncated = boundLogLineFields( *read );
+
+    // The calling thread's own: another thread of the plugin's keeps its
+    // values. Every value follows the one before, with its NUL, in one text.
+    auto& buffer = ctx->logLineFields.ofThisThread();
+    const auto fields = read->fieldCount;
+    buffer.text.clear();
+    buffer.valueLengths.clear();
+    for ( const auto& value : read->values ) {
+        buffer.text.append( value );
+        buffer.text.append( '\0' );
+        buffer.valueLengths.push_back( static_cast<size_t>( value.size() ) );
+    }
+    buffer.valuePointers.clear();
+    buffer.parsed.clear();
+    const char* next = buffer.text.constData();
+    for ( size_t line = 0; line < read->parsed.size(); ++line ) {
+        const bool lineParsed = read->parsed[ line ];
+        buffer.parsed.push_back( lineParsed ? 1 : 0 );
+        for ( size_t field = 0; field < fields; ++field ) {
+            const auto length = buffer.valueLengths[ line * fields + field ];
+            buffer.valuePointers.push_back( lineParsed ? next : nullptr );
+            next += length + 1;
+        }
+    }
+
+    if ( !buffer.valuePointers.empty() ) {
+        *values = buffer.valuePointers.data();
+        if ( lengths != nullptr ) {
+            *lengths = buffer.valueLengths.data();
+        }
+    }
+    if ( parsed != nullptr && !buffer.parsed.empty() ) {
+        *parsed = buffer.parsed.data();
+    }
+    *fieldCount = fields;
+    *lineCount = buffer.parsed.size();
+    return truncated ? LOGSQUIRL_LOG_LINES_TRUNCATED : LOGSQUIRL_LOG_LINES_OK;
 }
 
 } // namespace logsquirl::plugins

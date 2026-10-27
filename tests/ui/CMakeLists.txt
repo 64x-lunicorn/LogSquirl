@@ -28,6 +28,9 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_switch_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/applicationplugins_window_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/pluginlogformats_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugingroups_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/highlightersdialog_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/dialog_queued_work_test.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_screenshots_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sidebar_layout_test.cpp
@@ -50,6 +53,11 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/fieldterm_searchline_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_loglines_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_encoding_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin_logfile_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin_logfields_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin_menu_actions_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin_context_menu_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin_marks_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_conversion_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_follow_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tableview_line_status_theme_test.cpp
@@ -112,6 +120,43 @@ add_dependencies(logsquirl_itests logsquirl_test_encoding_plugin)
 target_compile_definitions(logsquirl_itests PRIVATE
     LOGSQUIRL_TEST_ENCODING_PLUGIN_PATH="$<TARGET_FILE:logsquirl_test_encoding_plugin>")
 
+# A plugin that registers menu items with an id and removes them again (#857).
+add_library(logsquirl_test_menu_actions_plugin MODULE plugins/menuactionsplugin.cpp)
+target_link_libraries(logsquirl_test_menu_actions_plugin PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_test_menu_actions_plugin PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_test_menu_actions_plugin PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_itests logsquirl_test_menu_actions_plugin)
+target_compile_definitions(logsquirl_itests PRIVATE
+    LOGSQUIRL_TEST_MENU_ACTIONS_PLUGIN_PATH="$<TARGET_FILE:logsquirl_test_menu_actions_plugin>")
+
+# A plugin that adds items to the context menu of the Log Lines (#859).
+add_library(logsquirl_test_context_menu_plugin MODULE plugins/contextmenuplugin.cpp)
+target_link_libraries(logsquirl_test_context_menu_plugin PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_test_context_menu_plugin PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_test_context_menu_plugin PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_itests logsquirl_test_context_menu_plugin)
+target_compile_definitions(logsquirl_itests PRIVATE
+    LOGSQUIRL_TEST_CONTEXT_MENU_PLUGIN_PATH="$<TARGET_FILE:logsquirl_test_context_menu_plugin>")
+
+# A plugin that reads the Log Lines of an open Log File by path, on any
+# thread, and hears when they change (#858), and reads their fields (#867).
+add_library(logsquirl_test_log_file_plugin MODULE plugins/logfileplugin.cpp)
+target_link_libraries(logsquirl_test_log_file_plugin PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_test_log_file_plugin PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_test_log_file_plugin PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_itests logsquirl_test_log_file_plugin)
+target_compile_definitions(logsquirl_itests PRIVATE
+    LOGSQUIRL_TEST_LOG_FILE_PLUGIN_PATH="$<TARGET_FILE:logsquirl_test_log_file_plugin>")
+
+# A plugin that sets, removes and reads the Marks of an open Log File (#866).
+add_library(logsquirl_test_marks_plugin MODULE plugins/marksplugin.cpp)
+target_link_libraries(logsquirl_test_marks_plugin PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_test_marks_plugin PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_test_marks_plugin PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_itests logsquirl_test_marks_plugin)
+target_compile_definitions(logsquirl_itests PRIVATE
+    LOGSQUIRL_TEST_MARKS_PLUGIN_PATH="$<TARGET_FILE:logsquirl_test_marks_plugin>")
+
 # The converter plugins of the unit tests, whose Conversion a test holds and
 # cancels: one with convert_ex, of kind "ui", and one with the plain convert
 # only (#795).
@@ -119,6 +164,20 @@ add_dependencies(logsquirl_itests logsquirl_convert_probe logsquirl_convert_prob
 target_compile_definitions(logsquirl_itests PRIVATE
     LOGSQUIRL_CONVERT_PROBE_PATH="$<TARGET_FILE:logsquirl_convert_probe>"
     LOGSQUIRL_CONVERT_PROBE_PLAIN_PATH="$<TARGET_FILE:logsquirl_convert_probe_plain>")
+
+# The converter plugins of the unit tests that claim a file by its content
+# (#861).
+add_dependencies(logsquirl_itests logsquirl_claim_probe_a logsquirl_claim_probe_b)
+target_compile_definitions(logsquirl_itests PRIVATE
+    LOGSQUIRL_CLAIM_PROBE_A_PATH="$<TARGET_FILE:logsquirl_claim_probe_a>"
+    LOGSQUIRL_CLAIM_PROBE_B_PATH="$<TARGET_FILE:logsquirl_claim_probe_b>")
+
+# The data source plugin of the unit tests that writes down when its stream
+# starts and stops, and ends its own stream when the test asks: started from
+# the Sources menu again once it did (#871).
+add_dependencies(logsquirl_itests logsquirl_lifecycle_probe)
+target_compile_definitions(logsquirl_itests PRIVATE
+    LOGSQUIRL_LIFECYCLE_PROBE_PATH="$<TARGET_FILE:logsquirl_lifecycle_probe>")
 
 # theme_screenshots_test copies the demo log from test_data/ (#253).
 target_compile_definitions(logsquirl_itests PRIVATE LOGSQUIRL_SOURCE_DIR="${CMAKE_SOURCE_DIR}")

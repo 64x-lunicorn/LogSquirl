@@ -79,6 +79,8 @@ my_plugin/
 | `license`      | no       | SPDX identifier of the plugin's licence.                        |
 | `icon`         | no       | File name of an icon next to `plugin.json`.                     |
 | `formats`      | no       | Log Format files the plugin ships, see [Shipping Log Formats](#shipping-log-formats). |
+| `predefined_filters` | no | Predefined Filter files the plugin ships, see [Shipping Predefined Filters and Highlighter Sets](#shipping-predefined-filters-and-highlighter-sets). |
+| `highlighter_sets` | no   | Highlighter Set files the plugin ships, see [Shipping Predefined Filters and Highlighter Sets](#shipping-predefined-filters-and-highlighter-sets). |
 | `qt_version`   | no       | The Qt the plugin is built against, as `major.minor` (`"6.8"`), see [Plugins That Use Qt](#plugins-that-use-qt). |
 
 `library` is resolved relative to the directory containing `plugin.json`. It
@@ -113,9 +115,22 @@ const LogSquirlPluginInfo pluginInfo = {
 const LogSquirlHostApi* host = nullptr;
 void* hostHandle = nullptr;
 
+// The ids of the items a host that removes menu items gave: 0 for none.
+int sayHelloItem = 0;
+int stopItem = 0;
+
 void sayHello( void* /* user_data */ )
 {
     host->show_notification( hostHandle, "Hello from My Plugin" );
+}
+
+// Removes both items, from the callback of one of them: neither runs again.
+void stopSayingHello( void* /* user_data */ )
+{
+    host->unregister_menu_action( hostHandle, sayHelloItem );
+    host->unregister_menu_action( hostHandle, stopItem );
+    sayHelloItem = 0;
+    stopItem = 0;
 }
 
 // Called once, on the UI thread, with what the user did in the Regex Lab.
@@ -176,6 +191,101 @@ void encodingChanged( void* /* user_data */, const char* file_path, const char* 
                        ( std::string( file_path ) + " is read as " + encoding ).c_str() );
 }
 
+// Counts the Log Lines of the tab in front. get_log_line_count and
+// get_log_lines may be called from any thread too: a long analysis reads the
+// Log File by its path on a thread of its own.
+void countLines( void* /* user_data */ )
+{
+    const char* path = host->get_active_file_path( hostHandle );
+    uint64_t count = 0;
+    if ( host->get_log_line_count( hostHandle, path, &count ) < 0 ) {
+        host->show_notification( hostHandle, "No Log File in front" );
+        return;
+    }
+    host->show_notification( hostHandle, ( std::to_string( count ) + " Log Lines" ).c_str() );
+}
+
+// Called on the UI thread whenever the Log Lines of an open Log File change.
+void logLinesChanged( void* /* user_data */, const char* file_path, uint64_t line_count,
+                      int change )
+{
+    const char* how = change == LOGSQUIRL_LOG_LINES_APPENDED ? " grew to " : " was loaded anew: ";
+    host->log_message(
+        hostHandle, LOGSQUIRL_LOG_INFO,
+        ( std::string( file_path ) + how + std::to_string( line_count ) + " Log Lines" ).c_str() );
+}
+
+// Called on the UI thread once the user chose Show Line Number in the context
+// menu of the Log Lines: with what was selected as it opened, the Log Lines
+// numbered from 1, and a word selected within one, if any.
+void showLineNumber( void* /* user_data */, const LogSquirlContextMenuContext* context )
+{
+    if ( context->line_number_count == 0 ) {
+        return;
+    }
+    std::string text = "Line " + std::to_string( context->line_numbers[ 0 ] );
+    if ( context->selected_line_count > 1 ) {
+        text += " and " + std::to_string( context->selected_line_count - 1 ) + " more";
+    }
+    if ( context->selected_text != nullptr ) {
+        text += ": " + std::string( context->selected_text, context->selected_text_length );
+    }
+    host->show_notification( hostHandle, text.c_str() );
+}
+
+// Marks the selected Log Lines, as the user would: Next Mark visits them.
+// add_marks may be called from any thread too: a long analysis marks what it
+// found on a thread of its own, at most LOGSQUIRL_MARKS_MAX_LINES per call.
+void markSelection( void* /* user_data */, const LogSquirlContextMenuContext* context )
+{
+    host->add_marks( hostHandle, context->file_path, context->line_numbers,
+                     context->line_number_count );
+}
+
+// Shows the fields of the first selected Log Line as the Table View shows
+// them: named by the Log Format, the values UTF-8 with their lengths, as a
+// value may hold a tab or a line feed. get_log_line_fields may be called from
+// any thread too: statistics per level or per component read ranges of Log
+// Lines on a thread of their own, at most LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES
+// per call.
+void showFields( void* /* user_data */, const LogSquirlContextMenuContext* context )
+{
+    if ( context->line_number_count == 0 ) {
+        return;
+    }
+    const char* format = nullptr;
+    const char* const* names = nullptr;
+    size_t nameCount = 0;
+    if ( host->get_log_format_fields( hostHandle, context->file_path, &format, &names, &nameCount )
+         < 0 ) {
+        host->show_notification( hostHandle, "No Log Format" );
+        return;
+    }
+    const char* const* values = nullptr;
+    const size_t* lengths = nullptr;
+    const int* parsed = nullptr;
+    size_t fieldCount = 0;
+    size_t lineCount = 0;
+    if ( host->get_log_line_fields( hostHandle, context->file_path, context->line_numbers[ 0 ], 1,
+                                    &values, &lengths, &parsed, &fieldCount, &lineCount )
+             < 0
+         || lineCount == 0 || fieldCount != nameCount ) {
+        // Another Log Format applies since the names were read: read them anew.
+        return;
+    }
+    if ( parsed[ 0 ] == 0 ) {
+        host->show_notification( hostHandle,
+                                 ( std::string( "Not a Log Line of " ) + format ).c_str() );
+        return;
+    }
+    std::string text = format;
+    for ( size_t field = 0; field < fieldCount; ++field ) {
+        text += ( field == 0 ? ": " : ", " ) + std::string( names[ field ] ) + "="
+                + std::string( values[ field ], lengths[ field ] );
+    }
+    host->show_notification( hostHandle, text.c_str() );
+}
+
 } // namespace
 
 extern "C" {
@@ -192,7 +302,17 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
     host = api;
     hostHandle = handle;
     api->log_message( handle, LOGSQUIRL_LOG_INFO, "My Plugin initialised" );
-    api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+    // A host that removes menu items gets an item that removes Say Hello again.
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, register_menu_action_ex )
+         && LOGSQUIRL_HOST_API_HAS( api_size, unregister_menu_action ) ) {
+        sayHelloItem
+            = api->register_menu_action_ex( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+        stopItem = api->register_menu_action_ex( handle, "Plugins", "Stop Saying Hello",
+                                                 &stopSayingHello, nullptr );
+    }
+    else {
+        api->register_menu_action( handle, "Plugins", "Say Hello", &sayHello, nullptr );
+    }
     // Only a host that offers the Regex Lab gets the item that opens it.
     if ( LOGSQUIRL_HOST_API_HAS( api_size, open_regex_lab ) ) {
         api->register_menu_action( handle, "Plugins", "Test Pattern", &testPattern, nullptr );
@@ -207,6 +327,24 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init_ex( const LogSquirlHostApi* ap
         api->register_menu_action( handle, "Plugins", "Show Encoding", &showEncoding, nullptr );
         api->register_encoding_callback( handle, &encodingChanged, nullptr );
     }
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, get_log_line_count )
+         && LOGSQUIRL_HOST_API_HAS( api_size, register_log_lines_callback ) ) {
+        api->register_menu_action( handle, "Plugins", "Count Lines", &countLines, nullptr );
+        api->register_log_lines_callback( handle, &logLinesChanged, nullptr );
+    }
+    // An item at the end of the context menu of the Log Lines, in a submenu.
+    if ( LOGSQUIRL_HOST_API_HAS( api_size, register_context_menu_action ) ) {
+        api->register_context_menu_action( handle, "My Plugin", "Show Line Number", &showLineNumber,
+                                           nullptr );
+        if ( LOGSQUIRL_HOST_API_HAS( api_size, add_marks ) ) {
+            api->register_context_menu_action( handle, "My Plugin", "Mark Selected Lines",
+                                               &markSelection, nullptr );
+        }
+        if ( LOGSQUIRL_HOST_API_HAS( api_size, get_log_line_fields ) ) {
+            api->register_context_menu_action( handle, "My Plugin", "Show Fields", &showFields,
+                                               nullptr );
+        }
+    }
     return 0;
 }
 
@@ -220,6 +358,8 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 {
     host = nullptr;
     hostHandle = nullptr;
+    sayHelloItem = 0;
+    stopItem = 0;
 }
 
 } // extern "C"
@@ -228,8 +368,16 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void )
 The exported functions need C linkage: in C++, define them inside
 `extern "C"`, or the host does not find them by name. The example exports
 `logsquirl_plugin_init_ex` as well as `logsquirl_plugin_init`, so it runs on a
-LogSquirl that knows the Regex Lab, Log Line and encoding functions and on one
-that does not.
+LogSquirl that knows the Regex Lab, Log Line, encoding, menu item removal,
+Log File reading, context menu, Marks and field functions and on one that
+does not.
+On a LogSquirl that removes menu items, a
+*Stop Saying Hello* item takes *Say Hello* and itself away again; on one with
+plugin items in the context menu of the Log Lines, *My Plugin* → *Show Line
+Number* there shows the number of the selected Log Line, and *My Plugin* →
+*Mark Selected Lines* marks the selected Log Lines on a LogSquirl whose plugins
+set Marks; *My Plugin* → *Show Fields* shows the fields of the first selected
+Log Line, as the Table View shows them, on one whose plugins read them.
 
 ### 4. Build with CMake
 
@@ -361,6 +509,67 @@ Format with its Source: *Built-in*, *User*, or the plugin's name.
 
 ---
 
+## Shipping Predefined Filters and Highlighter Sets
+
+A plugin can ship Predefined Filters and Highlighter Sets for the logs it
+deals with, say a "Crashes" Filter Group and a set that colors log levels.
+Like Log Formats this is declarative: the plugin names the files in its
+manifest, LogSquirl reads them, and no host function is involved.
+
+Add the optional `predefined_filters` and `highlighter_sets` keys to
+`plugin.json` (added in LogSquirl 26.12), each a list of paths relative to the
+plugin directory, next to `formats`:
+
+```json
+{
+    "id": "com.example.logcat",
+    "name": "Logcat",
+    "version": "1.0.0",
+    "type": "converter",
+    "library": "logcat_plugin",
+    "api_version": 1,
+    "formats": [ "formats/logcat_log.json" ],
+    "predefined_filters": [ "filters/Crashes_filter.conf" ],
+    "highlighter_sets": [ "highlighters/Levels_highlighter.conf" ]
+}
+```
+
+**The files.** Each file has the format the *Predefined Filters* dialog and the
+*Highlighters* dialog export: build the Filter Group or the Highlighter Set in
+LogSquirl, select it, press *Export*, and put the file into the plugin
+directory. A file may hold more than one group. The path rules are those of
+`formats`: a path that leaves the plugin directory (`../x.conf`, an absolute
+path) makes the manifest invalid, and the plugin is not listed at all. A
+manifest without the keys, or with empty lists, ships none and the plugin
+behaves as before.
+
+**When they are read.** They are read for every *enabled* plugin, whether or
+not its library is loaded, at the points the Log Format Catalog takes the
+plugins' Log Formats: once the plugin manifests have been read after start-up,
+and whenever a plugin is enabled or disabled in Plugin Management.
+
+**How they show.** The Filters panel, the Highlighters menu and the two dialogs
+list them after the user's own, each named with its Source, the plugin's name:
+*Crashes (Logcat)*. They are applied like the user's own, but are read-only:
+the dialogs show them in a section of their own, and *Copy to my groups* makes
+a copy the user owns and can change. A group or set of the user's with the same
+name stays as it is; both are listed, told apart by their Source.
+
+**Never stored.** Nothing of a plugin's groups goes into the user's settings:
+the user's Predefined Filters and Highlighter Sets are stored without them.
+Only whether one of the plugin's Highlighter Sets is switched on is the user's,
+and kept. Disabling the plugin removes its groups; if one of its Highlighter
+Sets was switched on, it is switched off, and when no other is on the Log Lines
+show as with no Highlighter Set chosen. Enabling the plugin again brings them
+back, switched off.
+
+**A file that cannot be read.** A missing file, one that is not an exported
+Filter Group or Highlighter Set, or one of the other kind is skipped with a
+logged warning naming the plugin and the file. The plugin's other files and the
+plugin itself are unaffected.
+
+---
+
 ## Plugins That Use Qt
 
 Most plugins don't touch Qt. A plugin that hands a widget to the host
@@ -445,7 +654,8 @@ LOGSQUIRL_PLUGIN_EXPORT void logsquirl_plugin_shutdown( void );
 - `logsquirl_plugin_shutdown` releases everything the plugin allocated, and
   stops and joins the threads it started. The host calls it before it unloads
   the library, and before it ends a stream of the plugin's that is still
-  running.
+  running, but after it stopped that stream through
+  `logsquirl_datasource_stop`.
 
 **Optional** exports, for any plugin type:
 
@@ -481,6 +691,29 @@ A host that knows `logsquirl_converter_convert_ex` calls it instead of
 that exports `convert_ex` still exports `convert`. A plugin may export
 either one, or both. See [Converters](#converters).
 
+A converter that claims a file by its content as well also exports
+(optional, added in LogSquirl 26.12):
+
+```c
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_claims( const char*, const unsigned char*,
+                                                        size_t );
+```
+
+A plugin without it is never asked, and converts the files its extensions
+match as before. See [Claiming a File by Its Content](#claiming-a-file-by-its-content).
+
+A data source that hears when its stream starts and stops also exports
+(optional, added in LogSquirl 26.12):
+
+```c
+LOGSQUIRL_PLUGIN_EXPORT int  logsquirl_datasource_start( const LogSquirlDataSourceContext* );
+LOGSQUIRL_PLUGIN_EXPORT void logsquirl_datasource_stop( const LogSquirlDataSourceContext* );
+```
+
+Each is optional on its own; a plugin without them streams as before. An older
+host never calls them: such a plugin opens its source in `init` there, see
+[Data Source Streaming](#data-source-streaming).
+
 The host resolves the functions by these names, which the header also defines
 as constants:
 
@@ -493,6 +726,9 @@ as constants:
 #define LOGSQUIRL_CONVERTER_ENTRY_GET_EXTS "logsquirl_converter_get_extensions"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT "logsquirl_converter_convert"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT_EX "logsquirl_converter_convert_ex"
+#define LOGSQUIRL_CONVERTER_ENTRY_CLAIMS "logsquirl_converter_claims"
+#define LOGSQUIRL_DATASOURCE_ENTRY_START "logsquirl_datasource_start"
+#define LOGSQUIRL_DATASOURCE_ENTRY_STOP "logsquirl_datasource_stop"
 ```
 
 and the function pointer types it casts them to:
@@ -508,6 +744,10 @@ typedef const char* ( *LogSquirlConverterGetExtsFn )( void );
 typedef int ( *LogSquirlConverterConvertFn )( const char* input_path, const char* output_path );
 typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const char* output_path,
                                                 const LogSquirlConvertControl* control );
+typedef int ( *LogSquirlConverterClaimsFn )( const char* file_path, const unsigned char* head,
+                                             size_t head_length );
+typedef int ( *LogSquirlDataSourceStartFn )( const LogSquirlDataSourceContext* context );
+typedef void ( *LogSquirlDataSourceStopFn )( const LogSquirlDataSourceContext* context );
 ```
 
 ### `LogSquirlConvertControl`
@@ -540,6 +780,31 @@ typedef struct LogSquirlConvertControl {
           + sizeof( ( (const LogSquirlConvertControl*)0 )->member )                                \
       <= ( control )->size )
 ```
+
+### `LogSquirlDataSourceContext`
+
+What the host hands `logsquirl_datasource_start` and
+`logsquirl_datasource_stop` (added in LogSquirl 26.12). The host owns it: it
+is valid during the call only, so keep no pointer to it, and never copy the
+struct. It holds only its size for now, and grows by appending members, as
+`LogSquirlConvertControl` does: read a member added later only when `size`
+holds the whole member.
+
+```c
+typedef struct LogSquirlDataSourceContext {
+    size_t size; /* sizeof( LogSquirlDataSourceContext ) in the host's build */
+} LogSquirlDataSourceContext;
+
+typedef enum {
+    LOGSQUIRL_DATASOURCE_STARTED = 0,  /* the stream runs                                */
+    LOGSQUIRL_DATASOURCE_FAILED = 1,   /* not started: the user is told it failed       */
+    LOGSQUIRL_DATASOURCE_CANCELLED = 2 /* not started: the user cancelled, nothing said */
+} LogSquirlDataSourceStartResult;
+```
+
+`LogSquirlDataSourceStartResult` is what `logsquirl_datasource_start`
+returns. Any value other than these three counts as failed, as
+`LOGSQUIRL_DATASOURCE_FAILED` does.
 
 ### `LogSquirlPluginType`
 
@@ -578,8 +843,11 @@ come from `plugin.json`.
 The function-pointer table the host passes to `init`. It is valid from `init`
 until `shutdown`, and its functions are safe to call from any thread, but for
 `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`,
-`get_log_file_encoding` and `get_active_file_path`, which are called on the UI
-thread only.
+`get_log_file_encoding`, `get_active_file_path` and `get_marks`, which are
+called on the UI thread only. `get_log_line_count`, `get_log_lines`,
+`get_log_format_fields` and `get_log_line_fields` in particular are made for a
+thread of the plugin's own: they never wait for the UI thread; nor do
+`add_marks` and `remove_marks`, which the host carries out on the UI thread.
 
 ```c
 typedef struct {
@@ -623,6 +891,30 @@ typedef struct {
     int ( *get_log_file_encoding )( void* handle, const char* file_path, const char** encoding );
     void ( *register_encoding_callback )( void* handle, LogSquirlEncodingCallbackFn callback,
                                           void* user_data );
+    int ( *register_menu_action_ex )( void* handle, const char* menu_path, const char* label,
+                                      void ( *callback )( void* user_data ), void* user_data );
+    void ( *unregister_menu_action )( void* handle, int id );
+    int ( *get_log_line_count )( void* handle, const char* file_path, uint64_t* count );
+    int ( *get_log_lines )( void* handle, const char* file_path, uint64_t first_line,
+                            size_t max_lines, const char** text, size_t* length,
+                            size_t* line_count );
+    void ( *register_log_lines_callback )( void* handle, LogSquirlLogLinesCallbackFn callback,
+                                           void* user_data );
+    int ( *register_context_menu_action )( void* handle, const char* menu_path, const char* label,
+                                           LogSquirlContextMenuCallbackFn callback,
+                                           void* user_data );
+    void ( *unregister_context_menu_action )( void* handle, int id );
+    int ( *add_marks )( void* handle, const char* file_path, const uint64_t* lines, size_t count );
+    int ( *remove_marks )( void* handle, const char* file_path, const uint64_t* lines,
+                           size_t count );
+    int ( *get_marks )( void* handle, const char* file_path, const uint64_t** lines,
+                        size_t* count );
+    int ( *get_log_format_fields )( void* handle, const char* file_path, const char** format_name,
+                                    const char* const** field_names, size_t* field_count );
+    int ( *get_log_line_fields )( void* handle, const char* file_path, uint64_t first_line,
+                                  size_t max_lines, const char* const** values,
+                                  const size_t** lengths, const int** parsed, size_t* field_count,
+                                  size_t* line_count );
 } LogSquirlHostApi;
 ```
 
@@ -632,6 +924,41 @@ call one, check that the running host offers it (see
 
 The `handle` is an opaque pointer — always pass the same `handle` value that
 was given to your `init` function. **Never** dereference or interpret it.
+
+The functions follow one set of rules for strings and registrations (see
+[ADR 0022](adr/0022-a-registration-a-plugin-removes-returns-an-id-and-a-returned-string-lives-until-the-same-call.md)):
+
+- **Strings you pass** are copied before the call returns; free them after.
+- **Strings the host returns** (`get_config_dir`, `get_active_file_path`,
+  `get_selected_log_lines`, `get_log_file_encoding`) are the host's: each is
+  valid until your plugin calls the same function again or is shut down,
+  whatever other plugins call meanwhile. The text of `get_log_lines` is valid
+  until your plugin calls it again *on the same thread*, so each thread keeps
+  its own; so are the names of `get_log_format_fields` and the arrays and
+  values of `get_log_line_fields`, each until your plugin calls that same
+  function again on the same thread. The array of `get_marks` is valid until
+  your plugin calls it again or is shut down, like those strings. Copy what
+  you keep longer.
+- **Strings the host passes to a callback** are valid during the call only.
+- **Registrations**: each `register_*` function says whether a second call
+  replaces the first registration or adds another, and how a registration is
+  removed; see the table below. Whatever your plugin still has registered is
+  removed when it is unloaded. A registration that returns an id returns one
+  greater than 0, never handed out twice while the plugin is loaded, or a
+  negative value when nothing was registered; its `unregister_*` function does
+  nothing for an id it does not know, or no longer knows.
+
+| Function                        | A second call                                    | Removed by                         |
+|---------------------------------|--------------------------------------------------|------------------------------------|
+| `register_status_widget`        | adds another widget; the same widget again does nothing | `unregister_status_widget`  |
+| `register_sidebar_tab`          | adds another tab; the same widget again does nothing    | `unregister_sidebar_tab`    |
+| `register_footer_widget`        | adds another widget; the same widget again does nothing | `unregister_footer_widget`  |
+| `register_menu_action`          | adds another item, but none of a menu path and label the plugin already has | unloading the plugin only |
+| `register_menu_action_ex`       | adds another item with an id of its own; a menu path and label the plugin already has fails | `unregister_menu_action` |
+| `register_context_menu_action`  | adds another item with an id of its own, whatever its label | `unregister_context_menu_action` |
+| `register_active_file_callback` | replaces the callback                            | a `NULL` callback                  |
+| `register_encoding_callback`    | replaces the callback                            | a `NULL` callback                  |
+| `register_log_lines_callback`   | replaces the callback                            | a `NULL` callback                  |
 
 ### `LogSquirlLogLevel`
 
@@ -677,7 +1004,14 @@ LogSquirl adds host functions without changing `LOGSQUIRL_PLUGIN_API_VERSION`
 
 #define LOGSQUIRL_HOST_API_HAS( size, member )                                                     \
     ( offsetof( LogSquirlHostApi, member ) + LOGSQUIRL_HOST_API_MEMBER_SIZE( member ) <= ( size ) )
+
+#define LOGSQUIRL_HOST_CALLS_DATASOURCE_START( size )                                              \
+    LOGSQUIRL_HOST_API_HAS( size, get_log_line_fields )
 ```
+
+`LOGSQUIRL_HOST_CALLS_DATASOURCE_START` says whether a host whose table is
+that size calls a data source's start and stop, see
+[Data Source Streaming](#data-source-streaming).
 
 Keep the pointer the host passes and read the table through it. Never copy
 `*api` into a `LogSquirlHostApi` of your own: the copy reads the whole struct
@@ -691,13 +1025,25 @@ The example plugin shows the pattern: `logsquirl_plugin_init` forwards to
 `LOGSQUIRL_HOST_API_HAS( api_size, open_regex_lab )`. Keep the size, or what it
 tells, for later calls.
 
-| Function                     | Added in        |
-|------------------------------|-----------------|
-| `open_regex_lab`             | LogSquirl 26.11 |
-| `go_to_log_line`             | LogSquirl 26.11 |
-| `get_selected_log_lines`     | LogSquirl 26.11 |
-| `get_log_file_encoding`      | LogSquirl 26.12 |
-| `register_encoding_callback` | LogSquirl 26.12 |
+| Function                         | Added in        |
+|----------------------------------|-----------------|
+| `open_regex_lab`                 | LogSquirl 26.11 |
+| `go_to_log_line`                 | LogSquirl 26.11 |
+| `get_selected_log_lines`         | LogSquirl 26.11 |
+| `get_log_file_encoding`          | LogSquirl 26.12 |
+| `register_encoding_callback`     | LogSquirl 26.12 |
+| `register_menu_action_ex`        | LogSquirl 26.12 |
+| `unregister_menu_action`         | LogSquirl 26.12 |
+| `get_log_line_count`             | LogSquirl 26.12 |
+| `get_log_lines`                  | LogSquirl 26.12 |
+| `register_log_lines_callback`    | LogSquirl 26.12 |
+| `register_context_menu_action`   | LogSquirl 26.12 |
+| `unregister_context_menu_action` | LogSquirl 26.12 |
+| `add_marks`                      | LogSquirl 26.12 |
+| `remove_marks`                   | LogSquirl 26.12 |
+| `get_marks`                      | LogSquirl 26.12 |
+| `get_log_format_fields`          | LogSquirl 26.12 |
+| `get_log_line_fields`            | LogSquirl 26.12 |
 
 ### Regex Lab Types
 
@@ -717,9 +1063,15 @@ typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, cons
 
 ### Log Lines Types
 
-The result of `go_to_log_line`, `get_selected_log_lines` and
-`get_log_file_encoding`, and the bounds of the text `get_selected_log_lines`
-returns:
+The result of `go_to_log_line`, `get_selected_log_lines`,
+`get_log_file_encoding`, `get_log_line_count`, `get_log_lines`, `add_marks`,
+`remove_marks`, `get_marks`, `get_log_format_fields` and
+`get_log_line_fields`, the bounds of the text `get_selected_log_lines` and
+`get_log_lines` return and of the Log Lines and values `get_log_line_fields`
+returns, the most line numbers one call of `add_marks` or `remove_marks`
+takes, and the change and the callback of `register_log_lines_callback`.
+`LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT` came with LogSquirl 26.12, which an older
+host never returns:
 
 ```c
 typedef enum {
@@ -729,11 +1081,22 @@ typedef enum {
     LOGSQUIRL_LOG_LINES_NO_LOG_FILE = -2,
     LOGSQUIRL_LOG_LINES_OUT_OF_RANGE = -3,
     LOGSQUIRL_LOG_LINES_NO_SELECTION = -4,
-    LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5
+    LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5,
+    LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT = -6
 } LogSquirlLogLinesResult;
 
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES 1000
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES 1048576
+
+#define LOGSQUIRL_MARKS_MAX_LINES 10000
+
+typedef enum {
+    LOGSQUIRL_LOG_LINES_APPENDED = 0,
+    LOGSQUIRL_LOG_LINES_REPLACED = 1
+} LogSquirlLogLinesChange;
+
+typedef void ( *LogSquirlLogLinesCallbackFn )( void* user_data, const char* file_path,
+                                               uint64_t line_count, int change );
 ```
 
 ### Encoding Types
@@ -743,6 +1106,45 @@ The callback of `register_encoding_callback`:
 ```c
 typedef void ( *LogSquirlEncodingCallbackFn )( void* user_data, const char* file_path,
                                                const char* encoding );
+```
+
+### Context Menu Types
+
+The view, the context and the callback of `register_context_menu_action`
+(added in LogSquirl 26.12). The host owns the context and everything it
+points to: it is valid during the call only, so keep no pointer to it, and
+never copy the struct. It grows by appending members, as
+`LogSquirlConvertControl` does: check
+`LOGSQUIRL_CONTEXT_MENU_CONTEXT_HAS( context, member )` before reading a
+member added later (the members below are always there).
+
+```c
+typedef enum {
+    LOGSQUIRL_LOG_VIEW_TEXT = 0,    /* the Text View     */
+    LOGSQUIRL_LOG_VIEW_TABLE = 1,   /* the Table View    */
+    LOGSQUIRL_LOG_VIEW_FILTERED = 2 /* the Filtered View */
+} LogSquirlLogView;
+
+typedef struct LogSquirlContextMenuContext {
+    size_t size;           /* sizeof( LogSquirlContextMenuContext ) in the host's build */
+    const char* file_path; /* the Log File, as get_active_file_path names it */
+    int view;              /* one of LogSquirlLogView */
+    /* the selected Log Lines, numbered from 1, in the order of the Log File */
+    const uint64_t* line_numbers;
+    size_t line_number_count;
+    uint64_t selected_line_count; /* how many were selected, those not listed too */
+    /* the text selected within one Log Line or cell; NULL for whole Log Lines */
+    const char* selected_text;
+    size_t selected_text_length; /* in bytes, without the NUL */
+} LogSquirlContextMenuContext;
+
+#define LOGSQUIRL_CONTEXT_MENU_CONTEXT_HAS( context, member )                                      \
+    ( offsetof( LogSquirlContextMenuContext, member )                                              \
+          + sizeof( ( (const LogSquirlContextMenuContext*)0 )->member )                            \
+      <= ( context )->size )
+
+typedef void ( *LogSquirlContextMenuCallbackFn )( void* user_data,
+                                                  const LogSquirlContextMenuContext* context );
 ```
 
 ---
@@ -767,8 +1169,9 @@ const char* dir = api->get_config_dir( handle );
 
 The directory is `plugin_config/<plugin id>` next to the user plugin directory,
 beside the executable in a portable LogSquirl, and is created before `init` is
-called. The returned string is valid until the
-next call to `get_config_dir`. Use it to persist any plugin-specific settings.
+called. The host owns the returned string: it is valid until your plugin calls
+`get_config_dir` again or is shut down. Use it to persist any plugin-specific
+settings.
 
 ### Data Source Streaming
 
@@ -791,16 +1194,103 @@ api->signal_eos( handle );
 api->signal_error( handle, "Device disconnected" );
 ```
 
-Lines pushed while no stream of the plugin is running are dropped.
+Lines pushed while no stream of the plugin is running are dropped. A plugin
+has one stream at a time: while it runs, choosing the plugin again in the
+`Sources` menu does not start another.
 
-A stream the user ends -- by disabling or unloading the plugin from the
-Plugin Management dialog, or by closing LogSquirl -- goes in this order: the
-host calls `logsquirl_plugin_shutdown` first and waits for it to return, then
-signals end-of-stream and frees the stream. A thread of the plugin's may push
-until `shutdown` returns; what it pushes meanwhile reaches a live stream.
-`shutdown` must stop and join such a thread before it returns, since nothing
-the plugin calls after that is answered. A stream the host ends on its own,
-with the plugin still loaded, drops what the plugin pushes from then on.
+Call `signal_eos`, from any thread, when the source has nothing more to give:
+the process exited, the device went away, the file was read to its end. The
+stream takes no more lines from then on, and the lines pushed after
+`signal_eos` are dropped. Once the UI thread's event loop turns, the host ends
+the stream as it ends any other: it calls `logsquirl_datasource_stop`, if the
+plugin exports it, and counts the data source as stopped. Its tab stays open
+and keeps showing what was pushed: the stream's file stays until the plugin is
+disabled or unloaded, or LogSquirl closes. The user can start the data source
+again from the `Sources` menu, which opens a new tab with a stream of its own.
+
+A plugin learns when its stream starts and stops from two optional exports
+(added in LogSquirl 26.12, see
+[ADR 0023](adr/0023-a-data-source-is-stopped-once-for-every-start-it-let-run-before-its-stream-ends.md)),
+both called on the UI thread with a
+[`LogSquirlDataSourceContext`](#logsquirldatasourcecontext) that is valid
+during the call only:
+
+- `logsquirl_datasource_start` is called when the user starts the data
+  source, before the stream counts as started. Open the device, socket or
+  process here; the plugin may show a modal dialog of its own to ask which.
+  Lines pushed from inside the call already reach the stream. Return
+  `LOGSQUIRL_DATASOURCE_STARTED` to let the stream run: it opens in a tab,
+  and lines pushed from then on reach it. Return
+  `LOGSQUIRL_DATASOURCE_CANCELLED` when the user cancelled: nothing opens and
+  the user is told nothing. Return `LOGSQUIRL_DATASOURCE_FAILED`, or any other
+  non-zero value, when it failed: nothing opens, and the user is told that the
+  data source did not start, with the value; say why with
+  `show_notification` first. What was pushed is discarded when the stream
+  does not start.
+- `logsquirl_datasource_stop` is called exactly once for every start that
+  returned `LOGSQUIRL_DATASOURCE_STARTED`, however the stream ends: the user
+  stops it, the plugin signals end-of-stream itself, the plugin is disabled
+  or unloaded, or LogSquirl quits. It is called before the host signals
+  end-of-stream, so push the last lines here and close the source. A push
+  that returns after `stop` has returned may be dropped. A plugin that
+  signalled end-of-stream itself is stopped once the event loop turns, after
+  its own end-of-stream: what it pushes in `stop` then is dropped, and `stop`
+  only closes the source.
+
+A start the plugin refused is never stopped. A plugin without
+`logsquirl_datasource_start` counts as having let every stream run, and a
+plugin without `logsquirl_datasource_stop` is simply not told.
+
+```cpp
+/* A data source that reads a device from a thread of its own. */
+std::thread reader;
+std::atomic<bool> reading{ false };
+
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_datasource_start( const LogSquirlDataSourceContext* )
+{
+    if ( !askWhichDevice() ) {
+        return LOGSQUIRL_DATASOURCE_CANCELLED; /* the user closed the dialog */
+    }
+    if ( !openDevice() ) {
+        host->show_notification( hostHandle, "The device is busy" );
+        return LOGSQUIRL_DATASOURCE_FAILED;
+    }
+    reading = true;
+    reader = std::thread( [] {
+        std::string line;
+        while ( reading && readLine( line ) ) {
+            host->push_line( hostHandle, line.data(), line.size() );
+        }
+    } );
+    return LOGSQUIRL_DATASOURCE_STARTED;
+}
+
+LOGSQUIRL_PLUGIN_EXPORT void logsquirl_datasource_stop( const LogSquirlDataSourceContext* )
+{
+    reading = false;
+    reader.join(); /* its last lines still reach the stream */
+    closeDevice();
+}
+```
+
+A stream that ends because the plugin is disabled or unloaded from the
+Plugin Management dialog, or because LogSquirl closes, goes in this order: the
+host calls `logsquirl_datasource_stop` first, then `logsquirl_plugin_shutdown`
+and waits for it to return, then signals end-of-stream and frees the stream,
+and with it the files of this and every earlier stream of the plugin.
+A thread of the plugin's may push until `shutdown` returns; what it pushes
+meanwhile reaches a live stream. `shutdown` must stop and join such a thread
+before it returns, since nothing the plugin calls after that is answered. A
+stream the host ends on its own, with the plugin still loaded, is stopped in
+the plugin first and drops what the plugin pushes once `stop` has returned;
+its file stays for its tab until the plugin is unloaded.
+A host older than LogSquirl 26.12 knows neither export and never calls them.
+`LOGSQUIRL_HOST_CALLS_DATASOURCE_START( api_size )` tells the hosts that call
+them, LogSquirl 26.12 and later, whose host API table reaches
+`get_log_line_fields`, a function 26.12 added: a plugin that also runs on an
+older host opens its source in `logsquirl_plugin_init_ex` when
+`LOGSQUIRL_HOST_CALLS_DATASOURCE_START( api_size )` is false, and in
+`logsquirl_plugin_init`, and closes it in `shutdown`.
 
 ### Converters
 
@@ -867,6 +1357,64 @@ LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert( const char* input_path,
 }
 ```
 
+#### Claiming a File by Its Content
+
+A format whose files have no extension of their own -- a capture saved as
+`.log`, `.bin`, `.dat` or without any -- is recognised by its first bytes
+instead. A converter that also exports `logsquirl_converter_claims` (added in
+LogSquirl 26.12) is asked about such a file: it gets the file's absolute UTF-8
+path and its first bytes, and returns non-zero when it converts the file. The
+host reads the bytes itself and hands over this many, or fewer when the file
+is shorter (none for an empty file; `head` is never `NULL`):
+
+```c
+#define LOGSQUIRL_CONVERTER_CLAIMS_HEAD_LENGTH 4096
+```
+
+`head` is valid during the call only. A file the host cannot read is claimed
+by no plugin, and no plugin is asked about it. When a Log File is opened, it
+goes to the first converter in this order that takes it:
+
+1. A converter whose `logsquirl_converter_get_extensions` lists the file's
+   extension. When several do, the one with the smallest plugin `id` converts
+   it, and no plugin is asked about its content.
+2. Else the converters that export `logsquirl_converter_claims`, asked one
+   after the other in the order of their plugin `id`s. The first that returns
+   non-zero converts the file, and the converters after it are not asked.
+3. Else no converter: the file is decompressed if it is compressed or an
+   archive, and opened as text.
+
+The bytes are the file's as it is on disk, before it is decompressed: a
+converter may claim a compressed file, which it then converts. A file taken
+out of an archive or decompressed is offered again like any other file. The
+Conversion runs as it does for an extension, with progress and Cancel, and the
+Log Format of what it wrote is recognised as for any other Log File. A
+converter that claims by its content only returns an empty string from
+`logsquirl_converter_get_extensions`. What LogSquirl writes itself -- what a
+Conversion wrote, a stream, a merge, the text pasted from the clipboard, a
+download -- is not offered.
+
+The check runs on a worker thread of the host's, never on the UI thread, and
+may run for several files at the same time, also while a Conversion of the
+plugin runs. The file opens only once the check has returned, so return
+quickly: compare a few bytes, do not parse the file. The host never calls it
+after `logsquirl_plugin_shutdown`: an unload waits for a call under way, so a
+slow check delays the unload of your plugin, and the user interface with it
+when the plugin is unloaded on the UI thread, as when the user disables it or
+LogSquirl quits. A host older than 26.12 never calls it, and converts by the
+extensions only.
+
+```cpp
+LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_claims( const char* file_path,
+                                                        const unsigned char* head,
+                                                        size_t head_length )
+{
+    (void)file_path; /* judged by the content alone */
+    static const unsigned char magic[] = { 'M', 'Y', 'F', 'M', 'T', '1' };
+    return head_length >= sizeof( magic ) && std::memcmp( head, magic, sizeof( magic ) ) == 0;
+}
+```
+
 ### UI Integration
 
 ```cpp
@@ -893,12 +1441,100 @@ without that first segment. The last segment is a submenu too, the item's own
 text is always `label`. Items and submenus go above `Plugin Management...`,
 and plugins naming the same path share its submenus. When the plugin is
 unloaded, its items go away, and so does every submenu nothing is left in.
+A plugin's items in one submenu have different labels: a second
+`register_menu_action` of a menu path and label the plugin already has adds
+nothing. Paths that name the same submenu, such as `"Tools"` and
+`"Plugins/Tools/"`, count as the same; an item of the same label in another
+submenu, such as `"Tools"`/`"Export"` and `"Report"`/`"Export"`, is an item
+of its own.
+
+An item of `register_menu_action` stays until the plugin is unloaded. To
+remove one earlier, register it with `register_menu_action_ex` (added in
+LogSquirl 26.12), which takes the same arguments and returns the item's id:
+
+```c
+if ( LOGSQUIRL_HOST_API_HAS( api_size, register_menu_action_ex )
+     && LOGSQUIRL_HOST_API_HAS( api_size, unregister_menu_action ) ) {
+    int id = api->register_menu_action_ex( handle, "My Plugin", "Connect", &connect, userData );
+    /* ... later, from any thread, from the item's own callback too */
+    api->unregister_menu_action( handle, id );
+}
+```
+
+The id is greater than 0 and unique within the plugin while it is loaded; it
+comes back at once, also when called on another thread, before the item
+appears on the UI thread. A negative value means no item was added: a `NULL`
+or empty `label`, a `NULL` callback, or a menu path and label the plugin
+already has an item of. `unregister_menu_action` removes the item from every window, and a
+submenu the host created for it once nothing is left in it. Once it returns,
+the item's callback is not called again: a trigger still queued is dropped.
+An id the plugin was not given, or one already removed, does nothing. To
+relabel an item, remove it and register it again.
 
 `register_status_widget`, `register_sidebar_tab` and `register_footer_widget`
 take a `QWidget*` cast to `void*`: the plugin creates and owns the widget and
 the host parents it. Unregister the widget again before you delete it, at the
 latest in `shutdown`. Such a plugin links against the same Qt 6 LogSquirl
 uses and names it in its manifest, see [Plugins That Use Qt](#plugins-that-use-qt).
+
+### Context Menu
+
+`register_context_menu_action` (added in LogSquirl 26.12, see
+[ADR 0025](adr/0025-a-context-menu-item-is-called-from-the-event-loop-with-what-was-selected-as-the-menu-opened.md))
+adds an item to the context menu of the Log Lines: that of the Text View, the
+Table View and the Filtered View, in every window and every tab, those opened
+later included. The items of all plugins sit below a separator at the end of
+the menu, in the order they were registered; without any, there is no
+separator. `menu_path` makes submenus of that section as it does for the
+Plugins menu (`"My Plugin/Decode"`), and an empty path, or `NULL`, puts the
+item directly into the section.
+
+```c
+/* Called on the UI thread once the user chose the item and the menu closed. */
+void decode( void* user_data, const LogSquirlContextMenuContext* context )
+{
+    if ( context->selected_text != NULL ) {
+        /* a word or an id selected within one Log Line or table cell */
+    }
+    for ( size_t i = 0; i < context->line_number_count; ++i ) {
+        /* read context->line_numbers[ i ] with get_log_lines( handle,
+           context->file_path, context->line_numbers[ i ], 1, ... ) */
+    }
+}
+
+if ( LOGSQUIRL_HOST_API_HAS( api_size, register_context_menu_action )
+     && LOGSQUIRL_HOST_API_HAS( api_size, unregister_context_menu_action ) ) {
+    int id = api->register_context_menu_action( handle, "My Plugin", "Decode", &decode, userData );
+    /* ... later, from any thread, from the item's own callback too */
+    api->unregister_context_menu_action( handle, id );
+}
+```
+
+An item is always shown and enabled: LogSquirl does not call the plugin as
+the menu opens, so it cannot hide an item that does not fit the selection.
+When the user chooses it, the callback is called on the UI thread once the
+menu has closed, with a `LogSquirlContextMenuContext` of what was selected as
+the menu opened (see [Context Menu Types](#context-menu-types)):
+
+- `file_path` is the Log File, as `get_active_file_path` names it, and `view`
+  says which view the menu was opened in.
+- `line_numbers` lists the selected Log Lines, numbered from 1 as the views
+  number them and in the order of the Log File; in the Filtered View too, they
+  are the numbers of the Log File. A right-click on a Log Line outside the
+  selection selects that Log Line first. At most
+  `LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES` are listed, the first ones;
+  `selected_line_count` says how many were selected.
+- `selected_text` is the text selected within one Log Line or one table cell,
+  UTF-8, with its length in bytes; `NULL` when whole Log Lines are selected.
+  Read the text of whole Log Lines with `get_log_lines`.
+
+The callback is not called when the view the menu was opened in, or its tab,
+was closed meanwhile, nor once `unregister_context_menu_action` has returned
+for it, a choice still queued included. Each call of
+`register_context_menu_action` adds an item of its own and returns its id,
+greater than 0; a negative value means no item was added: a `NULL` or empty
+`label` or a `NULL` callback. An id the plugin was not given, or one already
+removed, does nothing.
 
 ### Active File
 
@@ -910,9 +1546,14 @@ const char* path = api->get_active_file_path( handle );
 api->register_active_file_callback( handle, &onActiveFile, userData );
 ```
 
-The string `get_active_file_path` returns is valid until the next host API
-call. Call it on the UI thread only: called on another thread, it touches no
-window and returns an empty string, as without a file.
+The host owns the string `get_active_file_path` returns: it is valid until
+your plugin calls `get_active_file_path` again or is shut down, whatever other
+plugins ask meanwhile. Call it on the UI thread only: called on another
+thread, it touches no window and returns an empty string, as without a file.
+
+The active-file callback is called on the UI thread with the new path, valid
+during the call only. A plugin has one such callback: registering another
+replaces it, and `NULL` removes it.
 
 ### Regex Lab
 
@@ -1045,6 +1686,232 @@ another replaces it, and `NULL` removes it. When the user switches tabs, the
 active-file callback is called instead; ask for the encoding of the new tab in
 front there.
 
+### Reading a Log File
+
+A plugin that analyses a whole Log File reads its Log Lines from LogSquirl
+rather than opening the file itself (added in LogSquirl 26.12, see
+[ADR 0024](adr/0024-a-plugin-reads-an-open-log-file-by-path-on-any-thread-and-each-thread-keeps-its-text.md)):
+it gets them decoded in the encoding the tab reads them in, numbered as the
+views number them, and for a converted or decompressed Log File the text
+LogSquirl shows rather than the bytes of the original file.
+
+```cpp
+/* On a thread of the plugin's own: the UI stays in use meanwhile. */
+std::thread analysis( [ path = std::string( pathFromActiveFileCallback ) ] {
+    uint64_t count = 0;
+    if ( host->get_log_line_count( hostHandle, path.c_str(), &count ) < 0 ) {
+        return; /* the tab closed */
+    }
+    uint64_t next = 1; /* the first Log Line is 1 */
+    while ( next <= count ) {
+        const char* text = NULL;
+        size_t lineCount = 0;
+        int result = host->get_log_lines( hostHandle, path.c_str(), next, 1000, &text,
+                                          NULL, &lineCount );
+        if ( result < 0 ) {
+            break; /* LOGSQUIRL_LOG_LINES_NO_LOG_FILE once the tab closed */
+        }
+        analyse( text ); /* lineCount Log Lines, joined by '\n' */
+        next += lineCount;
+    }
+} );
+```
+
+Both functions name the Log File by its path, as `get_active_file_path` and
+the active-file callback name it: that of a tab in any window, in front or
+not. A path no tab shows gives `LOGSQUIRL_LOG_LINES_NO_LOG_FILE`; a `NULL`
+path is `LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT`.
+
+`get_log_line_count` counts the Log Lines LogSquirl has indexed so far, so
+fewer while the Log File still loads.
+
+`get_log_lines` returns the text of Log Lines from `first_line` on, in the
+format of `get_selected_log_lines`: UTF-8, the lines joined by `'\n'` with none
+after the last, and NUL-terminated; `length` and `line_count` may be `NULL`.
+It holds whole Log Lines, at most `max_lines` and
+`LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES` of them and at most
+`LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES` bytes; a first Log Line longer than
+that is cut at a character. When it holds fewer Log Lines than `max_lines` and
+the Log File has, the result is `LOGSQUIRL_LOG_LINES_TRUNCATED`: go on from
+`first_line + line_count`. A `first_line` of 0, or past the last Log Line
+indexed so far, is `LOGSQUIRL_LOG_LINES_OUT_OF_RANGE`; a `max_lines` of 0 reads
+an empty text.
+
+Both may be called on any thread and never wait for the UI thread, so a
+thread of the plugin's may read while the UI thread is busy, and a modal
+dialog of the plugin's own may wait for that thread. The host keeps the Log
+File's data for the duration of the call: when the user closes the tab before
+or during a call, the call returns `LOGSQUIRL_LOG_LINES_NO_LOG_FILE`, and
+nothing it read is handed back. The host owns the text: it is valid until your
+plugin calls `get_log_lines` again *on the same thread*, or is shut down, so
+two threads of one plugin each keep their own text. Stop and join your threads
+in `shutdown`.
+
+The callback of `register_log_lines_callback` is called on the UI thread
+whenever the Log Lines of a tab's Log File change, in front or not, with its
+path, its Log Line count after the change and how it changed:
+
+- `LOGSQUIRL_LOG_LINES_APPENDED`: Log Lines were added at the end -- the file
+  grew, followed or not. What you read before stays as it was; read on from
+  where you stopped. The last Log Line you read may have grown longer.
+- `LOGSQUIRL_LOG_LINES_REPLACED`: the Log File was loaded anew -- reloaded,
+  truncated, or its first load finished, which settles its encoding -- or it
+  reads differently: the user chose another encoding, the way LogSquirl
+  decodes its text changed, or another Log Format applies to it, or none, so
+  its fields differ (see [Fields of Log Lines](#fields-of-log-lines)). What
+  you read before may differ; read it again.
+
+Calls may be coalesced, one standing for several changes, so take
+`line_count` from the call rather than adding up. The path is valid during
+the call only. A plugin has one such callback: registering
+another replaces it, and `NULL` removes it.
+
+### Fields of Log Lines
+
+A plugin that analyses structured Log Files -- statistics per level, per
+component, per request -- reads the fields of their Log Lines as the Table
+View shows them, rather than parsing the text itself (added in LogSquirl
+26.12, see
+[ADR 0027](adr/0027-a-plugin-reads-the-fields-of-log-lines-as-the-table-view-shows-them.md)):
+
+```cpp
+/* On a thread of the plugin's own, for the Log File at path. */
+const char* format = NULL;
+const char* const* names = NULL;
+size_t nameCount = 0;
+if ( host->get_log_format_fields( hostHandle, path.c_str(), &format, &names, &nameCount ) < 0 ) {
+    return; /* LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT: no Log Format applies */
+}
+int level = -1; /* the column of the field named "level" */
+for ( size_t field = 0; field < nameCount; ++field ) {
+    if ( std::strcmp( names[ field ], "level" ) == 0 ) {
+        level = static_cast<int>( field );
+    }
+}
+std::map<std::string, uint64_t> perLevel;
+uint64_t next = 1; /* the first Log Line is 1 */
+for ( ;; ) {
+    const char* const* values = NULL;
+    const size_t* lengths = NULL;
+    const int* parsed = NULL;
+    size_t fieldCount = 0;
+    size_t lineCount = 0;
+    int result = host->get_log_line_fields( hostHandle, path.c_str(), next, 1000, &values,
+                                            &lengths, &parsed, &fieldCount, &lineCount );
+    if ( result < 0 || fieldCount != nameCount ) {
+        break; /* past the end, the tab closed, or another Log Format applies */
+    }
+    for ( size_t line = 0; line < lineCount; ++line ) {
+        if ( parsed[ line ] && level >= 0 ) {
+            size_t at = line * fieldCount + static_cast<size_t>( level );
+            ++perLevel[ std::string( values[ at ], lengths[ at ] ) ];
+        }
+    }
+    next += lineCount;
+}
+```
+
+Both name the Log File by its path and may be called on any thread, as
+`get_log_lines`; they never wait for the UI thread, and a tab that closes
+before or during a call gives `LOGSQUIRL_LOG_LINES_NO_LOG_FILE`.
+
+`get_log_format_fields` names the Log Format that applies to the Log File --
+its own name, as the key of its definition names it (`"syslog_log"`) -- and
+its fields in the order of the Table View's columns, named as their headers
+name them. The elapsed time the Table View shows after a timestamp field is no
+field, and is not among them. `format_name` may be `NULL`. When no Log Format
+applies, the result is `LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT`.
+
+`get_log_line_fields` reads the fields of Log Lines from `first_line` on, each
+value as the Table View's cell shows it. The values come row-major:
+`field_count` of them per Log Line, the first Log Line's first, so field `j`
+of the Log Line `first_line + i` is `values[ i * field_count + j ]`, of
+`lengths[ i * field_count + j ]` bytes. A value is UTF-8 and NUL-terminated,
+but it may hold any character, a tab, a line feed or a NUL too: read it by its
+length. A field a Log Line has no value for is `""`. A Log Line the Log Format
+does not parse has no fields, as a Field Term of a Search treats it, though
+the Table View shows it whole in its last column: `parsed[ i ]` is 0 for it
+and its values are `NULL`, of length 0; `parsed[ i ]` is 1 for a Log Line
+parsed. A JSON or logfmt Log Format parses every Log Line: one that is no
+JSON object, or holds no key of the Log Format, has every value `""` and
+`parsed[ i ]` 1, as a Field Term reads it too and as the
+Table View shows it. `lengths` and `parsed` may be `NULL`.
+
+It holds whole Log Lines, at most `max_lines` and
+`LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES` of them, whose values are at most
+`LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES` bytes together; the values of a first
+Log Line longer than that are cut at a character, and those after the cut are
+`""`. When it holds fewer Log Lines than `max_lines` and the Log File has, the
+result is `LOGSQUIRL_LOG_LINES_TRUNCATED`: go on from `first_line +
+line_count`. A `first_line` of 0, or past the last Log Line indexed so far, is
+`LOGSQUIRL_LOG_LINES_OUT_OF_RANGE`; no Log Format is
+`LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT`.
+
+The Log Format is the one Format Recognition chose. It changes when the Log
+File is recognized anew -- reloaded, truncated, or a Log File too short for a
+Log Format grows -- and the callback of `register_log_lines_callback` tells it
+with `LOGSQUIRL_LOG_LINES_REPLACED`: read the names and the values again. A
+read made while it changes may be under either Log Format; `field_count` says
+how many fields the read was under. The host owns the names, the arrays and
+the values: each is valid until your plugin calls the same function again *on
+the same thread*, or is shut down.
+
+### Marks
+
+An analysis plugin marks what it found -- an error burst, an anomaly, the
+start of a request -- and the user walks through the findings with Next Mark
+and Previous Mark (added in LogSquirl 26.12, see
+[ADR 0026](adr/0026-a-plugin-sets-marks-in-every-tab-of-the-log-file-from-any-thread.md)):
+
+```cpp
+/* On the plugin's analysis thread, with the Log Lines it found, numbered from 1. */
+std::vector<uint64_t> found = analyse( path );
+for ( size_t at = 0; at < found.size(); at += LOGSQUIRL_MARKS_MAX_LINES ) {
+    size_t count = std::min<size_t>( found.size() - at, LOGSQUIRL_MARKS_MAX_LINES );
+    if ( host->add_marks( hostHandle, path.c_str(), found.data() + at, count ) < 0 ) {
+        break; /* LOGSQUIRL_LOG_LINES_NO_LOG_FILE once the tab closed */
+    }
+}
+```
+
+A Mark a plugin sets is an ordinary Mark: the bullet margin and the Filtered
+View show it, Next Mark visits it, the Session keeps it, and the user removes
+it like any other. LogSquirl does not tell the user's Marks from a plugin's:
+`remove_marks` removes either, and `get_marks` reads both.
+
+All three name the Log File by its path, as `get_log_lines` does, and number
+its Log Lines as the views do: the first Log Line is 1.
+
+- `add_marks` and `remove_marks` take at most `LOGSQUIRL_MARKS_MAX_LINES`
+  numbers per call, in any order; a count above is
+  `LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT` and changes nothing. A line of 0, or
+  past the last Log Line indexed so far, is skipped, and so is one already
+  marked (for `add_marks`) or not marked (for `remove_marks`): none of them
+  fails the call.
+- They may be called from any thread and never wait for the UI thread: they
+  tell at once whether a tab shows the Log File -- else
+  `LOGSQUIRL_LOG_LINES_NO_LOG_FILE` -- and the host carries the change out on
+  the UI thread, at once when called there, else once its event loop turns,
+  in the order the calls of one thread were made. A call still queued when
+  your plugin is unloaded is dropped; a tab that closes meanwhile marks
+  nothing.
+- `get_marks` is called on the UI thread only. It hands back the Marks in the
+  order of the Log File, each once, and how many there are: `NULL` and 0 when
+  there are none. A Mark set from another thread is read once the host has
+  carried that call out. The host owns the array: it is valid until your
+  plugin calls `get_marks` again or is shut down.
+
+Each tab keeps Marks of its own, the user's as well. When several tabs show
+the same Log File -- in different windows, say -- `add_marks` and
+`remove_marks` change the Marks of every one of them, in front or not, and
+`get_marks` reads a Log Line as marked when any of them marks it.
+
+LogSquirl does not tell your plugin when the user changes Marks; read them
+again with `get_marks` when you need them. Marks do not survive a reload or a
+truncation of the Log File, the user's included: the callback of
+`register_log_lines_callback` tells of both with
+`LOGSQUIRL_LOG_LINES_REPLACED`.
+
 ### Configuration Dialog
 
 A plugin may export `logsquirl_plugin_configure`; the host passes it a
@@ -1071,15 +1938,20 @@ window the plugin keeps open outlives the dialog.
 
 - **Thread safety**: Host API calls are safe from any thread, but for
   `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`,
-  `get_log_file_encoding` and `get_active_file_path`, which are called on the
-  UI thread only. The host
-  dispatches UI-modifying calls, `open_file` included, to the UI thread
-  internally. `init`, `shutdown`, `configure` and menu actions run on the UI
-  thread; `logsquirl_converter_convert` and `logsquirl_converter_convert_ex`
+  `get_log_file_encoding`, `get_active_file_path` and `get_marks`, which are
+  called on the UI thread only. The host
+  dispatches UI-modifying calls, `open_file`, `add_marks` and `remove_marks`
+  included, to the UI thread internally. `init`, `shutdown`, `configure`, `logsquirl_datasource_start`,
+  `logsquirl_datasource_stop` and menu actions run on the UI thread; `logsquirl_converter_convert` and `logsquirl_converter_convert_ex`
   run on a host worker thread, one call per plugin at a time, and the
   `LogSquirlConvertControl` functions are called on that thread only.
+  `logsquirl_converter_claims` runs on a host worker thread too, possibly for
+  several files at the same time.
 - **String lifetime**: All `const char*` strings you pass to host API functions
-  are copied immediately — you may free them after the call returns.
+  are copied immediately — you may free them after the call returns. A string
+  the host returns is valid until your plugin calls the same function again
+  or is shut down; one passed to a callback, during the call only (see
+  [`LogSquirlHostApi`](#logsquirlhostapi)).
 - **Error reporting**: Return non-zero from `init` on failure; the host logs
   the code and does not load the plugin.
 - **No host headers**: Never include any host header other than
@@ -1107,9 +1979,12 @@ A: Yes. Create threads as needed. All host API functions are safe from any
 thread, but for `open_regex_lab`, `go_to_log_line`, `get_selected_log_lines`
 and `get_active_file_path`, which are called on the UI thread only; `open_file`
 from a worker thread opens the file on the UI thread. Call `signal_eos` or
-`signal_error` when your thread is done. A converter needs no thread of its
-own: the host calls `logsquirl_converter_convert` and
-`logsquirl_converter_convert_ex` on a worker thread already.
+`signal_error` when your thread is done; `signal_eos` ends the stream, and
+the host then calls `logsquirl_datasource_stop` on the UI thread. A
+converter needs no thread of its
+own: the host calls `logsquirl_converter_convert`,
+`logsquirl_converter_convert_ex` and `logsquirl_converter_claims` on a worker
+thread already.
 
 **Q: How do I handle plugin-specific configuration?**
 A: Use `get_config_dir()` to obtain your private directory, then read/write

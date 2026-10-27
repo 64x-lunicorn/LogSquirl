@@ -114,13 +114,51 @@ void HighlighterSetCollection::updateCombinedSet()
             combinedActiveSet_.highlighterList_.append( set.highlighterList_ );
         }
     }
+    for ( const auto& set : logsquirl::as_const( pluginSets_ ) ) {
+        if ( activePluginSets_.contains( set.group.id() ) ) {
+            combinedActiveSet_.highlighterList_.append( set.group.highlighterList_ );
+        }
+    }
 
     combinedActiveSet_.compile();
 }
 
+QList<PluginGroup<HighlighterSet>> HighlighterSetCollection::pluginHighlighterSets() const
+{
+    return pluginSets_;
+}
+
+bool HighlighterSetCollection::setPluginHighlighterSets(
+    const QList<PluginGroup<HighlighterSet>>& sets, bool dropUnknownActivations )
+{
+    const auto sameSets = std::equal( pluginSets_.cbegin(), pluginSets_.cend(), sets.cbegin(),
+                                      sets.cend(), []( const auto& a, const auto& b ) {
+                                          return a.group.id() == b.group.id()
+                                                 && a.group.sameAs( b.group )
+                                                 && a.pluginName == b.pluginName;
+                                      } );
+    const auto activeBefore = activePluginSets_.size();
+
+    pluginSets_ = sets;
+    if ( dropUnknownActivations ) {
+        activePluginSets_.erase(
+            std::remove_if( activePluginSets_.begin(), activePluginSets_.end(),
+                            [ this ]( const auto& setId ) { return !isPluginSet( setId ); } ),
+            activePluginSets_.end() );
+    }
+    updateCombinedSet();
+    return !sameSets || activePluginSets_.size() != activeBefore;
+}
+
+bool HighlighterSetCollection::isPluginSet( const QString& setId ) const
+{
+    return std::any_of( pluginSets_.cbegin(), pluginSets_.cend(),
+                        [ &setId ]( const auto& set ) { return set.group.id() == setId; } );
+}
+
 QStringList HighlighterSetCollection::activeSetIds() const
 {
-    return activeSets_ + activeTeamSets_;
+    return activeSets_ + activeTeamSets_ + activePluginSets_;
 }
 
 void HighlighterSetCollection::activateSet( const QString& setId )
@@ -134,7 +172,12 @@ void HighlighterSetCollection::activateSet( const QString& setId )
     const bool isTeamSet
         = std::any_of( teamSets_.cbegin(), teamSets_.cend(),
                        [ &setId ]( const auto& set ) { return set.id() == setId; } );
-    ( isTeamSet ? activeTeamSets_ : activeSets_ ).append( setId );
+    if ( isPluginSet( setId ) ) {
+        activePluginSets_.append( setId );
+    }
+    else {
+        ( isTeamSet ? activeTeamSets_ : activeSets_ ).append( setId );
+    }
     updateCombinedSet();
 }
 
@@ -143,6 +186,7 @@ void HighlighterSetCollection::deactivateSet( const QString& setId )
     LOG_INFO << "deactivating set " << setId;
     activeSets_.removeAll( setId );
     activeTeamSets_.removeAll( setId );
+    activePluginSets_.removeAll( setId );
     updateCombinedSet();
 }
 
@@ -151,6 +195,7 @@ void HighlighterSetCollection::deactivateAll()
     LOG_INFO << "deactivating all sets";
     activeSets_.clear();
     activeTeamSets_.clear();
+    activePluginSets_.clear();
     updateCombinedSet();
 }
 
@@ -158,7 +203,7 @@ bool HighlighterSetCollection::hasSet( const QString& setId ) const
 {
     const auto hasId = [ &setId ]( const auto& s ) { return s.id() == setId; };
     return std::any_of( highlighters_.begin(), highlighters_.end(), hasId )
-           || std::any_of( teamSets_.begin(), teamSets_.end(), hasId );
+           || std::any_of( teamSets_.begin(), teamSets_.end(), hasId ) || isPluginSet( setId );
 }
 
 bool HighlighterSetCollection::hasSetByName( const QString& setName ) const
@@ -244,6 +289,9 @@ void HighlighterSetCollection::saveToStorage( QSettings& settings ) const
     settings.setValue( "version", HighlighterSetCollection_VERSION );
     settings.setValue( "active_sets", activeSets_ );
     settings.setValue( "active_team_sets", activeTeamSets_ );
+    // Only which of the plugins' sets are active: the sets stay the plugins'
+    // (#865).
+    settings.setValue( "active_plugin_sets", activePluginSets_ );
 
     LOG_INFO << activeSets_;
 
@@ -294,6 +342,7 @@ void HighlighterSetCollection::retrieveFromStorage( QSettings& settings )
 
             activeSets_ = settings.value( "active_sets" ).toStringList();
             activeTeamSets_ = settings.value( "active_team_sets" ).toStringList();
+            activePluginSets_ = settings.value( "active_plugin_sets" ).toStringList();
 
             auto currentSet = settings.value( "current" ).toString();
             settings.remove( "current" );

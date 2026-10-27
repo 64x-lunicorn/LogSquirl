@@ -76,6 +76,15 @@ public:
         QString columnUnderCursor;
     };
 
+    // An entry a plugin added (#859).
+    struct PluginEntry {
+        // Slash-separated path of the submenus of the plugin section it goes
+        // into; empty segments do not count, so an empty path is the section.
+        QString menuPath;
+        QString label;
+        std::function<void()> choose;
+    };
+
     // What each entry does, on the Presentation the menu was opened on.
     struct Entries {
         std::function<void()> highlightersChange;
@@ -114,6 +123,9 @@ public:
         // Only for a Presentation that shows Log Lines split into the fields
         // of a Log Format; left empty, the menu offers no Export as CSV.
         std::function<void()> exportAsCsv;
+        // The plugins' entries, in their order, below a separator at the end
+        // of the menu, always enabled; without any, there is no separator.
+        std::vector<PluginEntry> plugins;
     };
 
     // The context menu for what report says, owned by the caller and a child

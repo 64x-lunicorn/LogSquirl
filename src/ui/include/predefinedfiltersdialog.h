@@ -46,6 +46,7 @@
 #include <QListWidget>
 #include <QPushButton>
 
+#include "plugingroupssection.h"
 #include "predefinedfilters.h"
 #include "predefinedfiltersetedit.h"
 #include "teamfolder.h"
@@ -111,6 +112,11 @@ private Q_SLOTS:
     void copySelectedTeamGroup();
     void deleteSelectedTeamGroup();
 
+    // Shows the selected plugin's group, read-only, and copies it into the
+    // user's own groups.
+    void showSelectedPluginGroup();
+    void copySelectedPluginGroup();
+
 private:
     void populateSetList();
     void setCurrentRow( int row );
@@ -131,6 +137,16 @@ private:
     void updateTeamButtons();
     // The row of the Team group shown, -1 when none is.
     int selectedTeamRow_ = -1;
+
+    // The groups the enabled plugins ship, read-only below the user's own
+    // (#865): as the Predefined Filters Collection held them when the dialog
+    // opened. No section when there are none.
+    QList<PluginGroup<PredefinedFilterSet>> pluginGroups_;
+    PluginGroupsSection* plugins_ = nullptr;
+    // The row of the plugin's group shown, -1 when none is.
+    int selectedPluginRow_ = -1;
+    // No plugin's group is shown any more.
+    void clearPluginSelection();
 };
 
 #endif

@@ -125,6 +125,7 @@
 #include "optionsdialog.h"
 #include "plaintext.h"
 #include "plugindialog.h"
+#include "plugingroups.h"
 #include "predefinedfiltersdialog.h"
 #include "progress.h"
 #include "readablesize.h"
@@ -399,8 +400,10 @@ MainWindow::MainWindow( WindowSession session,
     // Log Lines (#663).
     pluginUi_->setTabInFront( [ this ]() { return currentCrawlerWidget(); } );
     // A plugin reads the Encoding of the tab in front, or of a Log File it
-    // names (#803).
-    pluginUi_->setTabOfLogFile( [ this ]( const QString& path ) { return tabOfLogFile( path ); } );
+    // names (#803), and sets, removes and reads the Marks of the tabs
+    // showing a Log File (#866).
+    pluginUi_->setTabsOfLogFile(
+        [ this ]( const QString& path ) { return tabsOfLogFile( path ); } );
     plugins_->uiPort().addWindow( pluginUi_.get() );
     servePluginCallbacks();
 
@@ -416,7 +419,13 @@ MainWindow::MainWindow( WindowSession session,
         if ( welcomeDashboard_ ) {
             welcomeDashboard_->refresh();
         }
+        applyPluginGroups();
     } );
+    // The Filter Groups and Highlighter Sets the plugins ship come and go as
+    // plugins are enabled and disabled, in this window's Plugins dialog or
+    // another's (#865).
+    connect( plugins_.get(), &logsquirl::plugins::ApplicationPlugins::enabledPluginsChanged, this,
+             &MainWindow::applyPluginGroups );
 
     // A plugin installed, enabled or disabled later -- from this window's
     // Plugins dialog or another's -- shows on the dashboard right away (#710).
@@ -490,7 +499,7 @@ std::vector<QString> MainWindow::restoreWindow( const WindowSnapshot& window )
         // temporary path (#609).
         mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary,
                                    archiveMembers_.value( fileName ).key() );
-        tellPluginsOfEncodingChanges( crawlerWidget, fileName );
+        tellPluginsOfLogFile( crawlerWidget, fileName );
 
         if ( followFileOnLoad ) {
             followOnOpen( crawlerWidget );
@@ -571,7 +580,7 @@ void MainWindow::openRestoredFromArchive( int deferredId, const ArchiveMember& m
     // Its name and group are found by its archive (#609).
     mainTabWidget_.addCrawler( crawlerWidget, fileName, LogFileLifetime::Ordinary, member.key(),
                                tabIndex );
-    tellPluginsOfEncodingChanges( crawlerWidget, fileName );
+    tellPluginsOfLogFile( crawlerWidget, fileName );
     if ( !opened.inFront && front ) {
         mainTabWidget_.setCurrentWidget( front );
     }
@@ -2262,6 +2271,29 @@ void MainWindow::applyTeamHighlighterSets( bool dropUnknownActivations )
     updateHighlightersMenu();
 }
 
+void MainWindow::applyPluginGroups()
+{
+    // The enabled plugins stand in the configuration, which Plugin Management
+    // writes before it says that one was enabled or disabled.
+    const auto groups = logsquirl::plugingroups::readEnabled(
+        plugins_->catalog().discoveredPlugins(), Configuration::get().enabledPlugins() );
+
+    // Every window comes here for the same change; the first one changes the
+    // collections, the others only bring their panel and menu up to date.
+    // Neither collection stores the plugins' groups: saving the Highlighter
+    // Sets keeps only which of them are active, and a plugin's set that is
+    // gone is no longer.
+    PredefinedFiltersCollection::get().setPluginFilterGroups( groups.filterGroups );
+    filtersPanel_.refreshFilters();
+
+    auto& collection = HighlighterSetCollection::get();
+    if ( collection.setPluginHighlighterSets( groups.highlighterSets ) ) {
+        collection.save();
+        session_.applyChange( Changed::HighlighterSets );
+    }
+    updateHighlightersMenu();
+}
+
 void MainWindow::applyTeamNamingGroups()
 {
     const auto teamFolder = session_.teamFolder();
@@ -2976,6 +3008,8 @@ void MainWindow::closeTabs( const QList<int>& indices, ActionInitiator initiator
 
         crawler->stopLoading();
         mainTabWidget_.removeCrawler( index );
+        // A plugin's read under way finishes, and says the Log File is gone.
+        hideLogFileFromPlugins( crawler );
         session_.close( crawler );
         crawler->deleteLater();
 
@@ -3222,10 +3256,12 @@ void MainWindow::changeEvent( QEvent* event )
 
         if ( this->windowState() & Qt::WindowMinimized ) {
             if ( Configuration::get().minimizeToTray() ) {
-                dispatchToMainThread( [ this ] {
-                    trayIcon_->show();
-                    this->hide();
-                } );
+                dispatchToObject(
+                    [ this ] {
+                        trayIcon_->show();
+                        this->hide();
+                    },
+                    this );
             }
         }
     }
@@ -3471,9 +3507,9 @@ bool MainWindow::openLogFile( const QString& fileName, LogFileProvenance provena
         commandSources_[ fileName ] = std::move( provenance.commandSource );
     }
 
-    auto open = [ this, fileName, followFile, origin = provenance.origin,
-                  whenOpened = std::move( provenance.whenOpened ) ] {
-        const auto isOpen = openNow( fileName, followFile, origin );
+    // Once the open is done: at once, or once the converter plugins said
+    // whether one claims the Log File by its content (#861).
+    auto done = [ this, fileName, whenOpened = std::move( provenance.whenOpened ) ]( bool isOpen ) {
         // Nothing of a tab that did not open is kept.
         if ( !isOpen ) {
             forgetOpening( fileName );
@@ -3488,7 +3524,9 @@ bool MainWindow::openLogFile( const QString& fileName, LogFileProvenance provena
             whenOpened( tab >= 0 ? qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( tab ) )
                                  : nullptr );
         }
-        return isOpen;
+    };
+    auto open = [ this, fileName, followFile, origin = provenance.origin, done ] {
+        return openNow( fileName, followFile, origin, done );
     };
 
     // Whether a converter plugin opens this file is only known once the
@@ -3526,31 +3564,83 @@ void MainWindow::stopCommandSource( const QString& fileName )
     }
 }
 
-// Create a CrawlerWidget for the passed file, start its loading
-// and update the title bar.
-// The loading is done asynchronously.
-bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFileOrigin& origin )
+bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFileOrigin& origin,
+                          const OpenDone& done )
 {
+    const auto finish = [ &done ]( bool isOpen ) {
+        done( isOpen );
+        return isOpen;
+    };
+
     // First check if the file is already open, or converted (#615), in any
     // window: the Session knows, and the window showing it brings its tab to
     // the front (#642).
     if ( session_.showOpen( fileName ) ) {
-        return true;
+        return finish( true );
     }
 
     // A converter plugin handling this file's extension converts it, in the
     // background; its tab comes once it is done (#795). Asked for again
-    // meanwhile, it waits for that same Conversion.
-    if ( conversions_.contains( fileName ) ) {
-        return true;
+    // meanwhile, it waits for that same Conversion, or for the converter
+    // plugins to say whether one claims it by its content (#861).
+    if ( conversions_.contains( fileName ) || contentChecks_.contains( fileName ) ) {
+        return finish( true );
     }
     const auto ext = QFileInfo( fileName ).suffix().toLower();
     if ( const auto converterId = plugins_->host().converterForExtension( ext );
          !converterId.isEmpty() ) {
         convertAndOpen( converterId, fileName, followFile, origin );
+        return finish( true );
+    }
+
+    // Else a converter plugin may claim it by its content, as it is on disk,
+    // before it is decompressed (#861). A Transient Log File is LogSquirl's
+    // own -- a stream's spool, a merge, the clipboard's text, what a
+    // Conversion wrote -- and is not offered.
+    if ( origin.lifetime == LogFileLifetime::Ordinary
+         && checkContentAndOpen( fileName, followFile, origin, done ) ) {
         return true;
     }
 
+    return finish( loadNow( fileName, followFile, origin ) );
+}
+
+bool MainWindow::checkContentAndOpen( const QString& fileName, bool followFile,
+                                      const LogFileOrigin& origin, const OpenDone& done )
+{
+    const QPointer<MainWindow> window( this );
+    const auto id
+        = plugins_->host().checkContent( fileName, [ this, window, fileName, followFile, origin,
+                                                     done ]( const QString& converterId ) {
+              if ( !window ) {
+                  return;
+              }
+              contentChecks_.erase( fileName );
+              // Opened in another window meanwhile.
+              if ( session_.showOpen( fileName ) ) {
+                  done( true );
+                  return;
+              }
+              if ( converterId.isEmpty() ) {
+                  done( loadNow( fileName, followFile, origin ) );
+                  return;
+              }
+              convertAndOpen( converterId, fileName, followFile, origin );
+              done( true );
+          } );
+    if ( id == 0 ) {
+        return false;
+    }
+    LOG_INFO << "Opening " << fileName << " once the converter plugins have checked its content";
+    contentChecks_[ fileName ] = id;
+    return true;
+}
+
+// Create a CrawlerWidget for the passed file, start its loading
+// and update the title bar.
+// The loading is done asynchronously.
+bool MainWindow::loadNow( const QString& fileName, bool followFile, const LogFileOrigin& origin )
+{
     const auto decompressAction = Decompressor::action( fileName );
 
     if ( decompressAction == DecompressAction::None
@@ -3586,7 +3676,7 @@ bool MainWindow::openNow( const QString& fileName, bool followFile, const LogFil
             // archive keeps its name and group by the archive (#609).
             int index = mainTabWidget_.addCrawler( crawlerWidget, fileName, origin.lifetime,
                                                    origin.storedKey( fileName ) );
-            tellPluginsOfEncodingChanges( crawlerWidget, fileName );
+            tellPluginsOfLogFile( crawlerWidget, fileName );
 
             // Setting the new tab, the user will see a blank page for the duration
             // of the loading, with no way to switch to another tab
@@ -3759,6 +3849,11 @@ void MainWindow::cancelConversions()
     for ( const auto id : ids ) {
         plugins_->host().cancelConversion( id );
     }
+    // A cancelled content check reports nothing (#861).
+    for ( const auto& [ fileName, id ] : contentChecks_ ) {
+        plugins_->host().cancelContentCheck( id );
+    }
+    contentChecks_.clear();
 }
 
 bool MainWindow::showView( const ViewInterface* view )
@@ -3780,21 +3875,22 @@ QString MainWindow::strippedName( const QString& fullFileName ) const
     return QFileInfo( fullFileName ).fileName();
 }
 
-CrawlerWidget* MainWindow::tabOfLogFile( const QString& path ) const
+std::vector<CrawlerWidget*> MainWindow::tabsOfLogFile( const QString& path ) const
 {
     // As the file system names it: the same file by another spelling of its
     // path, or in another case where case does not count, is the same.
     const QFileInfo wanted( path );
+    std::vector<CrawlerWidget*> tabs;
     for ( const auto i : mainTabWidget_.logFileTabs() ) {
         auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( i ) );
         if ( crawler != nullptr && QFileInfo( session_.getFilename( crawler ) ) == wanted ) {
-            return crawler;
+            tabs.push_back( crawler );
         }
     }
-    return nullptr;
+    return tabs;
 }
 
-void MainWindow::tellPluginsOfEncodingChanges( CrawlerWidget* crawler, const QString& fileName )
+void MainWindow::tellPluginsOfLogFile( CrawlerWidget* crawler, const QString& fileName )
 {
     // By the path the tab was added under: a load that finishes while its
     // tab closes still settles the Encoding, after the Session let go of the
@@ -3805,6 +3901,53 @@ void MainWindow::tellPluginsOfEncodingChanges( CrawlerWidget* crawler, const QSt
             plugins_->host().notifyEncodingChanged( fileName, crawler->encodingName() );
         }
     } );
+    connect( crawler, &CrawlerWidget::logLinesChanged, this,
+             [ this, crawler, fileName ]( LinesCount lineCount,
+                                          logsquirl::plugins::PluginLogLinesChange change ) {
+                 if ( mainTabWidget_.indexOf( crawler ) >= 0 ) {
+                     plugins_->host().notifyLogLinesChanged( fileName, lineCount.get(), change );
+                 }
+             } );
+
+    // Plugins read its Log Lines on their own threads, by the same path,
+    // until the tab closes. A tab that goes with the window -- or after the
+    // Plugin Host -- takes its Log File away as it is destroyed: by a weak
+    // hold, connected to nothing of the window's, which is gone by then.
+    const auto& logFiles = plugins_->host().logFiles();
+    const auto id = logFiles->add( fileName, crawler->logFileForPlugins() );
+    pluginLogFiles_[ crawler ] = id;
+    connect( crawler, &QObject::destroyed,
+             [ logFiles = std::weak_ptr<logsquirl::plugins::PluginLogFiles>( logFiles ), id ] {
+                 if ( const auto open = logFiles.lock() ) {
+                     open->remove( id );
+                 }
+             } );
+
+    // Its views end their context menus with the plugins' items, as the
+    // Application Plugins' Plugin UI Port holds them when a menu opens
+    // (#859), by a weak hold as well. A tab that is closing -- it is deleted
+    // from the event loop -- offers none, so an item chosen before it closed
+    // is not called.
+    crawler->setPluginContextMenu(
+        [ window = QPointer<MainWindow>( this ), crawler,
+          plugins = std::weak_ptr<logsquirl::plugins::ApplicationPlugins>( plugins_ ), fileName ] {
+            PluginContextMenuOffer offer{ .logFile = fileName, .actions = {} };
+            const auto shared = plugins.lock();
+            if ( shared && window && window->mainTabWidget_.indexOf( crawler ) >= 0 ) {
+                offer.actions = shared->uiPort().contextMenuActions();
+            }
+            return offer;
+        } );
+}
+
+void MainWindow::hideLogFileFromPlugins( const CrawlerWidget* crawler )
+{
+    const auto it = pluginLogFiles_.find( crawler );
+    if ( it == pluginLogFiles_.end() ) {
+        return;
+    }
+    plugins_->host().logFiles()->remove( it->second );
+    pluginLogFiles_.erase( it );
 }
 
 // Return the currently active CrawlerWidget, or NULL if none
@@ -4153,7 +4296,7 @@ void MainWindow::selectOpenedFile()
                                                  QItemSelectionModel::SelectCurrent );
              } );
 
-    dispatchToMainThread( [ edit = filterEdit.get() ]() { edit->setFocus(); } );
+    dispatchToObject( [ edit = filterEdit.get() ]() { edit->setFocus(); }, filterEdit.get() );
 
     connect( selectFileDialog.get(), &QDialog::finished,
              [ this, openedFiles, dialog = selectFileDialog.get(), model = filteredModel.get(),

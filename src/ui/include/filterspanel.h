@@ -47,9 +47,13 @@ public:
     FiltersPanel& operator=( const FiltersPanel& ) = delete;
 
     // Reload filter sets from PredefinedFiltersCollection and re-populate the tree.
+    // The Filter Groups the enabled plugins ship, as the collection holds
+    // them, are listed after the user's own, each with its Source, and are
+    // usable like the user's own (#865).
     void refreshFilters();
 
-    // The Team groups to list after the user's own groups, alphabetically as
+    // The Team groups to list after the user's own groups and the plugins'
+    // groups, alphabetically as
     // the Team Folder hands them over, and marked as Team groups. Usable like
     // the user's own: checked, pinned and searched the same way.
     void setTeamGroups( const QList<PredefinedFilterSet>& groups );
@@ -92,6 +96,9 @@ private:
 
     QList<PredefinedFilterSet> allFilterSets_;
     QList<PredefinedFilterSet> teamFilterSets_;
+    // The plugins' groups, between the user's own and the Team groups in
+    // allFilterSets_: the Predefined Filters Collection holds them (#865).
+    QList<PluginGroup<PredefinedFilterSet>> pluginFilterGroups_;
     QSet<QString> pinnedFilterKeys_;
 
     // Fast lookup: pinKey(groupId, filterName) → PredefinedFilter.

@@ -25,6 +25,7 @@
 
 #include "plugincatalog.h"
 #include "pluginhost.h"
+#include "pluginlogfiles.h"
 #include "pluginuiport.h"
 
 #include <QDir>
@@ -33,6 +34,7 @@
 #include <QLibrary>
 #include <QTemporaryDir>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -76,6 +78,59 @@ public:
         actions.push_back( { pluginId, label, callback, userData } );
     }
 
+    void removeMenuAction( const QString& /* pluginId */, void* userData ) override
+    {
+        std::erase_if( actions, [ userData ]( const MenuAction& action ) {
+            return action.userData == userData;
+        } );
+    }
+
+    /// The labels of the menu actions shown, in the order added.
+    QStringList labels() const
+    {
+        QStringList shown;
+        for ( const auto& action : actions ) {
+            shown.append( action.label );
+        }
+        return shown;
+    }
+
+    /// Triggers the menu action with the label, which must be shown.
+    void trigger( const QString& label ) const
+    {
+        const auto it = std::ranges::find( actions, label, &MenuAction::label );
+        REQUIRE( it != actions.end() );
+        // A copy: the callback may remove the action.
+        const auto action = *it;
+        action.callback( action.userData );
+    }
+
+    /// The context menu items plugins add, with their menu paths (#859).
+    struct ContextMenuAction {
+        QString menuPath;
+        QString label;
+        logsquirl::plugins::PluginContextMenuCallbackFn callback = nullptr;
+        void* userData = nullptr;
+    };
+    std::vector<ContextMenuAction> contextMenuActions;
+
+    void addContextMenuAction( const QString& /* pluginId */, const QString& menuPath,
+                               const QString& label,
+                               logsquirl::plugins::PluginContextMenuCallbackFn callback,
+                               void* userData ) override
+    {
+        contextMenuActions.push_back( { menuPath, label, callback, userData } );
+    }
+
+    /// Chooses the context menu item with the label, which must be shown.
+    void choose( const QString& label,
+                 const logsquirl::plugins::PluginContextMenuContext& context ) const
+    {
+        const auto it = std::ranges::find( contextMenuActions, label, &ContextMenuAction::label );
+        REQUIRE( it != contextMenuActions.end() );
+        it->callback( it->userData, context );
+    }
+
     void removeContributions( const QString& pluginId ) override
     {
         removedContributions.append( pluginId );
@@ -113,6 +168,83 @@ public:
     std::optional<QString> logFileEncoding( const QString& logFile ) override
     {
         return logFile.isEmpty() ? encodingInFront : std::nullopt;
+    }
+
+    /// The Marks plugins set, by Log File, numbered from 0 (#866).
+    std::vector<std::pair<QString, std::vector<std::uint64_t>>> marked;
+
+    void addMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override
+    {
+        marked.emplace_back( logFile, logLines );
+    }
+};
+
+/// An open Log File of count Log Lines, which reads none.
+class CountedLogFile final : public logsquirl::plugins::PluginLogFileSource {
+public:
+    explicit CountedLogFile( std::uint64_t count )
+        : count_( count )
+    {
+    }
+
+    std::uint64_t lineCount() const override
+    {
+        return count_;
+    }
+
+    std::optional<logsquirl::plugins::PluginSelectedLogLines>
+    readLogLines( std::uint64_t, std::size_t, std::size_t ) const override
+    {
+        return std::nullopt;
+    }
+
+    std::optional<logsquirl::plugins::PluginLogFormatFields> logFormat() const override
+    {
+        return std::nullopt;
+    }
+
+    std::expected<logsquirl::plugins::PluginLogLineFields,
+                  logsquirl::plugins::PluginLogLineFieldsUnread>
+    readLogLineFields( std::uint64_t, std::size_t, std::size_t ) const override
+    {
+        return std::unexpected( logsquirl::plugins::PluginLogLineFieldsUnread::NoLogFormat );
+    }
+
+private:
+    std::uint64_t count_;
+};
+
+/// An open Log File under the Log Format "app_log", whose fields are level
+/// and body: Log Line 1 is "INFO", "started", Log Line 2 one it does not parse.
+class FieldsLogFile final : public logsquirl::plugins::PluginLogFileSource {
+public:
+    std::uint64_t lineCount() const override
+    {
+        return 2;
+    }
+
+    std::optional<logsquirl::plugins::PluginSelectedLogLines>
+    readLogLines( std::uint64_t, std::size_t, std::size_t ) const override
+    {
+        return std::nullopt;
+    }
+
+    std::optional<logsquirl::plugins::PluginLogFormatFields> logFormat() const override
+    {
+        return logsquirl::plugins::PluginLogFormatFields{ .name = QStringLiteral( "app_log" ),
+                                                          .fieldNames = { "level", "body" } };
+    }
+
+    std::expected<logsquirl::plugins::PluginLogLineFields,
+                  logsquirl::plugins::PluginLogLineFieldsUnread>
+    readLogLineFields( std::uint64_t logLine, std::size_t, std::size_t ) const override
+    {
+        logsquirl::plugins::PluginLogLineFields read;
+        read.fieldCount = 2;
+        read.parsed = { logLine == 0 };
+        read.values = logLine == 0 ? std::vector<QByteArray>{ "INFO", "started" }
+                                   : std::vector<QByteArray>{ {}, {} };
+        return read;
     }
 };
 
@@ -173,55 +305,69 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
 
             const auto error = host.loadPlugin( ExampleId );
 
-            THEN( "It is initialised and adds its menu actions, testing a pattern, going to "
-                  "and reading Log Lines and showing the encoding as well, since this host "
-                  "offers them" )
+            THEN( "It is initialised and adds its menu actions, stopping saying hello, testing "
+                  "a pattern, going to and reading Log Lines, showing the encoding and counting "
+                  "Log Lines as well, since this host offers them" )
             {
                 REQUIRE( error.isEmpty() );
                 REQUIRE( host.isLoaded( ExampleId ) );
-                REQUIRE( port.actions.size() == 5 );
-                REQUIRE( port.actions[ 0 ].pluginId == ExampleId );
-                REQUIRE( port.actions[ 0 ].label == "Say Hello" );
-                REQUIRE( port.actions[ 1 ].pluginId == ExampleId );
-                REQUIRE( port.actions[ 1 ].label == "Test Pattern" );
-                REQUIRE( port.actions[ 2 ].label == "Show Selection" );
-                REQUIRE( port.actions[ 3 ].label == "Go to First Line" );
-                REQUIRE( port.actions[ 4 ].label == "Show Encoding" );
+                REQUIRE( port.labels()
+                         == QStringList{ "Say Hello", "Stop Saying Hello", "Test Pattern",
+                                         "Show Selection", "Go to First Line", "Show Encoding",
+                                         "Count Lines" } );
+                for ( const auto& action : port.actions ) {
+                    REQUIRE( action.pluginId == ExampleId );
+                }
             }
 
             THEN( "Its Show Encoding shows the encoding of the tab in front, or that there is "
                   "no Log File" )
             {
-                REQUIRE( port.actions.size() == 5 );
-                const auto& showEncoding = port.actions[ 4 ];
-                showEncoding.callback( showEncoding.userData );
+                port.trigger( QStringLiteral( "Show Encoding" ) );
                 port.encodingInFront = QStringLiteral( "UTF-16LE" );
-                showEncoding.callback( showEncoding.userData );
+                port.trigger( QStringLiteral( "Show Encoding" ) );
                 REQUIRE( notifications
                          == QStringList{ "No Log File in front", "Read as UTF-16LE" } );
             }
 
+            THEN( "Its Count Lines counts the Log Lines of the tab in front, or says there is no "
+                  "Log File (#858)" )
+            {
+                QTemporaryDir logDir;
+                REQUIRE( logDir.isValid() );
+                const auto path = logDir.filePath( "app.log" );
+                {
+                    QFile file( path );
+                    REQUIRE( file.open( QIODevice::WriteOnly ) );
+                }
+                QString inFront;
+                host.setActiveFilePathCallback( [ &inFront ] { return inFront; } );
+                port.trigger( QStringLiteral( "Count Lines" ) );
+                inFront = path;
+                const auto id
+                    = host.logFiles()->add( path, std::make_shared<CountedLogFile>( 3000 ) );
+                port.trigger( QStringLiteral( "Count Lines" ) );
+                host.logFiles()->remove( id );
+                REQUIRE( notifications == QStringList{ "No Log File in front", "3000 Log Lines" } );
+            }
+
             THEN( "Its Show Selection shows the selected Log Lines, and nothing without" )
             {
-                REQUIRE( port.actions.size() == 5 );
-                const auto& showSelection = port.actions[ 2 ];
-                showSelection.callback( showSelection.userData );
+                port.trigger( QStringLiteral( "Show Selection" ) );
                 REQUIRE( notifications.isEmpty() );
 
                 port.selected = QStringList{ QStringLiteral( "ERROR 42" ) };
-                showSelection.callback( showSelection.userData );
+                port.trigger( QStringLiteral( "Show Selection" ) );
                 REQUIRE( notifications == QStringList{ "ERROR 42" } );
             }
 
             THEN( "Its Show Selection shows only the beginning of a long selection, whole "
                   "characters" )
             {
-                REQUIRE( port.actions.size() == 5 );
-                const auto& showSelection = port.actions[ 2 ];
                 // "a", then two-byte characters: 200 bytes end inside one.
                 port.selected
                     = QStringList{ QStringLiteral( "a" ) + QString( 300, QChar( 0x00e9 ) ) };
-                showSelection.callback( showSelection.userData );
+                port.trigger( QStringLiteral( "Show Selection" ) );
                 REQUIRE( notifications.size() == 1 );
                 REQUIRE( notifications.front().toUtf8().size() == 199 );
                 REQUIRE( notifications.front() == port.selected->front().left( 100 ) );
@@ -229,18 +375,104 @@ SCENARIO( "The example plugin of the plugin developer guide loads", "[pluginsdk]
 
             THEN( "Its Go to First Line goes to the first Log Line" )
             {
-                REQUIRE( port.actions.size() == 5 );
-                const auto& goToFirstLine = port.actions[ 3 ];
-                goToFirstLine.callback( goToFirstLine.userData );
+                port.trigger( QStringLiteral( "Go to First Line" ) );
                 REQUIRE( port.wentTo == std::vector<std::uint64_t>{ 0 } );
             }
 
             THEN( "Its menu action shows a notification" )
             {
-                REQUIRE( port.actions.size() == 5 );
-                const auto& action = port.actions.front();
-                action.callback( action.userData );
+                port.trigger( QStringLiteral( "Say Hello" ) );
                 REQUIRE( notifications == QStringList{ "Hello from My Plugin" } );
+            }
+
+            THEN( "Its Stop Saying Hello removes Say Hello and itself (#857)" )
+            {
+                const auto actions = port.actions;
+                port.trigger( QStringLiteral( "Stop Saying Hello" ) );
+                REQUIRE( port.labels()
+                         == QStringList{ "Test Pattern", "Show Selection", "Go to First Line",
+                                         "Show Encoding", "Count Lines" } );
+
+                // A trigger of either still queued does not reach the plugin.
+                for ( const auto& action : actions ) {
+                    if ( action.label == "Say Hello" || action.label == "Stop Saying Hello" ) {
+                        action.callback( action.userData );
+                    }
+                }
+                REQUIRE( notifications.isEmpty() );
+            }
+
+            THEN( "Its Show Line Number, in a submenu of the context menu of the Log Lines, "
+                  "shows the number of the first selected Log Line, how many more there are, "
+                  "and the selected word (#859)" )
+            {
+                REQUIRE( port.contextMenuActions.size() == 3 );
+                REQUIRE( port.contextMenuActions.front().menuPath
+                         == QStringLiteral( "My Plugin" ) );
+                using logsquirl::plugins::PluginContextMenuContext;
+                port.choose(
+                    QStringLiteral( "Show Line Number" ),
+                    PluginContextMenuContext{ .logLines = { 41 }, .selectedLogLineCount = 1 } );
+                port.choose( QStringLiteral( "Show Line Number" ),
+                             PluginContextMenuContext{ .logLines = { 9, 10, 11 },
+                                                       .selectedLogLineCount = 3 } );
+                port.choose( QStringLiteral( "Show Line Number" ),
+                             PluginContextMenuContext{ .logLines = { 2 },
+                                                       .selectedLogLineCount = 1,
+                                                       .selectedText = QStringLiteral( "id-7" ) } );
+                port.choose( QStringLiteral( "Show Line Number" ), PluginContextMenuContext{} );
+                REQUIRE( notifications
+                         == QStringList{ "Line 42", "Line 10 and 2 more", "Line 3: id-7" } );
+            }
+
+            THEN( "Its Mark Selected Lines, in the same submenu, marks the selected Log Lines "
+                  "of the Log File (#866)" )
+            {
+                QTemporaryDir logDir;
+                REQUIRE( logDir.isValid() );
+                const auto path = logDir.filePath( "app.log" );
+                const auto id
+                    = host.logFiles()->add( path, std::make_shared<CountedLogFile>( 3000 ) );
+                REQUIRE( port.contextMenuActions.back().menuPath == QStringLiteral( "My Plugin" ) );
+                using logsquirl::plugins::PluginContextMenuContext;
+                port.choose( QStringLiteral( "Mark Selected Lines" ),
+                             PluginContextMenuContext{ .logFile = path,
+                                                       .logLines = { 9, 10, 11 },
+                                                       .selectedLogLineCount = 3 } );
+                host.logFiles()->remove( id );
+                REQUIRE( port.marked.size() == 1 );
+                REQUIRE( port.marked.front().first == path );
+                REQUIRE( port.marked.front().second == std::vector<std::uint64_t>{ 9, 10, 11 } );
+            }
+
+            THEN( "Its Show Fields, in the same submenu, shows the fields of the first selected "
+                  "Log Line, that it is not parsed, or that there is no Log Format (#867)" )
+            {
+                QTemporaryDir logDir;
+                REQUIRE( logDir.isValid() );
+                const auto path = logDir.filePath( "app.log" );
+                const auto plainPath = logDir.filePath( "plain.log" );
+                const auto id = host.logFiles()->add( path, std::make_shared<FieldsLogFile>() );
+                const auto plainId
+                    = host.logFiles()->add( plainPath, std::make_shared<CountedLogFile>( 3 ) );
+                REQUIRE( port.contextMenuActions.back().label == QStringLiteral( "Show Fields" ) );
+                REQUIRE( port.contextMenuActions.back().menuPath == QStringLiteral( "My Plugin" ) );
+                using logsquirl::plugins::PluginContextMenuContext;
+                port.choose( QStringLiteral( "Show Fields" ),
+                             PluginContextMenuContext{
+                                 .logFile = path, .logLines = { 0 }, .selectedLogLineCount = 1 } );
+                port.choose( QStringLiteral( "Show Fields" ),
+                             PluginContextMenuContext{
+                                 .logFile = path, .logLines = { 1 }, .selectedLogLineCount = 1 } );
+                port.choose( QStringLiteral( "Show Fields" ),
+                             PluginContextMenuContext{ .logFile = plainPath,
+                                                       .logLines = { 0 },
+                                                       .selectedLogLineCount = 1 } );
+                host.logFiles()->remove( id );
+                host.logFiles()->remove( plainId );
+                REQUIRE( notifications
+                         == QStringList{ "app_log: level=INFO, body=started",
+                                         "Not a Log Line of app_log", "No Log Format" } );
             }
 
             THEN( "It unloads again" )

@@ -50,21 +50,23 @@ std::expected<LogSquirlPluginType, QString> parsePluginType( const QString& type
     return std::unexpected( QString( "Unknown plugin type: '%1'" ).arg( typeStr ) );
 }
 
-// The optional "formats" list: the Log Format files the plugin ships, as
-// paths relative to the plugin directory that stay inside it (#793).
-std::expected<QStringList, QString> parseFormats( const QJsonObject& obj )
+// An optional list of the files the plugin ships, as paths relative to the
+// plugin directory that stay inside it: the Log Format files of "formats"
+// (#793), the Filter Group files of "predefined_filters" and the Highlighter
+// Set files of "highlighter_sets" (#865).
+std::expected<QStringList, QString> parseFiles( const QJsonObject& obj, const QString& key )
 {
-    if ( !obj.contains( "formats" ) ) {
+    if ( !obj.contains( key ) ) {
         return QStringList{};
     }
-    if ( !obj[ "formats" ].isArray() ) {
-        return std::unexpected( QStringLiteral( "'formats' is not a list" ) );
+    if ( !obj[ key ].isArray() ) {
+        return std::unexpected( QString( "'%1' is not a list" ).arg( key ) );
     }
 
-    QStringList formats;
-    for ( const auto& entry : obj[ "formats" ].toArray() ) {
+    QStringList files;
+    for ( const auto& entry : obj[ key ].toArray() ) {
         if ( !entry.isString() || entry.toString().isEmpty() ) {
-            return std::unexpected( QStringLiteral( "'formats' entry is not a path" ) );
+            return std::unexpected( QString( "'%1' entry is not a path" ).arg( key ) );
         }
         const auto path = entry.toString();
         // A leading slash counts as leaving it on every platform: on Windows
@@ -73,11 +75,26 @@ std::expected<QStringList, QString> parseFormats( const QJsonObject& obj )
         if ( QDir::isAbsolutePath( path ) || clean.startsWith( QLatin1Char( '/' ) )
              || clean == QLatin1String( ".." ) || clean.startsWith( QLatin1String( "../" ) ) ) {
             return std::unexpected(
-                QString( "'formats' entry '%1' leaves the plugin directory" ).arg( path ) );
+                QString( "'%1' entry '%2' leaves the plugin directory" ).arg( key, path ) );
         }
-        formats.append( path );
+        files.append( path );
     }
-    return formats;
+    return files;
+}
+
+// The paths of files relative to the plugin directory, resolved against it;
+// none without a directory.
+QStringList pathsIn( const QString& directory, const QStringList& files )
+{
+    if ( directory.isEmpty() ) {
+        return {};
+    }
+    QStringList paths;
+    const QDir dir( directory );
+    for ( const auto& file : files ) {
+        paths.append( dir.filePath( file ) );
+    }
+    return paths;
 }
 
 // The optional "qt_version": the Qt the plugin was built against, as
@@ -189,9 +206,19 @@ std::expected<PluginMetadata, QString> PluginMetadata::fromJson( const QByteArra
         return std::unexpected( QString( "%1: %2" ).arg( context, typeResult.error() ) );
     }
 
-    auto formatsResult = parseFormats( obj );
+    auto formatsResult = parseFiles( obj, QStringLiteral( "formats" ) );
     if ( !formatsResult.has_value() ) {
         return std::unexpected( QString( "%1: %2" ).arg( context, formatsResult.error() ) );
+    }
+
+    auto filtersResult = parseFiles( obj, QStringLiteral( "predefined_filters" ) );
+    if ( !filtersResult.has_value() ) {
+        return std::unexpected( QString( "%1: %2" ).arg( context, filtersResult.error() ) );
+    }
+
+    auto highlightersResult = parseFiles( obj, QStringLiteral( "highlighter_sets" ) );
+    if ( !highlightersResult.has_value() ) {
+        return std::unexpected( QString( "%1: %2" ).arg( context, highlightersResult.error() ) );
     }
 
     auto qtVersionResult = parseQtVersion( obj );
@@ -209,6 +236,8 @@ std::expected<PluginMetadata, QString> PluginMetadata::fromJson( const QByteArra
     meta.library_ = obj[ "library" ].toString();
     meta.icon_ = obj[ "icon" ].toString();
     meta.formats_ = std::move( formatsResult.value() );
+    meta.predefinedFilters_ = std::move( filtersResult.value() );
+    meta.highlighterSets_ = std::move( highlightersResult.value() );
     meta.qtVersion_ = std::move( qtVersionResult.value() );
     meta.type_ = typeResult.value();
     meta.apiVersion_ = apiVer;
@@ -259,15 +288,17 @@ QString PluginMetadata::qtRefusal() const
 
 QStringList PluginMetadata::formatPaths() const
 {
-    if ( directory_.isEmpty() ) {
-        return {};
-    }
-    QStringList paths;
-    const QDir directory( directory_ );
-    for ( const auto& format : formats_ ) {
-        paths.append( directory.filePath( format ) );
-    }
-    return paths;
+    return pathsIn( directory_, formats_ );
+}
+
+QStringList PluginMetadata::predefinedFilterPaths() const
+{
+    return pathsIn( directory_, predefinedFilters_ );
+}
+
+QStringList PluginMetadata::highlighterSetPaths() const
+{
+    return pathsIn( directory_, highlighterSets_ );
 }
 
 } // namespace logsquirl::plugins

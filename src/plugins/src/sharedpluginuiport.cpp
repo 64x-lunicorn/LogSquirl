@@ -200,8 +200,11 @@ void SharedPluginUiPort::addMenuAction( const QString& pluginId, const QString& 
 {
     const std::scoped_lock lock( mutex_ );
     // A plugin enabled again without a restart registers its actions again.
+    // An action of the same label in another submenu is one of its own (#870).
+    const auto submenu = pluginSubmenuNames( menuPath );
     const auto alreadyAdded = std::ranges::any_of( menuActions_, [ & ]( const MenuAction& action ) {
-        return action.pluginId == pluginId && action.label == label;
+        return action.pluginId == pluginId && action.label == label
+               && pluginSubmenuNames( action.menuPath ) == submenu;
     } );
     if ( alreadyAdded ) {
         return;
@@ -216,11 +219,57 @@ void SharedPluginUiPort::addMenuAction( const QString& pluginId, const QString& 
     }
 }
 
+void SharedPluginUiPort::removeMenuAction( const QString& pluginId, void* userData )
+{
+    const std::scoped_lock lock( mutex_ );
+    const auto removed = std::erase_if( menuActions_, [ & ]( const MenuAction& action ) {
+        return action.pluginId == pluginId && action.userData == userData;
+    } );
+    if ( removed == 0 ) {
+        return;
+    }
+    for ( auto* window : windows_ ) {
+        window->removeMenuAction( pluginId, userData );
+    }
+}
+
+void SharedPluginUiPort::addContextMenuAction( const QString& pluginId, const QString& menuPath,
+                                               const QString& label,
+                                               PluginContextMenuCallbackFn callback,
+                                               void* userData )
+{
+    const std::scoped_lock lock( mutex_ );
+    contextMenuActions_.push_back(
+        PluginContextMenuAction{ .pluginId = pluginId,
+                                 .menuPath = menuPath,
+                                 .label = label,
+                                 .callback = callback,
+                                 .userData = userData,
+                                 .serial = ++contextMenuActionsSoFar_ } );
+}
+
+void SharedPluginUiPort::removeContextMenuAction( const QString& pluginId, void* userData )
+{
+    const std::scoped_lock lock( mutex_ );
+    std::erase_if( contextMenuActions_, [ & ]( const PluginContextMenuAction& action ) {
+        return action.pluginId == pluginId && action.userData == userData;
+    } );
+}
+
+std::vector<PluginContextMenuAction> SharedPluginUiPort::contextMenuActions() const
+{
+    const std::scoped_lock lock( mutex_ );
+    return contextMenuActions_;
+}
+
 void SharedPluginUiPort::removeContributions( const QString& pluginId )
 {
     const std::scoped_lock lock( mutex_ );
     std::erase_if( menuActions_,
                    [ & ]( const MenuAction& action ) { return action.pluginId == pluginId; } );
+    std::erase_if( contextMenuActions_, [ & ]( const PluginContextMenuAction& action ) {
+        return action.pluginId == pluginId;
+    } );
     std::erase_if( widgets_,
                    [ & ]( const Widget& widget ) { return widget.pluginId == pluginId; } );
     for ( auto* window : windows_ ) {
@@ -272,6 +321,45 @@ std::optional<QString> SharedPluginUiPort::logFileEncoding( const QString& logFi
         }
     }
     return std::nullopt;
+}
+
+void SharedPluginUiPort::addMarks( const QString& logFile,
+                                   const std::vector<std::uint64_t>& logLines )
+{
+    const std::scoped_lock lock( mutex_ );
+    for ( auto* window : windows_ ) {
+        window->addMarks( logFile, logLines );
+    }
+}
+
+void SharedPluginUiPort::removeMarks( const QString& logFile,
+                                      const std::vector<std::uint64_t>& logLines )
+{
+    const std::scoped_lock lock( mutex_ );
+    for ( auto* window : windows_ ) {
+        window->removeMarks( logFile, logLines );
+    }
+}
+
+std::optional<std::vector<std::uint64_t>> SharedPluginUiPort::marks( const QString& logFile )
+{
+    const std::scoped_lock lock( mutex_ );
+    std::optional<std::vector<std::uint64_t>> all;
+    for ( auto* window : windows_ ) {
+        auto ofWindow = window->marks( logFile );
+        if ( !ofWindow ) {
+            continue;
+        }
+        if ( !all ) {
+            all = std::move( ofWindow );
+            continue;
+        }
+        all->insert( all->end(), ofWindow->begin(), ofWindow->end() );
+        std::ranges::sort( *all );
+        const auto duplicates = std::ranges::unique( *all );
+        all->erase( duplicates.begin(), duplicates.end() );
+    }
+    return all;
 }
 
 } // namespace logsquirl::plugins

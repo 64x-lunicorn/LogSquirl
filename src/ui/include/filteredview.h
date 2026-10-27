@@ -97,6 +97,7 @@ public:
 
 protected:
     std::function<void()> exportAsCsvAction() override;
+    logsquirl::plugins::PluginLogView pluginLogView() const override;
 
 private:
     // The columns the CSV export offers: Line, Type with types, one per Log
