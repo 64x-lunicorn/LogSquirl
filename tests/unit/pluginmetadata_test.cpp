@@ -26,6 +26,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QTemporaryDir>
+#include <QVersionNumber>
 
 using logsquirl::plugins::PluginMetadata;
 
@@ -417,6 +418,145 @@ SCENARIO( "A plugin manifest names the Log Format files the plugin ships", "[plu
     }
 }
 
+// A plugin ships Filter Groups and Highlighter Sets by naming their files in
+// its manifest, with the path rules of the Log Format files (#865).
+SCENARIO( "A plugin manifest names the Predefined Filter and Highlighter Set files the plugin "
+          "ships",
+          "[pluginmetadata]" )
+{
+    const auto manifestWith = []( const QString& members ) {
+        return QStringLiteral( R"({
+            "id": "com.example.test",
+            "name": "Test Plugin",
+            "version": "1.0.0",
+            "type": "ui",
+            "library": "libtest.dylib",
+            "api_version": 1%1
+        })" )
+            .arg( members )
+            .toUtf8();
+    };
+
+    GIVEN( "a manifest without the keys" )
+    {
+        const auto result = PluginMetadata::fromJson( validManifest(), "test" );
+        REQUIRE( result.has_value() );
+
+        THEN( "the plugin ships no Predefined Filter and no Highlighter Set" )
+        {
+            REQUIRE( result->predefinedFilters().isEmpty() );
+            REQUIRE( result->predefinedFilterPaths().isEmpty() );
+            REQUIRE( result->highlighterSets().isEmpty() );
+            REQUIRE( result->highlighterSetPaths().isEmpty() );
+        }
+    }
+
+    GIVEN( "a manifest naming a Predefined Filter file and two Highlighter Set files" )
+    {
+        const auto json = manifestWith(
+            R"(, "predefined_filters": [ "filters/crashes_filter.conf" ],
+                 "highlighter_sets": [ "levels_highlighter.conf", "sets/more.conf" ])" );
+
+        WHEN( "it is parsed from text" )
+        {
+            const auto result = PluginMetadata::fromJson( json, "test" );
+            REQUIRE( result.has_value() );
+
+            THEN( "the files are kept in the manifest's order, relative to the plugin directory" )
+            {
+                REQUIRE( result->predefinedFilters()
+                         == QStringList{ "filters/crashes_filter.conf" } );
+                REQUIRE( result->highlighterSets()
+                         == QStringList{ "levels_highlighter.conf", "sets/more.conf" } );
+                REQUIRE( result->formats().isEmpty() );
+            }
+
+            THEN( "without a plugin directory there is no absolute path to them" )
+            {
+                REQUIRE( result->predefinedFilterPaths().isEmpty() );
+                REQUIRE( result->highlighterSetPaths().isEmpty() );
+            }
+        }
+
+        WHEN( "it is read from a plugin directory" )
+        {
+            QTemporaryDir pluginDir;
+            REQUIRE( pluginDir.isValid() );
+            const auto manifestPath = QDir( pluginDir.path() ).filePath( "plugin.json" );
+            {
+                QFile manifest( manifestPath );
+                REQUIRE( manifest.open( QIODevice::WriteOnly ) );
+                manifest.write( json );
+            }
+            const auto result = PluginMetadata::fromJsonFile( manifestPath );
+            REQUIRE( result.has_value() );
+
+            THEN( "the files are resolved against the plugin directory" )
+            {
+                const QDir directory( QFileInfo( manifestPath ).absolutePath() );
+                REQUIRE( result->predefinedFilterPaths()
+                         == QStringList{ directory.filePath( "filters/crashes_filter.conf" ) } );
+                REQUIRE( result->highlighterSetPaths()
+                         == QStringList{ directory.filePath( "levels_highlighter.conf" ),
+                                         directory.filePath( "sets/more.conf" ) } );
+            }
+        }
+    }
+
+    GIVEN( "manifests whose keys are not lists of paths inside the plugin directory" )
+    {
+        for ( const auto* key : { "predefined_filters", "highlighter_sets" } ) {
+            const auto manifestWithKey = [ & ]( const char* value ) {
+                return manifestWith( QStringLiteral( R"(, "%1": %2)" ).arg( key, value ) );
+            };
+            INFO( key );
+
+            THEN( "a key that is not a list is rejected" )
+            {
+                const auto result
+                    = PluginMetadata::fromJson( manifestWithKey( R"("x.conf")" ), "test" );
+                REQUIRE_FALSE( result.has_value() );
+                REQUIRE( result.error().contains( key ) );
+            }
+
+            THEN( "an entry that is not a string, or an empty one, is rejected" )
+            {
+                for ( const auto* value : { R"([ "x.conf", 3 ])", R"([ "" ])" } ) {
+                    INFO( value );
+                    const auto result
+                        = PluginMetadata::fromJson( manifestWithKey( value ), "test" );
+                    REQUIRE_FALSE( result.has_value() );
+                    REQUIRE( result.error().contains( key ) );
+                }
+            }
+
+            THEN( "a path that leaves the plugin directory, or an absolute one, is rejected" )
+            {
+                for ( const auto* value : { R"([ "../x.conf" ])", R"([ "sets/../../x.conf" ])",
+                                            R"([ ".." ])", R"([ "/etc/x.conf" ])" } ) {
+                    INFO( value );
+                    const auto result
+                        = PluginMetadata::fromJson( manifestWithKey( value ), "test" );
+                    REQUIRE_FALSE( result.has_value() );
+                    REQUIRE( result.error().contains( key ) );
+                    REQUIRE( result.error().contains( "leaves the plugin directory" ) );
+                }
+            }
+
+            THEN( "a path that stays inside the plugin directory is kept as written" )
+            {
+                const auto result = PluginMetadata::fromJson(
+                    manifestWithKey( R"([ "sets/../x.conf", "./y.conf" ])" ), "test" );
+                REQUIRE( result.has_value() );
+                const auto kept = QString( key ) == "predefined_filters"
+                                      ? result->predefinedFilters()
+                                      : result->highlighterSets();
+                REQUIRE( kept == QStringList{ "sets/../x.conf", "./y.conf" } );
+            }
+        }
+    }
+}
+
 SCENARIO( "A plugin id is a plain name, never a path", "[pluginmetadata][plugins]" )
 {
     GIVEN( "Ids made of letters, digits, dots, dashes and underscores" )
@@ -463,6 +603,95 @@ SCENARIO( "A plugin id is a plain name, never a path", "[pluginmetadata][plugins
             REQUIRE_FALSE( result.has_value() );
             CHECK( result.error().contains( "'id'" ) );
             CHECK( result.error().contains( "../../.ssh" ) );
+        }
+    }
+}
+
+SCENARIO( "A plugin manifest names the Qt the plugin was built against",
+          "[pluginmetadata][plugins]" )
+{
+    const auto manifestWithQt = []( const QString& qtVersion ) {
+        return QString( R"({
+                "id": "com.example.qt",
+                "name": "Qt",
+                "version": "1.0.0",
+                "type": "ui",
+                "library": "libqt.dylib",
+                "api_version": 1,
+                "qt_version": %1
+            })" )
+            .arg( qtVersion )
+            .toUtf8();
+    };
+    const QVersionNumber host( 6, 8, 2 );
+
+    GIVEN( "a manifest without qt_version" )
+    {
+        const auto result = PluginMetadata::fromJson( validManifest(), "test" );
+        REQUIRE( result.has_value() );
+
+        THEN( "it names no Qt and every host serves it (#862)" )
+        {
+            CHECK_FALSE( result->qtVersion().has_value() );
+            CHECK( result->qtRefusal( host ).isEmpty() );
+            CHECK( result->qtRefusal( QVersionNumber( 7, 0 ) ).isEmpty() );
+        }
+    }
+
+    GIVEN( "a manifest naming the host's Qt or an older Qt 6 minor" )
+    {
+        THEN( "the host serves it (#862)" )
+        {
+            for ( const auto* qt : { R"("6.8")", R"("6.5")", R"("6.0")" } ) {
+                INFO( qt );
+                const auto result = PluginMetadata::fromJson( manifestWithQt( qt ), "test" );
+                REQUIRE( result.has_value() );
+                CHECK( result->qtRefusal( host ).isEmpty() );
+            }
+            const auto result = PluginMetadata::fromJson( manifestWithQt( R"("6.8")" ), "test" );
+            REQUIRE( result.has_value() );
+            CHECK( result->qtVersion() == QVersionNumber( 6, 8 ) );
+        }
+    }
+
+    GIVEN( "a manifest naming a newer Qt 6 minor than the host's" )
+    {
+        const auto result = PluginMetadata::fromJson( manifestWithQt( R"("6.9")" ), "test" );
+        REQUIRE( result.has_value() );
+
+        THEN( "the host refuses it, naming both Qt versions (#862)" )
+        {
+            const auto refusal = result->qtRefusal( host );
+            CHECK( refusal.contains( "Qt 6.9" ) );
+            CHECK( refusal.contains( "Qt 6.8.2" ) );
+        }
+    }
+
+    GIVEN( "a manifest naming another Qt major than the host's" )
+    {
+        THEN( "the host refuses it, older or newer (#862)" )
+        {
+            for ( const auto* qt : { R"("5.15")", R"("7.0")" } ) {
+                INFO( qt );
+                const auto result = PluginMetadata::fromJson( manifestWithQt( qt ), "test" );
+                REQUIRE( result.has_value() );
+                CHECK_FALSE( result->qtRefusal( host ).isEmpty() );
+            }
+        }
+    }
+
+    GIVEN( "a qt_version that is not major.minor" )
+    {
+        THEN( "the manifest is invalid, naming the field (#862)" )
+        {
+            for ( const auto* qt : { R"("6")", R"("6.8.2")", R"("six")", R"("6.x")", R"("")",
+                                     R"(" 6.8")", R"("6.8 ")", R"("-6.8")", "6.8", "null",
+                                     R"("6.8\n")", R"("6.99999999999")", R"("99999999999.8")" } ) {
+                INFO( qt );
+                const auto result = PluginMetadata::fromJson( manifestWithQt( qt ), "test" );
+                REQUIRE_FALSE( result.has_value() );
+                CHECK( result.error().contains( "qt_version" ) );
+            }
         }
     }
 }

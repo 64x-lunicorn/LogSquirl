@@ -22,6 +22,7 @@
 #include "logsquirl_plugin_api.h"
 #include "plugincatalog.h"
 #include "pluginloader.h"
+#include "pluginlogfiles.h"
 #include "pluginuiport.h"
 #include "streamwriter.h"
 
@@ -29,6 +30,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <atomic>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -39,6 +41,7 @@
 #include <optional>
 #include <thread>
 #include <utility>
+#include <vector>
 
 namespace logsquirl::plugins {
 
@@ -73,6 +76,9 @@ struct PluginAutoLoadResult {
 
 /** Names a Conversion the Plugin Host started; 0 names none. */
 using ConversionId = std::uint64_t;
+
+/** Names a content check the Plugin Host started (#861); 0 names none. */
+using ContentCheckId = std::uint64_t;
 
 /** How a Conversion ended. */
 enum class ConversionOutcome {
@@ -115,10 +121,15 @@ struct ConversionReport {
  * Must be created on the main (GUI) thread.  Host API callbacks may be called
  * from any thread: the PluginUiPort is called on the plugin's thread and moves
  * widget work to the GUI thread itself, signals use queued connections, and
- * open_file is queued to the GUI thread.  The functions documented as
- * UI-thread-only (the Regex Lab, the Log Lines, the active file path) refuse
- * a call from another thread.  A Conversion runs the converter on a worker
- * thread of the host's and reports on the GUI thread (#795).
+ * open_file, add_marks and remove_marks are queued to the GUI thread (#866).
+ * The functions documented as UI-thread-only (the Regex Lab, the Log Lines of
+ * the tab in front, the active file path, the Marks read) refuse a call from
+ * another thread.  A Conversion runs the
+ * converter on a worker thread of the host's and reports on the GUI thread
+ * (#795), and asks the converters whether they claim a file by its content
+ * on a worker thread too (#861).  The Log Lines of an open Log File, and
+ * their fields (#867), are read on the plugin's thread, through the Log Files
+ * the UI adds to logFiles() (#858).
  */
 class PluginHost : public QObject {
     Q_OBJECT
@@ -168,7 +179,10 @@ public:
      * menu action of the plugin's that shows a modal dialog, say -- the
      * plugin counts as unloaded at once, and nothing calls into it any more;
      * it is shut down once that call has returned (#691). Its Conversions
-     * are cancelled first, the one under way waited for (#795).
+     * are cancelled first, the one under way waited for (#795), and so is a
+     * content check's call into it under way (#861). A stream of
+     * the plugin's that runs is stopped in the plugin before the plugin is
+     * shut down, and ends after (#855).
      */
     void unloadPlugin( const QString& pluginId );
 
@@ -223,16 +237,46 @@ public:
      */
     void notifyEncodingChanged( const QString& filePath, const QString& encoding );
 
+    /**
+     * The Log Files open in every window, by path, which plugins read on any
+     * thread (#858). The UI adds each when its tab opens and removes it when
+     * the tab closes. Shared, so that a tab outliving the host lets go of an
+     * id the host no longer knows.
+     */
+    const std::shared_ptr<PluginLogFiles>& logFiles() const
+    {
+        return logFiles_;
+    }
+
+    /**
+     * Notify all plugins that registered a log lines callback that the Log
+     * Lines of an open Log File changed: lineCount is how many it has now
+     * (#858). On the host's thread only.
+     */
+    void notifyLogLinesChanged( const QString& filePath, std::uint64_t lineCount,
+                                PluginLogLinesChange change );
+
     // ── DataSource (Phase 2) ─────────────────────────────────────────
 
     /**
-     * Start a DataSource plugin.  Creates a temp-file-backed stream and
-     * emits dataSourceStarted() so MainWindow can open it.
-     * @return Empty string on success, error message on failure.
+     * Start a DataSource plugin.  Creates a temp-file-backed stream, calls
+     * the plugin's logsquirl_datasource_start, if it exports it, as a call
+     * into the plugin, and emits dataSourceStarted() so MainWindow can open
+     * the stream once the plugin let it start (#855). A start the plugin
+     * refuses frees the stream again, and nothing is emitted. A start while
+     * the plugin's stream runs, or is starting, is refused without calling
+     * the plugin.
+     * @return Empty string when the stream started or when the plugin said
+     *         the user cancelled; an error message when it did not start for
+     *         another reason.
      */
     QString startDataSource( const QString& pluginId );
 
-    /** Stop a running DataSource plugin by closing its stream. */
+    /**
+     * Stop a running DataSource plugin: calls its logsquirl_datasource_stop,
+     * if it exports it, then closes its stream. Nothing while the plugin's
+     * start or stop is still running.
+     */
     void stopDataSource( const QString& pluginId );
 
     /** Return the StreamWriter for an active DataSource (nullptr if none). */
@@ -241,13 +285,37 @@ public:
     // ── Converter registry (Phase 4) ────────────────────────────────
 
     /**
-     * Return the plugin ID for the converter that handles the given extension.
-     * Returns an empty string if no converter is registered for it.
+     * Return the plugin ID for the converter that handles the given extension:
+     * of several, the one with the smallest ID (#861). Returns an empty string
+     * if no converter is registered for it.
      */
     QString converterForExtension( const QString& extension ) const;
 
     /** Return all file-dialog filters contributed by converter plugins. */
     QStringList converterFileFilters() const;
+
+    /**
+     * Starts a content check (#861): on a worker thread of the host's, never
+     * this one, reads the first LOGSQUIRL_CONVERTER_CLAIMS_HEAD_LENGTH bytes of
+     * filePath and asks the loaded converters that export
+     * logsquirl_converter_claims, one after the other in plugin-ID order,
+     * whether they convert it. The caller hears, through claimed, on the
+     * host's thread, the ID of the first that claims it; an empty one when
+     * none does, the head could not be read, or the plugin that claimed it was
+     * unloaded meanwhile. A plugin unloaded during the check is not asked any
+     * more, and its unload waits for its call under way.
+     * @return The check's ID, or 0 when no loaded converter exports the
+     *         check: then nothing is reported.
+     */
+    ContentCheckId checkContent( const QString& filePath,
+                                 std::function<void( const QString& pluginId )> claimed );
+
+    /**
+     * Cancels a content check: its caller hears nothing of it, and no plugin
+     * is asked any more. A call under way is not waited for. Nothing for a
+     * check that has finished.
+     */
+    void cancelContentCheck( ContentCheckId id );
 
     /**
      * Starts a Conversion: the converter plugin writes inputPath as plain
@@ -289,7 +357,11 @@ Q_SIGNALS:
     void dataSourceStarted( const QString& pluginId, const QString& displayName,
                             const QString& filePath );
 
-    /** Emitted when a DataSource plugin stream has ended. */
+    /**
+     * Emitted on the host's thread, once per stream, when a DataSource
+     * plugin stream has ended: stopped by the host, or ended by the plugin's
+     * own end-of-stream once the event loop turns (#871).
+     */
     void dataSourceStopped( const QString& pluginId );
 
 private:
@@ -316,14 +388,105 @@ private:
     };
 
     /**
+     * What the worker thread of a content check shares with the host: the
+     * plugins to ask, the one being asked and the one that claimed the file.
+     */
+    struct ContentCheckControl;
+
+    /** A content check under way (#861). */
+    struct ContentCheck {
+        ContentCheckId id = 0;
+        std::function<void( const QString& pluginId )> claimed;
+        std::shared_ptr<ContentCheckControl> control;
+        std::thread thread;
+    };
+
+    /**
      * A menu action's callback as the plugin registered it. The host hands
      * the Plugin UI Port its own callback with this as the user data, so that
-     * the plugin's runs as a call into the plugin (#691).
+     * the plugin's runs as a call into the plugin (#691). Created in place
+     * and never moved: its address names the action.
      */
     struct MenuActionCall {
         PluginContext* context = nullptr;
         PluginCallbackFn callback = nullptr;
         void* userData = nullptr;
+        QString label{};
+        // The submenu it is in, as pluginSubmenuNames names it (#870).
+        QStringList submenu{};
+        // The id register_menu_action_ex returned; 0 for an action of
+        // register_menu_action, which no id removes (#857).
+        int id = 0;
+        // Set by unregister_menu_action, from any thread: a trigger of the
+        // action that comes later, queued or not, does not reach the plugin.
+        std::atomic<bool> removed{ false };
+    };
+
+    /**
+     * A context menu item's callback as the plugin registered it (#859),
+     * handed to the Plugin UI Port as a menu action's is: created in place
+     * and never moved, its address names the item.
+     */
+    struct ContextMenuActionCall {
+        PluginContext* context = nullptr;
+        LogSquirlContextMenuCallbackFn callback = nullptr;
+        void* userData = nullptr;
+        // The id register_context_menu_action returned.
+        int id = 0;
+        // Set by unregister_context_menu_action, from any thread: a choice of
+        // the item delivered later does not reach the plugin.
+        std::atomic<bool> removed{ false };
+    };
+
+    /**
+     * What the host returns to a plugin that may call on any thread (#858):
+     * each thread of the plugin's has a buffer of its own, valid until the
+     * plugin calls the same function on that thread again or is unloaded. A
+     * buffer stays until the plugin is unloaded; a thread that reuses the id
+     * of one that ended reuses its buffer.
+     */
+    template <typename Buffer>
+    class PerThread {
+    public:
+        /** The calling thread's buffer, as it was made on its first call. */
+        Buffer& ofThisThread()
+        {
+            const std::lock_guard lock( mutex_ );
+            return buffers_[ std::this_thread::get_id() ];
+        }
+
+    private:
+        // Held to find or add a buffer, not while one is written: a buffer
+        // is only ever touched by its own thread, and a map's elements stay
+        // where they are as others are added.
+        std::mutex mutex_;
+        std::map<std::thread::id, Buffer> buffers_;
+    };
+    using PerThreadText = PerThread<QByteArray>;
+
+    /** What get_log_format_fields hands a plugin's thread (#867). */
+    struct LogFormatFieldsBuffer {
+        QByteArray name;
+        // Each NUL-terminated, where namePointers point.
+        std::vector<QByteArray> fieldNames;
+        std::vector<const char*> namePointers;
+    };
+
+    /** What get_log_line_fields hands a plugin's thread (#867). */
+    struct LogLineFieldsBuffer {
+        // Every value, each followed by a NUL, where valuePointers point.
+        QByteArray text;
+        std::vector<const char*> valuePointers;
+        std::vector<size_t> valueLengths;
+        std::vector<int> parsed;
+    };
+
+    /** Where a plugin's data source is between its start and its stop (#855). */
+    enum class DataSourceState {
+        Idle,     ///< No stream.
+        Starting, ///< The stream exists; logsquirl_datasource_start is running.
+        Running,  ///< The stream runs; logsquirl_datasource_stop is owed.
+        Stopping  ///< logsquirl_datasource_stop is running or has returned; the stream ends next.
     };
 
     // Per-plugin context stored alongside the handle
@@ -338,16 +501,33 @@ private:
         // returned before the stream goes, and a later one finds none (#821).
         std::mutex streamMutex{};
         std::unique_ptr<StreamWriter> stream{};
+        // Whether the plugin signalled the end of this stream itself, under
+        // streamMutex: the host then ends it on its own thread, as any other
+        // stop (#871). Reset with every new stream.
+        bool streamEndedByPlugin = false;
+        // The streams of this load of the plugin that ended, finished: their
+        // tabs still read their files, which go with the context when the
+        // plugin is unloaded or the host goes, as the last stream's did
+        // before a stream ended this way (#871). UI thread only.
+        std::vector<std::unique_ptr<StreamWriter>> endedStreams{};
+        // Where the data source is between the plugin's start and stop, so
+        // that stop is called once for every start that let the stream run,
+        // before the stream ends (#855). UI thread only.
+        DataSourceState dataSourceState = DataSourceState::Idle;
+        // What start and stop are handed, valid during their call.
+        LogSquirlDataSourceContext dataSourceContext{ sizeof( LogSquirlDataSourceContext ) };
         // Back-pointer to the owning PluginHost (for static trampolines)
         PluginHost* host = nullptr;
         // Which load of the plugin this is, from any thread: a call queued to
         // the host's thread is dropped when the plugin was unloaded meanwhile,
         // also when it was loaded again since.
         std::uint64_t loadSerial = 0;
-        // Active-file-change callback registered by plugin (optional)
+        // Active-file-change callback registered by plugin (optional), under
+        // registrationsMutex: it may register from any thread (#869).
         void ( *activeFileCallback )( void* user_data, const char* file_path ) = nullptr;
         void* activeFileUserData = nullptr;
-        // Encoding-change callback registered by plugin (optional, #803)
+        // Encoding-change callback registered by plugin (optional, #803),
+        // under registrationsMutex as the one above.
         LogSquirlEncodingCallbackFn encodingCallback = nullptr;
         void* encodingUserData = nullptr;
         // What the user interface answers the plugin through is connected
@@ -361,6 +541,10 @@ private:
         // Cached UTF-8 so the get_log_file_encoding name stays valid until
         // the plugin's next call of it (#803).
         QByteArray logFileEncodingUtf8{};
+        // Cached UTF-8 so the get_active_file_path path stays valid until
+        // the plugin's next call of it, whatever other plugins ask (#857).
+        // UI thread only.
+        QByteArray activeFilePathUtf8{};
         // The host's calls into the plugin, nested ones on the UI thread and
         // a Conversion under way on its worker thread included: one of them
         // may run an event loop -- a modal dialog -- in which the user unloads
@@ -379,15 +563,78 @@ private:
         // order asked. UI thread only.
         std::deque<std::unique_ptr<Conversion>> queuedConversions{};
         std::unique_ptr<Conversion> runningConversion{};
-        // The menu actions the plugin registered, from any thread; their
-        // addresses are the user data of the host's callbacks, so they stay
-        // until the context goes, after the actions are removed.
-        std::mutex menuActionCallsMutex{};
+        // What the plugin registered from any thread, under
+        // registrationsMutex. The menu actions' addresses are the user data
+        // of the host's callbacks, so they stay until the context goes, also
+        // once removed: a trigger still queued then finds them marked.
+        std::mutex registrationsMutex{};
         std::list<MenuActionCall> menuActionCalls{};
+        // The ids handed out so far, by every registration that returns one
+        // (#857): the next one is one more, so none is handed out twice.
+        int registrationIdsSoFar = 0;
+        // The menu actions of register_menu_action_ex not removed yet, by id.
+        std::map<int, MenuActionCall*> menuActionsById{};
+        // The context menu items, kept as the menu actions are (#859), and
+        // those not removed yet by id.
+        std::list<ContextMenuActionCall> contextMenuActionCalls{};
+        std::map<int, ContextMenuActionCall*> contextMenuActionsById{};
+        // Log-lines-change callback registered by plugin (optional, #858),
+        // under registrationsMutex: it may register from any thread.
+        LogSquirlLogLinesCallbackFn logLinesCallback = nullptr;
+        void* logLinesUserData = nullptr;
+        // The get_log_lines text, one per thread of the plugin's (#858).
+        PerThreadText logLinesUtf8{};
+        // What get_log_format_fields and get_log_line_fields return, one per
+        // thread of the plugin's (#867).
+        PerThread<LogFormatFieldsBuffer> logFormatFields{};
+        PerThread<LogLineFieldsBuffer> logLineFields{};
+        // The get_marks array, valid until the plugin's next call of it
+        // (#866). UI thread only.
+        std::vector<std::uint64_t> marks{};
     };
+
+    /** Whether add_marks or remove_marks is carried out. */
+    enum class MarksChange { Add, Remove };
+
+    /**
+     * add_marks and remove_marks (#866): checks the call and has the Plugin
+     * UI Port carry it out on the host's thread, at once when called there,
+     * else from the event loop unless the plugin was unloaded meanwhile.
+     */
+    static int changeMarks( void* handle, const char* filePath, const uint64_t* lines, size_t count,
+                            MarksChange change );
+
+    /**
+     * The next id for a registration of the plugin, greater than 0; negative
+     * once all are used up. Under the context's registrationsMutex.
+     */
+    static int nextRegistrationId( PluginContext& context );
+
+    /**
+     * Whether the plugin has a menu item, not removed, of that label in that
+     * submenu as pluginSubmenuNames names it (#870). Under the context's
+     * registrationsMutex.
+     */
+    static bool hasLiveMenuAction( const PluginContext& context, const QStringList& submenu,
+                                   const QString& label );
 
     /** The loaded plugin's context, or nullptr when it is not loaded or is being unloaded. */
     PluginContext* loadedContext( const QString& pluginId ) const;
+
+    /**
+     * The loaded converters, not being unloaded, in plugin-ID order: the
+     * order a file is offered to them in (#861).
+     */
+    std::vector<PluginContext*> convertersInIdOrder() const;
+
+    /**
+     * Takes the plugin out of every content check under way: none asks it
+     * any more, and a call into it under way has returned when this returns.
+     */
+    void leaveContentChecks( const PluginContext& context );
+
+    /** Finishes the content check id, whose worker has returned: reports it last. */
+    void finishContentCheck( ContentCheckId id );
 
     /**
      * Runs call as a call into the plugin, unless the plugin is being
@@ -395,6 +642,17 @@ private:
      * meanwhile is finished once the outermost such call has returned.
      */
     bool callIntoPlugin( PluginContext& context, const std::function<void()>& call );
+
+    /**
+     * Tells every loaded plugin that registered a callback in the context's
+     * member callback, with the user data in userData: runs
+     * call( callback, user data ) as a call into the plugin. Both are taken
+     * as one under the registrationsMutex, since a plugin may register
+     * another from its own thread.
+     */
+    template <typename Callback, typename Call>
+    void notifyPlugins( Callback PluginContext::* callback, void* PluginContext::* userData,
+                        const Call& call );
 
     /**
      * Delivers a Regex Lab answer as a call into the plugin, or parks it
@@ -410,9 +668,34 @@ private:
 
     /**
      * Ends the plugin's stream, if one runs, once a push under way has
-     * returned: signals end-of-stream, frees it and says it stopped.
+     * returned: signals end-of-stream, keeps it with the ended streams, whose
+     * files the tabs still read until the plugin is unloaded (#871), and says
+     * it stopped.
      */
     void endStream( PluginContext& context, const QString& pluginId );
+
+    /**
+     * Calls the plugin's logsquirl_datasource_stop, if its stream runs and it
+     * exports it, as a call into the plugin; also while the plugin's unload
+     * is pending, since it is not shut down yet and is owed the stop (#855).
+     */
+    void stopInPlugin( PluginContext& context );
+
+    /**
+     * Has the host's thread end the stream the plugin signalled the end of,
+     * from the event loop: the plugin may signal from any thread (#871).
+     */
+    static void endStreamThePluginEndedLater( PluginContext& context );
+
+    /**
+     * Ends the stream the plugin signalled the end of as any other stop:
+     * stops the plugin, ends the stream and says it stopped. Nothing when
+     * that load of the plugin is gone (#843), when the stream was ended or
+     * replaced meanwhile, or while the plugin's stop runs, which ends it
+     * anyway; while its start runs, the start asks for this again once it
+     * has returned.
+     */
+    void endStreamThePluginEnded( const QString& pluginId, std::uint64_t loadSerial );
 
     /** Starts the plugin's next queued Conversion, unless one is under way. */
     void startNextConversion( PluginContext& context );
@@ -441,6 +724,13 @@ private:
     /** The callback the host hands the Plugin UI Port for a plugin's menu action. */
     static void runMenuAction( void* menuActionCall );
 
+    /**
+     * The callback the host hands the Plugin UI Port for a plugin's context
+     * menu item, on the UI thread: what was selected, as the plugin reads it.
+     */
+    static void runContextMenuAction( void* contextMenuActionCall,
+                                      const PluginContextMenuContext& context );
+
     /** Extract a PluginContext from the opaque handle passed through host API. */
     static PluginContext* contextFromHandle( void* handle );
 
@@ -454,12 +744,16 @@ private:
     std::map<QString, std::unique_ptr<PluginContext>> loaded_;
     std::uint64_t loadsSoFar_ = 0;
     ConversionId conversionsSoFar_ = 0;
+    // The content checks under way, UI thread only (#861).
+    std::list<std::unique_ptr<ContentCheck>> contentChecks_;
+    ContentCheckId contentChecksSoFar_ = 0;
 
     PluginUiPort* uiPort_ = nullptr;
 
     std::function<void( const QString&, bool )> openFileCallback_;
     std::function<QString()> activeFilePathCallback_;
-    QByteArray activeFilePathUtf8_; ///< Cached for get_active_file_path pointer stability
+
+    const std::shared_ptr<PluginLogFiles> logFiles_ = std::make_shared<PluginLogFiles>();
 
     // ── Static host API trampolines ──────────────────────────────────
     // These are the actual C function pointers stored in LogSquirlHostApi.
@@ -494,6 +788,31 @@ private:
     static int hostGetLogFileEncoding( void* handle, const char* filePath, const char** encoding );
     static void hostRegisterEncodingCallback( void* handle, LogSquirlEncodingCallbackFn callback,
                                               void* userData );
+    static int hostRegisterMenuActionEx( void* handle, const char* menuPath, const char* label,
+                                         PluginCallbackFn callback, void* userData );
+    static void hostUnregisterMenuAction( void* handle, int id );
+    static int hostGetLogLineCount( void* handle, const char* filePath, uint64_t* count );
+    static int hostGetLogLines( void* handle, const char* filePath, uint64_t firstLine,
+                                size_t maxLines, const char** text, size_t* length,
+                                size_t* lineCount );
+    static void hostRegisterLogLinesCallback( void* handle, LogSquirlLogLinesCallbackFn callback,
+                                              void* userData );
+    static int hostRegisterContextMenuAction( void* handle, const char* menuPath, const char* label,
+                                              LogSquirlContextMenuCallbackFn callback,
+                                              void* userData );
+    static void hostUnregisterContextMenuAction( void* handle, int id );
+    static int hostAddMarks( void* handle, const char* filePath, const uint64_t* lines,
+                             size_t count );
+    static int hostRemoveMarks( void* handle, const char* filePath, const uint64_t* lines,
+                                size_t count );
+    static int hostGetMarks( void* handle, const char* filePath, const uint64_t** lines,
+                             size_t* count );
+    static int hostGetLogFormatFields( void* handle, const char* filePath, const char** formatName,
+                                       const char* const** fieldNames, size_t* fieldCount );
+    static int hostGetLogLineFields( void* handle, const char* filePath, uint64_t firstLine,
+                                     size_t maxLines, const char* const** values,
+                                     const size_t** lengths, const int** parsed, size_t* fieldCount,
+                                     size_t* lineCount );
 
     // The functions of the LogSquirlConvertControl handed to convert_ex,
     // called on the Conversion's worker thread.

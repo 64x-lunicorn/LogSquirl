@@ -81,6 +81,7 @@ public:
                              logsquirl::plugins::PluginWidgetHandle widget ) override;
     void addMenuAction( const QString& pluginId, const QString& menuPath, const QString& label,
                         logsquirl::plugins::PluginCallbackFn callback, void* userData ) override;
+    void removeMenuAction( const QString& pluginId, void* userData ) override;
     void removeContributions( const QString& pluginId ) override;
     logsquirl::plugins::PluginWidgetHandle configurationParent() override;
     bool openRegexLab( const QString& pluginId, const logsquirl::plugins::PluginPattern& pattern,
@@ -109,10 +110,22 @@ public:
     std::optional<QString> logFileEncoding( const QString& logFile ) override;
 
     /**
-     * The tab showing a Log File, by its path, asked for at each call of
-     * logFileEncoding(): nullptr when no tab shows it.
+     * Marks the Log Lines in every tab of the window showing the Log File, as
+     * the user marks them, or removes those Marks (#866).
      */
-    void setTabOfLogFile( std::function<CrawlerWidget*( const QString& )> tabOfLogFile );
+    void addMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override;
+    void removeMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override;
+
+    /** The Marks of the tabs of the window showing the Log File together (#866). */
+    std::optional<std::vector<std::uint64_t>> marks( const QString& logFile ) override;
+
+    /**
+     * The tabs showing a Log File, by its path, asked for at each call of
+     * logFileEncoding() -- which reads the first -- and of the Marks: none
+     * when no tab shows it.
+     */
+    void
+    setTabsOfLogFile( std::function<std::vector<CrawlerWidget*>( const QString& )> tabsOfLogFile );
 
 private:
     /**
@@ -126,10 +139,18 @@ private:
         QPointer<QAction> toolBarAction;
     };
 
-    /// A menu action a plugin added, and the menu (or submenu) it sits in.
+    /// A menu action a plugin added, the menu (or submenu) it sits in, and
+    /// the user data it was added with, which names it for removeMenuAction().
     struct PluginMenuAction {
         QPointer<QAction> action;
         QPointer<QMenu> menu;
+        void* userData = nullptr;
+    };
+
+    /// How the plugin submenus nothing is in any more are deleted.
+    enum class SubmenuDeletion {
+        Now,  ///< At once.
+        Later ///< Taken out of their menus at once, deleted from the event loop.
     };
 
     /// A toolbar of the window that shows plugin widgets; created when the first one arrives.
@@ -167,8 +188,11 @@ private:
      */
     QMenu& menuAt( const QStringList& submenuNames );
 
+    /// The tabs showing the Log File, on the window's thread; none elsewhere.
+    std::vector<CrawlerWidget*> tabsOf( const QString& logFile ) const;
+
     /// Deletes the plugin submenus that nothing is in any more.
-    void removeEmptySubmenus();
+    void removeEmptySubmenus( SubmenuDeletion deletion = SubmenuDeletion::Now );
 
     QMainWindow& window_;
     QMenu& pluginsMenu_;
@@ -189,7 +213,7 @@ private:
     std::map<QString, std::vector<QPointer<RegexLabWindow>>> regexLabs_;
     std::function<RegexLabSampleSource()> regexLabSampleSource_;
     std::function<CrawlerWidget*()> tabInFront_;
-    std::function<CrawlerWidget*( const QString& )> tabOfLogFile_;
+    std::function<std::vector<CrawlerWidget*>( const QString& )> tabsOfLogFile_;
 
     // Tracks menu actions added by each plugin so they can be removed on unload.
     std::map<QString, std::vector<PluginMenuAction>> menuActions_;

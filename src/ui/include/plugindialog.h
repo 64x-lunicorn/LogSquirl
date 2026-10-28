@@ -121,6 +121,7 @@ private:
         QString installedVersion;
         QString latestVersion;
         QString installRefusal; ///< Why the latest release cannot be installed; empty when it can
+        QString qtRefusal; ///< Why this LogSquirl's Qt cannot serve the plugin; empty when it can
         PluginState state = PluginState::NotInstalled;
         bool loaded = false;       ///< Loaded in the Plugin Host
         bool configurable = false; ///< Loaded and exports logsquirl_plugin_configure
@@ -150,6 +151,7 @@ private:
         QLabel* descriptionLabel = nullptr;
         QLabel* formatWarningLabel = nullptr;
         QLabel* installRefusalLabel = nullptr;
+        QLabel* qtRefusalLabel = nullptr;
         QLabel* statusBadge = nullptr;
         QPushButton* actionButton = nullptr;
         QPushButton* toggleButton = nullptr;

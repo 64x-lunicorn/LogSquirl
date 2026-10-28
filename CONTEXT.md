@@ -190,7 +190,8 @@ which shows a match as its Row, selected; the Presentation not shown is never se
 _Avoid_: find, incremental search
 
 **Predefined Filter**:
-A saved, named search pattern the user can apply without retyping it.
+A saved, named search pattern the user can apply without retyping it. The user's own, a
+Team group's, or one an enabled plugin ships (see Plugin group).
 _Avoid_: saved search, bookmark
 
 **Filter Group**:
@@ -226,6 +227,17 @@ take theirs or save mine as a copy. Nothing is locked (ADR-0008). A personal gro
 as a Team copy, a Team group is copied back into the personal groups, each with a fresh id.
 _Avoid_: shared group, remote group
 
+**Plugin group**:
+A Filter Group or Highlighter Set an enabled plugin ships: a file as the dialogs export it,
+named in the plugin's manifest. Read for every enabled plugin, loaded or not, after the
+plugins are discovered and whenever one is enabled or disabled. Listed after the user's own
+groups with its Source, the plugin's name, so that one of the same name as the user's is told
+apart; applied like the user's own, read-only, copied into the personal groups with a fresh
+id, and never written into the user's settings. Whether a plugin's Highlighter Set is active
+is the user's and kept; disabling the plugin removes its groups and switches its sets off
+(ADR 0029).
+_Avoid_: shipped filter, bundled set
+
 **Search Limits**:
 An optional line range a Search is restricted to. Lines outside it are shown but visually
 subdued. Half-open everywhere: from the first Log Line searched up to, not including, its
@@ -244,8 +256,9 @@ _Avoid_: search range, scope
 A Log Line selected by the current Search.
 
 **Mark**:
-A Log Line the user has flagged by hand. Independent of Match: a line can be either, both,
-or neither.
+A Log Line flagged by the user, or by a plugin on the user's behalf. Independent of Match: a
+line can be either, both, or neither. Each tab keeps its own; a plugin sets and removes them
+in every tab showing the Log File, and its Marks are the user's to remove like any other.
 _Avoid_: bookmark, flag, pin
 
 **Context Line**:
@@ -268,7 +281,9 @@ _Avoid_: rule, colorizer, style
 
 **Highlighter Set**:
 A named group of Highlighters. Exactly one set is active at a time, so switching sets
-re-colors the whole view at once.
+re-colors the whole view at once. The user's own, a Team group, or one an enabled plugin
+ships (a Plugin group); when the active one goes with its plugin, the Log Lines show as with
+no set chosen.
 _Avoid_: theme, profile, palette
 
 **Color Label**:
@@ -480,9 +495,18 @@ _Avoid_: plugin manager, plugin registry, plugin list
 Loads and initialises the plugins the Plugin Catalog lists, shuts them down again, and
 answers what a loaded plugin calls back: its data-source stream, its converter, the active
 file, opening files, notifications, the Regex Lab, and the Log Lines of the tab in front:
-going to one and reading the selected ones. The host functions a plugin can call
-only grow, appended to one table whose size tells a plugin which the running LogSquirl
+going to one and reading the selected ones. It also lets a plugin read the Log Lines of
+any open Log File by its path, on any thread, and tells it when they are appended or
+replaced (ADR 0024): the UI adds every tab's Log File to the host's open Log Files and
+takes it away when the tab closes. A plugin sets and removes Marks of an open Log File by
+its path from any thread, carried out on the UI thread in every tab showing it, and reads
+them on the UI thread (ADR 0026). It names the Log Format of an open Log File and reads
+the fields of its Log Lines as the Table View shows them, on any thread; another Log
+Format, or none, counts as replaced Log Lines (ADR 0027). The host functions a plugin can
+call only grow, appended to one table whose size tells a plugin which the running LogSquirl
 offers (ADR 0017). What a plugin shows goes through the Plugin UI Port.
+A data source plugin may refuse its stream as it starts, and is stopped once for every
+stream it let run, before that stream ends and before the plugin is shut down (ADR 0023).
 A plugin is loaded when the host has initialised it, and enabled when the configuration
 says to load it. The first start enables every discovered plugin once and the
 configuration keeps that choice; from then on only the enabled plugins are loaded, none
@@ -499,14 +523,20 @@ _Avoid_: plugin registry, per-window plugins
 
 **Plugin UI Port**:
 Everything the plugin layer needs from the user interface to show what a plugin
-contributes — status widgets, sidebar tabs, footer widgets, menu actions, the parent
-of its configuration dialog, a Regex Lab it opens, and the tab in front, where it goes to a
+contributes — status widgets, sidebar tabs, footer widgets, menu actions, context menu
+items, the parent of its configuration dialog, a Regex Lab it opens, and the tab in front, where it goes to a
 Log Line and reads the selected Log Lines for a plugin. The plugin layer calls it and knows no widgets; every main
 window implements it. The Application Plugins hand each contribution on to every window: a
 menu action shows in all of them, a widget, which exists once, in the most recently active
 window, and it moves to another window when that one closes; a Regex Lab opens in the most
-recently active window too, whose tab in front is the one a plugin goes to a Log Line of. Every contribution belongs to
-one plugin, and all of them are taken away again when that plugin is unloaded.
+recently active window too, whose tab in front is the one a plugin goes to a Log Line of. A
+context menu item stays with the Application Plugins: the Text View, the Table View and the
+Filtered View of every tab ask for the items each time their context menu opens and end it
+with them, and a chosen one is called from the event loop with the Log Lines selected as the
+menu opened (ADR 0025). Every contribution belongs to
+one plugin, and all of them are taken away again when that plugin is unloaded; the plugin
+takes a widget away earlier by the widget, a menu action or a context menu item it registered
+with an id by that id, from every window (ADR 0022).
 _Avoid_: plugin UI bridge, widget signals, UI host
 
 **Conversion**:
@@ -515,7 +545,11 @@ claims, into the Transient Log File that is shown. It runs in the background wit
 and Cancel; the user sees the Log File it was converted from, never the conversion's output
 path. A cancelled or failed Conversion opens no tab. A plugin converts one file at a time;
 different plugins convert at the same time. Any plugin that exports the converter entry
-points converts, whatever its kind.
+points converts, whatever its kind. A file no converter's extensions match may be claimed
+by its content instead: a converter that exports the check is asked, on a worker thread and
+before the file is decompressed, whether it takes the file by its first bytes. Of several
+converters, by extension or by content, the one with the smallest plugin id converts it
+(ADR 0028).
 _Avoid_: import, transcoding, pre-processing
 
 ### Updates

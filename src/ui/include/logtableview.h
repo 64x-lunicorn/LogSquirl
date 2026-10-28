@@ -43,6 +43,7 @@
 #include "logformatdefinition.h"
 #include "logformattablemodel.h"
 #include "logpresentation.h"
+#include "plugincontextmenu.h"
 #include "quickfindmux.h"
 #include "regularexpressionpattern.h"
 #include "rowmapping.h"
@@ -144,6 +145,10 @@ public:
     // the Rows read so far are stale, and a Sort Order is sorted anew once
     // the next updateData() brings the new Log Lines.
     void reloaded();
+
+    // Asked whenever the context menu opens: the plugins' items it ends with
+    // (#859). Without it, the menu has none.
+    void setPluginContextMenu( PluginContextMenuSource source );
 
     // Sort Order
     struct SortOrder {
@@ -557,6 +562,8 @@ private:
     bool matchesOnly_ = false;
     // The Matches' Rows, while Matches Only is on.
     std::shared_ptr<const MatchRows> matchRows_;
+    // What the plugins offer at the end of the context menu (#859).
+    PluginContextMenuSource pluginContextMenu_;
     // Not owned: the coordinator holds the Log Format for as long as it is set
     const LogFormatDefinition* format_ = nullptr;
     AbstractLogData* logData_ = nullptr;

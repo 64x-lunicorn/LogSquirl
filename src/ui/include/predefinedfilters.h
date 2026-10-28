@@ -44,6 +44,7 @@
 #include <QString>
 
 #include "persistable.h"
+#include "plugingroup.h"
 #include "predefinedfilter.h"
 
 // Represents a named group of predefined filters, analogous to HighlighterSet.
@@ -111,6 +112,13 @@ public:
 
     bool hasSetByName( const QString& name ) const;
 
+    // The Filter Groups the enabled plugins ship, each with its Source
+    // (#865): read-only here and never stored, they come and go as plugins
+    // are enabled and disabled. None of the filters below hold them. Whether
+    // this changed them.
+    QList<PluginGroup<PredefinedFilterSet>> pluginFilterGroups() const;
+    bool setPluginFilterGroups( const QList<PluginGroup<PredefinedFilterSet>>& groups );
+
     // --- Backward-compatible flat API ---
 
     // Returns a flattened list of all filters across every set.
@@ -134,6 +142,7 @@ private:
     void ensureDefaultSet();
 
     QList<PredefinedFilterSet> filterSets_;
+    QList<PluginGroup<PredefinedFilterSet>> pluginGroups_;
 };
 
 Q_DECLARE_METATYPE( PredefinedFilter )

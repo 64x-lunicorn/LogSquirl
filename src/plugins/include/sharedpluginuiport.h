@@ -37,6 +37,8 @@ namespace logsquirl::plugins {
  * them on to the windows:
  *
  * - A menu action is shown in every window, including a window opened later.
+ * - A context menu item is kept here only: the views of Log Lines of every
+ *   window ask for the items each time their context menu opens (#859).
  * - A widget exists once, so it is shown in one window: the most recently
  *   active one when the plugin registers it. When that window goes, the
  *   widget moves to the most recently active remaining window; with no
@@ -80,6 +82,12 @@ public:
     void removeFooterWidget( const QString& pluginId, PluginWidgetHandle widget ) override;
     void addMenuAction( const QString& pluginId, const QString& menuPath, const QString& label,
                         PluginCallbackFn callback, void* userData ) override;
+    void removeMenuAction( const QString& pluginId, void* userData ) override;
+    void addContextMenuAction( const QString& pluginId, const QString& menuPath,
+                               const QString& label, PluginContextMenuCallbackFn callback,
+                               void* userData ) override;
+    void removeContextMenuAction( const QString& pluginId, void* userData ) override;
+    std::vector<PluginContextMenuAction> contextMenuActions() const override;
     void removeContributions( const QString& pluginId ) override;
 
     /** The most recently active window's, or a null handle without a window. */
@@ -98,6 +106,12 @@ public:
      * in the first window showing it, the most recently active first.
      */
     std::optional<QString> logFileEncoding( const QString& logFile ) override;
+
+    /** In every window: each marks the tabs showing the Log File (#866). */
+    void addMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override;
+    void removeMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override;
+    /** Those of every window showing the Log File together; none when no window shows it. */
+    std::optional<std::vector<std::uint64_t>> marks( const QString& logFile ) override;
 
 private:
     enum class WidgetPlace { Status, Sidebar, Footer };
@@ -136,6 +150,9 @@ private:
     std::vector<PluginUiPort*> windows_;
     std::vector<Widget> widgets_;
     std::vector<MenuAction> menuActions_;
+    /// In the order they were added.
+    std::vector<PluginContextMenuAction> contextMenuActions_;
+    std::uint64_t contextMenuActionsSoFar_ = 0;
 };
 
 } // namespace logsquirl::plugins

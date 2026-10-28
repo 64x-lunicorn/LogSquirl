@@ -124,8 +124,10 @@ typedef void ( *LogSquirlRegexLabCallbackFn )( void* user_data, int result, cons
 /* ── Log Lines ───────────────────────────────────────────────────────────── */
 
 /**
- * What go_to_log_line, get_selected_log_lines and get_log_file_encoding
- * return.  Not negative is success; negative says why nothing was done.
+ * What go_to_log_line, get_selected_log_lines, get_log_file_encoding,
+ * get_log_line_count, get_log_lines, add_marks, remove_marks, get_marks,
+ * get_log_format_fields and get_log_line_fields return.  Not negative is
+ * success; negative says why nothing was done.
  */
 typedef enum {
     LOGSQUIRL_LOG_LINES_OK = 0,                /**< Done                                     */
@@ -134,14 +136,50 @@ typedef enum {
     LOGSQUIRL_LOG_LINES_NO_LOG_FILE = -2,      /**< No Log File in front, or none named open */
     LOGSQUIRL_LOG_LINES_OUT_OF_RANGE = -3,     /**< The Log File has no line of that number  */
     LOGSQUIRL_LOG_LINES_NO_SELECTION = -4,     /**< No Log Line is selected                  */
-    LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5  /**< A NULL handle or text                    */
+    LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT = -5, /**< A NULL handle or text                    */
+    LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT = -6     /**< No Log Format applies (LogSquirl 26.12)  */
 } LogSquirlLogLinesResult;
 
-/** At most this many selected Log Lines are returned by get_selected_log_lines. */
+/**
+ * At most this many selected Log Lines are returned by get_selected_log_lines,
+ * and at most this many Log Lines by get_log_lines and get_log_line_fields.
+ */
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES 1000
 
-/** At most this many bytes (1 MiB, without the NUL) are returned by get_selected_log_lines. */
+/**
+ * At most this many bytes (1 MiB, without the NUL) are returned by
+ * get_selected_log_lines, and by get_log_lines.  The field values
+ * get_log_line_fields returns are at most this many bytes together, without
+ * their NULs.
+ */
 #define LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES 1048576
+
+/** At most this many line numbers are taken by one call of add_marks or remove_marks. */
+#define LOGSQUIRL_MARKS_MAX_LINES 10000
+
+/** How the Log Lines of an open Log File changed (see register_log_lines_callback). */
+typedef enum {
+    /**
+     * Log Lines were added at the end: what was read before stays as it was,
+     * but for the last Log Line, which may have grown longer.
+     */
+    LOGSQUIRL_LOG_LINES_APPENDED = 0,
+    /** The Log File was loaded anew, or reads differently: read again what you keep. */
+    LOGSQUIRL_LOG_LINES_REPLACED = 1
+} LogSquirlLogLinesChange;
+
+/**
+ * Called on the UI thread when the Log Lines of an open Log File change (see
+ * register_log_lines_callback).
+ * @param user_data   The user_data passed to register_log_lines_callback, unchanged.
+ * @param file_path   The Log File (UTF-8), as get_active_file_path names it;
+ *                    valid during the call only.
+ * @param line_count  How many Log Lines it has now, as get_log_line_count
+ *                    counts them.
+ * @param change      One of LogSquirlLogLinesChange.
+ */
+typedef void ( *LogSquirlLogLinesCallbackFn )( void* user_data, const char* file_path,
+                                               uint64_t line_count, int change );
 
 /* ── Encoding ────────────────────────────────────────────────────────────── */
 
@@ -157,6 +195,80 @@ typedef enum {
 typedef void ( *LogSquirlEncodingCallbackFn )( void* user_data, const char* file_path,
                                                const char* encoding );
 
+/* ── Context menu ────────────────────────────────────────────────────────── */
+
+/** The view of Log Lines a context menu was opened in (LogSquirl 26.12). */
+typedef enum {
+    LOGSQUIRL_LOG_VIEW_TEXT = 0,    /**< The Text View, the Log File's Log Lines as text  */
+    LOGSQUIRL_LOG_VIEW_TABLE = 1,   /**< The Table View, a Row per Log Line               */
+    LOGSQUIRL_LOG_VIEW_FILTERED = 2 /**< The Filtered View, the Log Lines a Search shows */
+} LogSquirlLogView;
+
+/**
+ * What the host hands an item of the context menu when the user chooses it
+ * (see register_context_menu_action, LogSquirl 26.12): what was selected as
+ * the menu opened.  The host owns it and everything it points to: valid
+ * during the call only, so keep no pointer to it, and never copy the struct.
+ * It grows by appending members, and size says how far the running host
+ * filled it: check LOGSQUIRL_CONTEXT_MENU_CONTEXT_HAS before reading a member
+ * added later.  The members below are always there.
+ */
+typedef struct LogSquirlContextMenuContext {
+    /** sizeof( LogSquirlContextMenuContext ) in the host's build: how far the host filled it. */
+    size_t size;
+
+    /** The Log File (UTF-8), as get_active_file_path names it. */
+    const char* file_path;
+
+    /** One of LogSquirlLogView: the view the menu was opened in. */
+    int view;
+
+    /**
+     * The numbers of the selected Log Lines, in the order of the Log File, as
+     * the views and go_to_log_line number them: the first Log Line is 1.  In
+     * the Filtered View too, they are the Log File's numbers.  At most
+     * LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES of them, the first ones selected.
+     * A right-click on a Log Line outside the selection selects that Log Line
+     * first.  NULL, with a count of 0, when no Log Line is selected, as when
+     * the menu opens below the last Log Line with none selected.
+     */
+    const uint64_t* line_numbers;
+    size_t line_number_count;
+
+    /**
+     * How many Log Lines were selected: more than line_number_count when the
+     * list holds only the first of them.
+     */
+    uint64_t selected_line_count;
+
+    /**
+     * The text selected within one Log Line or one cell of the Table View (a
+     * word, an id), UTF-8 and NUL-terminated; NULL when whole Log Lines are
+     * selected.  Read the text of whole Log Lines with get_log_lines.
+     */
+    const char* selected_text;
+    /** The length of selected_text in bytes, without the NUL; 0 when it is NULL. */
+    size_t selected_text_length;
+} LogSquirlContextMenuContext;
+
+/**
+ * Non-zero when the context the host passed holds the whole member, i.e. the
+ * running host filled it; the members above are always there.
+ */
+#define LOGSQUIRL_CONTEXT_MENU_CONTEXT_HAS( context, member )                                      \
+    ( offsetof( LogSquirlContextMenuContext, member )                                              \
+          + sizeof( ( (const LogSquirlContextMenuContext*)0 )->member )                            \
+      <= ( context )->size )
+
+/**
+ * Called on the UI thread when the user chooses an item a plugin added to the
+ * context menu (see register_context_menu_action).
+ * @param user_data  The user_data passed to register_context_menu_action, unchanged.
+ * @param context    What was selected as the menu opened; valid during the call only.
+ */
+typedef void ( *LogSquirlContextMenuCallbackFn )( void* user_data,
+                                                  const LogSquirlContextMenuContext* context );
+
 /* ── Host API (provided by host, called by plugin) ───────────────────────── */
 
 /**
@@ -168,9 +280,24 @@ typedef void ( *LogSquirlEncodingCallbackFn )( void* user_data, const char* file
  * **Lifetime**: the struct is valid from init until shutdown.
  * **Thread safety**: all functions are safe to call from any thread, except
  * open_regex_lab, go_to_log_line, get_selected_log_lines,
- * get_log_file_encoding and get_active_file_path, which must be called on the
- * UI thread; a call that changes the user interface, open_file included, is
- * dispatched to the UI thread by the host.
+ * get_log_file_encoding, get_active_file_path and get_marks, which must be
+ * called on the UI thread; a call that changes the user interface, open_file,
+ * add_marks and remove_marks included, is dispatched to the UI thread by the
+ * host.
+ * **Strings**: a string the plugin passes is copied before the call returns.
+ * A string the host returns is the host's: it is valid until the plugin calls
+ * the same function again or is shut down, whatever other plugins call
+ * meanwhile; that of get_log_lines, get_log_format_fields and
+ * get_log_line_fields until the plugin calls the same function again on the
+ * same thread.  A string the host passes to a callback is valid during the
+ * call only.  Each function below says which of these its strings are.
+ * **Registrations**: each register_* function says whether a second call
+ * replaces the first registration or adds another, and how a registration is
+ * removed.  Whatever a plugin still has registered is removed when it is
+ * unloaded.  A registration that returns an id returns one greater than 0,
+ * never handed out twice while the plugin is loaded, or a negative value
+ * when nothing was registered; the matching unregister_* function does
+ * nothing for an id it does not know, or no longer knows.
  * **Growth**: functions added later are appended at the end, below "Added
  * later"; nothing is reordered, removed or changed in size, and only function
  * pointers are appended.  A host older than a function passes a shorter
@@ -191,7 +318,16 @@ typedef struct {
     /** Push multiple log lines in one call. */
     void ( *push_lines )( void* handle, const char* const* data, const size_t* lens, size_t count );
 
-    /** Signal that the data source has reached end-of-stream. */
+    /**
+     * Signal that the data source has reached end-of-stream.  May be called
+     * from any thread.  The stream takes no more lines from then on: a line
+     * pushed after it, from logsquirl_datasource_stop too, is dropped.  The
+     * host then ends the stream on the UI thread as any other stop, once its
+     * event loop turns: it calls logsquirl_datasource_stop, if the plugin
+     * exports it, and the stream is over, so that the user can start the
+     * data source again.  Its tab keeps what was pushed until the plugin is
+     * unloaded.  Nothing while no stream runs.
+     */
     void ( *signal_eos )( void* handle );
 
     /** Signal an error in the data source. */
@@ -205,7 +341,8 @@ typedef struct {
     /**
      * Return the plugin-private configuration directory (UTF-8 path).
      * The host creates the directory if it does not exist.
-     * The returned string is valid until the next call to get_config_dir.
+     * The host owns the path: it is valid until the plugin calls
+     * get_config_dir again or is shut down.
      */
     const char* ( *get_config_dir )( void* handle );
 
@@ -227,7 +364,9 @@ typedef struct {
     /**
      * Register a QWidget* for the status bar area.
      * The plugin creates and owns the widget; the host parents it.
-     * Cast your QWidget* to void* before passing.
+     * Cast your QWidget* to void* before passing.  Each widget is registered
+     * once: registering another adds it, registering the same one again does
+     * nothing.  unregister_status_widget removes it.
      */
     void ( *register_status_widget )( void* handle, void* qwidget_ptr );
 
@@ -235,7 +374,13 @@ typedef struct {
     void ( *unregister_status_widget )( void* handle, void* qwidget_ptr );
 
     /**
-     * Add a custom action to the host's Plugins menu.
+     * Add a custom action to the host's Plugins menu.  Each call adds an
+     * item, but for a menu path and label the plugin already has an item of:
+     * then it adds nothing.  Paths that name the same submenu, such as
+     * "Tools" and "Plugins/Tools/", count as the same; an item of the same
+     * label in another submenu is one of its own.  The item goes away when
+     * the plugin is unloaded, not before: an item to be removed earlier is
+     * registered with register_menu_action_ex.
      * @param menu_path  Slash-separated path of submenus of the Plugins menu the
      *                   item goes into, e.g. "My Plugin/Sub" for
      *                   Plugins > My Plugin > Sub. An empty path (or "Plugins")
@@ -250,7 +395,9 @@ typedef struct {
     /**
      * Register a QWidget* as a new tab in the host sidebar.
      * The plugin creates and owns the widget; the host parents it.
-     * The sidebar is shown automatically when a tab is added.
+     * The sidebar is shown automatically when a tab is added.  Each widget is
+     * registered once: registering another adds a tab, registering the same
+     * one again does nothing.  unregister_sidebar_tab removes it.
      * @param label         Tab label (UTF-8).
      * @param qwidget_ptr   Cast of a QWidget* to void*.
      */
@@ -261,7 +408,9 @@ typedef struct {
 
     /**
      * Register a QWidget* for the footer area (bottom of the window).
-     * The plugin creates and owns the widget; the host parents it.
+     * The plugin creates and owns the widget; the host parents it.  Each
+     * widget is registered once: registering another adds it, registering
+     * the same one again does nothing.  unregister_footer_widget removes it.
      */
     void ( *register_footer_widget )( void* handle, void* qwidget_ptr );
 
@@ -273,16 +422,20 @@ typedef struct {
     /**
      * Return the file path of the currently active (focused) log tab.
      * Returns an empty string if no file is open.
-     * The returned pointer is valid until the next host API call.
+     * The host owns the path: it is valid until the plugin calls
+     * get_active_file_path again or is shut down.
      * Call on the UI thread only: called on another thread, it returns an
      * empty string, as without a file.
      */
     const char* ( *get_active_file_path )( void* handle );
 
     /**
-     * Register a callback invoked whenever the active log file changes
-     * (e.g. when the user switches tabs or opens a new file).
-     * @param callback   Function called with the new file path (UTF-8).
+     * Register a callback invoked, on the UI thread, whenever the active log
+     * file changes (e.g. when the user switches tabs or opens a new file).
+     * A plugin has one such callback: registering another replaces it, and a
+     * NULL callback removes it.
+     * @param callback   Function called with the new file path (UTF-8),
+     *                   valid during the call only.
      * @param user_data  Passed back to callback unchanged.
      */
     void ( *register_active_file_callback )( void* handle,
@@ -343,9 +496,9 @@ typedef struct {
      * LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES of them and at most
      * LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES bytes; a first Log Line longer
      * than that is cut at a character.  When it holds less than is selected,
-     * the result is LOGSQUIRL_LOG_LINES_TRUNCATED.  The text is owned by the
-     * host and valid until the plugin calls get_selected_log_lines again or
-     * is shut down.
+     * the result is LOGSQUIRL_LOG_LINES_TRUNCATED.  The host owns the text: it
+     * is valid until the plugin calls get_selected_log_lines again or is shut
+     * down.
      *
      * Call on the UI thread only.
      * @param text        Receives the text; NULL when the result is negative.
@@ -370,8 +523,8 @@ typedef struct {
      *
      * The name is the encoding's IANA name, e.g. "UTF-8", "UTF-16LE",
      * "UTF-16BE", "ISO-8859-1" or "windows-1252", NUL-terminated.  The host
-     * owns it: it is valid until the plugin calls get_log_file_encoding again
-     * or is shut down.
+     * owns the name: it is valid until the plugin calls get_log_file_encoding
+     * again or is shut down.
      *
      * The encoding changes when the user chooses another one for the tab,
      * and may change when a load of the Log File detects another one: the
@@ -407,6 +560,331 @@ typedef struct {
     void ( *register_encoding_callback )( void* handle, LogSquirlEncodingCallbackFn callback,
                                           void* user_data );
 
+    /**
+     * Add an item to the host's Plugins menu, as register_menu_action does,
+     * and return an id that removes it again with unregister_menu_action
+     * (LogSquirl 26.12).  Each call adds an item of its own; a plugin's items
+     * in one submenu have different labels, while items of the same label in
+     * different submenus are fine.  May be called from any thread: the id is
+     * returned at once, also when the item appears on the UI thread later.
+     * @param menu_path  As for register_menu_action; NULL is an empty path.
+     * @param label      Menu item label; must not be NULL or empty.
+     * @param callback   Function called, on the UI thread, when the item is
+     *                   triggered; must not be NULL.
+     * @param user_data  Passed back to callback unchanged.
+     * @return The item's id, greater than 0; negative when no item was added:
+     *         a host without a user interface, a NULL handle, a NULL or empty
+     *         label, a NULL callback, or a menu path and label the plugin
+     *         already has an item of (paths that name the same submenu count
+     *         as the same, as for register_menu_action).
+     */
+    int ( *register_menu_action_ex )( void* handle, const char* menu_path, const char* label,
+                                      void ( *callback )( void* user_data ), void* user_data );
+
+    /**
+     * Remove an item register_menu_action_ex added, from every window
+     * (LogSquirl 26.12).  A submenu the host created for it goes too once
+     * nothing is left in it.  Once the call returns, the item's callback is
+     * not called again: a trigger still queued is dropped, and only a call
+     * of it already running on the UI thread finishes.  An id the plugin
+     * was not given, or one already removed, does nothing.  May be called
+     * from any thread, from the item's own callback too.
+     * @param id  What register_menu_action_ex returned.
+     */
+    void ( *unregister_menu_action )( void* handle, int id );
+
+    /**
+     * Count the Log Lines of an open Log File (LogSquirl 26.12): those
+     * LogSquirl has indexed so far, so fewer while the Log File still loads.
+     *
+     * May be called from any thread; it never waits for the UI thread.
+     * @param file_path  The Log File (UTF-8 path), as get_active_file_path or
+     *                   the active-file callback names it, open in a tab of
+     *                   any window, in front or not.
+     * @param count      Receives the count; 0 when the result is negative.
+     *                   Must not be NULL.
+     * @return LOGSQUIRL_LOG_LINES_OK with the count;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when no tab shows that Log File,
+     *         also when its tab closes during the call;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle,
+     *         file_path or count.
+     */
+    int ( *get_log_line_count )( void* handle, const char* file_path, uint64_t* count );
+
+    /**
+     * Read the text of Log Lines of an open Log File, from first_line on
+     * (LogSquirl 26.12): as the views show them, in the Log File's encoding,
+     * and for a converted or decompressed Log File the text LogSquirl shows,
+     * not the bytes of the original file.
+     *
+     * The text is UTF-8, the Log Lines separated by '\n', with no '\n' after
+     * the last one, and NUL-terminated.  It holds whole Log Lines, at most
+     * max_lines and LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES of them and at most
+     * LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES bytes; a first Log Line longer
+     * than that is cut at a character.  When it holds fewer Log Lines than
+     * max_lines and the Log File has, the result is
+     * LOGSQUIRL_LOG_LINES_TRUNCATED: read on from first_line + line_count.
+     * The host owns the text: it is valid until the plugin calls get_log_lines
+     * again on the same thread, or is shut down, so each thread of the plugin
+     * keeps its own.
+     *
+     * May be called from any thread; it never waits for the UI thread.  The
+     * host keeps the Log File's data for the duration of the call.
+     * @param file_path   The Log File, as for get_log_line_count.
+     * @param first_line  The number of the first Log Line, as the views and
+     *                    go_to_log_line number them: the first Log Line is 1.
+     * @param max_lines   At most this many Log Lines; 0 reads none.
+     * @param text        Receives the text; NULL when the result is negative.
+     *                    Must not be NULL.
+     * @param length      Receives the length of the text in bytes, without the
+     *                    NUL, or 0; may be NULL.
+     * @param line_count  Receives how many Log Lines the text holds, or 0;
+     *                    may be NULL.
+     * @return LOGSQUIRL_LOG_LINES_OK or LOGSQUIRL_LOG_LINES_TRUNCATED with the
+     *         text; LOGSQUIRL_LOG_LINES_OUT_OF_RANGE for a first_line of 0 or
+     *         past the last Log Line indexed so far;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when no tab shows that Log File,
+     *         also when its tab closes during the call;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle,
+     *         file_path or text.
+     */
+    int ( *get_log_lines )( void* handle, const char* file_path, uint64_t first_line,
+                            size_t max_lines, const char** text, size_t* length,
+                            size_t* line_count );
+
+    /**
+     * Register a callback invoked, on the UI thread, whenever the Log Lines of
+     * an open Log File change (LogSquirl 26.12), for the Log File of any tab,
+     * in front or not:
+     * - LOGSQUIRL_LOG_LINES_APPENDED: Log Lines were added at the end, the
+     *   file grew -- followed or not.  What was read before stays as it was,
+     *   but for the last Log Line, which may have grown longer.
+     * - LOGSQUIRL_LOG_LINES_REPLACED: the Log File was loaded anew -- reloaded,
+     *   truncated, or its first load finished -- or reads differently: another
+     *   encoding, another way of decoding its text, or another Log Format
+     *   (or none) applies to it, so its fields differ (LogSquirl 26.12).
+     *   What was read before may differ: read again.
+     * Calls may be coalesced: one call may stand for several changes.  A
+     * plugin has one such callback: registering another replaces it, and a
+     * NULL callback removes it.
+     * @param callback   Function called with the Log File, its Log Line count
+     *                   after the change and the change.
+     * @param user_data  Passed back to callback unchanged.
+     */
+    void ( *register_log_lines_callback )( void* handle, LogSquirlLogLinesCallbackFn callback,
+                                           void* user_data );
+
+    /**
+     * Add an item to the context menu of the Log Lines (LogSquirl 26.12): that
+     * of the Text View, the Table View and the Filtered View, in every window
+     * and every tab, those opened later included.  The items of all plugins
+     * sit below a separator at the end of the menu, in the order they were
+     * registered; without any, there is no separator.  An item is always
+     * shown and enabled: the host does not call the plugin as the menu opens.
+     * Each call adds an item of its own.  unregister_context_menu_action
+     * removes it, and so does unloading the plugin.  May be called from any
+     * thread: the id is returned at once.
+     * @param menu_path  Slash-separated path of submenus of that section the
+     *                   item goes into, e.g. "My Plugin/Decode"; an empty
+     *                   path, or NULL, puts it into the section itself.
+     * @param label      Menu item label (UTF-8); must not be NULL or empty.
+     * @param callback   Function called, on the UI thread, once the user chose
+     *                   the item and the menu has closed, with what was
+     *                   selected as it opened; must not be NULL.  It is not
+     *                   called when the view the menu was opened in, or its
+     *                   tab, closed meanwhile.
+     * @param user_data  Passed back to callback unchanged.
+     * @return The item's id, greater than 0; negative when no item was added:
+     *         a host without a user interface, a NULL handle, a NULL or empty
+     *         label, or a NULL callback.
+     */
+    int ( *register_context_menu_action )( void* handle, const char* menu_path, const char* label,
+                                           LogSquirlContextMenuCallbackFn callback,
+                                           void* user_data );
+
+    /**
+     * Remove an item register_context_menu_action added (LogSquirl 26.12):
+     * a context menu opened later does not show it.  Once the call returns,
+     * the item's callback is not called again: a choice of it still queued is
+     * dropped, and only a call of it already running on the UI thread
+     * finishes.  An id the plugin was not given, or one already removed,
+     * does nothing.  May be called from any thread, from the item's own
+     * callback too.
+     * @param id  What register_context_menu_action returned.
+     */
+    void ( *unregister_context_menu_action )( void* handle, int id );
+
+    /**
+     * Mark Log Lines of an open Log File (LogSquirl 26.12): an analysis marks
+     * what it found, and the user walks through it with Next Mark and
+     * Previous Mark.  A Mark a plugin sets is an ordinary Mark: the bullet
+     * margin and the Filtered View show it, the Session keeps it, and the
+     * user removes it like any other.  It is set in every tab that shows the
+     * Log File, in every window; each tab keeps its own Marks, as it does for
+     * the user's.
+     *
+     * May be called from any thread: the host carries the call out on the UI
+     * thread, at once when called there, else once the host's event loop
+     * turns; a call queued by a plugin that is unloaded before then is
+     * dropped, and a tab that closes meanwhile marks nothing.  Calls of one
+     * thread are carried out in the order they were made.  A line of 0, or
+     * past the last Log Line indexed when the call is carried out, is
+     * skipped, and so is a line marked already: neither fails the call.
+     * @param file_path  The Log File (UTF-8 path), as for get_log_line_count.
+     * @param lines      The numbers of the Log Lines, as the views and
+     *                   go_to_log_line number them: the first Log Line is 1.
+     *                   In any order; copied before the call returns.  May be
+     *                   NULL when count is 0.
+     * @param count      How many numbers lines holds; at most
+     *                   LOGSQUIRL_MARKS_MAX_LINES.
+     * @return LOGSQUIRL_LOG_LINES_OK when the Marks are set, or will be;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when no tab shows that Log File;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle or
+     *         file_path, NULL lines with a count, or a count above
+     *         LOGSQUIRL_MARKS_MAX_LINES: then nothing is marked.
+     */
+    int ( *add_marks )( void* handle, const char* file_path, const uint64_t* lines, size_t count );
+
+    /**
+     * Remove Marks of an open Log File (LogSquirl 26.12): the user's as well
+     * as those a plugin set, for the host knows no difference.  As add_marks
+     * does: in every tab that shows the Log File, from any thread, carried
+     * out on the UI thread, with the same limits and results.  A line that is
+     * not marked, of 0 or past the end is skipped.
+     * @param file_path  The Log File (UTF-8 path), as for get_log_line_count.
+     * @param lines      The numbers of the Log Lines, the first Log Line is 1;
+     *                   may be NULL when count is 0.
+     * @param count      At most LOGSQUIRL_MARKS_MAX_LINES.
+     * @return As for add_marks.
+     */
+    int ( *remove_marks )( void* handle, const char* file_path, const uint64_t* lines,
+                           size_t count );
+
+    /**
+     * Read the Marks of an open Log File (LogSquirl 26.12): the user's and
+     * those plugins set, as numbers of Log Lines, the first Log Line being 1,
+     * in the order of the Log File and each once.  When several tabs show
+     * the Log File, a Log Line marked in any of them.  A Mark that add_marks
+     * set from another thread is read once the host has carried that call
+     * out.  The host owns the array: it is valid until the plugin calls
+     * get_marks again or is shut down.
+     *
+     * Call on the UI thread only.
+     * @param file_path  The Log File (UTF-8 path), as for get_log_line_count.
+     * @param lines      Receives the array; NULL when there are no Marks or
+     *                   the result is negative.  Must not be NULL.
+     * @param count      Receives how many numbers the array holds, or 0.
+     *                   Must not be NULL.
+     * @return LOGSQUIRL_LOG_LINES_OK with the Marks, none included;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when no tab shows that Log File;
+     *         LOGSQUIRL_LOG_LINES_NOT_ON_UI_THREAD off the UI thread;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle,
+     *         file_path, lines or count.
+     */
+    int ( *get_marks )( void* handle, const char* file_path, const uint64_t** lines,
+                        size_t* count );
+
+    /**
+     * Name the Log Format that applies to an open Log File, and its fields
+     * (LogSquirl 26.12): the fields in the order of the Table View's columns,
+     * named as its column headers name them, without the elapsed time the
+     * Table View shows after a timestamp field, which is no field.  The Log
+     * Format is the one Format Recognition chose; it changes when the Log
+     * File is recognized anew, and register_log_lines_callback tells it as
+     * LOGSQUIRL_LOG_LINES_REPLACED.
+     *
+     * The name is the Log Format's own, as its definition names it (the key
+     * of its JSON file, e.g. "syslog_log"); the names are UTF-8 and
+     * NUL-terminated.  The host owns the name and the array of field names:
+     * valid until the plugin calls get_log_format_fields again on the same
+     * thread, or is shut down.
+     *
+     * May be called from any thread; it never waits for the UI thread.
+     * @param file_path    The Log File, as for get_log_line_count.
+     * @param format_name  Receives the Log Format's name; NULL when the result
+     *                     is negative.  May be NULL.
+     * @param field_names  Receives an array of field_count field names; NULL
+     *                     when the result is negative or the Log Format has no
+     *                     fields.  Must not be NULL.
+     * @param field_count  Receives how many fields the Log Format has, or 0.
+     *                     Must not be NULL.
+     * @return LOGSQUIRL_LOG_LINES_OK with the fields;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT when no Log Format applies to
+     *         the Log File;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when no tab shows that Log File,
+     *         also when its tab closes during the call;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle,
+     *         file_path, field_names or field_count.
+     */
+    int ( *get_log_format_fields )( void* handle, const char* file_path, const char** format_name,
+                                    const char* const** field_names, size_t* field_count );
+
+    /**
+     * Read the fields of Log Lines of an open Log File, from first_line on
+     * (LogSquirl 26.12): each value as the Table View's cell shows it, under
+     * the Log Format get_log_format_fields names, in the order of its fields.
+     *
+     * The values come row-major: field_count values for each of line_count
+     * Log Lines, the values of the first Log Line first.  values[ i *
+     * field_count + j ] is the value of field j of the Log Line first_line +
+     * i, and lengths[ i * field_count + j ] its length in bytes.  A value is
+     * UTF-8 and NUL-terminated, but may hold any character, a tab, a line
+     * feed or a NUL too: read it by its length.  A field the Log Line has no
+     * value for is "", of length 0.  A Log Line the Log Format does not parse
+     * has no fields -- as a Field Term of a Search treats it -- though the
+     * Table View shows it whole in its last column: parsed[ i ] is 0 for it,
+     * and its values are NULL, of length 0; parsed[ i ] is 1 for one parsed.
+     * A JSON or logfmt Log Format parses every Log Line: one that is no JSON
+     * object, or holds no key of the Log Format, has every value "" and
+     * parsed[ i ] 1, as a Field Term reads it too: its fields are all empty.
+     *
+     * It holds whole Log Lines, at most max_lines and
+     * LOGSQUIRL_SELECTED_LOG_LINES_MAX_LINES of them, whose values are at
+     * most LOGSQUIRL_SELECTED_LOG_LINES_MAX_BYTES bytes together; the values
+     * of a first Log Line longer than that are cut at a character, those
+     * after the cut "".  When it holds fewer Log Lines than max_lines and the
+     * Log File has, the result is LOGSQUIRL_LOG_LINES_TRUNCATED: read on from
+     * first_line + line_count.  The host owns the arrays and the values:
+     * valid until the plugin calls get_log_line_fields again on the same
+     * thread, or is shut down, so each thread of the plugin keeps its own.
+     *
+     * The values are read under the Log Format that applies as the call
+     * reads; when it changes during the call, the read may be under either,
+     * and register_log_lines_callback tells the change once it is made.
+     * field_count says how many fields the read was under.
+     *
+     * May be called from any thread; it never waits for the UI thread.  The
+     * host keeps the Log File's data for the duration of the call.
+     * @param file_path    The Log File, as for get_log_line_count.
+     * @param first_line   The number of the first Log Line, as the views and
+     *                     go_to_log_line number them: the first Log Line is 1.
+     * @param max_lines    At most this many Log Lines; 0 reads none.
+     * @param values       Receives the array of values; NULL when the result
+     *                     is negative or it holds no value.  Must not be NULL.
+     * @param lengths      Receives the array of the values' lengths, as many
+     *                     as values; NULL when values is.  May be NULL.
+     * @param parsed       Receives an array of line_count flags, 1 for a Log
+     *                     Line the Log Format parsed, 0 for one it did not;
+     *                     NULL when the result is negative or it holds no Log
+     *                     Line.  May be NULL.
+     * @param field_count  Receives how many fields each Log Line has, or 0.
+     *                     Must not be NULL.
+     * @param line_count   Receives how many Log Lines were read, or 0.  Must
+     *                     not be NULL.
+     * @return LOGSQUIRL_LOG_LINES_OK or LOGSQUIRL_LOG_LINES_TRUNCATED with the
+     *         values; LOGSQUIRL_LOG_LINES_NO_LOG_FORMAT when no Log Format
+     *         applies to the Log File; LOGSQUIRL_LOG_LINES_OUT_OF_RANGE for a
+     *         first_line of 0 or past the last Log Line indexed so far;
+     *         LOGSQUIRL_LOG_LINES_NO_LOG_FILE when no tab shows that Log File,
+     *         also when its tab closes during the call;
+     *         LOGSQUIRL_LOG_LINES_INVALID_ARGUMENT for a NULL handle,
+     *         file_path, values, field_count or line_count.
+     */
+    int ( *get_log_line_fields )( void* handle, const char* file_path, uint64_t first_line,
+                                  size_t max_lines, const char* const** values,
+                                  const size_t** lengths, const int** parsed, size_t* field_count,
+                                  size_t* line_count );
+
 } LogSquirlHostApi;
 
 /**
@@ -429,6 +907,16 @@ typedef struct {
  */
 #define LOGSQUIRL_HOST_API_HAS( size, member )                                                     \
     ( offsetof( LogSquirlHostApi, member ) + LOGSQUIRL_HOST_API_MEMBER_SIZE( member ) <= ( size ) )
+
+/**
+ * Non-zero when a host whose API table is size bytes long calls
+ * logsquirl_datasource_start and logsquirl_datasource_stop (LogSquirl 26.12):
+ * the hosts of LogSquirl 26.12 and later do, and their table reaches
+ * get_log_line_fields, which 26.12 added; an older host's ends before it.
+ * size is as for LOGSQUIRL_HOST_API_HAS.
+ */
+#define LOGSQUIRL_HOST_CALLS_DATASOURCE_START( size )                                              \
+    LOGSQUIRL_HOST_API_HAS( size, get_log_line_fields )
 
 /* ── Plugin-exported entry points ────────────────────────────────────────── */
 
@@ -554,6 +1042,108 @@ typedef struct LogSquirlConvertControl {
 typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const char* output_path,
                                                 const LogSquirlConvertControl* control );
 
+/**
+ * How many of a file's first bytes logsquirl_converter_claims is handed: this
+ * many, or fewer when the file is shorter (LogSquirl 26.12).
+ */
+#define LOGSQUIRL_CONVERTER_CLAIMS_HEAD_LENGTH 4096
+
+/**
+ * Claim a file by its content (optional, LogSquirl 26.12): whether this plugin
+ * converts the file, judged by its first bytes, when no converter's extensions
+ * match the file's.  A file is offered to the converters in this order, and
+ * the first that takes it converts it:
+ *
+ *   1. a converter whose logsquirl_converter_get_extensions lists the file's
+ *      extension; when several do, the one with the smallest plugin id;
+ *   2. else the converters that export this function, asked one after the
+ *      other in plugin-id order; the first that returns non-zero;
+ *   3. else none: the file is decompressed, if it is compressed or an archive,
+ *      and opened as text.
+ *
+ * The content checked is the file's as it is on disk, before decompression; a
+ * file taken out of an archive is offered again like any other file.  A
+ * converter that claims by content only may return an empty string from
+ * logsquirl_converter_get_extensions.
+ *
+ * Called on a host worker thread, never on the UI thread, and possibly for
+ * several files at the same time, also while a Conversion of the plugin runs:
+ * keep no state between calls but what is safe to share between threads, and
+ * return quickly -- the file opens only once the check has returned.  The host
+ * reads the head itself; a file it cannot read is claimed by no plugin, and
+ * the plugin is not asked.  Never called after logsquirl_plugin_shutdown: an
+ * unload waits for a call under way, so a slow check delays the unload of its
+ * plugin, and the user interface with it when the plugin is unloaded on the UI
+ * thread, as when the user disables it or LogSquirl quits.  A host older than
+ * 26.12 never calls it.
+ * @param file_path    Absolute UTF-8 path of the file.
+ * @param head         The file's first head_length bytes; valid during the call
+ *                     only, never NULL.
+ * @param head_length  LOGSQUIRL_CONVERTER_CLAIMS_HEAD_LENGTH, or fewer when the
+ *                     file is shorter; 0 for an empty file.
+ * @return Non-zero when this plugin converts the file, 0 when it does not.
+ */
+typedef int ( *LogSquirlConverterClaimsFn )( const char* file_path, const unsigned char* head,
+                                             size_t head_length );
+
+/* ── DataSource-specific entry points (optional) ─────────────────────────── */
+
+/**
+ * What the host hands logsquirl_datasource_start and logsquirl_datasource_stop
+ * (LogSquirl 26.12).  The host owns it: it is valid during the call only, so
+ * keep no pointer to it, and never copy the struct.  It grows by appending
+ * members, and size says how far the running host filled it: read a member
+ * added later only when size holds the whole member.
+ */
+typedef struct LogSquirlDataSourceContext {
+    /** sizeof( LogSquirlDataSourceContext ) in the host's build: how far the host filled it. */
+    size_t size;
+} LogSquirlDataSourceContext;
+
+/** What logsquirl_datasource_start returns. */
+typedef enum {
+    LOGSQUIRL_DATASOURCE_STARTED = 0,  /**< The stream runs                                */
+    LOGSQUIRL_DATASOURCE_FAILED = 1,   /**< Not started: the user is told it failed       */
+    LOGSQUIRL_DATASOURCE_CANCELLED = 2 /**< Not started: the user cancelled, nothing said */
+} LogSquirlDataSourceStartResult;
+
+/**
+ * Start the plugin's stream (optional).  Called on the UI thread when the user
+ * starts the data source, before the stream counts as started: open the
+ * device, socket or process here.  The plugin may show a modal dialog of its
+ * own to ask which.  Lines pushed from inside the call already reach the
+ * stream, and are discarded when it does not start.  While the plugin's
+ * stream runs, the host refuses another start without calling the plugin.
+ * A host older than LogSquirl 26.12 calls neither start nor stop: tell the
+ * hosts that do by LOGSQUIRL_HOST_CALLS_DATASOURCE_START.
+ * @param context  Valid during the call only.
+ * @return LOGSQUIRL_DATASOURCE_STARTED when the stream runs: the host opens it
+ *         in a tab, and lines pushed from then on reach it.
+ *         LOGSQUIRL_DATASOURCE_CANCELLED when the user cancelled: nothing
+ *         opens, and the user is told nothing.  LOGSQUIRL_DATASOURCE_FAILED,
+ *         or any other value, when it failed: nothing opens, and the user is
+ *         told that the data source did not start, with the value; tell why
+ *         with show_notification.  Only after LOGSQUIRL_DATASOURCE_STARTED is
+ *         logsquirl_datasource_stop called.
+ */
+typedef int ( *LogSquirlDataSourceStartFn )( const LogSquirlDataSourceContext* context );
+
+/**
+ * Stop the plugin's stream (optional).  Called on the UI thread exactly once
+ * for every start that returned LOGSQUIRL_DATASOURCE_STARTED, or for every
+ * stream of a plugin that does not export logsquirl_datasource_start, however
+ * the stream ends: the user stops it, the plugin signals end-of-stream itself,
+ * the plugin is unloaded, or LogSquirl quits.  It is called before the host
+ * signals end-of-stream, and on an unload before logsquirl_plugin_shutdown:
+ * push the last lines and close the device, socket or process here.  A line
+ * pushed until it returns reaches the stream; a push that returns after it
+ * has returned may be dropped.  A plugin that signalled end-of-stream itself
+ * is stopped once the host's event loop turns, after its end-of-stream: the
+ * lines it pushes then are dropped, and it only closes its source.
+ * @param context  Valid during the call only.
+ */
+typedef void ( *LogSquirlDataSourceStopFn )( const LogSquirlDataSourceContext* context );
+
 /* ── Canonical exported symbol names ─────────────────────────────────────── */
 
 /*
@@ -575,6 +1165,16 @@ typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const ch
  * (optional):
  *   LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_convert_ex( const char*, const char*,
  *                                                               const LogSquirlConvertControl* );
+ *
+ * A converter that claims a file by its content as well also exports
+ * (optional, LogSquirl 26.12):
+ *   LOGSQUIRL_PLUGIN_EXPORT int logsquirl_converter_claims( const char*, const unsigned char*,
+ *                                                           size_t );
+ *
+ * A data source that hears when its stream starts and stops also exports
+ * (optional, LogSquirl 26.12):
+ *   LOGSQUIRL_PLUGIN_EXPORT int  logsquirl_datasource_start( const LogSquirlDataSourceContext* );
+ *   LOGSQUIRL_PLUGIN_EXPORT void logsquirl_datasource_stop( const LogSquirlDataSourceContext* );
  */
 
 #define LOGSQUIRL_PLUGIN_ENTRY_GET_INFO "logsquirl_plugin_get_info"
@@ -585,6 +1185,9 @@ typedef int ( *LogSquirlConverterConvertExFn )( const char* input_path, const ch
 #define LOGSQUIRL_CONVERTER_ENTRY_GET_EXTS "logsquirl_converter_get_extensions"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT "logsquirl_converter_convert"
 #define LOGSQUIRL_CONVERTER_ENTRY_CONVERT_EX "logsquirl_converter_convert_ex"
+#define LOGSQUIRL_CONVERTER_ENTRY_CLAIMS "logsquirl_converter_claims"
+#define LOGSQUIRL_DATASOURCE_ENTRY_START "logsquirl_datasource_start"
+#define LOGSQUIRL_DATASOURCE_ENTRY_STOP "logsquirl_datasource_stop"
 
 #ifdef __cplusplus
 } /* extern "C" */

@@ -174,10 +174,11 @@ public:
     // running in the background is done (#795).
     //
     // A Log File asked for before the plugins have loaded opens once they
-    // have (#303), and one being converted once that is done; the call then
-    // returns true at once, and the provenance's whenOpened is called after
-    // -- without a tab while the Conversion is still under way. An open that
-    // fails keeps nothing of the tab, and returns false.
+    // have (#303), one a converter plugin may claim by its content once it
+    // was asked (#861), and one being converted once that is done; the call
+    // then returns true at once, and the provenance's whenOpened is called
+    // after -- without a tab while the Conversion is still under way. An open
+    // that fails keeps nothing of the tab, and returns false.
     bool openLogFile( const QString& fileName, LogFileProvenance provenance,
                       bool followFile = false );
 
@@ -376,9 +377,25 @@ private:
     void writeSettings();
     // Opens an Ordinary Log File the user asked for (see openLogFile()).
     bool loadFile( const QString& fileName, bool followFile = false );
+    // What becomes of an open: whether the Log File is open, or on its way.
+    using OpenDone = std::function<void( bool isOpen )>;
     // Opens a Log File now that the plugins have loaded: shows its tab if it
-    // is open already, converts it, decompresses it or builds its tab.
-    bool openNow( const QString& fileName, bool followFile, const LogFileOrigin& origin );
+    // is open already, converts it, decompresses it or builds its tab. A
+    // converter plugin whose extensions match converts it; else, when a
+    // converter plugin claims files by their content, it is asked on a worker
+    // thread first, and the open goes on once it answered (#861). Calls done
+    // once, at once or once the converters have answered; returns what it
+    // will be called with, true while the converters are asked.
+    bool openNow( const QString& fileName, bool followFile, const LogFileOrigin& origin,
+                  const OpenDone& done );
+    // Asks the converter plugins whether one claims `fileName` by its content
+    // (#861), and goes on as openNow() says once they answered. False when no
+    // converter plugin checks content: then nothing is asked.
+    bool checkContentAndOpen( const QString& fileName, bool followFile, const LogFileOrigin& origin,
+                              const OpenDone& done );
+    // Decompresses the Log File or builds its tab, no converter plugin
+    // claiming it.
+    bool loadNow( const QString& fileName, bool followFile, const LogFileOrigin& origin );
     // Starts the Conversion of `fileName` by the converter plugin
     // `converterId` on a worker thread of the Plugin Host's, shows its
     // progress beside the window, which stays in use, with Cancel, and opens
@@ -386,7 +403,8 @@ private:
     // Conversion is reported; no tab opens then, nor when it was cancelled.
     void convertAndOpen( const QString& converterId, const QString& fileName, bool followFile,
                          const LogFileOrigin& origin );
-    // Cancels the Conversions this window started: none of them opens a tab.
+    // Cancels the Conversions and content checks this window started: none of
+    // them opens a tab.
     void cancelConversions();
     // Forgets what was kept of the tab of a Log File whose open failed.
     void forgetOpening( const QString& fileName );
@@ -444,11 +462,15 @@ private:
     void updateHighlightersMenu();
     QString strippedName( const QString& fullFileName ) const;
     CrawlerWidget* currentCrawlerWidget() const;
-    // The tab showing the Log File at path, or nullptr (#803).
-    CrawlerWidget* tabOfLogFile( const QString& path ) const;
+    // The tabs showing the Log File at path, in the order of the tabs; none
+    // when no tab shows it (#803, #866).
+    std::vector<CrawlerWidget*> tabsOfLogFile( const QString& path ) const;
     // Tells the plugins whenever the tab's Log File, added under fileName,
-    // is read in another Encoding (#803).
-    void tellPluginsOfEncodingChanges( CrawlerWidget* crawler, const QString& fileName );
+    // is read in another Encoding (#803) or its Log Lines change, and lets
+    // them read its Log Lines by that name until the tab closes (#858).
+    void tellPluginsOfLogFile( CrawlerWidget* crawler, const QString& fileName );
+    // The tab is closing: plugins find its Log File no more (#858).
+    void hideLogFileFromPlugins( const CrawlerWidget* crawler );
     void displayQuickFindBar( QuickFindMux::QFDirection direction );
     // Connects the window to the Log File in front, and it alone: the
     // connections to the tab shown before go (#635). Nothing is connected for
@@ -475,6 +497,9 @@ private:
     void applyTeamHighlighterSets( bool dropUnknownActivations = true );
     // Hands the Team Naming Groups to ValueNamesCollection (#647).
     void applyTeamNamingGroups();
+    // Reads the Filter Groups and Highlighter Sets the enabled plugins ship
+    // and hands them to their collections, which never store them (#865).
+    void applyPluginGroups();
     // Asks what to do with a Team group somebody else changed while the user
     // was changing it too: keep mine, take theirs, or save mine as a copy.
     void askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome );
@@ -647,6 +672,14 @@ private:
     // The Conversions this window started that have not finished, by the Log
     // File asked for: asked for again meanwhile, it is not converted twice.
     std::map<QString, logsquirl::plugins::ConversionId> conversions_;
+    // The content checks this window started that have not finished, by the
+    // Log File asked for (#861): asked for again meanwhile, it is not checked
+    // twice.
+    std::map<QString, logsquirl::plugins::ContentCheckId> contentChecks_;
+    // What each tab's Log File was added to the Plugin Host's open Log Files
+    // as, until the tab closes (#858). Only looked at when a tab closes: a tab
+    // that goes with the window takes its Log File away as it is destroyed.
+    std::map<const CrawlerWidget*, logsquirl::plugins::PluginLogFiles::Id> pluginLogFiles_;
 
     // The window's Regex Lab while it is open; it closes with the window.
     QPointer<RegexLabWindow> regexLab_;

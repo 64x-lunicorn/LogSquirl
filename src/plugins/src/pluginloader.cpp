@@ -48,7 +48,10 @@ PluginHandle::PluginHandle( PluginMetadata meta, std::unique_ptr<QLibrary> lib,
                             LogSquirlPluginConfigureFn configureFn,
                             LogSquirlConverterGetExtsFn converterGetExtsFn,
                             LogSquirlConverterConvertFn converterConvertFn,
-                            LogSquirlConverterConvertExFn converterConvertExFn )
+                            LogSquirlConverterConvertExFn converterConvertExFn,
+                            LogSquirlConverterClaimsFn converterClaimsFn,
+                            LogSquirlDataSourceStartFn dataSourceStartFn,
+                            LogSquirlDataSourceStopFn dataSourceStopFn )
     : metadata_( std::move( meta ) )
     , library_( std::move( lib ) )
     , getInfoFn_( getInfoFn )
@@ -59,6 +62,9 @@ PluginHandle::PluginHandle( PluginMetadata meta, std::unique_ptr<QLibrary> lib,
     , converterGetExtsFn_( converterGetExtsFn )
     , converterConvertFn_( converterConvertFn )
     , converterConvertExFn_( converterConvertExFn )
+    , converterClaimsFn_( converterClaimsFn )
+    , dataSourceStartFn_( dataSourceStartFn )
+    , dataSourceStopFn_( dataSourceStopFn )
 {
 }
 
@@ -80,6 +86,9 @@ PluginHandle::PluginHandle( PluginHandle&& other ) noexcept
     , converterGetExtsFn_( other.converterGetExtsFn_ )
     , converterConvertFn_( other.converterConvertFn_ )
     , converterConvertExFn_( other.converterConvertExFn_ )
+    , converterClaimsFn_( other.converterClaimsFn_ )
+    , dataSourceStartFn_( other.dataSourceStartFn_ )
+    , dataSourceStopFn_( other.dataSourceStopFn_ )
     , initialised_( other.initialised_ )
 {
     other.initialised_ = false;
@@ -91,6 +100,9 @@ PluginHandle::PluginHandle( PluginHandle&& other ) noexcept
     other.converterGetExtsFn_ = nullptr;
     other.converterConvertFn_ = nullptr;
     other.converterConvertExFn_ = nullptr;
+    other.converterClaimsFn_ = nullptr;
+    other.dataSourceStartFn_ = nullptr;
+    other.dataSourceStopFn_ = nullptr;
 }
 
 PluginHandle& PluginHandle::operator=( PluginHandle&& other ) noexcept
@@ -109,6 +121,9 @@ PluginHandle& PluginHandle::operator=( PluginHandle&& other ) noexcept
         converterGetExtsFn_ = other.converterGetExtsFn_;
         converterConvertFn_ = other.converterConvertFn_;
         converterConvertExFn_ = other.converterConvertExFn_;
+        converterClaimsFn_ = other.converterClaimsFn_;
+        dataSourceStartFn_ = other.dataSourceStartFn_;
+        dataSourceStopFn_ = other.dataSourceStopFn_;
         initialised_ = other.initialised_;
 
         other.initialised_ = false;
@@ -120,6 +135,9 @@ PluginHandle& PluginHandle::operator=( PluginHandle&& other ) noexcept
         other.converterGetExtsFn_ = nullptr;
         other.converterConvertFn_ = nullptr;
         other.converterConvertExFn_ = nullptr;
+        other.converterClaimsFn_ = nullptr;
+        other.dataSourceStartFn_ = nullptr;
+        other.dataSourceStopFn_ = nullptr;
     }
     return *this;
 }
@@ -202,6 +220,30 @@ int PluginHandle::convertEx( const QString& inputPath, const QString& outputPath
     return converterConvertExFn_( inUtf8.constData(), outUtf8.constData(), control );
 }
 
+bool PluginHandle::claims( const QByteArray& filePathUtf8, const QByteArray& head ) const
+{
+    if ( !converterClaimsFn_ ) {
+        return false;
+    }
+    // Never NULL, also for an empty file: an empty QByteArray's data is "".
+    return converterClaimsFn_( filePathUtf8.constData(),
+                               reinterpret_cast<const unsigned char*>( head.constData() ),
+                               static_cast<size_t>( head.size() ) )
+           != 0;
+}
+
+int PluginHandle::startDataSource( const LogSquirlDataSourceContext* context ) const
+{
+    return dataSourceStartFn_ ? dataSourceStartFn_( context ) : LOGSQUIRL_DATASOURCE_STARTED;
+}
+
+void PluginHandle::stopDataSource( const LogSquirlDataSourceContext* context ) const
+{
+    if ( dataSourceStopFn_ ) {
+        dataSourceStopFn_( context );
+    }
+}
+
 // ── PluginLoader ────────────────────────────────────────────────────────────
 
 namespace {
@@ -275,6 +317,13 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
         return std::unexpected( QStringLiteral( "Plugin library path is empty" ) );
     }
 
+    // Refused before its library is loaded: a library built against a Qt the
+    // host cannot serve fails on a missing symbol or crashes inside a widget
+    // (#862).
+    if ( const auto refusal = metadata.qtRefusal(); !refusal.isEmpty() ) {
+        return std::unexpected( refusal );
+    }
+
     LOG_INFO << "Loading plugin library: " << libPath;
 
     auto library = std::make_unique<QLibrary>( libPath );
@@ -324,6 +373,15 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
     auto converterConvertExFn = resolveSymbol<LogSquirlConverterConvertExFn>(
         *library, LOGSQUIRL_CONVERTER_ENTRY_CONVERT_EX );
 
+    auto converterClaimsFn
+        = resolveSymbol<LogSquirlConverterClaimsFn>( *library, LOGSQUIRL_CONVERTER_ENTRY_CLAIMS );
+
+    auto dataSourceStartFn
+        = resolveSymbol<LogSquirlDataSourceStartFn>( *library, LOGSQUIRL_DATASOURCE_ENTRY_START );
+
+    auto dataSourceStopFn
+        = resolveSymbol<LogSquirlDataSourceStopFn>( *library, LOGSQUIRL_DATASOURCE_ENTRY_STOP );
+
     // Validate the plugin's own info against the manifest
     const auto* info = getInfoFn();
     if ( !info ) {
@@ -341,8 +399,8 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
     LOG_INFO << "Plugin loaded successfully: " << metadata.id() << " v" << metadata.version();
 
     return PluginHandle( metadata, std::move( library ), getInfoFn, initFn, initExFn, shutdownFn,
-                         configureFn, converterGetExtsFn, converterConvertFn,
-                         converterConvertExFn );
+                         configureFn, converterGetExtsFn, converterConvertFn, converterConvertExFn,
+                         converterClaimsFn, dataSourceStartFn, dataSourceStopFn );
 }
 
 } // namespace logsquirl::plugins

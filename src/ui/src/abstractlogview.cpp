@@ -2553,6 +2553,11 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
     entries.saveToFile = [ this ]() { saveToFile(); };
     entries.saveSelectedToFile = [ this ]() { saveSelectedToFile(); };
     entries.exportAsCsv = exportAsCsvAction();
+    // The Log Lines the menu opens on: a right-click outside the selection
+    // has selected the one under the pointer (#859).
+    entries.plugins = pluginContextMenuEntries(
+        *this, pluginContextMenu_, pluginLogView(), lines,
+        report.textWithinLogLine ? std::optional( report.selectedText ) : std::nullopt );
 
     return PresentationMenu::create( this, report, entries );
 }
@@ -2560,6 +2565,16 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
 std::function<void()> AbstractLogView::exportAsCsvAction()
 {
     return {};
+}
+
+logsquirl::plugins::PluginLogView AbstractLogView::pluginLogView() const
+{
+    return logsquirl::plugins::PluginLogView::Text;
+}
+
+void AbstractLogView::setPluginContextMenu( PluginContextMenuSource source )
+{
+    pluginContextMenu_ = std::move( source );
 }
 
 logsquirl::vector<LineNumber> AbstractLogView::selectedLogLines() const

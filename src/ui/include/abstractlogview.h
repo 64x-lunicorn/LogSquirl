@@ -69,6 +69,7 @@
 #include "linetypes.h"
 #include "logfileview.h"
 #include "overviewwidget.h"
+#include "plugincontextmenu.h"
 #include "quickfind.h"
 #include "quickfindmux.h"
 #include "regularexpressionpattern.h"
@@ -200,6 +201,10 @@ public:
     // behind a progress dialog. Nothing is saved without a selection.
     void saveSelectedTo( const QString& filename );
 
+    // Asked whenever the context menu opens: the plugins' items it ends with
+    // (#859). Without it, the menu has none.
+    void setPluginContextMenu( PluginContextMenuSource source );
+
     // Whether the view follows, as it was handed last.
     bool isFollowEnabled() const
     {
@@ -326,6 +331,9 @@ protected:
     // offers no such entry, unless the view can split its Log Lines into the
     // fields of a Log Format.
     virtual std::function<void()> exportAsCsvAction();
+    // Which view the plugins' context menu items are told they were chosen
+    // in (#859): the Text View, unless the view is a Filtered View.
+    virtual logsquirl::plugins::PluginLogView pluginLogView() const;
 
     void registerShortcut( const std::string& action, std::function<void()> func );
 
@@ -509,6 +517,9 @@ private:
 
     // The words of each Color Label, one list per color slot.
     std::vector<QStringList> colorLabelWords_ = std::vector<QStringList>{ 9 };
+
+    // What the plugins offer at the end of the context menu (#859).
+    PluginContextMenuSource pluginContextMenu_;
 
     // The one module that builds the Line Decorator's Context, shared with
     // the Table View: it holds the Decoration Policy, the main search

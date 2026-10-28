@@ -21,8 +21,10 @@
 
 #include "applicationplugins.h"
 #include "configuration.h"
+#include "crawlerwidget.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
+#include "openlogfile.h"
 #include "recentfiles.h"
 #include "session.h"
 #include "sessioninfo.h"
@@ -37,6 +39,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QLabel>
+#include <QLibrary>
 #include <QMenu>
 #include <QPointer>
 #include <QStandardPaths>
@@ -50,6 +53,23 @@
 
 #include <algorithm>
 #include <memory>
+
+struct ApplicationPluginsWindowTest {};
+
+template <>
+struct CrawlerWidget::access_by<ApplicationPluginsWindowTest> {
+    static LinesCount lineCount( const CrawlerWidget& crawler )
+    {
+        return crawler.openLogFile_->logData()->getNbLine();
+    }
+
+    static QString firstLine( const CrawlerWidget& crawler )
+    {
+        return crawler.openLogFile_->logData()->getLineString( LineNumber( 0 ) );
+    }
+};
+
+using CrawlerAccess = CrawlerWidget::access_by<ApplicationPluginsWindowTest>;
 
 using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
@@ -793,5 +813,135 @@ SCENARIO( "The dashboard lists a plugin installed while it is shown",
         plugins.reset();
         config.setShowDashboard( previousShowDashboard );
         config.save();
+    }
+}
+
+namespace {
+
+const auto LifecycleProbeId = QStringLiteral( "io.github.logsquirl.test.lifecycle-probe" );
+
+/// Writes a plugin.json for the lifecycle probe of the unit tests into its own subdirectory of
+/// root.
+void installLifecycleProbe( const QString& root )
+{
+    const auto pluginDir = QDir( root ).filePath( "lifecycle-probe" );
+    REQUIRE( QDir().mkpath( pluginDir ) );
+
+    QFile manifest( QDir( pluginDir ).filePath( "plugin.json" ) );
+    REQUIRE( manifest.open( QIODevice::WriteOnly ) );
+    manifest.write( QStringLiteral( R"({
+        "id": "%1",
+        "name": "Lifecycle Probe",
+        "version": "1.0.0",
+        "type": "datasource",
+        "library": "%2",
+        "api_version": 1
+    })" )
+                        .arg( LifecycleProbeId, QStringLiteral( LOGSQUIRL_LIFECYCLE_PROBE_PATH ) )
+                        .toUtf8() );
+}
+
+/// The action of the window's Sources menu with the given text, or nullptr.
+QAction* sourcesMenuAction( const MainWindow& window, const QString& text )
+{
+    for ( const auto* menu : window.findChildren<QMenu*>() ) {
+        if ( menu->title() != QStringLiteral( "Sources" ) ) {
+            continue;
+        }
+        for ( auto* action : menu->actions() ) {
+            if ( action->text() == text ) {
+                return action;
+            }
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
+
+// A data source plugin that ends its own stream is stopped by the host as by
+// any other stop, and the user starts it again from the Sources menu (#871).
+SCENARIO( "A data source that ended its own stream starts again from the Sources menu",
+          "[ui][plugins][applicationplugins][datasource]" )
+{
+    GIVEN( "A shown window whose data source plugin has loaded" )
+    {
+        const StandardPathsInTestMode testPaths;
+        qunsetenv( "LOGSQUIRL_TEST_PLUGIN_INIT_DELAY_MS" );
+        QTemporaryDir pluginRoot;
+        REQUIRE( pluginRoot.isValid() );
+        installLifecycleProbe( pluginRoot.path() );
+
+        // The probe's own functions, behind the host's back.
+        QLibrary probe( QStringLiteral( LOGSQUIRL_LIFECYCLE_PROBE_PATH ) );
+        REQUIRE( probe.load() );
+        using Command = void ( * )();
+        using Events = const char* ( * )();
+        reinterpret_cast<Command>( probe.resolve( "logsquirl_lifecycle_probe_reset" ) )();
+        const auto events = [ &probe ] {
+            return QString::fromUtf8(
+                reinterpret_cast<Events>( probe.resolve( "logsquirl_lifecycle_probe_events" ) )() );
+        };
+
+        QStringList loadErrors;
+        auto plugins = std::make_shared<ApplicationPlugins>(
+            [ & ]( PluginCatalog& catalog, PluginHost& host ) {
+                catalog.discoverPlugins( { pluginRoot.path() } );
+                loadErrors
+                    = host.autoLoadPlugins( { .autoLoad = true, .enabled = { LifecycleProbeId } } )
+                          .errors;
+            } );
+        auto window
+            = std::make_unique<MainWindow>( WindowSession{ newSession(), "Main", 0 }, plugins );
+        showUntilExposed( *window );
+        REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); }, 5000 ) );
+        REQUIRE( loadErrors.isEmpty() );
+        auto* tabs = window->findChild<TabbedCrawlerWidget*>();
+        REQUIRE( tabs != nullptr );
+        const auto tabsBefore = tabs->logFileTabs().size();
+
+        WHEN( "the user starts it from the Sources menu, and the plugin ends its own stream" )
+        {
+            auto* action = sourcesMenuAction( *window, QStringLiteral( "Lifecycle Probe" ) );
+            REQUIRE( action != nullptr );
+            action->trigger();
+            REQUIRE( waitUiState( [ & ] { return tabs->logFileTabs().size() == tabsBefore + 1; },
+                                  10000 ) );
+            const QPointer<CrawlerWidget> firstTab
+                = qobject_cast<CrawlerWidget*>( tabs->widget( tabs->logFileTabs().back() ) );
+            REQUIRE( firstTab );
+            const auto firstPath = plugins->host().streamWriter( LifecycleProbeId )->filePath();
+            REQUIRE( waitUiState(
+                [ & ] { return CrawlerAccess::lineCount( *firstTab ) == 1_lcount; }, 10000 ) );
+            reinterpret_cast<Command>( probe.resolve( "logsquirl_lifecycle_probe_signal_eos" ) )();
+            REQUIRE( waitUiState( [ & ] { return events() == "init,start,eos,stop"; }, 5000 ) );
+            REQUIRE( plugins->host().streamWriter( LifecycleProbeId ) == nullptr );
+
+            AND_WHEN( "the user starts it from the Sources menu again" )
+            {
+                action = sourcesMenuAction( *window, QStringLiteral( "Lifecycle Probe" ) );
+                REQUIRE( action != nullptr );
+                action->trigger();
+
+                THEN( "it starts, a new tab opens, and the first tab still shows the lines of the "
+                      "first stream, whose file stays" )
+                {
+                    REQUIRE( events() == "init,start,eos,stop,start" );
+                    REQUIRE( plugins->host().streamWriter( LifecycleProbeId ) != nullptr );
+                    REQUIRE( waitUiState(
+                        [ & ] { return tabs->logFileTabs().size() == tabsBefore + 2; }, 10000 ) );
+                    // Long enough for the tab to hear of a file that went.
+                    QTest::qWait( 1000 );
+                    REQUIRE( QFile::exists( firstPath ) );
+                    REQUIRE( firstTab );
+                    REQUIRE( CrawlerAccess::lineCount( *firstTab ) == 1_lcount );
+                    REQUIRE( CrawlerAccess::firstLine( *firstTab ) == "lifecycle probe opened" );
+                }
+            }
+        }
+
+        window.reset();
+        plugins.reset();
+        probe.unload();
     }
 }

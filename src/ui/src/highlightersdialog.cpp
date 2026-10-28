@@ -111,6 +111,20 @@ HighlightersDialog::HighlightersDialog( QWidget* parent )
 
     connect( buttonBox, &QDialogButtonBox::clicked, this, &HighlightersDialog::resolveDialog );
 
+    // The plugins' sets below the user's own, read-only: they are copied,
+    // never edited, and OK or Apply stores none of them (#865). Whether one
+    // is active is chosen in the Highlighters menu.
+    if ( const auto pluginSets = highlighterSetCollection_.pluginHighlighterSets();
+         !pluginSets.isEmpty() ) {
+        plugins_ = new PluginGroupsSection( layoutWidget, verticalLayout,
+                                            tr( "Plugin highlighter sets" ) );
+        plugins_->setGroups( pluginSets );
+        connect( plugins_->list(), &QListWidget::itemSelectionChanged, this,
+                 &HighlightersDialog::showSelectedPluginGroup );
+        connect( plugins_->copyButton(), &QPushButton::clicked, this,
+                 &HighlightersDialog::copySelectedPluginGroup );
+    }
+
     if ( !highlighterSetCollection_.highlighters_.empty() ) {
         setCurrentRow( 0 );
     }
@@ -220,13 +234,19 @@ void HighlightersDialog::loadIcons()
 
 void HighlightersDialog::exportHighlighters()
 {
-    if ( selectedRow_ < 0 && selectedTeamRow_ < 0 ) {
+    if ( selectedRow_ < 0 && selectedTeamRow_ < 0 && selectedPluginRow_ < 0 ) {
         return;
     }
 
-    const HighlighterSet group = selectedRow_ >= 0
-                                     ? highlighterSetCollection_.highlighters_.at( selectedRow_ )
-                                     : teamEdits_.groups().at( selectedTeamRow_ );
+    const HighlighterSet group = [ this ] {
+        if ( selectedRow_ >= 0 ) {
+            return highlighterSetCollection_.highlighters_.at( selectedRow_ );
+        }
+        if ( selectedTeamRow_ >= 0 ) {
+            return teamEdits_.groups().at( selectedTeamRow_ );
+        }
+        return highlighterSetCollection_.pluginSets_.at( selectedPluginRow_ ).group;
+    }();
     using namespace logsquirl::groupexchange;
 
     const auto proposed
@@ -259,8 +279,13 @@ void HighlightersDialog::importHighlighters()
 
     using namespace logsquirl::groupexchange;
     const auto title = tr( "Import highlighters configuration" );
-    // A set of a Team set's id is a copy of it, not that set.
-    ImportSession session( askUser( this, title ), idsOf( teamEdits_.groups() ) );
+    // A set of a Team set's id is a copy of it, not that set, and so is one of
+    // a plugin's set's id.
+    auto reserved = idsOf( teamEdits_.groups() );
+    for ( const auto& set : logsquirl::as_const( highlighterSetCollection_.pluginSets_ ) ) {
+        reserved.insert( set.group.id() );
+    }
+    ImportSession session( askUser( this, title ), reserved );
 
     // The imported sets are only in this dialog's copy: OK / Apply take them
     // over, Cancel discards them. A replaced set keeps its id, so it stays
@@ -372,8 +397,12 @@ void HighlightersDialog::resolveDialog( QAbstractButton* button )
     // The Team sets are not this dialog's: a sync may have changed them since
     // it opened, and they stay as the Team Folder has them.
     const auto teamSets = persistentHighlighterSet.teamHighlighterSets();
+    // Nor are the plugins' sets: they stay as the enabled plugins ship them.
+    const auto pluginSets = persistentHighlighterSet.pluginHighlighterSets();
     if ( role == QDialogButtonBox::AcceptRole ) {
-        persistentHighlighterSet = std::move( highlighterSetCollection_ );
+        // Copied, not moved: the dialog keeps a set selected, and its editor
+        // may still report a change into the dialog's copy while it closes.
+        persistentHighlighterSet = highlighterSetCollection_;
         accept();
     }
     else if ( role == QDialogButtonBox::ApplyRole ) {
@@ -384,6 +413,7 @@ void HighlightersDialog::resolveDialog( QAbstractButton* button )
         return;
     }
     persistentHighlighterSet.setTeamHighlighterSets( teamSets );
+    persistentHighlighterSet.setPluginHighlighterSets( pluginSets, false );
     persistentHighlighterSet.save();
     Q_EMIT optionsChanged();
 
@@ -412,11 +442,13 @@ void HighlightersDialog::updatePropertyFields()
     LOG_DEBUG << "updatePropertyFields(), row = " << selectedRow_;
 
     if ( selectedRow_ >= 0 ) {
-        // One set is shown at a time: one of the user's own, or a Team set.
+        // One set is shown at a time: one of the user's own, a Team set or a
+        // plugin's set.
         if ( team_ != nullptr ) {
             team_->list()->clearSelection();
         }
         selectedTeamRow_ = -1;
+        clearPluginSelection();
         highlighterSetEdit_->setEnabled( true );
 
         const HighlighterSet& currentSet
@@ -429,7 +461,7 @@ void HighlightersDialog::updatePropertyFields()
         downHighlighterButton->setEnabled( selectedRow_ < ( highlighterListWidget->count() - 1 ) );
         exportButton->setEnabled( true );
     }
-    else if ( selectedTeamRow_ < 0 ) {
+    else if ( selectedTeamRow_ < 0 && selectedPluginRow_ < 0 ) {
         highlighterSetEdit_->setEnabled( true );
         highlighterSetEdit_->reset();
         exportButton->setEnabled( false );
@@ -549,6 +581,7 @@ void HighlightersDialog::showSelectedTeamGroup()
     // Leaves the user's own set; what was changed in it stays in this
     // dialog's copy until OK, Apply or Cancel.
     highlighterListWidget->clearSelection();
+    clearPluginSelection();
 
     selectedTeamRow_ = row;
     highlighterSetEdit_->setHighlighters( teamEdits_.groups().at( row ) );
@@ -575,6 +608,56 @@ void HighlightersDialog::updateHighlighterProperties()
         auto& group = teamEdits_.groups()[ selectedTeamRow_ ];
         group = highlighterSetEdit_->highlighters();
         team_->list()->item( selectedTeamRow_ )->setText( group.name() );
+    }
+}
+
+void HighlightersDialog::showSelectedPluginGroup()
+{
+    const auto selected = plugins_->list()->selectedItems();
+    if ( selected.isEmpty() ) {
+        return;
+    }
+    const auto row = plugins_->list()->row( selected.at( 0 ) );
+
+    // Leaves the set shown before; what was changed in one of the user's own
+    // stays in this dialog's copy until OK, Apply or Cancel.
+    highlighterListWidget->clearSelection();
+    if ( team_ != nullptr ) {
+        team_->list()->clearSelection();
+    }
+    selectedTeamRow_ = -1;
+
+    selectedPluginRow_ = row;
+    highlighterSetEdit_->setHighlighters( highlighterSetCollection_.pluginSets_.at( row ).group );
+    highlighterSetEdit_->setEnabled( false );
+    removeHighlighterButton->setEnabled( false );
+    upHighlighterButton->setEnabled( false );
+    downHighlighterButton->setEnabled( false );
+    exportButton->setEnabled( true );
+    updateTeamButtons();
+    plugins_->updateButtons( true );
+}
+
+void HighlightersDialog::copySelectedPluginGroup()
+{
+    if ( selectedPluginRow_ < 0 ) {
+        return;
+    }
+
+    const auto copy = logsquirl::teamfolder::copyOfGroup(
+        highlighterSetCollection_.pluginSets_.at( selectedPluginRow_ ).group,
+        TeamGroupEdits<HighlighterSet>::namesOf( highlighterSetCollection_.highlighters_ ) );
+    highlighterSetCollection_.highlighters_.append( copy );
+    highlighterListWidget->addItem( copy.name() );
+    setCurrentRow( highlighterListWidget->count() - 1 );
+}
+
+void HighlightersDialog::clearPluginSelection()
+{
+    selectedPluginRow_ = -1;
+    if ( plugins_ != nullptr ) {
+        plugins_->list()->clearSelection();
+        plugins_->updateButtons( false );
     }
 }
 

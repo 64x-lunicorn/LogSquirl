@@ -45,6 +45,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <utility>
 
 #include <QCheckBox>
@@ -74,6 +75,7 @@
 #include "logpresentation.h"
 #include "openlogfile.h"
 #include "overview.h"
+#include "pluginlogfiles.h"
 #include "predefinedfilters.h"
 #include "searchline.h"
 #include "searchlinewidget.h"
@@ -86,6 +88,10 @@
 
 class RegexLabWindow;
 class LogFormatCatalog;
+class LogFormatForPlugins;
+namespace logsquirl::plugins {
+class PluginLogFileSource;
+}
 class LogTableView;
 class QuickFindPattern;
 class SavedSearches;
@@ -138,6 +144,15 @@ public:
     // no such line.
     bool goToLogLine( LineNumber line );
 
+    // Marks the Log Lines for a plugin, as the user marks them, or removes
+    // their Marks (#866): the views and the Session show it as they would
+    // the user's. A Log Line past the end, marked already or -- to remove --
+    // not marked is skipped.
+    void addMarks( std::span<const LineNumber> lines );
+    void removeMarks( std::span<const LineNumber> lines );
+    // The Marks of the Log File, in its order, as the Session keeps them.
+    QList<LineNumber> marks() const;
+
     // Opens the Search Line's pattern, with the options it reads it with, in
     // the Regex Lab (#661): tied to this tab, matching with the engine its
     // Searches run on, and offering Apply and Cancel. Apply fills the Search
@@ -151,6 +166,14 @@ public:
     // thread: it holds on to the Log File's data for as long as it lives.
     std::function<logsquirl::vector<QString>( const logsquirl::vector<LineNumber>& )>
     logLineTextReader() const;
+    // The Log File as plugins read its Log Lines, on any thread (#858), and
+    // their fields under the Log Format the tab applies (#867): it holds on
+    // to the Log File's data for as long as it lives.
+    std::shared_ptr<const logsquirl::plugins::PluginLogFileSource> logFileForPlugins() const;
+    // What the plugins offer in the context menu of the tab's Text View,
+    // Table View and Filtered Views, those of Searches made later included
+    // (#859); asked whenever one opens. Without it, the menus have none.
+    void setPluginContextMenu( PluginContextMenuSource source );
 
     // Instructs the widget to select all the text in the window the user
     // is interacting with
@@ -349,6 +372,13 @@ Q_SIGNALS:
     // The Log File is read in another Encoding now, chosen or detected by a
     // load: encodingName() names it (#803).
     void encodingChanged();
+
+    // The Log Lines changed, for the plugins (#858): Log Lines were added at
+    // the end (Appended), or the Log File was loaded anew or reads
+    // differently, in another Encoding or under another Decoding Policy, or
+    // its fields under another Log Format, or none (#867) (Replaced).
+    // lineCount is how many Log Lines it has now.
+    void logLinesChanged( LinesCount lineCount, logsquirl::plugins::PluginLogLinesChange change );
 
     // The current Search progressed, completed or failed, as the Search Line
     // and the views were just told: for the benchmark mode, which times a
@@ -689,6 +719,10 @@ private:
     // The Log Format the Table View shows, if any: the one the Open Log File
     // recognized, kept alive for the Table View until it is handed another.
     std::shared_ptr<const LogFormatDefinition> recognizedFormat_;
+    // The same Log Format for the plugins, which read the fields of the Log
+    // Lines on their own threads (#867): set as a load finishes, and as the
+    // Log Format is forgotten. Shared with what they read through.
+    std::shared_ptr<LogFormatForPlugins> logFormatForPlugins_;
     // Go to timestamp and the Search Limits by time: this widget only
     // forwards to it and tells it what makes a running lookup stale (#636).
     TimeNavigation timeNavigation_{ [ this ] { return timeNavigationSource(); },
@@ -700,6 +734,12 @@ private:
     QToolButton* tableViewToggle_ = nullptr;
     // The Presentation the upper pane shows: logMainView_ or logTableView_
     LogPresentation* presentation_ = nullptr;
+
+    // What the plugins offer in the views' context menus (#859).
+    PluginContextMenuSource pluginContextMenu_;
+    // What each view asks as its context menu opens: pluginContextMenu_ as
+    // it is then.
+    PluginContextMenuSource pluginContextMenuOfViews();
 };
 
 #endif

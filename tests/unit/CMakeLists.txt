@@ -79,6 +79,7 @@ add_executable(logsquirl_tests
     patternmatcher_test.cpp
     plugindialog_test.cpp
     pluginhost_test.cpp
+    pluginhost_contentclaim_test.cpp
     pluginregexlab_test.cpp
     pluginloader_test.cpp
     pluginmetadata_test.cpp
@@ -175,6 +176,18 @@ add_dependencies(logsquirl_tests logsquirl_ui_port_probe_api1)
 target_compile_definitions(logsquirl_tests PRIVATE
     LOGSQUIRL_UI_PORT_PROBE_API1_PATH="$<TARGET_FILE:logsquirl_ui_port_probe_api1>")
 
+# The same probe built against the plugin header as LogSquirl 26.12.0
+# published it, with the functions 26.11 and 26.12 added: such a plugin loads,
+# runs and finds those functions unchanged (#863).
+add_library(logsquirl_ui_port_probe_api2612 MODULE plugins/uiportprobe.cpp)
+target_link_libraries(logsquirl_ui_port_probe_api2612 PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_ui_port_probe_api2612
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/plugins/api2612")
+set_target_properties(logsquirl_ui_port_probe_api2612 PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_ui_port_probe_api2612)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_UI_PORT_PROBE_API2612_PATH="$<TARGET_FILE:logsquirl_ui_port_probe_api2612>")
+
 # A plugin that opens the Regex Lab and hears what the user applied (#662).
 add_library(logsquirl_regex_lab_plugin MODULE plugins/regexlabplugin.cpp)
 target_link_libraries(logsquirl_regex_lab_plugin PRIVATE project_options project_warnings)
@@ -219,6 +232,34 @@ target_compile_definitions(logsquirl_tests PRIVATE
     LOGSQUIRL_CONVERT_PROBE_PATH="$<TARGET_FILE:logsquirl_convert_probe>"
     LOGSQUIRL_CONVERT_PROBE_PLAIN_PATH="$<TARGET_FILE:logsquirl_convert_probe_plain>")
 
+# The convert probe built against the plugin header as LogSquirl 26.12.0
+# published it, before a converter claimed a file by its content: it converts
+# by its extension as before, and no content check asks it (#861).
+add_library(logsquirl_convert_probe_api2612 MODULE plugins/convertprobe.cpp)
+target_link_libraries(logsquirl_convert_probe_api2612 PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_convert_probe_api2612
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/plugins/api2612")
+set_target_properties(logsquirl_convert_probe_api2612 PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_convert_probe_api2612)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_CONVERT_PROBE_API2612_PATH="$<TARGET_FILE:logsquirl_convert_probe_api2612>")
+
+# Two converter plugins that claim a file by its content, whose check the
+# tests hold, watch and unload meanwhile (#861): probe B's id comes after
+# probe A's, and the two list some extensions alike. The UI tests load the
+# same two libraries.
+foreach(probe_target IN ITEMS logsquirl_claim_probe_a logsquirl_claim_probe_b)
+  add_library(${probe_target} MODULE plugins/claimprobe.cpp)
+  target_link_libraries(${probe_target} PRIVATE project_options project_warnings)
+  target_include_directories(${probe_target} PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+  set_target_properties(${probe_target} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+  add_dependencies(logsquirl_tests ${probe_target})
+endforeach()
+target_compile_definitions(logsquirl_claim_probe_b PRIVATE CLAIM_PROBE_B=1)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_CLAIM_PROBE_A_PATH="$<TARGET_FILE:logsquirl_claim_probe_a>"
+    LOGSQUIRL_CLAIM_PROBE_B_PATH="$<TARGET_FILE:logsquirl_claim_probe_b>")
+
 # A data source plugin whose thread pushes lines until its shutdown returns:
 # the tests unload it, stop its stream and let the host go while its lines
 # arrive (#821).
@@ -229,6 +270,28 @@ set_target_properties(logsquirl_stream_probe PROPERTIES CXX_VISIBILITY_PRESET hi
 add_dependencies(logsquirl_tests logsquirl_stream_probe)
 target_compile_definitions(logsquirl_tests PRIVATE
     LOGSQUIRL_STREAM_PROBE_PATH="$<TARGET_FILE:logsquirl_stream_probe>")
+
+# The same probe built against the plugin header as LogSquirl 26.12.0
+# published it, before a data source heard when its stream starts and stops:
+# it starts and stops as before (#855).
+add_library(logsquirl_stream_probe_api2612 MODULE plugins/streamprobe.cpp)
+target_link_libraries(logsquirl_stream_probe_api2612 PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_stream_probe_api2612
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/plugins/api2612")
+set_target_properties(logsquirl_stream_probe_api2612 PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_stream_probe_api2612)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_STREAM_PROBE_API2612_PATH="$<TARGET_FILE:logsquirl_stream_probe_api2612>")
+
+# A data source plugin that exports logsquirl_datasource_start and
+# logsquirl_datasource_stop and writes down when the host calls them (#855).
+add_library(logsquirl_lifecycle_probe MODULE plugins/lifecycleprobe.cpp)
+target_link_libraries(logsquirl_lifecycle_probe PRIVATE project_options project_warnings)
+target_include_directories(logsquirl_lifecycle_probe PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_lifecycle_probe PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_lifecycle_probe)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_LIFECYCLE_PROBE_PATH="$<TARGET_FILE:logsquirl_lifecycle_probe>")
 
 # On Windows a plugin finds the libraries it ships next to it. The fixture
 # imports a library that is built into a directory of its own, so neither the

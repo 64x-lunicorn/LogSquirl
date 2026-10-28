@@ -27,6 +27,7 @@
 #include <QStringList>
 
 #include <algorithm>
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <utility>
@@ -50,6 +51,12 @@ public:
     std::vector<std::pair<QString, PluginWidgetHandle>> sidebarTabs;
     std::vector<PluginWidgetHandle> footerWidgets;
     QStringList menuActions;
+    /// The menu path each of menuActions was added with.
+    QStringList menuActionPaths;
+    /// The user data each of menuActions was added with.
+    std::vector<void*> menuActionUserData;
+    /// How often a menu action was asked to go.
+    int menuActionRemovals = 0;
     PluginWidgetHandle parent;
 
     void addStatusWidget( const QString& pluginId, PluginWidgetHandle widget ) override
@@ -76,14 +83,28 @@ public:
     {
         std::erase( footerWidgets, widget );
     }
-    void addMenuAction( const QString&, const QString&, const QString& label, PluginCallbackFn,
-                        void* ) override
+    void addMenuAction( const QString&, const QString& menuPath, const QString& label,
+                        PluginCallbackFn, void* userData ) override
     {
         menuActions.append( label );
+        menuActionPaths.append( menuPath );
+        menuActionUserData.push_back( userData );
+    }
+    void removeMenuAction( const QString&, void* userData ) override
+    {
+        const auto it = std::ranges::find( menuActionUserData, userData );
+        if ( it != menuActionUserData.end() ) {
+            menuActions.removeAt( it - menuActionUserData.begin() );
+            menuActionPaths.removeAt( it - menuActionUserData.begin() );
+            menuActionUserData.erase( it );
+        }
+        ++menuActionRemovals;
     }
     void removeContributions( const QString& pluginId ) override
     {
         menuActions.clear();
+        menuActionPaths.clear();
+        menuActionUserData.clear();
         std::erase_if( statusWidgets, [ & ]( const auto& w ) { return w.first == pluginId; } );
         sidebarTabs.clear();
         footerWidgets.clear();
@@ -112,6 +133,34 @@ public:
         }
         const auto tab = encodingOf.find( logFile );
         return tab != encodingOf.end() ? std::optional( tab->second ) : std::nullopt;
+    }
+
+    /// The Marks of each Log File a tab of the window shows (#866).
+    std::map<QString, std::vector<std::uint64_t>> marksOf;
+
+    void addMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override
+    {
+        const auto tab = marksOf.find( logFile );
+        if ( tab == marksOf.end() ) {
+            return;
+        }
+        tab->second.insert( tab->second.end(), logLines.begin(), logLines.end() );
+        std::ranges::sort( tab->second );
+    }
+    void removeMarks( const QString& logFile, const std::vector<std::uint64_t>& logLines ) override
+    {
+        const auto tab = marksOf.find( logFile );
+        if ( tab == marksOf.end() ) {
+            return;
+        }
+        std::erase_if( tab->second, [ & ]( std::uint64_t line ) {
+            return std::ranges::find( logLines, line ) != logLines.end();
+        } );
+    }
+    std::optional<std::vector<std::uint64_t>> marks( const QString& logFile ) override
+    {
+        const auto tab = marksOf.find( logFile );
+        return tab != marksOf.end() ? std::optional( tab->second ) : std::nullopt;
     }
 
     bool showsAnything() const
@@ -252,6 +301,111 @@ SCENARIO( "What plugins contribute shows in every window", "[sharedpluginuiport]
     }
 }
 
+SCENARIO( "A plugin's menu action goes from every window when it is removed",
+          "[sharedpluginuiport][plugins]" )
+{
+    GIVEN( "Two windows and a plugin with two menu actions" )
+    {
+        SharedPluginUiPort port;
+        FakeWindowPort first;
+        FakeWindowPort second;
+        port.addWindow( &first );
+        port.addWindow( &second );
+        int stays = 0;
+        int goes = 0;
+        port.addMenuAction( PluginId, QString(), QStringLiteral( "Stays" ), noAction, &stays );
+        port.addMenuAction( PluginId, QString(), QStringLiteral( "Goes" ), noAction, &goes );
+
+        WHEN( "the plugin removes one of them (#857)" )
+        {
+            port.removeMenuAction( PluginId, &goes );
+
+            THEN( "both windows show only the other one, and so does a window added later" )
+            {
+                REQUIRE( first.menuActions == QStringList{ QStringLiteral( "Stays" ) } );
+                REQUIRE( second.menuActions == QStringList{ QStringLiteral( "Stays" ) } );
+                FakeWindowPort later;
+                port.addWindow( &later );
+                REQUIRE( later.menuActions == QStringList{ QStringLiteral( "Stays" ) } );
+                port.removeWindow( &later );
+            }
+
+            AND_WHEN( "it removes the same one again, or one it never added" )
+            {
+                int never = 0;
+                port.removeMenuAction( PluginId, &goes );
+                port.removeMenuAction( PluginId, &never );
+                port.removeMenuAction( QStringLiteral( "com.test.other" ), &stays );
+
+                THEN( "nothing changes, and no window is asked" )
+                {
+                    REQUIRE( first.menuActions == QStringList{ QStringLiteral( "Stays" ) } );
+                    REQUIRE( second.menuActions == QStringList{ QStringLiteral( "Stays" ) } );
+                    REQUIRE( first.menuActionRemovals == 1 );
+                    REQUIRE( second.menuActionRemovals == 1 );
+                }
+            }
+        }
+
+        port.removeWindow( &first );
+        port.removeWindow( &second );
+    }
+}
+
+SCENARIO( "A plugin's menu actions of one label in different submenus each show",
+          "[sharedpluginuiport][plugins]" )
+{
+    GIVEN( "A window and a plugin with an action of one label in two submenus (#870)" )
+    {
+        SharedPluginUiPort port;
+        FakeWindowPort window;
+        port.addWindow( &window );
+        int toolsExport = 0;
+        int reportExport = 0;
+        port.addMenuAction( PluginId, QStringLiteral( "Tools" ), QStringLiteral( "Export" ),
+                            noAction, &toolsExport );
+        port.addMenuAction( PluginId, QStringLiteral( "Report" ), QStringLiteral( "Export" ),
+                            noAction, &reportExport );
+
+        THEN( "the window shows both, each with what it was added with" )
+        {
+            REQUIRE( window.menuActions
+                     == QStringList{ QStringLiteral( "Export" ), QStringLiteral( "Export" ) } );
+            REQUIRE( window.menuActionPaths
+                     == QStringList{ QStringLiteral( "Tools" ), QStringLiteral( "Report" ) } );
+            REQUIRE( window.menuActionUserData
+                     == std::vector<void*>{ &toolsExport, &reportExport } );
+        }
+
+        THEN( "a window added later shows both as well" )
+        {
+            FakeWindowPort later;
+            port.addWindow( &later );
+            REQUIRE( later.menuActions.size() == 2 );
+            port.removeWindow( &later );
+        }
+
+        WHEN( "the plugin adds one of them again, as when it is enabled again, also with the "
+              "Plugins menu named in its path" )
+        {
+            int again = 0;
+            port.addMenuAction( PluginId, QStringLiteral( "Tools" ), QStringLiteral( "Export" ),
+                                noAction, &again );
+            port.addMenuAction( PluginId, QStringLiteral( "Plugins/ Tools /" ),
+                                QStringLiteral( "Export" ), noAction, &again );
+
+            THEN( "the window still shows each once" )
+            {
+                REQUIRE( window.menuActions.size() == 2 );
+                REQUIRE( window.menuActionUserData
+                         == std::vector<void*>{ &toolsExport, &reportExport } );
+            }
+        }
+
+        port.removeWindow( &window );
+    }
+}
+
 SCENARIO( "A plugin's Regex Lab opens in the most recently active window",
           "[sharedpluginuiport][pluginregexlab][plugins]" )
 {
@@ -352,5 +506,162 @@ SCENARIO( "A plugin reads the Encoding of a Log File in any window",
             port.removeWindow( &first );
             port.removeWindow( &second );
         }
+    }
+}
+
+SCENARIO( "A plugin sets, removes and reads the Marks of a Log File in every window",
+          "[sharedpluginuiport][pluginmarks][plugins]" )
+{
+    GIVEN( "No window" )
+    {
+        SharedPluginUiPort port;
+
+        THEN( "no Log File has Marks, and setting some does nothing" )
+        {
+            port.addMarks( QStringLiteral( "/logs/a.log" ), { 1 } );
+            REQUIRE_FALSE( port.marks( QStringLiteral( "/logs/a.log" ) ).has_value() );
+        }
+    }
+
+    GIVEN( "Two windows that both show a.log, with Marks of their own, and one that shows b.log" )
+    {
+        SharedPluginUiPort port;
+        FakeWindowPort first;
+        FakeWindowPort second;
+        first.marksOf[ QStringLiteral( "/logs/a.log" ) ] = { 2, 7 };
+        second.marksOf[ QStringLiteral( "/logs/a.log" ) ] = { 7, 9 };
+        second.marksOf[ QStringLiteral( "/logs/b.log" ) ] = {};
+        port.addWindow( &first );
+        port.addWindow( &second );
+
+        THEN( "the Marks of a.log are those of both windows, in order and each once" )
+        {
+            REQUIRE( port.marks( QStringLiteral( "/logs/a.log" ) )
+                     == std::vector<std::uint64_t>{ 2, 7, 9 } );
+        }
+
+        THEN( "b.log has no Marks, and a Log File no window shows has none at all" )
+        {
+            REQUIRE( port.marks( QStringLiteral( "/logs/b.log" ) )
+                     == std::vector<std::uint64_t>{} );
+            REQUIRE_FALSE( port.marks( QStringLiteral( "/logs/c.log" ) ).has_value() );
+        }
+
+        WHEN( "a plugin sets Marks on a.log, and removes one" )
+        {
+            port.addMarks( QStringLiteral( "/logs/a.log" ), { 4 } );
+            port.removeMarks( QStringLiteral( "/logs/a.log" ), { 7 } );
+
+            THEN( "both windows set and remove them" )
+            {
+                REQUIRE( first.marksOf[ QStringLiteral( "/logs/a.log" ) ]
+                         == std::vector<std::uint64_t>{ 2, 4 } );
+                REQUIRE( second.marksOf[ QStringLiteral( "/logs/a.log" ) ]
+                         == std::vector<std::uint64_t>{ 4, 9 } );
+                REQUIRE( port.marks( QStringLiteral( "/logs/a.log" ) )
+                         == std::vector<std::uint64_t>{ 2, 4, 9 } );
+            }
+        }
+
+        port.removeWindow( &first );
+        port.removeWindow( &second );
+    }
+}
+
+namespace {
+
+void noContextMenuAction( void* /* userData */,
+                          const logsquirl::plugins::PluginContextMenuContext& /* context */ )
+{
+}
+
+/// The labels of the context menu items, in their order.
+QStringList contextMenuLabels( const SharedPluginUiPort& port )
+{
+    QStringList labels;
+    for ( const auto& action : port.contextMenuActions() ) {
+        labels.append( action.label );
+    }
+    return labels;
+}
+
+} // namespace
+
+SCENARIO( "The plugins' context menu items are kept in the order they were added",
+          "[sharedpluginuiport][plugincontextmenu][plugins]" )
+{
+    GIVEN( "A window and two plugins that added context menu items in turn" )
+    {
+        SharedPluginUiPort port;
+        FakeWindowPort window;
+        port.addWindow( &window );
+        const auto otherId = QStringLiteral( "com.test.other" );
+        int first = 0;
+        int second = 0;
+        int third = 0;
+        port.addContextMenuAction( PluginId, QStringLiteral( "Mine/Sub" ),
+                                   QStringLiteral( "First" ), noContextMenuAction, &first );
+        port.addContextMenuAction( otherId, QString(), QStringLiteral( "Second" ),
+                                   noContextMenuAction, &second );
+        port.addContextMenuAction( PluginId, QString(), QStringLiteral( "Third" ),
+                                   noContextMenuAction, &third );
+
+        THEN( "the views get them in that order, each with what it was added with and a serial "
+              "of its own, and the window's port is not asked to show them" )
+        {
+            const auto actions = port.contextMenuActions();
+            REQUIRE( contextMenuLabels( port )
+                     == QStringList{ QStringLiteral( "First" ), QStringLiteral( "Second" ),
+                                     QStringLiteral( "Third" ) } );
+            REQUIRE( actions[ 0 ].pluginId == PluginId );
+            REQUIRE( actions[ 0 ].menuPath == QStringLiteral( "Mine/Sub" ) );
+            REQUIRE( actions[ 0 ].callback == &noContextMenuAction );
+            REQUIRE( actions[ 0 ].userData == &first );
+            REQUIRE( actions[ 1 ].pluginId == otherId );
+            REQUIRE( actions[ 0 ].serial != actions[ 1 ].serial );
+            REQUIRE( actions[ 1 ].serial != actions[ 2 ].serial );
+            REQUIRE( window.menuActions.isEmpty() );
+        }
+
+        WHEN( "a plugin removes one, and one it never added" )
+        {
+            int never = 0;
+            port.removeContextMenuAction( PluginId, &first );
+            port.removeContextMenuAction( PluginId, &never );
+            port.removeContextMenuAction( PluginId, &second );
+
+            THEN( "only that one goes" )
+            {
+                REQUIRE( contextMenuLabels( port )
+                         == QStringList{ QStringLiteral( "Second" ), QStringLiteral( "Third" ) } );
+            }
+
+            AND_WHEN( "it adds one again" )
+            {
+                port.addContextMenuAction( PluginId, QString(), QStringLiteral( "First" ),
+                                           noContextMenuAction, &first );
+
+                THEN( "it comes last, with a serial never given before" )
+                {
+                    const auto actions = port.contextMenuActions();
+                    REQUIRE( actions.back().label == QStringLiteral( "First" ) );
+                    REQUIRE( actions.back().serial > actions[ 0 ].serial );
+                    REQUIRE( actions.back().serial > actions[ 1 ].serial );
+                    REQUIRE( actions.back().serial > 3 );
+                }
+            }
+        }
+
+        WHEN( "a plugin's contributions are removed" )
+        {
+            port.removeContributions( PluginId );
+
+            THEN( "its items go, the other plugin's stay" )
+            {
+                REQUIRE( contextMenuLabels( port ) == QStringList{ QStringLiteral( "Second" ) } );
+            }
+        }
+
+        port.removeWindow( &window );
     }
 }

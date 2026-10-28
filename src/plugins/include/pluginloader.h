@@ -107,6 +107,41 @@ public:
     int convertEx( const QString& inputPath, const QString& outputPath,
                    const LogSquirlConvertControl* control ) const;
 
+    /** True if the plugin is a converter and exports logsquirl_converter_claims (#861). */
+    bool claimsByContent() const
+    {
+        return isConverter() && converterClaimsFn_ != nullptr;
+    }
+
+    /**
+     * Ask the converter whether it converts the file at filePathUtf8, whose
+     * first bytes are head, through logsquirl_converter_claims. Safe on any
+     * thread: it reads nothing the handle changes.
+     * @return Whether it claims the file; false without the entry point.
+     */
+    bool claims( const QByteArray& filePathUtf8, const QByteArray& head ) const;
+
+    /** True if the plugin exports logsquirl_datasource_start (#855). */
+    bool hasDataSourceStart() const
+    {
+        return dataSourceStartFn_ != nullptr;
+    }
+
+    /** True if the plugin exports logsquirl_datasource_stop (#855). */
+    bool hasDataSourceStop() const
+    {
+        return dataSourceStopFn_ != nullptr;
+    }
+
+    /**
+     * Start the plugin's stream through logsquirl_datasource_start.
+     * @return What it returned; LOGSQUIRL_DATASOURCE_STARTED without the entry point.
+     */
+    int startDataSource( const LogSquirlDataSourceContext* context ) const;
+
+    /** Stop the plugin's stream through logsquirl_datasource_stop, if it exports it. */
+    void stopDataSource( const LogSquirlDataSourceContext* context ) const;
+
 private:
     friend class PluginLoader;
 
@@ -116,7 +151,10 @@ private:
                   LogSquirlPluginConfigureFn configureFn,
                   LogSquirlConverterGetExtsFn converterGetExtsFn,
                   LogSquirlConverterConvertFn converterConvertFn,
-                  LogSquirlConverterConvertExFn converterConvertExFn );
+                  LogSquirlConverterConvertExFn converterConvertExFn,
+                  LogSquirlConverterClaimsFn converterClaimsFn,
+                  LogSquirlDataSourceStartFn dataSourceStartFn,
+                  LogSquirlDataSourceStopFn dataSourceStopFn );
 
     PluginMetadata metadata_;
     std::unique_ptr<QLibrary> library_;
@@ -131,6 +169,11 @@ private:
     LogSquirlConverterConvertFn converterConvertFn_ = nullptr;
     /// Optional: preferred over converterConvertFn_ when the plugin exports it.
     LogSquirlConverterConvertExFn converterConvertExFn_ = nullptr;
+    /// Optional: asked whether the converter takes a file by its content (#861).
+    LogSquirlConverterClaimsFn converterClaimsFn_ = nullptr;
+    /// Optional: called when the plugin's stream starts and stops (#855).
+    LogSquirlDataSourceStartFn dataSourceStartFn_ = nullptr;
+    LogSquirlDataSourceStopFn dataSourceStopFn_ = nullptr;
 
     bool initialised_ = false;
 };

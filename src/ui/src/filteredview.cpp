@@ -93,6 +93,11 @@ std::function<void()> FilteredView::exportAsCsvAction()
     return [ this ]() { exportAsCsv(); };
 }
 
+logsquirl::plugins::PluginLogView FilteredView::pluginLogView() const
+{
+    return logsquirl::plugins::PluginLogView::Filtered;
+}
+
 std::vector<CsvColumn>
 FilteredView::csvColumns( const LogFormatDefinition* format,
                           logsquirl::vector<AbstractLogData::LineType> types ) const
