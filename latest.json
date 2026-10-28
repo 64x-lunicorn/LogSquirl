@@ -94,7 +94,7 @@
     },
     {
       "version": "26.12.0-beta1",
-      "description": "Table View Sort Order and Column Layout, field terms in Search, Matches Only, next and previous Match, converter plugins in the background, plugins ship Log Formats, 3 bug fixes"
+      "description": "Table View Sort Order and Column Layout, field terms in Search, Matches Only, next and previous Match, plugins in the context menu and reading Log Lines, fields and Marks, 17 security fixes, 18 bug fixes"
     }
   ],
   "stable_version": "26.10.0",

@@ -1,16 +1,18 @@
 ---
 title: Version 26.12.0-beta1
-description: The Table View sorts by a column and keeps its Column Layout per Log Format, a Search narrows by column with field terms, Matches Only, next and previous Match, converter plugins run in the background, plugins ship Log Formats, 3 bug fixes.
+description: Table View Sort Order and Column Layout, field terms in Search, Matches Only, next and previous Match, plugins in the context menu and reading Log Lines, fields and Marks, 17 security fixes, 18 bug fixes.
 release:
   version: 26.12.0-beta1
-  date: 2026-10-21
+  date: 2026-10-28
   channel: beta
 ---
 
 The Table View sorts its Rows by a column, hides and reorders its columns and keeps that layout per Log
 Format. A Search can match the text of one field alone, and the table can show only the Rows that match.
-`}` and `{` jump between Matches. Opening a file a converter plugin handles no longer freezes the window,
-plugins can ship Log Formats and learn which encoding a Log File is read in. 3 bug fixes.
+`}` and `{` jump between Matches. Plugins add items to the context menu of the Log Lines, read the Log
+Lines, fields and Marks of any open Log File, and ship Log Formats, Predefined Filters and Highlighter Sets;
+converter plugins run in the background and can claim a file by its content. A security review brought 17
+fixes, among them for archives and plugin downloads. 18 bug fixes.
 
 This is a beta. Install it next to a stable version only if you want to try these changes early.
 
@@ -51,21 +53,52 @@ This is a beta. Install it next to a stable version only if you want to try thes
 
 ### Plugins
 
+- **Context menu items**: A plugin adds items to the context menu of the Text View, the Table View and the
+  Filtered View, optionally in submenus, and learns the Log File, the selected lines and any selected word
+  when one is chosen. Plugins menu items can now be removed again too.
+- **Log Lines, fields and Marks**: A plugin reads the Log Lines of any open Log File, on a thread of its
+  own, numbered and decoded as the views show them, and hears when Log Lines are appended or the Log File
+  is replaced. It reads the field values of Log Lines as the Table View shows them, and sets, removes and
+  reads Marks, which behave like any other Mark.
+- **The encoding of a Log File**: A plugin learns which text encoding LogSquirl reads a Log File in and
+  hears when it changes, so a plugin that reads the file itself sees the same lines as the views.
 - **Converters run in the background**: Opening a file a converter plugin handles no longer freezes the
   window. A long conversion shows a progress dialog with *Cancel*, and a failed one says which plugin could
-  not convert which file. Plugin authors get a new entry point that reports progress and polls for
-  cancellation.
-- **The encoding of a Log File**: `get_log_file_encoding` tells a plugin which text encoding LogSquirl reads
-  a Log File in, and `register_encoding_callback` tells it whenever that changes, so a plugin that reads the
-  file itself sees the same lines as the views. The plugin API grows compatibly; plugins built for the
-  earlier API load unchanged.
+  not convert which file. A converter can also claim a file by its first bytes, so a `.log`, `.bin` or
+  extensionless capture is converted too.
+- **Data sources**: A data source plugin is told when its stream starts and stops, and one that ended its
+  own stream can be started again from the Sources menu.
+- **Shipped with a plugin**: Besides Log Formats, a plugin's manifest can name Predefined Filters and
+  Highlighter Sets; they are listed next to your own with the plugin as Source, read-only.
+- **Built for the right Qt**: A plugin can name the Qt it was built against, and one built against a Qt
+  LogSquirl cannot serve is not loaded; its card in Plugin Management says why.
+- **Compatible**: The plugin API grows compatibly; plugins built for an earlier API load unchanged. The
+  plugin SDK guide and its example plugin show the new functions.
+
+### Security
+
+A security review of LogSquirl brought 17 fixes:
+
+- **Archives**: Extracting a compressed Log File or a plugin archive never writes outside its folder and
+  skips symbolic links, and decompression stops at a limit, 16 GiB by default, set under *Preferences >
+  File > Archives*.
+- **Plugins**: A plugin download is installed only when it matches the SHA-256 of its catalog entry, every
+  catalog URL must be https, a plugin id can never be a path, and disabling every plugin stays disabled.
+- **Untrusted text and files**: File names, Log Lines and update notices show as plain text everywhere,
+  the CSV export neutralises formula characters, programs start by their absolute path, *Open containing
+  folder* is safe for any file name, and the debug log and merged Log Files are private.
+- **Robustness**: Overlong and pathological Log Lines are bounded and no longer stall the views, a
+  corrupted Index Cache entry is dropped, and a Search never outlives its Log File.
 
 ### Bug fixes
 
-3 fixes: `open_file` called from a plugin's worker thread opens the file on the UI thread, a plugin gets a
-Regex Lab answer that came while it was being disabled, and a UTF-16 Log File no longer breaks a line
-inside two characters.
+18 fixes, among them: `open_file` called from a plugin's worker thread opens the file on the UI thread, a
+UTF-16 Log File no longer breaks a line inside two characters, a tar.zst or tar.lz4 archive extracts its
+members whole, every read of a Log File checks its seek, a Log Line whose tab expansion is cut says so,
+Quick Find's notices are translated, and the Highlighters and Predefined Filters dialogs no longer crash
+when they close.
 
-The build images also stop trusting a compromised emSign certificate when they download Qt.
+The crash reporter is sentry-native 0.17.4 and archives are read by KArchive 6.31.0. The build images
+stop trusting a compromised emSign certificate when they download Qt.
 
 The complete list is in the release notes on GitHub.
