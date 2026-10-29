@@ -413,10 +413,15 @@ def parse_affected_versions(text: str) -> tuple[VersionRange, ...]:
     "before"; as an included upper bound or on its own it leaves open which
     patch releases are meant. That, and anything else in the text, makes it
     unreadable as a whole: a partly read text could leave out the range
-    LogSquirl's Qt is in."""
+    LogSquirl's Qt is in. "Affected status unknown before 6.8.0" counts the
+    versions before 6.8.0 as affected, and a range narrowed to some platforms
+    ("(64-bit platforms only)") is read for all of them: either way the ranges
+    hold every version that may be affected."""
     t = " ".join(text.lower().split())
     # A statement about versions outside the ranges adds none.
     t = re.sub(rf"\bversions? before {_V2} (?:are|is) known to be unaffected\.?", "", t)
+    t = re.sub(rf"\.? affected status unknown before (?:qt )?{_V2}\b\.?", r", before \1", t)
+    t = re.sub(r" \((?:[\w-]+ )+platforms only\)", "", t)
     t = t.replace("up to and including", "through").replace("up to", "through")
     t = re.sub(r"\b(?:all|versions?|of|qt)\b", " ", t)
     t = " ".join(t.strip(" :.").split())

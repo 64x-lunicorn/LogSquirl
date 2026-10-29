@@ -31,3 +31,27 @@ ignore:
       pasted for display back to that same user, so no trust boundary is
       crossed. Revisit with the Qt 6.12 upgrade.
     expires: 2027-03-31
+  - id: CVE-2026-76844
+    component: zlib_sources
+    reason: >-
+      The flaw is in gzwrite(), zlib's gzopen() file API. LogSquirl builds zlib
+      without the gz* files (3rdparty/CMakeLists.txt): KArchive inflates and
+      deflates streams and nothing calls the file API. No zlib release fixes it
+      yet; take the release that does.
+    expires: 2027-01-31
+  - id: CVE-2026-85091
+    component: zlib_sources
+    reason: >-
+      The flaw is in gz_vacate(), zlib's gzopen() file API. LogSquirl builds
+      zlib without the gz* files (3rdparty/CMakeLists.txt): KArchive inflates
+      and deflates streams and nothing calls the file API. No zlib release
+      fixes it yet; take the release that does.
+    expires: 2027-01-31
+  - id: OSV-2022-1174
+    component: KArchive
+    reason: >-
+      An OSS-Fuzz crash of 2022 in liblzma's crc64_clmul, reached through
+      KArchive's fuzzer; the code is xz's, and LogSquirl ships xz 5.8.4. OSV
+      gives only a commit range on KArchive's kf5 branch, whose "fix" is a
+      translation sync, so it cannot rule out a KF6 release.
+    expires: 2027-10-31
