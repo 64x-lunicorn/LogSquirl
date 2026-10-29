@@ -493,6 +493,12 @@ def test_lockfile_cli_fails_as_a_tooling_error_when_osv_is_unreachable(tmp_path,
     ("From Qt 6.7 before 6.9", ["6.7.0 before 6.9.0"]),
     ("before 6.2", ["before 6.2.0"]),
     ("From 6.8.0 up to 6.8.3. Versions before 6.6 are known to be unaffected.", ["6.8.0 to 6.8.3"]),
+    # versions of unknown status count as affected, a platform restriction
+    # widens to every platform (CVE-2026-105946, CVE-2026-107157)
+    ("From Qt 6.8.0 to Qt 6.8.9, from Qt 6.9.0 to Qt 6.11.1. Affected status unknown before Qt 6.8.0",
+     ["6.8.0 to 6.8.9", "6.9.0 to 6.11.1", "before 6.8.0"]),
+    ("from Qt 5.12.0 to Qt 6.8.8, from Qt 6.9.0 to Qt 6.11.2 (64-bit platforms only)",
+     ["5.12.0 to 6.8.8", "6.9.0 to 6.11.2"]),
 ])
 def test_affected_version_texts_are_read_as_ranges(text, ranges):
     assert [str(r) for r in vs.parse_affected_versions(text)] == ranges
@@ -524,6 +530,9 @@ def test_affected_version_texts_that_say_something_else_are_unreadable(text):
     # CVE-2026-79616 and CVE-2026-78253, both fixed in 6.11.2 (#513)
     ("From Qt 5.10 to Qt 6.8.8, from Qt 6.9.0 to Qt 6.11.1", ["5.10.0", "6.8.8", "6.9.0", "6.11.1"],
      ["5.9.9", "6.8.9", "6.11.2", "6.12.0"]),
+    # CVE-2026-16762, fixed in 6.11.2
+    ("From Qt 4.3.0 to Qt 6.8.8, from Qt 6.9.0 to Qt 6.11.1. Affected status unknown before Qt 4.3.0",
+     ["4.2.9", "4.3.0", "6.8.8", "6.11.1"], ["6.8.9", "6.11.2", "6.11.3"]),
 ])
 def test_a_version_is_affected_when_any_range_holds_it(text, inside, outside):
     ranges = vs.parse_affected_versions(text)
