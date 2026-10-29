@@ -406,6 +406,15 @@
   for a read in its own thread and timed out with NotSent; the connect, which
   the tests were skipped for, always succeeded. A failed connect attempt of a
   secondary instance is now logged once per kind of error. (#849)
+- **The vulnerability scan reads Qt's newest advisory wording**: an affected
+  versions text that adds "Affected status unknown before Qt X" counts those
+  versions as affected, and a range narrowed to "(64-bit platforms only)" is
+  read for every platform; the scan no longer reports Qt 6.11.3 as possibly
+  affected by CVE-2026-16762, CVE-2026-105946 and CVE-2026-107157, which it
+  fixes. `vuln-ignore.yml` accepts zlib's CVE-2026-76844 and CVE-2026-85091,
+  which are in the gzopen() file API LogSquirl does not build, and
+  OSV-2022-1174, a 2022 liblzma crash OSV files under KArchive. The build
+  images install brotli 1.2.1 with aqtinstall (PYSEC-2026-4322).
 
 ## Documentation
 
