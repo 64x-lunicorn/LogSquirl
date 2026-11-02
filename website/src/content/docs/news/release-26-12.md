@@ -3,7 +3,7 @@ title: Version 26.12.0-beta1
 description: Table View Sort Order and Column Layout, field terms in Search, Matches Only, next and previous Match, plugins in the context menu and reading Log Lines, fields and Marks, 17 security fixes, 18 bug fixes.
 release:
   version: 26.12.0-beta1
-  date: 2026-10-28
+  date: 2026-11-02
   channel: beta
 ---
 
