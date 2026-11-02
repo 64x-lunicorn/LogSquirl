@@ -414,7 +414,8 @@
   fixes. `vuln-ignore.yml` accepts zlib's CVE-2026-76844 and CVE-2026-85091,
   which are in the gzopen() file API LogSquirl does not build, and
   OSV-2022-1174, a 2022 liblzma crash OSV files under KArchive. The build
-  images install brotli 1.2.1 with aqtinstall (PYSEC-2026-4322).
+  images install brotli 1.2.1 and brotlicffi 1.2.1.0 with aqtinstall
+  (PYSEC-2026-4322, PYSEC-2026-4323).
 
 ## Documentation
 
