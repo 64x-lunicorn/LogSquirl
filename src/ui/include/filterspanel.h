@@ -33,9 +33,14 @@
 
 #include "predefinedfilters.h"
 
+class SoloSelection;
+
 // Widget that displays all predefined filters grouped into expandable tree items.
 // Users can check/uncheck individual filters or entire groups (tri-state).
 // Pinned filters persist across sessions. Selected filters are emitted via signal.
+// A double-click on a filter or group, or "Show only this" of its context
+// menu, checks only it; "Restore previous selection" brings back the checks
+// from before (#889).
 class FiltersPanel : public QWidget {
     Q_OBJECT
 
@@ -92,6 +97,8 @@ private:
 
     QLineEdit* searchBox_{ nullptr };
     QTreeWidget* filterTree_{ nullptr };
+    // "Show only this" and the way back.
+    SoloSelection* solo_{ nullptr };
     QPushButton* selectAllButton_{ nullptr };
     QPushButton* deselectAllButton_{ nullptr };
     QPushButton* editFiltersButton_{ nullptr };

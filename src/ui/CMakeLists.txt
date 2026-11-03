@@ -79,6 +79,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chipmunkimporter.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/commandpalette.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/filterspanel.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/soloselection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodings.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/defaultencodingcheck.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/favoritefiles.h
@@ -192,6 +193,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/scratchpad.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbedscratchpad.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filterspanel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/soloselection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/favoritefiles.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabnamemapping.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabgroupinfo.cpp

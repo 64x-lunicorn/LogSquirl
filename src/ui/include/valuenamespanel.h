@@ -26,6 +26,7 @@
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class SoloSelection;
 class QTimer;
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -38,6 +39,10 @@ class QTreeWidgetItem;
 // A check changed here is written to the collection and stored at once;
 // valueNamesChanged() then asks for the views to be told
 // (Changed::ValueNames). refresh() shows what the collection holds now.
+//
+// A double-click on a rule or group, or "Show only this" of its context
+// menu, checks only it; "Restore previous selection" brings back the checks
+// from before (#889).
 class ValueNamesPanel : public QWidget {
     Q_OBJECT
 
@@ -72,6 +77,8 @@ private:
 
     QLineEdit* searchBox_ = nullptr;
     QTreeWidget* tree_ = nullptr;
+    // "Show only this" and the way back.
+    SoloSelection* solo_ = nullptr;
     QLabel* emptyHint_ = nullptr;
     QPushButton* selectAllButton_ = nullptr;
     QPushButton* deselectAllButton_ = nullptr;
