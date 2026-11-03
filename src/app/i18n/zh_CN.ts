@@ -1417,212 +1417,212 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="60"/>
         <source>My Filter Groups</source>
-        <translation type="unfinished"></translation>
+        <translation>我的过滤器分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="61"/>
         <source>Team Filter Groups</source>
-        <translation type="unfinished"></translation>
+        <translation>团队过滤器分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="62"/>
         <source>Plugin Filter Groups</source>
-        <translation type="unfinished"></translation>
+        <translation>插件过滤器分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="63"/>
         <source>New Filter Group</source>
-        <translation type="unfinished">新建过滤器分组</translation>
+        <translation>新建过滤器分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="64"/>
         <source>New Team Filter Group</source>
-        <translation type="unfinished"></translation>
+        <translation>新建团队过滤器分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="65"/>
         <source>Delete Filter Group</source>
-        <translation type="unfinished">删除过滤器分组</translation>
+        <translation>删除过滤器分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="66"/>
         <source>Move Filter Group Up</source>
-        <translation type="unfinished"></translation>
+        <translation>上移过滤器分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="67"/>
         <source>Move Filter Group Down</source>
-        <translation type="unfinished"></translation>
+        <translation>下移过滤器分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="68"/>
         <source>Delete Team Filter Group</source>
-        <translation type="unfinished"></translation>
+        <translation>删除团队过滤器分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="69"/>
         <source>Writes the selected Filter Group to a file of its own.</source>
-        <translation type="unfinished"></translation>
+        <translation>将所选过滤器分组写入单独的文件。</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="70"/>
         <source>Adds the Filter Groups of files to your own.</source>
-        <translation type="unfinished"></translation>
+        <translation>将文件中的过滤器分组添加到您自己的过滤器分组中。</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="73"/>
         <source>My Highlighter Sets</source>
-        <translation type="unfinished"></translation>
+        <translation>我的高亮规则集</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="74"/>
         <source>Team Highlighter Sets</source>
-        <translation type="unfinished"></translation>
+        <translation>团队高亮规则集</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="75"/>
         <source>Plugin Highlighter Sets</source>
-        <translation type="unfinished"></translation>
+        <translation>插件高亮规则集</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="76"/>
         <source>New Highlighter Set</source>
-        <translation type="unfinished"></translation>
+        <translation>新建高亮规则集</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="77"/>
         <source>New Team Highlighter Set</source>
-        <translation type="unfinished"></translation>
+        <translation>新建团队高亮规则集</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="78"/>
         <source>Delete Highlighter Set</source>
-        <translation type="unfinished"></translation>
+        <translation>删除高亮规则集</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="79"/>
         <source>Move Highlighter Set Up</source>
-        <translation type="unfinished"></translation>
+        <translation>上移高亮规则集</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="80"/>
         <source>Move Highlighter Set Down</source>
-        <translation type="unfinished"></translation>
+        <translation>下移高亮规则集</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="81"/>
         <source>Delete Team Highlighter Set</source>
-        <translation type="unfinished"></translation>
+        <translation>删除团队高亮规则集</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="83"/>
         <source>Writes the selected Highlighter Set to a file of its own.</source>
-        <translation type="unfinished"></translation>
+        <translation>将所选高亮规则集写入单独的文件。</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="84"/>
         <source>Adds the Highlighter Sets of files to your own.</source>
-        <translation type="unfinished"></translation>
+        <translation>将文件中的高亮规则集添加到您自己的高亮规则集中。</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="87"/>
         <source>My Naming Groups</source>
-        <translation type="unfinished"></translation>
+        <translation>我的命名组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="88"/>
         <source>Team Naming Groups</source>
-        <translation type="unfinished"></translation>
+        <translation>团队命名组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="89"/>
         <source>Plugin Naming Groups</source>
-        <translation type="unfinished"></translation>
+        <translation>插件命名组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="90"/>
         <source>New Naming Group</source>
-        <translation type="unfinished">新建命名组</translation>
+        <translation>新建命名组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="91"/>
         <source>New Team Naming Group</source>
-        <translation type="unfinished"></translation>
+        <translation>新建团队命名组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="92"/>
         <source>Delete Naming Group</source>
-        <translation type="unfinished"></translation>
+        <translation>删除命名组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="93"/>
         <source>Move Naming Group Up</source>
-        <translation type="unfinished"></translation>
+        <translation>上移命名组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="94"/>
         <source>Move Naming Group Down</source>
-        <translation type="unfinished"></translation>
+        <translation>下移命名组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="95"/>
         <source>Delete Team Naming Group</source>
-        <translation type="unfinished"></translation>
+        <translation>删除团队命名组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="96"/>
         <source>Writes the selected Naming Group to a file of its own.</source>
-        <translation type="unfinished">将所选命名组写入单独的文件。</translation>
+        <translation>将所选命名组写入单独的文件。</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="97"/>
         <source>Adds the Naming Groups of files to your own.</source>
-        <translation type="unfinished">将文件中的命名组添加到您自己的命名组中。</translation>
+        <translation>将文件中的命名组添加到您自己的命名组中。</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="153"/>
         <source>Share with team</source>
-        <translation type="unfinished">与团队共享</translation>
+        <translation>与团队共享</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="155"/>
         <source>Adds a Team copy of the selected group of your own.</source>
-        <translation type="unfinished">为您自己的所选分组添加一份团队副本。</translation>
+        <translation>为您自己的所选分组添加一份团队副本。</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="156"/>
         <source>Copy to my groups</source>
-        <translation type="unfinished">复制到我的分组</translation>
+        <translation>复制到我的分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="158"/>
         <source>Adds a copy of the selected group to your own.</source>
-        <translation type="unfinished"></translation>
+        <translation>将所选分组的副本添加到您自己的分组中。</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="169"/>
         <source>Export...</source>
-        <translation type="unfinished">导出...</translation>
+        <translation>导出...</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="172"/>
         <source>Import...</source>
-        <translation type="unfinished">导入...</translation>
+        <translation>导入...</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="269"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
-        <translation type="unfinished">通过团队文件夹共享：团队修改后它们会随之变化。</translation>
+        <translation>通过团队文件夹共享：团队修改后它们会随之变化。</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="273"/>
         <source>Shipped by the enabled plugins: read-only, and gone when the plugin is disabled.</source>
-        <translation type="unfinished"></translation>
+        <translation>由已启用的插件提供：只读，插件禁用后即消失。</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="459"/>
         <source>This deletes the group for the whole team.</source>
-        <translation type="unfinished">这将为整个团队删除该分组。</translation>
+        <translation>这将为整个团队删除该分组。</translation>
     </message>
 </context>
 <context>
@@ -2818,27 +2818,27 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="93"/>
         <source>Main search match color:</source>
-        <translation type="unfinished"></translation>
+        <translation>主搜索匹配颜色：</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="109"/>
         <source>The background color of the text the main search matches</source>
-        <translation type="unfinished"></translation>
+        <translation>主搜索所匹配文本的背景色</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="198"/>
         <source>QuickFind match color:</source>
-        <translation type="unfinished"></translation>
+        <translation>快速查找匹配颜色：</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="214"/>
         <source>The background color of the text QuickFind matches</source>
-        <translation type="unfinished"></translation>
+        <translation>快速查找所匹配文本的背景色</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="227"/>
         <source>Incremental QuickFind</source>
-        <translation type="unfinished"></translation>
+        <translation>增量快速查找</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="383"/>
@@ -3588,7 +3588,9 @@ Backspace or Delete clears the shortcut.</source>
         <source>%1 has been installed and activated.
 
 You can now use it from Tools &gt; Plugins.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 已安装并激活。
+
+现在可以通过“工具 &gt; 插件”使用它。</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="510"/>
@@ -4645,17 +4647,17 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/soloselection.cpp" line="113"/>
         <source>Show only this</source>
-        <translation type="unfinished"></translation>
+        <translation>仅显示此项</translation>
     </message>
     <message>
         <location filename="../../ui/src/soloselection.cpp" line="123"/>
         <source>Restore previous selection</source>
-        <translation type="unfinished"></translation>
+        <translation>恢复之前的选择</translation>
     </message>
     <message>
         <location filename="../../ui/src/soloselection.cpp" line="137"/>
         <source>Double-click: show only this</source>
-        <translation type="unfinished"></translation>
+        <translation>双击：仅显示此项</translation>
     </message>
 </context>
 <context>

@@ -1417,212 +1417,212 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="60"/>
         <source>My Filter Groups</source>
-        <translation type="unfinished"></translation>
+        <translation>Mis grupos de filtros</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="61"/>
         <source>Team Filter Groups</source>
-        <translation type="unfinished"></translation>
+        <translation>Grupos de filtros de equipo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="62"/>
         <source>Plugin Filter Groups</source>
-        <translation type="unfinished"></translation>
+        <translation>Grupos de filtros de plugins</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="63"/>
         <source>New Filter Group</source>
-        <translation type="unfinished">Nuevo grupo de filtros</translation>
+        <translation>Nuevo grupo de filtros</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="64"/>
         <source>New Team Filter Group</source>
-        <translation type="unfinished"></translation>
+        <translation>Nuevo grupo de filtros de equipo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="65"/>
         <source>Delete Filter Group</source>
-        <translation type="unfinished">Eliminar grupo de filtros</translation>
+        <translation>Eliminar grupo de filtros</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="66"/>
         <source>Move Filter Group Up</source>
-        <translation type="unfinished"></translation>
+        <translation>Mover grupo de filtros arriba</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="67"/>
         <source>Move Filter Group Down</source>
-        <translation type="unfinished"></translation>
+        <translation>Mover grupo de filtros abajo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="68"/>
         <source>Delete Team Filter Group</source>
-        <translation type="unfinished"></translation>
+        <translation>Eliminar grupo de filtros de equipo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="69"/>
         <source>Writes the selected Filter Group to a file of its own.</source>
-        <translation type="unfinished"></translation>
+        <translation>Escribe el grupo de filtros seleccionado en un archivo propio.</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="70"/>
         <source>Adds the Filter Groups of files to your own.</source>
-        <translation type="unfinished"></translation>
+        <translation>Añade a los suyos los grupos de filtros de los archivos.</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="73"/>
         <source>My Highlighter Sets</source>
-        <translation type="unfinished"></translation>
+        <translation>Mis conjuntos de resaltadores</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="74"/>
         <source>Team Highlighter Sets</source>
-        <translation type="unfinished"></translation>
+        <translation>Conjuntos de resaltadores de equipo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="75"/>
         <source>Plugin Highlighter Sets</source>
-        <translation type="unfinished"></translation>
+        <translation>Conjuntos de resaltadores de plugins</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="76"/>
         <source>New Highlighter Set</source>
-        <translation type="unfinished"></translation>
+        <translation>Nuevo conjunto de resaltadores</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="77"/>
         <source>New Team Highlighter Set</source>
-        <translation type="unfinished"></translation>
+        <translation>Nuevo conjunto de resaltadores de equipo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="78"/>
         <source>Delete Highlighter Set</source>
-        <translation type="unfinished"></translation>
+        <translation>Eliminar conjunto de resaltadores</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="79"/>
         <source>Move Highlighter Set Up</source>
-        <translation type="unfinished"></translation>
+        <translation>Mover conjunto de resaltadores arriba</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="80"/>
         <source>Move Highlighter Set Down</source>
-        <translation type="unfinished"></translation>
+        <translation>Mover conjunto de resaltadores abajo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="81"/>
         <source>Delete Team Highlighter Set</source>
-        <translation type="unfinished"></translation>
+        <translation>Eliminar conjunto de resaltadores de equipo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="83"/>
         <source>Writes the selected Highlighter Set to a file of its own.</source>
-        <translation type="unfinished"></translation>
+        <translation>Escribe el conjunto de resaltadores seleccionado en un archivo propio.</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="84"/>
         <source>Adds the Highlighter Sets of files to your own.</source>
-        <translation type="unfinished"></translation>
+        <translation>Añade a los suyos los conjuntos de resaltadores de los archivos.</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="87"/>
         <source>My Naming Groups</source>
-        <translation type="unfinished"></translation>
+        <translation>Mis grupos de nombres</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="88"/>
         <source>Team Naming Groups</source>
-        <translation type="unfinished"></translation>
+        <translation>Grupos de nombres de equipo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="89"/>
         <source>Plugin Naming Groups</source>
-        <translation type="unfinished"></translation>
+        <translation>Grupos de nombres de plugins</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="90"/>
         <source>New Naming Group</source>
-        <translation type="unfinished">Nuevo grupo de nombres</translation>
+        <translation>Nuevo grupo de nombres</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="91"/>
         <source>New Team Naming Group</source>
-        <translation type="unfinished"></translation>
+        <translation>Nuevo grupo de nombres de equipo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="92"/>
         <source>Delete Naming Group</source>
-        <translation type="unfinished"></translation>
+        <translation>Eliminar grupo de nombres</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="93"/>
         <source>Move Naming Group Up</source>
-        <translation type="unfinished"></translation>
+        <translation>Mover grupo de nombres arriba</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="94"/>
         <source>Move Naming Group Down</source>
-        <translation type="unfinished"></translation>
+        <translation>Mover grupo de nombres abajo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="95"/>
         <source>Delete Team Naming Group</source>
-        <translation type="unfinished"></translation>
+        <translation>Eliminar grupo de nombres de equipo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="96"/>
         <source>Writes the selected Naming Group to a file of its own.</source>
-        <translation type="unfinished">Escribe el grupo de nombres seleccionado en un archivo propio.</translation>
+        <translation>Escribe el grupo de nombres seleccionado en un archivo propio.</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="97"/>
         <source>Adds the Naming Groups of files to your own.</source>
-        <translation type="unfinished">Añade a los suyos los grupos de nombres de los archivos.</translation>
+        <translation>Añade a los suyos los grupos de nombres de los archivos.</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="153"/>
         <source>Share with team</source>
-        <translation type="unfinished">Compartir con el equipo</translation>
+        <translation>Compartir con el equipo</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="155"/>
         <source>Adds a Team copy of the selected group of your own.</source>
-        <translation type="unfinished">Agrega una copia de equipo del grupo propio seleccionado.</translation>
+        <translation>Agrega una copia de equipo del grupo propio seleccionado.</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="156"/>
         <source>Copy to my groups</source>
-        <translation type="unfinished">Copiar a mis grupos</translation>
+        <translation>Copiar a mis grupos</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="158"/>
         <source>Adds a copy of the selected group to your own.</source>
-        <translation type="unfinished"></translation>
+        <translation>Añade a los suyos una copia del grupo seleccionado.</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="169"/>
         <source>Export...</source>
-        <translation type="unfinished">Exportar...</translation>
+        <translation>Exportar...</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="172"/>
         <source>Import...</source>
-        <translation type="unfinished">Importar...</translation>
+        <translation>Importar...</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="269"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
-        <translation type="unfinished">Compartidos mediante la carpeta de equipo: cambian cuando el equipo los cambia.</translation>
+        <translation>Compartidos mediante la carpeta de equipo: cambian cuando el equipo los cambia.</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="273"/>
         <source>Shipped by the enabled plugins: read-only, and gone when the plugin is disabled.</source>
-        <translation type="unfinished"></translation>
+        <translation>Incluidos en los plugins habilitados: de solo lectura, y desaparecen cuando se deshabilita el plugin.</translation>
     </message>
     <message>
         <location filename="../../ui/src/grouplist.cpp" line="459"/>
         <source>This deletes the group for the whole team.</source>
-        <translation type="unfinished">Esto elimina el grupo para todo el equipo.</translation>
+        <translation>Esto elimina el grupo para todo el equipo.</translation>
     </message>
 </context>
 <context>
@@ -2739,12 +2739,12 @@ Carpeta de trabajo: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="93"/>
         <source>Main search match color:</source>
-        <translation type="unfinished"></translation>
+        <translation>Color de coincidencia de la búsqueda principal:</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="109"/>
         <source>The background color of the text the main search matches</source>
-        <translation type="unfinished"></translation>
+        <translation>El color de fondo del texto que coincide con la búsqueda principal</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="140"/>
@@ -2759,17 +2759,17 @@ Carpeta de trabajo: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="198"/>
         <source>QuickFind match color:</source>
-        <translation type="unfinished"></translation>
+        <translation>Color de coincidencia de la búsqueda rápida:</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="214"/>
         <source>The background color of the text QuickFind matches</source>
-        <translation type="unfinished"></translation>
+        <translation>El color de fondo del texto que coincide con la búsqueda rápida</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="227"/>
         <source>Incremental QuickFind</source>
-        <translation type="unfinished"></translation>
+        <translation>Búsqueda rápida incremental</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="237"/>
@@ -3589,7 +3589,9 @@ Retroceso o Suprimir borra el atajo.</translation>
         <source>%1 has been installed and activated.
 
 You can now use it from Tools &gt; Plugins.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 se ha instalado y activado.
+
+Ya puede usarlo desde Herramientas &gt; Plugins.</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="510"/>
@@ -4646,17 +4648,17 @@ Reinicie LogSquirl para volver a intentarlo.</translation>
     <message>
         <location filename="../../ui/src/soloselection.cpp" line="113"/>
         <source>Show only this</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostrar solo esto</translation>
     </message>
     <message>
         <location filename="../../ui/src/soloselection.cpp" line="123"/>
         <source>Restore previous selection</source>
-        <translation type="unfinished"></translation>
+        <translation>Restaurar la selección anterior</translation>
     </message>
     <message>
         <location filename="../../ui/src/soloselection.cpp" line="137"/>
         <source>Double-click: show only this</source>
-        <translation type="unfinished"></translation>
+        <translation>Doble clic: mostrar solo esto</translation>
     </message>
 </context>
 <context>
