@@ -20,8 +20,10 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <QApplication>
+#include <QLineEdit>
 #include <QMap>
 #include <QMetaObject>
+#include <QPushButton>
 #include <QSignalSpy>
 #include <QTreeWidget>
 #include <QVariant>
@@ -331,6 +333,56 @@ SCENARIO( "flushPendingSaves is a no-op when nothing is pending", "[filterspanel
                 auto* tree = findTree( &panel );
                 REQUIRE( tree != nullptr );
                 REQUIRE( countChecked( tree ) == 0 );
+            }
+        }
+    }
+}
+
+SCENARIO( "The search of the Filters tab keeps the checks of the filters it hides",
+          "[filterspanel][search]" )
+{
+    FiltersPanelTestStateGuard stateGuard;
+    setupTestFilters();
+
+    GIVEN( "the filters Error and Debug checked" )
+    {
+        FiltersPanel panel;
+        auto* tree = findTree( &panel );
+        REQUIRE( tree != nullptr );
+        invokeDoubleClick( &panel, findGroup( tree, "GroupA" )->child( 0 ) );
+        findGroup( tree, "GroupB" )->child( 0 )->setCheckState( 0, Qt::Checked );
+        QCoreApplication::processEvents();
+        REQUIRE( countChecked( tree ) == 2 );
+
+        QSignalSpy spy( &panel, &FiltersPanel::filtersChanged );
+        auto* searchBox = panel.findChild<QLineEdit*>();
+        REQUIRE( searchBox != nullptr );
+
+        WHEN( "the search shows Debug only" )
+        {
+            searchBox->setText( QStringLiteral( "debug" ) );
+
+            THEN( "Error is still an active filter" )
+            {
+                REQUIRE( !spy.isEmpty() );
+                REQUIRE( spy.last().at( 0 ).value<QList<PredefinedFilter>>().size() == 2 );
+            }
+
+            AND_WHEN( "Deselect All is clicked and the search is cleared" )
+            {
+                for ( auto* button : panel.findChildren<QPushButton*>() ) {
+                    if ( button->text() == QStringLiteral( "Deselect All" ) ) {
+                        button->click();
+                    }
+                }
+                searchBox->clear();
+
+                THEN( "only the filter shown was unchecked: Error is checked again" )
+                {
+                    REQUIRE( countChecked( tree ) == 1 );
+                    REQUIRE( findGroup( tree, "GroupA" )->child( 0 )->checkState( 0 )
+                             == Qt::Checked );
+                }
             }
         }
     }

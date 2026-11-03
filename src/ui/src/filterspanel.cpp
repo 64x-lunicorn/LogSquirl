@@ -154,11 +154,12 @@ void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
 
         for ( const auto& filter : set.filters() ) {
             // Apply search filter across group name, filter name, and pattern.
-            if ( !searchText.isEmpty() && !set.name().contains( searchText, Qt::CaseInsensitive )
-                 && !filter.name.contains( searchText, Qt::CaseInsensitive )
-                 && !filter.pattern.contains( searchText, Qt::CaseInsensitive ) ) {
-                continue;
-            }
+            // A filter the search does not show is hidden, and keeps its check
+            // (#901).
+            const bool shown = searchText.isEmpty()
+                               || set.name().contains( searchText, Qt::CaseInsensitive )
+                               || filter.name.contains( searchText, Qt::CaseInsensitive )
+                               || filter.pattern.contains( searchText, Qt::CaseInsensitive );
 
             auto* childItem = new QTreeWidgetItem( groupItem );
 
@@ -178,16 +179,13 @@ void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
 
             const bool isPinned = pinnedFilterKeys_.contains( pinKey( set.id(), filter.name ) );
             childItem->setCheckState( 0, isPinned ? Qt::Checked : Qt::Unchecked );
+            childItem->setHidden( !shown );
 
-            anyChildVisible = true;
+            anyChildVisible = anyChildVisible || shown;
         }
 
         // Hide the group entirely if no children matched the search.
-        if ( !anyChildVisible && !searchText.isEmpty() ) {
-            delete filterTree_->takeTopLevelItem( filterTree_->indexOfTopLevelItem( groupItem ) );
-            continue;
-        }
-
+        groupItem->setHidden( !anyChildVisible && !searchText.isEmpty() );
         groupItem->setExpanded( true );
     }
 
@@ -251,24 +249,24 @@ void FiltersPanel::onSearchTextChanged( const QString& text )
 
 void FiltersPanel::selectAll()
 {
-    updatingTree_ = true;
-    for ( int g = 0; g < filterTree_->topLevelItemCount(); ++g ) {
-        auto* groupItem = filterTree_->topLevelItem( g );
-        for ( int c = 0; c < groupItem->childCount(); ++c ) {
-            groupItem->child( c )->setCheckState( 0, Qt::Checked );
-        }
-    }
-    updatingTree_ = false;
-    emitCurrentSelection();
+    setShownChecked( Qt::Checked );
 }
 
 void FiltersPanel::deselectAll()
 {
+    setShownChecked( Qt::Unchecked );
+}
+
+void FiltersPanel::setShownChecked( Qt::CheckState state )
+{
+    // What the search hides keeps its check (#901).
     updatingTree_ = true;
     for ( int g = 0; g < filterTree_->topLevelItemCount(); ++g ) {
         auto* groupItem = filterTree_->topLevelItem( g );
         for ( int c = 0; c < groupItem->childCount(); ++c ) {
-            groupItem->child( c )->setCheckState( 0, Qt::Unchecked );
+            if ( !groupItem->child( c )->isHidden() ) {
+                groupItem->child( c )->setCheckState( 0, state );
+            }
         }
     }
     updatingTree_ = false;

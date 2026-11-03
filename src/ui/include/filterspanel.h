@@ -84,6 +84,8 @@ private:
     void populateTree( const QList<PredefinedFilterSet>& sets );
     void rebuildFilterIndex();
     void emitCurrentSelection();
+    // Checks or unchecks the filters the search shows.
+    void setShownChecked( Qt::CheckState state );
     void savePinnedFilters();
     void savePinnedFiltersNow();
     void loadPinnedFilters();
