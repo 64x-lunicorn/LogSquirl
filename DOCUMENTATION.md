@@ -423,7 +423,7 @@ without anything else to install: `ssh host tail -f /var/log/syslog`,
 * On Windows, console programs such as `dir` write in the OEM code page of the
   console (CP850 on a German Windows, CP437 on a US one). The tab reads the
   output as UTF-8 when it is valid UTF-8, otherwise in that code page; the
-  first output with more than plain ASCII decides. `Encoding` in the menu
+  first output with more than plain ASCII decides. `View->Encoding` in the menu
   changes it as for any file.
 * When the command ends, the tab stays with everything it received and is no
   longer followed: the file does not grow any more. Its name gets ` [exit N]`
@@ -503,7 +503,7 @@ which displays special dialogue to choose between opened files.
 ### Encodings
 
 *logsquirl* tries to guess the encoding of an opened file. If that guess happens to
-be wrong, then the desired encoding can be selected from the `Encoding` menu.
+be wrong, then the desired encoding can be selected from the `View->Encoding` menu.
 
 ### Predefined filters
 
@@ -648,7 +648,7 @@ to draw attention to lines indicating an error, or to associate
 a color with a certain type of event. 
 
 Highlighters are grouped into sets. Several sets can be active at once; they
-are switched on and off in the context menu or the `Highlighters` menu, where
+are switched on and off in the context menu or the `Tools->Highlighters` menu, where
 *None* switches them all off.
 
 Any number of highlighters can be defined in a single set.
@@ -748,7 +748,7 @@ color of the text, and hovering over it tells where its name came from, as in
 `Cmd+Shift+N` on macOS) shows or hides them in the main view and every
 filtered view of the current tab, the way *Wrap text* does; every tab keeps its
 own. A tab starts as *Show Value Names on file open* says, in the *View* tab of
-*File → Preferences...* (see [View](#view) under [Settings](#settings)). With Value Names hidden, or no Naming Rule enabled,
+*Tools → Preferences...* (see [View](#view) under [Settings](#settings)). With Value Names hidden, or no Naming Rule enabled,
 nothing is looked up, and the views are as fast as without them.
 
 **Search, filters and highlighters** work on the raw text. A match or a
@@ -778,7 +778,7 @@ higher in the list wins.
 **Editing Naming Groups.** *Edit...* in the tab, or *Tools → Value
 Names...*, opens the *Value Names* dialog. On the left are the Naming Groups,
 which can be added, removed and moved up or down; every group needs a name of
-its own. *Tools → Value Names tab* shows the tab. On the right, for the selected group:
+its own. *View → Value Names tab* shows the tab. On the right, for the selected group:
 
 - **Naming Rules**, each with a *Name*, a *Regex* and a *Template*. The
   template says how a named value is shown: `{name}` is the name and `{value}`
@@ -1371,37 +1371,50 @@ bytes.
 Most of the menu bar is described where its feature is explained; this is the
 whole list, with what the entries not explained elsewhere do.
 
+The menus are ordered by task: the file in **File**, the lines in **Edit**,
+what the window shows in **View**, settings and dialogs in **Tools**.
+
 - **File**: `New window`, `Open...`, `Open from clipboard`,
   `Open Command Output...` (see [Command output](#command-output)) and
   `Open from URL...` (see [Opening files](#opening-files)), `Open Recent`
   with `Clear List`, `Open Session...` and `Save Session As...` (see
-  [Session files](#session-files)), `Close`, `Close All`, `Preferences...` and
-  `Exit`.
-- **Edit**: `Copy`, `Copy as Shown` (see [Value Names](#value-names)), `Select All`, `Find...` (the QuickFind bar), `Go to line...`
-  and `Go to timestamp...`, then `Copy full path` (of the current file to the
-  clipboard), `Open containing folder`, `Open in editor` (in the default
-  editor of the system) and `Clear file...`. `Clear file...` asks first and then
-  empties the file on disk; this cannot be undone.
+  [Session files](#session-files)), then what is done with the current file:
+  `Copy full path` (of the current file to the clipboard),
+  `Open containing folder`, `Open in editor` (in the default editor of the
+  system) and `Clear file...`, which asks first and then empties the file on
+  disk; this cannot be undone. Then `Close`, `Close All` and `Exit`.
+- **Edit**: `Copy`, `Copy as Shown` (see [Value Names](#value-names)),
+  `Select All`, `Find...` (the QuickFind bar), `Go to line...` and
+  `Go to timestamp...`, and the search limits
+  `Set search limits to time range...` and
+  `Set search limits around current line...` (see
+  [Search limits by time](#search-limits-by-time)).
 - **View**: `Opened files` (see
-  [Switching between opened files](#switching-between-opened-files)),
+  [Switching between opened files](#switching-between-opened-files)), then
+  the sidebar and the panels: `Sidebar`, `Filters panel`, `Scratchpad` (see
+  [Scratchpad](#scratchpad)), `Value Names tab`, `Chart Panel` (see
+  [Chart Panel](#chart-panel)) and `Show Filter Frequency`, which charts how
+  often the current search matched, one series for every alternative of the
+  search pattern (it does nothing while the search line is empty). Then
   `Matches overview`, `Line numbers in main view`,
   `Line numbers in filtered view`, `Wrap text`, `Show Value Names` (see
-  [Value Names](#value-names)), `Follow File`, `Reload`,
-  `Chart Panel` and `Show Filter Frequency`, which charts how often the current
-  search matched, one series for every alternative of the search pattern (it
-  does nothing while the search line is empty).
-- **Tools**: `Predefined filters...`, `Value Names...` (see [Value Names](#value-names)),
-  `Import Chipmunk filters...`, `Regex Lab...` (see [Regex Lab](#regex-lab)),
-  `Manage Tab Groups...`, `Scratchpad`, `Filters panel`, `Value Names tab` and
+  [Value Names](#value-names)), `Matches Only`, the `Encoding` submenu (see
+  [Encodings](#encodings)), `Follow File` and `Reload`.
+- **Tools**: the `Highlighters` submenu, with the list of highlighter sets to
+  activate and `Configure highlighters...` (see
+  [Using highlighters](#using-highlighters)), `Predefined filters...`,
+  `Import Chipmunk filters...`, `Value Names...` (see
+  [Value Names](#value-names)), `Regex Lab...` (see [Regex Lab](#regex-lab)),
+  `Manage Tab Groups...` (see [Tab groups](#tab-groups)) and
   `Command Palette...` (`Ctrl+Shift+P`, `Cmd+Shift+P` on macOS), which lists
   every enabled menu command: type to filter, `Enter` runs the selected one.
-  The key can be changed in the shortcut settings.
-- **Highlighters**: `Configure highlighters...` and the list of highlighter
-  sets to activate (see [Using highlighters](#using-highlighters)).
-- **Encoding**: see [Encodings](#encodings).
+  The key can be changed in the shortcut settings. Then the `Plugins`
+  submenu, with the items plugins add and `Plugin Management...` (see
+  [Plugins](#plugins)), and `Preferences...` (see [Settings](#settings); on
+  macOS it is in the application menu).
 - **Favorites**: `Add to favorites` and `Remove from favorites...`, followed by
   the favorite files, which open when chosen.
-- **Plugins** and **Sources**: see [Plugins](#plugins).
+- **Sources**: see [Plugins](#plugins).
 - **Help**: `Documentation...` (this guide), `Report issue...` (opens a bug
   report on GitHub), `Generate crash dump` (after a confirmation, shuts
   *logsquirl* down and produces a diagnostic crash dump, see
@@ -1431,7 +1444,7 @@ convert at the same time. A cancelled conversion opens no tab, and a failed
 one tells you which plugin could not convert which file. Any plugin that
 offers a converter converts, whatever its kind.
 
-`Plugins->Plugin Management...` opens the Plugin Management dialog. It lists the
+`Tools->Plugins->Plugin Management...` opens the Plugin Management dialog. It lists the
 plugins in the catalog and the ones installed on your machine under the tabs
 *All*, *Installed* and *Updates*, and can be searched. Each plugin offers
 *Install* (or *Update*) and *Enable* or *Disable*; an installed plugin also has
@@ -1441,7 +1454,7 @@ plugins on startup* the enabled plugins are loaded when *logsquirl* starts, and
 *Plugin Folder* opens the user plugin directory. The catalog
 is fetched when the dialog opens; if that fails, the error is shown in the
 status line at the bottom. Menu items that a UI extension plugin adds appear
-in the `Plugins` menu, above `Plugin Management...`. A UI extension plugin can
+in `Tools->Plugins`, above `Plugin Management...`. A UI extension plugin can
 also go to a line of the tab in front -- it is selected and scrolled into view
 as with *Go to line* -- and read the lines you selected there; a selection
 within a line counts as the whole line.
