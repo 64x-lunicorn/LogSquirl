@@ -33,13 +33,15 @@
 
 ## Bug fixes
 
-- Searching the Filters tab no longer unchecks the filters the search hides.
-  (#901)
+- **Searching the Filters tab keeps the checks**: the filters the search
+  hides keep their check and stay active, and come back checked when the
+  search is cleared. (#901)
 
 ## Build and packaging
 
-- LogSquirl builds with Qt 6.12, which deprecates `Q_OS_MAC` and the
-  `QDragEnterEvent` constructor taking a `QPoint`. (#900)
+- **LogSquirl builds with Qt 6.12**: it no longer uses `Q_OS_MAC` and the
+  `QDragEnterEvent` constructor taking a `QPoint`, which Qt 6.12 deprecates.
+  (#900)
 
 # v26.12.0-beta1 (2026-11-02)
 

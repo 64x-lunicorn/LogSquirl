@@ -240,7 +240,8 @@ _Avoid_: shipped filter, bundled set
 
 **Group List**:
 The one list the Predefined Filters, Highlighters and Value Names dialogs show their groups
-in: the user's own, the Team groups and the Plugin groups as sections, one row of buttons
+in: the user's own, the Team groups and, for Filter Groups and Highlighter Sets, the Plugin
+groups as sections, one row of buttons
 whose labels name the kind, and Export... and Import... below. The dialog holds the groups and
 hands the list their names; the list says what the user asked for and changes no group itself.
 _Avoid_: set list, group panel

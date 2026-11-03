@@ -1450,7 +1450,7 @@ what the window shows in **View**, settings and dialogs in **Tools**.
 - **Help**: `Documentation...` (this guide), `Report issue...` (opens a bug
   report on GitHub), `Generate crash dump` (after a confirmation, shuts
   *logsquirl* down and produces a diagnostic crash dump, see
-  [Crash reporting](#crash-reporting)), `About` and `About Qt`.
+  [Crash reporting](#crash-reporting)), `About Qt` and `About`.
 
 The toolbar has the buttons `Open`, `Reload`, `Follow File` and
 `Add to favorites`, the information about the current file (size, modification
