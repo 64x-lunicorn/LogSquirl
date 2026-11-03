@@ -29,10 +29,11 @@
 #include <QStringList>
 
 #include "groupexchange.h"
+#include "grouplist.h"
 #include "nametablecsv.h"
 #include "naminggroup.h"
 #include "teamfolder.h"
-#include "teamgroupssection.h"
+#include "teamgroupedits.h"
 #include "valuenamer.h"
 
 class QAbstractButton;
@@ -113,8 +114,8 @@ private:
 //
 // The selected group is exported to a file and groups are imported from
 // files through the Group Exchange. The Team groups, when the Team Folder
-// shows them, are listed below the user's own, as the Predefined Filters
-// Dialog lists its Team groups.
+// shows them, are a section of the same Group List as the user's own, as in
+// the Predefined Filters Dialog.
 class ValueNamesDialog : public QDialog {
     Q_OBJECT
 
@@ -177,6 +178,12 @@ public:
     void importGroupFiles( const QStringList& files,
                            const logsquirl::groupexchange::ConflictResolver& resolver );
 
+    // The list of the user's own and the Team groups.
+    GroupList* groupList() const
+    {
+        return groupList_;
+    }
+
 Q_SIGNALS:
     // OK or Apply changed the Naming Groups or their checks.
     void valueNamesChanged();
@@ -185,21 +192,16 @@ Q_SIGNALS:
     void publishRequested( const QList<logsquirl::teamfolder::PublishRequest>& requests );
 
 private Q_SLOTS:
-    void addGroup();
-    void removeGroup();
-    void moveGroupUp();
-    void moveGroupDown();
-    void groupSelected();
-    void groupRenamed( const QString& name );
+    // What the user did in the Group List.
+    void groupSelected( GroupList::Section section, int row );
+    void addGroup( GroupList::Section section );
+    void deleteGroup( GroupList::Section section, int row );
+    void moveGroup( int row, int offset );
+    void shareGroup( int row );
+    void copyGroup( GroupList::Section section, int row );
     void exportGroup();
     void importGroups();
-
-    // A Team group was selected.
-    void teamGroupSelected();
-    void addTeamGroup();
-    void shareSelectedGroup();
-    void copySelectedTeamGroup();
-    void deleteSelectedTeamGroup();
+    void groupRenamed( const QString& name );
 
     void addRule();
     void removeRule();
@@ -237,9 +239,7 @@ private:
     changeRules( const std::function<void( QList<logsquirl::valuenames::NamingRule>& )>& change );
     void
     changeTables( const std::function<void( QList<logsquirl::valuenames::NameTable>& )>& change );
-    // Moves the selected group, or the selected rule, by offset rows, if it
-    // stays in the list.
-    void moveGroup( int offset );
+    // Moves the selected rule by offset rows, if it stays in the list.
     void moveRule( int offset );
 
     // Whether the group shown may be changed: not a Team group while the
@@ -253,7 +253,6 @@ private:
     void populateTables( int selectRow );
     void populateRows();
     void updateButtons();
-    void updateTeamButtons();
     // The table of the selected rule's capture group, chosen in its row.
     void captureGroupTableChosen( const QString& group, const QString& numbered,
                                   const QString& table );
@@ -275,19 +274,11 @@ private:
     logsquirl::valuenames::ValueNamer previewNamer_;
     QStringList csvWarnings_;
 
-    // Left: the groups, Export and Import, and the Team groups.
-    QVBoxLayout* leftLayout_ = nullptr;
-    QListWidget* groupList_ = nullptr;
-    QToolButton* addGroupButton_ = nullptr;
-    QToolButton* removeGroupButton_ = nullptr;
-    QToolButton* upGroupButton_ = nullptr;
-    QToolButton* downGroupButton_ = nullptr;
-    QPushButton* exportButton_ = nullptr;
-    QPushButton* importButton_ = nullptr;
+    // Left: the user's own groups and the Team groups.
+    GroupList* groupList_ = nullptr;
 
-    // The Team groups, below the user's own: built when the dialog is first
+    // The Team groups, below the user's own: listed when the dialog is first
     // given them.
-    TeamGroupsSection* team_ = nullptr;
     TeamGroupEdits<logsquirl::valuenames::NamingGroup> teamEdits_;
     // The row of the Team group shown, -1 when none is. One group is shown
     // at a time: groupRow_ or teamRow_ is -1.

@@ -224,6 +224,21 @@ Marks also appear as blue lines in the match overview.
 
 It is possible to quickly jump to a specific line using `Ctrl+L` shortcut.
 
+#### The context menu of the lines
+
+Right-clicking the lines of the main view, the filtered view or the table view
+opens the same menu, sorted by how often its entries are used:
+
+- At the top, what you do with the selection: *Copy*, *Copy as shown*,
+  *Replace search*, *Add to search*, *Exclude from search* (and, in the table
+  view, *Search this value in* the column) and *Mark*.
+- Then the view's own entries: *Highlighters* and *Color labels*.
+- **More** holds the rest: *Copy with line numbers*, the scratchpad entries,
+  *Find next* and *Find previous*, the search limits, *Set selection start* and
+  *Set selection end*, *Save selected to file*, *Save to file*, *Export as
+  CSV...* and *Save splitter position*.
+- The entries plugins add come last, below a separator.
+
 #### Breadcrumbs
 
 The breadcrumbs are the lines around each match and mark, shown dimmed in the
@@ -236,7 +251,7 @@ lines around two matches overlap, each line is shown once.
 
 When the log file's format was recognized (see
 [Auto Log Format Detection](#auto-log-format-detection-table-view)), the
-filtered view's context menu offers **Export as CSV...** too. It writes the
+filtered view's context menu offers **Export as CSV...** under *More* too. It writes the
 lines the filtered view shows, split into the columns of the table view, with
 the same dialog, file format and background export as
 [the table view's export](#exporting-as-csv). Without a recognized format the
@@ -423,7 +438,7 @@ without anything else to install: `ssh host tail -f /var/log/syslog`,
 * On Windows, console programs such as `dir` write in the OEM code page of the
   console (CP850 on a German Windows, CP437 on a US one). The tab reads the
   output as UTF-8 when it is valid UTF-8, otherwise in that code page; the
-  first output with more than plain ASCII decides. `Encoding` in the menu
+  first output with more than plain ASCII decides. `View->Encoding` in the menu
   changes it as for any file.
 * When the command ends, the tab stays with everything it received and is no
   longer followed: the file does not grow any more. Its name gets ` [exit N]`
@@ -503,7 +518,7 @@ which displays special dialogue to choose between opened files.
 ### Encodings
 
 *logsquirl* tries to guess the encoding of an opened file. If that guess happens to
-be wrong, then the desired encoding can be selected from the `Encoding` menu.
+be wrong, then the desired encoding can be selected from the `View->Encoding` menu.
 
 ### Predefined filters
 
@@ -520,10 +535,24 @@ It is possible to save the current search pattern as a predefined filter with
 *Save as Filter* from the search input context menu.
 
 Predefined filters are kept in filter groups. The dialog lists the groups
-(*New Filter Group*, *Delete Filter Group*, *Move Group Up* and *Move Group Down*);
-the Default group always exists and cannot be deleted. Groups are exchanged
-the same way as highlighter sets: *Export* writes the selected group only, to a
-file named `<name>_filter.conf` by default, and *Import* reads every group of
+(*New Filter Group*, *Delete Filter Group*, *Move Filter Group Up* and *Move
+Filter Group Down*); the Default group always exists and cannot be deleted.
+
+The *Predefined Filters*, *Highlighters* and *Value Names* dialogs list their
+groups the same way, in one list on the left: your own under *My Filter
+Groups* (*My Highlighter Sets*, *My Naming Groups*), the team's under *Team
+Filter Groups* when the Team Folder is on, and those of enabled plugins under
+*Plugin Filter Groups*. Below the list, *New Filter Group* adds a group of your
+own; when the Team groups can be changed, the arrow beside it offers *New Team
+Filter Group*. *Delete*, *Move Up* and *Move Down* act on the selected group
+(*Delete* asks first for a Team group: it goes for the whole team), *Share
+with team* publishes a copy of a group of your own, *Copy to my groups* copies
+a Team or plugin group into your own, and *Export...* and *Import...* below
+exchange groups as files.
+
+Groups are exchanged
+the same way as highlighter sets: *Export...* writes the selected group only, to a
+file named `<name>_filter.conf` by default, and *Import...* reads every group of
 the selected files, asking *Replace*, *Keep both* or *Skip* when a group of the
 same id or name exists (see [Using highlighters](#using-highlighters)). A group
 that carries the id of the Default group never replaces your Default group; it
@@ -648,7 +677,7 @@ to draw attention to lines indicating an error, or to associate
 a color with a certain type of event. 
 
 Highlighters are grouped into sets. Several sets can be active at once; they
-are switched on and off in the context menu or the `Highlighters` menu, where
+are switched on and off in the context menu or the `Tools->Highlighters` menu, where
 *None* switches them all off.
 
 Any number of highlighters can be defined in a single set.
@@ -695,9 +724,9 @@ dark text and 8 strong colors with white text; one click sets both the text
 and the background color.
 
 A highlighter set can be handed to someone else: select it in the
-`Highlighters` dialog and use *Export*, which writes that one set to a file
+`Highlighters` dialog and use *Export...*, which writes that one set to a file
 and proposes a file name from the set's name (`<name>_highlighter.conf`). Keep
-the `.conf` extension so that *logsquirl* can import the file. *Import* reads
+the `.conf` extension so that *logsquirl* can import the file. *Import...* reads
 every set in the selected files. Each set is identified by a unique id. When a
 set with the same id, or just the same name, already exists you choose
 *Replace* (the existing set keeps its position and id, so an active set stays
@@ -748,7 +777,7 @@ color of the text, and hovering over it tells where its name came from, as in
 `Cmd+Shift+N` on macOS) shows or hides them in the main view and every
 filtered view of the current tab, the way *Wrap text* does; every tab keeps its
 own. A tab starts as *Show Value Names on file open* says, in the *View* tab of
-*File → Preferences...* (see [View](#view) under [Settings](#settings)). With Value Names hidden, or no Naming Rule enabled,
+*Tools → Preferences...* (see [View](#view) under [Settings](#settings)). With Value Names hidden, or no Naming Rule enabled,
 nothing is looked up, and the views are as fast as without them.
 
 **Search, filters and highlighters** work on the raw text. A match or a
@@ -777,8 +806,10 @@ higher in the list wins.
 
 **Editing Naming Groups.** *Edit...* in the tab, or *Tools → Value
 Names...*, opens the *Value Names* dialog. On the left are the Naming Groups,
-which can be added, removed and moved up or down; every group needs a name of
-its own. *Tools → Value Names tab* shows the tab. On the right, for the selected group:
+which can be added, deleted and moved up or down (see
+[Predefined filters](#predefined-filters) for the list all three group dialogs
+share); every group needs a name of
+its own. *View → Value Names tab* shows the tab. On the right, for the selected group:
 
 - **Naming Rules**, each with a *Name*, a *Regex* and a *Template*. The
   template says how a named value is shown: `{name}` is the name and `{value}`
@@ -833,11 +864,12 @@ imported as a filter group or highlighter set, and their files never as a
 Naming Group.
 
 With the Team Folder on, the team's Naming Groups are listed below your own in
-the dialog and last in the *Value Names* tab, marked *(Team)*; their checks are
-yours alone. *Share with team* publishes a copy of the selected group of your
-own, *New Team group* adds one, and changes to a Team group are published on
-*OK* or *Apply*; *Copy to my groups* copies a Team group into your own, and
-*Delete for the team* deletes it for everyone. When the Team Folder cannot
+the dialog, under *Team Naming Groups*, and last in the *Value Names* tab,
+marked *(Team)*; their checks are yours alone. *Share with team* publishes a
+copy of the selected group of your own, *New Team Naming Group* beside *New
+Naming Group* adds one, and changes to a Team group are published on *OK* or
+*Apply*; *Copy to my groups* copies a Team group into your own, and *Delete*
+deletes the selected Team group for everyone, after asking. When the Team Folder cannot
 publish, the Team groups are shown and previewed but not changed. When someone
 else changed the same group meanwhile, you choose *Keep mine*, *Take theirs*
 or *Save mine as a copy*, as for filter groups.
@@ -1056,7 +1088,7 @@ in the table view.
 
 #### Exporting as CSV
 
-Right-click the table and choose **Export as CSV...** to write the table to a
+Right-click the table and choose **More > Export as CSV...** to write the table to a
 file for a spreadsheet, pandas and the like. The main text view has no such
 entry; the filtered view has one
 ([Exporting the filtered view as CSV](#exporting-the-filtered-view-as-csv)).
@@ -1337,7 +1369,7 @@ The Filters Panel can be toggled using the filter icon in the toolbar.
 Sometimes in log files there are text in base64 encoding, unformatted
 xml/json, etc. For such cases *logsquirl* provides Scratchpad tool. Text can
 be copied to this window and transformed to human-readable form.
-Use context menu to either add data to the current scratchpad tab or 
+Use *More* in the context menu to either add data to the current scratchpad tab or 
 replace its content with selected text. There are shortcuts `Ctrl+Z` and `Ctrl+Shift+Z` for these actions.
 
 New tabs can be opened in Scratchpad using the `Ctrl+N` hotkey.
@@ -1371,41 +1403,54 @@ bytes.
 Most of the menu bar is described where its feature is explained; this is the
 whole list, with what the entries not explained elsewhere do.
 
+The menus are ordered by task: the file in **File**, the lines in **Edit**,
+what the window shows in **View**, settings and dialogs in **Tools**.
+
 - **File**: `New window`, `Open...`, `Open from clipboard`,
   `Open Command Output...` (see [Command output](#command-output)) and
   `Open from URL...` (see [Opening files](#opening-files)), `Open Recent`
   with `Clear List`, `Open Session...` and `Save Session As...` (see
-  [Session files](#session-files)), `Close`, `Close All`, `Preferences...` and
-  `Exit`.
-- **Edit**: `Copy`, `Copy as Shown` (see [Value Names](#value-names)), `Select All`, `Find...` (the QuickFind bar), `Go to line...`
-  and `Go to timestamp...`, then `Copy full path` (of the current file to the
-  clipboard), `Open containing folder`, `Open in editor` (in the default
-  editor of the system) and `Clear file...`. `Clear file...` asks first and then
-  empties the file on disk; this cannot be undone.
+  [Session files](#session-files)), then what is done with the current file:
+  `Copy full path` (of the current file to the clipboard),
+  `Open containing folder`, `Open in editor` (in the default editor of the
+  system) and `Clear file...`, which asks first and then empties the file on
+  disk; this cannot be undone. Then `Close`, `Close All` and `Exit`.
+- **Edit**: `Copy`, `Copy as Shown` (see [Value Names](#value-names)),
+  `Select All`, `Find...` (the QuickFind bar), `Go to line...` and
+  `Go to timestamp...`, and the search limits
+  `Set search limits to time range...` and
+  `Set search limits around current line...` (see
+  [Search limits by time](#search-limits-by-time)).
 - **View**: `Opened files` (see
-  [Switching between opened files](#switching-between-opened-files)),
+  [Switching between opened files](#switching-between-opened-files)), then
+  the sidebar and the panels: `Sidebar`, `Filters panel`, `Scratchpad` (see
+  [Scratchpad](#scratchpad)), `Value Names tab`, `Chart Panel` (see
+  [Chart Panel](#chart-panel)) and `Show Filter Frequency`, which charts how
+  often the current search matched, one series for every alternative of the
+  search pattern (it does nothing while the search line is empty). Then
   `Matches overview`, `Line numbers in main view`,
   `Line numbers in filtered view`, `Wrap text`, `Show Value Names` (see
-  [Value Names](#value-names)), `Follow File`, `Reload`,
-  `Chart Panel` and `Show Filter Frequency`, which charts how often the current
-  search matched, one series for every alternative of the search pattern (it
-  does nothing while the search line is empty).
-- **Tools**: `Predefined filters...`, `Value Names...` (see [Value Names](#value-names)),
-  `Import Chipmunk filters...`, `Regex Lab...` (see [Regex Lab](#regex-lab)),
-  `Manage Tab Groups...`, `Scratchpad`, `Filters panel`, `Value Names tab` and
+  [Value Names](#value-names)), `Matches Only`, the `Encoding` submenu (see
+  [Encodings](#encodings)), `Follow File` and `Reload`.
+- **Tools**: the `Highlighters` submenu, with the list of highlighter sets to
+  activate and `Configure highlighters...` (see
+  [Using highlighters](#using-highlighters)), `Predefined filters...`,
+  `Import Chipmunk filters...`, `Value Names...` (see
+  [Value Names](#value-names)), `Regex Lab...` (see [Regex Lab](#regex-lab)),
+  `Manage Tab Groups...` (see [Tab groups](#tab-groups)) and
   `Command Palette...` (`Ctrl+Shift+P`, `Cmd+Shift+P` on macOS), which lists
   every enabled menu command: type to filter, `Enter` runs the selected one.
-  The key can be changed in the shortcut settings.
-- **Highlighters**: `Configure highlighters...` and the list of highlighter
-  sets to activate (see [Using highlighters](#using-highlighters)).
-- **Encoding**: see [Encodings](#encodings).
+  The key can be changed in the shortcut settings. Then the `Plugins`
+  submenu, with the items plugins add and `Plugin Management...` (see
+  [Plugins](#plugins)), and `Preferences...` (see [Settings](#settings); on
+  macOS it is in the application menu).
 - **Favorites**: `Add to favorites` and `Remove from favorites...`, followed by
   the favorite files, which open when chosen.
-- **Plugins** and **Sources**: see [Plugins](#plugins).
+- **Sources**: see [Plugins](#plugins).
 - **Help**: `Documentation...` (this guide), `Report issue...` (opens a bug
   report on GitHub), `Generate crash dump` (after a confirmation, shuts
   *logsquirl* down and produces a diagnostic crash dump, see
-  [Crash reporting](#crash-reporting)), `About` and `About Qt`.
+  [Crash reporting](#crash-reporting)), `About Qt` and `About`.
 
 The toolbar has the buttons `Open`, `Reload`, `Follow File` and
 `Add to favorites`, the information about the current file (size, modification
@@ -1431,7 +1476,7 @@ convert at the same time. A cancelled conversion opens no tab, and a failed
 one tells you which plugin could not convert which file. Any plugin that
 offers a converter converts, whatever its kind.
 
-`Plugins->Plugin Management...` opens the Plugin Management dialog. It lists the
+`Tools->Plugins->Plugin Management...` opens the Plugin Management dialog. It lists the
 plugins in the catalog and the ones installed on your machine under the tabs
 *All*, *Installed* and *Updates*, and can be searched. Each plugin offers
 *Install* (or *Update*) and *Enable* or *Disable*; an installed plugin also has
@@ -1441,7 +1486,7 @@ plugins on startup* the enabled plugins are loaded when *logsquirl* starts, and
 *Plugin Folder* opens the user plugin directory. The catalog
 is fetched when the dialog opens; if that fails, the error is shown in the
 status line at the bottom. Menu items that a UI extension plugin adds appear
-in the `Plugins` menu, above `Plugin Management...`. A UI extension plugin can
+in `Tools->Plugins`, above `Plugin Management...`. A UI extension plugin can
 also go to a line of the tab in front -- it is selected and scrolled into view
 as with *Go to line* -- and read the lines you selected there; a selection
 within a line counts as the whole line.

@@ -35,7 +35,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamescollection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamespanel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamesdialog.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/teamgroupssection.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/teamgroupedits.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/grouplist.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savelinesdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/keptsearches.h
@@ -79,6 +80,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chipmunkimporter.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/commandpalette.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/filterspanel.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/soloselection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodings.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/defaultencodingcheck.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/favoritefiles.h
@@ -113,7 +115,6 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginlogformats.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/plugingroup.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/plugingroups.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/plugingroupssection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginuiadapter.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighteredit.ui
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersetedit.ui
@@ -151,7 +152,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamescollection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamespanel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamesdialog.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/teamgroupssection.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/grouplist.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/savelinesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/keptsearches.cpp
@@ -192,6 +193,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/scratchpad.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbedscratchpad.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filterspanel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/soloselection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/favoritefiles.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabnamemapping.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabgroupinfo.cpp
@@ -221,7 +223,6 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/plugincontextmenu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginlogformats.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/plugingroups.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/plugingroupssection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginuiadapter.cpp
 )
 

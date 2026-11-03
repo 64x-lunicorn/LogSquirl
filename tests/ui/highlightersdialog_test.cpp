@@ -71,7 +71,7 @@ SCENARIO( "OK in the Highlighters dialog saves the selected set of the user's ow
     {
         HighlightersDialog dialog;
         showUntilExposed( dialog );
-        dialog.highlighterListWidget->setCurrentRow( 0 );
+        dialog.groupList()->setCurrent( GroupList::Section::Own, 0 );
         auto* setEdit = dialog.findChild<HighlighterSetEdit*>();
         REQUIRE( setEdit != nullptr );
         REQUIRE( setEdit->nameEdit->text() == "Mine" );

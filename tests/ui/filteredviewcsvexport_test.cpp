@@ -23,6 +23,7 @@
 
 #include "columnlayout.h"
 #include "configuration.h"
+#include "context_menu_entries.h"
 #include "csv.h"
 #include "filteredview.h"
 #include "logdata.h"
@@ -123,17 +124,6 @@ public:
     using FilteredView::FilteredView;
 };
 
-QStringList entriesOf( const QMenu& menu )
-{
-    QStringList entries;
-    for ( const auto* action : menu.actions() ) {
-        if ( !action->isSeparator() ) {
-            entries << action->text();
-        }
-    }
-    return entries;
-}
-
 void triggerShortcut( QWidget& view, const char* action )
 {
     const auto keys = ShortcutAction::shortcutKeys( action, Configuration::get().shortcuts() );
@@ -183,7 +173,7 @@ SCENARIO( "The Filtered View offers Export as CSV only for a recognized Log Form
         THEN( "the context menu has no Export as CSV" )
         {
             const auto menu = view.createContextMenu( QPoint( 1, 1 ) );
-            REQUIRE( !entriesOf( *menu ).contains( "Export as CSV..." ) );
+            REQUIRE( contextMenuEntry( *menu, "Export as CSV..." ) == nullptr );
         }
     }
 
@@ -194,10 +184,33 @@ SCENARIO( "The Filtered View offers Export as CSV only for a recognized Log Form
             return FilteredView::RecognizedFormat{ format, {}, QStringLiteral( "/logs/app.log" ) };
         } );
 
-        THEN( "the context menu ends with Export as CSV" )
+        THEN( "the context menu offers Export as CSV under More, after Save to file" )
         {
             const auto menu = view.createContextMenu( QPoint( 1, 1 ) );
-            REQUIRE( entriesOf( *menu ).last() == "Export as CSV..." );
+            const auto more = moreEntriesOf( *menu );
+            REQUIRE( more.contains( "Export as CSV..." ) );
+            REQUIRE( more.indexOf( "Export as CSV..." ) == more.indexOf( "Save to file" ) + 1 );
+        }
+
+        AND_GIVEN( "one whole Log Line selected, a Match not Marked" )
+        {
+            view.selectAndDisplayLine( 1_lnum );
+
+            WHEN( "the context menu is opened" )
+            {
+                const auto menu = view.createContextMenu( QPoint( 1, 1 ) );
+
+                THEN( "it has at most 12 entries at its top level, and every entry it offered "
+                      "before is still there, at the top or under More (#894)" )
+                {
+                    REQUIRE( entriesOf( *menu ).size() <= MaxTopLevelEntries );
+                    REQUIRE( entriesOf( *menu ).last() == MoreSubmenu );
+                    const auto unreachable
+                        = unreachableEntries( *menu, filteredViewEntriesBefore894() );
+                    INFO( "unreachable: " << unreachable.join( ", " ).toStdString() );
+                    REQUIRE( unreachable.isEmpty() );
+                }
+            }
         }
 
         WHEN( "the dialog is set up while Context Lines are hidden" )

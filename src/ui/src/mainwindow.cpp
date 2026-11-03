@@ -1417,14 +1417,17 @@ void MainWindow::createMenus()
     fileMenu->addAction( saveSessionAsAction );
     fileMenu->addSeparator();
 
+    // What is done with the file of the current tab (#892).
+    fileMenu->addAction( copyPathToClipboardAction );
+    fileMenu->addAction( openContainingFolderAction );
+    fileMenu->addAction( openInEditorAction );
+    fileMenu->addAction( clearLogAction );
+    fileMenu->addSeparator();
+
     fileMenu->addAction( closeAction );
     fileMenu->addAction( closeAllAction );
     fileMenu->addSeparator();
 
-    fileMenu->addAction( optionsAction );
-    fileMenu->addSeparator();
-
-    fileMenu->addSeparator();
     fileMenu->addAction( exitAction );
 
     editMenu = menuBar()->addMenu( tr( menu::editTitle ) );
@@ -1439,67 +1442,61 @@ void MainWindow::createMenus()
     editMenu->addSeparator();
     editMenu->addAction( searchLimitsTimeRangeAction );
     editMenu->addAction( searchLimitsAroundLineAction );
-    editMenu->addSeparator();
-    editMenu->addAction( copyPathToClipboardAction );
-    editMenu->addAction( openContainingFolderAction );
-    editMenu->addSeparator();
-    editMenu->addAction( openInEditorAction );
-    editMenu->addAction( clearLogAction );
-    editMenu->setEnabled( false );
+    setCurrentFileActionsEnabled( false );
 
     viewMenu = menuBar()->addMenu( tr( menu::viewTitle ) );
     openedFilesMenu = viewMenu->addMenu( tr( menu::openedFilesTitle ) );
     viewMenu->addSeparator();
-    viewMenu->addAction( overviewVisibleAction );
+    viewMenu->addAction( toggleSidebarAction );
+    viewMenu->addAction( showFiltersPanelAction );
+    viewMenu->addAction( showScratchPadAction );
+    viewMenu->addAction( showValueNamesPanelAction );
+    viewMenu->addAction( toggleChartPanelAction );
+    viewMenu->addAction( showFilterFrequencyAction );
     viewMenu->addSeparator();
+    viewMenu->addAction( overviewVisibleAction );
     viewMenu->addAction( lineNumbersVisibleInMainAction );
     viewMenu->addAction( lineNumbersVisibleInFilteredAction );
     viewMenu->addSeparator();
     viewMenu->addAction( textWrapAction );
     viewMenu->addAction( showValueNamesAction );
     viewMenu->addAction( matchesOnlyAction );
+    viewMenu->addMenu( EncodingMenu::generate( encodingGroup, session_.fileAccessPolicy() ) );
     viewMenu->addSeparator();
     viewMenu->addAction( followAction );
-    viewMenu->addSeparator();
     viewMenu->addAction( reloadAction );
-    viewMenu->addSeparator();
-    viewMenu->addAction( toggleChartPanelAction );
-    viewMenu->addAction( showFilterFrequencyAction );
 
     toolsMenu = menuBar()->addMenu( tr( menu::toolsTitle ) );
 
-    highlightersMenu = new HighlightersMenu( tr( menu::highlightersTitle ), menuBar() );
-    menuBar()->addMenu( highlightersMenu );
+    highlightersMenu = new HighlightersMenu( tr( menu::highlightersTitle ), toolsMenu );
+    toolsMenu->addMenu( highlightersMenu );
     // Every open Log File is re-colored, not only the one the current tab
     // shows: the others would keep the colors their Color Labels had.
     highlightersMenu->setApplyChange(
         [ this ]() { session_.applyChange( Changed::HighlighterSets ); } );
+    toolsMenu->addSeparator();
 
     toolsMenu->addAction( predefinedFiltersDialogAction );
-    toolsMenu->addAction( valueNamesDialogAction );
     toolsMenu->addAction( importChipmunkFiltersAction );
+    toolsMenu->addAction( valueNamesDialogAction );
     toolsMenu->addAction( regexLabAction );
     toolsMenu->addSeparator();
     toolsMenu->addAction( manageTabGroupsAction );
-
-    toolsMenu->addSeparator();
-    toolsMenu->addAction( showScratchPadAction );
-    toolsMenu->addAction( showFiltersPanelAction );
-    toolsMenu->addAction( showValueNamesPanelAction );
-    toolsMenu->addSeparator();
     toolsMenu->addAction( commandPaletteAction );
+    toolsMenu->addSeparator();
 
-    menuBar()->addMenu( EncodingMenu::generate( encodingGroup, session_.fileAccessPolicy() ) );
-    menuBar()->addSeparator();
-
-    favoritesMenu = menuBar()->addMenu( tr( menu::favoritesTitle ) );
-    favoritesMenu->setToolTipsVisible( true );
-
-    pluginsMenu = menuBar()->addMenu( tr( "Plugins" ) );
+    pluginsMenu = toolsMenu->addMenu( tr( "Plugins" ) );
     // Plugin-contributed actions are inserted at the top (before this separator)
     // by the Plugin UI Port (PluginUiAdapter).  Management actions live below the separator.
     pluginMenuSeparator_ = pluginsMenu->addSeparator();
     pluginsMenu->addAction( pluginsAction );
+    toolsMenu->addSeparator();
+
+    // On macOS, Qt moves it to the application menu, by its role.
+    toolsMenu->addAction( optionsAction );
+
+    favoritesMenu = menuBar()->addMenu( tr( menu::favoritesTitle ) );
+    favoritesMenu->setToolTipsVisible( true );
 
     sourcesMenu = menuBar()->addMenu( tr( "Sources" ) );
     updateSourcesMenu();
@@ -1513,6 +1510,17 @@ void MainWindow::createMenus()
     helpMenu->addSeparator();
     helpMenu->addAction( aboutQtAction );
     helpMenu->addAction( aboutAction );
+}
+
+void MainWindow::setCurrentFileActionsEnabled( bool enabled )
+{
+    // The Edit menu works on the Log Lines of the current tab, and the file
+    // actions of the File menu on its file: without one, neither does anything.
+    editMenu->setEnabled( enabled );
+    copyPathToClipboardAction->setEnabled( enabled );
+    openContainingFolderAction->setEnabled( enabled );
+    openInEditorAction->setEnabled( enabled );
+    clearLogAction->setEnabled( enabled );
 }
 
 void MainWindow::createToolBars()
@@ -3066,7 +3074,7 @@ void MainWindow::currentTabChanged( int index )
         updateTitleBar( session_.getFilename( crawler_widget ) );
         updateFavoritesMenu();
 
-        editMenu->setEnabled( true );
+        setCurrentFileActionsEnabled( true );
 
         // Notify plugins about the active file change
         plugins_->host().notifyActiveFileChanged( session_.getFilename( crawler_widget ) );
@@ -3090,7 +3098,7 @@ void MainWindow::currentTabChanged( int index )
             updateTitleBar( QString() );
         }
 
-        editMenu->setEnabled( false );
+        setCurrentFileActionsEnabled( false );
         addToFavoritesAction->setEnabled( false );
         addToFavoritesMenuAction->setEnabled( false );
 

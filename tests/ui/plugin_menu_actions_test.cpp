@@ -35,6 +35,7 @@
 #include <QFile>
 #include <QLibrary>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMetaObject>
 #include <QStandardPaths>
 #include <QTemporaryDir>
@@ -127,15 +128,22 @@ struct PluginLibrary {
     QLibrary library;
 };
 
-/// The window's Plugins menu, or nullptr.
-QMenu* pluginsMenuOf( const MainWindow& window )
+/// The submenu among the actions whose title, without its &, is the one given, or nullptr.
+QMenu* submenuOf( const QList<QAction*>& actions, const QString& title )
 {
-    for ( auto* menu : window.findChildren<QMenu*>() ) {
-        if ( menu->title() == QStringLiteral( "Plugins" ) ) {
-            return menu;
+    for ( auto* action : actions ) {
+        if ( action->menu() != nullptr && action->text().remove( u'&' ) == title ) {
+            return action->menu();
         }
     }
     return nullptr;
+}
+
+/// The window's Plugins menu, which sits in Tools as the plugin SDK guide says, or nullptr.
+QMenu* pluginsMenuOf( const MainWindow& window )
+{
+    auto* tools = submenuOf( window.menuBar()->actions(), QStringLiteral( "Tools" ) );
+    return tools == nullptr ? nullptr : submenuOf( tools->actions(), QStringLiteral( "Plugins" ) );
 }
 
 /// The action of the menu with the given text, or nullptr.

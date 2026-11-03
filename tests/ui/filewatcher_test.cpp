@@ -96,7 +96,7 @@ void requireNativeChangeReported( SafeQSignalSpy& changedSpy, const QString& fil
     // a generous window rather than the short one polling gets.
     const bool reported = waitUiState( changeReported, 10000 );
 
-#ifdef Q_OS_MAC
+#ifdef Q_OS_MACOS
     // FSEvents -- efsw's native backend on this platform -- may not deliver
     // in a sandboxed environment; the shipped default pairs native watching
     // with polling on macOS (see qtests_main.cpp / Configuration's platform

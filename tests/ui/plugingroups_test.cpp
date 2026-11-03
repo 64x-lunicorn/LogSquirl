@@ -251,14 +251,9 @@ bool colorsError()
            != HighlighterMatchType::NoMatch;
 }
 
-QListWidget* pluginList( QWidget& dialog )
-{
-    return dialog.findChild<QListWidget*>( "pluginGroupList" );
-}
-
 QPushButton* pluginCopyButton( QWidget& dialog )
 {
-    return dialog.findChild<QPushButton*>( "pluginCopy" );
+    return dialog.findChild<QPushButton*>( "groupCopy" );
 }
 
 /// The groups of the user's own, as the settings store holds them.
@@ -470,29 +465,29 @@ SCENARIO( "The dialogs show a plugin's groups read-only, and copy one into the u
     GIVEN( "the Predefined Filters dialog" )
     {
         PredefinedFiltersDialog dialog( QString{} );
-        auto* list = pluginList( dialog );
+        auto* list = dialog.groupList();
         REQUIRE( list != nullptr );
         auto* copy = pluginCopyButton( dialog );
         REQUIRE( copy != nullptr );
 
         THEN( "it lists the plugin's group with its Source" )
         {
-            REQUIRE( list->count() == 1 );
-            CHECK( list->item( 0 )->text() == CrashesShown );
+            REQUIRE( list->count( GroupList::Section::Plugin ) == 1 );
+            CHECK( list->name( GroupList::Section::Plugin, 0 ) == CrashesShown );
             CHECK_FALSE( copy->isEnabled() );
         }
 
         WHEN( "the plugin's group is selected and copied, and OK is pressed" )
         {
-            list->setCurrentRow( 0 );
+            list->setCurrent( GroupList::Section::Plugin, 0 );
             auto* edit = dialog.findChild<PredefinedFilterSetEdit*>();
             REQUIRE( edit != nullptr );
             CHECK( edit->filterSet().name() == "Crashes" );
             REQUIRE( copy->isEnabled() );
-            const auto own = dialog.setListWidget->count();
+            const auto own = list->count( GroupList::Section::Own );
             copy->click();
             QCoreApplication::processEvents();
-            CHECK( dialog.setListWidget->count() == own + 1 );
+            CHECK( list->count( GroupList::Section::Own ) == own + 1 );
             dialog.buttonBox->button( QDialogButtonBox::Ok )->click();
             QCoreApplication::processEvents();
 
@@ -510,20 +505,20 @@ SCENARIO( "The dialogs show a plugin's groups read-only, and copy one into the u
     GIVEN( "the Highlighters dialog" )
     {
         HighlightersDialog dialog;
-        auto* list = pluginList( dialog );
+        auto* list = dialog.groupList();
         REQUIRE( list != nullptr );
         auto* copy = pluginCopyButton( dialog );
         REQUIRE( copy != nullptr );
 
         THEN( "it lists the plugin's set with its Source" )
         {
-            REQUIRE( list->count() == 1 );
-            CHECK( list->item( 0 )->text() == LevelsShown );
+            REQUIRE( list->count( GroupList::Section::Plugin ) == 1 );
+            CHECK( list->name( GroupList::Section::Plugin, 0 ) == LevelsShown );
         }
 
         WHEN( "the plugin's set is selected" )
         {
-            list->setCurrentRow( 0 );
+            list->setCurrent( GroupList::Section::Plugin, 0 );
             auto* edit = dialog.findChild<HighlighterSetEdit*>();
             REQUIRE( edit != nullptr );
 
@@ -536,10 +531,10 @@ SCENARIO( "The dialogs show a plugin's groups read-only, and copy one into the u
             AND_WHEN( "it is copied, and OK is pressed" )
             {
                 REQUIRE( copy->isEnabled() );
-                const auto own = dialog.highlighterListWidget->count();
+                const auto own = list->count( GroupList::Section::Own );
                 copy->click();
                 QCoreApplication::processEvents();
-                CHECK( dialog.highlighterListWidget->count() == own + 1 );
+                CHECK( list->count( GroupList::Section::Own ) == own + 1 );
                 dialog.buttonBox->button( QDialogButtonBox::Ok )->click();
                 QCoreApplication::processEvents();
 

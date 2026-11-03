@@ -357,7 +357,7 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
         REQUIRE( preview != nullptr );
         REQUIRE( warnings != nullptr );
 
-        REQUIRE( dialog.findChild<QListWidget*>( QStringLiteral( "groupList" ) )->count() == 1 );
+        REQUIRE( dialog.groupList()->count( GroupList::Section::Own ) == 1 );
         REQUIRE( rules->rowCount() == 2 );
         REQUIRE( tables->count() == 3 );
         // The rule BAP ECU is selected: two capture groups, tables ECU and Function.
@@ -515,7 +515,7 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
 
         WHEN( "CSV is imported while no table is selected" )
         {
-            toolButtonOf( dialog, QStringLiteral( "Add a Naming Group" ) )->click();
+            toolButtonOf( dialog, QStringLiteral( "New Naming Group" ) )->click();
             dialog.importCsvText( QStringLiteral( "a,b\n" ), {}, CsvImportTarget::ReplaceRows,
                                   QStringLiteral( "Codes" ) );
 
@@ -622,11 +622,11 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
         WHEN( "a second group is named like the first, and another emptied" )
         {
             auto* name = dialog.findChild<QLineEdit*>( QStringLiteral( "groupName" ) );
-            toolButtonOf( dialog, QStringLiteral( "Add a Naming Group" ) )->click();
+            toolButtonOf( dialog, QStringLiteral( "New Naming Group" ) )->click();
             name->setText( QStringLiteral( "BAP" ) );
             Q_EMIT name->textEdited( name->text() );
             Q_EMIT name->editingFinished();
-            toolButtonOf( dialog, QStringLiteral( "Add a Naming Group" ) )->click();
+            toolButtonOf( dialog, QStringLiteral( "New Naming Group" ) )->click();
             name->setText( QString{} );
             Q_EMIT name->textEdited( name->text() );
             Q_EMIT name->editingFinished();
@@ -646,10 +646,12 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
             QList<QToolButton*> down{ nullptr, nullptr };
             for ( auto* button : dialog.findChildren<QToolButton*>() ) {
                 const auto index = rules->parentWidget()->isAncestorOf( button ) ? 1 : 0;
-                if ( button->toolTip() == QStringLiteral( "Move up" ) ) {
+                if ( button->toolTip() == QStringLiteral( "Move up" )
+                     || button->toolTip() == QStringLiteral( "Move Naming Group Up" ) ) {
                     up[ index ] = button;
                 }
-                else if ( button->toolTip() == QStringLiteral( "Move down" ) ) {
+                else if ( button->toolTip() == QStringLiteral( "Move down" )
+                          || button->toolTip() == QStringLiteral( "Move Naming Group Down" ) ) {
                     down[ index ] = button;
                 }
             }
@@ -674,11 +676,12 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
 
             THEN( "a group added moves up to the start, no further, and down again" )
             {
-                toolButtonOf( dialog, QStringLiteral( "Add a Naming Group" ) )->click();
-                auto* groupList = dialog.findChild<QListWidget*>( QStringLiteral( "groupList" ) );
+                toolButtonOf( dialog, QStringLiteral( "New Naming Group" ) )->click();
+                auto* groupList = dialog.groupList();
                 up[ 0 ]->click();
                 up[ 0 ]->click();
                 REQUIRE( dialog.groups()[ 0 ].name() == QStringLiteral( "New Naming Group" ) );
+                REQUIRE( groupList->currentSection() == GroupList::Section::Own );
                 REQUIRE( groupList->currentRow() == 0 );
                 down[ 0 ]->click();
                 down[ 0 ]->click();
@@ -720,7 +723,7 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
 
         WHEN( "Cancel is clicked after a change" )
         {
-            toolButtonOf( dialog, QStringLiteral( "Remove the Naming Group" ) )->click();
+            toolButtonOf( dialog, QStringLiteral( "Delete Naming Group" ) )->click();
             dialog.findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Cancel )->click();
 
             THEN( "the collection is unchanged" )
@@ -808,7 +811,7 @@ SCENARIO( "A Team Naming Group exported and imported again is a group of the use
 
     ValueNamesDialog dialog;
     dialog.showTeamGroups( { team }, false );
-    dialog.findChild<QListWidget*>( QStringLiteral( "teamGroupList" ) )->setCurrentRow( 0 );
+    dialog.groupList()->setCurrent( GroupList::Section::Team, 0 );
     REQUIRE( dialog.exportShownGroup( file ) );
     int asked = 0;
     dialog.importGroupFiles( { file }, [ &asked ]( const ConflictQuestion& ) {
@@ -849,29 +852,29 @@ SCENARIO( "The Value Names dialog shows the Team groups below the user's own",
     QList<PublishRequest> requests;
     QObject::connect( &dialog, &ValueNamesDialog::publishRequested, &dialog,
                       [ &requests ]( const auto& published ) { requests = published; } );
-    auto* own = dialog.findChild<QListWidget*>( QStringLiteral( "groupList" ) );
+    auto* groups = dialog.groupList();
     auto* name = dialog.findChild<QLineEdit*>( QStringLiteral( "groupName" ) );
     auto* rules = dialog.findChild<QTableWidget*>( QStringLiteral( "rulesTable" ) );
     auto* caseSensitive = dialog.findChild<QCheckBox*>( QStringLiteral( "caseSensitive" ) );
     auto* preview = dialog.findChild<QLineEdit*>( QStringLiteral( "previewInput" ) );
     auto* apply = dialog.findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Apply );
-    REQUIRE( dialog.findChild<QListWidget*>( QStringLiteral( "teamGroupList" ) ) == nullptr );
+    REQUIRE_FALSE( groups->hasSection( GroupList::Section::Team ) );
 
     WHEN( "the Team groups are read-only" )
     {
         dialog.showTeamGroups( { team }, false );
-        auto* teamList = dialog.findChild<QListWidget*>( QStringLiteral( "teamGroupList" ) );
-        REQUIRE( teamList != nullptr );
-        REQUIRE( teamList->count() == 1 );
-        REQUIRE( dialog.findChild<QPushButton*>( QStringLiteral( "teamAdd" ) )->isHidden() );
+        REQUIRE( groups->hasSection( GroupList::Section::Team ) );
+        REQUIRE( groups->count( GroupList::Section::Team ) == 1 );
+        REQUIRE_FALSE( groups->newTeamAction()->isVisible() );
         REQUIRE( dialog.findChild<QPushButton*>( QStringLiteral( "teamShare" ) )->isHidden() );
-        REQUIRE( dialog.findChild<QPushButton*>( QStringLiteral( "teamDelete" ) )->isHidden() );
 
-        teamList->setCurrentRow( 0 );
+        groups->setCurrent( GroupList::Section::Team, 0 );
+        // A read-only Team group is not deleted.
+        REQUIRE_FALSE( groups->deleteButton()->isEnabled() );
 
         THEN( "the Team group is shown and tried, but not changed" )
         {
-            REQUIRE( own->currentRow() == -1 );
+            REQUIRE( groups->currentSection() == GroupList::Section::Team );
             REQUIRE( name->text() == QStringLiteral( "Shared" ) );
             REQUIRE( name->isReadOnly() );
             REQUIRE( rules->editTriggers() == QAbstractItemView::NoEditTriggers );
@@ -899,15 +902,15 @@ SCENARIO( "The Value Names dialog shows the Team groups below the user's own",
 
         AND_WHEN( "it is copied to the user's own groups" )
         {
-            dialog.findChild<QPushButton*>( QStringLiteral( "teamCopy" ) )->click();
+            dialog.findChild<QPushButton*>( QStringLiteral( "groupCopy" ) )->click();
 
             THEN( "the copy is one of the user's own, and can be changed" )
             {
                 REQUIRE( dialog.groups().size() == 2 );
                 REQUIRE( dialog.groups()[ 1 ].name() == QStringLiteral( "Shared" ) );
                 REQUIRE( dialog.groups()[ 1 ].id() != team.id() );
-                REQUIRE( own->currentRow() == 1 );
-                REQUIRE( teamList->currentRow() == -1 );
+                REQUIRE( groups->currentSection() == GroupList::Section::Own );
+                REQUIRE( groups->currentRow() == 1 );
                 REQUIRE_FALSE( name->isReadOnly() );
                 REQUIRE(
                     toolButtonOf( dialog, QStringLiteral( "Add a Naming Rule" ) )->isEnabled() );
@@ -918,12 +921,11 @@ SCENARIO( "The Value Names dialog shows the Team groups below the user's own",
     WHEN( "the Team groups can be changed" )
     {
         dialog.showTeamGroups( { team }, true, { { team.id(), QStringLiteral( "R1" ) } } );
-        auto* teamList = dialog.findChild<QListWidget*>( QStringLiteral( "teamGroupList" ) );
-        REQUIRE( teamList != nullptr );
+        REQUIRE( groups->hasSection( GroupList::Section::Team ) );
 
         AND_WHEN( "one is renamed and Apply is clicked" )
         {
-            teamList->setCurrentRow( 0 );
+            groups->setCurrent( GroupList::Section::Team, 0 );
             REQUIRE_FALSE( name->isReadOnly() );
             QTest::keyClicks( name, QStringLiteral( " now" ) );
             apply->click();
@@ -943,14 +945,15 @@ SCENARIO( "The Value Names dialog shows the Team groups below the user's own",
 
         AND_WHEN( "a group of the user's own is shared and a new Team group added" )
         {
-            own->setCurrentRow( 0 );
+            groups->setCurrent( GroupList::Section::Own, 0 );
             dialog.findChild<QPushButton*>( QStringLiteral( "teamShare" ) )->click();
-            dialog.findChild<QPushButton*>( QStringLiteral( "teamAdd" ) )->click();
+            REQUIRE( groups->newTeamAction()->isVisible() );
+            groups->newTeamAction()->trigger();
             apply->click();
 
             THEN( "both are published as new Team groups" )
             {
-                REQUIRE( teamList->count() == 3 );
+                REQUIRE( groups->count( GroupList::Section::Team ) == 3 );
                 REQUIRE( requests.size() == 2 );
                 REQUIRE( requests[ 0 ].action == GroupAction::Add );
                 const auto* shared
@@ -1128,7 +1131,7 @@ void removeGroupInDialog()
     QTimer::singleShot( 0, [] {
         auto* dialog = qobject_cast<ValueNamesDialog*>( QApplication::activeModalWidget() );
         REQUIRE( dialog != nullptr );
-        toolButtonOf( *dialog, QStringLiteral( "Remove the Naming Group" ) )->click();
+        toolButtonOf( *dialog, QStringLiteral( "Delete Naming Group" ) )->click();
         dialog->findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Ok )->click();
     } );
 }

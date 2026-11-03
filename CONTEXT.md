@@ -238,6 +238,14 @@ is the user's and kept; disabling the plugin removes its groups and switches its
 (ADR 0029).
 _Avoid_: shipped filter, bundled set
 
+**Group List**:
+The one list the Predefined Filters, Highlighters and Value Names dialogs show their groups
+in: the user's own, the Team groups and, for Filter Groups and Highlighter Sets, the Plugin
+groups as sections, one row of buttons
+whose labels name the kind, and Export... and Import... below. The dialog holds the groups and
+hands the list their names; the list says what the user asked for and changes no group itself.
+_Avoid_: set list, group panel
+
 **Search Limits**:
 An optional line range a Search is restricted to. Lines outside it are shown but visually
 subdued. Half-open everywhere: from the first Log Line searched up to, not including, its

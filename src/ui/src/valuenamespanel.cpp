@@ -29,7 +29,7 @@
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 
-#include "plaintext.h"
+#include "soloselection.h"
 #include "valuenamescollection.h"
 
 namespace {
@@ -55,6 +55,18 @@ ValueNamesPanel::ValueNamesPanel( QWidget* parent )
     tree_->setHeaderHidden( true );
     tree_->setRootIsDecorated( true );
     mainLayout->addWidget( tree_ );
+
+    // The units are the rules, and a group without rules (#889).
+    solo_ = new SoloSelection( tree_, []( const QTreeWidgetItem* item ) {
+        if ( item->childCount() > 0 ) {
+            return QString{};
+        }
+        const auto groupId = item->data( 0, GroupIdRole ).toString();
+        return item->parent() == nullptr ? ValueNamesCollection::groupCheckKey( groupId )
+                                         : ValueNamesCollection::ruleCheckKey(
+                                               groupId, item->data( 0, RuleNameRole ).toString() );
+    } );
+    connect( solo_, &SoloSelection::checksChanged, this, &ValueNamesPanel::commitChecks );
 
     emptyHint_ = new QLabel( tr( "No Naming Groups yet: Edit... adds one." ), this );
     emptyHint_->setWordWrap( true );
@@ -111,9 +123,11 @@ void ValueNamesPanel::populateTree()
         const auto& group = groups[ index ];
         auto* groupItem = new QTreeWidgetItem( tree_ );
         groupItem->setText( 0, group.name() );
+        groupItem->setToolTip( 0, SoloSelection::doubleClickHint() );
         if ( index >= firstTeamGroup ) {
             groupItem->setText( 0, tr( "%1 (Team)" ).arg( group.name() ) );
-            groupItem->setToolTip( 0, tr( "A Team group, shared through the Team Folder" ) );
+            groupItem->setToolTip( 0, SoloSelection::toolTipWithHint(
+                                          tr( "A Team group, shared through the Team Folder" ) ) );
         }
         groupItem->setFlags( groupItem->flags() | Qt::ItemIsAutoTristate
                              | Qt::ItemIsUserCheckable );
@@ -127,7 +141,7 @@ void ValueNamesPanel::populateTree()
             ruleItem->setText( 0, rule.name.isEmpty()
                                       ? rule.pattern
                                       : rule.name + QStringLiteral( "  —  " ) + rule.pattern );
-            ruleItem->setToolTip( 0, logsquirl::plaintext::toolTip( rule.pattern ) );
+            ruleItem->setToolTip( 0, SoloSelection::toolTipWithHint( rule.pattern ) );
             ruleItem->setFlags( ruleItem->flags() | Qt::ItemIsUserCheckable );
             ruleItem->setData( 0, GroupIdRole, group.id() );
             ruleItem->setData( 0, RuleNameRole, rule.name );
@@ -179,27 +193,9 @@ void ValueNamesPanel::onItemChanged( QTreeWidgetItem* item, int column )
 void ValueNamesPanel::onItemDoubleClicked( QTreeWidgetItem* item, int column )
 {
     Q_UNUSED( column );
-    if ( item == nullptr ) {
-        return;
-    }
-
     // Solo: only the rule double-clicked, or the rules of the group, stay
-    // checked, whatever the search shows.
-    updatingTree_ = true;
-    for ( int g = 0; g < tree_->topLevelItemCount(); ++g ) {
-        auto* groupItem = tree_->topLevelItem( g );
-        const bool soloGroup = groupItem == item;
-        if ( groupItem->childCount() == 0 ) {
-            groupItem->setCheckState( 0, soloGroup ? Qt::Checked : Qt::Unchecked );
-        }
-        for ( int r = 0; r < groupItem->childCount(); ++r ) {
-            auto* ruleItem = groupItem->child( r );
-            ruleItem->setCheckState( 0,
-                                     soloGroup || ruleItem == item ? Qt::Checked : Qt::Unchecked );
-        }
-    }
-    updatingTree_ = false;
-    commitChecks();
+    // checked, whatever the search shows; commitChecks() follows.
+    solo_->showOnly( item );
 }
 
 void ValueNamesPanel::onSearchTextChanged( const QString& text )

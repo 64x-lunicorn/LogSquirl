@@ -68,6 +68,9 @@ HighlightersDialog::HighlightersDialog( QWidget* parent )
 {
     setupUi( this );
 
+    groupList_ = new GroupList( logsquirl::groupexchange::GroupKind::Highlighter, layoutWidget );
+    verticalLayout->addWidget( groupList_ );
+
     highlighterSetEdit_ = new HighlighterSetEdit( this );
     highlighterSetEdit_->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
     highlighterLayout->addWidget( highlighterSetEdit_ );
@@ -79,54 +82,31 @@ HighlightersDialog::HighlightersDialog( QWidget* parent )
     // by another glogg instance) and copy it to here.
     highlighterSetCollection_ = HighlighterSetCollection::getSynced();
 
-    populateHighlighterList();
+    listOwnGroups();
 
-    // Start with all buttons disabled except 'add'
-    removeHighlighterButton->setEnabled( false );
-    upHighlighterButton->setEnabled( false );
-    downHighlighterButton->setEnabled( false );
-    exportButton->setEnabled( false );
+    // The plugins' sets below the user's own, read-only: they are copied,
+    // never edited, and OK or Apply stores none of them (#865). Whether one
+    // is active is chosen in the Highlighters menu.
+    groupList_->setPluginGroups( highlighterSetCollection_.pluginHighlighterSets() );
 
-    connect( addHighlighterButton, &QToolButton::clicked, this,
-             &HighlightersDialog::addHighlighterSet );
-    connect( removeHighlighterButton, &QToolButton::clicked, this,
-             &HighlightersDialog::removeHighlighterSet );
-
-    connect( upHighlighterButton, &QToolButton::clicked, this,
-             &HighlightersDialog::moveHighlighterSetUp );
-    connect( downHighlighterButton, &QToolButton::clicked, this,
-             &HighlightersDialog::moveHighlighterSetDown );
-
-    connect( exportButton, &QPushButton::clicked, this, &HighlightersDialog::exportHighlighters );
-    connect( importButton, &QPushButton::clicked, this, &HighlightersDialog::importHighlighters );
-
-    // No highlighter selected by default
-    selectedRow_ = -1;
-
-    connect( highlighterListWidget, &QListWidget::itemSelectionChanged, this,
-             &HighlightersDialog::updatePropertyFields );
+    connect( groupList_, &GroupList::currentChanged, this, &HighlightersDialog::showGroup );
+    connect( groupList_, &GroupList::newRequested, this, &HighlightersDialog::addGroup );
+    connect( groupList_, &GroupList::deleteRequested, this, &HighlightersDialog::deleteGroup );
+    connect( groupList_, &GroupList::moveRequested, this, &HighlightersDialog::moveGroup );
+    connect( groupList_, &GroupList::shareRequested, this, &HighlightersDialog::shareGroup );
+    connect( groupList_, &GroupList::copyRequested, this, &HighlightersDialog::copyGroup );
+    connect( groupList_, &GroupList::exportRequested, this,
+             &HighlightersDialog::exportHighlighters );
+    connect( groupList_, &GroupList::importRequested, this,
+             &HighlightersDialog::importHighlighters );
 
     connect( highlighterSetEdit_, &HighlighterSetEdit::changed, this,
              &HighlightersDialog::updateHighlighterProperties );
 
     connect( buttonBox, &QDialogButtonBox::clicked, this, &HighlightersDialog::resolveDialog );
 
-    // The plugins' sets below the user's own, read-only: they are copied,
-    // never edited, and OK or Apply stores none of them (#865). Whether one
-    // is active is chosen in the Highlighters menu.
-    if ( const auto pluginSets = highlighterSetCollection_.pluginHighlighterSets();
-         !pluginSets.isEmpty() ) {
-        plugins_ = new PluginGroupsSection( layoutWidget, verticalLayout,
-                                            tr( "Plugin highlighter sets" ) );
-        plugins_->setGroups( pluginSets );
-        connect( plugins_->list(), &QListWidget::itemSelectionChanged, this,
-                 &HighlightersDialog::showSelectedPluginGroup );
-        connect( plugins_->copyButton(), &QPushButton::clicked, this,
-                 &HighlightersDialog::copySelectedPluginGroup );
-    }
-
     if ( !highlighterSetCollection_.highlighters_.empty() ) {
-        setCurrentRow( 0 );
+        groupList_->setCurrent( GroupList::Section::Own, 0 );
     }
 
     quickHighlightLayout->removeWidget( colorLabelsPlaceholder );
@@ -197,11 +177,7 @@ HighlightersDialog::HighlightersDialog( QWidget* parent )
         quickHighlightLayout->addWidget( cycleCheckbox, row, 3, Qt::AlignCenter );
     }
 
-    loadIcons();
-    Theme::whenApplied( this, [ this ] {
-        loadIcons();
-        showColorLabelsOfTheme();
-    } );
+    Theme::whenApplied( this, [ this ] { showColorLabelsOfTheme(); } );
 }
 
 void HighlightersDialog::showColorLabelsOfTheme()
@@ -222,15 +198,147 @@ void HighlightersDialog::showColorLabelsOfTheme()
     }
 }
 
-void HighlightersDialog::loadIcons()
+// --- The Group List ---
+
+void HighlightersDialog::listOwnGroups()
 {
-    loadListEditIcons( addHighlighterButton, removeHighlighterButton, upHighlighterButton,
-                       downHighlighterButton );
+    groupList_->setOwnGroups( GroupList::namesOf( highlighterSetCollection_.highlighters_ ) );
 }
 
-//
-// Q_SLOTS:
-//
+void HighlightersDialog::showGroup( GroupList::Section section, int row )
+{
+    // One set is shown at a time: one of the user's own, a Team set or a
+    // plugin's set. What was changed in the one shown before stays in this
+    // dialog's copy until OK, Apply or Cancel.
+    selectedRow_ = section == GroupList::Section::Own ? row : -1;
+    selectedTeamRow_ = section == GroupList::Section::Team ? row : -1;
+    selectedPluginRow_ = section == GroupList::Section::Plugin ? row : -1;
+
+    LOG_DEBUG << "showGroup(), row = " << row;
+
+    if ( selectedRow_ >= 0 ) {
+        highlighterSetEdit_->setEnabled( true );
+        highlighterSetEdit_->setHighlighters(
+            highlighterSetCollection_.highlighters_.at( selectedRow_ ) );
+    }
+    else if ( selectedTeamRow_ >= 0 ) {
+        highlighterSetEdit_->setHighlighters( teamEdits_.groups().at( selectedTeamRow_ ) );
+        highlighterSetEdit_->setEnabled( teamEdits_.isEditable() );
+    }
+    else if ( selectedPluginRow_ >= 0 ) {
+        highlighterSetEdit_->setHighlighters(
+            highlighterSetCollection_.pluginSets_.at( selectedPluginRow_ ).group );
+        highlighterSetEdit_->setEnabled( false );
+    }
+    else {
+        highlighterSetEdit_->setEnabled( true );
+        highlighterSetEdit_->reset();
+    }
+}
+
+void HighlightersDialog::addGroup( GroupList::Section section )
+{
+    LOG_DEBUG << "addGroup()";
+
+    if ( section == GroupList::Section::Team ) {
+        if ( !teamEdits_.isEditable() ) {
+            return;
+        }
+        teamEdits_.groups().append( HighlighterSet::createNewSet( DEFAULT_NAME ) );
+        groupList_->setTeamGroups( teamEdits_.names(), true );
+        groupList_->setCurrent( section, groupList_->count( section ) - 1 );
+        return;
+    }
+
+    highlighterSetCollection_.highlighters_.append( HighlighterSet::createNewSet( DEFAULT_NAME ) );
+    listOwnGroups();
+    groupList_->setCurrent( section, groupList_->count( section ) - 1 );
+}
+
+void HighlightersDialog::deleteGroup( GroupList::Section section, int row )
+{
+    LOG_DEBUG << "deleteGroup() row " << row;
+
+    if ( section == GroupList::Section::Team ) {
+        // The Group List asked whether it goes for the whole team.
+        if ( !teamEdits_.isEditable() || row < 0 || row >= teamEdits_.groups().size() ) {
+            return;
+        }
+        teamEdits_.groups().removeAt( row );
+        groupList_->setTeamGroups( teamEdits_.names(), true );
+        return;
+    }
+
+    auto& sets = highlighterSetCollection_.highlighters_;
+    if ( section != GroupList::Section::Own || row < 0 || row >= sets.size() ) {
+        return;
+    }
+    highlighterSetCollection_.deactivateSet( sets.at( row ).id() );
+    sets.removeAt( row );
+    listOwnGroups();
+    // Select the set now at the same row, or the one before it at the end.
+    const auto count = groupList_->count( section );
+    groupList_->setCurrent( section, row < count ? row : count - 1 );
+}
+
+void HighlightersDialog::moveGroup( int row, int offset )
+{
+    LOG_DEBUG << "moveGroup() row " << row << " by " << offset;
+
+    auto& sets = highlighterSetCollection_.highlighters_;
+    const auto to = row + offset;
+    if ( row < 0 || row >= sets.size() || to < 0 || to >= sets.size() ) {
+        return;
+    }
+    sets.move( row, to );
+    listOwnGroups();
+    groupList_->setCurrent( GroupList::Section::Own, to );
+}
+
+void HighlightersDialog::shareGroup( int row )
+{
+    auto& sets = highlighterSetCollection_.highlighters_;
+    if ( !teamEdits_.isEditable() || row < 0 || row >= sets.size() ) {
+        return;
+    }
+    // What was typed in the set so far is shared.
+    if ( row == selectedRow_ ) {
+        sets[ row ] = highlighterSetEdit_->highlighters();
+    }
+
+    teamEdits_.share( sets[ row ] );
+    groupList_->setTeamGroups( teamEdits_.names(), true );
+    // The Team copy is shown; the set of the user's own stays as it is.
+    groupList_->setCurrent( GroupList::Section::Team,
+                            groupList_->count( GroupList::Section::Team ) - 1 );
+}
+
+void HighlightersDialog::copyGroup( GroupList::Section section, int row )
+{
+    auto& sets = highlighterSetCollection_.highlighters_;
+    HighlighterSet copy;
+    if ( section == GroupList::Section::Team && row >= 0 && row < teamEdits_.groups().size() ) {
+        if ( teamEdits_.isEditable() && row == selectedTeamRow_ ) {
+            teamEdits_.groups()[ row ] = highlighterSetEdit_->highlighters();
+        }
+        copy = teamEdits_.copyFor( row, sets );
+    }
+    else if ( section == GroupList::Section::Plugin && row >= 0
+              && row < highlighterSetCollection_.pluginSets_.size() ) {
+        copy = logsquirl::teamfolder::copyOfGroup(
+            highlighterSetCollection_.pluginSets_.at( row ).group, GroupList::namesOf( sets ) );
+    }
+    else {
+        return;
+    }
+
+    sets.append( copy );
+    listOwnGroups();
+    groupList_->setCurrent( GroupList::Section::Own,
+                            groupList_->count( GroupList::Section::Own ) - 1 );
+}
+
+// --- Import / Export ---
 
 void HighlightersDialog::exportHighlighters()
 {
@@ -298,83 +406,9 @@ void HighlightersDialog::importHighlighters()
 
     // Show the list as it is now; a replaced set is read again from it.
     const int row = selectedRow_;
-    populateHighlighterList();
-    setCurrentRow( row >= 0 ? row : highlighterListWidget->count() - 1 );
-}
-
-void HighlightersDialog::addHighlighterSet()
-{
-    LOG_DEBUG << "addHighlighter()";
-
-    highlighterSetCollection_.highlighters_.append( HighlighterSet::createNewSet( DEFAULT_NAME ) );
-
-    // Add and select the newly created highlighter
-    highlighterListWidget->addItem( DEFAULT_NAME );
-
-    setCurrentRow( highlighterListWidget->count() - 1 );
-}
-
-void HighlightersDialog::removeHighlighterSet()
-{
-    int index = highlighterListWidget->currentRow();
-    LOG_DEBUG << "removeHighlighter() index " << index;
-
-    if ( index >= 0 ) {
-        setCurrentRow( -1 );
-        QTimer::singleShot( 0, this, [ this, index ] {
-            {
-                const auto& set = highlighterSetCollection_.highlighters_.at( index );
-                highlighterSetCollection_.deactivateSet( set.id() );
-            }
-
-            highlighterSetCollection_.highlighters_.removeAt( index );
-            delete highlighterListWidget->takeItem( index );
-
-            int count = highlighterListWidget->count();
-            if ( index < count ) {
-                // Select the new item at the same index
-                setCurrentRow( index );
-            }
-            else {
-                // or the previous index if it is at the end
-                setCurrentRow( count - 1 );
-            }
-        } );
-    }
-}
-
-void HighlightersDialog::moveHighlighterSetUp()
-{
-    int index = highlighterListWidget->currentRow();
-    LOG_DEBUG << "moveHighlighterUp() index " << index;
-
-    if ( index > 0 ) {
-        highlighterSetCollection_.highlighters_.move( index, index - 1 );
-
-        QTimer::singleShot( 0, this, [ this, index ] {
-            QListWidgetItem* item = highlighterListWidget->takeItem( index );
-            highlighterListWidget->insertItem( index - 1, item );
-
-            setCurrentRow( index - 1 );
-        } );
-    }
-}
-
-void HighlightersDialog::moveHighlighterSetDown()
-{
-    int index = highlighterListWidget->currentRow();
-    LOG_DEBUG << "moveHighlighterDown() index " << index;
-
-    if ( ( index >= 0 ) && ( index < ( highlighterListWidget->count() - 1 ) ) ) {
-        highlighterSetCollection_.highlighters_.move( index, index + 1 );
-
-        QTimer::singleShot( 0, this, [ this, index ] {
-            QListWidgetItem* item = highlighterListWidget->takeItem( index );
-            highlighterListWidget->insertItem( index + 1, item );
-
-            setCurrentRow( index + 1 );
-        } );
-    }
+    listOwnGroups();
+    groupList_->setCurrent( GroupList::Section::Own,
+                            row >= 0 ? row : groupList_->count( GroupList::Section::Own ) - 1 );
 }
 
 void HighlightersDialog::resolveDialog( QAbstractButton* button )
@@ -426,76 +460,12 @@ void HighlightersDialog::resolveDialog( QAbstractButton* button )
     }
 }
 
-void HighlightersDialog::setCurrentRow( int row )
-{
-    // ugly hack for mac
-    QTimer::singleShot( 0, this, [ this, row ]() { highlighterListWidget->setCurrentRow( row ); } );
-}
-
-void HighlightersDialog::updatePropertyFields()
-{
-    if ( highlighterListWidget->selectedItems().count() >= 1 )
-        selectedRow_ = highlighterListWidget->row( highlighterListWidget->selectedItems().at( 0 ) );
-    else
-        selectedRow_ = -1;
-
-    LOG_DEBUG << "updatePropertyFields(), row = " << selectedRow_;
-
-    if ( selectedRow_ >= 0 ) {
-        // One set is shown at a time: one of the user's own, a Team set or a
-        // plugin's set.
-        if ( team_ != nullptr ) {
-            team_->list()->clearSelection();
-        }
-        selectedTeamRow_ = -1;
-        clearPluginSelection();
-        highlighterSetEdit_->setEnabled( true );
-
-        const HighlighterSet& currentSet
-            = highlighterSetCollection_.highlighters_.at( selectedRow_ );
-        highlighterSetEdit_->setHighlighters( currentSet );
-
-        // Enable the buttons if needed
-        removeHighlighterButton->setEnabled( true );
-        upHighlighterButton->setEnabled( selectedRow_ > 0 );
-        downHighlighterButton->setEnabled( selectedRow_ < ( highlighterListWidget->count() - 1 ) );
-        exportButton->setEnabled( true );
-    }
-    else if ( selectedTeamRow_ < 0 && selectedPluginRow_ < 0 ) {
-        highlighterSetEdit_->setEnabled( true );
-        highlighterSetEdit_->reset();
-        exportButton->setEnabled( false );
-
-        removeHighlighterButton->setEnabled( false );
-        upHighlighterButton->setEnabled( false );
-        downHighlighterButton->setEnabled( false );
-    }
-    updateTeamButtons();
-}
-
 void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups, bool editable,
                                          const QHash<QString, QString>& revisions )
 {
     teamEdits_.reset( groups, editable, revisions );
-
-    if ( team_ == nullptr ) {
-        team_ = new TeamGroupsSection( layoutWidget, verticalLayout, tr( "Team highlighter sets" ),
-                                       tr( "New Team highlighter set" ) );
-        connect( team_->list(), &QListWidget::itemSelectionChanged, this,
-                 &HighlightersDialog::showSelectedTeamGroup );
-        connect( team_->addButton(), &QPushButton::clicked, this,
-                 &HighlightersDialog::addTeamGroup );
-        connect( team_->shareButton(), &QPushButton::clicked, this,
-                 &HighlightersDialog::shareSelectedGroup );
-        connect( team_->copyButton(), &QPushButton::clicked, this,
-                 &HighlightersDialog::copySelectedTeamGroup );
-        connect( team_->deleteButton(), &QPushButton::clicked, this,
-                 &HighlightersDialog::deleteSelectedTeamGroup );
-    }
-    team_->setEditable( editable );
-
-    selectedTeamRow_ = -1;
-    team_->setNames( teamEdits_.names() );
+    // A Team set shown is not any more: the list says so.
+    groupList_->setTeamGroups( teamEdits_.names(), editable );
 }
 
 void HighlightersDialog::setRegexLabAccess( RegexLabAccess access )
@@ -509,90 +479,6 @@ void HighlightersDialog::updateTeamRevisions( const QStringList& ids,
     teamEdits_.updateRevisions( ids, revisions );
 }
 
-void HighlightersDialog::updateTeamButtons()
-{
-    if ( team_ != nullptr ) {
-        team_->updateButtons( teamEdits_.isEditable(), selectedRow_ >= 0, selectedTeamRow_ >= 0 );
-    }
-}
-
-void HighlightersDialog::shareSelectedGroup()
-{
-    if ( selectedRow_ < 0 ) {
-        return;
-    }
-    // What was typed in the set so far is shared.
-    highlighterSetCollection_.highlighters_[ selectedRow_ ] = highlighterSetEdit_->highlighters();
-
-    const auto& copy = teamEdits_.share( highlighterSetCollection_.highlighters_[ selectedRow_ ] );
-    team_->list()->addItem( copy.name() );
-    // The Team copy is shown; the set of the user's own stays as it is.
-    team_->list()->setCurrentRow( team_->list()->count() - 1 );
-}
-
-void HighlightersDialog::copySelectedTeamGroup()
-{
-    if ( selectedTeamRow_ < 0 ) {
-        return;
-    }
-    if ( teamEdits_.isEditable() ) {
-        teamEdits_.groups()[ selectedTeamRow_ ] = highlighterSetEdit_->highlighters();
-    }
-
-    const auto copy
-        = teamEdits_.copyFor( selectedTeamRow_, highlighterSetCollection_.highlighters_ );
-    highlighterSetCollection_.highlighters_.append( copy );
-    highlighterListWidget->addItem( copy.name() );
-    setCurrentRow( highlighterListWidget->count() - 1 );
-}
-
-void HighlightersDialog::deleteSelectedTeamGroup()
-{
-    if ( selectedTeamRow_ < 0 || !teamEdits_.isEditable()
-         || !team_->confirmDeletion( tr( "Delete Team highlighter set" ) ) ) {
-        return;
-    }
-
-    const auto row = selectedTeamRow_;
-    selectedTeamRow_ = -1;
-    teamEdits_.groups().removeAt( row );
-    delete team_->list()->takeItem( row );
-    highlighterSetEdit_->setEnabled( true );
-    highlighterSetEdit_->reset();
-    exportButton->setEnabled( false );
-    updateTeamButtons();
-}
-
-void HighlightersDialog::addTeamGroup()
-{
-    teamEdits_.groups().append( HighlighterSet::createNewSet( DEFAULT_NAME ) );
-    team_->list()->addItem( DEFAULT_NAME );
-    team_->list()->setCurrentRow( team_->list()->count() - 1 );
-}
-
-void HighlightersDialog::showSelectedTeamGroup()
-{
-    const auto selected = team_->list()->selectedItems();
-    if ( selected.isEmpty() ) {
-        return;
-    }
-    const auto row = team_->list()->row( selected.at( 0 ) );
-
-    // Leaves the user's own set; what was changed in it stays in this
-    // dialog's copy until OK, Apply or Cancel.
-    highlighterListWidget->clearSelection();
-    clearPluginSelection();
-
-    selectedTeamRow_ = row;
-    highlighterSetEdit_->setHighlighters( teamEdits_.groups().at( row ) );
-    highlighterSetEdit_->setEnabled( teamEdits_.isEditable() );
-    removeHighlighterButton->setEnabled( false );
-    upHighlighterButton->setEnabled( false );
-    downHighlighterButton->setEnabled( false );
-    exportButton->setEnabled( true );
-    updateTeamButtons();
-}
-
 void HighlightersDialog::updateHighlighterProperties()
 {
     LOG_DEBUG << "updateHighlighterProperties()";
@@ -601,77 +487,12 @@ void HighlightersDialog::updateHighlighterProperties()
     if ( selectedRow_ >= 0 ) {
         HighlighterSet& currentSet = highlighterSetCollection_.highlighters_[ selectedRow_ ];
         currentSet = highlighterSetEdit_->highlighters();
-        // Update the entry in the highlighterList widget
-        highlighterListWidget->currentItem()->setText( currentSet.name() );
+        // Update the entry in the Group List
+        groupList_->setName( GroupList::Section::Own, selectedRow_, currentSet.name() );
     }
     else if ( selectedTeamRow_ >= 0 && teamEdits_.isEditable() ) {
         auto& group = teamEdits_.groups()[ selectedTeamRow_ ];
         group = highlighterSetEdit_->highlighters();
-        team_->list()->item( selectedTeamRow_ )->setText( group.name() );
-    }
-}
-
-void HighlightersDialog::showSelectedPluginGroup()
-{
-    const auto selected = plugins_->list()->selectedItems();
-    if ( selected.isEmpty() ) {
-        return;
-    }
-    const auto row = plugins_->list()->row( selected.at( 0 ) );
-
-    // Leaves the set shown before; what was changed in one of the user's own
-    // stays in this dialog's copy until OK, Apply or Cancel.
-    highlighterListWidget->clearSelection();
-    if ( team_ != nullptr ) {
-        team_->list()->clearSelection();
-    }
-    selectedTeamRow_ = -1;
-
-    selectedPluginRow_ = row;
-    highlighterSetEdit_->setHighlighters( highlighterSetCollection_.pluginSets_.at( row ).group );
-    highlighterSetEdit_->setEnabled( false );
-    removeHighlighterButton->setEnabled( false );
-    upHighlighterButton->setEnabled( false );
-    downHighlighterButton->setEnabled( false );
-    exportButton->setEnabled( true );
-    updateTeamButtons();
-    plugins_->updateButtons( true );
-}
-
-void HighlightersDialog::copySelectedPluginGroup()
-{
-    if ( selectedPluginRow_ < 0 ) {
-        return;
-    }
-
-    const auto copy = logsquirl::teamfolder::copyOfGroup(
-        highlighterSetCollection_.pluginSets_.at( selectedPluginRow_ ).group,
-        TeamGroupEdits<HighlighterSet>::namesOf( highlighterSetCollection_.highlighters_ ) );
-    highlighterSetCollection_.highlighters_.append( copy );
-    highlighterListWidget->addItem( copy.name() );
-    setCurrentRow( highlighterListWidget->count() - 1 );
-}
-
-void HighlightersDialog::clearPluginSelection()
-{
-    selectedPluginRow_ = -1;
-    if ( plugins_ != nullptr ) {
-        plugins_->list()->clearSelection();
-        plugins_->updateButtons( false );
-    }
-}
-
-//
-// Private functions
-//
-
-void HighlightersDialog::populateHighlighterList()
-{
-    highlighterListWidget->clear();
-    for ( const HighlighterSet& highlighterSet :
-          logsquirl::as_const( highlighterSetCollection_.highlighters_ ) ) {
-        auto* new_item = new QListWidgetItem( highlighterSet.name() );
-        // new_item->setFlags( Qt::ItemIsSelectable | Qt::ItemIsEditable | Qt::ItemIsEnabled );
-        highlighterListWidget->addItem( new_item );
+        groupList_->setName( GroupList::Section::Team, selectedTeamRow_, group.name() );
     }
 }

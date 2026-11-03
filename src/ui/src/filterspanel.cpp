@@ -27,7 +27,7 @@
 #include "containers.h"
 #include "log.h"
 #include "persistentinfo.h"
-#include "plaintext.h"
+#include "soloselection.h"
 
 static constexpr const char* PinnedSettingsKey = "PinnedFilters";
 
@@ -55,6 +55,16 @@ FiltersPanel::FiltersPanel( QWidget* parent )
     filterTree_->setRootIsDecorated( true );
 
     mainLayout->addWidget( filterTree_ );
+
+    // "Show only this" and the way back (#889); the units are the filters.
+    solo_ = new SoloSelection( filterTree_, []( const QTreeWidgetItem* item ) {
+        if ( item->parent() == nullptr ) {
+            return QString{};
+        }
+        return pinKey( item->data( 0, Qt::UserRole + 1 ).toString(),
+                       item->data( 0, Qt::UserRole ).toString() );
+    } );
+    connect( solo_, &SoloSelection::checksChanged, this, &FiltersPanel::emitCurrentSelection );
 
     // Buttons row
     auto* buttonsLayout = new QHBoxLayout;
@@ -135,15 +145,17 @@ void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
         const auto& set = sets[ index ];
         auto* groupItem = new QTreeWidgetItem( filterTree_ );
         groupItem->setText( 0, set.name() );
+        groupItem->setToolTip( 0, SoloSelection::doubleClickHint() );
         if ( index >= firstPluginGroup && index < firstTeamGroup ) {
             const auto& pluginName = pluginFilterGroups_[ index - firstPluginGroup ].pluginName;
             groupItem->setText( 0, pluginGroupShownName( set.name(), pluginName ) );
-            groupItem->setToolTip( 0, logsquirl::plaintext::toolTip(
+            groupItem->setToolTip( 0, SoloSelection::toolTipWithHint(
                                           tr( "Shipped by the plugin %1" ).arg( pluginName ) ) );
         }
         else if ( index >= firstTeamGroup ) {
             groupItem->setText( 0, tr( "%1 (Team)" ).arg( set.name() ) );
-            groupItem->setToolTip( 0, tr( "A Team group, shared through the Team Folder" ) );
+            groupItem->setToolTip( 0, SoloSelection::toolTipWithHint(
+                                          tr( "A Team group, shared through the Team Folder" ) ) );
         }
         groupItem->setFlags( groupItem->flags() | Qt::ItemIsAutoTristate
                              | Qt::ItemIsUserCheckable );
@@ -154,11 +166,12 @@ void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
 
         for ( const auto& filter : set.filters() ) {
             // Apply search filter across group name, filter name, and pattern.
-            if ( !searchText.isEmpty() && !set.name().contains( searchText, Qt::CaseInsensitive )
-                 && !filter.name.contains( searchText, Qt::CaseInsensitive )
-                 && !filter.pattern.contains( searchText, Qt::CaseInsensitive ) ) {
-                continue;
-            }
+            // A filter the search does not show is hidden, and keeps its check
+            // (#901).
+            const bool shown = searchText.isEmpty()
+                               || set.name().contains( searchText, Qt::CaseInsensitive )
+                               || filter.name.contains( searchText, Qt::CaseInsensitive )
+                               || filter.pattern.contains( searchText, Qt::CaseInsensitive );
 
             auto* childItem = new QTreeWidgetItem( groupItem );
 
@@ -169,7 +182,7 @@ void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
             else {
                 childItem->setText( 0, filter.pattern );
             }
-            childItem->setToolTip( 0, logsquirl::plaintext::toolTip( filter.pattern ) );
+            childItem->setToolTip( 0, SoloSelection::toolTipWithHint( filter.pattern ) );
             childItem->setFlags( childItem->flags() | Qt::ItemIsUserCheckable );
 
             // Store filter name and group id for retrieval.
@@ -178,16 +191,13 @@ void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
 
             const bool isPinned = pinnedFilterKeys_.contains( pinKey( set.id(), filter.name ) );
             childItem->setCheckState( 0, isPinned ? Qt::Checked : Qt::Unchecked );
+            childItem->setHidden( !shown );
 
-            anyChildVisible = true;
+            anyChildVisible = anyChildVisible || shown;
         }
 
         // Hide the group entirely if no children matched the search.
-        if ( !anyChildVisible && !searchText.isEmpty() ) {
-            delete filterTree_->takeTopLevelItem( filterTree_->indexOfTopLevelItem( groupItem ) );
-            continue;
-        }
-
+        groupItem->setHidden( !anyChildVisible && !searchText.isEmpty() );
         groupItem->setExpanded( true );
     }
 
@@ -217,30 +227,9 @@ void FiltersPanel::onItemDoubleClicked( QTreeWidgetItem* item, int column )
         return;
     }
 
-    updatingTree_ = true;
-
-    // Uncheck every filter across all groups.
-    for ( int g = 0; g < filterTree_->topLevelItemCount(); ++g ) {
-        auto* groupItem = filterTree_->topLevelItem( g );
-        for ( int c = 0; c < groupItem->childCount(); ++c ) {
-            groupItem->child( c )->setCheckState( 0, Qt::Unchecked );
-        }
-    }
-
-    // Solo: check only the double-clicked item(s).
-    if ( item->parent() ) {
-        // Child item (individual filter) — activate only this one.
-        item->setCheckState( 0, Qt::Checked );
-    }
-    else {
-        // Group item — activate all filters in this group.
-        for ( int c = 0; c < item->childCount(); ++c ) {
-            item->child( c )->setCheckState( 0, Qt::Checked );
-        }
-    }
-
-    updatingTree_ = false;
-    emitCurrentSelection();
+    // Solo: only the filter double-clicked, or the filters of the group, stay
+    // checked across all groups; emitCurrentSelection() follows.
+    solo_->showOnly( item );
 }
 
 void FiltersPanel::onSearchTextChanged( const QString& text )
@@ -251,24 +240,24 @@ void FiltersPanel::onSearchTextChanged( const QString& text )
 
 void FiltersPanel::selectAll()
 {
-    updatingTree_ = true;
-    for ( int g = 0; g < filterTree_->topLevelItemCount(); ++g ) {
-        auto* groupItem = filterTree_->topLevelItem( g );
-        for ( int c = 0; c < groupItem->childCount(); ++c ) {
-            groupItem->child( c )->setCheckState( 0, Qt::Checked );
-        }
-    }
-    updatingTree_ = false;
-    emitCurrentSelection();
+    setShownChecked( Qt::Checked );
 }
 
 void FiltersPanel::deselectAll()
 {
+    setShownChecked( Qt::Unchecked );
+}
+
+void FiltersPanel::setShownChecked( Qt::CheckState state )
+{
+    // What the search hides keeps its check (#901).
     updatingTree_ = true;
     for ( int g = 0; g < filterTree_->topLevelItemCount(); ++g ) {
         auto* groupItem = filterTree_->topLevelItem( g );
         for ( int c = 0; c < groupItem->childCount(); ++c ) {
-            groupItem->child( c )->setCheckState( 0, Qt::Unchecked );
+            if ( !groupItem->child( c )->isHidden() ) {
+                groupItem->child( c )->setCheckState( 0, state );
+            }
         }
     }
     updatingTree_ = false;

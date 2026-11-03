@@ -41,20 +41,18 @@
 #define PREDEFINEDFILTERSDIALOG_H_
 
 #include <QDialog>
-#include <QLabel>
 #include <QList>
-#include <QListWidget>
-#include <QPushButton>
 
-#include "plugingroupssection.h"
+#include "grouplist.h"
+#include "plugingroup.h"
 #include "predefinedfilters.h"
 #include "predefinedfiltersetedit.h"
 #include "teamfolder.h"
-#include "teamgroupssection.h"
+#include "teamgroupedits.h"
 #include "ui_predefinedfiltersdialog.h"
 
 // Dialog for managing predefined filter groups.
-// Mirrors HighlightersDialog: left panel = group list, right panel = group editor.
+// Mirrors HighlightersDialog: left panel = the Group List, right panel = group editor.
 class PredefinedFiltersDialog : public QDialog, public Ui::PredefinedFiltersDialog {
     Q_OBJECT
 
@@ -81,6 +79,12 @@ public:
     // only.
     void setRegexLabAccess( RegexLabAccess access );
 
+    // The list of the user's own, the Team and the plugins' groups.
+    GroupList* groupList() const
+    {
+        return groupList_;
+    }
+
 Q_SIGNALS:
     void optionsChanged();
     // Team groups were added, renamed or changed, and OK or Apply asks for them
@@ -88,53 +92,39 @@ Q_SIGNALS:
     void publishRequested( const QList<logsquirl::teamfolder::PublishRequest>& requests );
 
 private Q_SLOTS:
-    void addFilterSet();
-    void removeFilterSet();
-
-    void moveFilterSetUp();
-    void moveFilterSetDown();
-
-    void exportFilters();
-    void importFilters();
-
     void resolveDialog( QAbstractButton* button );
 
-    // Sync the embedded editor with the selected group.
-    void updatePropertyFields();
+    // Shows the group selected in the Group List.
+    void showGroup( GroupList::Section section, int row );
 
     // Write changes from the embedded editor back to the selected group.
     void updateFilterSetProperties();
 
-    // Shows the selected Team group, read-only.
-    void showSelectedTeamGroup();
-    void addTeamGroup();
-    void shareSelectedGroup();
-    void copySelectedTeamGroup();
-    void deleteSelectedTeamGroup();
-
-    // Shows the selected plugin's group, read-only, and copies it into the
-    // user's own groups.
-    void showSelectedPluginGroup();
-    void copySelectedPluginGroup();
+    // What the user asked for in the Group List.
+    void addGroup( GroupList::Section section );
+    void deleteGroup( GroupList::Section section, int row );
+    void moveGroup( int row, int offset );
+    void shareGroup( int row );
+    void copyGroup( GroupList::Section section, int row );
+    void exportFilters();
+    void importFilters();
 
 private:
-    void populateSetList();
-    void setCurrentRow( int row );
-    void loadIcons();
+    // Lists the user's own groups; the Default group cannot be deleted.
+    void listOwnGroups();
 
+    GroupList* groupList_;
     PredefinedFilterSetEdit* filterSetEdit_;
 
     // Temporary copy of the collection, committed on Apply/OK.
     QList<PredefinedFilterSet> filterSets_;
 
-    int selectedRow_;
+    // The row of the group of the user's own shown, -1 when none is.
+    int selectedRow_ = -1;
 
-    // The Team groups, below the user's own: built when the dialog is first
+    // The Team groups, below the user's own: listed when the dialog is first
     // given them.
-    TeamGroupsSection* team_ = nullptr;
     TeamGroupEdits<PredefinedFilterSet> teamEdits_;
-    // What can be done with the selected group depends on which one it is.
-    void updateTeamButtons();
     // The row of the Team group shown, -1 when none is.
     int selectedTeamRow_ = -1;
 
@@ -142,11 +132,8 @@ private:
     // (#865): as the Predefined Filters Collection held them when the dialog
     // opened. No section when there are none.
     QList<PluginGroup<PredefinedFilterSet>> pluginGroups_;
-    PluginGroupsSection* plugins_ = nullptr;
     // The row of the plugin's group shown, -1 when none is.
     int selectedPluginRow_ = -1;
-    // No plugin's group is shown any more.
-    void clearPluginSelection();
 };
 
 #endif

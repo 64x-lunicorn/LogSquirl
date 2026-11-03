@@ -45,7 +45,7 @@
 #include <QNetworkProxyFactory>
 #include <QUuid>
 
-#ifdef Q_OS_MAC
+#ifdef Q_OS_MACOS
 #include <QFileOpenEvent>
 #endif
 
@@ -277,7 +277,7 @@ public:
             return runOnItsOwn();
         }
 
-#ifdef Q_OS_MAC
+#ifdef Q_OS_MACOS
         // Launched by the Finder or `open -n` with a Log File, macOS delivers
         // it as a QFileOpenEvent, and only once the event loop runs. event()
         // hands it over and quits; with no Log File to come, give up after a
@@ -463,7 +463,7 @@ public:
         } );
     }
 
-#ifdef Q_OS_MAC
+#ifdef Q_OS_MACOS
     bool event( QEvent* event ) override
     {
         if ( event->type() == QEvent::FileOpen ) {

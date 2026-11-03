@@ -21,7 +21,6 @@
 
 #include <QHash>
 #include <QList>
-#include <QObject>
 #include <QString>
 #include <QStringList>
 
@@ -29,71 +28,9 @@
 
 #include "teamfolder.h"
 
-class QBoxLayout;
-class QLabel;
-class QListWidget;
-class QPushButton;
-class QWidget;
-
 // What the Predefined Filters Dialog, the Highlighters Dialog and the Value
-// Names Dialog share about the Team groups they show below the user's own
-// groups (#694).
-
-// The widgets of the Team groups: the label, the list, and the buttons that
-// add a Team group, share one of the user's own, copy one into the user's own
-// and delete one for the team. Each dialog connects them to what it does with
-// its own kind of group.
-class TeamGroupsSection : public QObject {
-    Q_OBJECT
-
-public:
-    // Adds the section to the end of layout: the list under labelText, and
-    // the buttons, addText on the one that adds a new Team group.
-    TeamGroupsSection( QWidget* parent, QBoxLayout* layout, const QString& labelText,
-                       const QString& addText );
-
-    QListWidget* list() const
-    {
-        return list_;
-    }
-    QPushButton* addButton() const
-    {
-        return addButton_;
-    }
-    QPushButton* shareButton() const
-    {
-        return shareButton_;
-    }
-    QPushButton* copyButton() const
-    {
-        return copyButton_;
-    }
-    QPushButton* deleteButton() const
-    {
-        return deleteButton_;
-    }
-
-    // Shows the buttons that change the Team groups only when they can be
-    // changed.
-    void setEditable( bool editable );
-    // Lists the names, replacing what the list held.
-    void setNames( const QStringList& names );
-    // Enables the buttons for what is selected: a group of the user's own, or
-    // a Team group.
-    void updateButtons( bool editable, bool ownSelected, bool teamSelected );
-    // Asks whether the selected Team group is to be deleted for the whole
-    // team, under title.
-    bool confirmDeletion( const QString& title ) const;
-
-private:
-    QWidget* parent_;
-    QLabel* label_;
-    QListWidget* list_;
-    QPushButton* addButton_;
-    QPushButton* shareButton_;
-    QPushButton* copyButton_;
-    QPushButton* deleteButton_;
-};
+// Names Dialog share about the Team groups they list in their Group List
+// (#694).
 
 // The Team groups of one kind as a dialog edits them: its copy of them, which
 // the user changes in the dialog, and what they were when the dialog was

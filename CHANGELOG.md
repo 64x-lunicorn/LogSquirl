@@ -1,3 +1,48 @@
+# Unreleased
+
+## Changes
+
+- **The menu bar is ordered by task, seven menus instead of ten**: the file
+  actions (Copy full path, Open containing folder, Open in editor, Clear
+  file) are in *File*, the Search Limits in *Edit*, the panels, the sidebar
+  and *Encoding* in *View*, and *Highlighters*, the plugins' items with
+  *Plugin Management* and *Preferences* in *Tools*; *Favorites*, *Sources* and
+  *Help* stay. Every action keeps its shortcut. A plugin's menu path now
+  resolves under *Tools → Plugins*; the plugin SDK guide says so. (#892)
+- **The context menu of the lines is shorter**: right-clicking the lines of
+  the Text View, the Filtered View or the Table View shows what you do with
+  the selection first (Copy, Copy as shown, the search entries, Mark), then
+  Highlighters and Color labels, and keeps the rarely used entries
+  (scratchpad, Find next and previous, search limits, Save to file, Export as
+  CSV, Save splitter position and more) under *More*; plugin items stay at
+  the end. (#894)
+- **Filter Groups, Highlighter Sets and Naming Groups share one group list**:
+  the Predefined Filters, Highlighters and Value Names dialogs list the
+  user's own, the Team and the Plugin groups as sections of one list, with
+  the same buttons (New, Delete, Move, Share with team, Copy to my groups,
+  Export..., Import...) named for the kind of group. Deleting a Team group
+  asks first, as before. (#893)
+- **The Preferences dialog fits on a laptop screen**: it opens at a height
+  that fits a 1366 x 768 screen, every tab scrolls when its content is taller
+  than the dialog, and the *Search options* on the General tab show one
+  setting per row with labelled color buttons. (#888)
+- **Show only this in the sidebar is visible and can be undone**: the
+  Filters and Value Names tabs offer *Show only this* and *Restore previous
+  selection* in the context menu of a filter or Naming Rule, and their tool
+  tips name the double-click that shows only one. (#889)
+
+## Bug fixes
+
+- **Searching the Filters tab keeps the checks**: the filters the search
+  hides keep their check and stay active, and come back checked when the
+  search is cleared. (#901)
+
+## Build and packaging
+
+- **LogSquirl builds with Qt 6.12**: it no longer uses `Q_OS_MAC` and the
+  `QDragEnterEvent` constructor taking a `QPoint`, which Qt 6.12 deprecates.
+  (#900)
+
 # v26.12.0-beta1 (2026-11-02)
 
 ## Changes

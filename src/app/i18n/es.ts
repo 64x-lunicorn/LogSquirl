@@ -937,27 +937,27 @@ Patrón: %2</translation>
         <translation> %1 coincidencia encontrada hasta ahora.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1443"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1447"/>
         <source>Marks and matches</source>
         <translation>Marcas y coincidencias</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1449"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1453"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>Marcas, coincidencias + contexto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1454"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1458"/>
         <source>Matches + breadcrumbs</source>
         <translation>Coincidencias + contexto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1459"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1463"/>
         <source>Marks</source>
         <translation>Marcas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1463"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1467"/>
         <source>Matches</source>
         <translation>Coincidencias</translation>
     </message>
@@ -1001,32 +1001,32 @@ Patrón: %2</translation>
         <translation>Patrón de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1505"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1509"/>
         <source>Clear search history</source>
         <translation>Borrar historial de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1506"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1510"/>
         <source>Edit search history</source>
         <translation>Editar historial de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1507"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1511"/>
         <source>Save as Filter</source>
         <translation>Guardar como filtro</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1508"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1512"/>
         <source>Open in Regex Lab...</source>
         <translation>Abrir en el Laboratorio de regex...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1510"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1514"/>
         <source>Try out the pattern and its options on Log Lines in the Regex Lab</source>
         <translation>Probar el patrón y sus opciones con líneas del registro en el Laboratorio de regex</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1516"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1520"/>
         <source>Count values of capture group</source>
         <translation>Contar valores del grupo de captura</translation>
     </message>
@@ -1051,32 +1051,32 @@ Patrón: %2</translation>
         <translation>Conservar estos resultados y mostrar los resultados siguientes en una nueva ventana</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1531"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1535"/>
         <source>Toggle table/text view</source>
         <translation>Alternar vista de tabla/texto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1532"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1536"/>
         <source>Toggle table view</source>
         <translation>Alternar vista de tabla</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1941"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1945"/>
         <source>Group %1</source>
         <translation>Grupo %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1942"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1946"/>
         <source>Group %1 (%2)</source>
         <translation>Grupo %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1970"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1974"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>grupo %1 de &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2359"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2364"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Alternar vista de tabla/texto (%1)</translation>
     </message>
@@ -1116,12 +1116,12 @@ Patrón: %2</translation>
         <translation>Archivo truncado en disco</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2232"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2236"/>
         <source>Displayed as %1</source>
         <translation>Mostrado como %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2232"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2236"/>
         <source>Detected as %1</source>
         <translation>Detectado como %1</translation>
     </message>
@@ -1290,32 +1290,32 @@ Do you want to replace it?</source>
         <translation>Buscar filtros...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="61"/>
+        <location filename="../../ui/src/filterspanel.cpp" line="71"/>
         <source>Select All</source>
         <translation>Seleccionar todo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="62"/>
+        <location filename="../../ui/src/filterspanel.cpp" line="72"/>
         <source>Deselect All</source>
         <translation>Deseleccionar todo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="63"/>
+        <location filename="../../ui/src/filterspanel.cpp" line="73"/>
         <source>Edit...</source>
         <translation>Editar...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="142"/>
+        <location filename="../../ui/src/filterspanel.cpp" line="153"/>
         <source>Shipped by the plugin %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="145"/>
+        <location filename="../../ui/src/filterspanel.cpp" line="156"/>
         <source>%1 (Team)</source>
         <translation>%1 (Equipo)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="146"/>
+        <location filename="../../ui/src/filterspanel.cpp" line="158"/>
         <source>A Team group, shared through the Team Folder</source>
         <translation>Un grupo de equipo, compartido mediante la carpeta de equipo</translation>
     </message>
@@ -1410,6 +1410,219 @@ Do you want to replace it?</source>
         <location filename="../../ui/src/groupimportprompt.cpp" line="101"/>
         <source>The file %1 was written by a newer version of LogSquirl and cannot be imported.</source>
         <translation>El archivo %1 fue escrito por una versión más reciente de LogSquirl y no se puede importar.</translation>
+    </message>
+</context>
+<context>
+    <name>GroupList</name>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="60"/>
+        <source>My Filter Groups</source>
+        <translation>Mis grupos de filtros</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="61"/>
+        <source>Team Filter Groups</source>
+        <translation>Grupos de filtros de equipo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="62"/>
+        <source>Plugin Filter Groups</source>
+        <translation>Grupos de filtros de plugins</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="63"/>
+        <source>New Filter Group</source>
+        <translation>Nuevo grupo de filtros</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="64"/>
+        <source>New Team Filter Group</source>
+        <translation>Nuevo grupo de filtros de equipo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="65"/>
+        <source>Delete Filter Group</source>
+        <translation>Eliminar grupo de filtros</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="66"/>
+        <source>Move Filter Group Up</source>
+        <translation>Mover grupo de filtros arriba</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="67"/>
+        <source>Move Filter Group Down</source>
+        <translation>Mover grupo de filtros abajo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="68"/>
+        <source>Delete Team Filter Group</source>
+        <translation>Eliminar grupo de filtros de equipo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="69"/>
+        <source>Writes the selected Filter Group to a file of its own.</source>
+        <translation>Escribe el grupo de filtros seleccionado en un archivo propio.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="70"/>
+        <source>Adds the Filter Groups of files to your own.</source>
+        <translation>Añade a los suyos los grupos de filtros de los archivos.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="73"/>
+        <source>My Highlighter Sets</source>
+        <translation>Mis conjuntos de resaltadores</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="74"/>
+        <source>Team Highlighter Sets</source>
+        <translation>Conjuntos de resaltadores de equipo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="75"/>
+        <source>Plugin Highlighter Sets</source>
+        <translation>Conjuntos de resaltadores de plugins</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="76"/>
+        <source>New Highlighter Set</source>
+        <translation>Nuevo conjunto de resaltadores</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="77"/>
+        <source>New Team Highlighter Set</source>
+        <translation>Nuevo conjunto de resaltadores de equipo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="78"/>
+        <source>Delete Highlighter Set</source>
+        <translation>Eliminar conjunto de resaltadores</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="79"/>
+        <source>Move Highlighter Set Up</source>
+        <translation>Mover conjunto de resaltadores arriba</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="80"/>
+        <source>Move Highlighter Set Down</source>
+        <translation>Mover conjunto de resaltadores abajo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="81"/>
+        <source>Delete Team Highlighter Set</source>
+        <translation>Eliminar conjunto de resaltadores de equipo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="83"/>
+        <source>Writes the selected Highlighter Set to a file of its own.</source>
+        <translation>Escribe el conjunto de resaltadores seleccionado en un archivo propio.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="84"/>
+        <source>Adds the Highlighter Sets of files to your own.</source>
+        <translation>Añade a los suyos los conjuntos de resaltadores de los archivos.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="87"/>
+        <source>My Naming Groups</source>
+        <translation>Mis grupos de nombres</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="88"/>
+        <source>Team Naming Groups</source>
+        <translation>Grupos de nombres de equipo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="89"/>
+        <source>Plugin Naming Groups</source>
+        <translation>Grupos de nombres de plugins</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="90"/>
+        <source>New Naming Group</source>
+        <translation>Nuevo grupo de nombres</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="91"/>
+        <source>New Team Naming Group</source>
+        <translation>Nuevo grupo de nombres de equipo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="92"/>
+        <source>Delete Naming Group</source>
+        <translation>Eliminar grupo de nombres</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="93"/>
+        <source>Move Naming Group Up</source>
+        <translation>Mover grupo de nombres arriba</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="94"/>
+        <source>Move Naming Group Down</source>
+        <translation>Mover grupo de nombres abajo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="95"/>
+        <source>Delete Team Naming Group</source>
+        <translation>Eliminar grupo de nombres de equipo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="96"/>
+        <source>Writes the selected Naming Group to a file of its own.</source>
+        <translation>Escribe el grupo de nombres seleccionado en un archivo propio.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="97"/>
+        <source>Adds the Naming Groups of files to your own.</source>
+        <translation>Añade a los suyos los grupos de nombres de los archivos.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="153"/>
+        <source>Share with team</source>
+        <translation>Compartir con el equipo</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="155"/>
+        <source>Adds a Team copy of the selected group of your own.</source>
+        <translation>Agrega una copia de equipo del grupo propio seleccionado.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="156"/>
+        <source>Copy to my groups</source>
+        <translation>Copiar a mis grupos</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="158"/>
+        <source>Adds a copy of the selected group to your own.</source>
+        <translation>Añade a los suyos una copia del grupo seleccionado.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="169"/>
+        <source>Export...</source>
+        <translation>Exportar...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="172"/>
+        <source>Import...</source>
+        <translation>Importar...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="269"/>
+        <source>Shared through the Team Folder: they change when the team changes them.</source>
+        <translation>Compartidos mediante la carpeta de equipo: cambian cuando el equipo los cambia.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="273"/>
+        <source>Shipped by the enabled plugins: read-only, and gone when the plugin is disabled.</source>
+        <translation>Incluidos en los plugins habilitados: de solo lectura, y desaparecen cuando se deshabilita el plugin.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/grouplist.cpp" line="459"/>
+        <source>This deletes the group for the whole team.</source>
+        <translation>Esto elimina el grupo para todo el equipo.</translation>
     </message>
 </context>
 <context>
@@ -1625,109 +1838,54 @@ Do you want to replace it?</source>
         <translation>Resaltadores</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlightersdialog.ui" line="46"/>
-        <source>Available sets</source>
-        <translation>Conjuntos disponibles</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/highlightersdialog.ui" line="61"/>
-        <source>New Highlighter</source>
-        <translation>Nuevo resaltador</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/highlightersdialog.ui" line="75"/>
-        <source>Delete Highlighter</source>
-        <translation>Eliminar resaltador</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/highlightersdialog.ui" line="102"/>
-        <source>Export</source>
-        <translation>Exportar</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/highlightersdialog.ui" line="109"/>
-        <source>Import</source>
-        <translation>Importar</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/highlightersdialog.ui" line="129"/>
-        <source>Move Highlighter Up</source>
-        <translation>Mover resaltador arriba</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/highlightersdialog.ui" line="143"/>
-        <source>Move Highlighter Down</source>
-        <translation>Mover resaltador abajo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/highlightersdialog.ui" line="170"/>
+        <location filename="../../ui/include/highlightersdialog.ui" line="47"/>
         <source>Highlighters set properties</source>
         <translation>Propiedades del conjunto de resaltadores</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlightersdialog.ui" line="184"/>
+        <location filename="../../ui/include/highlightersdialog.ui" line="61"/>
         <source>Color labels</source>
         <translation>Etiquetas de color</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlightersdialog.ui" line="192"/>
+        <location filename="../../ui/include/highlightersdialog.ui" line="69"/>
         <source>Text color</source>
         <translation>Color de texto</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlightersdialog.ui" line="202"/>
+        <location filename="../../ui/include/highlightersdialog.ui" line="79"/>
         <source>Background color</source>
         <translation>Color de fondo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/highlightersdialog.ui" line="209"/>
+        <location filename="../../ui/include/highlightersdialog.ui" line="86"/>
         <source>Include into cycle</source>
         <translation>Incluir en el ciclo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="120"/>
-        <source>Plugin highlighter sets</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="255"/>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="264"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="363"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="372"/>
         <source>Export highlighters configuration</source>
         <translation>Exportar configuración de resaltadores</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="265"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="373"/>
         <source>The file %1 could not be written.</source>
         <translation>No se pudo escribir el archivo %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="274"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="382"/>
         <source>Select one or more files to open</source>
         <translation>Seleccionar uno o más archivos para abrir</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="281"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="389"/>
         <source>Import highlighters configuration</source>
         <translation>Importar configuración de resaltadores</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="482"/>
-        <source>Team highlighter sets</source>
-        <translation>Conjuntos de resaltadores del equipo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="483"/>
-        <source>New Team highlighter set</source>
-        <translation>Nuevo conjunto de resaltadores del equipo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="552"/>
-        <source>Delete Team highlighter set</source>
-        <translation>Eliminar conjunto de resaltadores del equipo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="256"/>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="274"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="364"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="382"/>
         <source>Highlighters (*.conf)</source>
         <translation>Resaltadores (*.conf)</translation>
     </message>
@@ -1863,12 +2021,12 @@ Do you want to replace it?</source>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1899"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1907"/>
         <source>Open URL as log file</source>
         <translation>Abrir URL como archivo de registro</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1589"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1597"/>
         <source>Open window</source>
         <translation>Abrir ventana</translation>
     </message>
@@ -1878,18 +2036,18 @@ Do you want to replace it?</source>
         <translation>Abrir recientes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1590"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1598"/>
         <source>Quit</source>
         <translation>Salir</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1651"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1659"/>
         <source>Open file</source>
         <translation>Abrir archivo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1646"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3432"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1654"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3442"/>
         <source>All files (*)</source>
         <translation>Todos los archivos (*)</translation>
     </message>
@@ -1921,7 +2079,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="363"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3087"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3095"/>
         <source>Dashboard</source>
         <translation>Panel de inicio</translation>
     </message>
@@ -1998,264 +2156,264 @@ Carpeta de trabajo: %2
         <translation>Administrar, instalar y actualizar plugins</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1504"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1501"/>
         <source>Sources</source>
         <translation>Fuentes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1674"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1682"/>
         <source>Downloading %1</source>
         <translation>Descargando %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1695"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="1700"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1703"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1708"/>
         <source>LogSquirl - File download</source>
         <translation>LogSquirl - Descarga de archivo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1701"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1709"/>
         <source>Failed to create temp file</source>
         <translation>No se pudo crear el archivo temporal</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1726"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1734"/>
         <source>logsquirl - remove from recent</source>
         <translation>logsquirl - Eliminar de recientes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1727"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1735"/>
         <source>Could not read file %1. Remove it from recent files?</source>
         <translation>No se pudo leer el archivo %1. ¿Eliminarlo de los archivos recientes?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1748"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1756"/>
         <source>logsquirl - remove from favorites</source>
         <translation>logsquirl - Eliminar de favoritos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1749"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1757"/>
         <source>Could not read file %1. Remove it from favorites?</source>
         <translation>No se pudo leer el archivo %1. ¿Eliminarlo de favoritos?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1840"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1848"/>
         <source>logsquirl - clear file</source>
         <translation>logsquirl - Limpiar archivo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1841"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1849"/>
         <source>Clear file %1? File content will be removed from disk, this is irreversible</source>
         <translation>¿Limpiar el archivo %1? El contenido del archivo se eliminará del disco; esta acción es irreversible</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1899"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1907"/>
         <source>URL to download:</source>
         <translation>URL para descargar:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2226"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2234"/>
         <source>Team group changed</source>
         <translation>Grupo de equipo modificado</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2227"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2235"/>
         <source>Somebody else changed the Team group &quot;%1&quot; since you started editing it.</source>
         <translation>Otra persona modificó el grupo de equipo &quot;%1&quot; desde que empezó a editarlo.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2234"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2242"/>
         <source>Keep your version and replace theirs, take theirs and drop your change, or save yours as a copy next to theirs?</source>
         <translation>¿Conservar su versión y reemplazar la de la otra persona, quedarse con la ajena y descartar su cambio, o guardar la suya como copia junto a la ajena?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2236"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2244"/>
         <source>Somebody deleted it. Keep your version to publish it again, or take the deletion and drop your change?</source>
         <translation>Alguien lo eliminó. ¿Conservar su versión para publicarla de nuevo, o aceptar la eliminación y descartar su cambio?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2238"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2246"/>
         <source>Keep mine</source>
         <translation>Conservar la mía</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2239"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2247"/>
         <source>Take theirs</source>
         <translation>Quedarse con la ajena</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2240"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2248"/>
         <source>Save mine as a copy</source>
         <translation>Guardar la mía como copia</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2325"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2333"/>
         <source>Click to sync now.</source>
         <translation>Haga clic para sincronizar ahora.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2353"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2361"/>
         <source>Start %1 data source</source>
         <translation>Iniciar la fuente de datos %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2361"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2369"/>
         <source>(no data source plugins)</source>
         <translation>(no hay plugins de fuentes de datos)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2404"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2412"/>
         <source>Plugin Error</source>
         <translation>Error de plugin</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2405"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2413"/>
         <source>Failed to load plugin:
 %1</source>
         <translation>No se pudo cargar el plugin:
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2417"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2425"/>
         <source>DataSource Error</source>
         <translation>Error de fuente de datos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2432"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2440"/>
         <source>DataSource: %1
 %2</source>
         <translation>Fuente de datos: %1
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2439"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2447"/>
         <source>About LogSquirl</source>
         <translation>Acerca de LogSquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2440"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2448"/>
         <source>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is a fork of &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; by Anton Filimonov, which is a fork of &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; by Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</source>
         <translation>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;Un explorador de registros rápido y avanzado.&lt;/p&gt;&lt;p&gt;Compilado el %2 desde %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Este es un fork de &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; por Anton Filimonov, que es un fork de &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; por Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Utiliza iconos del proyecto &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov y otros colaboradores&lt;/p&gt;&lt;p&gt;Puede modificar y redistribuir el programa bajo los términos de la GPL (versión 3 o posterior).&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2459"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2467"/>
         <source>About Qt</source>
         <translation>Acerca de Qt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2472"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2480"/>
         <source>logsquirl documentation</source>
         <translation>Documentación de logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2522"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2530"/>
         <source>Index cache cleared (%1 MB freed)</source>
         <translation>Caché de índices borrada (%1 MB liberados)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2588"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2596"/>
         <source>Merged (dedup)</source>
         <translation>Fusionado (sin duplicados)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2588"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2596"/>
         <source>Merged</source>
         <translation>Fusionado</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2626"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2634"/>
         <source>Import Chipmunk filters</source>
         <translation>Importar filtros de Chipmunk</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2627"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2635"/>
         <source>Chipmunk filters (*.json);;All files (*)</source>
         <translation>Filtros de Chipmunk (*.json);;Todos los archivos (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2635"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2643"/>
         <source>Import error</source>
         <translation>Error de importación</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2636"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2644"/>
         <source>Could not open file: %1</source>
         <translation>No se pudo abrir el archivo: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2644"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2656"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2688"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2652"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2664"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2696"/>
         <source>Import result</source>
         <translation>Resultado de la importación</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2645"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2653"/>
         <source>No filters found in the selected file.</source>
         <translation>No se encontraron filtros en el archivo seleccionado.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2657"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2665"/>
         <source>A filter group named &apos;%1&apos; already exists. Skipping filter import.</source>
         <translation>Ya existe un grupo de filtros llamado &apos;%1&apos;. Se omite la importación de filtros.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2689"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2697"/>
         <source>Imported %1 filter(s) and %2 highlighter set.</source>
         <translation>Se importaron %1 filtro(s) y %2 conjunto de resaltadores.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2776"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2784"/>
         <source>Ln:%1/%2</source>
         <translation>Lín:%1/%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2781"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2789"/>
         <source>Ln:%1/%2 Col:%3 Sel:%4|%5</source>
         <translation>Lín:%1/%2 Col:%3 Sel:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2790"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2798"/>
         <source>Ln:%1/%2 Sel:%4|%5</source>
         <translation>Lín:%1/%2 Sel:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2830"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2838"/>
         <source> - Indexing lines... (%1 %)</source>
         <translation> - Indexando líneas... (%1 %)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2882"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2890"/>
         <source>Not enough memory.</source>
         <translation>Memoria insuficiente.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2884"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2892"/>
         <source>The system does not have enough memory to hold the index for this file. The file will now be closed.</source>
         <translation>El sistema no tiene suficiente memoria para mantener el índice de este archivo. El archivo se cerrará ahora.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2968"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2976"/>
         <source>Close Tab</source>
         <translation>Cerrar pestaña</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2969"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2977"/>
         <source>Close tab &quot;%1&quot;?</source>
         <translation>¿Cerrar la pestaña &quot;%1&quot;?</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2978"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2986"/>
         <source>Don&apos;t ask again</source>
         <translation>No volver a preguntar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2972"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2980"/>
         <source>Close Tabs</source>
         <translation>Cerrar pestañas</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../ui/src/mainwindow.cpp" line="2973"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2981"/>
         <source>Close %n tab(s)?</source>
         <translation>
             <numerusform>¿Cerrar %n pestaña?</numerusform>
@@ -2263,135 +2421,135 @@ Carpeta de trabajo: %2
         </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3347"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3413"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3459"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3748"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3974"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3357"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3423"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3469"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3758"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3982"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3348"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3358"/>
         <source>Extract archive to temp folder?</source>
         <translation>¿Extraer archivo a carpeta temporal?</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="611"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="3382"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3392"/>
         <source>Extracting %1</source>
         <translation>Extrayendo %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3372"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3382"/>
         <source>%1 expands past the %2 MB LogSquirl decompresses at most, so it was not opened. Raise the limit on the File page of the Preferences, under Archives.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3414"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3424"/>
         <source>Failed to decompress %1</source>
         <translation>Error al descomprimir %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3431"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3441"/>
         <source>Open file from archive</source>
         <translation>Abrir archivo desde archivo comprimido</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3460"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3470"/>
         <source>Failed to extract %1</source>
         <translation>Error al extraer %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3749"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3759"/>
         <source>Failed to convert %1 with %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3785"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3795"/>
         <source>Converting %1 with %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3964"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3972"/>
         <source>Untitled</source>
         <translation>Sin título</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3974"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3982"/>
         <source>%1 - %2%3</source>
         <translation>%1 - %2%3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3975"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3983"/>
         <source> (build </source>
         <translation> (compilación </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4001"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4009"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4097"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4105"/>
         <source>modified on %1</source>
         <translation>modificado el %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4223"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4231"/>
         <source>Remove from favorites</source>
         <translation>Eliminar de favoritos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4224"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4232"/>
         <source>Select item to remove from favorites</source>
         <translation>Seleccionar elemento para eliminar de favoritos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4269"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4277"/>
         <source>logsquirl -- switch to file</source>
         <translation>logsquirl -- Cambiar a archivo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4385"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4409"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4393"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4417"/>
         <source>Save Session As</source>
         <translation>Guardar sesión como</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4386"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4421"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4394"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4429"/>
         <source>LogSquirl sessions (*.%1)</source>
         <translation>Sesiones de LogSquirl (*.%1)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4410"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4418"/>
         <source>The session could not be saved to %1:
 %2</source>
         <translation>No se pudo guardar la sesión en %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4420"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4430"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="4483"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4428"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4438"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4491"/>
         <source>Open Session</source>
         <translation>Abrir sesión</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4436"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4444"/>
         <source>The session file %1 could not be read:
 %2</source>
         <translation>No se pudo leer el archivo de sesión %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4457"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4465"/>
         <source>The session holds no log files.</source>
         <translation>La sesión no contiene archivos de registro.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4458"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4466"/>
         <source>None of the log files of this session could be opened. They are missing or already open:
 
 %1</source>
@@ -2400,7 +2558,7 @@ Carpeta de trabajo: %2
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4484"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4492"/>
         <source>These log files of the session were left out. They are missing or already open in another window:
 
 %1</source>
@@ -2409,18 +2567,18 @@ Carpeta de trabajo: %2
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4549"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4557"/>
         <source>logsquirl - generate crash dump</source>
         <translation>logsquirl - Generar informe de error</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="4550"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="4558"/>
         <source>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</source>
         <translation>Esto cerrará LogSquirl y generará un informe de diagnóstico de error. ¿Continuar?</translation>
     </message>
     <message>
         <location filename="../../ui/include/pluginuiadapter.h" line="203"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="1498"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1488"/>
         <source>Plugins</source>
         <translation>Plugins</translation>
     </message>
@@ -2539,644 +2697,664 @@ Carpeta de trabajo: %2
         <translation>General</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="45"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="67"/>
         <source>Search options</source>
         <translation>Opciones de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="77"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="161"/>
         <source>Search history size:</source>
         <translation>Tamaño del historial de búsqueda:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="105"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="178"/>
         <source>QuickFind search type: </source>
         <translation>Tipo de búsqueda rápida: </translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="60"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="119"/>
         <source>Highlight matches</source>
         <translation>Resaltar coincidencias</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="70"/>
-        <source>Incremental</source>
-        <translation>Incremental</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="84"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="126"/>
         <source>Variate highlight</source>
         <translation>Variar resaltado</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="91"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="73"/>
         <source>Main search type: </source>
         <translation>Tipo de búsqueda principal: </translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="98"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="154"/>
         <source>Run search on add or replace pattern</source>
         <translation>Ejecutar búsqueda al agregar o reemplazar patrón</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="146"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="133"/>
         <source>Case sensitive</source>
         <translation>Distinguir mayúsculas y minúsculas</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="153"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="93"/>
+        <source>Main search match color:</source>
+        <translation>Color de coincidencia de la búsqueda principal:</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="109"/>
+        <source>The background color of the text the main search matches</source>
+        <translation>El color de fondo del texto que coincide con la búsqueda principal</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="140"/>
         <source>Logical combining</source>
         <translation>Combinación lógica</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="160"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="147"/>
         <source>Auto refresh</source>
         <translation>Actualización automática</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="172"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="198"/>
+        <source>QuickFind match color:</source>
+        <translation>Color de coincidencia de la búsqueda rápida:</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="214"/>
+        <source>The background color of the text QuickFind matches</source>
+        <translation>El color de fondo del texto que coincide con la búsqueda rápida</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="227"/>
+        <source>Incremental QuickFind</source>
+        <translation>Búsqueda rápida incremental</translation>
+    </message>
+    <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="237"/>
         <source>Session options</source>
         <translation>Opciones de sesión</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="178"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="243"/>
         <source>Minimize to tray</source>
         <translation>Minimizar a la bandeja</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="185"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="250"/>
         <source>Load last session</source>
         <translation>Cargar última sesión</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="192"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="257"/>
         <source>Follow file on load</source>
         <translation>Seguir archivo al cargar</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="199"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="264"/>
         <source>Enable multiple windows</source>
         <translation>Habilitar múltiples ventanas</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="206"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="271"/>
         <source>Confirm before closing tabs</source>
         <translation>Confirmar antes de cerrar pestañas</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="213"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="278"/>
         <source>Show splash screen on startup</source>
         <translation>Mostrar pantalla de bienvenida al iniciar</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="220"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="285"/>
         <source>Show dashboard on startup</source>
         <translation>Mostrar panel de inicio al iniciar</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="227"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="292"/>
         <source>Applies to windows opened from now on</source>
         <translation>Se aplica a las ventanas que se abran a partir de ahora</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="240"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="305"/>
         <source>Version checking options</source>
         <translation>Opciones de verificación de versión</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="246"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="311"/>
         <source>Check for new version</source>
         <translation>Buscar nueva versión</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="253"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="318"/>
         <source>When enabled, checks for beta versions on every application start</source>
         <translation>Si está activado, busca versiones beta en cada inicio de la aplicación</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="256"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="321"/>
         <source>Check for beta updates</source>
         <translation>Buscar actualizaciones beta</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="280"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="349"/>
         <source>View</source>
         <translation>Vista</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="292"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="383"/>
         <source>Text</source>
         <translation>Texto</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="302"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="393"/>
         <source>Font family: </source>
         <translation>Familia de fuente: </translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="319"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="410"/>
         <source>Font size: </source>
         <translation>Tamaño de fuente: </translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="341"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="432"/>
         <source>Force font anti-aliasing</source>
         <translation>Forzar suavizado de fuentes</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="362"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="453"/>
         <source>Show Value Names on file open</source>
         <translation>Mostrar nombres de valores al abrir un archivo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="376"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="467"/>
         <source>Language</source>
         <translation>Idioma</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="388"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="479"/>
         <source>Style</source>
         <translation>Estilo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="402"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="493"/>
         <source>High DPI</source>
         <translation>Alto DPI</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="408"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="499"/>
         <source>Enable Qt High DPI support</source>
         <translation>Habilitar soporte Qt High DPI</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="420"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="511"/>
         <source>Scale rounding:</source>
         <translation>Redondeo de escala:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="434"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="525"/>
         <source>Round</source>
         <translation>Redondear</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="439"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="530"/>
         <source>Ceil</source>
         <translation>Techo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="444"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="535"/>
         <source>Floor</source>
         <translation>Piso</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="449"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="540"/>
         <source>RoundPreferFloor</source>
         <translation>Redondear (preferir piso)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="454"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="545"/>
         <source>PassThrough</source>
         <translation>Sin cambios</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="464"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="555"/>
         <source>Need to restart application to apply these settings</source>
         <translation>Es necesario reiniciar la aplicación para aplicar estos ajustes</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="474"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="565"/>
         <source>Miscellaneous</source>
         <translation>Varios</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="529"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="620"/>
         <source>Enable fast scrolling with Alt key</source>
         <translation>Habilitar desplazamiento rápido con la tecla Alt</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="538"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="629"/>
         <source>Fast scroll multiplier</source>
         <translation>Multiplicador de desplazamiento rápido</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="562"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="653"/>
         <source>Context lines around matches (0 = off)</source>
         <translation>Líneas de contexto alrededor de las coincidencias (0 = desactivado)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="601"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="696"/>
         <source>File</source>
         <translation>Archivo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="607"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="724"/>
         <source>File change monitoring</source>
         <translation>Monitoreo de cambios de archivo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="613"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="730"/>
         <source>Enable filesystem change monitoring</source>
         <translation>Habilitar monitoreo de cambios del sistema de archivos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="620"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="737"/>
         <source>Enable polling</source>
         <translation>Habilitar sondeo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="629"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="746"/>
         <source>Polling interval (ms):</source>
         <translation>Intervalo de sondeo (ms):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="651"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="768"/>
         <source>Use fast modification detection</source>
         <translation>Usar detección rápida de modificaciones</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="658"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="775"/>
         <source>Turn on follow on scroll past the end</source>
         <translation>Activar seguimiento al desplazar más allá del final</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="668"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="785"/>
         <source>Encoding</source>
         <translation>Codificación</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="676"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="793"/>
         <source>Encoding for new files</source>
         <translation>Codificación para nuevos archivos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="700"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="817"/>
         <source>Recent files</source>
         <translation>Archivos recientes</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="714"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="831"/>
         <source>Show the number of recently opened files:</source>
         <translation>Mostrar la cantidad de archivos abiertos recientemente:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="736"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="853"/>
         <source>Archives</source>
         <translation>Archivos comprimidos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="742"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="859"/>
         <source>Extract archives</source>
         <translation>Extraer archivos comprimidos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="749"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="866"/>
         <source>Extract archives without confirmation</source>
         <translation>Extraer archivos comprimidos sin confirmación</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="758"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="875"/>
         <source>Decompress at most (MB):</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="771"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="888"/>
         <source>A compressed file or an archive expands to at most this many megabytes; a larger one is not opened</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="792"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="909"/>
         <source>File download</source>
         <translation>Descarga de archivos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="798"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="915"/>
         <source>Verify certificates for https connections</source>
         <translation>Verificar certificados para conexiones HTTPS</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="825"/>
-        <location filename="../../ui/src/optionsdialog.cpp" line="601"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="946"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="616"/>
         <source>File Associations</source>
         <translation>Asociaciones de archivos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="831"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="974"/>
         <source>Choose the file types LogSquirl opens when you double-click them.</source>
         <translation>Elija los tipos de archivo que LogSquirl abre al hacer doble clic en ellos.</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="891"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1034"/>
         <source>File type</source>
         <translation>Tipo de archivo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="901"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1044"/>
         <source>State</source>
         <translation>Estado</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="909"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1052"/>
         <source>Offer Open with LogSquirl in the context menu of every file</source>
         <translation>Ofrecer «Abrir con LogSquirl» en el menú contextual de todos los archivos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="912"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1055"/>
         <source>Opens files of any type in LogSquirl, such as rotated logs like app.log.1.</source>
         <translation>Abre en LogSquirl archivos de cualquier tipo, como registros rotados del tipo app.log.1.</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="927"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1074"/>
         <source>Shortcuts</source>
         <translation>Atajos de teclado</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="961"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1130"/>
         <source>Restore defaults</source>
         <translation>Restablecer valores predeterminados</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="974"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1147"/>
         <source>Advanced</source>
         <translation>Avanzado</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="980"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1175"/>
         <source>Indexing and search</source>
         <translation>Indexación y búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="990"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1185"/>
         <source>Regular expressions engine:</source>
         <translation>Motor de expresiones regulares:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1055"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1250"/>
         <source>Keep file closed (file reload required)</source>
         <translation>Mantener el archivo cerrado (requiere recargar el archivo)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1062"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1257"/>
         <source>Use compressed index (file reload required)</source>
         <translation>Usar índice comprimido (requiere recargar el archivo)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1072"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1267"/>
         <source>Use parallel search</source>
         <translation>Usar búsqueda paralela</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1235"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1434"/>
         <source>Team Folder</source>
         <translation>Carpeta de equipo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1254"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1475"/>
         <source>Repository URL:</source>
         <translation>URL del repositorio:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1264"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1485"/>
         <source>https://… or git@…</source>
         <translation>https://… o git@…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1271"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1492"/>
         <source>Subfolder:</source>
         <translation>Subcarpeta:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1281"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1502"/>
         <source>The repository&apos;s top folder</source>
         <translation>La carpeta superior del repositorio</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1435"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1656"/>
         <source>Open Folder</source>
         <translation>Abrir carpeta</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1438"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1659"/>
         <source>Open the Team Folder&apos;s clone in the file manager</source>
         <translation>Abrir el clon de la carpeta de equipo en el administrador de archivos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1476"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1697"/>
         <source>LogSquirl clones the repository into its own data folder with the Git installed on this computer, and signs in the way Git does for you. Turning the Team Folder off or changing the repository leaves your own groups as they are.</source>
         <translation>LogSquirl clona el repositorio en su propia carpeta de datos con el Git instalado en este equipo e inicia sesión como lo hace Git por usted. Desactivar la carpeta de equipo o cambiar el repositorio deja sus propios grupos como están.</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1428"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1649"/>
         <source>Sync Now</source>
         <translation>Sincronizar ahora</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1241"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1462"/>
         <source>Share Filter Groups, Highlighter Sets and Naming Groups with the team through a Team Folder</source>
         <translation>Compartir grupos de filtros, conjuntos de resaltadores y grupos de nombres con el equipo mediante una carpeta de equipo</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1248"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1469"/>
         <source>Repository</source>
         <translation>Repositorio</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1291"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1512"/>
         <source>Status</source>
         <translation>Estado</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1368"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1589"/>
         <source>Details from Git</source>
         <translation>Detalles de Git</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1400"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1621"/>
         <source>Copy</source>
         <translation>Copiar</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1403"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1624"/>
         <source>Copy Git&apos;s output to the clipboard</source>
         <translation>Copiar la salida de Git al portapapeles</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1487"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1712"/>
         <source>Log Formats</source>
         <translation>Formatos de registro</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1493"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1740"/>
         <source>Auto-detect log format (table view)</source>
         <translation>Detectar automáticamente el formato de registro (vista de tabla)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1500"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1747"/>
         <source>Automatically switch to table view when format is detected</source>
         <translation>Cambiar automáticamente a la vista de tabla cuando se detecta el formato</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1507"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1754"/>
         <source>Available Formats:</source>
         <translation>Formatos disponibles:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1533"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1780"/>
         <source>Name</source>
         <translation>Nombre</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="896"/>
-        <location filename="../../ui/include/optionsdialog.ui" line="1538"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1039"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1785"/>
         <source>Description</source>
         <translation>Descripción</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1543"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1790"/>
         <source>Source</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1551"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1798"/>
         <source>Open Formats Folder…</source>
         <translation>Abrir carpeta de formatos…</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1007"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1202"/>
         <source>Index file read buffer (Mib):</source>
         <translation>Búfer de lectura de archivo de índice (MiB):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="348"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="439"/>
         <source>Use bold font (if supported by selected font)</source>
         <translation>Usar fuente en negrita (si la fuente seleccionada lo admite)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="355"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="446"/>
         <source>Enable text wrap on file open</source>
         <translation>Habilitar ajuste de línea al abrir archivos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="482"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="573"/>
         <source>ANSI color sequences:</source>
         <translation>Secuencias de color ANSI:</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="499"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="590"/>
         <source>Show as text</source>
         <translation>Mostrar como texto</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="504"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="595"/>
         <source>Hide</source>
         <translation>Ocultar</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="509"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="600"/>
         <source>Show colors</source>
         <translation>Mostrar colores</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="519"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="610"/>
         <source>Hide and Show colors reduce search performance</source>
         <translation>Ocultar y Mostrar colores reducen el rendimiento de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1027"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1222"/>
         <source>Search read buffer (lines):</source>
         <translation>Búfer de lectura de búsqueda (líneas):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1052"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1247"/>
         <source>File will be kept closed as much as possible. Affects only files opened after check state changed</source>
         <translation>El archivo se mantendrá cerrado tanto como sea posible. Solo afecta archivos abiertos después del cambio</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1082"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1277"/>
         <source>Optimize search for non-latin encodings</source>
         <translation>Optimizar búsqueda para codificaciones no latinas</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1094"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1289"/>
         <source>Caching</source>
         <translation>Almacenamiento en caché</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1109"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1304"/>
         <source>Enable search results cache</source>
         <translation>Habilitar caché de resultados de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1119"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1314"/>
         <source>Search cache size (lines):</source>
         <translation>Tamaño de caché de búsqueda (líneas):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1142"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1337"/>
         <source>Cache file indexes to disk so re-opening a file skips indexing</source>
         <translation>Guardar en caché los índices de archivos en disco para que al volver a abrir un archivo se omita la indexación</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1145"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1340"/>
         <source>Enable index cache (persist indexes to disk)</source>
         <translation>Habilitar caché de índices (guardar índices en disco)</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1155"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1350"/>
         <source>Index cache max size (MB):</source>
         <translation>Tamaño máximo de la caché de índices (MB):</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1184"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1379"/>
         <source>Logging</source>
         <translation>Registro</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1190"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1385"/>
         <source>Enable logging</source>
         <translation>Habilitar registro</translation>
     </message>
     <message>
-        <location filename="../../ui/include/optionsdialog.ui" line="1199"/>
+        <location filename="../../ui/include/optionsdialog.ui" line="1394"/>
         <source>Verbosity</source>
         <translation>Nivel de detalle</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="177"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="192"/>
         <source>Extended Regexp</source>
         <translation>Regexp extendido</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="177"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="192"/>
         <source>Fixed Strings</source>
         <translation>Cadenas fijas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="183"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="198"/>
         <source>Qt</source>
         <translation>Qt</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="183"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="198"/>
         <source>Vectorscan</source>
         <translation>Vectorscan</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="401"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="416"/>
         <source>Last synced: %1</source>
         <translation>Última sincronización: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="404"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="419"/>
         <source>never</source>
         <translation>nunca</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="427"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="442"/>
         <source>Built-in</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="429"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="444"/>
         <source>User</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3221,34 +3399,34 @@ Carpeta de trabajo: %2
         <translation>LogSquirl no se ofrece para estos archivos.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="783"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="798"/>
         <source>Turned off when LogSquirl was installed. Run the installer again to turn it back on.</source>
         <translation>Desactivada al instalar LogSquirl. Vuelva a ejecutar el instalador para activarla de nuevo.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1040"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1055"/>
         <source>LogSquirl needs to be restarted to apply some changes. </source>
         <translation>Es necesario reiniciar LogSquirl para aplicar algunos cambios. </translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1229"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1244"/>
         <source>Click or press Enter to record a shortcut, Escape cancels.
 Backspace or Delete clears the shortcut.</source>
         <translation>Haga clic o pulse Intro para grabar un atajo; Escape cancela.
 Retroceso o Suprimir borra el atajo.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1244"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1259"/>
         <source>Action</source>
         <translation>Acción</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1245"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1260"/>
         <source>Primary shortcut</source>
         <translation>Atajo principal</translation>
     </message>
     <message>
-        <location filename="../../ui/src/optionsdialog.cpp" line="1247"/>
+        <location filename="../../ui/src/optionsdialog.cpp" line="1262"/>
         <source>Secondary shortcut</source>
         <translation>Atajo secundario</translation>
     </message>
@@ -3410,10 +3588,10 @@ Retroceso o Suprimir borra el atajo.</translation>
         <location filename="../../ui/src/plugindialog.cpp" line="498"/>
         <source>%1 has been installed and activated.
 
-You can now use it from the Plugins menu.</source>
+You can now use it from Tools &gt; Plugins.</source>
         <translation>%1 se ha instalado y activado.
 
-Ya puede usarlo desde el menú Plugins.</translation>
+Ya puede usarlo desde Herramientas &gt; Plugins.</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="510"/>
@@ -3557,19 +3735,6 @@ Reinicie LogSquirl para volver a intentarlo.</translation>
     </message>
 </context>
 <context>
-    <name>PluginGroupsSection</name>
-    <message>
-        <location filename="../../ui/src/plugingroupssection.cpp" line="32"/>
-        <source>Copy to my groups</source>
-        <translation type="unfinished">Copiar a mis grupos</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/plugingroupssection.cpp" line="35"/>
-        <source>Shipped by the enabled plugins: read-only, and gone when the plugin is disabled.</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>PluginMetadata</name>
     <message>
         <location filename="../../plugins/src/pluginmetadata.cpp" line="275"/>
@@ -3651,269 +3816,36 @@ Reinicie LogSquirl para volver a intentarlo.</translation>
         <translation>Filtros predefinidos</translation>
     </message>
     <message>
-        <location filename="../../ui/include/predefinedfiltersdialog.ui" line="36"/>
-        <source>Filter groups</source>
-        <translation>Grupos de filtros</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/predefinedfiltersdialog.ui" line="51"/>
-        <source>New Filter Group</source>
-        <translation>Nuevo grupo de filtros</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/predefinedfiltersdialog.ui" line="65"/>
-        <source>Delete Filter Group</source>
-        <translation>Eliminar grupo de filtros</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/predefinedfiltersdialog.ui" line="119"/>
-        <source>Move Group Up</source>
-        <translation>Mover grupo arriba</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/predefinedfiltersdialog.ui" line="133"/>
-        <source>Move Group Down</source>
-        <translation>Mover grupo abajo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/predefinedfiltersdialog.ui" line="160"/>
+        <location filename="../../ui/include/predefinedfiltersdialog.ui" line="37"/>
         <source>Filter group properties</source>
         <translation>Propiedades del grupo de filtros</translation>
     </message>
     <message>
-        <location filename="../../ui/include/predefinedfiltersdialog.ui" line="99"/>
-        <source>Import</source>
-        <translation>Importar</translation>
-    </message>
-    <message>
-        <location filename="../../ui/include/predefinedfiltersdialog.ui" line="92"/>
-        <source>Export</source>
-        <translation>Exportar</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="101"/>
-        <source>Plugin groups</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="218"/>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="226"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="271"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="279"/>
         <source>Export predefined filters</source>
         <translation>Exportar filtros predefinidos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="219"/>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="236"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="272"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="289"/>
         <source>Predefined filters (*.conf)</source>
         <translation>Filtros predefinidos (*.conf)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="227"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="280"/>
         <source>The file %1 could not be written.</source>
         <translation>No se pudo escribir el archivo %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="236"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="289"/>
         <source>Select one or more files to open</source>
         <translation>Seleccionar uno o más archivos para abrir</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="243"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="296"/>
         <source>Import predefined filters</source>
         <translation>Importar filtros predefinidos</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="387"/>
-        <source>Team groups</source>
-        <translation>Grupos de equipo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="388"/>
-        <source>New Team group</source>
-        <translation>Nuevo grupo de equipo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="446"/>
-        <source>Delete Team group</source>
-        <translation>Eliminar grupo de equipo</translation>
-    </message>
-</context>
-<context>
-    <name>PresentationMenu</name>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="153"/>
-        <source>Highlighters</source>
-        <translation>Resaltadores</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="159"/>
-        <source>Color labels</source>
-        <translation>Etiquetas de color</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="166"/>
-        <source>&amp;Mark</source>
-        <translation>&amp;Marcar</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="166"/>
-        <source>Unmark</source>
-        <translation>Desmarcar</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="170"/>
-        <source>&amp;Copy this line</source>
-        <translation>&amp;Copiar esta línea</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="170"/>
-        <source>&amp;Copy</source>
-        <translation>&amp;Copiar</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="174"/>
-        <source>Copy the selection</source>
-        <translation>Copiar la selección</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="177"/>
-        <source>Copy this line with line number</source>
-        <translation>Copiar esta línea con número de línea</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="178"/>
-        <source>Copy with line numbers</source>
-        <translation>Copiar con números de línea</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="182"/>
-        <source>Copy as shown</source>
-        <translation>Copiar como se muestra</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="183"/>
-        <source>Copy the selection as shown, with its Value Names</source>
-        <translation>Copiar la selección como se muestra, con sus nombres de valores</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="186"/>
-        <source>Send to scratchpad</source>
-        <translation>Enviar al bloc de notas</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="188"/>
-        <source>Replace scratchpad</source>
-        <translation>Reemplazar bloc de notas</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="194"/>
-        <source>Find &amp;next</source>
-        <translation>Buscar &amp;siguiente</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="198"/>
-        <source>Find the next occurrence</source>
-        <translation>Buscar la siguiente coincidencia</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="200"/>
-        <source>Find &amp;previous</source>
-        <translation>Buscar &amp;anterior</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="202"/>
-        <source>/</source>
-        <translation>/</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="204"/>
-        <source>Find the previous occurrence</source>
-        <translation>Buscar la coincidencia anterior</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="208"/>
-        <source>&amp;Replace search</source>
-        <translation>&amp;Reemplazar búsqueda</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="209"/>
-        <source>Replace the search expression with the selection</source>
-        <translation>Reemplazar la expresión de búsqueda con la selección</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="211"/>
-        <source>&amp;Add to search</source>
-        <translation>&amp;Agregar a la búsqueda</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="212"/>
-        <source>Add the selection to the current search</source>
-        <translation>Agregar la selección a la búsqueda actual</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="214"/>
-        <source>&amp;Exclude from search</source>
-        <translation>&amp;Excluir de la búsqueda</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="220"/>
-        <source>Excludes the selection from search</source>
-        <translation>Excluye la selección de la búsqueda</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="224"/>
-        <source>Search this value in %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="226"/>
-        <source>Narrows the search to the lines whose %1 field has the value of this cell, as a logical combination</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="240"/>
-        <source>Set search start</source>
-        <translation>Establecer inicio de búsqueda</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="247"/>
-        <source>Set search end</source>
-        <translation>Establecer fin de búsqueda</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="254"/>
-        <source>Clear search limits</source>
-        <translation>Borrar límites de búsqueda</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="258"/>
-        <source>Set selection start</source>
-        <translation>Establecer inicio de selección</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="260"/>
-        <source>Set selection end</source>
-        <translation>Establecer fin de selección</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="265"/>
-        <source>Save splitter position</source>
-        <translation>Guardar posición del divisor</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="266"/>
-        <source>Save to file</source>
-        <translation>Guardar en archivo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="267"/>
-        <source>Save selected to file</source>
-        <translation>Guardar selección en archivo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/presentationmenu.cpp" line="270"/>
-        <source>Export as CSV...</source>
-        <translation>Exportar como CSV...</translation>
     </message>
 </context>
 <context>
@@ -4712,6 +4644,24 @@ Reinicie LogSquirl para volver a intentarlo.</translation>
     </message>
 </context>
 <context>
+    <name>SoloSelection</name>
+    <message>
+        <location filename="../../ui/src/soloselection.cpp" line="113"/>
+        <source>Show only this</source>
+        <translation>Mostrar solo esto</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/soloselection.cpp" line="123"/>
+        <source>Restore previous selection</source>
+        <translation>Restaurar la selección anterior</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/soloselection.cpp" line="137"/>
+        <source>Double-click: show only this</source>
+        <translation>Doble clic: mostrar solo esto</translation>
+    </message>
+</context>
+<context>
     <name>TabGroupManagerDialog</name>
     <message>
         <location filename="../../ui/src/tabgroupmanagerdialog.cpp" line="37"/>
@@ -5094,39 +5044,6 @@ Reinicie LogSquirl para volver a intentarlo.</translation>
     </message>
 </context>
 <context>
-    <name>TeamGroupsSection</name>
-    <message>
-        <location filename="../../ui/src/teamgroupssection.cpp" line="36"/>
-        <source>Share with team</source>
-        <translation>Compartir con el equipo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/teamgroupssection.cpp" line="37"/>
-        <source>Copy to my groups</source>
-        <translation>Copiar a mis grupos</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/teamgroupssection.cpp" line="38"/>
-        <source>Delete for the team</source>
-        <translation>Eliminar para el equipo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/teamgroupssection.cpp" line="42"/>
-        <source>Shared through the Team Folder: they change when the team changes them.</source>
-        <translation>Compartidos mediante la carpeta de equipo: cambian cuando el equipo los cambia.</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/teamgroupssection.cpp" line="50"/>
-        <source>Adds a Team copy of the selected group of your own.</source>
-        <translation>Agrega una copia de equipo del grupo propio seleccionado.</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/teamgroupssection.cpp" line="84"/>
-        <source>This deletes the group for the whole team.</source>
-        <translation>Esto elimina el grupo para todo el equipo.</translation>
-    </message>
-</context>
-<context>
     <name>TimeNavigation</name>
     <message>
         <location filename="../../ui/src/timenavigation.cpp" line="82"/>
@@ -5447,274 +5364,222 @@ Sin fecha, se usa %1.</translation>
         <translation>Nombres de valores</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="403"/>
-        <source>Naming Groups</source>
-        <translation>Grupos de nombres</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="410"/>
-        <source>Add a Naming Group</source>
-        <translation>Añadir un grupo de nombres</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="411"/>
-        <source>Remove the Naming Group</source>
-        <translation>Eliminar el grupo de nombres</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="412"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="460"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="431"/>
         <source>Move up</source>
         <translation>Subir</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="413"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="461"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="432"/>
         <source>Move down</source>
         <translation>Bajar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="421"/>
-        <source>Export...</source>
-        <translation>Exportar...</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="423"/>
-        <source>Writes the selected Naming Group to a file of its own.</source>
-        <translation>Escribe el grupo de nombres seleccionado en un archivo propio.</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="424"/>
-        <source>Import...</source>
-        <translation>Importar...</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="426"/>
-        <source>Adds the Naming Groups of files to your own.</source>
-        <translation>Añade a los suyos los grupos de nombres de los archivos.</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="438"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="409"/>
         <source>Name:</source>
         <translation>Nombre:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="445"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="416"/>
         <source>Naming Rules</source>
         <translation>Reglas de nombres</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="450"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="505"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="421"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="476"/>
         <source>Name</source>
         <translation>Nombre</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="450"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="421"/>
         <source>Regex</source>
         <translation>Regex</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="450"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="421"/>
         <source>Template</source>
         <translation>Plantilla</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="458"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="429"/>
         <source>Add a Naming Rule</source>
         <translation>Añadir una regla de nombres</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="459"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="430"/>
         <source>Remove the Naming Rule</source>
         <translation>Eliminar la regla de nombres</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="470"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="441"/>
         <source>Name Table of each capture group:</source>
         <translation>Tabla de nombres de cada grupo de captura:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="475"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="446"/>
         <source>Capture group</source>
         <translation>Grupo de captura</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="475"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="446"/>
         <source>Name Table</source>
         <translation>Tabla de nombres</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="483"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="454"/>
         <source>Name Tables</source>
         <translation>Tablas de nombres</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="488"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="459"/>
         <source>Double-click a Name Table to rename it.</source>
         <translation>Haga doble clic en una tabla de nombres para cambiarle el nombre.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="491"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="462"/>
         <source>Add a Name Table</source>
         <translation>Añadir una tabla de nombres</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="492"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="463"/>
         <source>Remove the Name Table</source>
         <translation>Eliminar la tabla de nombres</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="500"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="471"/>
         <source>Keys are case-sensitive</source>
         <translation>Las claves distinguen mayúsculas y minúsculas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="505"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="476"/>
         <source>Key regex</source>
         <translation>Regex de la clave</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="510"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="481"/>
         <source>Add a row</source>
         <translation>Añadir una fila</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="511"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="482"/>
         <source>Remove the selected rows</source>
         <translation>Eliminar las filas seleccionadas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="512"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="483"/>
         <source>Import CSV...</source>
         <translation>Importar CSV...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="513"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="484"/>
         <source>Export CSV...</source>
         <translation>Exportar CSV...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="514"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="485"/>
         <source>Paste</source>
         <translation>Pegar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="515"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="486"/>
         <source>Adds the rows copied from a spreadsheet: key, then name.</source>
         <translation>Añade las filas copiadas de una hoja de cálculo: clave y luego nombre.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="527"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="498"/>
         <source>Preview</source>
         <translation>Vista previa</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="532"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="503"/>
         <source>Paste a sample Log Line here: all rules of the group run on it, checked or not</source>
         <translation>Pegue aquí una línea de registro de ejemplo: se aplican todas las reglas del grupo, marcadas o no</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="739"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="762"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1631"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="700"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="724"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="735"/>
         <source>New Naming Group</source>
         <translation>Nuevo grupo de nombres</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="852"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="892"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="823"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="863"/>
         <source>Rule</source>
         <translation>Regla</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="959"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="930"/>
         <source>whole match</source>
         <translation>coincidencia completa</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="981"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="952"/>
         <source>(none)</source>
         <translation>(ninguna)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1074"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1109"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1241"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1280"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1045"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1080"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1212"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1251"/>
         <source>Table</source>
         <translation>Tabla</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1305"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1311"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1276"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1282"/>
         <source>Import CSV</source>
         <translation>Importar CSV</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1305"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1276"/>
         <source>CSV files (*.csv *.tsv *.txt);;All files (*)</source>
         <translation>Archivos CSV (*.csv *.tsv *.txt);;Todos los archivos (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1312"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1283"/>
         <source>The file %1 could not be read.</source>
         <translation>No se pudo leer el archivo %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1333"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1342"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1304"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1313"/>
         <source>Export CSV</source>
         <translation>Exportar CSV</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1335"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1306"/>
         <source>CSV files (*.csv);;All files (*)</source>
         <translation>Archivos CSV (*.csv);;Todos los archivos (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1343"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1523"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1314"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1487"/>
         <source>The file %1 could not be written.</source>
         <translation>No se pudo escribir el archivo %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1514"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1522"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1478"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1486"/>
         <source>Export Naming Group</source>
         <translation>Exportar grupo de nombres</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1515"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1553"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1479"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1517"/>
         <source>Value Names (*.conf)</source>
         <translation>Nombres de valores (*.conf)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1534"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1558"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1498"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1522"/>
         <source>Import Naming Groups</source>
         <translation>Importar grupos de nombres</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1553"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1517"/>
         <source>Select one or more files to open</source>
         <translation>Seleccionar uno o más archivos para abrir</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1570"/>
-        <source>Team groups</source>
-        <translation>Grupos de equipo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1570"/>
-        <source>New Team group</source>
-        <translation>Nuevo grupo de equipo</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1664"/>
-        <source>Delete Team group</source>
-        <translation>Eliminar grupo de equipo</translation>
     </message>
 </context>
 <context>
@@ -5725,32 +5590,32 @@ Sin fecha, se usa %1.</translation>
         <translation>Buscar nombres de valores...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="59"/>
+        <location filename="../../ui/src/valuenamespanel.cpp" line="72"/>
         <source>No Naming Groups yet: Edit... adds one.</source>
         <translation>Aún no hay grupos de nombres: Editar... añade uno.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="64"/>
+        <location filename="../../ui/src/valuenamespanel.cpp" line="77"/>
         <source>Select All</source>
         <translation>Seleccionar todo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="65"/>
+        <location filename="../../ui/src/valuenamespanel.cpp" line="78"/>
         <source>Deselect All</source>
         <translation>Deseleccionar todo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="66"/>
+        <location filename="../../ui/src/valuenamespanel.cpp" line="79"/>
         <source>Edit...</source>
         <translation>Editar...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="115"/>
+        <location filename="../../ui/src/valuenamespanel.cpp" line="129"/>
         <source>%1 (Team)</source>
         <translation>%1 (Equipo)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamespanel.cpp" line="116"/>
+        <location filename="../../ui/src/valuenamespanel.cpp" line="130"/>
         <source>A Team group, shared through the Team Folder</source>
         <translation>Un grupo de equipo, compartido mediante la carpeta de equipo</translation>
     </message>

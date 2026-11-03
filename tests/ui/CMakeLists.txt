@@ -24,12 +24,14 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/default_encoding_check_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/command_palette_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filterspanel_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/soloselection_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/valuenames_ui_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_switch_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/applicationplugins_window_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/pluginlogformats_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugingroups_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/highlightersdialog_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/grouplist_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/dialog_queued_work_test.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_screenshots_test.cpp
@@ -46,6 +48,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/modal_paths_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow_tabs_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow_load_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/menubar_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_window_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/predefinedfiltersetedit_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_editors_test.cpp

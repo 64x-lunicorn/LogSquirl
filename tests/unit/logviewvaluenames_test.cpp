@@ -48,6 +48,7 @@
 #include <QVBoxLayout>
 
 #include "abstractlogview.h"
+#include "context_menu_entries.h"
 #include "counting_log_data.h"
 #include "fake_log_data.h"
 #include "painting_test_font.h"
@@ -184,14 +185,13 @@ void doubleClick( AbstractLogView& view, QPointF pos )
 void chooseFromMenu( ValueNamesLogView& view, QPointF pos, const QString& entry )
 {
     const auto menu = view.createContextMenu( pos.toPoint() );
-    for ( auto* action : menu->actions() ) {
-        if ( action->text() == entry ) {
-            REQUIRE( action->isEnabled() );
-            action->trigger();
-            return;
-        }
+    auto* action = contextMenuEntry( *menu, entry );
+    if ( action == nullptr ) {
+        FAIL( "no entry " << entry.toStdString() );
+        return;
     }
-    FAIL( "no entry " << entry.toStdString() );
+    REQUIRE( action->isEnabled() );
+    action->trigger();
 }
 
 // How many Visual Lines of the Log Line the Viewport holds.

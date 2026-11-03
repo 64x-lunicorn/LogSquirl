@@ -337,8 +337,14 @@ SCENARIO(
             QMimeData mimeData;
             mimeData.setUrls( { QUrl::fromLocalFile( path ) } );
             // A drop reaches the widget that accepted the drag entering it.
+            // Qt 6.12 adds the QPointF constructor and deprecates the QPoint one.
+#if QT_VERSION >= QT_VERSION_CHECK( 6, 12, 0 )
+            QDragEnterEvent enter( QPointF( 10, 10 ), Qt::CopyAction, &mimeData, Qt::LeftButton,
+                                   Qt::NoModifier );
+#else
             QDragEnterEvent enter( QPoint( 10, 10 ), Qt::CopyAction, &mimeData, Qt::LeftButton,
                                    Qt::NoModifier );
+#endif
             QApplication::sendEvent( &window, &enter );
             REQUIRE( enter.isAccepted() );
             QDropEvent drop( QPointF( 10, 10 ), Qt::CopyAction, &mimeData, Qt::LeftButton,

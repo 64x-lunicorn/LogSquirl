@@ -19,9 +19,13 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <QAction>
 #include <QApplication>
+#include <QLineEdit>
 #include <QMap>
+#include <QMenu>
 #include <QMetaObject>
+#include <QPushButton>
 #include <QSignalSpy>
 #include <QTreeWidget>
 #include <QVariant>
@@ -29,6 +33,7 @@
 #include "filterspanel.h"
 #include "persistentinfo.h"
 #include "predefinedfilters.h"
+#include "soloselection.h"
 
 // Helper: locate the internal QTreeWidget inside a FiltersPanel.
 static QTreeWidget* findTree( FiltersPanel* panel )
@@ -331,6 +336,154 @@ SCENARIO( "flushPendingSaves is a no-op when nothing is pending", "[filterspanel
                 auto* tree = findTree( &panel );
                 REQUIRE( tree != nullptr );
                 REQUIRE( countChecked( tree ) == 0 );
+            }
+        }
+    }
+}
+
+SCENARIO( "The search of the Filters tab keeps the checks of the filters it hides",
+          "[filterspanel][search]" )
+{
+    FiltersPanelTestStateGuard stateGuard;
+    setupTestFilters();
+
+    GIVEN( "the filters Error and Debug checked" )
+    {
+        FiltersPanel panel;
+        auto* tree = findTree( &panel );
+        REQUIRE( tree != nullptr );
+        invokeDoubleClick( &panel, findGroup( tree, "GroupA" )->child( 0 ) );
+        findGroup( tree, "GroupB" )->child( 0 )->setCheckState( 0, Qt::Checked );
+        QCoreApplication::processEvents();
+        REQUIRE( countChecked( tree ) == 2 );
+
+        QSignalSpy spy( &panel, &FiltersPanel::filtersChanged );
+        auto* searchBox = panel.findChild<QLineEdit*>();
+        REQUIRE( searchBox != nullptr );
+
+        WHEN( "the search shows Debug only" )
+        {
+            searchBox->setText( QStringLiteral( "debug" ) );
+
+            THEN( "Error is still an active filter" )
+            {
+                REQUIRE( !spy.isEmpty() );
+                REQUIRE( spy.last().at( 0 ).value<QList<PredefinedFilter>>().size() == 2 );
+            }
+
+            AND_WHEN( "Deselect All is clicked and the search is cleared" )
+            {
+                for ( auto* button : panel.findChildren<QPushButton*>() ) {
+                    if ( button->text() == QStringLiteral( "Deselect All" ) ) {
+                        button->click();
+                    }
+                }
+                searchBox->clear();
+
+                THEN( "only the filter shown was unchecked: Error is checked again" )
+                {
+                    REQUIRE( countChecked( tree ) == 1 );
+                    REQUIRE( findGroup( tree, "GroupA" )->child( 0 )->checkState( 0 )
+                             == Qt::Checked );
+                }
+            }
+        }
+    }
+}
+
+// The action of a context menu with this text, nullptr when there is none.
+static QAction* menuAction( const QMenu& menu, const QString& text )
+{
+    for ( auto* action : menu.actions() ) {
+        if ( action->text() == text ) {
+            return action;
+        }
+    }
+    return nullptr;
+}
+
+SCENARIO( "The Filters tab shows only one filter from its context menu and restores the checks",
+          "[filterspanel][soloselection]" )
+{
+    FiltersPanelTestStateGuard stateGuard;
+    setupTestFilters();
+
+    GIVEN( "the filters of GroupA checked" )
+    {
+        FiltersPanel panel;
+        auto* tree = findTree( &panel );
+        REQUIRE( tree != nullptr );
+        auto* groupA = findGroup( tree, "GroupA" );
+        auto* groupB = findGroup( tree, "GroupB" );
+        groupA->setCheckState( 0, Qt::Checked );
+        QCoreApplication::processEvents();
+        REQUIRE( countChecked( tree ) == 3 );
+
+        auto* solo = panel.findChild<SoloSelection*>();
+        REQUIRE( solo != nullptr );
+        QSignalSpy spy( &panel, &FiltersPanel::filtersChanged );
+        const auto showOnlyThis = QStringLiteral( "Show only this" );
+        const auto restorePrevious = QStringLiteral( "Restore previous selection" );
+
+        THEN( "the tool tips of the filters and the groups name the double-click" )
+        {
+            const auto hint = SoloSelection::doubleClickHint();
+            REQUIRE( groupB->child( 1 )->toolTip( 0 ).contains( hint ) );
+            REQUIRE( groupB->child( 1 )->toolTip( 0 ).contains( QStringLiteral( "TRACE" ) ) );
+            REQUIRE( groupA->toolTip( 0 ).contains( hint ) );
+        }
+
+        THEN( "the context menu of a filter offers Show only this, and Restore disabled" )
+        {
+            const auto menu = solo->contextMenu( groupB->child( 1 ) );
+            REQUIRE( menuAction( *menu, showOnlyThis ) != nullptr );
+            REQUIRE( menuAction( *menu, restorePrevious ) != nullptr );
+            REQUIRE_FALSE( menuAction( *menu, restorePrevious )->isEnabled() );
+        }
+
+        WHEN( "Show only this of Trace's context menu is triggered" )
+        {
+            menuAction( *solo->contextMenu( groupB->child( 1 ) ), showOnlyThis )->trigger();
+
+            THEN( "only Trace is checked and active, as by the double-click" )
+            {
+                REQUIRE( countChecked( tree ) == 1 );
+                REQUIRE( groupB->child( 1 )->checkState( 0 ) == Qt::Checked );
+                REQUIRE( spy.count() == 1 );
+                const auto filters = spy.last().at( 0 ).value<QList<PredefinedFilter>>();
+                REQUIRE( filters.size() == 1 );
+                REQUIRE( filters[ 0 ].name == "Trace" );
+            }
+
+            AND_WHEN( "Restore previous selection is triggered" )
+            {
+                const auto menu = solo->contextMenu( groupB->child( 0 ) );
+                REQUIRE( menuAction( *menu, restorePrevious )->isEnabled() );
+                menuAction( *menu, restorePrevious )->trigger();
+
+                THEN( "the filters of GroupA are checked and active again" )
+                {
+                    REQUIRE( countChecked( tree ) == 3 );
+                    REQUIRE( groupA->checkState( 0 ) == Qt::Checked );
+                    REQUIRE( spy.last().at( 0 ).value<QList<PredefinedFilter>>().size() == 3 );
+                    REQUIRE_FALSE( solo->canRestore() );
+                }
+            }
+        }
+
+        WHEN( "a filter is double-clicked and the search changes before the restore" )
+        {
+            invokeDoubleClick( &panel, groupB->child( 0 ) );
+            panel.findChild<QLineEdit*>()->setText( QStringLiteral( "trace" ) );
+            REQUIRE( solo->canRestore() );
+            solo->restore();
+            panel.findChild<QLineEdit*>()->clear();
+
+            THEN( "the checks from before the double-click are back" )
+            {
+                tree = findTree( &panel );
+                REQUIRE( countChecked( tree ) == 3 );
+                REQUIRE( findGroup( tree, "GroupA" )->checkState( 0 ) == Qt::Checked );
             }
         }
     }

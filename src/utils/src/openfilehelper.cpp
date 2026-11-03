@@ -41,7 +41,7 @@ FileExplorerPlatform currentFileExplorerPlatform()
 {
 #if defined( Q_OS_WIN )
     return FileExplorerPlatform::Windows;
-#elif defined( Q_OS_MAC )
+#elif defined( Q_OS_MACOS )
     return FileExplorerPlatform::MacOS;
 #else
     return FileExplorerPlatform::Other;

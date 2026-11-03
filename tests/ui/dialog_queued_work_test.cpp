@@ -25,11 +25,11 @@
 #include <QAbstractEventDispatcher>
 #include <QCoreApplication>
 #include <QEvent>
-#include <QListWidget>
 #include <QToolButton>
 
 #include <memory>
 
+#include "grouplist.h"
 #include "highlightersdialog.h"
 #include "highlightersetedit.h"
 #include "predefinedfiltersdialog.h"
@@ -93,10 +93,12 @@ SCENARIO( "The Predefined Filters dialog drops the work it queued once it is des
     GIVEN( "the Predefined Filters dialog, with a group of the user's own added" )
     {
         auto dialog = std::make_unique<PredefinedFiltersDialog>();
-        dialog->addSetButton->click();
-        dialog->addSetButton->click();
+        dialog->groupList()->newButton()->click();
+        dialog->groupList()->newButton()->click();
         QCoreApplication::processEvents();
-        REQUIRE( dialog->setListWidget->currentRow() == dialog->setListWidget->count() - 1 );
+        auto* groups = dialog->groupList();
+        REQUIRE( groups->currentSection() == GroupList::Section::Own );
+        REQUIRE( groups->currentRow() == groups->count( GroupList::Section::Own ) - 1 );
 
         WHEN( "it is destroyed right after it was opened" )
         {
@@ -110,7 +112,7 @@ SCENARIO( "The Predefined Filters dialog drops the work it queued once it is des
 
         WHEN( "it is destroyed right after a group was added" )
         {
-            dialog->addSetButton->click();
+            dialog->groupList()->newButton()->click();
 
             THEN( "no work of it is left to run" )
             {
@@ -120,8 +122,8 @@ SCENARIO( "The Predefined Filters dialog drops the work it queued once it is des
 
         WHEN( "it is destroyed right after a group was moved up" )
         {
-            REQUIRE( dialog->upSetButton->isEnabled() );
-            dialog->upSetButton->click();
+            REQUIRE( dialog->groupList()->upButton()->isEnabled() );
+            dialog->groupList()->upButton()->click();
 
             THEN( "no work of it is left to run" )
             {
@@ -131,9 +133,10 @@ SCENARIO( "The Predefined Filters dialog drops the work it queued once it is des
 
         WHEN( "it is destroyed right after a group was moved down" )
         {
-            dialog->setListWidget->setCurrentRow( dialog->setListWidget->count() - 2 );
-            REQUIRE( dialog->downSetButton->isEnabled() );
-            dialog->downSetButton->click();
+            groups->setCurrent( GroupList::Section::Own,
+                                groups->count( GroupList::Section::Own ) - 2 );
+            REQUIRE( dialog->groupList()->downButton()->isEnabled() );
+            dialog->groupList()->downButton()->click();
 
             THEN( "no work of it is left to run" )
             {
@@ -143,8 +146,8 @@ SCENARIO( "The Predefined Filters dialog drops the work it queued once it is des
 
         WHEN( "it is destroyed right after a group was removed" )
         {
-            REQUIRE( dialog->removeSetButton->isEnabled() );
-            dialog->removeSetButton->click();
+            REQUIRE( dialog->groupList()->deleteButton()->isEnabled() );
+            dialog->groupList()->deleteButton()->click();
 
             THEN( "no work of it is left to run" )
             {
@@ -161,15 +164,16 @@ SCENARIO( "The Highlighters dialog and its set editor drop the work they queued 
     GIVEN( "the Highlighters dialog, with a set of the user's own added" )
     {
         auto dialog = std::make_unique<HighlightersDialog>();
-        dialog->addHighlighterButton->click();
-        dialog->addHighlighterButton->click();
+        dialog->groupList()->newButton()->click();
+        dialog->groupList()->newButton()->click();
         QCoreApplication::processEvents();
-        REQUIRE( dialog->highlighterListWidget->currentRow()
-                 == dialog->highlighterListWidget->count() - 1 );
+        auto* sets = dialog->groupList();
+        REQUIRE( sets->currentSection() == GroupList::Section::Own );
+        REQUIRE( sets->currentRow() == sets->count( GroupList::Section::Own ) - 1 );
 
         WHEN( "it is destroyed right after a set was added" )
         {
-            dialog->addHighlighterButton->click();
+            dialog->groupList()->newButton()->click();
 
             THEN( "no work of it is left to run" )
             {
@@ -179,8 +183,8 @@ SCENARIO( "The Highlighters dialog and its set editor drop the work they queued 
 
         WHEN( "it is destroyed right after a set was moved up" )
         {
-            REQUIRE( dialog->upHighlighterButton->isEnabled() );
-            dialog->upHighlighterButton->click();
+            REQUIRE( dialog->groupList()->upButton()->isEnabled() );
+            dialog->groupList()->upButton()->click();
 
             THEN( "no work of it is left to run" )
             {
@@ -190,8 +194,8 @@ SCENARIO( "The Highlighters dialog and its set editor drop the work they queued 
 
         WHEN( "it is destroyed right after a set was removed" )
         {
-            REQUIRE( dialog->removeHighlighterButton->isEnabled() );
-            dialog->removeHighlighterButton->click();
+            REQUIRE( dialog->groupList()->deleteButton()->isEnabled() );
+            dialog->groupList()->deleteButton()->click();
 
             THEN( "no work of it is left to run" )
             {
