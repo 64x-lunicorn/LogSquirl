@@ -26,9 +26,13 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QFormLayout>
+#include <QLabel>
 #include <QLocale>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -42,6 +46,7 @@
 #include "optionsdialog.h"
 #include "recentfiles.h"
 #include "savedsearches.h"
+#include "shown_widget.h"
 #include "teamfolder.h"
 #include "teamfoldergit.h"
 #include "teamfoldertesting.h"
@@ -291,7 +296,7 @@ TEST_CASE( "The Team Folder tab groups the repository and the status, and the no
     CHECK( checkBoxText.contains( "Naming Groups" ) );
 
     // The note is the last thing on the tab, smaller and subdued.
-    auto* layout = dialog.teamFolderTab->layout();
+    auto* layout = dialog.teamFolderLayout;
     CHECK( layout->indexOf( dialog.teamFolderNoteLabel ) == layout->count() - 1 );
     CHECK( dialog.teamFolderNoteLabel->font().pointSizeF()
            < dialog.teamFolderCheckBox->font().pointSizeF() );
@@ -1056,6 +1061,136 @@ TEST_CASE( "The Log Formats page shows each Log Format's Source", "[optionsdialo
     CHECK( sourceOf( "syslog_log" ) == "Built-in" );
     CHECK( sourceOf( "user_only_log" ) == "User" );
     CHECK( sourceOf( "plugin_only_log" ) == "Example Plugin" );
+}
+
+namespace {
+
+// A 1366 x 768 laptop screen loses the menu bar or taskbar, the Dock and the
+// window's title bar; what is left for the dialog is about 560 px (#888).
+constexpr int LaptopDialogHeight = 560;
+
+// The scroll area that holds the content of a tab page, or nullptr.
+QScrollArea* scrollAreaOf( QWidget* page )
+{
+    return page->findChild<QScrollArea*>( QString{}, Qt::FindDirectChildrenOnly );
+}
+
+} // namespace
+
+TEST_CASE( "The Options Dialog fits on a laptop screen when it opens", "[optionsdialog]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+    OptionsDialog dialog( catalog );
+
+    showUntilExposed( dialog );
+
+    CHECK( dialog.height() <= LaptopDialogHeight );
+    // The OK and Cancel buttons are inside the dialog, not cut off below it.
+    CHECK( dialog.rect().contains( dialog.buttonBox->geometry() ) );
+}
+
+TEST_CASE( "Every tab of the Options Dialog holds its content in a scroll area", "[optionsdialog]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+    OptionsDialog dialog( catalog );
+
+    REQUIRE( dialog.tabWidget->count() > 0 );
+    for ( int i = 0; i < dialog.tabWidget->count(); ++i ) {
+        auto* page = dialog.tabWidget->widget( i );
+        INFO( "tab " << dialog.tabWidget->tabText( i ).toStdString() );
+        auto* scrollArea = scrollAreaOf( page );
+        REQUIRE( scrollArea != nullptr );
+        CHECK( scrollArea->widgetResizable() );
+        REQUIRE( scrollArea->widget() != nullptr );
+        // The scroll area is all the page holds.
+        REQUIRE( page->layout() != nullptr );
+        CHECK( page->layout()->count() == 1 );
+        CHECK( page->layout()->indexOf( scrollArea ) == 0 );
+    }
+}
+
+TEST_CASE( "A tab taller than the Options Dialog scrolls instead of growing the dialog",
+           "[optionsdialog]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+    OptionsDialog dialog( catalog );
+
+    showUntilExposed( dialog );
+    constexpr int ShortHeight = 300;
+    dialog.resize( dialog.width(), ShortHeight );
+
+    for ( auto* page : { dialog.general_tab, dialog.viewTab } ) {
+        dialog.tabWidget->setCurrentWidget( page );
+        QApplication::processEvents();
+        INFO( "tab " << page->objectName().toStdString() );
+        CHECK( dialog.height() == ShortHeight );
+        auto* scrollArea = scrollAreaOf( page );
+        REQUIRE( scrollArea != nullptr );
+        CHECK( scrollArea->verticalScrollBar()->maximum() > 0 );
+    }
+}
+
+TEST_CASE( "The Search options group shows one setting per row and says what each color button "
+           "sets",
+           "[optionsdialog]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+    OptionsDialog dialog( catalog );
+
+    auto* form = qobject_cast<QFormLayout*>( dialog.searchBox->layout() );
+    REQUIRE( form != nullptr );
+
+    // No empty rows: every row shows a widget.
+    REQUIRE( form->rowCount() > 0 );
+    for ( int row = 0; row < form->rowCount(); ++row ) {
+        INFO( "row " << row );
+        auto* item = form->itemAt( row, QFormLayout::SpanningRole );
+        if ( item == nullptr ) {
+            item = form->itemAt( row, QFormLayout::FieldRole );
+        }
+        REQUIRE( item != nullptr );
+        REQUIRE( item->widget() != nullptr );
+        CHECK( item->widget()->isVisibleTo( dialog.searchBox ) );
+    }
+
+    // Every setting has a row of its own.
+    for ( QWidget* setting : std::initializer_list<QWidget*>{
+              dialog.mainSearchBox, dialog.mainSearchColorButton,
+              dialog.highlightMainSearchCheckBox, dialog.variateHighlightCheckBox,
+              dialog.caseSensitiveCheckBox, dialog.logicalCombiningCheckBox,
+              dialog.autoRefreshCheckBox, dialog.autoRunSearchOnAddCheckBox,
+              dialog.searchHistorySpinBox, dialog.quickFindSearchBox,
+              dialog.quickFindColorButton, dialog.incrementalCheckBox } ) {
+        INFO( setting->objectName().toStdString() );
+        CHECK( form->indexOf( setting ) >= 0 );
+    }
+    CHECK( form->rowCount() == 12 );
+
+    // Each color button has a visible label saying what it sets.
+    for ( auto* button : { dialog.mainSearchColorButton, dialog.quickFindColorButton } ) {
+        INFO( button->objectName().toStdString() );
+        auto* label = qobject_cast<QLabel*>( form->labelForField( button ) );
+        REQUIRE( label != nullptr );
+        CHECK( label->text().contains( "color", Qt::CaseInsensitive ) );
+        CHECK( label->buddy() == button );
+        CHECK( label->isVisibleTo( dialog.searchBox ) );
+    }
 }
 
 #include "optionsdialog_test.moc"

@@ -42,6 +42,7 @@
 #include <QFontDatabase>
 #include <QKeySequenceEdit>
 #include <QMessageBox>
+#include <QScrollArea>
 #include <QToolButton>
 #include <QtGui>
 
@@ -147,6 +148,20 @@ OptionsDialog::OptionsDialog( const LogFormatCatalog& logFormatCatalog, QWidget*
 // Setups the tabs depending on the configuration
 void OptionsDialog::setupTabs()
 {
+    // Every tab holds its content in a scroll area so the dialog fits a
+    // laptop screen (#888). The scroll area paints no background of its own:
+    // the tab page shows through it as it did before.
+    for ( int i = 0; i < tabWidget->count(); ++i ) {
+        auto* scrollArea = tabWidget->widget( i )->findChild<QScrollArea*>(
+            QString{}, Qt::FindDirectChildrenOnly );
+        if ( scrollArea != nullptr ) {
+            scrollArea->viewport()->setAutoFillBackground( false );
+            if ( scrollArea->widget() != nullptr ) {
+                scrollArea->widget()->setAutoFillBackground( false );
+            }
+        }
+    }
+
 #ifndef Q_OS_WIN
     keepFileClosedCheckBox->setVisible( false );
 #endif
