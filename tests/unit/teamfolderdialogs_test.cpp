@@ -24,8 +24,8 @@
 
 #include <QCoreApplication>
 #include <QDialogButtonBox>
-#include <QListWidget>
 #include <QPushButton>
+#include <QToolButton>
 #include <QSettings>
 #include <QTemporaryDir>
 
@@ -64,18 +64,6 @@ QPushButton* buttonNamed( QWidget& parent, const QString& text )
     return nullptr;
 }
 
-// The list of the Team groups: the dialog's list that is not the given one.
-QListWidget* otherList( QWidget& dialog, const QListWidget* own )
-{
-    QListWidget* found = nullptr;
-    for ( auto* list : dialog.findChildren<QListWidget*>() ) {
-        if ( list != own ) {
-            found = list;
-        }
-    }
-    return found;
-}
-
 // The Highlighter Sets of the collection, put back when this goes.
 class KeepCollection {
 public:
@@ -109,32 +97,34 @@ TEST_CASE( "The Highlighters Dialog with Team sets takes a selection of its own 
 
     // A set of the user's own, selected. This used to dereference buttons
     // that were never created.
-    dialog.addHighlighterButton->click();
+    auto* groups = dialog.groupList();
+    groups->newButton()->click();
     QCoreApplication::processEvents();
-    REQUIRE( dialog.highlighterListWidget->currentRow() >= 0 );
+    REQUIRE( groups->currentSection() == GroupList::Section::Own );
+    REQUIRE( groups->currentRow() >= 0 );
 
     auto* share = buttonNamed( dialog, "Share with team" );
     auto* copy = buttonNamed( dialog, "Copy to my groups" );
-    auto* remove = buttonNamed( dialog, "Delete for the team" );
     REQUIRE( share );
     REQUIRE( copy );
-    REQUIRE( remove );
     CHECK( share->isEnabled() );
     CHECK_FALSE( copy->isEnabled() );
-    CHECK_FALSE( remove->isEnabled() );
+    // Delete deletes the set of the user's own selected, no Team set.
+    const auto teamBefore = groups->count( GroupList::Section::Team );
+    CHECK( groups->deleteButton()->isEnabled() );
 
-    auto* teamList = otherList( dialog, dialog.highlighterListWidget );
-    REQUIRE( teamList );
-    REQUIRE( teamList->count() == 1 );
+    REQUIRE( groups->hasSection( GroupList::Section::Team ) );
+    REQUIRE( teamBefore == 1 );
 
     share->click();
-    CHECK( teamList->count() == 2 );
+    CHECK( groups->count( GroupList::Section::Team ) == 2 );
 
-    teamList->setCurrentRow( 0 );
+    groups->setCurrent( GroupList::Section::Team, 0 );
     CHECK( copy->isEnabled() );
-    const auto own = dialog.highlighterListWidget->count();
+    CHECK( groups->deleteButton()->isEnabled() );
+    const auto own = groups->count( GroupList::Section::Own );
     copy->click();
-    CHECK( dialog.highlighterListWidget->count() == own + 1 );
+    CHECK( groups->count( GroupList::Section::Own ) == own + 1 );
     QCoreApplication::processEvents();
 }
 
@@ -182,9 +172,8 @@ TEST_CASE( "A group published by Apply is edited on its new revision", "[teamfol
         QObject::connect( &dialog, &HighlightersDialog::publishRequested, &dialog,
                           [ &requests ]( const auto& r ) { requests = r; } );
 
-        auto* teamList = otherList( dialog, dialog.highlighterListWidget );
-        REQUIRE( teamList );
-        teamList->setCurrentRow( 0 );
+        REQUIRE( dialog.groupList()->count( GroupList::Section::Team ) == 1 );
+        dialog.groupList()->setCurrent( GroupList::Section::Team, 0 );
         auto* edit = dialog.findChild<HighlighterSetEdit*>();
         REQUIRE( edit );
         auto* apply = dialog.buttonBox->button( QDialogButtonBox::Apply );
@@ -218,9 +207,8 @@ TEST_CASE( "A group published by Apply is edited on its new revision", "[teamfol
         QObject::connect( &dialog, &PredefinedFiltersDialog::publishRequested, &dialog,
                           [ &requests ]( const auto& r ) { requests = r; } );
 
-        auto* teamList = otherList( dialog, dialog.setListWidget );
-        REQUIRE( teamList );
-        teamList->setCurrentRow( 0 );
+        REQUIRE( dialog.groupList()->count( GroupList::Section::Team ) == 1 );
+        dialog.groupList()->setCurrent( GroupList::Section::Team, 0 );
         auto* edit = dialog.findChild<PredefinedFilterSetEdit*>();
         REQUIRE( edit );
         auto* apply = dialog.buttonBox->button( QDialogButtonBox::Apply );

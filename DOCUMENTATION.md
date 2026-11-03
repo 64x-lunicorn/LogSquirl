@@ -535,10 +535,24 @@ It is possible to save the current search pattern as a predefined filter with
 *Save as Filter* from the search input context menu.
 
 Predefined filters are kept in filter groups. The dialog lists the groups
-(*New Filter Group*, *Delete Filter Group*, *Move Group Up* and *Move Group Down*);
-the Default group always exists and cannot be deleted. Groups are exchanged
-the same way as highlighter sets: *Export* writes the selected group only, to a
-file named `<name>_filter.conf` by default, and *Import* reads every group of
+(*New Filter Group*, *Delete Filter Group*, *Move Filter Group Up* and *Move
+Filter Group Down*); the Default group always exists and cannot be deleted.
+
+The *Predefined Filters*, *Highlighters* and *Value Names* dialogs list their
+groups the same way, in one list on the left: your own under *My Filter
+Groups* (*My Highlighter Sets*, *My Naming Groups*), the team's under *Team
+Filter Groups* when the Team Folder is on, and those of enabled plugins under
+*Plugin Filter Groups*. Below the list, *New Filter Group* adds a group of your
+own; when the Team groups can be changed, the arrow beside it offers *New Team
+Filter Group*. *Delete*, *Move Up* and *Move Down* act on the selected group
+(*Delete* asks first for a Team group: it goes for the whole team), *Share
+with team* publishes a copy of a group of your own, *Copy to my groups* copies
+a Team or plugin group into your own, and *Export...* and *Import...* below
+exchange groups as files.
+
+Groups are exchanged
+the same way as highlighter sets: *Export...* writes the selected group only, to a
+file named `<name>_filter.conf` by default, and *Import...* reads every group of
 the selected files, asking *Replace*, *Keep both* or *Skip* when a group of the
 same id or name exists (see [Using highlighters](#using-highlighters)). A group
 that carries the id of the Default group never replaces your Default group; it
@@ -710,9 +724,9 @@ dark text and 8 strong colors with white text; one click sets both the text
 and the background color.
 
 A highlighter set can be handed to someone else: select it in the
-`Highlighters` dialog and use *Export*, which writes that one set to a file
+`Highlighters` dialog and use *Export...*, which writes that one set to a file
 and proposes a file name from the set's name (`<name>_highlighter.conf`). Keep
-the `.conf` extension so that *logsquirl* can import the file. *Import* reads
+the `.conf` extension so that *logsquirl* can import the file. *Import...* reads
 every set in the selected files. Each set is identified by a unique id. When a
 set with the same id, or just the same name, already exists you choose
 *Replace* (the existing set keeps its position and id, so an active set stays
@@ -792,7 +806,9 @@ higher in the list wins.
 
 **Editing Naming Groups.** *Edit...* in the tab, or *Tools → Value
 Names...*, opens the *Value Names* dialog. On the left are the Naming Groups,
-which can be added, removed and moved up or down; every group needs a name of
+which can be added, deleted and moved up or down (see
+[Predefined filters](#predefined-filters) for the list all three group dialogs
+share); every group needs a name of
 its own. *View → Value Names tab* shows the tab. On the right, for the selected group:
 
 - **Naming Rules**, each with a *Name*, a *Regex* and a *Template*. The
@@ -848,11 +864,12 @@ imported as a filter group or highlighter set, and their files never as a
 Naming Group.
 
 With the Team Folder on, the team's Naming Groups are listed below your own in
-the dialog and last in the *Value Names* tab, marked *(Team)*; their checks are
-yours alone. *Share with team* publishes a copy of the selected group of your
-own, *New Team group* adds one, and changes to a Team group are published on
-*OK* or *Apply*; *Copy to my groups* copies a Team group into your own, and
-*Delete for the team* deletes it for everyone. When the Team Folder cannot
+the dialog, under *Team Naming Groups*, and last in the *Value Names* tab,
+marked *(Team)*; their checks are yours alone. *Share with team* publishes a
+copy of the selected group of your own, *New Team Naming Group* beside *New
+Naming Group* adds one, and changes to a Team group are published on *OK* or
+*Apply*; *Copy to my groups* copies a Team group into your own, and *Delete*
+deletes the selected Team group for everyone, after asking. When the Team Folder cannot
 publish, the Team groups are shown and previewed but not changed. When someone
 else changed the same group meanwhile, you choose *Keep mine*, *Take theirs*
 or *Save mine as a copy*, as for filter groups.

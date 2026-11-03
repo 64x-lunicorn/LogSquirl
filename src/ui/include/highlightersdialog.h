@@ -52,9 +52,9 @@ class QPushButton;
 
 #include "highlighterset.h"
 #include "highlightersetedit.h"
-#include "plugingroupssection.h"
+#include "grouplist.h"
 #include "teamfolder.h"
-#include "teamgroupssection.h"
+#include "teamgroupedits.h"
 #include "ui_highlightersdialog.h"
 
 class HighlightersDialog : public QDialog, public Ui::HighlightersDialog {
@@ -82,6 +82,12 @@ public:
     // the sample of the tab in front (#660). Without a call, pasted text only.
     void setRegexLabAccess( RegexLabAccess access );
 
+    // The list of the user's own, the Team and the plugins' sets.
+    GroupList* groupList() const
+    {
+        return groupList_;
+    }
+
 Q_SIGNALS:
     // Is emitted when new settings must be used
     void optionsChanged();
@@ -90,39 +96,25 @@ Q_SIGNALS:
     void publishRequested( const QList<logsquirl::teamfolder::PublishRequest>& requests );
 
 private Q_SLOTS:
-    void addHighlighterSet();
-    void removeHighlighterSet();
-
-    void moveHighlighterSetUp();
-    void moveHighlighterSetDown();
-
     void resolveDialog( QAbstractButton* button );
 
-    // Update the edit fields from the selected HighlighterSet.
-    void updatePropertyFields();
+    // Shows the set selected in the Group List.
+    void showGroup( GroupList::Section section, int row );
 
     // Update the selected HighlighterSet from the values in the property fields.
     void updateHighlighterProperties();
 
+    // What the user asked for in the Group List.
+    void addGroup( GroupList::Section section );
+    void deleteGroup( GroupList::Section section, int row );
+    void moveGroup( int row, int offset );
+    void shareGroup( int row );
+    void copyGroup( GroupList::Section section, int row );
     void exportHighlighters();
     void importHighlighters();
 
-    // Shows the selected Team Highlighter Set, read-only.
-    void showSelectedTeamGroup();
-    void addTeamGroup();
-    void shareSelectedGroup();
-    void copySelectedTeamGroup();
-    void deleteSelectedTeamGroup();
-
-    // Shows the selected plugin's Highlighter Set, read-only, and copies it
-    // into the user's own sets.
-    void showSelectedPluginGroup();
-    void copySelectedPluginGroup();
-
 private:
-    void populateHighlighterList();
-    void setCurrentRow( int row );
-    void loadIcons();
+    void listOwnGroups();
 
     // Lets the Color Labels of the copy this dialog edits follow the Theme,
     // as those of the application do (ADR-0006): a Color Label the user has
@@ -131,32 +123,27 @@ private:
     void showColorLabelsOfTheme();
 
 private:
+    GroupList* groupList_;
     HighlighterSetEdit* highlighterSetEdit_;
 
     // Temporary HighlighterSetCollection modified by the dialog
     // it is copied from the one in Config()
     HighlighterSetCollection highlighterSetCollection_;
 
-    // Index of the row currently selected or -1 if none.
-    int selectedRow_;
+    // The row of the set of the user's own shown, -1 when none is.
+    int selectedRow_ = -1;
 
-    // The Team sets, below the user's own: built when the dialog is first
+    // The Team sets, below the user's own: listed when the dialog is first
     // given them.
-    TeamGroupsSection* team_ = nullptr;
     TeamGroupEdits<HighlighterSet> teamEdits_;
-    // What can be done with the selected group depends on which one it is.
-    void updateTeamButtons();
     // The row of the Team set shown, -1 when none is.
     int selectedTeamRow_ = -1;
 
     // The sets the enabled plugins ship, read-only below the user's own
     // (#865), as the copy of the collection holds them. No section when there
     // are none.
-    PluginGroupsSection* plugins_ = nullptr;
     // The row of the plugin's set shown, -1 when none is.
     int selectedPluginRow_ = -1;
-    // No plugin's set is shown any more.
-    void clearPluginSelection();
 
     // The color buttons of the Color Labels, in slot order.
     std::vector<QPushButton*> colorLabelForeButtons_;

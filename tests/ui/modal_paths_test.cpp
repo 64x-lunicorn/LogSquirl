@@ -1299,21 +1299,15 @@ TEST_CASE( "The Highlighters dialog shares and copies and deletes Team sets",
             REQUIRE( copy != nullptr );
 
             // A set of the user's own, selected.
-            highlighters.addHighlighterButton->click();
+            auto* sets = highlighters.groupList();
+            sets->newButton()->click();
             QCoreApplication::processEvents();
             CHECK( share->isEnabled() );
-            QListWidget* teamList = nullptr;
-            for ( auto* list : dialog.findChildren<QListWidget*>() ) {
-                if ( list != highlighters.highlighterListWidget ) {
-                    teamList = list;
-                }
-            }
-            REQUIRE( teamList != nullptr );
-            REQUIRE( teamList->count() == 1 );
+            REQUIRE( sets->count( GroupList::Section::Team ) == 1 );
             share->click();
-            CHECK( teamList->count() == 2 );
+            CHECK( sets->count( GroupList::Section::Team ) == 2 );
 
-            teamList->setCurrentRow( 0 );
+            sets->setCurrent( GroupList::Section::Team, 0 );
             CHECK( copy->isEnabled() );
             copy->click();
             highlighters.buttonBox->button( QDialogButtonBox::Ok )->click();
@@ -1334,18 +1328,13 @@ TEST_CASE( "The Highlighters dialog shares and copies and deletes Team sets",
     {
         modals.answerWith( [ & ]( QDialog& dialog ) {
             auto& highlighters = static_cast<HighlightersDialog&>( dialog );
-            auto* remove = buttonNamed( dialog, "Delete for the team" );
+            auto* sets = highlighters.groupList();
+            auto* remove = sets->deleteButton();
             REQUIRE( remove != nullptr );
-            QListWidget* teamList = nullptr;
-            for ( auto* list : dialog.findChildren<QListWidget*>() ) {
-                if ( list != highlighters.highlighterListWidget ) {
-                    teamList = list;
-                }
-            }
-            REQUIRE( teamList != nullptr );
-            teamList->setCurrentRow( 0 );
+            REQUIRE( sets->count( GroupList::Section::Team ) == 1 );
+            sets->setCurrent( GroupList::Section::Team, 0 );
             remove->click();
-            CHECK( teamList->count() == 1 );
+            CHECK( sets->count( GroupList::Section::Team ) == 1 );
             highlighters.buttonBox->button( QDialogButtonBox::Cancel )->click();
         } );
         modals.click( QMessageBox::No );
@@ -1360,19 +1349,14 @@ TEST_CASE( "The Highlighters dialog shares and copies and deletes Team sets",
     {
         modals.answerWith( [ & ]( QDialog& dialog ) {
             auto& highlighters = static_cast<HighlightersDialog&>( dialog );
-            auto* remove = buttonNamed( dialog, "Delete for the team" );
+            auto* sets = highlighters.groupList();
+            auto* remove = sets->deleteButton();
             REQUIRE( remove != nullptr );
-            QListWidget* teamList = nullptr;
-            for ( auto* list : dialog.findChildren<QListWidget*>() ) {
-                if ( list != highlighters.highlighterListWidget ) {
-                    teamList = list;
-                }
-            }
-            REQUIRE( teamList != nullptr );
-            teamList->setCurrentRow( 0 );
+            REQUIRE( sets->count( GroupList::Section::Team ) == 1 );
+            sets->setCurrent( GroupList::Section::Team, 0 );
             REQUIRE( remove->isEnabled() );
             remove->click();
-            CHECK( teamList->count() == 0 );
+            CHECK( sets->count( GroupList::Section::Team ) == 0 );
             highlighters.buttonBox->button( QDialogButtonBox::Ok )->click();
         } );
         // What the dialog asks before it deletes for the whole team.
@@ -1414,7 +1398,7 @@ TEST_CASE( "Test... in the editors opens the Regex Lab on the tab in front",
         modals.answerWith( [ & ]( QDialog& dialog ) {
             auto& highlighters = static_cast<HighlightersDialog&>( dialog );
             // A set of the user's own, with a Highlighter in it.
-            highlighters.addHighlighterButton->click();
+            highlighters.groupList()->newButton()->click();
             QCoreApplication::processEvents();
             auto* setEdit = dialog.findChild<HighlighterSetEdit*>();
             REQUIRE( setEdit != nullptr );
@@ -1442,7 +1426,7 @@ TEST_CASE( "Test... in the editors opens the Regex Lab on the tab in front",
         modals.answerWith( [ & ]( QDialog& dialog ) {
             auto& filters = static_cast<PredefinedFiltersDialog&>( dialog );
             // A group of the user's own, with a filter in it.
-            filters.addSetButton->click();
+            filters.groupList()->newButton()->click();
             QCoreApplication::processEvents();
             auto* edit = dialog.findChild<PredefinedFilterSetEdit*>();
             REQUIRE( edit != nullptr );
