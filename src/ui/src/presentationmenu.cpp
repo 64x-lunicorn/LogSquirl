@@ -139,79 +139,55 @@ void addPluginEntries( QMenu& menu, const std::vector<PresentationMenu::PluginEn
     }
 }
 
-} // namespace
-
-std::unique_ptr<QMenu> PresentationMenu::create( QWidget* parent, const Report& report,
-                                                 const Entries& entries )
-{
-    auto menu = std::make_unique<QMenu>( parent );
-
-    const bool hasSelection = !report.selectedLogLines.empty();
-    const bool textWithinLogLine = report.textWithinLogLine;
-    const bool oneWholeLogLine = !textWithinLogLine && report.selectedLogLines.size() == 1;
-
-    auto* highlightersMenu = new HighlightersMenu( tr( "Highlighters" ), menu.get() );
-    highlightersMenu->createHighlightersMenu();
-    highlightersMenu->populateHighlightersMenu();
-    highlightersMenu->setApplyChange( entries.highlightersChange );
-    menu->addMenu( highlightersMenu );
-
-    auto* colorLabelsMenu = menu->addMenu( tr( "Color labels" ) );
-    colorLabelsMenu->setEnabled( textWithinLogLine || oneWholeLogLine );
-    if ( colorLabelsMenu->isEnabled() ) {
-        addColorLabels( *colorLabelsMenu, report, entries );
+// The menu being built: what the Presentation reported, what each entry does,
+// and what the selection is.
+struct Opened {
+    Opened( const PresentationMenu::Report& openedReport,
+            const PresentationMenu::Entries& openedEntries )
+        : report( openedReport )
+        , entries( openedEntries )
+        , hasSelection( !openedReport.selectedLogLines.empty() )
+        , textWithinLogLine( openedReport.textWithinLogLine )
+        , oneWholeLogLine( !openedReport.textWithinLogLine
+                           && openedReport.selectedLogLines.size() == 1 )
+    {
     }
 
-    menu->addSeparator();
-    addEntry( *menu, report.hasUnmarkedLogLines ? tr( "&Mark" ) : tr( "Unmark" ), entries.mark )
-        ->setEnabled( hasSelection );
+    const PresentationMenu::Report& report;
+    const PresentationMenu::Entries& entries;
+    bool hasSelection;
+    bool textWithinLogLine;
+    bool oneWholeLogLine;
+};
 
-    menu->addSeparator();
-    auto* copy = addEntry( *menu, oneWholeLogLine ? tr( "&Copy this line" ) : tr( "&Copy" ),
+// The top of the menu: what the user does with the selection, copied,
+// searched for, Marked (#894). An entry for the selection goes here.
+void addSelectionBlock( QMenu& menu, const Opened& opened )
+{
+    const auto& report = opened.report;
+    const auto& entries = opened.entries;
+    const bool textWithinLogLine = opened.textWithinLogLine;
+
+    auto* copy = addEntry( menu, opened.oneWholeLogLine ? tr( "&Copy this line" ) : tr( "&Copy" ),
                            entries.copy );
-    copy->setEnabled( hasSelection );
-    if ( !oneWholeLogLine ) {
+    copy->setEnabled( opened.hasSelection );
+    if ( !opened.oneWholeLogLine ) {
         copy->setStatusTip( tr( "Copy the selection" ) );
     }
-    addEntry( *menu,
-              oneWholeLogLine ? tr( "Copy this line with line number" )
-                              : tr( "Copy with line numbers" ),
-              entries.copyWithLineNumbers )
-        ->setEnabled( hasSelection );
     if ( entries.copyAsShown ) {
-        auto* copyAsShown = addEntry( *menu, tr( "Copy as shown" ), entries.copyAsShown );
+        auto* copyAsShown = addEntry( menu, tr( "Copy as shown" ), entries.copyAsShown );
         copyAsShown->setStatusTip( tr( "Copy the selection as shown, with its Value Names" ) );
-        copyAsShown->setEnabled( hasSelection && report.showsValueNames );
+        copyAsShown->setEnabled( opened.hasSelection && report.showsValueNames );
     }
-    addEntry( *menu, tr( "Send to scratchpad" ), entries.sendToScratchpad )
-        ->setEnabled( hasSelection );
-    addEntry( *menu, tr( "Replace scratchpad" ), entries.replaceScratchpad )
-        ->setEnabled( hasSelection );
 
-    menu->addSeparator();
-    // The shortcuts are the Text View's, shown there as a reminder; the Table
-    // View does not bind them.
-    auto* findNext = addEntry( *menu, tr( "Find &next" ), entries.findNext );
-    if ( report.drawnLikeTextView ) {
-        findNext->setShortcut( Qt::Key_Asterisk );
-    }
-    findNext->setStatusTip( tr( "Find the next occurrence" ) );
-    findNext->setEnabled( textWithinLogLine );
-    auto* findPrevious = addEntry( *menu, tr( "Find &previous" ), entries.findPrevious );
-    if ( report.drawnLikeTextView ) {
-        findPrevious->setShortcut( QKeySequence( tr( "/" ) ) );
-    }
-    findPrevious->setStatusTip( tr( "Find the previous occurrence" ) );
-    findPrevious->setEnabled( textWithinLogLine );
-
-    menu->addSeparator();
-    auto* replaceSearch = addEntry( *menu, tr( "&Replace search" ), entries.replaceSearch );
+    menu.addSeparator();
+    auto* replaceSearch = addEntry( menu, tr( "&Replace search" ), entries.replaceSearch );
     replaceSearch->setStatusTip( tr( "Replace the search expression with the selection" ) );
     replaceSearch->setEnabled( textWithinLogLine );
-    auto* addToSearch = addEntry( *menu, tr( "&Add to search" ), entries.addToSearch );
+    auto* addToSearch = addEntry( menu, tr( "&Add to search" ), entries.addToSearch );
     addToSearch->setStatusTip( tr( "Add the selection to the current search" ) );
     addToSearch->setEnabled( textWithinLogLine );
-    addEntry( *menu, tr( "&Exclude from search" ),
+    addEntry( menu, tr( "&Exclude from search" ),
               [ textWithinLogLine, excludeFromSearch = entries.excludeFromSearch ]() {
                   if ( textWithinLogLine && excludeFromSearch ) {
                       excludeFromSearch();
@@ -221,14 +197,72 @@ std::unique_ptr<QMenu> PresentationMenu::create( QWidget* parent, const Report& 
     // The Table View's cell: the Search narrowed to the Log Lines whose
     // field has the cell's value, as a Field Term (#798).
     if ( entries.searchValueInColumn && !report.columnUnderCursor.isEmpty() ) {
-        addEntry( *menu, tr( "Search this value in %1" ).arg( report.columnUnderCursor ),
+        addEntry( menu, tr( "Search this value in %1" ).arg( report.columnUnderCursor ),
                   entries.searchValueInColumn )
             ->setStatusTip( tr( "Narrows the search to the lines whose %1 field has the value "
                                 "of this cell, as a logical combination" )
                                 .arg( report.columnUnderCursor ) );
     }
 
-    menu->addSeparator();
+    menu.addSeparator();
+    addEntry( menu, report.hasUnmarkedLogLines ? tr( "&Mark" ) : tr( "Unmark" ), entries.mark )
+        ->setEnabled( opened.hasSelection );
+}
+
+// Below the selection's entries: those of the view itself, how it colors and
+// shows the Log Lines (#894). An entry about the view goes here.
+void addViewBlock( QMenu& menu, const Opened& opened )
+{
+    auto* highlightersMenu = new HighlightersMenu( tr( "Highlighters" ), &menu );
+    highlightersMenu->createHighlightersMenu();
+    highlightersMenu->populateHighlightersMenu();
+    highlightersMenu->setApplyChange( opened.entries.highlightersChange );
+    menu.addMenu( highlightersMenu );
+
+    auto* colorLabelsMenu = menu.addMenu( tr( "Color labels" ) );
+    colorLabelsMenu->setEnabled( opened.textWithinLogLine || opened.oneWholeLogLine );
+    if ( colorLabelsMenu->isEnabled() ) {
+        addColorLabels( *colorLabelsMenu, opened.report, opened.entries );
+    }
+}
+
+// The More submenu: the entries used rarely, kept off the top so that it
+// stays short (#894). A rarely used entry goes here.
+void addMoreSubmenu( QMenu& menu, const Opened& opened )
+{
+    const auto& report = opened.report;
+    const auto& entries = opened.entries;
+    const bool oneWholeLogLine = opened.oneWholeLogLine;
+
+    auto& more = *menu.addMenu( tr( "More" ) );
+
+    addEntry( more,
+              oneWholeLogLine ? tr( "Copy this line with line number" )
+                              : tr( "Copy with line numbers" ),
+              entries.copyWithLineNumbers )
+        ->setEnabled( opened.hasSelection );
+    addEntry( more, tr( "Send to scratchpad" ), entries.sendToScratchpad )
+        ->setEnabled( opened.hasSelection );
+    addEntry( more, tr( "Replace scratchpad" ), entries.replaceScratchpad )
+        ->setEnabled( opened.hasSelection );
+
+    more.addSeparator();
+    // The shortcuts are the Text View's, shown there as a reminder; the Table
+    // View does not bind them.
+    auto* findNext = addEntry( more, tr( "Find &next" ), entries.findNext );
+    if ( report.drawnLikeTextView ) {
+        findNext->setShortcut( Qt::Key_Asterisk );
+    }
+    findNext->setStatusTip( tr( "Find the next occurrence" ) );
+    findNext->setEnabled( opened.textWithinLogLine );
+    auto* findPrevious = addEntry( more, tr( "Find &previous" ), entries.findPrevious );
+    if ( report.drawnLikeTextView ) {
+        findPrevious->setShortcut( QKeySequence( tr( "/" ) ) );
+    }
+    findPrevious->setStatusTip( tr( "Find the previous occurrence" ) );
+    findPrevious->setEnabled( opened.textWithinLogLine );
+
+    more.addSeparator();
     // The Log Line under the cursor; where there is none, the selected one.
     const auto searchLimitLine = report.logLineUnderCursor ? report.logLineUnderCursor
                                  : oneWholeLogLine
@@ -237,39 +271,55 @@ std::unique_ptr<QMenu> PresentationMenu::create( QWidget* parent, const Report& 
     // The Text View sets them only while one whole Log Line is selected.
     const bool canSetSearchLimit
         = searchLimitLine.has_value() && ( !report.drawnLikeTextView || oneWholeLogLine );
-    addEntry( *menu, tr( "Set search start" ),
+    addEntry( more, tr( "Set search start" ),
               [ searchLimitLine, setSearchStart = entries.setSearchStart ]() {
                   if ( searchLimitLine && setSearchStart ) {
                       setSearchStart( *searchLimitLine );
                   }
               } )
         ->setEnabled( canSetSearchLimit );
-    addEntry( *menu, tr( "Set search end" ),
+    addEntry( more, tr( "Set search end" ),
               [ searchLimitLine, setSearchEnd = entries.setSearchEnd ]() {
                   if ( searchLimitLine && setSearchEnd ) {
                       setSearchEnd( *searchLimitLine );
                   }
               } )
         ->setEnabled( canSetSearchLimit );
-    addEntry( *menu, tr( "Clear search limits" ), entries.clearSearchLimits );
+    addEntry( more, tr( "Clear search limits" ), entries.clearSearchLimits );
 
     if ( entries.setSelectionStart || entries.setSelectionEnd ) {
-        menu->addSeparator();
-        addEntry( *menu, tr( "Set selection start" ), entries.setSelectionStart )
+        more.addSeparator();
+        addEntry( more, tr( "Set selection start" ), entries.setSelectionStart )
             ->setEnabled( oneWholeLogLine );
-        addEntry( *menu, tr( "Set selection end" ), entries.setSelectionEnd )
+        addEntry( more, tr( "Set selection end" ), entries.setSelectionEnd )
             ->setEnabled( oneWholeLogLine && report.selectionStartSet );
     }
 
-    menu->addSeparator();
-    addEntry( *menu, tr( "Save splitter position" ), entries.saveSplitterPosition );
-    addEntry( *menu, tr( "Save to file" ), entries.saveToFile );
-    addEntry( *menu, tr( "Save selected to file" ), entries.saveSelectedToFile )
-        ->setEnabled( hasSelection );
+    more.addSeparator();
+    addEntry( more, tr( "Save selected to file" ), entries.saveSelectedToFile )
+        ->setEnabled( opened.hasSelection );
+    addEntry( more, tr( "Save to file" ), entries.saveToFile );
     if ( entries.exportAsCsv ) {
-        addEntry( *menu, tr( "Export as CSV..." ), entries.exportAsCsv );
+        addEntry( more, tr( "Export as CSV..." ), entries.exportAsCsv );
     }
 
+    more.addSeparator();
+    addEntry( more, tr( "Save splitter position" ), entries.saveSplitterPosition );
+}
+
+} // namespace
+
+std::unique_ptr<QMenu> PresentationMenu::create( QWidget* parent, const Report& report,
+                                                 const Entries& entries )
+{
+    auto menu = std::make_unique<QMenu>( parent );
+    const Opened opened( report, entries );
+
+    addSelectionBlock( *menu, opened );
+    menu->addSeparator();
+    addViewBlock( *menu, opened );
+    menu->addSeparator();
+    addMoreSubmenu( *menu, opened );
     addPluginEntries( *menu, entries.plugins );
 
     return menu;

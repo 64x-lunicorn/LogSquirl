@@ -224,6 +224,21 @@ Marks also appear as blue lines in the match overview.
 
 It is possible to quickly jump to a specific line using `Ctrl+L` shortcut.
 
+#### The context menu of the lines
+
+Right-clicking the lines of the main view, the filtered view or the table view
+opens the same menu, sorted by how often its entries are used:
+
+- At the top, what you do with the selection: *Copy*, *Copy as shown*,
+  *Replace search*, *Add to search*, *Exclude from search* (and, in the table
+  view, *Search this value in* the column) and *Mark*.
+- Then the view's own entries: *Highlighters* and *Color labels*.
+- **More** holds the rest: *Copy with line numbers*, the scratchpad entries,
+  *Find next* and *Find previous*, the search limits, *Set selection start* and
+  *Set selection end*, *Save selected to file*, *Save to file*, *Export as
+  CSV...* and *Save splitter position*.
+- The entries plugins add come last, below a separator.
+
 #### Breadcrumbs
 
 The breadcrumbs are the lines around each match and mark, shown dimmed in the
@@ -236,7 +251,7 @@ lines around two matches overlap, each line is shown once.
 
 When the log file's format was recognized (see
 [Auto Log Format Detection](#auto-log-format-detection-table-view)), the
-filtered view's context menu offers **Export as CSV...** too. It writes the
+filtered view's context menu offers **Export as CSV...** under *More* too. It writes the
 lines the filtered view shows, split into the columns of the table view, with
 the same dialog, file format and background export as
 [the table view's export](#exporting-as-csv). Without a recognized format the
@@ -1056,7 +1071,7 @@ in the table view.
 
 #### Exporting as CSV
 
-Right-click the table and choose **Export as CSV...** to write the table to a
+Right-click the table and choose **More > Export as CSV...** to write the table to a
 file for a spreadsheet, pandas and the like. The main text view has no such
 entry; the filtered view has one
 ([Exporting the filtered view as CSV](#exporting-the-filtered-view-as-csv)).
@@ -1337,7 +1352,7 @@ The Filters Panel can be toggled using the filter icon in the toolbar.
 Sometimes in log files there are text in base64 encoding, unformatted
 xml/json, etc. For such cases *logsquirl* provides Scratchpad tool. Text can
 be copied to this window and transformed to human-readable form.
-Use context menu to either add data to the current scratchpad tab or 
+Use *More* in the context menu to either add data to the current scratchpad tab or 
 replace its content with selected text. There are shortcuts `Ctrl+Z` and `Ctrl+Shift+Z` for these actions.
 
 New tabs can be opened in Scratchpad using the `Ctrl+N` hotkey.

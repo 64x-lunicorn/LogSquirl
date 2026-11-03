@@ -40,6 +40,15 @@ class QWidget;
 //
 // The menu is built from what the Presentation reports when it opens, and
 // each entry calls back into the Presentation it was opened on.
+//
+// It is built in four blocks, and a new entry goes into one of them (#894):
+// - the selection block at the top: what the user does with the selection,
+//   copied, searched for, Marked;
+// - the view block: the view's own entries, its Highlighters and Color
+//   Labels;
+// - the More submenu: the entries used rarely;
+// - the plugin block at the end: the entries plugins added.
+// The top level keeps at most 12 entries, the plugins' not counted.
 class PresentationMenu {
 public:
     // What the Presentation reports as its context menu opens.

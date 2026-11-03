@@ -22,6 +22,7 @@
 #include <optional>
 
 #include "abstractlogview.h"
+#include "context_menu_entries.h"
 #include "fake_log_data.h"
 #include "logformatdefinition.h"
 #include "logtablehighlightdelegate.h"
@@ -259,10 +260,8 @@ SCENARIO( "Save selected to file in the Table View's context menu needs a select
                 return;
             }
             poll.stop();
-            for ( const auto* action : menu->actions() ) {
-                if ( action->text() == "Save selected to file" ) {
-                    entryEnabled = action->isEnabled();
-                }
+            if ( const auto* entry = contextMenuEntry( *menu, "Save selected to file" ) ) {
+                entryEnabled = entry->isEnabled();
             }
             menu->close();
         } );
@@ -356,12 +355,7 @@ void triggerContextMenuEntry( LogTableView& view, const QString& entry )
             return;
         }
         poll.stop();
-        QAction* found = nullptr;
-        for ( auto* action : menu->actions() ) {
-            if ( action->text() == entry ) {
-                found = action;
-            }
-        }
+        auto* found = contextMenuEntry( *menu, entry );
         menu->close();
         if ( found != nullptr ) {
             found->trigger();
@@ -507,25 +501,11 @@ private:
     LogTableView& view_;
 };
 
-// The entries of a context menu, in order, without its separators.
-QStringList entriesOf( const QMenu& menu )
-{
-    QStringList entries;
-    for ( const auto* action : menu.actions() ) {
-        if ( !action->isSeparator() ) {
-            entries << action->text();
-        }
-    }
-    return entries;
-}
-
 // The shortcut shown with an entry of a context menu.
 QKeySequence shortcutOf( const QMenu& menu, const QString& entry )
 {
-    for ( const auto* action : menu.actions() ) {
-        if ( action->text() == entry ) {
-            return action->shortcut();
-        }
+    if ( const auto* action = contextMenuEntry( menu, entry ) ) {
+        return action->shortcut();
     }
     FAIL( "no entry " << entry.toStdString() );
     return {};
@@ -559,42 +539,71 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
             const auto textMenu = textView.createContextMenu( QPoint( 100, 2 ) );
             const auto tableMenu = tableView.createContextMenu( centerOfRow( tableView, 0 ) );
 
-            THEN( "both offer the same entries in the same order, only the Text View lets a "
-                  "selection start and end be set and copies as shown, and only the Table View "
-                  "searches a cell's value in its column and exports as CSV" )
+            THEN( "both put the selection's entries first, then the view's own, then More, in "
+                  "the same order; only the Text View copies as shown and lets a selection start "
+                  "and end be set, and only the Table View searches a cell's value in its column "
+                  "and exports as CSV" )
             {
-                QStringList tableEntries = {
+                // The menu opened on the timestamp cell of the first Row (#798).
+                const QStringList tableTop = {
+                    "&Copy this line",
+                    "&Replace search",
+                    "&Add to search",
+                    "&Exclude from search",
+                    "Search this value in timestamp",
+                    "&Mark",
                     "Highlighters",
                     "Color labels",
-                    "&Mark",
+                    "More",
+                };
+                const QStringList textTop = {
                     "&Copy this line",
+                    "Copy as shown",
+                    "&Replace search",
+                    "&Add to search",
+                    "&Exclude from search",
+                    "&Mark",
+                    "Highlighters",
+                    "Color labels",
+                    "More",
+                };
+                const QStringList textMore = {
                     "Copy this line with line number",
                     "Send to scratchpad",
                     "Replace scratchpad",
                     "Find &next",
                     "Find &previous",
-                    "&Replace search",
-                    "&Add to search",
-                    "&Exclude from search",
                     "Set search start",
                     "Set search end",
                     "Clear search limits",
-                    "Save splitter position",
-                    "Save to file",
+                    "Set selection start",
+                    "Set selection end",
                     "Save selected to file",
+                    "Save to file",
+                    "Save splitter position",
                 };
-                auto textEntries = tableEntries;
-                textEntries.insert( textEntries.indexOf( "Send to scratchpad" ), "Copy as shown" );
-                const auto beforeSplitter = textEntries.indexOf( "Save splitter position" );
-                textEntries.insert( beforeSplitter, "Set selection end" );
-                textEntries.insert( beforeSplitter, "Set selection start" );
-                // The menu opened on the timestamp cell of the first Row (#798).
-                tableEntries.insert( tableEntries.indexOf( "Set search start" ),
-                                     "Search this value in timestamp" );
-                tableEntries << "Export as CSV...";
+                auto tableMore = textMore;
+                tableMore.removeAll( "Set selection start" );
+                tableMore.removeAll( "Set selection end" );
+                tableMore.insert( tableMore.indexOf( "Save splitter position" ),
+                                  "Export as CSV..." );
 
-                REQUIRE( entriesOf( *tableMenu ) == tableEntries );
-                REQUIRE( entriesOf( *textMenu ) == textEntries );
+                REQUIRE( entriesOf( *tableMenu ) == tableTop );
+                REQUIRE( moreEntriesOf( *tableMenu ) == tableMore );
+                REQUIRE( entriesOf( *textMenu ) == textTop );
+                REQUIRE( moreEntriesOf( *textMenu ) == textMore );
+            }
+
+            THEN( "each has at most 12 entries at its top level" )
+            {
+                REQUIRE( entriesOf( *textMenu ).size() <= MaxTopLevelEntries );
+                REQUIRE( entriesOf( *tableMenu ).size() <= MaxTopLevelEntries );
+            }
+
+            THEN( "each still offers every entry it offered before, at the top or under More" )
+            {
+                REQUIRE( unreachableEntries( *textMenu, textViewEntriesBefore894() ).isEmpty() );
+                REQUIRE( unreachableEntries( *tableMenu, tableViewEntriesBefore894() ).isEmpty() );
             }
 
             THEN( "only the Text View, where * and / find, shows them as the shortcuts of Find "
@@ -614,14 +623,13 @@ namespace {
 // Chooses the entry of a context menu, as if the user had.
 void choose( const QMenu& menu, const QString& entry )
 {
-    for ( auto* action : menu.actions() ) {
-        if ( action->text() == entry ) {
-            REQUIRE( action->isEnabled() );
-            action->trigger();
-            return;
-        }
+    auto* action = contextMenuEntry( menu, entry );
+    if ( action == nullptr ) {
+        FAIL( "no entry " << entry.toStdString() );
+        return;
     }
-    FAIL( "no entry " << entry.toStdString() );
+    REQUIRE( action->isEnabled() );
+    action->trigger();
 }
 
 // A Log Format whose body is the whole Log Line, so the characters of its
