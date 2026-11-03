@@ -94,7 +94,7 @@ int main( int argc, char* argv[] )
 
     auto higthlighters = HighlighterSetCollection::getSynced();
 
-#if defined( Q_OS_WIN ) || defined( Q_OS_MAC )
+#if defined( Q_OS_WIN ) || defined( Q_OS_MACOS )
     config.setPollingEnabled( true );
     config.setPollIntervalMs( 1000 );
 #else

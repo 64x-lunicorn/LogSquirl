@@ -109,7 +109,7 @@ void PersistentInfo::PrepareOsSettings()
     sessionSettings_ = std::make_unique<QSettings>( format, QSettings::UserScope, "logsquirl",
                                                     SessionSettingsFile );
 
-#ifndef Q_OS_MAC
+#ifndef Q_OS_MACOS
     const auto sessionSettingsPath = makeSessionSettingsPath( appSettings_->fileName() );
 
     if ( sessionSettings_->allKeys().isEmpty() ) {
