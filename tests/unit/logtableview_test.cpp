@@ -557,15 +557,9 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
                     "More",
                 };
                 const QStringList textTop = {
-                    "&Copy this line",
-                    "Copy as shown",
-                    "&Replace search",
-                    "&Add to search",
-                    "&Exclude from search",
-                    "&Mark",
-                    "Highlighters",
-                    "Color labels",
-                    "More",
+                    "&Copy this line", "Copy as shown",        "&Replace search",
+                    "&Add to search",  "&Exclude from search", "&Mark",
+                    "Highlighters",    "Color labels",         "More",
                 };
                 const QStringList textMore = {
                     "Copy this line with line number",

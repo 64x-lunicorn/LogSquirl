@@ -62,10 +62,9 @@ ValueNamesPanel::ValueNamesPanel( QWidget* parent )
             return QString{};
         }
         const auto groupId = item->data( 0, GroupIdRole ).toString();
-        return item->parent() == nullptr
-                   ? ValueNamesCollection::groupCheckKey( groupId )
-                   : ValueNamesCollection::ruleCheckKey( groupId,
-                                                         item->data( 0, RuleNameRole ).toString() );
+        return item->parent() == nullptr ? ValueNamesCollection::groupCheckKey( groupId )
+                                         : ValueNamesCollection::ruleCheckKey(
+                                               groupId, item->data( 0, RuleNameRole ).toString() );
     } );
     connect( solo_, &SoloSelection::checksChanged, this, &ValueNamesPanel::commitChecks );
 
@@ -127,8 +126,8 @@ void ValueNamesPanel::populateTree()
         groupItem->setToolTip( 0, SoloSelection::doubleClickHint() );
         if ( index >= firstTeamGroup ) {
             groupItem->setText( 0, tr( "%1 (Team)" ).arg( group.name() ) );
-            groupItem->setToolTip( 0, SoloSelection::toolTipWithHint( tr(
-                                          "A Team group, shared through the Team Folder" ) ) );
+            groupItem->setToolTip( 0, SoloSelection::toolTipWithHint(
+                                          tr( "A Team group, shared through the Team Folder" ) ) );
         }
         groupItem->setFlags( groupItem->flags() | Qt::ItemIsAutoTristate
                              | Qt::ItemIsUserCheckable );

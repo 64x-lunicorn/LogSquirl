@@ -454,10 +454,10 @@ void GroupList::deleteSelected()
         Q_EMIT deleteRequested( section_, row_ );
     }
     else if ( section_ == Section::Team && teamEditable_ ) {
-        const auto answer = QMessageBox::question(
-            this, textsOf( kind_ ).deleteTeamGroup,
-            tr( "This deletes the group for the whole team." ), QMessageBox::Yes | QMessageBox::No,
-            QMessageBox::No );
+        const auto answer
+            = QMessageBox::question( this, textsOf( kind_ ).deleteTeamGroup,
+                                     tr( "This deletes the group for the whole team." ),
+                                     QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
         if ( answer == QMessageBox::Yes ) {
             Q_EMIT deleteRequested( section_, row_ );
         }

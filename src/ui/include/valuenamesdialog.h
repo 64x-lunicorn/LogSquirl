@@ -29,9 +29,9 @@
 #include <QStringList>
 
 #include "groupexchange.h"
+#include "grouplist.h"
 #include "nametablecsv.h"
 #include "naminggroup.h"
-#include "grouplist.h"
 #include "teamfolder.h"
 #include "teamgroupedits.h"
 #include "valuenamer.h"

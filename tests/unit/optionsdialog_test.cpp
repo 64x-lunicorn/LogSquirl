@@ -1175,8 +1175,8 @@ TEST_CASE( "The Search options group shows one setting per row and says what eac
               dialog.highlightMainSearchCheckBox, dialog.variateHighlightCheckBox,
               dialog.caseSensitiveCheckBox, dialog.logicalCombiningCheckBox,
               dialog.autoRefreshCheckBox, dialog.autoRunSearchOnAddCheckBox,
-              dialog.searchHistorySpinBox, dialog.quickFindSearchBox,
-              dialog.quickFindColorButton, dialog.incrementalCheckBox } ) {
+              dialog.searchHistorySpinBox, dialog.quickFindSearchBox, dialog.quickFindColorButton,
+              dialog.incrementalCheckBox } ) {
         INFO( setting->objectName().toStdString() );
         CHECK( form->indexOf( setting ) >= 0 );
     }

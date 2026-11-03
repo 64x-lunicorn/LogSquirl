@@ -50,9 +50,9 @@
 
 class QPushButton;
 
+#include "grouplist.h"
 #include "highlighterset.h"
 #include "highlightersetedit.h"
-#include "grouplist.h"
 #include "teamfolder.h"
 #include "teamgroupedits.h"
 #include "ui_highlightersdialog.h"

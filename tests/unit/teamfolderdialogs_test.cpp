@@ -25,9 +25,9 @@
 #include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QPushButton>
-#include <QToolButton>
 #include <QSettings>
 #include <QTemporaryDir>
+#include <QToolButton>
 
 #include "highlightersdialog.h"
 #include "highlighterset.h"

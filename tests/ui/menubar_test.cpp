@@ -141,8 +141,7 @@ const std::vector<ListedAction> actionsBefore892 = {
     { "Go to line...", ShortcutAction::LogViewJumpToLine },
     { "Go to timestamp...", ShortcutAction::LogViewJumpToTimestamp },
     { "Set search limits to time range...", ShortcutAction::LogViewSearchLimitsTimeRange },
-    { "Set search limits around current line...",
-      ShortcutAction::LogViewSearchLimitsAroundLine },
+    { "Set search limits around current line...", ShortcutAction::LogViewSearchLimitsAroundLine },
     { "Copy full path", ShortcutAction::MainWindowCopyPathToClipboard },
     { "Open containing folder", ShortcutAction::MainWindowOpenContainingFolder },
     { "Open in editor", ShortcutAction::MainWindowOpenInEditor },
@@ -254,16 +253,16 @@ SCENARIO( "The menu bar is ordered by task in seven menus", "[ui][menubar]" )
 
         THEN( "it has File, Edit, View, Tools, Favorites, Sources and Help" )
         {
-            CHECK( topLevelTitles( *shown.window )
-                   == QStringList{ "File", "Edit", "View", "Tools", "Favorites", "Sources",
-                                   "Help" } );
+            CHECK(
+                topLevelTitles( *shown.window )
+                == QStringList{ "File", "Edit", "View", "Tools", "Favorites", "Sources", "Help" } );
         }
 
         THEN( "the file actions are in the File menu" )
         {
-            for ( const auto* text : { "Copy full path", "Open containing folder",
-                                       "Open in editor", "Clear file...", "Open Session...",
-                                       "Save Session As...", "Close", "Exit" } ) {
+            for ( const auto* text :
+                  { "Copy full path", "Open containing folder", "Open in editor", "Clear file...",
+                    "Open Session...", "Save Session As...", "Close", "Exit" } ) {
                 INFO( text );
                 CHECK( pathOf( entries, QString::fromLatin1( text ) ) == "File" );
             }
@@ -308,8 +307,7 @@ SCENARIO( "The menu bar is ordered by task in seven menus", "[ui][menubar]" )
                 INFO( text );
                 CHECK( pathOf( entries, QString::fromLatin1( text ) ) == "Tools" );
             }
-            CHECK( pathOf( entries, QStringLiteral( "Plugin Management..." ) )
-                   == "Tools/Plugins" );
+            CHECK( pathOf( entries, QStringLiteral( "Plugin Management..." ) ) == "Tools/Plugins" );
         }
     }
 }

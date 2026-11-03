@@ -61,9 +61,9 @@ QStringList shownTexts( const GroupList& list )
     for ( int index = 0; index < tree->topLevelItemCount(); ++index ) {
         texts.append( tree->topLevelItem( index )->text( 0 ) );
     }
-    const QList<const QAbstractButton*> buttons{ list.newButton(),  list.deleteButton(),
-                                                 list.upButton(),   list.downButton(),
-                                                 list.shareButton(), list.copyButton(),
+    const QList<const QAbstractButton*> buttons{ list.newButton(),    list.deleteButton(),
+                                                 list.upButton(),     list.downButton(),
+                                                 list.shareButton(),  list.copyButton(),
                                                  list.exportButton(), list.importButton() };
     for ( const auto* button : buttons ) {
         texts.append( button->text() );
@@ -144,18 +144,17 @@ TEST_CASE( "The Group List shows the user's own, the Team and the Plugin groups 
 TEST_CASE( "The Group List says the same for every kind of group, apart from the kind's name",
            "[ui][grouplist]" )
 {
-    const auto name = GENERATE( KindName{ GroupKind::Highlighter, "Highlighter Set",
-                                          "Highlighter Sets" },
-                                KindName{ GroupKind::ValueNames, "Naming Group", "Naming Groups" } );
+    const auto name
+        = GENERATE( KindName{ GroupKind::Highlighter, "Highlighter Set", "Highlighter Sets" },
+                    KindName{ GroupKind::ValueNames, "Naming Group", "Naming Groups" } );
 
     GroupList filters( GroupKind::Filter );
     fill( filters );
     GroupList other( name.kind );
     fill( other );
 
-    const auto filterTexts = withoutKind( shownTexts( filters ), { GroupKind::Filter,
-                                                                   "Filter Group",
-                                                                   "Filter Groups" } );
+    const auto filterTexts = withoutKind( shownTexts( filters ),
+                                          { GroupKind::Filter, "Filter Group", "Filter Groups" } );
     const auto otherTexts = withoutKind( shownTexts( other ), name );
     CHECK( filterTexts == otherTexts );
 
