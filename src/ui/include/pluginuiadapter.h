@@ -46,8 +46,8 @@ struct RegexLabSampleSource;
  *
  * Shows plugin status widgets in a toolbar at the top of the window, footer
  * widgets in a toolbar at the bottom, sidebar tabs in the sidebar and menu
- * actions at the top of the Plugins menu, or in the submenus of it their menu
- * path names. It is the only place that turns a
+ * actions at the top of the Plugins submenu of the Tools menu (#892), or in the
+ * submenus of it their menu path names. It is the only place that turns a
  * PluginWidgetHandle back into a QWidget. Calls from another thread are
  * carried out on the window's thread. A plugin's Regex Lab opens over the
  * window, on the Log Lines of the tab in front (#662); a plugin goes to a Log

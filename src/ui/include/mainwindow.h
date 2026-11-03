@@ -371,6 +371,9 @@ private:
     void createActions();
     void loadIcons();
     void createMenus();
+    // Enables the Edit menu and the File menu's actions on the current file
+    // while a tab holds a Log File, disables them while none does.
+    void setCurrentFileActionsEnabled( bool enabled );
     void createToolBars();
     void createTrayIcon();
     void readSettings();

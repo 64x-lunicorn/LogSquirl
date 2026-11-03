@@ -46,6 +46,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/modal_paths_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow_tabs_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow_load_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/menubar_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_window_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/predefinedfiltersetedit_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/regexlab_editors_test.cpp
