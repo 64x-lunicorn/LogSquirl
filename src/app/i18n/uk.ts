@@ -1195,7 +1195,7 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/csvexportdialog.cpp" line="111"/>
         <source>A field starting with =, +, - or @ is written with an apostrophe before it, so that a spreadsheet shows it as text.</source>
-        <translation type="unfinished"></translation>
+        <translation>Поле, що починається з =, +, - або @, записується з апострофом попереду, щоб електронна таблиця показала його як текст.</translation>
     </message>
     <message>
         <location filename="../../ui/src/csvexportdialog.cpp" line="117"/>
@@ -1307,7 +1307,7 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/filterspanel.cpp" line="153"/>
         <source>Shipped by the plugin %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Постачається плагіном %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/filterspanel.cpp" line="156"/>
@@ -1900,7 +1900,7 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/highlightersmenu.cpp" line="67"/>
         <source>Plugins</source>
-        <translation type="unfinished">Плагіни</translation>
+        <translation>Плагіни</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersmenu.cpp" line="80"/>
@@ -1926,7 +1926,7 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../logformat/src/logformattablemodel.cpp" line="179"/>
         <source>The regex engine gave up on this Log Line: it may match the Log Format</source>
-        <translation type="unfinished"></translation>
+        <translation>Рушій регулярних виразів здався на цьому рядку журналу: він може відповідати формату логу</translation>
     </message>
 </context>
 <context>
@@ -1934,12 +1934,12 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="651"/>
         <source>%1 (sorting %2%)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 (сортування %2%)</translation>
     </message>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="1286"/>
         <source>Matches Only</source>
-        <translation type="unfinished"></translation>
+        <translation>Лише збіги</translation>
     </message>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="1301"/>
@@ -1949,7 +1949,7 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="1324"/>
         <source>Reset columns</source>
-        <translation type="unfinished"></translation>
+        <translation>Скинути стовпці</translation>
     </message>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="1721"/>
@@ -2444,7 +2444,7 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="3458"/>
         <source>%1 expands past the %2 MB LogSquirl decompresses at most, so it was not opened. Raise the limit on the File page of the Preferences, under Archives.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 розпаковується понад %2 МБ, які LogSquirl розпаковує щонайбільше, тому його не відкрито. Збільште обмеження на сторінці «Файл» у Налаштуваннях, у розділі «Архіви».</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="3500"/>
@@ -2464,12 +2464,12 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="3835"/>
         <source>Failed to convert %1 with %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Не вдалося перетворити %1 за допомогою %2</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="3871"/>
         <source>Converting %1 with %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Перетворення %1 за допомогою %2</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="4048"/>
@@ -2690,104 +2690,104 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="84"/>
         <source>Name This Value</source>
-        <translation type="unfinished"></translation>
+        <translation>Назвати це значення</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="94"/>
         <source>New Naming Group</source>
-        <translation type="unfinished">Нова група іменування</translation>
+        <translation>Нова група іменування</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="96"/>
         <location filename="../../ui/src/namevaluedialog.cpp" line="380"/>
         <source>Value Names</source>
-        <translation type="unfinished">Назви значень</translation>
+        <translation>Назви значень</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="101"/>
         <source>Naming Group:</source>
-        <translation type="unfinished"></translation>
+        <translation>Група іменування:</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="108"/>
         <location filename="../../ui/src/namevaluedialog.cpp" line="331"/>
         <source>Values</source>
-        <translation type="unfinished"></translation>
+        <translation>Значення</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="113"/>
         <source>Name Table:</source>
-        <translation type="unfinished"></translation>
+        <translation>Таблиця назв:</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="117"/>
         <source>The regex of the Naming Rule; its first capture group is the value looked up in the Name Table</source>
-        <translation type="unfinished"></translation>
+        <translation>Регулярний вираз правила іменування; його перша група захоплення — значення, яке шукається в таблиці назв</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="119"/>
         <source>Naming Rule:</source>
-        <translation type="unfinished"></translation>
+        <translation>Правило іменування:</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="123"/>
         <source>How a named value is shown: {name} is its name, {value} the value itself</source>
-        <translation type="unfinished"></translation>
+        <translation>Як показується назване значення: {name} — його назва, {value} — саме значення</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="125"/>
         <source>Template:</source>
-        <translation type="unfinished"></translation>
+        <translation>Шаблон:</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="129"/>
         <source>Key</source>
-        <translation type="unfinished"></translation>
+        <translation>Ключ</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="129"/>
         <source>Name</source>
-        <translation type="unfinished">Назва</translation>
+        <translation>Назва</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="135"/>
         <source>Add Row</source>
-        <translation type="unfinished"></translation>
+        <translation>Додати рядок</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="136"/>
         <source>Remove Row</source>
-        <translation type="unfinished"></translation>
+        <translation>Видалити рядок</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="146"/>
         <source>Rows:</source>
-        <translation type="unfinished"></translation>
+        <translation>Рядки:</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="159"/>
         <source>Preview:</source>
-        <translation type="unfinished"></translation>
+        <translation>Попередній перегляд:</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="206"/>
         <source>New Name Table</source>
-        <translation type="unfinished"></translation>
+        <translation>Нова таблиця назв</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="331"/>
         <source>Rule</source>
-        <translation type="unfinished">Правило</translation>
+        <translation>Правило</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="345"/>
         <source>The regex is not valid: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Регулярний вираз недійсний: %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="348"/>
         <source>The regex does not match this Log Line, so it names nothing here.</source>
-        <translation type="unfinished"></translation>
+        <translation>Регулярний вираз не збігається з цим рядком журналу, тож тут нічого не називає.</translation>
     </message>
 </context>
 <context>
@@ -2945,7 +2945,7 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="173"/>
         <source>Search</source>
-        <translation type="unfinished">Пошук</translation>
+        <translation>Пошук</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="622"/>
@@ -3050,7 +3050,7 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="887"/>
         <source>Scrolling</source>
-        <translation type="unfinished"></translation>
+        <translation>Прокручування</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="945"/>
@@ -3125,12 +3125,12 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1124"/>
         <source>Decompress at most (MB):</source>
-        <translation type="unfinished"></translation>
+        <translation>Розпаковувати щонайбільше (МБ):</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1137"/>
         <source>A compressed file or an archive expands to at most this many megabytes; a larger one is not opened</source>
-        <translation type="unfinished"></translation>
+        <translation>Стиснутий файл або архів розпаковується щонайбільше до цієї кількості мегабайтів; більший не відкривається</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1158"/>
@@ -3322,7 +3322,7 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1835"/>
         <source>Source</source>
-        <translation type="unfinished"></translation>
+        <translation>Джерело</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1843"/>
@@ -3462,12 +3462,12 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="442"/>
         <source>Built-in</source>
-        <translation type="unfinished"></translation>
+        <translation>Вбудований</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="444"/>
         <source>User</source>
-        <translation type="unfinished"></translation>
+        <translation>Користувач</translation>
     </message>
     <message>
         <location filename="../../ui/src/filetypechoices.cpp" line="90"/>
@@ -3717,7 +3717,7 @@ You can now use it from Tools &gt; Plugins.</source>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="520"/>
         <source>No compatible download available on this platform.</source>
-        <translation type="unfinished"></translation>
+        <translation>Немає сумісного завантаження для цієї платформи.</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="725"/>
@@ -3781,12 +3781,12 @@ You can now use it from Tools &gt; Plugins.</source>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="852"/>
         <source>Installation refused.</source>
-        <translation type="unfinished"></translation>
+        <translation>Встановлення відхилено.</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="855"/>
         <source>The plugin id %1 is not a plain name and names no folder in the plugin folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ідентифікатор плагіна %1 не є простою назвою і не позначає жодної теки в теці плагінів.</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="882"/>
@@ -3842,7 +3842,7 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/plugingroups.cpp" line="34"/>
         <source>%1 (%2)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 (%2)</translation>
     </message>
 </context>
 <context>
@@ -3850,7 +3850,7 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../plugins/src/pluginmetadata.cpp" line="275"/>
         <source>Plugin &apos;%1&apos; is built against Qt %2, but LogSquirl runs on Qt %3, which serves plugins built against Qt %4.0 to %4.%5 only</source>
-        <translation type="unfinished"></translation>
+        <translation>Плагін «%1» зібрано з Qt %2, але LogSquirl працює на Qt %3, який підтримує лише плагіни, зібрані з Qt від %4.0 до %4.%5</translation>
     </message>
 </context>
 <context>
@@ -4194,17 +4194,17 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="326"/>
         <source>Merge Log Files</source>
-        <translation type="unfinished">Об’єднати файли журналу</translation>
+        <translation>Об’єднати файли журналу</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="333"/>
         <source>Export as CSV</source>
-        <translation type="unfinished">Експорт у CSV</translation>
+        <translation>Експорт у CSV</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="340"/>
         <source>Show or hide the sidebar</source>
-        <translation type="unfinished"></translation>
+        <translation>Показати або сховати бічну панель</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="396"/>
@@ -4229,12 +4229,12 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="471"/>
         <source>Jump to next match</source>
-        <translation type="unfinished"></translation>
+        <translation>Перейти до наступного збігу</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="478"/>
         <source>Jump to previous match</source>
-        <translation type="unfinished"></translation>
+        <translation>Перейти до попереднього збігу</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="485"/>
@@ -4477,27 +4477,27 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="58"/>
         <source>Reached end of file, no occurrence found.</source>
-        <translation type="unfinished"></translation>
+        <translation>Досягнуто кінця файлу, збігів не знайдено.</translation>
     </message>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="63"/>
         <source>Reached beginning of file, no occurrence found.</source>
-        <translation type="unfinished"></translation>
+        <translation>Досягнуто початку файлу, збігів не знайдено.</translation>
     </message>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="68"/>
         <source>Search interrupted</source>
-        <translation type="unfinished"></translation>
+        <translation>Пошук перервано</translation>
     </message>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="75"/>
         <source> (the regex engine gave up on %1 Log Lines: they may match)</source>
-        <translation type="unfinished"> (рушій регулярних виразів здався на %1 рядках журналу: вони можуть збігатися)</translation>
+        <translation> (рушій регулярних виразів здався на %1 рядках журналу: вони можуть збігатися)</translation>
     </message>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="79"/>
         <source> (the regex engine gave up on 1 Log Line: it may match)</source>
-        <translation type="unfinished"> (рушій регулярних виразів здався на 1 рядку журналу: він може збігатися)</translation>
+        <translation> (рушій регулярних виразів здався на 1 рядку журналу: він може збігатися)</translation>
     </message>
 </context>
 <context>
@@ -5488,7 +5488,7 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="249"/>
         <source>Name Table %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Таблиця назв %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="406"/>
@@ -5611,17 +5611,17 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="536"/>
         <source>Template:</source>
-        <translation type="unfinished"></translation>
+        <translation>Шаблон:</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="538"/>
         <source>Regex:</source>
-        <translation type="unfinished"></translation>
+        <translation>Regex:</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="548"/>
         <source>Choose the Name Table of each capture group:</source>
-        <translation type="unfinished"></translation>
+        <translation>Виберіть таблицю назв для кожної групи захоплення:</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="565"/>
@@ -6133,22 +6133,22 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="85"/>
         <source>Merge Log Files...</source>
-        <translation type="unfinished"></translation>
+        <translation>Об’єднати файли журналу...</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="87"/>
         <source>Merge open log files into a tab of their own</source>
-        <translation type="unfinished"></translation>
+        <translation>Об’єднати відкриті файли журналу в окрему вкладку</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="88"/>
         <source>Export as CSV...</source>
-        <translation type="unfinished"></translation>
+        <translation>Експорт у CSV...</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="90"/>
         <source>Export the lines of the current tab to a CSV file</source>
-        <translation type="unfinished"></translation>
+        <translation>Експортувати рядки поточної вкладки у файл CSV</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="91"/>
@@ -6188,12 +6188,12 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="100"/>
         <source>&amp;Matches Only</source>
-        <translation type="unfinished"></translation>
+        <translation>Лише &amp;збіги</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="101"/>
         <source>Show only the Rows of the Table View whose Log Line is a Match of the current Search</source>
-        <translation type="unfinished"></translation>
+        <translation>Показувати лише рядки табличного вигляду, рядок журналу яких є збігом поточного пошуку</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="103"/>
@@ -6495,27 +6495,27 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="451"/>
         <source>The catalog entry carries no download URL.</source>
-        <translation type="unfinished"></translation>
+        <translation>Запис каталогу не містить URL-адреси завантаження.</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="454"/>
         <source>The catalog entry&apos;s download URL is not https: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>URL-адреса завантаження запису каталогу не https: %1</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="458"/>
         <source>The catalog entry carries no SHA-256 checksum, so a download could not be verified.</source>
-        <translation type="unfinished"></translation>
+        <translation>Запис каталогу не містить контрольної суми SHA-256, тож завантаження не вдалося б перевірити.</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="462"/>
         <source>The catalog entry carries a malformed SHA-256 checksum (not 64 hex digits), so a download could not be verified.</source>
-        <translation type="unfinished"></translation>
+        <translation>Запис каталогу містить некоректну контрольну суму SHA-256 (не 64 шістнадцяткові цифри), тож завантаження не вдалося б перевірити.</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="475"/>
         <source>Download refused for %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Завантаження %1 відхилено: %2</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="495"/>

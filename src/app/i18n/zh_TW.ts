@@ -1195,7 +1195,7 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/csvexportdialog.cpp" line="111"/>
         <source>A field starting with =, +, - or @ is written with an apostrophe before it, so that a spreadsheet shows it as text.</source>
-        <translation type="unfinished"></translation>
+        <translation>以 =、+、- 或 @ 開頭的欄位會在前面加上撇號寫入，讓試算表將其顯示為文字。</translation>
     </message>
     <message>
         <location filename="../../ui/src/csvexportdialog.cpp" line="117"/>
@@ -1307,7 +1307,7 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/filterspanel.cpp" line="153"/>
         <source>Shipped by the plugin %1</source>
-        <translation type="unfinished"></translation>
+        <translation>由外掛程式 %1 提供</translation>
     </message>
     <message>
         <location filename="../../ui/src/filterspanel.cpp" line="156"/>
@@ -1900,7 +1900,7 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/highlightersmenu.cpp" line="67"/>
         <source>Plugins</source>
-        <translation type="unfinished">外掛程式</translation>
+        <translation>外掛程式</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersmenu.cpp" line="80"/>
@@ -1926,7 +1926,7 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../logformat/src/logformattablemodel.cpp" line="179"/>
         <source>The regex engine gave up on this Log Line: it may match the Log Format</source>
-        <translation type="unfinished"></translation>
+        <translation>正規表示式引擎放棄了此日誌行：它可能符合該日誌格式</translation>
     </message>
 </context>
 <context>
@@ -1934,12 +1934,12 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="651"/>
         <source>%1 (sorting %2%)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1（排序中 %2%）</translation>
     </message>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="1286"/>
         <source>Matches Only</source>
-        <translation type="unfinished"></translation>
+        <translation>僅符合項目</translation>
     </message>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="1301"/>
@@ -1949,7 +1949,7 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="1324"/>
         <source>Reset columns</source>
-        <translation type="unfinished"></translation>
+        <translation>重設欄</translation>
     </message>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="1721"/>
@@ -2196,7 +2196,7 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="3458"/>
         <source>%1 expands past the %2 MB LogSquirl decompresses at most, so it was not opened. Raise the limit on the File page of the Preferences, under Archives.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 解壓縮後超過 LogSquirl 最多解壓縮的 %2 MB，因此未開啟。請在偏好設定的「檔案」頁面的「歸檔」下提高此限制。</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="3517"/>
@@ -2206,12 +2206,12 @@ Do you want to replace it?</source>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="3835"/>
         <source>Failed to convert %1 with %2</source>
-        <translation type="unfinished"></translation>
+        <translation>使用 %2 轉換 %1 失敗</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="3871"/>
         <source>Converting %1 with %2</source>
-        <translation type="unfinished"></translation>
+        <translation>正在使用 %2 轉換 %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="4048"/>
@@ -2688,104 +2688,104 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="84"/>
         <source>Name This Value</source>
-        <translation type="unfinished"></translation>
+        <translation>命名此值</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="94"/>
         <source>New Naming Group</source>
-        <translation type="unfinished"></translation>
+        <translation>新增命名群組</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="96"/>
         <location filename="../../ui/src/namevaluedialog.cpp" line="380"/>
         <source>Value Names</source>
-        <translation type="unfinished">值名稱</translation>
+        <translation>值名稱</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="101"/>
         <source>Naming Group:</source>
-        <translation type="unfinished"></translation>
+        <translation>命名群組：</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="108"/>
         <location filename="../../ui/src/namevaluedialog.cpp" line="331"/>
         <source>Values</source>
-        <translation type="unfinished"></translation>
+        <translation>值</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="113"/>
         <source>Name Table:</source>
-        <translation type="unfinished"></translation>
+        <translation>名稱表：</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="117"/>
         <source>The regex of the Naming Rule; its first capture group is the value looked up in the Name Table</source>
-        <translation type="unfinished"></translation>
+        <translation>命名規則的正規表達式；其第一個擷取群組是在名稱表中查找的值</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="119"/>
         <source>Naming Rule:</source>
-        <translation type="unfinished"></translation>
+        <translation>命名規則：</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="123"/>
         <source>How a named value is shown: {name} is its name, {value} the value itself</source>
-        <translation type="unfinished"></translation>
+        <translation>已命名值的顯示方式：{name} 是其名稱，{value} 是值本身</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="125"/>
         <source>Template:</source>
-        <translation type="unfinished"></translation>
+        <translation>範本：</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="129"/>
         <source>Key</source>
-        <translation type="unfinished"></translation>
+        <translation>鍵</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="129"/>
         <source>Name</source>
-        <translation type="unfinished">名稱</translation>
+        <translation>名稱</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="135"/>
         <source>Add Row</source>
-        <translation type="unfinished"></translation>
+        <translation>新增列</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="136"/>
         <source>Remove Row</source>
-        <translation type="unfinished"></translation>
+        <translation>移除列</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="146"/>
         <source>Rows:</source>
-        <translation type="unfinished"></translation>
+        <translation>列：</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="159"/>
         <source>Preview:</source>
-        <translation type="unfinished"></translation>
+        <translation>預覽：</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="206"/>
         <source>New Name Table</source>
-        <translation type="unfinished"></translation>
+        <translation>新增名稱表</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="331"/>
         <source>Rule</source>
-        <translation type="unfinished">規則</translation>
+        <translation>規則</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="345"/>
         <source>The regex is not valid: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>正規表達式無效：%1</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="348"/>
         <source>The regex does not match this Log Line, so it names nothing here.</source>
-        <translation type="unfinished"></translation>
+        <translation>正規表達式與此日誌行不符，因此此處不會命名任何內容。</translation>
     </message>
 </context>
 <context>
@@ -3043,12 +3043,12 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="173"/>
         <source>Search</source>
-        <translation type="unfinished">搜尋</translation>
+        <translation>搜尋</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="887"/>
         <source>Scrolling</source>
-        <translation type="unfinished"></translation>
+        <translation>捲動</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="945"/>
@@ -3123,12 +3123,12 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1124"/>
         <source>Decompress at most (MB):</source>
-        <translation type="unfinished"></translation>
+        <translation>最多解壓縮 (MB)：</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1137"/>
         <source>A compressed file or an archive expands to at most this many megabytes; a larger one is not opened</source>
-        <translation type="unfinished"></translation>
+        <translation>壓縮檔或歸檔解壓縮後最多為這麼多 MB；更大的不會開啟</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1158"/>
@@ -3320,7 +3320,7 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1835"/>
         <source>Source</source>
-        <translation type="unfinished"></translation>
+        <translation>來源</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1843"/>
@@ -3460,12 +3460,12 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="442"/>
         <source>Built-in</source>
-        <translation type="unfinished"></translation>
+        <translation>內建</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="444"/>
         <source>User</source>
-        <translation type="unfinished"></translation>
+        <translation>使用者</translation>
     </message>
     <message>
         <location filename="../../ui/src/filetypechoices.cpp" line="90"/>
@@ -3715,7 +3715,7 @@ You can now use it from Tools &gt; Plugins.</source>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="520"/>
         <source>No compatible download available on this platform.</source>
-        <translation type="unfinished"></translation>
+        <translation>此平台上沒有相容的下載項目。</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="725"/>
@@ -3779,12 +3779,12 @@ You can now use it from Tools &gt; Plugins.</source>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="852"/>
         <source>Installation refused.</source>
-        <translation type="unfinished"></translation>
+        <translation>已拒絕安裝。</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="855"/>
         <source>The plugin id %1 is not a plain name and names no folder in the plugin folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>外掛程式 ID %1 不是單純的名稱，不對應外掛程式資料夾中的任何資料夾。</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="882"/>
@@ -3840,7 +3840,7 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/plugingroups.cpp" line="34"/>
         <source>%1 (%2)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1（%2）</translation>
     </message>
 </context>
 <context>
@@ -3848,7 +3848,7 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../plugins/src/pluginmetadata.cpp" line="275"/>
         <source>Plugin &apos;%1&apos; is built against Qt %2, but LogSquirl runs on Qt %3, which serves plugins built against Qt %4.0 to %4.%5 only</source>
-        <translation type="unfinished"></translation>
+        <translation>外掛程式「%1」以 Qt %2 建置，但 LogSquirl 執行於 Qt %3，僅支援以 Qt %4.0 至 %4.%5 建置的外掛程式</translation>
     </message>
 </context>
 <context>
@@ -4192,17 +4192,17 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="326"/>
         <source>Merge Log Files</source>
-        <translation type="unfinished">合併日誌檔案</translation>
+        <translation>合併日誌檔案</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="333"/>
         <source>Export as CSV</source>
-        <translation type="unfinished">匯出為 CSV</translation>
+        <translation>匯出為 CSV</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="340"/>
         <source>Show or hide the sidebar</source>
-        <translation type="unfinished"></translation>
+        <translation>顯示或隱藏側邊欄</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="396"/>
@@ -4227,12 +4227,12 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="471"/>
         <source>Jump to next match</source>
-        <translation type="unfinished"></translation>
+        <translation>跳到下一個符合項目</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="478"/>
         <source>Jump to previous match</source>
-        <translation type="unfinished"></translation>
+        <translation>跳到上一個符合項目</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="485"/>
@@ -4475,27 +4475,27 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="58"/>
         <source>Reached end of file, no occurrence found.</source>
-        <translation type="unfinished"></translation>
+        <translation>已到達檔案結尾，找不到符合項目。</translation>
     </message>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="63"/>
         <source>Reached beginning of file, no occurrence found.</source>
-        <translation type="unfinished"></translation>
+        <translation>已到達檔案開頭，找不到符合項目。</translation>
     </message>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="68"/>
         <source>Search interrupted</source>
-        <translation type="unfinished"></translation>
+        <translation>搜尋已中斷</translation>
     </message>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="75"/>
         <source> (the regex engine gave up on %1 Log Lines: they may match)</source>
-        <translation type="unfinished"> (正規表示式引擎放棄了 %1 個日誌行：它們可能符合)</translation>
+        <translation> (正規表示式引擎放棄了 %1 個日誌行：它們可能符合)</translation>
     </message>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="79"/>
         <source> (the regex engine gave up on 1 Log Line: it may match)</source>
-        <translation type="unfinished"> (正規表示式引擎放棄了 1 個日誌行：它可能符合)</translation>
+        <translation> (正規表示式引擎放棄了 1 個日誌行：它可能符合)</translation>
     </message>
 </context>
 <context>
@@ -5484,7 +5484,7 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="249"/>
         <source>Name Table %1</source>
-        <translation type="unfinished"></translation>
+        <translation>名稱表 %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="406"/>
@@ -5607,17 +5607,17 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="536"/>
         <source>Template:</source>
-        <translation type="unfinished"></translation>
+        <translation>範本：</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="538"/>
         <source>Regex:</source>
-        <translation type="unfinished"></translation>
+        <translation>正規表達式：</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="548"/>
         <source>Choose the Name Table of each capture group:</source>
-        <translation type="unfinished"></translation>
+        <translation>為每個擷取群組選擇名稱表：</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="565"/>
@@ -6129,22 +6129,22 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="85"/>
         <source>Merge Log Files...</source>
-        <translation type="unfinished"></translation>
+        <translation>合併日誌檔案...</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="87"/>
         <source>Merge open log files into a tab of their own</source>
-        <translation type="unfinished"></translation>
+        <translation>將已開啟的日誌檔案合併到獨立的分頁中</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="88"/>
         <source>Export as CSV...</source>
-        <translation type="unfinished"></translation>
+        <translation>匯出為 CSV...</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="90"/>
         <source>Export the lines of the current tab to a CSV file</source>
-        <translation type="unfinished"></translation>
+        <translation>將目前分頁的行匯出至 CSV 檔案</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="91"/>
@@ -6184,12 +6184,12 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="100"/>
         <source>&amp;Matches Only</source>
-        <translation type="unfinished"></translation>
+        <translation>僅符合項目(&amp;M)</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="101"/>
         <source>Show only the Rows of the Table View whose Log Line is a Match of the current Search</source>
-        <translation type="unfinished"></translation>
+        <translation>僅顯示表格檢視中日誌行符合目前搜尋的列</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="103"/>
@@ -6491,27 +6491,27 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="451"/>
         <source>The catalog entry carries no download URL.</source>
-        <translation type="unfinished"></translation>
+        <translation>目錄項目未包含下載 URL。</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="454"/>
         <source>The catalog entry&apos;s download URL is not https: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>目錄項目的下載 URL 不是 https：%1</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="458"/>
         <source>The catalog entry carries no SHA-256 checksum, so a download could not be verified.</source>
-        <translation type="unfinished"></translation>
+        <translation>目錄項目未包含 SHA-256 總和檢查碼，因此無法驗證下載。</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="462"/>
         <source>The catalog entry carries a malformed SHA-256 checksum (not 64 hex digits), so a download could not be verified.</source>
-        <translation type="unfinished"></translation>
+        <translation>目錄項目包含格式錯誤的 SHA-256 總和檢查碼（不是 64 位十六進位數字），因此無法驗證下載。</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="475"/>
         <source>Download refused for %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>已拒絕下載 %1：%2</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="495"/>

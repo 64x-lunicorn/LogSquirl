@@ -1195,7 +1195,7 @@ Do you want to replace it?</translation>
     <message>
         <location filename="../../ui/src/csvexportdialog.cpp" line="111"/>
         <source>A field starting with =, +, - or @ is written with an apostrophe before it, so that a spreadsheet shows it as text.</source>
-        <translation type="unfinished"></translation>
+        <translation>A field starting with =, +, - or @ is written with an apostrophe before it, so that a spreadsheet shows it as text.</translation>
     </message>
     <message>
         <location filename="../../ui/src/csvexportdialog.cpp" line="117"/>
@@ -1307,7 +1307,7 @@ Do you want to replace it?</translation>
     <message>
         <location filename="../../ui/src/filterspanel.cpp" line="153"/>
         <source>Shipped by the plugin %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Shipped by the plugin %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/filterspanel.cpp" line="156"/>
@@ -1900,7 +1900,7 @@ Do you want to replace it?</translation>
     <message>
         <location filename="../../ui/src/highlightersmenu.cpp" line="67"/>
         <source>Plugins</source>
-        <translation type="unfinished">Plugins</translation>
+        <translation>Plugins</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersmenu.cpp" line="80"/>
@@ -1926,7 +1926,7 @@ Do you want to replace it?</translation>
     <message>
         <location filename="../../logformat/src/logformattablemodel.cpp" line="179"/>
         <source>The regex engine gave up on this Log Line: it may match the Log Format</source>
-        <translation type="unfinished"></translation>
+        <translation>The regex engine gave up on this Log Line: it may match the Log Format</translation>
     </message>
 </context>
 <context>
@@ -1934,12 +1934,12 @@ Do you want to replace it?</translation>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="651"/>
         <source>%1 (sorting %2%)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 (sorting %2%)</translation>
     </message>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="1286"/>
         <source>Matches Only</source>
-        <translation type="unfinished"></translation>
+        <translation>Matches Only</translation>
     </message>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="1301"/>
@@ -1949,7 +1949,7 @@ Do you want to replace it?</translation>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="1324"/>
         <source>Reset columns</source>
-        <translation type="unfinished"></translation>
+        <translation>Reset columns</translation>
     </message>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="1721"/>
@@ -2443,7 +2443,7 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="3458"/>
         <source>%1 expands past the %2 MB LogSquirl decompresses at most, so it was not opened. Raise the limit on the File page of the Preferences, under Archives.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 expands past the %2 MB LogSquirl decompresses at most, so it was not opened. Raise the limit on the File page of the Preferences, under Archives.</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="3500"/>
@@ -2463,12 +2463,12 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="3835"/>
         <source>Failed to convert %1 with %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Failed to convert %1 with %2</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="3871"/>
         <source>Converting %1 with %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Converting %1 with %2</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="4048"/>
@@ -2689,104 +2689,104 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="84"/>
         <source>Name This Value</source>
-        <translation type="unfinished"></translation>
+        <translation>Name This Value</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="94"/>
         <source>New Naming Group</source>
-        <translation type="unfinished">New Naming Group</translation>
+        <translation>New Naming Group</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="96"/>
         <location filename="../../ui/src/namevaluedialog.cpp" line="380"/>
         <source>Value Names</source>
-        <translation type="unfinished">Value Names</translation>
+        <translation>Value Names</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="101"/>
         <source>Naming Group:</source>
-        <translation type="unfinished"></translation>
+        <translation>Naming Group:</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="108"/>
         <location filename="../../ui/src/namevaluedialog.cpp" line="331"/>
         <source>Values</source>
-        <translation type="unfinished"></translation>
+        <translation>Values</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="113"/>
         <source>Name Table:</source>
-        <translation type="unfinished"></translation>
+        <translation>Name Table:</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="117"/>
         <source>The regex of the Naming Rule; its first capture group is the value looked up in the Name Table</source>
-        <translation type="unfinished"></translation>
+        <translation>The regex of the Naming Rule; its first capture group is the value looked up in the Name Table</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="119"/>
         <source>Naming Rule:</source>
-        <translation type="unfinished"></translation>
+        <translation>Naming Rule:</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="123"/>
         <source>How a named value is shown: {name} is its name, {value} the value itself</source>
-        <translation type="unfinished"></translation>
+        <translation>How a named value is shown: {name} is its name, {value} the value itself</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="125"/>
         <source>Template:</source>
-        <translation type="unfinished"></translation>
+        <translation>Template:</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="129"/>
         <source>Key</source>
-        <translation type="unfinished"></translation>
+        <translation>Key</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="129"/>
         <source>Name</source>
-        <translation type="unfinished">Name</translation>
+        <translation>Name</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="135"/>
         <source>Add Row</source>
-        <translation type="unfinished"></translation>
+        <translation>Add Row</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="136"/>
         <source>Remove Row</source>
-        <translation type="unfinished"></translation>
+        <translation>Remove Row</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="146"/>
         <source>Rows:</source>
-        <translation type="unfinished"></translation>
+        <translation>Rows:</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="159"/>
         <source>Preview:</source>
-        <translation type="unfinished"></translation>
+        <translation>Preview:</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="206"/>
         <source>New Name Table</source>
-        <translation type="unfinished"></translation>
+        <translation>New Name Table</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="331"/>
         <source>Rule</source>
-        <translation type="unfinished">Rule</translation>
+        <translation>Rule</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="345"/>
         <source>The regex is not valid: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>The regex is not valid: %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/namevaluedialog.cpp" line="348"/>
         <source>The regex does not match this Log Line, so it names nothing here.</source>
-        <translation type="unfinished"></translation>
+        <translation>The regex does not match this Log Line, so it names nothing here.</translation>
     </message>
 </context>
 <context>
@@ -2944,7 +2944,7 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="173"/>
         <source>Search</source>
-        <translation type="unfinished">Search</translation>
+        <translation>Search</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="622"/>
@@ -3049,7 +3049,7 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="887"/>
         <source>Scrolling</source>
-        <translation type="unfinished"></translation>
+        <translation>Scrolling</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="945"/>
@@ -3124,12 +3124,12 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1124"/>
         <source>Decompress at most (MB):</source>
-        <translation type="unfinished"></translation>
+        <translation>Decompress at most (MB):</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1137"/>
         <source>A compressed file or an archive expands to at most this many megabytes; a larger one is not opened</source>
-        <translation type="unfinished"></translation>
+        <translation>A compressed file or an archive expands to at most this many megabytes; a larger one is not opened</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1158"/>
@@ -3321,7 +3321,7 @@ Working folder: %2
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1835"/>
         <source>Source</source>
-        <translation type="unfinished"></translation>
+        <translation>Source</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1843"/>
@@ -3461,12 +3461,12 @@ Working folder: %2
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="442"/>
         <source>Built-in</source>
-        <translation type="unfinished"></translation>
+        <translation>Built-in</translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="444"/>
         <source>User</source>
-        <translation type="unfinished"></translation>
+        <translation>User</translation>
     </message>
     <message>
         <location filename="../../ui/src/filetypechoices.cpp" line="90"/>
@@ -3716,7 +3716,7 @@ You can now use it from Tools &gt; Plugins.</translation>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="520"/>
         <source>No compatible download available on this platform.</source>
-        <translation type="unfinished"></translation>
+        <translation>No compatible download available on this platform.</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="725"/>
@@ -3780,12 +3780,12 @@ You can now use it from Tools &gt; Plugins.</translation>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="852"/>
         <source>Installation refused.</source>
-        <translation type="unfinished"></translation>
+        <translation>Installation refused.</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="855"/>
         <source>The plugin id %1 is not a plain name and names no folder in the plugin folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>The plugin id %1 is not a plain name and names no folder in the plugin folder.</translation>
     </message>
     <message>
         <location filename="../../ui/src/plugindialog.cpp" line="882"/>
@@ -3841,7 +3841,7 @@ Restart LogSquirl to try again.</translation>
     <message>
         <location filename="../../ui/src/plugingroups.cpp" line="34"/>
         <source>%1 (%2)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 (%2)</translation>
     </message>
 </context>
 <context>
@@ -3849,7 +3849,7 @@ Restart LogSquirl to try again.</translation>
     <message>
         <location filename="../../plugins/src/pluginmetadata.cpp" line="275"/>
         <source>Plugin &apos;%1&apos; is built against Qt %2, but LogSquirl runs on Qt %3, which serves plugins built against Qt %4.0 to %4.%5 only</source>
-        <translation type="unfinished"></translation>
+        <translation>Plugin &apos;%1&apos; is built against Qt %2, but LogSquirl runs on Qt %3, which serves plugins built against Qt %4.0 to %4.%5 only</translation>
     </message>
 </context>
 <context>
@@ -4193,17 +4193,17 @@ Restart LogSquirl to try again.</translation>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="326"/>
         <source>Merge Log Files</source>
-        <translation type="unfinished">Merge Log Files</translation>
+        <translation>Merge Log Files</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="333"/>
         <source>Export as CSV</source>
-        <translation type="unfinished">Export as CSV</translation>
+        <translation>Export as CSV</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="340"/>
         <source>Show or hide the sidebar</source>
-        <translation type="unfinished"></translation>
+        <translation>Show or hide the sidebar</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="396"/>
@@ -4228,12 +4228,12 @@ Restart LogSquirl to try again.</translation>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="471"/>
         <source>Jump to next match</source>
-        <translation type="unfinished"></translation>
+        <translation>Jump to next match</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="478"/>
         <source>Jump to previous match</source>
-        <translation type="unfinished"></translation>
+        <translation>Jump to previous match</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="485"/>
@@ -4476,27 +4476,27 @@ Restart LogSquirl to try again.</translation>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="58"/>
         <source>Reached end of file, no occurrence found.</source>
-        <translation type="unfinished"></translation>
+        <translation>Reached end of file, no occurrence found.</translation>
     </message>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="63"/>
         <source>Reached beginning of file, no occurrence found.</source>
-        <translation type="unfinished"></translation>
+        <translation>Reached beginning of file, no occurrence found.</translation>
     </message>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="68"/>
         <source>Search interrupted</source>
-        <translation type="unfinished"></translation>
+        <translation>Search interrupted</translation>
     </message>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="75"/>
         <source> (the regex engine gave up on %1 Log Lines: they may match)</source>
-        <translation type="unfinished"> (the regex engine gave up on %1 Log Lines: they may match)</translation>
+        <translation> (the regex engine gave up on %1 Log Lines: they may match)</translation>
     </message>
     <message>
         <location filename="../../ui/src/quickfindwidget.cpp" line="79"/>
         <source> (the regex engine gave up on 1 Log Line: it may match)</source>
-        <translation type="unfinished"> (the regex engine gave up on 1 Log Line: it may match)</translation>
+        <translation> (the regex engine gave up on 1 Log Line: it may match)</translation>
     </message>
 </context>
 <context>
@@ -5486,7 +5486,7 @@ Without a date, %1 is used.</translation>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="249"/>
         <source>Name Table %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Name Table %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="406"/>
@@ -5609,17 +5609,17 @@ Without a date, %1 is used.</translation>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="536"/>
         <source>Template:</source>
-        <translation type="unfinished"></translation>
+        <translation>Template:</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="538"/>
         <source>Regex:</source>
-        <translation type="unfinished"></translation>
+        <translation>Regex:</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="548"/>
         <source>Choose the Name Table of each capture group:</source>
-        <translation type="unfinished"></translation>
+        <translation>Choose the Name Table of each capture group:</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuenamesdialog.cpp" line="565"/>
@@ -6131,22 +6131,22 @@ Without a date, %1 is used.</translation>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="85"/>
         <source>Merge Log Files...</source>
-        <translation type="unfinished"></translation>
+        <translation>Merge Log Files...</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="87"/>
         <source>Merge open log files into a tab of their own</source>
-        <translation type="unfinished"></translation>
+        <translation>Merge open log files into a tab of their own</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="88"/>
         <source>Export as CSV...</source>
-        <translation type="unfinished"></translation>
+        <translation>Export as CSV...</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="90"/>
         <source>Export the lines of the current tab to a CSV file</source>
-        <translation type="unfinished"></translation>
+        <translation>Export the lines of the current tab to a CSV file</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="91"/>
@@ -6186,12 +6186,12 @@ Without a date, %1 is used.</translation>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="100"/>
         <source>&amp;Matches Only</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Matches Only</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="101"/>
         <source>Show only the Rows of the Table View whose Log Line is a Match of the current Search</source>
-        <translation type="unfinished"></translation>
+        <translation>Show only the Rows of the Table View whose Log Line is a Match of the current Search</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="103"/>
@@ -6493,27 +6493,27 @@ Without a date, %1 is used.</translation>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="451"/>
         <source>The catalog entry carries no download URL.</source>
-        <translation type="unfinished"></translation>
+        <translation>The catalog entry carries no download URL.</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="454"/>
         <source>The catalog entry&apos;s download URL is not https: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>The catalog entry&apos;s download URL is not https: %1</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="458"/>
         <source>The catalog entry carries no SHA-256 checksum, so a download could not be verified.</source>
-        <translation type="unfinished"></translation>
+        <translation>The catalog entry carries no SHA-256 checksum, so a download could not be verified.</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="462"/>
         <source>The catalog entry carries a malformed SHA-256 checksum (not 64 hex digits), so a download could not be verified.</source>
-        <translation type="unfinished"></translation>
+        <translation>The catalog entry carries a malformed SHA-256 checksum (not 64 hex digits), so a download could not be verified.</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="475"/>
         <source>Download refused for %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Download refused for %1: %2</translation>
     </message>
     <message>
         <location filename="../../plugins/src/pluginrepository.cpp" line="495"/>
