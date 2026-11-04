@@ -123,6 +123,7 @@ class ValueNamesDialog : public QDialog {
 
 public:
     explicit ValueNamesDialog( QWidget* parent = nullptr );
+    ~ValueNamesDialog() override;
 
     // The groups as edited here.
     const QList<logsquirl::valuenames::NamingGroup>& groups() const

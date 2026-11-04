@@ -70,6 +70,10 @@
   changes of the default shortcuts from taking effect. Shortcuts stored this
   way by an earlier version are cleaned up on the next OK. (#906)
 
+- **Closing the Value Names dialog with a name field in focus**: it no
+  longer finishes that field's editing after the dialog's groups are gone,
+  which read freed memory. (#908)
+
 - **Searching the Filters tab keeps the checks**: the filters the search
   hides keep their check and stay active, and come back checked when the
   search is cleared. (#901)

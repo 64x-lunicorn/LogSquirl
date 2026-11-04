@@ -613,6 +613,15 @@ ValueNamesDialog::ValueNamesDialog( QWidget* parent )
     Theme::whenApplied( this, [ this ] { loadIcons(); } );
 }
 
+ValueNamesDialog::~ValueNamesDialog()
+{
+    // ~QDialog hides the dialog after the groups are gone, which takes the
+    // focus from a field and finishes its editing.
+    for ( auto* field : { groupName_, ruleName_, ruleRegex_, ruleTemplate_, tableName_ } ) {
+        disconnect( field, &QLineEdit::editingFinished, this, nullptr );
+    }
+}
+
 void ValueNamesDialog::loadIcons()
 {
     loadListEditIcons( addRuleButton_, removeRuleButton_, upRuleButton_, downRuleButton_ );
