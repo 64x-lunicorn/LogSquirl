@@ -181,6 +181,40 @@ SCENARIO( "A shortcut is recorded by clicking its cell", "[ui][options][shortcut
             }
         }
 
+        WHEN( "the dialog is confirmed without a shortcut changed" )
+        {
+            dialog.buttonBox->button( QDialogButtonBox::Ok )->click();
+
+            THEN( "no shortcut is stored, and every action keeps its default keys" )
+            {
+                REQUIRE( config.shortcuts().empty() );
+                for ( const auto& [ action, shortcut ] : ShortcutAction::defaultShortcutList() ) {
+                    INFO( action );
+                    auto defaultKeys = shortcut.keySequence;
+                    defaultKeys.removeAll( QString{} );
+                    REQUIRE( ShortcutAction::shortcutKeys( action, config.shortcuts() ).size()
+                             == defaultKeys.size() );
+                }
+            }
+        }
+
+        WHEN( "a default shortcut is cleared and the dialog is applied" )
+        {
+            selectCell( table, markRow, PrimaryColumn );
+            QTest::keyClick( table, Qt::Key_Delete );
+            QCoreApplication::processEvents();
+            dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+
+            THEN( "only that action is stored, with no key and no empty shortcut" )
+            {
+                REQUIRE( config.shortcuts().size() == 1 );
+                REQUIRE( config.shortcuts().at( ShortcutAction::LogViewMark ).isEmpty() );
+                REQUIRE(
+                    ShortcutAction::shortcutKeys( ShortcutAction::LogViewMark, config.shortcuts() )
+                        .isEmpty() );
+            }
+        }
+
         WHEN( "Enter is pressed on a selected shortcut cell" )
         {
             selectCell( table, markRow, PrimaryColumn );
@@ -398,4 +432,19 @@ TEST_CASE( "The Shortcuts list lists Merge Log Files, Export as CSV and the side
     }
 
     config.setShortcuts( storedShortcuts );
+}
+
+// Before only changed rows were stored, OK in the Options dialog stored every
+// row with both cells, an empty cell as an empty key. An empty key is no
+// shortcut, so such a stored row gives an action no empty shortcut.
+TEST_CASE( "A stored empty key gives an action no shortcut", "[ui][options][shortcuts]" )
+{
+    const ShortcutAction::ConfiguredShortcuts stored{
+        { ShortcutAction::MainWindowQuit, { "Ctrl+Q", "" } },
+        { ShortcutAction::MainWindowCloseAll, { "", "" } },
+    };
+
+    CHECK( ShortcutAction::shortcutKeys( ShortcutAction::MainWindowQuit, stored )
+           == QList<QKeySequence>{ QKeySequence( "Ctrl+Q" ) } );
+    CHECK( ShortcutAction::shortcutKeys( ShortcutAction::MainWindowCloseAll, stored ).isEmpty() );
 }
