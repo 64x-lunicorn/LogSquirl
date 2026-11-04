@@ -1273,7 +1273,7 @@ TEST_CASE( "The Search tab of the Options Dialog holds every search and indexing
     CHECK( groupsOf( dialog.advanced_tab ) == QList<const QGroupBox*>{ dialog.loggingBox } );
 }
 
-TEST_CASE( "The Options Dialog has no Miscellaneous group; its settings are on the tab of their "
+TEST_CASE( "The Options Dialog has no Miscellaneous group, its settings are on the tab of their "
            "subject",
            "[optionsdialog]" )
 {
