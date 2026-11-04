@@ -1061,22 +1061,22 @@ Pattern: %2</source>
         <translation>切換表格檢視</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1963"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1961"/>
         <source>Group %1</source>
         <translation>群組 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1964"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1962"/>
         <source>Group %1 (%2)</source>
         <translation>群組 %1（%2）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1992"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1990"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>「%2」的群組 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2382"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2381"/>
         <source>Toggle table/text view (%1)</source>
         <translation>切換表格/文字檢視（%1）</translation>
     </message>
@@ -1116,12 +1116,12 @@ Pattern: %2</source>
         <translation>磁碟上的檔案已被截斷</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2254"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2253"/>
         <source>Displayed as %1</source>
         <translation>顯示為 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2254"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2253"/>
         <source>Detected as %1</source>
         <translation>偵測為 %1</translation>
     </message>
@@ -1352,6 +1352,14 @@ Do you want to replace it?</source>
         <location filename="../../ui/src/firststartfileassociationsdialog.cpp" line="75"/>
         <source>Apply</source>
         <translation>套用</translation>
+    </message>
+</context>
+<context>
+    <name>GroupEdits</name>
+    <message>
+        <location filename="../../valuenames/src/groupedits.cpp" line="45"/>
+        <source>Name Table %1</source>
+        <translation>名稱表 %1</translation>
     </message>
 </context>
 <context>
@@ -2633,52 +2641,52 @@ Working folder: %2
 <context>
     <name>NameTableCsvImportDialog</name>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="309"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="278"/>
         <source>Import CSV</source>
         <translation>匯入 CSV</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="318"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="287"/>
         <source>Separator detected: %1</source>
         <translation>偵測到的分隔符號：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="328"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="297"/>
         <source>Key column:</source>
         <translation>鍵欄：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="329"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="298"/>
         <source>Name column:</source>
         <translation>名稱欄：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="331"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="300"/>
         <source>New table (named after the file)</source>
         <translation>新增表（以檔案命名）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="334"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="303"/>
         <source>Replace the rows of &quot;%1&quot;</source>
         <translation>取代「%1」的列</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="336"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="305"/>
         <source>Append to &quot;%1&quot;</source>
         <translation>附加到「%1」</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="339"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="308"/>
         <source>Import into:</source>
         <translation>匯入到：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="342"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="311"/>
         <source>The key and the name need different columns.</source>
         <translation>鍵和名稱需要不同的欄。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="345"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="314"/>
         <source>The first line is a header</source>
         <translation>第一行是標題列</translation>
     </message>
@@ -2686,104 +2694,98 @@ Working folder: %2
 <context>
     <name>NameValueDialog</name>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="84"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="69"/>
         <source>Name This Value</source>
         <translation>命名此值</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="94"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="79"/>
         <source>New Naming Group</source>
         <translation>新增命名群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="96"/>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="380"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="81"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="372"/>
         <source>Value Names</source>
         <translation>值名稱</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="101"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="86"/>
         <source>Naming Group:</source>
         <translation>命名群組：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="108"/>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="331"/>
-        <source>Values</source>
-        <translation>值</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="113"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="98"/>
         <source>Name Table:</source>
         <translation>名稱表：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="117"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="102"/>
         <source>The regex of the Naming Rule; its first capture group is the value looked up in the Name Table</source>
         <translation>命名規則的正規表達式；其第一個擷取群組是在名稱表中查找的值</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="119"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="104"/>
         <source>Naming Rule:</source>
         <translation>命名規則：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="123"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="108"/>
         <source>How a named value is shown: {name} is its name, {value} the value itself</source>
         <translation>已命名值的顯示方式：{name} 是其名稱，{value} 是值本身</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="125"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="110"/>
         <source>Template:</source>
         <translation>範本：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="129"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="114"/>
         <source>Key</source>
         <translation>鍵</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="129"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="114"/>
         <source>Name</source>
         <translation>名稱</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="135"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="120"/>
         <source>Add Row</source>
         <translation>新增列</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="136"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="121"/>
         <source>Remove Row</source>
         <translation>移除列</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="146"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="131"/>
         <source>Rows:</source>
         <translation>列：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="159"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="144"/>
         <source>Preview:</source>
         <translation>預覽：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="206"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="191"/>
         <source>New Name Table</source>
         <translation>新增名稱表</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="331"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="323"/>
         <source>Rule</source>
         <translation>規則</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="345"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="337"/>
         <source>The regex is not valid: %1</source>
         <translation>正規表達式無效：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/namevaluedialog.cpp" line="348"/>
+        <location filename="../../ui/src/namevaluedialog.cpp" line="340"/>
         <source>The regex does not match this Log Line, so it names nothing here.</source>
         <translation>正規表達式與此日誌行不符，因此此處不會命名任何內容。</translation>
     </message>
@@ -4977,172 +4979,172 @@ Restart LogSquirl to try again.</source>
 <context>
     <name>TeamFolder</name>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="139"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="140"/>
         <source>Another file holds the group %1 already.</source>
         <translation>另一個檔案已含有群組 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="205"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="206"/>
         <source>The file cannot be read.</source>
         <translation>無法讀取該檔案。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="207"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="208"/>
         <source>The file holds a kind of group this version does not know.</source>
         <translation>該檔案包含此版本不認識的群組類型。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="209"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="210"/>
         <source>The file was written by a newer version of LogSquirl.</source>
         <translation>該檔案由較新版本的 LogSquirl 寫入。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="214"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="215"/>
         <source>The file holds no Filter Group, Highlighter Set or Naming Group.</source>
         <translation>該檔案不含任何篩選器群組、醒目提示規則集或命名群組。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="654"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="655"/>
         <source>The group could not be written to %1.</source>
         <translation>無法將群組寫入 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="897"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="898"/>
         <source>The subfolder %1 does not lie inside the repository.</source>
         <translation>子資料夾 %1 不在儲存庫內。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1270"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1271"/>
         <source>The Team Folder is off.</source>
         <translation>團隊資料夾已關閉。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1543"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1544"/>
         <source>Team Folder syncing…</source>
         <translation>團隊資料夾同步中…</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1547"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1548"/>
         <source>Team Folder off</source>
         <translation>團隊資料夾已關閉</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1549"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1550"/>
         <source>Team Folder not synced</source>
         <translation>團隊資料夾未同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1551"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1552"/>
         <source>Team Folder synced</source>
         <translation>團隊資料夾已同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1553"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1554"/>
         <source>Team Folder error</source>
         <translation>團隊資料夾錯誤</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1561"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1562"/>
         <source>Syncing…</source>
         <translation>同步中…</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1568"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1569"/>
         <source>Off</source>
         <translation>已關閉</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1570"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1571"/>
         <source>Not synced</source>
         <translation>未同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1572"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1573"/>
         <source>Synced</source>
         <translation>已同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1574"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1575"/>
         <source>Error</source>
         <translation>錯誤</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1585"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1586"/>
         <source>Git could not be started</source>
         <translation>無法啟動 Git</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1587"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1588"/>
         <source>The subfolder lies outside the repository</source>
         <translation>子資料夾位於儲存庫之外</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1589"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1590"/>
         <source>Clone failed</source>
         <translation>複製儲存庫失敗</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1591"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1592"/>
         <source>Pull failed</source>
         <translation>提取失敗</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1593"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1594"/>
         <source>Merge failed</source>
         <translation>合併失敗</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1595"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1596"/>
         <source>Push failed</source>
         <translation>推送失敗</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1597"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1598"/>
         <source>Push refused</source>
         <translation>推送遭拒</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1609"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1610"/>
         <source>Not published: %1</source>
         <translation>未發佈：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1615"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1616"/>
         <source>The Team groups are read-only.</source>
         <translation>團隊群組為唯讀。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1616"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1617"/>
         <source>The Team groups are read-only: %1</source>
         <translation>團隊群組為唯讀：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1619"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1620"/>
         <source>Skipped %1: %2</source>
         <translation>已略過 %1：%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1724"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1725"/>
         <source>Sign-in failed. Make sure Git can sign in to this server outside LogSquirl: with an SSH key added to your account for an SSH URL, or with stored credentials or a token for an HTTPS URL.</source>
         <translation>登入失敗。請確認 Git 能在 LogSquirl 之外登入此伺服器：若為 SSH URL，請使用已加入您帳戶的 SSH 金鑰；若為 HTTPS URL，請使用已儲存的認證或權杖。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1728"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1729"/>
         <source>The organization requires SSO authorization. Authorize your SSH key or token for the organization in your account settings on the server, or use an HTTPS URL.</source>
         <translation>該組織要求 SSO 授權。請在伺服器上的帳戶設定中為該組織授權您的 SSH 金鑰或權杖，或改用 HTTPS URL。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1732"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1733"/>
         <source>Repository not found. Check the Repository URL, and that your account may read the repository.</source>
         <translation>找不到儲存庫。請檢查儲存庫 URL，以及您的帳戶是否有權讀取該儲存庫。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1735"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1736"/>
         <source>Server unreachable. Check the host name in the Repository URL, your network connection and your proxy settings.</source>
         <translation>無法連線至伺服器。請檢查儲存庫 URL 中的主機名稱、您的網路連線和 Proxy 設定。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1738"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1739"/>
         <source>Git is not installed. Install Git, make sure the git program is on the PATH, and press Sync Now.</source>
         <translation>未安裝 Git。請安裝 Git，確認 git 程式位於 PATH 中，然後按「立即同步」。</translation>
     </message>
@@ -5397,314 +5399,309 @@ Without a date, %1 is used.</source>
 <context>
     <name>ValueNamesDialog</name>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="86"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="89"/>
         <source>tab</source>
         <translation>定位字元</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="89"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="92"/>
         <source>semicolon</source>
         <translation>分號</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="91"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="94"/>
         <source>comma</source>
         <translation>逗號</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="101"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="104"/>
         <source>Rule &quot;%1&quot;: the regex is not valid: %2</source>
         <translation>規則「%1」：正規表達式無效：%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="104"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="107"/>
         <source>Table &quot;%1&quot;, row %2: the key is not a valid regex: %3</source>
         <translation>表「%1」第 %2 列：鍵不是有效的正規表達式：%3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="107"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="110"/>
         <source>Table &quot;%1&quot;, row %2: the key &quot;%3&quot; is already in row %4, so this row is never used</source>
         <translation>表「%1」第 %2 列：鍵「%3」已在第 %4 列出現，因此此列永遠不會使用</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="113"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="116"/>
         <source>Table &quot;%1&quot;, row %2: the name uses %3, but the key has no such group</source>
         <translation>表「%1」第 %2 列：名稱使用了 %3，但鍵沒有這樣的群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="117"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="120"/>
         <source>Rule &quot;%1&quot;: this group has no Name Table &quot;%2&quot;</source>
         <translation>規則「%1」：此群組沒有名稱表「%2」</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="120"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="123"/>
         <source>Rule &quot;%1&quot;: the regex has no capture group %2</source>
         <translation>規則「%1」：正規表達式沒有擷取群組 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="123"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="126"/>
         <source>Rule &quot;%1&quot;: capture group %2 is given a Name Table more than once; only the first is used</source>
         <translation>規則「%1」：擷取群組 %2 被指定了多個名稱表；只使用第一個</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="127"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="130"/>
         <source>Rule &quot;%1&quot;: another rule of the group has this name</source>
         <translation>規則「%1」：群組中另一條規則使用了這個名稱</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="130"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="133"/>
         <source>Rule &quot;%1&quot;: the template holds a line break or control character, which is shown as a space</source>
         <translation>規則「%1」：範本包含換行字元或控制字元，將顯示為空格</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="134"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="137"/>
         <source>Table &quot;%1&quot;, row %2: the name holds a line break or control character, which is shown as a space</source>
         <translation>表「%1」第 %2 列：名稱包含換行字元或控制字元，將顯示為空格</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="145"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="148"/>
         <source>CSV line %1: the key &quot;%2&quot; was already read on line %3; the first wins</source>
         <translation>CSV 第 %1 行：鍵「%2」已在第 %3 行讀取；以第一個為準</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="150"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="153"/>
         <source>CSV line %1: no key or no name; the line is skipped</source>
         <translation>CSV 第 %1 行：缺少鍵或名稱；已略過該行</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="153"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="156"/>
         <source>CSV line %1: the name of &quot;%2&quot; is empty</source>
         <translation>CSV 第 %1 行：「%2」的名稱為空</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="156"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="159"/>
         <source>CSV line %1: the name of &quot;%2&quot; holds a line break or control character, which is shown as a space</source>
         <translation>CSV 第 %1 行：「%2」的名稱包含換行字元或控制字元，將顯示為空格</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="249"/>
-        <source>Name Table %1</source>
-        <translation>名稱表 %1</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="406"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="375"/>
         <source>Value Names</source>
         <translation>值名稱</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="511"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="480"/>
         <source>Move up</source>
         <translation>上移</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="512"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="481"/>
         <source>Move down</source>
         <translation>下移</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="423"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="442"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="534"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="392"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="411"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="503"/>
         <source>Name:</source>
         <translation>名稱：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="484"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="453"/>
         <source>Naming Rules</source>
         <translation>命名規則</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="461"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="490"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="430"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="459"/>
         <source>Name</source>
         <translation>名稱</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="490"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="459"/>
         <source>Regex</source>
         <translation>正規表達式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="490"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="459"/>
         <source>Template</source>
         <translation>範本</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="509"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="478"/>
         <source>Add a Naming Rule</source>
         <translation>新增命名規則</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="510"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="479"/>
         <source>Remove the Naming Rule</source>
         <translation>移除命名規則</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="553"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="522"/>
         <source>Capture group</source>
         <translation>擷取群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="553"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="522"/>
         <source>Name Table</source>
         <translation>名稱表</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="431"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="400"/>
         <source>Name Tables</source>
         <translation>名稱表</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="445"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="414"/>
         <source>Add a Name Table</source>
         <translation>新增名稱表</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="446"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="415"/>
         <source>Remove the Name Table</source>
         <translation>移除名稱表</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="456"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="425"/>
         <source>Keys are case-sensitive</source>
         <translation>鍵區分大小寫</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="461"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="430"/>
         <source>Key regex</source>
         <translation>鍵正規表達式</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="466"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="435"/>
         <source>Add a row</source>
         <translation>新增列</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="467"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="436"/>
         <source>Remove the selected rows</source>
         <translation>移除所選列</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="468"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="437"/>
         <source>Import CSV...</source>
         <translation>匯入 CSV...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="469"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="438"/>
         <source>Export CSV...</source>
         <translation>匯出 CSV...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="470"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="439"/>
         <source>Paste</source>
         <translation>貼上</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="471"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="440"/>
         <source>Adds the rows copied from a spreadsheet: key, then name.</source>
         <translation>新增從試算表複製的列：先鍵，後名稱。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="536"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="505"/>
         <source>Template:</source>
         <translation>範本：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="538"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="507"/>
         <source>Regex:</source>
         <translation>正規表達式：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="548"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="517"/>
         <source>Choose the Name Table of each capture group:</source>
         <translation>為每個擷取群組選擇名稱表：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="565"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="534"/>
         <source>Preview</source>
         <translation>預覽</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="570"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="539"/>
         <source>Paste a sample Log Line here: all rules of the group run on it, checked or not</source>
         <translation>在此貼上一行範例記錄：群組中所有規則都會套用，不論是否勾選</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="778"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="802"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="813"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="747"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="771"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="781"/>
         <source>New Naming Group</source>
         <translation>新命名群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="972"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1008"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="940"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="976"/>
         <source>Rule</source>
         <translation>規則</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1073"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1041"/>
         <source>whole match</source>
         <translation>整個相符內容</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1095"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1063"/>
         <source>(none)</source>
         <translation>（無）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1464"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1470"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1430"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1436"/>
         <source>Import CSV</source>
         <translation>匯入 CSV</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1464"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1430"/>
         <source>CSV files (*.csv *.tsv *.txt);;All files (*)</source>
         <translation>CSV 檔案 (*.csv *.tsv *.txt);;所有檔案 (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1471"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1437"/>
         <source>The file %1 could not be read.</source>
         <translation>無法讀取檔案 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1492"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1501"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1458"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1467"/>
         <source>Export CSV</source>
         <translation>匯出 CSV</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1494"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1460"/>
         <source>CSV files (*.csv);;All files (*)</source>
         <translation>CSV 檔案 (*.csv);;所有檔案 (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1502"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1686"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1468"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1652"/>
         <source>The file %1 could not be written.</source>
         <translation>無法寫入檔案 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1677"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1685"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1643"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1651"/>
         <source>Export Naming Group</source>
         <translation>匯出命名群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1678"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1716"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1644"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1682"/>
         <source>Value Names (*.conf)</source>
         <translation>值名稱 (*.conf)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1697"/>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1721"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1663"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1687"/>
         <source>Import Naming Groups</source>
         <translation>匯入命名群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/valuenamesdialog.cpp" line="1716"/>
+        <location filename="../../ui/src/valuenamesdialog.cpp" line="1682"/>
         <source>Select one or more files to open</source>
         <translation>選擇一個或多個檔案開啟</translation>
     </message>
@@ -6132,18 +6129,18 @@ Without a date, %1 is used.</source>
         <translation>合併日誌檔案...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindowtext.cpp" line="87"/>
-        <source>Merge open log files into a tab of their own</source>
-        <translation>將已開啟的日誌檔案合併到獨立的分頁中</translation>
-    </message>
-    <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="88"/>
         <source>Export as CSV...</source>
         <translation>匯出為 CSV...</translation>
     </message>
     <message>
+        <location filename="../../ui/src/mainwindowtext.cpp" line="87"/>
+        <source>Merge the open Log Files into a tab of their own</source>
+        <translation>將已開啟的日誌檔案合併到獨立的分頁中</translation>
+    </message>
+    <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="90"/>
-        <source>Export the lines of the current tab to a CSV file</source>
+        <source>Export the Log Lines of the current tab to a CSV file</source>
         <translation>將目前分頁的行匯出至 CSV 檔案</translation>
     </message>
     <message>

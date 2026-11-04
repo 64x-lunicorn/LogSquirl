@@ -84,7 +84,7 @@ const char* action::openCommandOutputStatusTip
     = QT_TR_NOOP( "Run a command and open its output as a followed log file" );
 const char* action::mergeLogFilesText = QT_TR_NOOP( "Merge Log Files..." );
 const char* action::mergeLogFilesStatusTip
-    = QT_TR_NOOP( "Merge Open Log Files into a tab of their own" );
+    = QT_TR_NOOP( "Merge the open Log Files into a tab of their own" );
 const char* action::exportAsCsvText = QT_TR_NOOP( "Export as CSV..." );
 const char* action::exportAsCsvStatusTip
     = QT_TR_NOOP( "Export the Log Lines of the current tab to a CSV file" );
