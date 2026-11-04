@@ -83,6 +83,9 @@ public:
         // the cell shows a value of a field (the Table View, #798); empty
         // elsewhere, and the menu offers no Search this value in <column>.
         QString columnUnderCursor;
+        // Whether the selection, or with no text selected the word under the
+        // cursor, holds a value Name this value... names (#883).
+        bool hasValueToName = false;
     };
 
     // An entry a plugin added (#859).
@@ -132,6 +135,10 @@ public:
         // Only for a Presentation that shows Log Lines split into the fields
         // of a Log Format; left empty, the menu offers no Export as CSV.
         std::function<void()> exportAsCsv;
+        // Open the dialog naming the value of the selection or under the
+        // cursor (#883). Only for a Presentation drawn like the Text View;
+        // left empty, the menu offers no Name this value...
+        std::function<void()> nameValue;
         // The plugins' entries, in their order, below a separator at the end
         // of the menu, always enabled; without any, there is no separator.
         std::vector<PluginEntry> plugins;

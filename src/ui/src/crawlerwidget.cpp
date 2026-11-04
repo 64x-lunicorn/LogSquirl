@@ -1771,6 +1771,11 @@ void CrawlerWidget::connectSharedSignals( View* view )
 
     connect( view, &View::replaceScratchpadWithSelection, this,
              [ this, selectedText ]() { Q_EMIT replaceDataInScratchpad( selectedText() ); } );
+
+    // The Text View's and every Filtered View's Name this value... (#883).
+    if constexpr ( std::is_base_of_v<AbstractLogView, View> ) {
+        connect( view, &View::nameValueRequested, this, &CrawlerWidget::nameValueRequested );
+    }
 }
 
 template <class Presentation>

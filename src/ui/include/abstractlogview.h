@@ -327,6 +327,16 @@ protected:
     // The context menu for the current selection, opened at pos in viewport
     // coordinates; built by PresentationMenu, and not yet shown.
     std::unique_ptr<QMenu> createContextMenu( const QPoint& pos );
+    // What Name this value... of the context menu opened at pos names
+    // (#883): the text selected within a Log Line, or with none the word
+    // under the cursor; as the Log Line and the range of it. None when that
+    // holds no value.
+    struct ValueToName {
+        QString logLine;
+        qsizetype start = 0;
+        qsizetype length = 0;
+    };
+    std::optional<ValueToName> valueToNameAt( const QPoint& pos ) const;
     // What the context menu's Export as CSV... does. Empty, and the menu
     // offers no such entry, unless the view can split its Log Lines into the
     // fields of a Log Format.
@@ -384,6 +394,10 @@ Q_SIGNALS:
     void addNextColorLabel();
     void clearColorLabels();
     void highlightersChange();
+    // Name this value... was chosen (#883): logLine is the Log Line as the
+    // view reads it, the range [start, start + length) of it what the user
+    // pointed at, which holds a value.
+    void nameValueRequested( const QString& logLine, qsizetype start, qsizetype length );
 
 public Q_SLOTS:
     // Makes the widget select and display the passed Log Line, scrolling as

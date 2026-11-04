@@ -752,6 +752,29 @@ tab of highlighters configuration dialog.
 
 ### Value Names
 
+**Naming a value from its Log Line.** Select a value in the main view or a
+filtered view -- `EsimState=9`, or just the `9` -- or right-click on it without
+selecting anything, and choose *Name this value...* in the context menu. The
+dialog it opens proposes everything from the Log Line, and all of it can be
+changed:
+
+- the **Naming Rule**: a regex of the text around the value, with the value as
+  its capture group -- `EsimState=(\d+)` for `EsimState=9`. Hexadecimal
+  values (`0x1F`), negative ones (`-5`) and values with a fraction (`3.25`) are
+  captured as such, and regex characters in the text around them are escaped;
+- the **Name Table**: a new one named after the text before the value
+  (`EsimState`), or one the Naming Group already has;
+- the **Template**: `{name} ({value})`;
+- the **Naming Group**: one of your own, or a new one.
+
+Below, the table's rows can be edited; the value is already entered as a key,
+waiting for its name. The preview shows the Log Line you clicked as it will
+look, and warns when the regex does not match it -- OK is possible all the
+same. *OK* adds the Naming Rule and the Name Table to the group, checks the
+group, and turns *Show Value Names* on in the tab, so the Log Line shows the
+name at once. Everything else -- several capture groups, key regexes, CSV
+import, sharing -- is done in the *Value Names* dialog described below.
+
 Value Names show the raw values of a Log Line -- an ECU address, an error
 code, an ID -- with a name from a table, while the Log File itself is never
 changed. A **Naming Rule** says which Log Lines and which values: a regex whose

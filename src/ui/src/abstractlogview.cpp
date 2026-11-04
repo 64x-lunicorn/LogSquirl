@@ -103,6 +103,7 @@
 #include "shortcuts.h"
 #include "theme.h"
 #include "valuenamescollection.h"
+#include "valueproposal.h"
 #include "wordrule.h"
 #include "wrappedstring.h"
 
@@ -2553,6 +2554,14 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
     entries.saveToFile = [ this ]() { saveToFile(); };
     entries.saveSelectedToFile = [ this ]() { saveSelectedToFile(); };
     entries.exportAsCsv = exportAsCsvAction();
+    const auto valueToName = valueToNameAt( pos );
+    report.hasValueToName = valueToName.has_value();
+    entries.nameValue = [ this, valueToName ]() {
+        if ( valueToName.has_value() ) {
+            Q_EMIT nameValueRequested( valueToName->logLine, valueToName->start,
+                                       valueToName->length );
+        }
+    };
     // The Log Lines the menu opens on: a right-click outside the selection
     // has selected the one under the pointer (#859).
     entries.plugins = pluginContextMenuEntries(
@@ -2560,6 +2569,39 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
         report.textWithinLogLine ? std::optional( report.selectedText ) : std::nullopt );
 
     return PresentationMenu::create( this, report, entries );
+}
+
+std::optional<AbstractLogView::ValueToName>
+AbstractLogView::valueToNameAt( const QPoint& pos ) const
+{
+    std::optional<ValueToName> valueToName;
+    if ( selection_.isPortion() ) {
+        // Never half a raw value: a Named Value selected in part is whole.
+        const auto line = selection_.getLines( *lines_ ).front();
+        const auto portion = selectionCoveringNamedValues().getPortionForLine( line );
+        if ( portion.isValid() ) {
+            valueToName = ValueToName{ lines_->logFile().getExpandedLineString( line ),
+                                       portion.startColumn().get(), portion.size().get() };
+        }
+    }
+    else if ( logLineAtY( pos.y() ).has_value() ) {
+        // The column a click there finds, a Named Value's start on one.
+        const auto position = logLineFilePosAt( pos );
+        auto text = lines_->logFile().getExpandedLineString( position.line() );
+        if ( const auto range
+             = logsquirl::valuenames::valueTextAt( text, position.column().get() ) ) {
+            valueToName = ValueToName{ std::move( text ), range->start, range->length };
+        }
+    }
+
+    if ( !valueToName.has_value()
+         || !logsquirl::valuenames::valueIn(
+                 valueToName->logLine,
+                 logsquirl::valuenames::LineRange{ valueToName->start, valueToName->length } )
+                 .has_value() ) {
+        return std::nullopt;
+    }
+    return valueToName;
 }
 
 std::function<void()> AbstractLogView::exportAsCsvAction()

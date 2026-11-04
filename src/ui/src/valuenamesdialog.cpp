@@ -56,6 +56,7 @@
 #include <qt_windows.h>
 #endif
 
+#include "groupedits.h"
 #include "groupexchange.h"
 #include "groupimportprompt.h"
 #include "iconloader.h"
@@ -1001,14 +1002,10 @@ QString ValueNamesDialog::editRule( int row, int column, QString text )
 void ValueNamesDialog::addRule()
 {
     auto* group = currentGroup();
-    if ( group == nullptr ) {
+    if ( group == nullptr || !editable() ) {
         return;
     }
-    changeRules( []( QList<NamingRule>& rules ) {
-        NamingRule rule;
-        rule.name = logsquirl::groupexchange::firstFreeName( tr( "Rule" ), ruleNames( rules, -1 ) );
-        rules.append( rule );
-    } );
+    logsquirl::valuenames::addRule( *group, NamingRule{}, tr( "Rule" ) );
     const auto row = static_cast<int>( group->rules().size() ) - 1;
     populateRules( row );
     ruleRegex_->setFocus();
@@ -1259,15 +1256,12 @@ QString ValueNamesDialog::renameTable( int row, const QString& text )
 
 void ValueNamesDialog::addTable()
 {
-    const auto* group = currentGroup();
-    if ( group == nullptr ) {
+    auto* group = currentGroup();
+    if ( group == nullptr || !editable() ) {
         return;
     }
-    changeTables( []( QList<NameTable>& tables ) {
-        NameTable table;
-        table.name = newTableName( tableNames( tables, -1 ) );
-        tables.append( table );
-    } );
+    logsquirl::valuenames::addTable( *group, NameTable{},
+                                     newTableName( tableNames( group->tables(), -1 ) ) );
     const auto row = static_cast<int>( group->tables().size() ) - 1;
     populateTables( row );
     populateCaptureGroups();

@@ -121,6 +121,7 @@
 #include "mainwindowtext.h"
 #include "menu.h"
 #include "mergecontroller.h"
+#include "namevaluedialog.h"
 #include "openfilehelper.h"
 #include "optionsdialog.h"
 #include "plaintext.h"
@@ -2093,6 +2094,23 @@ void MainWindow::editValueNames()
     applyIfChanged();
 }
 
+void MainWindow::nameValue( const QString& logLine, qsizetype start, qsizetype length )
+{
+    // The dialog reads the groups from the settings store, as the Value
+    // Names dialog does: what it read is a change too, OK or Cancel.
+    const auto& collection = ValueNamesCollection::get();
+    const auto before = collection.generation();
+    NameValueDialog dialog( logLine, logsquirl::valuenames::LineRange{ start, length }, this );
+    const auto accepted = dialog.exec() == QDialog::Accepted;
+    if ( collection.generation() != before ) {
+        session_.applyChange( Changed::ValueNames );
+    }
+    // The tab in front, which asked, shows the value named at once.
+    if ( accepted ) {
+        showValueNamesAction->setChecked( true );
+    }
+}
+
 void MainWindow::applyValueNamesChange()
 {
     valueNamesPanel_.refresh();
@@ -3203,6 +3221,7 @@ void MainWindow::connectFrontTab( CrawlerWidget* crawler )
         connect( crawler, &CrawlerWidget::saveCurrentSearchAsPredefinedFilter, this,
                  &MainWindow::newPredefinedFilterHandler ),
         connect( crawler, &CrawlerWidget::sendToScratchpad, this, &MainWindow::sendToScratchpad ),
+        connect( crawler, &CrawlerWidget::nameValueRequested, this, &MainWindow::nameValue ),
         connect( crawler, &CrawlerWidget::replaceDataInScratchpad, this,
                  &MainWindow::replaceDataInScratchpad ),
         connect( crawler, &CrawlerWidget::loadingProgressed, this,

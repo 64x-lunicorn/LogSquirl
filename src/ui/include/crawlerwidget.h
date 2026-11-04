@@ -369,6 +369,10 @@ Q_SIGNALS:
     void sendToScratchpad( QString );
     void replaceDataInScratchpad( QString );
 
+    // Sent up when Name this value... was chosen in the Text View or a
+    // Filtered View (#883), as AbstractLogView::nameValueRequested.
+    void nameValueRequested( const QString& logLine, qsizetype start, qsizetype length );
+
     // Sent when the data status (whether new not seen data are
     // available) has changed
     void dataStatusChanged( DataStatus status );

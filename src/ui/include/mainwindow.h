@@ -257,6 +257,10 @@ private Q_SLOTS:
     void editPredefinedFilters( const QString& newFilter = {} );
     // Opens the Value Names dialog (#647).
     void editValueNames();
+    // Opens the dialog naming the value in the range of the Log Line, which
+    // Name this value... of the tab in front asked for; OK shows Value Names
+    // in that tab (#883).
+    void nameValue( const QString& logLine, qsizetype start, qsizetype length );
     // Opens the Regex Lab, or brings it to the front, tied to the tab in
     // front (#659).
     void openRegexLab();
