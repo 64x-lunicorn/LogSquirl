@@ -27,6 +27,7 @@
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QFormLayout>
+#include <QGroupBox>
 #include <QLabel>
 #include <QLocale>
 #include <QMessageBox>
@@ -1131,7 +1132,7 @@ TEST_CASE( "A tab taller than the Options Dialog scrolls instead of growing the 
     constexpr int ShortHeight = 300;
     dialog.resize( dialog.width(), ShortHeight );
 
-    for ( auto* page : { dialog.general_tab, dialog.viewTab } ) {
+    for ( auto* page : { dialog.searchTab, dialog.viewTab } ) {
         dialog.tabWidget->setCurrentWidget( page );
         QApplication::processEvents();
         INFO( "tab " << page->objectName().toStdString() );
@@ -1175,12 +1176,12 @@ TEST_CASE( "The Search options group shows one setting per row and says what eac
               dialog.highlightMainSearchCheckBox, dialog.variateHighlightCheckBox,
               dialog.caseSensitiveCheckBox, dialog.logicalCombiningCheckBox,
               dialog.autoRefreshCheckBox, dialog.autoRunSearchOnAddCheckBox,
-              dialog.searchHistorySpinBox, dialog.quickFindSearchBox, dialog.quickFindColorButton,
-              dialog.incrementalCheckBox } ) {
+              dialog.searchHistorySpinBox, dialog.contextLinesSpinBox, dialog.quickFindSearchBox,
+              dialog.quickFindColorButton, dialog.incrementalCheckBox } ) {
         INFO( setting->objectName().toStdString() );
         CHECK( form->indexOf( setting ) >= 0 );
     }
-    CHECK( form->rowCount() == 12 );
+    CHECK( form->rowCount() == 13 );
 
     // Each color button has a visible label saying what it sets.
     for ( auto* button : { dialog.mainSearchColorButton, dialog.quickFindColorButton } ) {
@@ -1191,6 +1192,120 @@ TEST_CASE( "The Search options group shows one setting per row and says what eac
         CHECK( label->buddy() == button );
         CHECK( label->isVisibleTo( dialog.searchBox ) );
     }
+}
+
+namespace {
+
+// The tab page of the Options Dialog that holds the widget, or nullptr.
+QWidget* tabOf( const OptionsDialog& dialog, const QWidget* widget )
+{
+    for ( int i = 0; i < dialog.tabWidget->count(); ++i ) {
+        auto* page = dialog.tabWidget->widget( i );
+        if ( page->isAncestorOf( widget ) ) {
+            return page;
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
+
+TEST_CASE( "The Search tab of the Options Dialog holds every search and indexing setting",
+           "[optionsdialog]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+    OptionsDialog dialog( catalog );
+
+    auto* searchTab = dialog.searchTab;
+    CHECK( dialog.tabWidget->tabText( dialog.tabWidget->indexOf( searchTab ) ) == "Search" );
+    // Right after General.
+    CHECK( dialog.tabWidget->indexOf( searchTab )
+           == dialog.tabWidget->indexOf( dialog.general_tab ) + 1 );
+
+    const std::initializer_list<QWidget*> searchSettings = {
+        // Search options
+        dialog.mainSearchBox,
+        dialog.mainSearchColorButton,
+        dialog.highlightMainSearchCheckBox,
+        dialog.variateHighlightCheckBox,
+        dialog.caseSensitiveCheckBox,
+        dialog.logicalCombiningCheckBox,
+        dialog.autoRefreshCheckBox,
+        dialog.autoRunSearchOnAddCheckBox,
+        dialog.searchHistorySpinBox,
+        dialog.contextLinesSpinBox,
+        dialog.quickFindSearchBox,
+        dialog.quickFindColorButton,
+        dialog.incrementalCheckBox,
+        // Indexing and search
+        dialog.regexpEngineComboBox,
+        dialog.indexReadBufferSpinBox,
+        dialog.searchReadBufferSpinBox,
+        dialog.keepFileClosedCheckBox,
+        dialog.compressedIndexCheckBox,
+        dialog.parallelSearchCheckBox,
+        dialog.optimizeForNotLatinEncodingsCheckBox,
+        // Caching of search results and indexes
+        dialog.searchResultsCacheCheckBox,
+        dialog.searchCacheSpinBox,
+        dialog.indexCacheCheckBox,
+        dialog.indexCacheMaxSizeSpinBox,
+    };
+    for ( auto* setting : searchSettings ) {
+        INFO( setting->objectName().toStdString() );
+        CHECK( tabOf( dialog, setting ) == searchTab );
+    }
+
+    // General keeps the session and the version checking, Advanced the logging.
+    const auto groupsOf = []( const QWidget* page ) {
+        QList<const QGroupBox*> groups;
+        for ( const auto* group : page->findChildren<QGroupBox*>() ) {
+            groups << group;
+        }
+        return groups;
+    };
+    CHECK( groupsOf( dialog.general_tab )
+           == QList<const QGroupBox*>{ dialog.sessionBox, dialog.versionCheckingBox } );
+    CHECK( groupsOf( dialog.advanced_tab ) == QList<const QGroupBox*>{ dialog.loggingBox } );
+}
+
+TEST_CASE( "The Options Dialog has no Miscellaneous group; its settings are on the tab of their "
+           "subject",
+           "[optionsdialog]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+    Configuration::get() = Configuration{};
+    LogFormatCatalog catalog;
+    OptionsDialog dialog( catalog );
+
+    for ( const auto* group : dialog.findChildren<QGroupBox*>() ) {
+        INFO( group->objectName().toStdString() );
+        CHECK( group->title() != "Miscellaneous" );
+        CHECK_FALSE( group->title().isEmpty() );
+    }
+    CHECK( dialog.findChild<QGroupBox*>( "viewOtherGroupBox" ) == nullptr );
+
+    // How the text is shown: the Text group of the View tab.
+    CHECK( dialog.textGroupBox->isAncestorOf( dialog.ansiColorSequencesComboBox ) );
+    CHECK( dialog.textGroupBox->isAncestorOf( dialog.ansiColorSequencesNoteLabel ) );
+    // How the view scrolls: a Scrolling group on the View tab.
+    CHECK( dialog.scrollingGroupBox->title() == "Scrolling" );
+    CHECK( tabOf( dialog, dialog.scrollingGroupBox ) == dialog.viewTab );
+    CHECK( dialog.scrollingGroupBox->isAncestorOf( dialog.fastScrollEnabledCheckBox ) );
+    CHECK( dialog.scrollingGroupBox->isAncestorOf( dialog.fastScrollMultiplierSpinBox ) );
+    // The lines shown around search matches: the Search options group.
+    CHECK( dialog.searchBox->isAncestorOf( dialog.contextLinesSpinBox ) );
+    auto* form = qobject_cast<QFormLayout*>( dialog.searchBox->layout() );
+    REQUIRE( form != nullptr );
+    auto* label = qobject_cast<QLabel*>( form->labelForField( dialog.contextLinesSpinBox ) );
+    REQUIRE( label != nullptr );
+    CHECK( label->buddy() == dialog.contextLinesSpinBox );
 }
 
 #include "optionsdialog_test.moc"

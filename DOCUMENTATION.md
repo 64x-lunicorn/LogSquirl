@@ -1529,30 +1529,6 @@ you chose it in. Without a data source plugin the menu says
 
 ### General
 
-#### Search options
-
-Determines which type of regular expression *logsquirl* will use when
-filtering lines for the bottom window, and when using QuickFind.
-
-*   Extended Regexp. The default, uses regular expressions similar to
-    those used by Perl
-*   Fixed Strings. Searches for the text exactly as it is written, no
-    character is special
-
-If incremental quickfind is selected, *logsquirl* will automatically restart
-quickfind search when the search pattern changes.
-
-Turning on highlight of matched text will cause the text that matched the
-search pattern to be highlighted in both main view and filtered view.
-Enabling color variation will cause the highlight color of different strings
-that match the same pattern be slightly different.
-
-Search size history controls the number of patterns that are saved for autocompletion
-in the search input box.
-
-Turning on option to run search on add or replace pattern will cause *logsquirl* to
-immediately perform search when pattern is update from context menu.
-
 #### Session options
 
 *   Load last session -- if enabled, *logsquirl* will reopen files that were
@@ -1597,6 +1573,61 @@ the same way by creating that file. A silent install (`/S`) leaves the file as i
 so an opt-out an administrator created survives silent upgrades. What the check sends is described in the
 [privacy policy](https://github.com/64x-lunicorn/LogSquirl/blob/master/PRIVACY.md).
 
+### Search
+
+The *Search* tab holds every setting of Search, QuickFind and indexing.
+
+#### Search options
+
+Determines which type of regular expression *logsquirl* will use when
+filtering lines for the bottom window, and when using QuickFind.
+
+*   Extended Regexp. The default, uses regular expressions similar to
+    those used by Perl
+*   Fixed Strings. Searches for the text exactly as it is written, no
+    character is special
+
+If incremental quickfind is selected, *logsquirl* will automatically restart
+quickfind search when the search pattern changes.
+
+Turning on highlight of matched text will cause the text that matched the
+search pattern to be highlighted in both main view and filtered view.
+Enabling color variation will cause the highlight color of different strings
+that match the same pattern be slightly different.
+
+Search size history controls the number of patterns that are saved for autocompletion
+in the search input box.
+
+Turning on option to run search on add or replace pattern will cause *logsquirl* to
+immediately perform search when pattern is update from context menu.
+
+*Context lines around matches* sets the number of [breadcrumbs](#breadcrumbs)
+shown before and after each match (5 by default, 0 turns them off).
+
+#### Indexing and search
+
+These options refer to the customization of performance related settings.
+
+*Regular expressions engine* chooses between Vectorscan, the default and the
+fastest, and Qt's engine, which understands every pattern, lookahead included,
+but is slower. Even with Vectorscan, a pattern it cannot handle is searched
+with Qt's engine.
+
+If parallel search is enabled, *logsquirl* will try to use several CPU cores
+for regular expression matching. This does not work with quickfind.
+
+*logsquirl* has several strategies for regular expression search based on file 
+encoding. By default, it is optimized for files with UTF8 or single-byte
+encodings. If most of the files are in multi-byte encodings then enabling
+search optimization for non-latin encodings could improve performance.
+
+#### Caching
+
+If search results cache is enabled, *logsquirl* will store numbers of lines
+that matched the search pattern in its memory. Repeating searches for the same
+pattern will not go through all files but will use cached line numbers
+instead.
+
 ### View
 
 #### Font
@@ -1610,6 +1641,35 @@ text rendering.
 
 Font size can be changed from either main or filtered view using `Ctrl+Mouse wheel`
 to zoom in/out.
+
+#### ANSI color sequences
+
+Some log files contain ANSI color codes to be displayed by terminals with
+color support: the output of `ls --color`, of a test runner or of a colored
+logger. *ANSI color sequences*, in the *Text* group, says what *logsquirl*
+does with them:
+
+- *Show as text* (the default) shows the escape sequences as characters, as
+  the file holds them.
+- *Hide* removes them from every line: the main and the filtered view show the
+  text without them, and Search, QuickFind, selection and copy work on that
+  text.
+- *Show colors* removes them as *Hide* does and paints the lines in the colors
+  they ask for, in the main and the filtered view. Foreground and background
+  colors are shown (the 16 basic colors, the 256-color palette and truecolor);
+  bold, underline and the other attributes are not. Each line starts in its
+  own colors. The 16 basic colors are the Theme's: Smyck and Smyck Light use
+  the SMYCK scheme's, the other Themes xterm's, and a foreground too faint to
+  read on its background is moved toward the Theme's text color. Text with
+  only a background color, where the Theme's text color is too faint to read
+  on it, is moved toward black or white instead. Highlighters, the search
+  highlight, Color Labels, QuickFind and the selection paint over the ANSI
+  colors. Search, QuickFind, selection and copy work exactly as under
+  *Hide*, and switching between the two reloads nothing and runs no search
+  again. The table view shows the text as under *Hide*, without ANSI colors.
+
+*Hide* and *Show colors* make regular expression search slower: every line is
+read without its sequences first.
 
 #### Style
 
@@ -1655,38 +1715,10 @@ bad on High DPI monitors. Usually, Qt detects the correct settings.
 However, these options may be useful, especially for non-integer
 scale factors manual overrides.
 
-#### Miscellaneous
+#### Scrolling
 
-*Context lines around matches* sets the number of [breadcrumbs](#breadcrumbs)
-shown before and after each match (5 by default, 0 turns them off). With
-*Enable fast scrolling with Alt key*, on by default, the mouse wheel scrolls
-*Fast scroll multiplier* times (5) as far while `Alt` is held.
-
-Some log files contain ANSI color codes to be displayed by terminals with
-color support: the output of `ls --color`, of a test runner or of a colored
-logger. *ANSI color sequences* says what *logsquirl* does with them:
-
-- *Show as text* (the default) shows the escape sequences as characters, as
-  the file holds them.
-- *Hide* removes them from every line: the main and the filtered view show the
-  text without them, and Search, QuickFind, selection and copy work on that
-  text.
-- *Show colors* removes them as *Hide* does and paints the lines in the colors
-  they ask for, in the main and the filtered view. Foreground and background
-  colors are shown (the 16 basic colors, the 256-color palette and truecolor);
-  bold, underline and the other attributes are not. Each line starts in its
-  own colors. The 16 basic colors are the Theme's: Smyck and Smyck Light use
-  the SMYCK scheme's, the other Themes xterm's, and a foreground too faint to
-  read on its background is moved toward the Theme's text color. Text with
-  only a background color, where the Theme's text color is too faint to read
-  on it, is moved toward black or white instead. Highlighters, the search
-  highlight, Color Labels, QuickFind and the selection paint over the ANSI
-  colors. Search, QuickFind, selection and copy work exactly as under
-  *Hide*, and switching between the two reloads nothing and runs no search
-  again. The table view shows the text as under *Hide*, without ANSI colors.
-
-*Hide* and *Show colors* make regular expression search slower: every line is
-read without its sequences first.
+With *Enable fast scrolling with Alt key*, on by default, the mouse wheel
+scrolls *Fast scroll multiplier* times (5) as far while `Alt` is held.
 
 ### File
 
@@ -1839,26 +1871,6 @@ the Finder with *Get Info*, *Open with* and *Change All...*. The page is
 available in LogSquirl.app only, not in a run of the executable outside it.
 
 ### Advanced options
-
-These options refer to the customization of performance related settings.
-
-*Regular expressions engine* chooses between Vectorscan, the default and the
-fastest, and Qt's engine, which understands every pattern, lookahead included,
-but is slower. Even with Vectorscan, a pattern it cannot handle is searched
-with Qt's engine.
-
-If parallel search is enabled, *logsquirl* will try to use several CPU cores
-for regular expression matching. This does not work with quickfind.
-
-*logsquirl* has several strategies for regular expression search based on file 
-encoding. By default, it is optimized for files with UTF8 or single-byte
-encodings. If most of the files are in multi-byte encodings then enabling
-search optimization for non-latin encodings could improve performance.
-
-If search results cache is enabled, *logsquirl* will store numbers of lines
-that matched the search pattern in its memory. Repeating searches for the same
-pattern will not go through all files but will use cached line numbers
-instead.
 
 In case there is an issue with *logsquirl*, logging can be enabled with
 a desired level of verbosity. Log files are saved to the `logs` folder of the
