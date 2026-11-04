@@ -29,22 +29,29 @@
 namespace logsquirl::valuenames {
 
 // The name itself when none of taken has it, else the first free
-// "<name> (n)", n from 2.
+// "<name> (n)", n from 2. Every name kept unique is made so with it: a
+// rule's, a table's, a Naming Group's, and an imported Filter Group's or
+// Highlighter Set's.
 QString freeName( const QString& name, const QStringList& taken );
 
-// The names of the group's rules and of its tables.
-QStringList ruleNames( const NamingGroup& group );
-QStringList tableNames( const NamingGroup& group );
+// The name of a new Name Table without a better one: "Name Table 1",
+// "Name Table 2", ..., the first none of taken has.
+QString newTableName( const QStringList& taken );
+
+// The names of the rules and of the tables, but the one at the index except
+// (none when it is -1): the names an edited one must not take.
+QStringList ruleNames( const QList<NamingRule>& rules, qsizetype except = -1 );
+QStringList tableNames( const QList<NameTable>& tables, qsizetype except = -1 );
 
 // Adds the rule after the group's rules, under its name -- fallbackName when
 // it has none -- made unique in the group: a rule's check is kept by its
 // name. Returns the name it got.
 QString addRule( NamingGroup& group, NamingRule rule, const QString& fallbackName );
 
-// Adds the table after the group's tables, under its name -- fallbackName
+// Adds the table after the group's tables, under its name -- newTableName()
 // when it has none -- made unique in the group: the rules find their tables
 // by name. Returns the name it got.
-QString addTable( NamingGroup& group, NameTable table, const QString& fallbackName );
+QString addTable( NamingGroup& group, NameTable table );
 
 // A Naming Rule and the Name Table one of its capture groups uses.
 struct RuleWithTable {
@@ -66,9 +73,9 @@ struct AddedRuleWithTable {
 
 // Adds the rule, and the table unless it is one the group has, to the group,
 // the rule's capture group using the table under the name the table got. The
-// rule's other capture groups keep the tables they use.
+// rule's other capture groups keep the tables they use. A rule without a
+// name gets ruleFallbackName, a new table without one newTableName().
 AddedRuleWithTable addRuleWithTable( NamingGroup& group, RuleWithTable added,
-                                     const QString& ruleFallbackName,
-                                     const QString& tableFallbackName );
+                                     const QString& ruleFallbackName );
 
 } // namespace logsquirl::valuenames

@@ -136,10 +136,6 @@ using ConflictResolver = std::function<ConflictDecision( const ConflictQuestion&
 // The answer preselected for a conflict of this kind.
 ConflictAnswer preselectedAnswer( ConflictKind kind );
 
-// The name to give an imported group that is kept next to an existing one:
-// name itself when no group has it, else the first free "<name> (n)", n from 2.
-QString firstFreeName( const QString& name, const QStringList& takenNames );
-
 // One import, possibly of several files. It remembers an "Apply to all
 // remaining conflicts" answer, so that it holds across the files.
 //

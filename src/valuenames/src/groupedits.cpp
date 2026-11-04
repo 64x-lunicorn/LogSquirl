@@ -19,6 +19,8 @@
 
 #include "groupedits.h"
 
+#include <QCoreApplication>
+
 #include <utility>
 
 namespace logsquirl::valuenames {
@@ -36,38 +38,58 @@ QString freeName( const QString& name, const QStringList& taken )
     }
 }
 
-QStringList ruleNames( const NamingGroup& group )
+QString newTableName( const QStringList& taken )
+{
+    for ( int number = 1;; ++number ) {
+        const auto name
+            = QCoreApplication::translate( "GroupEdits", "Name Table %1" ).arg( number );
+        if ( !taken.contains( name ) ) {
+            return name;
+        }
+    }
+}
+
+namespace {
+
+template <typename Item>
+QStringList namesOf( const QList<Item>& items, qsizetype except )
 {
     QStringList names;
-    for ( const auto& rule : group.rules() ) {
-        names.append( rule.name );
+    for ( qsizetype index = 0; index < items.size(); ++index ) {
+        if ( index != except ) {
+            names.append( items[ index ].name );
+        }
     }
     return names;
 }
 
-QStringList tableNames( const NamingGroup& group )
+} // namespace
+
+QStringList ruleNames( const QList<NamingRule>& rules, qsizetype except )
 {
-    QStringList names;
-    for ( const auto& table : group.tables() ) {
-        names.append( table.name );
-    }
-    return names;
+    return namesOf( rules, except );
+}
+
+QStringList tableNames( const QList<NameTable>& tables, qsizetype except )
+{
+    return namesOf( tables, except );
 }
 
 QString addRule( NamingGroup& group, NamingRule rule, const QString& fallbackName )
 {
     const auto name = rule.name.trimmed();
-    rule.name = freeName( name.isEmpty() ? fallbackName : name, ruleNames( group ) );
+    rule.name = freeName( name.isEmpty() ? fallbackName : name, ruleNames( group.rules() ) );
     auto rules = group.rules();
     rules.append( rule );
     group.setRules( rules );
     return rules.back().name;
 }
 
-QString addTable( NamingGroup& group, NameTable table, const QString& fallbackName )
+QString addTable( NamingGroup& group, NameTable table )
 {
+    const auto taken = tableNames( group.tables() );
     const auto name = table.name.trimmed();
-    table.name = freeName( name.isEmpty() ? fallbackName : name, tableNames( group ) );
+    table.name = name.isEmpty() ? newTableName( taken ) : freeName( name, taken );
     auto tables = group.tables();
     tables.append( table );
     group.setTables( tables );
@@ -75,12 +97,11 @@ QString addTable( NamingGroup& group, NameTable table, const QString& fallbackNa
 }
 
 AddedRuleWithTable addRuleWithTable( NamingGroup& group, RuleWithTable added,
-                                     const QString& ruleFallbackName,
-                                     const QString& tableFallbackName )
+                                     const QString& ruleFallbackName )
 {
     AddedRuleWithTable names;
 
-    const auto existing = tableNames( group ).indexOf( added.table.name );
+    const auto existing = tableNames( group.tables() ).indexOf( added.table.name );
     if ( added.existingTable && existing >= 0 ) {
         auto tables = group.tables();
         tables[ existing ].rows = added.table.rows;
@@ -89,7 +110,7 @@ AddedRuleWithTable addRuleWithTable( NamingGroup& group, RuleWithTable added,
         names.table = added.table.name;
     }
     else {
-        names.table = addTable( group, std::move( added.table ), tableFallbackName );
+        names.table = addTable( group, std::move( added.table ) );
     }
 
     auto& groupTables = added.rule.groupTables;

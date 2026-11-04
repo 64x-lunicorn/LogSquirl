@@ -73,6 +73,32 @@ SCENARIO( "A free name is the name itself or the first numbered one not taken",
     REQUIRE( freeName( QStringLiteral( "Rule" ),
                        { QStringLiteral( "Rule" ), QStringLiteral( "Rule (2)" ) } )
              == QStringLiteral( "Rule (3)" ) );
+    REQUIRE(
+        freeName( QStringLiteral( "Net" ), { QStringLiteral( "Net" ), QStringLiteral( "Net (2)" ),
+                                             QStringLiteral( "Net (4)" ) } )
+        == QStringLiteral( "Net (3)" ) );
+}
+
+SCENARIO( "A new Name Table without a better name is the first Name Table N not taken",
+          "[valuenames][groupedits]" )
+{
+    REQUIRE( newTableName( {} ) == QStringLiteral( "Name Table 1" ) );
+    REQUIRE( newTableName( { QStringLiteral( "Name Table 1" ), QStringLiteral( "Other" ) } )
+             == QStringLiteral( "Name Table 2" ) );
+    REQUIRE( newTableName( { QStringLiteral( "Name Table 2" ) } )
+             == QStringLiteral( "Name Table 1" ) );
+}
+
+SCENARIO( "The names an edited rule or table must not take leave out its own",
+          "[valuenames][groupedits]" )
+{
+    const QList<NameTable> tables{ table( QStringLiteral( "A" ), {} ),
+                                   table( QStringLiteral( "B" ), {} ) };
+    REQUIRE( tableNames( tables ) == QStringList{ QStringLiteral( "A" ), QStringLiteral( "B" ) } );
+    REQUIRE( tableNames( tables, 0 ) == QStringList{ QStringLiteral( "B" ) } );
+    const QList<NamingRule> rules{ rule( QStringLiteral( "R" ), {} ),
+                                   rule( QStringLiteral( "S" ), {} ) };
+    REQUIRE( ruleNames( rules, 1 ) == QStringList{ QStringLiteral( "R" ) } );
 }
 
 SCENARIO( "A rule and a table are added under names unique in their group",
@@ -89,31 +115,32 @@ SCENARIO( "A rule and a table are added under names unique in their group",
         {
             REQUIRE( first == QStringLiteral( "Rule" ) );
             REQUIRE( second == QStringLiteral( "Rule (2)" ) );
-            REQUIRE( ruleNames( group ) == QStringList{ first, second } );
+            REQUIRE( ruleNames( group.rules() ) == QStringList{ first, second } );
         }
     }
 
     WHEN( "a table of a name the group has is added" )
     {
-        addTable( group, table( QStringLiteral( "T" ), {} ), QStringLiteral( "Table" ) );
-        const auto name
-            = addTable( group, table( QStringLiteral( "T" ), {} ), QStringLiteral( "Table" ) );
+        addTable( group, table( QStringLiteral( "T" ), {} ) );
+        const auto name = addTable( group, table( QStringLiteral( "T" ), {} ) );
 
         THEN( "it is numbered" )
         {
             REQUIRE( name == QStringLiteral( "T (2)" ) );
-            REQUIRE( tableNames( group )
+            REQUIRE( tableNames( group.tables() )
                      == QStringList{ QStringLiteral( "T" ), QStringLiteral( "T (2)" ) } );
         }
     }
 
-    WHEN( "a table without a name is added" )
+    WHEN( "tables without a name are added" )
     {
-        const auto name = addTable( group, NameTable{}, QStringLiteral( "Table" ) );
+        const auto first = addTable( group, NameTable{} );
+        const auto second = addTable( group, NameTable{} );
 
-        THEN( "it gets the fallback name" )
+        THEN( "they are Name Table 1 and Name Table 2" )
         {
-            REQUIRE( name == QStringLiteral( "Table" ) );
+            REQUIRE( first == QStringLiteral( "Name Table 1" ) );
+            REQUIRE( second == QStringLiteral( "Name Table 2" ) );
         }
     }
 }
@@ -127,8 +154,7 @@ SCENARIO( "A rule and its table are created in a group in one operation",
 
         WHEN( "the rule EsimState=(\\d+) and the table EsimState are created" )
         {
-            const auto added = addRuleWithTable( group, esimState(), QStringLiteral( "Rule" ),
-                                                 QStringLiteral( "Table" ) );
+            const auto added = addRuleWithTable( group, esimState(), QStringLiteral( "Rule" ) );
 
             THEN( "the group has both, the rule's capture group using the table" )
             {
@@ -153,12 +179,11 @@ SCENARIO( "A rule and its table are created in a group in one operation",
     GIVEN( "a group that has a rule and a table of those names" )
     {
         auto group = NamingGroup::createNewGroup( QStringLiteral( "G" ) );
-        addRuleWithTable( group, esimState(), QStringLiteral( "Rule" ), QStringLiteral( "Table" ) );
+        addRuleWithTable( group, esimState(), QStringLiteral( "Rule" ) );
 
         WHEN( "they are created again as new" )
         {
-            const auto added = addRuleWithTable( group, esimState(), QStringLiteral( "Rule" ),
-                                                 QStringLiteral( "Table" ) );
+            const auto added = addRuleWithTable( group, esimState(), QStringLiteral( "Rule" ) );
 
             THEN( "both are numbered, and the new rule uses the new table" )
             {
@@ -179,8 +204,7 @@ SCENARIO( "A rule and its table are created in a group in one operation",
             withExisting.table.rows.append(
                 NameRow{ QStringLiteral( "3" ), QStringLiteral( "Off" ) } );
             withExisting.table.caseSensitive = true;
-            const auto added = addRuleWithTable( group, withExisting, QStringLiteral( "Rule" ),
-                                                 QStringLiteral( "Table" ) );
+            const auto added = addRuleWithTable( group, withExisting, QStringLiteral( "Rule" ) );
 
             THEN( "the table is not added again, its rows are the edited ones, and both rules "
                   "use it" )
@@ -201,8 +225,7 @@ SCENARIO( "A rule and its table are created in a group in one operation",
     GIVEN( "a table said to be existing that the group does not have" )
     {
         auto group = NamingGroup::createNewGroup( QStringLiteral( "G" ) );
-        const auto added = addRuleWithTable( group, esimState( true ), QStringLiteral( "Rule" ),
-                                             QStringLiteral( "Table" ) );
+        const auto added = addRuleWithTable( group, esimState( true ), QStringLiteral( "Rule" ) );
 
         THEN( "it is added as a new one" )
         {
@@ -221,16 +244,17 @@ SCENARIO( "A rule and its table are created in a group in one operation",
                                    GroupTable{ QStringLiteral( "2" ), QStringLiteral( "Old" ) } };
         added.captureGroup = QStringLiteral( "2" );
 
-        const auto names
-            = addRuleWithTable( group, added, QStringLiteral( "Rule" ), QStringLiteral( "Table" ) );
+        const auto names = addRuleWithTable( group, added, QStringLiteral( "Rule" ) );
 
-        THEN( "they get the fallback names, and only the capture group given uses the table" )
+        THEN( "the rule gets the fallback name and the table Name Table 1, and only the capture "
+              "group given uses the table" )
         {
             REQUIRE( names.rule == QStringLiteral( "Rule" ) );
-            REQUIRE( names.table == QStringLiteral( "Table" ) );
+            REQUIRE( names.table == QStringLiteral( "Name Table 1" ) );
             const auto& created = group.rules().front();
             REQUIRE( created.tableFor( QStringLiteral( "1" ) ) == QStringLiteral( "Keys" ) );
-            REQUIRE( created.tableFor( QStringLiteral( "2" ) ) == QStringLiteral( "Table" ) );
+            REQUIRE( created.tableFor( QStringLiteral( "2" ) )
+                     == QStringLiteral( "Name Table 1" ) );
             REQUIRE( created.groupTables.size() == 2 );
         }
     }

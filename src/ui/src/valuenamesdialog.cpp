@@ -68,12 +68,15 @@
 
 using logsquirl::valuenames::CsvImportOptions;
 using logsquirl::valuenames::CsvImportWarning;
+using logsquirl::valuenames::freeName;
 using logsquirl::valuenames::GroupTable;
 using logsquirl::valuenames::NameRow;
 using logsquirl::valuenames::NameTable;
 using logsquirl::valuenames::NamingGroup;
 using logsquirl::valuenames::NamingRule;
 using logsquirl::valuenames::Problem;
+using logsquirl::valuenames::ruleNames;
+using logsquirl::valuenames::tableNames;
 
 namespace {
 
@@ -217,40 +220,6 @@ QList<GroupTable> adaptedGroupTables( const QList<GroupTable>& groupTables,
         adapted.append( GroupTable{ key, groupTable.table } );
     }
     return adapted;
-}
-
-QStringList ruleNames( const QList<NamingRule>& rules, int except )
-{
-    QStringList names;
-    for ( int index = 0; index < rules.size(); ++index ) {
-        if ( index != except ) {
-            names.append( rules[ index ].name );
-        }
-    }
-    return names;
-}
-
-QStringList tableNames( const QList<NameTable>& tables, int except )
-{
-    QStringList names;
-    for ( int index = 0; index < tables.size(); ++index ) {
-        if ( index != except ) {
-            names.append( tables[ index ].name );
-        }
-    }
-    return names;
-}
-
-// The name of a new Name Table: "Name Table 1", "Name Table 2", ..., the
-// first one no table of the group has.
-QString newTableName( const QStringList& taken )
-{
-    for ( int number = 1;; ++number ) {
-        const auto name = ValueNamesDialog::tr( "Name Table %1" ).arg( number );
-        if ( !taken.contains( name ) ) {
-            return name;
-        }
-    }
 }
 
 QToolButton* toolButton( const QString& toolTip, QWidget* parent )
@@ -777,7 +746,7 @@ void ValueNamesDialog::makeGroupNamesUnique()
             if ( name.isEmpty() ) {
                 name = tr( "New Naming Group" );
             }
-            name = logsquirl::groupexchange::firstFreeName( name, taken );
+            name = freeName( name, taken );
             taken.append( name );
             if ( name != group.name() ) {
                 group.setName( name );
@@ -798,8 +767,8 @@ void ValueNamesDialog::addGroup( GroupList::Section section )
             return;
         }
         auto& teamGroups = teamEdits_.groups();
-        teamGroups.append( NamingGroup::createNewGroup( logsquirl::groupexchange::firstFreeName(
-            tr( "New Naming Group" ), teamEdits_.names() ) ) );
+        teamGroups.append( NamingGroup::createNewGroup(
+            freeName( tr( "New Naming Group" ), teamEdits_.names() ) ) );
         groupList_->setTeamGroups( teamEdits_.names(), true );
         groupList_->setCurrent( section, static_cast<int>( teamGroups.size() ) - 1 );
         return;
@@ -809,8 +778,7 @@ void ValueNamesDialog::addGroup( GroupList::Section section )
     for ( const auto& group : groups_ ) {
         taken.append( group.name() );
     }
-    groups_.append( NamingGroup::createNewGroup(
-        logsquirl::groupexchange::firstFreeName( tr( "New Naming Group" ), taken ) ) );
+    groups_.append( NamingGroup::createNewGroup( freeName( tr( "New Naming Group" ), taken ) ) );
     populateGroups( static_cast<int>( groups_.size() ) - 1 );
 }
 
@@ -971,7 +939,7 @@ QString ValueNamesDialog::editRule( int row, int column, QString text )
             if ( text.isEmpty() ) {
                 text = tr( "Rule" );
             }
-            text = logsquirl::groupexchange::firstFreeName( text, ruleNames( rules, row ) );
+            text = freeName( text, ruleNames( rules, row ) );
             rule.name = text;
             break;
         case RuleRegex: {
@@ -1229,9 +1197,9 @@ QString ValueNamesDialog::renameTable( int row, const QString& text )
     // Unique in the group: the rules find their tables by name.
     auto name = text.trimmed();
     if ( name.isEmpty() ) {
-        name = newTableName( tableNames( group->tables(), row ) );
+        name = logsquirl::valuenames::newTableName( tableNames( group->tables(), row ) );
     }
-    name = logsquirl::groupexchange::firstFreeName( name, tableNames( group->tables(), row ) );
+    name = freeName( name, tableNames( group->tables(), row ) );
     const auto oldName = group->tables()[ row ].name;
     if ( name == oldName ) {
         return name;
@@ -1260,8 +1228,7 @@ void ValueNamesDialog::addTable()
     if ( group == nullptr || !editable() ) {
         return;
     }
-    logsquirl::valuenames::addTable( *group, NameTable{},
-                                     newTableName( tableNames( group->tables(), -1 ) ) );
+    logsquirl::valuenames::addTable( *group, NameTable{} );
     const auto row = static_cast<int>( group->tables().size() ) - 1;
     populateTables( row );
     populateCaptureGroups();
@@ -1395,10 +1362,9 @@ void ValueNamesDialog::importCsvText( const QString& text, const CsvImportOption
     if ( target == CsvImportTarget::NewTable || currentTable() == nullptr ) {
         changeTables( [ & ]( QList<NameTable>& tables ) {
             NameTable table;
-            const auto taken = tableNames( tables, -1 );
-            table.name = newTableName.isEmpty()
-                             ? ::newTableName( taken )
-                             : logsquirl::groupexchange::firstFreeName( newTableName, taken );
+            const auto taken = tableNames( tables );
+            table.name = newTableName.isEmpty() ? logsquirl::valuenames::newTableName( taken )
+                                                : freeName( newTableName, taken );
             table.caseSensitive = options.caseSensitive;
             table.rows = imported.rows;
             tables.append( table );
@@ -1437,7 +1403,7 @@ void ValueNamesDialog::pasteRows( const QString& text )
     if ( currentTable() == nullptr ) {
         changeTables( []( QList<NameTable>& tables ) {
             NameTable table;
-            table.name = newTableName( tableNames( tables, -1 ) );
+            table.name = logsquirl::valuenames::newTableName( tableNames( tables ) );
             tables.append( table );
         } );
         populateTables( static_cast<int>( group->tables().size() ) - 1 );

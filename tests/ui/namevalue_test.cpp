@@ -186,13 +186,14 @@ void clickOk( QDialog& dialog )
 
 // A window showing the Log File, Value Names off in its tab.
 struct NameValueWindow {
-    NameValueWindow()
+    explicit NameValueWindow( const QString& text
+                              = EsimLine + QStringLiteral( "\nother line\n" ) + TabLine + u'\n' )
     {
         REQUIRE( dir.isValid() );
         const auto path = dir.filePath( QStringLiteral( "esim.log" ) );
         QFile file( path );
         REQUIRE( file.open( QIODevice::WriteOnly ) );
-        file.write( ( EsimLine + QStringLiteral( "\nother line\n" ) + TabLine + u'\n' ).toUtf8() );
+        file.write( text.toUtf8() );
         file.close();
 
         auto policies = testSettingsPolicies();
@@ -640,6 +641,134 @@ SCENARIO( "Name this value... proposes a rule that matches a clicked Log Line wi
             REQUIRE( pattern == QStringLiteral( "EsimState=\\t(\\d+)" ) );
             REQUIRE( QRegularExpression( pattern ).match( TabLine ).hasMatch() );
             REQUIRE( warning.isEmpty() );
+        }
+    }
+}
+
+SCENARIO( "Name this value... in a Filtered View names the Log Line of the Match, not the one "
+          "at its row in the file",
+          "[ui][valuenames][namevalue]" )
+{
+    const StoredValueNamesGuard guard;
+    StoredValueNamesGuard::storeGroups( {} );
+    // The Search matches Log Line 2 alone; every other Log Line holds a value
+    // too, so naming from the wrong one would propose something else.
+    const NameValueWindow shown( QStringLiteral( "alpha=1 x\nbeta=2 x\n" ) + EsimLine
+                                 + QStringLiteral( "\ngamma=4 x\ndelta=5 x\n" ) );
+    CrawlerAccess::search( *shown.crawler, QStringLiteral( "EsimState" ) );
+    auto& filteredView = CrawlerAccess::filteredView( *shown.crawler );
+
+    // What the dialog the entry opens proposes, and its preview once named.
+    QString pattern;
+    QString key;
+    QString preview;
+    const auto openAndName = [ & ]( QMenu& menu ) {
+        nameInDialog( menu, [ & ]( NameValueDialog& dialog ) {
+            pattern = childOf<QLineEdit>( dialog, QStringLiteral( "rulePattern" ) )->text();
+            key = childOf<QTableWidget>( dialog, QStringLiteral( "nameRows" ) )
+                      ->item( 0, 0 )
+                      ->text();
+            setName( dialog, 0, QStringLiteral( "Ready" ) );
+            preview = dialog.shownPreview();
+        } );
+    };
+
+    WHEN( "the menu opens on the value of the Match, its first row, with nothing selected "
+          "within it" )
+    {
+        filteredView.selectAndDisplayLine( 2_lnum );
+        const auto menu = ViewAccess::contextMenu(
+            filteredView, ViewAccess::pointOn( filteredView, 0, EsimLine.indexOf( u'9' ) ) );
+        openAndName( *menu );
+
+        THEN( "the dialog proposes from that Log Line" )
+        {
+            REQUIRE( pattern == QStringLiteral( "EsimState=(\\d+)" ) );
+            REQUIRE( key == QStringLiteral( "9" ) );
+            REQUIRE( preview == QStringLiteral( "modem EsimState=Ready (9) done" ) );
+        }
+    }
+
+    WHEN( "the value of the Match is selected" )
+    {
+        const auto range = rangeOf( EsimLine, QStringLiteral( "EsimState=9" ) );
+        ViewAccess::selectPortion( filteredView, 2_lnum, LineColumn{ range.start },
+                                   LineColumn{ range.end() - 1 } );
+        const auto menu
+            = ViewAccess::contextMenu( filteredView, ViewAccess::pointOn( filteredView, 0, 0 ) );
+        openAndName( *menu );
+
+        THEN( "the dialog proposes from that Log Line" )
+        {
+            REQUIRE( pattern == QStringLiteral( "EsimState=(\\d+)" ) );
+            REQUIRE( key == QStringLiteral( "9" ) );
+            REQUIRE( preview == QStringLiteral( "modem EsimState=Ready (9) done" ) );
+        }
+    }
+}
+
+SCENARIO( "Name this value... names a new table Name Table N when no text comes before the value",
+          "[ui][valuenames][namevalue]" )
+{
+    const StoredValueNamesGuard guard;
+    const auto line = QStringLiteral( "9 done" );
+
+    GIVEN( "no Naming Group yet" )
+    {
+        StoredValueNamesGuard::storeGroups( {} );
+        NameValueDialog dialog( line, rangeOf( line, QStringLiteral( "9" ) ) );
+        showUntilExposed( dialog );
+
+        THEN( "the new table is Name Table 1, as the Value Names dialog names a new one" )
+        {
+            REQUIRE( childOf<QLineEdit>( dialog, QStringLiteral( "newTableName" ) )->text()
+                     == QStringLiteral( "Name Table 1" ) );
+        }
+
+        WHEN( "the value is named and OK is clicked" )
+        {
+            setName( dialog, 0, QStringLiteral( "Ready" ) );
+            clickOk( dialog );
+
+            THEN( "the table and the rule are Name Table 1" )
+            {
+                const auto& groups = ValueNamesCollection::get().ownGroups();
+                REQUIRE( groups.size() == 1 );
+                REQUIRE( groups.front().table( QStringLiteral( "Name Table 1" ) ) != nullptr );
+                REQUIRE( groups.front().rules().front().tableFor( QStringLiteral( "1" ) )
+                         == QStringLiteral( "Name Table 1" ) );
+            }
+        }
+    }
+
+    GIVEN( "a group that has a Name Table 1" )
+    {
+        auto modem = NamingGroup::createNewGroup( QStringLiteral( "Modem" ) );
+        NameTable first;
+        first.name = QStringLiteral( "Name Table 1" );
+        modem.setTables( { first } );
+        StoredValueNamesGuard::storeGroups( { modem } );
+        NameValueDialog dialog( line, rangeOf( line, QStringLiteral( "9" ) ) );
+        showUntilExposed( dialog );
+
+        THEN( "the new table is Name Table 2" )
+        {
+            REQUIRE( childOf<QComboBox>( dialog, QStringLiteral( "namingGroup" ) )->currentText()
+                     == QStringLiteral( "Modem" ) );
+            REQUIRE( childOf<QLineEdit>( dialog, QStringLiteral( "newTableName" ) )->text()
+                     == QStringLiteral( "Name Table 2" ) );
+        }
+
+        WHEN( "a new group is chosen" )
+        {
+            auto* group = childOf<QComboBox>( dialog, QStringLiteral( "namingGroup" ) );
+            group->setCurrentIndex( group->count() - 1 );
+
+            THEN( "the new table is Name Table 1 again" )
+            {
+                REQUIRE( childOf<QLineEdit>( dialog, QStringLiteral( "newTableName" ) )->text()
+                         == QStringLiteral( "Name Table 1" ) );
+            }
         }
     }
 }

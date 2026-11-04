@@ -40,6 +40,7 @@
 #include <variant>
 
 #include "datalocation.h"
+#include "groupedits.h"
 #include "groupexchange.h"
 #include "log.h"
 #include "teamfoldergit.h"
@@ -1885,7 +1886,7 @@ PublishRequest PublishRequest::forDeletion( groupexchange::GroupKind kind, const
 template <typename Group>
 Group copyOfGroup( const Group& group, const QStringList& takenNames )
 {
-    const auto name = groupexchange::firstFreeName( group.name(), takenNames );
+    const auto name = valuenames::freeName( group.name(), takenNames );
     // A fresh id, of the form the kind of group gives a new group.
     auto copy = [ & ] {
         if constexpr ( std::is_same_v<Group, NamingGroup> ) {

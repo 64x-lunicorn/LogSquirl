@@ -46,24 +46,6 @@ namespace {
 
 enum RowColumn { RowKey = 0, RowName = 1 };
 
-// What is proposed for the range: the value and the text around it, or, if
-// it holds no value after all, the text itself as the regex.
-NamingProposal proposalFor( const QString& logLine, LineRange selection )
-{
-    if ( auto proposal = logsquirl::valuenames::proposeNaming( logLine, selection ) ) {
-        return *proposal;
-    }
-    NamingProposal proposal;
-    proposal.value = logLine.mid( selection.start, selection.length );
-    proposal.valueRange = selection;
-    proposal.pattern = QStringLiteral( "(" )
-                       + logsquirl::valuenames::escapedForRegex( proposal.value )
-                       + QStringLiteral( ")" );
-    proposal.key = logsquirl::valuenames::escapedForRegex( proposal.value );
-    proposal.displayTemplate = logsquirl::valuenames::proposedTemplate();
-    return proposal;
-}
-
 QStringList groupNames( const QList<NamingGroup>& groups )
 {
     QStringList names;
@@ -78,7 +60,10 @@ QStringList groupNames( const QList<NamingGroup>& groups )
 NameValueDialog::NameValueDialog( const QString& logLine, LineRange selection, QWidget* parent )
     : QDialog( parent )
     , logLine_( logLine )
-    , proposal_( proposalFor( logLine, selection ) )
+    // The selection holds a value: the context menu offers the entry only
+    // then, so there is always a proposal.
+    , proposal_(
+          logsquirl::valuenames::proposeNaming( logLine, selection ).value_or( NamingProposal{} ) )
     , groups_( ValueNamesCollection::getSynced().ownGroups() )
 {
     setWindowTitle( tr( "Name This Value" ) );
@@ -100,12 +85,12 @@ NameValueDialog::NameValueDialog( const QString& logLine, LineRange selection, Q
     groupLine->addWidget( newGroupName_, 1 );
     form->addRow( tr( "Naming Group:" ), groupLine );
 
-    // The table: a new one, named after the text before the value, or one
+    // The table: a new one, named after the text before the value -- without
+    // any, Name Table N, as the Value Names dialog names a new one -- or one
     // of the group's.
     table_ = new QComboBox( this );
     table_->setObjectName( QStringLiteral( "nameTable" ) );
-    newTableName_ = new QLineEdit(
-        proposal_.tableName.isEmpty() ? tr( "Values" ) : proposal_.tableName, this );
+    newTableName_ = new QLineEdit( proposal_.tableName, this );
     newTableName_->setObjectName( QStringLiteral( "newTableName" ) );
     auto* tableRow = new QHBoxLayout;
     tableRow->addWidget( table_, 1 );
@@ -205,7 +190,14 @@ void NameValueDialog::populateTables()
     table_->clear();
     table_->addItem( tr( "New Name Table" ), QString{} );
     int chosen = 0;
-    if ( const auto row = chosenGroup(); row >= 0 ) {
+    const auto row = chosenGroup();
+    // Name Table N unique in the group chosen, unless the user named it.
+    if ( proposal_.tableName.isEmpty() && !newTableName_->isModified() ) {
+        newTableName_->setText( logsquirl::valuenames::newTableName(
+            row >= 0 ? logsquirl::valuenames::tableNames( groups_[ row ].tables() )
+                     : QStringList{} ) );
+    }
+    if ( row >= 0 ) {
         for ( const auto& table : groups_[ row ].tables() ) {
             table_->addItem( table.name, table.name );
             if ( chosen == 0 && table.name == proposal_.tableName ) {
@@ -328,7 +320,7 @@ NamingGroup NameValueDialog::groupAfter() const
                           : NamingGroup::createNewGroup( newGroupName_->text().trimmed() );
     // What is named shows at once: the group is checked, as the new rule is.
     group.setEnabled( true );
-    logsquirl::valuenames::addRuleWithTable( group, ruleWithTable(), tr( "Rule" ), tr( "Values" ) );
+    logsquirl::valuenames::addRuleWithTable( group, ruleWithTable(), tr( "Rule" ) );
     return group;
 }
 
