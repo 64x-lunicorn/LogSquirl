@@ -573,6 +573,12 @@ private:
     QAction* openSessionAction;
     QAction* saveSessionAsAction;
     QAction* openCommandOutputAction;
+    // File > Merge Log Files...: the Merge dialog of the tab bar, enabled
+    // while two Log Files or more are open (#890).
+    QAction* mergeLogFilesAction;
+    // File > Export as CSV...: the export of the view's context menu, for the
+    // tab in front; enabled while it has a Log Format recognized (#890).
+    QAction* exportAsCsvAction;
     QAction* overviewVisibleAction;
     QAction* lineNumbersVisibleInMainAction;
     QAction* lineNumbersVisibleInFilteredAction;

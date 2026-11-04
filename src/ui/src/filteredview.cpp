@@ -132,6 +132,9 @@ CsvExportDialog::Setup FilteredView::csvExportSetup() const
 
 void FilteredView::exportAsCsv()
 {
+    if ( !recognizedFormat_ || !recognizedFormat_().format ) {
+        return;
+    }
     if ( const auto choices = CsvExportDialog::ask( this, csvExportSetup() ) ) {
         exportCsvTo( *choices );
     }

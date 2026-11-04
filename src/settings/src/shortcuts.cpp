@@ -316,6 +316,27 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
             },
         },
         {
+            MainWindowMergeLogFiles,
+            {
+                QApplication::tr( "Merge Log Files" ),
+                QStringList{},
+            },
+        },
+        {
+            MainWindowExportAsCsv,
+            {
+                QApplication::tr( "Export as CSV" ),
+                QStringList{},
+            },
+        },
+        {
+            MainWindowToggleSidebar,
+            {
+                QApplication::tr( "Show or hide the sidebar" ),
+                QStringList{},
+            },
+        },
+        {
             MainWindowSelectOpenFile,
             {
                 QApplication::tr( "Switch to file" ),

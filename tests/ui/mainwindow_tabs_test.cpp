@@ -580,6 +580,53 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
             }
         }
 
+        WHEN( "Merge Log Files... is chosen from the File menu, and the dialog confirmed with the "
+              "last Log File unchecked" )
+        {
+            auto* merge = fileMenuAction( *window.mainWindow,
+                                          logsquirl::mainwindow::action::mergeLogFilesText );
+            REQUIRE( merge != nullptr );
+            REQUIRE( merge->isEnabled() );
+
+            QSignalSpy mergeRequested( window.tabArea, &TabbedCrawlerWidget::mergeRequested );
+            QStringList offered;
+            MergeDialogAnswerer answerer( [ &offered ]( MergeDialog& dialog ) {
+                auto* list = dialog.findChild<QListWidget*>();
+                for ( int row = 0; row < list->count(); ++row ) {
+                    offered.append( QDir::fromNativeSeparators( list->item( row )->toolTip() ) );
+                }
+                list->item( 2 )->setCheckState( Qt::Unchecked );
+                buttonOf( dialog, "Merge" )->click();
+            } );
+            merge->trigger();
+
+            THEN( "the tab bar's Merge dialog offered every Log File in tab order, and the "
+                  "checked ones are merged" )
+            {
+                REQUIRE( offered == paths );
+                REQUIRE( mergeRequested.size() == 1 );
+                REQUIRE( mergeRequested.at( 0 ).at( 0 ).toStringList()
+                         == QStringList{ paths[ 0 ], paths[ 1 ] } );
+                REQUIRE_FALSE( mergeRequested.at( 0 ).at( 1 ).toBool() );
+            }
+        }
+
+        WHEN( "all but one Log File are closed" )
+        {
+            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Close others" ) );
+            REQUIRE( window.logFileTabPaths().size() == 1 );
+
+            THEN( "File > Merge Log Files... is disabled, as the tab bar offers no Merge... "
+                  "either" )
+            {
+                auto* merge = fileMenuAction( *window.mainWindow,
+                                              logsquirl::mainwindow::action::mergeLogFilesText );
+                REQUIRE( merge != nullptr );
+                REQUIRE_FALSE( merge->isEnabled() );
+                REQUIRE_FALSE( window.chooseFromTabMenu( dashboardTabs, "Merge…" ) );
+            }
+        }
+
         WHEN( "Merge… is chosen, and the dialog cancelled" )
         {
             QSignalSpy mergeRequested( window.tabArea, &TabbedCrawlerWidget::mergeRequested );

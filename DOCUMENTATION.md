@@ -1088,7 +1088,8 @@ in the table view.
 
 #### Exporting as CSV
 
-Right-click the table and choose **More > Export as CSV...** to write the table to a
+Right-click the table and choose **More > Export as CSV...**, or choose
+**File > Export as CSV...**, to write the table to a
 file for a spreadsheet, pandas and the like. The main text view has no such
 entry; the filtered view has one
 ([Exporting the filtered view as CSV](#exporting-the-filtered-view-as-csv)).
@@ -1258,8 +1259,8 @@ following file mode is also disabled.
 
 ### Merging Log Files
 
-Right-click a tab and choose *Merge…* (offered while at least two files are
-open) to combine files into one merged tab. The dialog *Merge Log Files* lists
+Right-click a tab and choose *Merge…*, or choose *File > Merge Log Files...*
+(either offered while at least two files are open), to combine files into one merged tab. The dialog *Merge Log Files* lists
 every open file -- standard input, another merged tab and command output
 included -- in tab order, all checked. Uncheck the files to leave out, and put
 the others in the order they are written in: drag a file within the list, or
@@ -1414,7 +1415,13 @@ what the window shows in **View**, settings and dialogs in **Tools**.
   `Copy full path` (of the current file to the clipboard),
   `Open containing folder`, `Open in editor` (in the default editor of the
   system) and `Clear file...`, which asks first and then empties the file on
-  disk; this cannot be undone. Then `Close`, `Close All` and `Exit`.
+  disk; this cannot be undone. Then `Merge Log Files...` (see
+  [Merging Log Files](#merging-log-files); enabled while at least two files
+  are open) and `Export as CSV...`, which exports the current tab as its
+  context menu's entry does: the filtered view's lines when the filtered view
+  had the focus last, else the table view's rows (see
+  [Exporting as CSV](#exporting-as-csv); enabled while the current file has a
+  recognized format). Then `Close`, `Close All` and `Exit`.
 - **Edit**: `Copy`, `Copy as Shown` (see [Value Names](#value-names)),
   `Select All`, `Find...` (the QuickFind bar), `Go to line...` and
   `Go to timestamp...`, and the search limits
@@ -1423,7 +1430,8 @@ what the window shows in **View**, settings and dialogs in **Tools**.
   [Search limits by time](#search-limits-by-time)).
 - **View**: `Opened files` (see
   [Switching between opened files](#switching-between-opened-files)), then
-  the sidebar and the panels: `Sidebar`, `Filters panel`, `Scratchpad` (see
+  the sidebar and the panels: `Sidebar` (checked while the sidebar shows;
+  the toolbar's sidebar button is the same entry), `Filters panel`, `Scratchpad` (see
   [Scratchpad](#scratchpad)), `Value Names tab`, `Chart Panel` (see
   [Chart Panel](#chart-panel)) and `Show Filter Frequency`, which charts how
   often the current search matched, one series for every alternative of the

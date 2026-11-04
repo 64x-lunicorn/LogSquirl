@@ -208,6 +208,13 @@ public:
     // Why "Go to timestamp" is not available for this Log File, empty when it
     // is: it needs a recognized Log Format with a timestamp field.
     QString goToTimestampUnavailableReason() const;
+
+    // The window's File > Export as CSV... (#890): what Export as CSV... in
+    // the context menu of the view last in focus does -- the Filtered View's
+    // when it was, else the Table View's, which holds every Row of the Log
+    // File whichever Presentation is shown. Nothing without a Log Format
+    // recognized, as the context menus then offer no such entry.
+    void exportAsCsv();
     // The same for the Search Limits given as a time.
     QString searchLimitsByTimeUnavailableReason() const;
 

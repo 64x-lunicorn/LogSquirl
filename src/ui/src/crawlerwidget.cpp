@@ -488,6 +488,19 @@ QString CrawlerWidget::goToTimestampUnavailableReason() const
     return timeNavigation_.goToTimestampUnavailableReason();
 }
 
+void CrawlerWidget::exportAsCsv()
+{
+    if ( !recognizedFormat_ ) {
+        return;
+    }
+    if ( filteredViewWasLastFocused() ) {
+        currentFilteredView()->exportAsCsv();
+    }
+    else {
+        logTableView_->exportAsCsv();
+    }
+}
+
 QString CrawlerWidget::searchLimitsByTimeUnavailableReason() const
 {
     return timeNavigation_.searchLimitsByTimeUnavailableReason();

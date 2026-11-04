@@ -61,6 +61,15 @@ public:
     // (#571). `dedup` is true when duplicate lines are to be dropped.
     Q_SIGNAL void mergeRequested( QStringList filePaths, bool dedup );
 
+    // Emitted when a tab was added or removed: the Log Files open may have
+    // changed, which File > Merge Log Files... is enabled for (#890).
+    Q_SIGNAL void tabsChanged();
+
+    // Asks with the Merge dialog which Log Files to merge, in which order,
+    // and requests that merge when the user confirms (#571): Merge... of a
+    // tab's context menu and the window's File > Merge Log Files... (#890).
+    void chooseFilesToMerge();
+
     // Adds the tab of a Log File, last or at `position`. The tab of a
     // Transient Log File can be renamed and grouped like any other, but
     // neither is stored (#597). The name and group of any other tab are stored
@@ -143,6 +152,8 @@ public:
 protected:
     void keyPressEvent( QKeyEvent* event ) override;
     void mouseReleaseEvent( QMouseEvent* event ) override;
+    void tabInserted( int index ) override;
+    void tabRemoved( int index ) override;
 
 public:
     // Re-applies group styling (bullet prefix + text colour) to all tabs.
@@ -162,10 +173,6 @@ private:
     // The name a tab shows, before its group's bullet: the user's rename,
     // else its opening title, else its file's name (#606).
     QString baseTabName( int index ) const;
-
-    // Asks with the Merge dialog which Log Files to merge, in which order,
-    // and requests that merge when the user confirms (#571).
-    void chooseFilesToMerge();
 
     // Set the data status (icon) for the tab number 'index'
     void setTabDataStatus( int index, DataStatus status );
