@@ -23,10 +23,14 @@
 
 #include <QCoreApplication>
 #include <QDialogButtonBox>
+#include <QLineEdit>
+#include <QListWidget>
 #include <QPushButton>
+#include <QRect>
 #include <QTest>
 
 #include "highlighter.h"
+#include "highlighteredit.h"
 #include "highlightersdialog.h"
 #include "highlighterset.h"
 #include "highlightersetedit.h"
@@ -55,7 +59,92 @@ private:
     QList<HighlighterSet> sets_;
 };
 
+// Where a widget sits in the dialog's own coordinates.
+QRect geometryIn( const QWidget& ancestor, const QWidget& widget )
+{
+    return { widget.mapTo( &ancestor, QPoint( 0, 0 ) ), widget.size() };
+}
+
 } // namespace
+
+// The right pane shows the Highlighter list and the selected Highlighter's
+// form side by side, under the set name (#895).
+SCENARIO( "The Highlighters dialog shows the Highlighter list beside its form",
+          "[ui][highlighters]" )
+{
+    const KeepHighlighterSets keep;
+    auto mine = HighlighterSet::createNewSet( "Mine" );
+    mine.addHighlighter( Highlighter( "ERROR", false, true, Qt::red, Qt::white ) );
+    mine.addHighlighter( Highlighter( "WARN", false, true, Qt::black, Qt::yellow ) );
+    HighlighterSetCollection::get().setHighlighterSets( { mine } );
+    HighlighterSetCollection::get().save();
+
+    GIVEN( "the Highlighters dialog at its default size with the user's set selected" )
+    {
+        HighlightersDialog dialog;
+        showUntilExposed( dialog );
+        dialog.groupList()->setCurrent( GroupList::Section::Own, 0 );
+        // The editor selects the first Highlighter once the event loop runs.
+        QCoreApplication::processEvents();
+
+        auto* setEdit = dialog.findChild<HighlighterSetEdit*>();
+        REQUIRE( setEdit != nullptr );
+        auto* form = setEdit->findChild<HighlighterEdit*>();
+        REQUIRE( form != nullptr );
+        const QWidget& list = *setEdit->highlighterListWidget;
+
+        const auto nameRect = geometryIn( dialog, *setEdit->nameEdit );
+        const auto listRect = geometryIn( dialog, list );
+        const auto formRect = geometryIn( dialog, *form );
+
+        THEN( "the list is left of the form, in the same row, below the set name" )
+        {
+            CHECK( listRect.right() < formRect.left() );
+            CHECK( listRect.top() < formRect.bottom() );
+            CHECK( formRect.top() < listRect.bottom() );
+            CHECK( nameRect.bottom() < listRect.top() );
+            CHECK( nameRect.bottom() < formRect.top() );
+        }
+
+        THEN( "list and form are fully visible without scrolling" )
+        {
+            const auto shown = dialog.rect();
+            CHECK( shown.contains( listRect ) );
+            CHECK( shown.contains( formRect ) );
+            CHECK( form->width() >= form->minimumSizeHint().width() );
+            CHECK( form->height() >= form->minimumSizeHint().height() );
+
+            const QList<const QWidget*> fields{
+                form->patternEdit,        form->testPatternButton, form->patternTypeComboBox,
+                form->ignoreCaseCheckBox, form->onlyMatchCheckBox, form->variateColorsCheckBox,
+                form->variationSpinBox,   form->foreColorButton,   form->backColorButton,
+            };
+            for ( const auto* field : fields ) {
+                INFO( field->objectName().toStdString() );
+                CHECK( field->isVisible() );
+                CHECK( formRect.contains( geometryIn( dialog, *field ) ) );
+                CHECK( field->width() >= field->minimumSizeHint().width() );
+                CHECK( field->height() >= field->minimumSizeHint().height() );
+            }
+
+            // Room for more than the two Highlighters of the set.
+            const auto* listWidget = setEdit->highlighterListWidget;
+            CHECK( listWidget->viewport()->height() >= 5 * listWidget->sizeHintForRow( 0 ) );
+        }
+
+        WHEN( "the selected Highlighter's pattern is typed in the form" )
+        {
+            REQUIRE( setEdit->highlighterListWidget->currentRow() == 0 );
+            form->patternEdit->setFocus();
+            QTest::keyClicks( form->patternEdit, "S" );
+
+            THEN( "the list shows the new pattern" )
+            {
+                CHECK( setEdit->highlighterListWidget->item( 0 )->text() == "ERRORS" );
+            }
+        }
+    }
+}
 
 SCENARIO( "OK in the Highlighters dialog saves the selected set of the user's own",
           "[ui][highlighters]" )
