@@ -249,6 +249,11 @@ QString escapedForRegex( QStringView text )
     QString escaped;
     escaped.reserve( text.size() );
     for ( const auto character : text ) {
+        // A tab is written \t: in the regex field it could not be seen.
+        if ( character == u'\t' ) {
+            escaped += QStringLiteral( "\\t" );
+            continue;
+        }
         if ( metacharacters.contains( character ) ) {
             escaped += u'\\';
         }

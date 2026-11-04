@@ -394,9 +394,9 @@ Q_SIGNALS:
     void addNextColorLabel();
     void clearColorLabels();
     void highlightersChange();
-    // Name this value... was chosen (#883): logLine is the Log Line as the
-    // view reads it, the range [start, start + length) of it what the user
-    // pointed at, which holds a value.
+    // Name this value... was chosen (#883): logLine is the raw Log Line,
+    // tabs not expanded, the range [start, start + length) of it what the user
+    // pointed at, in its characters, which holds a value.
     void nameValueRequested( const QString& logLine, qsizetype start, qsizetype length );
 
 public Q_SLOTS:

@@ -2571,25 +2571,49 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
     return PresentationMenu::create( this, report, entries );
 }
 
+namespace {
+
+// The character of the raw Log Line drawn at a display column, given the
+// display column each character starts at (rawToDisplayColumns()): a column
+// inside an expanded tab is the tab's, one past the end the line's length.
+qsizetype rawCharacterAt( const logsquirl::vector<int>& displayColumns, qsizetype displayColumn )
+{
+    const auto next = std::upper_bound(
+        displayColumns.begin(), displayColumns.end(),
+        static_cast<int>( std::min<qsizetype>( displayColumn, MaxExpandedLineLength ) ) );
+    return std::clamp<qsizetype>( std::distance( displayColumns.begin(), next ) - 1, 0,
+                                  static_cast<qsizetype>( displayColumns.size() ) - 1 );
+}
+
+} // namespace
+
 std::optional<AbstractLogView::ValueToName>
 AbstractLogView::valueToNameAt( const QPoint& pos ) const
 {
+    // The Naming Rule is matched against the raw Log Line, tabs included:
+    // what is pointed at, in display columns, is taken back to its raw
+    // characters (#883).
     std::optional<ValueToName> valueToName;
     if ( selection_.isPortion() ) {
         // Never half a raw value: a Named Value selected in part is whole.
         const auto line = selection_.getLines( *lines_ ).front();
         const auto portion = selectionCoveringNamedValues().getPortionForLine( line );
         if ( portion.isValid() ) {
-            valueToName = ValueToName{ lines_->logFile().getExpandedLineString( line ),
-                                       portion.startColumn().get(), portion.size().get() };
+            auto text = lines_->logFile().getLineString( line );
+            const auto columns = rawToDisplayColumns( text );
+            const auto start = rawCharacterAt( columns, portion.startColumn().get() );
+            const auto end
+                = std::min( rawCharacterAt( columns, portion.endColumn().get() ) + 1, text.size() );
+            valueToName
+                = ValueToName{ std::move( text ), start, std::max<qsizetype>( end - start, 0 ) };
         }
     }
     else if ( logLineAtY( pos.y() ).has_value() ) {
         // The column a click there finds, a Named Value's start on one.
         const auto position = logLineFilePosAt( pos );
-        auto text = lines_->logFile().getExpandedLineString( position.line() );
-        if ( const auto range
-             = logsquirl::valuenames::valueTextAt( text, position.column().get() ) ) {
+        auto text = lines_->logFile().getLineString( position.line() );
+        const auto column = rawCharacterAt( rawToDisplayColumns( text ), position.column().get() );
+        if ( const auto range = logsquirl::valuenames::valueTextAt( text, column ) ) {
             valueToName = ValueToName{ std::move( text ), range->start, range->length };
         }
     }

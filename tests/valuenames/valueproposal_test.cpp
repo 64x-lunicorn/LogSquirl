@@ -224,6 +224,31 @@ SCENARIO( "Name this value proposes a regex, a table and a template from the sel
         }
     }
 
+    GIVEN( "a raw Log Line with tabs before the key and between the key and the value" )
+    {
+        const auto line = QStringLiteral( "a\tEsimState=\t9 done" );
+
+        THEN( "the regex writes the tab as \\t and matches the raw Log Line, whatever is "
+              "selected" )
+        {
+            for ( const auto& selected : { QStringLiteral( "9" ), QStringLiteral( "EsimState=\t9" ),
+                                           QStringLiteral( "=\t9" ) } ) {
+                const auto proposal = proposalFor( line, selected );
+                REQUIRE( proposal.pattern == QStringLiteral( "EsimState=\\t(\\d+)" ) );
+                REQUIRE( proposal.tableName == QStringLiteral( "EsimState" ) );
+                REQUIRE( proposal.value == QStringLiteral( "9" ) );
+                REQUIRE( capturedBy( proposal, line ) == QStringLiteral( "9" ) );
+            }
+        }
+
+        THEN( "a tab ends the text under the cursor, as a blank does" )
+        {
+            REQUIRE( valueTextAt( line, line.indexOf( u'9' ) )
+                     == rangeOf( line, QStringLiteral( "9" ) ) );
+            REQUIRE_FALSE( valueTextAt( line, line.indexOf( u'S' ) ).has_value() );
+        }
+    }
+
     GIVEN( "regex metacharacters in the text around the value" )
     {
         const auto line = QStringLiteral( "slot[0].state(x)=7 + 1" );

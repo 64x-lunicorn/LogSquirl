@@ -104,7 +104,7 @@ inline QString proposedTemplate()
 std::optional<NamingProposal> proposeNaming( QStringView line, LineRange range );
 
 // The text escaped so that, as a regex, it matches just itself; blanks,
-// '=', ':' and the like stay as they are.
+// '=', ':' and the like stay as they are, a tab is written \t.
 QString escapedForRegex( QStringView text );
 
 } // namespace logsquirl::valuenames

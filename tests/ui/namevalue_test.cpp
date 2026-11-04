@@ -31,6 +31,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTest>
@@ -122,6 +123,9 @@ using CrawlerAccess = CrawlerWidget::access_by<NameValueTest>;
 
 const auto NameThisValue = QStringLiteral( "Name this value..." );
 const auto EsimLine = QStringLiteral( "modem EsimState=9 done" );
+// A raw Log Line with a tab before the key and one between the key and the
+// value: drawn as "a       EsimState=      9 done".
+const auto TabLine = QStringLiteral( "a\tEsimState=\t9 done" );
 
 // Restores the collection, and what is stored of it, when it goes.
 class StoredValueNamesGuard {
@@ -188,7 +192,7 @@ struct NameValueWindow {
         const auto path = dir.filePath( QStringLiteral( "esim.log" ) );
         QFile file( path );
         REQUIRE( file.open( QIODevice::WriteOnly ) );
-        file.write( ( EsimLine + QStringLiteral( "\nother line\n" ) ).toUtf8() );
+        file.write( ( EsimLine + QStringLiteral( "\nother line\n" ) + TabLine + u'\n' ).toUtf8() );
         file.close();
 
         auto policies = testSettingsPolicies();
@@ -565,6 +569,77 @@ SCENARIO( "The Name this value dialog proposes everything from the Log Line, all
                 REQUIRE( childOf<QTableWidget>( dialog, QStringLiteral( "nameRows" ) )->rowCount()
                          == 1 );
             }
+        }
+    }
+}
+
+SCENARIO( "Name this value... proposes a rule that matches a clicked Log Line with tabs",
+          "[ui][valuenames][namevalue]" )
+{
+    const StoredValueNamesGuard guard;
+    StoredValueNamesGuard::storeGroups( {} );
+    const NameValueWindow shown;
+    auto& textView = CrawlerAccess::textView( *shown.crawler );
+
+    // Drawn with the tabs expanded: "a" and a tab take columns 0 to 7,
+    // "EsimState=" 8 to 17, the second tab 18 to 23, and the 9 column 24.
+    constexpr qsizetype KeyColumn = 8;
+    constexpr qsizetype ValueColumn = 24;
+
+    // What the dialog the entry opens proposes, and the Log Line it names.
+    QString pattern;
+    QString warning;
+    QString key;
+    const auto openAndName = [ & ]( QMenu& menu ) {
+        nameInDialog( menu, [ & ]( NameValueDialog& dialog ) {
+            pattern = childOf<QLineEdit>( dialog, QStringLiteral( "rulePattern" ) )->text();
+            warning = dialog.previewWarning();
+            key = childOf<QTableWidget>( dialog, QStringLiteral( "nameRows" ) )
+                      ->item( 0, 0 )
+                      ->text();
+            setName( dialog, 0, QStringLiteral( "Ready" ) );
+        } );
+    };
+
+    WHEN( "the menu opens on the value, with nothing selected within the Log Line" )
+    {
+        textView.selectAndDisplayLine( 2_lnum );
+        const auto menu
+            = ViewAccess::contextMenu( textView, ViewAccess::pointOn( textView, 2, ValueColumn ) );
+        openAndName( *menu );
+
+        THEN( "the regex is made from the raw Log Line and matches it, without a warning" )
+        {
+            REQUIRE( pattern == QStringLiteral( "EsimState=\\t(\\d+)" ) );
+            const auto match = QRegularExpression( pattern ).match( TabLine );
+            REQUIRE( match.hasMatch() );
+            REQUIRE( match.captured( 1 ) == QStringLiteral( "9" ) );
+            REQUIRE( warning.isEmpty() );
+            REQUIRE( key == QStringLiteral( "9" ) );
+        }
+
+        THEN( "the Log Line shows the name" )
+        {
+            REQUIRE( waitUiState( [ & ] { return textView.showsValueNames(); } ) );
+            textView.selectAndDisplayLine( 2_lnum );
+            REQUIRE( textView.getSelectedTextAsShown()
+                     == QStringLiteral( "a\tEsimState=\tReady (9) done" ) );
+        }
+    }
+
+    WHEN( "the key, the tab and the value are selected, as drawn" )
+    {
+        ViewAccess::selectPortion( textView, 2_lnum, LineColumn{ KeyColumn },
+                                   LineColumn{ ValueColumn } );
+        const auto menu
+            = ViewAccess::contextMenu( textView, ViewAccess::pointOn( textView, 2, 0 ) );
+        openAndName( *menu );
+
+        THEN( "the selection is taken back to the raw Log Line, and the regex matches it" )
+        {
+            REQUIRE( pattern == QStringLiteral( "EsimState=\\t(\\d+)" ) );
+            REQUIRE( QRegularExpression( pattern ).match( TabLine ).hasMatch() );
+            REQUIRE( warning.isEmpty() );
         }
     }
 }
