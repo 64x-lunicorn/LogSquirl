@@ -61,6 +61,7 @@ add_test(
     NAME tr_reaches_lupdate
     COMMAND ${CMAKE_COMMAND}
             -DSOURCES_DIR=${CMAKE_SOURCE_DIR}/src
+            -DTS_FILE=${CMAKE_SOURCE_DIR}/src/app/i18n/en.ts
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tr_reaches_lupdate.cmake
 )
 
