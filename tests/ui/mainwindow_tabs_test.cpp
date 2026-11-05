@@ -18,7 +18,7 @@
  */
 
 // The main window's tabs: which of them hold a Log File, whether or not the
-// window shows the dashboard (#535), what Merge… merges (#571), the merged Log
+// window shows the dashboard (#535), what Merge... merges (#571), the merged Log
 // File whose rebuild ends with its tab (#537), and the dashboard setting,
 // which reaches the windows opened after it changes (#562). Every close of
 // tabs takes one path, whoever asks for it (#536).
@@ -69,6 +69,7 @@
 #include "logformatcatalog.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
+#include "menu_wording.h"
 #include "mergecontroller.h"
 #include "mergedialog.h"
 #include "openlogfile.h"
@@ -220,6 +221,35 @@ struct TabsWindow {
                                            tabBar->mapToGlobal( tabBar->tabRect( tab ).center() ) );
         QTest::qWait( 50 );
         return chosen;
+    }
+
+    // The texts of the entries of a tab's context menu and its submenus,
+    // separators left out.
+    QStringList tabMenuTexts( int tab )
+    {
+        auto* tabBar = qobject_cast<CrawlerTabBar*>( tabArea->tabBar() );
+        REQUIRE( tabBar != nullptr );
+
+        QStringList texts;
+        QTimer::singleShot( 0, tabArea, [ &texts ] {
+            auto* menu = qobject_cast<QMenu*>( QApplication::activePopupWidget() );
+            if ( menu == nullptr ) {
+                return;
+            }
+            for ( auto* action : menu->findChildren<QAction*>() ) {
+                // The Tab Groups to add the tab to are named by the user and
+                // shown with their color.
+                if ( !action->isSeparator() && !action->text().isEmpty()
+                     && action->icon().isNull() ) {
+                    texts.append( action->text() );
+                }
+            }
+            menu->close();
+        } );
+        Q_EMIT tabBar->showTabContextMenu( tab,
+                                           tabBar->mapToGlobal( tabBar->tabRect( tab ).center() ) );
+        QTest::qWait( 50 );
+        return texts;
     }
 
     bool previousShowDashboard;
@@ -483,7 +513,7 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
 
         WHEN( "Close all is chosen from the menu of a Log File's tab" )
         {
-            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Close all" ) );
+            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Close All" ) );
 
             THEN( "no Log File is left, in the window or in the Session" )
             {
@@ -495,7 +525,7 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
 
         WHEN( "Close others is chosen from the menu of the last Log File's tab" )
         {
-            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Close others" ) );
+            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Close Others" ) );
 
             THEN( "only the last Log File is left" )
             {
@@ -507,7 +537,7 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
 
         WHEN( "Close to the left is chosen from the menu of the last Log File's tab" )
         {
-            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Close to the left" ) );
+            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Close to the Left" ) );
 
             THEN( "only the last Log File is left" )
             {
@@ -521,7 +551,7 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
         {
             THEN( "the menu does not offer it: no Log File is left of that tab" )
             {
-                REQUIRE_FALSE( window.chooseFromTabMenu( firstLogFileTab, "Close to the left" ) );
+                REQUIRE_FALSE( window.chooseFromTabMenu( firstLogFileTab, "Close to the Left" ) );
                 REQUIRE( window.logFileTabPaths() == paths );
             }
         }
@@ -550,7 +580,7 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
             }
         }
 
-        WHEN( "Merge… is chosen from a tab's menu, and the dialog confirmed with the first Log "
+        WHEN( "Merge... is chosen from a tab's menu, and the dialog confirmed with the first Log "
               "File unchecked, the last moved first and duplicate lines dropped" )
         {
             QSignalSpy mergeRequested( window.tabArea, &TabbedCrawlerWidget::mergeRequested );
@@ -567,7 +597,7 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
                 dialog.findChild<QCheckBox*>()->setChecked( true );
                 buttonOf( dialog, "Merge" )->click();
             } );
-            REQUIRE( window.chooseFromTabMenu( firstLogFileTab, "Merge…" ) );
+            REQUIRE( window.chooseFromTabMenu( firstLogFileTab, "Merge..." ) );
 
             THEN( "the dialog offered every Log File in tab order, and exactly the checked ones "
                   "are merged in the order chosen" )
@@ -613,7 +643,7 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
 
         WHEN( "all but one Log File are closed" )
         {
-            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Close others" ) );
+            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Close Others" ) );
             REQUIRE( window.logFileTabPaths().size() == 1 );
 
             THEN( "File > Merge Log Files... is disabled, as the tab bar offers no Merge... "
@@ -623,15 +653,15 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
                                               logsquirl::mainwindow::action::mergeLogFilesText );
                 REQUIRE( merge != nullptr );
                 REQUIRE_FALSE( merge->isEnabled() );
-                REQUIRE_FALSE( window.chooseFromTabMenu( dashboardTabs, "Merge…" ) );
+                REQUIRE_FALSE( window.chooseFromTabMenu( dashboardTabs, "Merge..." ) );
             }
         }
 
-        WHEN( "Merge… is chosen, and the dialog cancelled" )
+        WHEN( "Merge... is chosen, and the dialog cancelled" )
         {
             QSignalSpy mergeRequested( window.tabArea, &TabbedCrawlerWidget::mergeRequested );
             MergeDialogAnswerer answerer( []( MergeDialog& dialog ) { dialog.reject(); } );
-            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Merge…" ) );
+            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Merge..." ) );
 
             THEN( "nothing is merged" )
             {
@@ -676,6 +706,43 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
             THEN( "every Log File is handed to the Session's close" )
             {
                 REQUIRE( window.noneOpenInSession( paths ) );
+            }
+        }
+    }
+}
+
+// The tab bar's menu words its entries as the menu bar does (#891).
+SCENARIO( "A tab's menu names its entries in title case, with three dots for a dialog",
+          "[ui][tabs]" )
+{
+    ThreeLogFiles files;
+    TabsWindow window( false );
+
+    GIVEN( "three Log Files open in their tabs" )
+    {
+        window.open( files.paths );
+        const auto lastLogFileTab = window.tabArea->logFileTabs().back();
+
+        WHEN( "the menu of a Log File's tab is opened" )
+        {
+            const auto texts = window.tabMenuTexts( lastLogFileTab );
+
+            THEN( "every entry is in title case and none holds the one-character ellipsis" )
+            {
+                REQUIRE( texts.contains( QStringLiteral( "Close All" ) ) );
+                for ( const auto& text : texts ) {
+                    INFO( text.toStdString() );
+                    CHECK( menuwording::isTitleCase( text ) );
+                    CHECK_FALSE( menuwording::hasEllipsisCharacter( text ) );
+                }
+            }
+
+            THEN( "the entries that open a dialog end in three dots" )
+            {
+                for ( const auto* text : { "Rename Tab...", "New Group...", "Merge..." } ) {
+                    INFO( text );
+                    CHECK( texts.contains( QString::fromLatin1( text ) ) );
+                }
             }
         }
     }
@@ -830,7 +897,7 @@ SCENARIO( "A merged Log File's rebuild ends with its tab", "[ui][tabs][merge]" )
         {
             const InputAnswerer answerer( QStringLiteral( "Renamed 597" ) );
             const auto tab = window.tabArea->indexOf( merged );
-            REQUIRE( window.chooseFromTabMenu( tab, "Rename tab" ) );
+            REQUIRE( window.chooseFromTabMenu( tab, "Rename Tab..." ) );
 
             THEN( "the tab shows the name, and the stored tab names do not hold its path" )
             {
@@ -1029,7 +1096,7 @@ SCENARIO( "A data source's tab keeps its name when tabs are grouped and renamed"
         QStringList offered;
         {
             const InputAccepter accepter;
-            REQUIRE( window.chooseFromTabMenu( sourceTab, "Rename tab" ) );
+            REQUIRE( window.chooseFromTabMenu( sourceTab, "Rename Tab..." ) );
             offered = accepter.offered();
         }
 
@@ -1046,10 +1113,10 @@ SCENARIO( "A data source's tab keeps its name when tabs are grouped and renamed"
         QString renamed;
         {
             const InputAnswerer answerer( QStringLiteral( "Renamed 606" ) );
-            REQUIRE( window.chooseFromTabMenu( sourceTab, "Rename tab" ) );
+            REQUIRE( window.chooseFromTabMenu( sourceTab, "Rename Tab..." ) );
             renamed = window.tabArea->tabText( sourceTab );
         }
-        REQUIRE( window.chooseFromTabMenu( sourceTab, "Reset tab name" ) );
+        REQUIRE( window.chooseFromTabMenu( sourceTab, "Reset Tab Name" ) );
 
         THEN( "it shows the rename, then the data source's name again" )
         {
@@ -1159,7 +1226,7 @@ SCENARIO( "Closing tabs asks once and remembers the Log Files only when the user
         WHEN( "Close all is chosen from the menu of a Log File's tab" )
         {
             REQUIRE(
-                window.chooseFromTabMenu( window.tabArea->logFileTabs().back(), "Close all" ) );
+                window.chooseFromTabMenu( window.tabArea->logFileTabs().back(), "Close All" ) );
 
             THEN( "one question is asked, and all three are closed and in the recent files" )
             {

@@ -372,17 +372,17 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
     const auto rightOfTab = logFilesWhere( [ tab ]( int i ) { return i > tab; } );
 
     QMenu menu( this );
-    auto closeThis = menu.addAction( tr( "Close this" ) );
-    auto closeOthers = menu.addAction( tr( "Close others" ) );
-    auto closeLeft = menu.addAction( tr( "Close to the left" ) );
-    auto closeRight = menu.addAction( tr( "Close to the right" ) );
-    auto closeAll = menu.addAction( tr( "Close all" ) );
+    auto closeThis = menu.addAction( tr( "Close This" ) );
+    auto closeOthers = menu.addAction( tr( "Close Others" ) );
+    auto closeLeft = menu.addAction( tr( "Close to the Left" ) );
+    auto closeRight = menu.addAction( tr( "Close to the Right" ) );
+    auto closeAll = menu.addAction( tr( "Close All" ) );
     menu.addSeparator();
-    auto copyFullPath = menu.addAction( tr( "Copy full path" ) );
-    auto openContainingFolder = menu.addAction( tr( "Open containing folder" ) );
+    auto copyFullPath = menu.addAction( tr( "Copy Full Path" ) );
+    auto openContainingFolder = menu.addAction( tr( "Open Containing Folder" ) );
     menu.addSeparator();
-    auto renameTabAction = menu.addAction( tr( "Rename tab" ) );
-    auto resetTabName = menu.addAction( tr( "Reset tab name" ) );
+    auto renameTabAction = menu.addAction( tr( "Rename Tab..." ) );
+    auto resetTabName = menu.addAction( tr( "Reset Tab Name" ) );
 
     connect( closeThis, &QAction::triggered, [ tab, this ] { Q_EMIT tabCloseRequested( tab ); } );
 
@@ -414,7 +414,7 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
         // The name without the group's bullet, so accepting it as it is keeps
         // the name (#612).
         auto newName
-            = QInputDialog::getText( this, tr( "Rename tab" ), tr( "Tab name" ), QLineEdit::Normal,
+            = QInputDialog::getText( this, tr( "Rename Tab" ), tr( "Tab name" ), QLineEdit::Normal,
                                      baseTabName( tab ), &isNameEntered );
         if ( isNameEntered ) {
             renameTab( tab, newName );
@@ -524,7 +524,7 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
     // Which Log Files, in which order, the dialog asks (#571).
     if ( logFiles.size() > 1 ) {
         menu.addSeparator();
-        auto* merge = menu.addAction( tr( "Merge…" ) );
+        auto* merge = menu.addAction( tr( "Merge..." ) );
         connect( merge, &QAction::triggered, this, [ this ] { chooseFilesToMerge(); } );
     }
 

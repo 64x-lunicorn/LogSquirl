@@ -121,11 +121,11 @@ ChartPanel::ChartPanel( QWidget* parent )
 
     toolBar_->addSeparator();
 
-    exportPresetAction_ = toolBar_->addAction( tr( "Export…" ) );
+    exportPresetAction_ = toolBar_->addAction( tr( "Export..." ) );
     exportPresetAction_->setToolTip( tr( "Export current series to a JSON file" ) );
     connect( exportPresetAction_, &QAction::triggered, this, &ChartPanel::exportPreset );
 
-    importPresetAction_ = toolBar_->addAction( tr( "Import…" ) );
+    importPresetAction_ = toolBar_->addAction( tr( "Import..." ) );
     importPresetAction_->setToolTip( tr( "Import series from a JSON file" ) );
     connect( importPresetAction_, &QAction::triggered, this, &ChartPanel::importPreset );
 

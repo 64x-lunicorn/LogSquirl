@@ -1535,7 +1535,7 @@ void MainWindow::createMenus()
     toolsMenu->addAction( commandPaletteAction );
     toolsMenu->addSeparator();
 
-    pluginsMenu = toolsMenu->addMenu( tr( "Plugins" ) );
+    pluginsMenu = toolsMenu->addMenu( tr( "P&lugins" ) );
     // Plugin-contributed actions are inserted at the top (before this separator)
     // by the Plugin UI Port (PluginUiAdapter).  Management actions live below the separator.
     pluginMenuSeparator_ = pluginsMenu->addSeparator();
@@ -1548,7 +1548,7 @@ void MainWindow::createMenus()
     favoritesMenu = menuBar()->addMenu( tr( menu::favoritesTitle ) );
     favoritesMenu->setToolTipsVisible( true );
 
-    sourcesMenu = menuBar()->addMenu( tr( "Sources" ) );
+    sourcesMenu = menuBar()->addMenu( tr( "&Sources" ) );
     updateSourcesMenu();
 
     helpMenu = menuBar()->addMenu( tr( menu::helpTitle ) );

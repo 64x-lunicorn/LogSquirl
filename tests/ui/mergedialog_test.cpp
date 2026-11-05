@@ -17,7 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// The dialog of Merge…: which Log Files take part, in which order, and whether
+// The dialog of Merge...: which Log Files take part, in which order, and whether
 // duplicate lines are dropped (#571).
 
 #include "mergedialog.h"

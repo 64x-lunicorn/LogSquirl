@@ -12,9 +12,9 @@ using namespace logsquirl::mainwindow;
 const char* menu::fileTitle = QT_TR_NOOP( "&File" );
 const char* menu::editTitle = QT_TR_NOOP( "&Edit" );
 const char* menu::viewTitle = QT_TR_NOOP( "&View" );
-const char* menu::openedFilesTitle = QT_TR_NOOP( "Opened files" );
+const char* menu::openedFilesTitle = QT_TR_NOOP( "Opened Files" );
 const char* menu::toolsTitle = QT_TR_NOOP( "&Tools" );
-const char* menu::highlightersTitle = QT_TR_NOOP( "Highlighters" );
+const char* menu::highlightersTitle = QT_TR_NOOP( "&Highlighters" );
 const char* menu::favoritesTitle = QT_TR_NOOP( "F&avorites" );
 const char* menu::helpTitle = QT_TR_NOOP( "&Help" );
 const char* menu::encodingTitle = QT_TR_NOOP( "E&ncoding" );
@@ -26,7 +26,7 @@ const char* toolbar::toolbarTitle = QT_TR_NOOP( "&Toolbar" );
 const char* trayicon::trayiconTip = QT_TR_NOOP( "logsquirl log viewer" );
 
 // action
-const char* action::newWindowText = QT_TR_NOOP( "&New window" );
+const char* action::newWindowText = QT_TR_NOOP( "&New Window" );
 const char* action::newWindowStatusTip = QT_TR_NOOP( "Create new logsquirl window" );
 const char* action::openText = QT_TR_NOOP( "&Open..." );
 const char* action::openStatusTip = QT_TR_NOOP( "Open a file" );
@@ -44,32 +44,32 @@ const char* action::copyAsShownStatusTip
     = QT_TR_NOOP( "Copy the selection as shown, with its Value Names" );
 const char* action::selectAllText = QT_TR_NOOP( "Select &All" );
 const char* action::selectAllStatusTip = QT_TR_NOOP( "Select all the text" );
-const char* action::goToLineText = QT_TR_NOOP( "Go to line..." );
+const char* action::goToLineText = QT_TR_NOOP( "Go to Line..." );
 const char* action::goToLineStatusTip
     = QT_TR_NOOP( "Scrolls selected main view to specified line" );
-const char* action::goToTimestampText = QT_TR_NOOP( "Go to timestamp..." );
+const char* action::goToTimestampText = QT_TR_NOOP( "Go to Timestamp..." );
 const char* action::goToTimestampStatusTip
     = QT_TR_NOOP( "Scrolls selected main view to the first line at or after a time" );
-const char* action::searchLimitsTimeRangeText = QT_TR_NOOP( "Set search limits to time range..." );
+const char* action::searchLimitsTimeRangeText = QT_TR_NOOP( "Set Search Limits to Time Range..." );
 const char* action::searchLimitsTimeRangeStatusTip
     = QT_TR_NOOP( "Limits the search to the log lines between a start and an end time" );
 const char* action::searchLimitsAroundLineText
-    = QT_TR_NOOP( "Set search limits around current line..." );
+    = QT_TR_NOOP( "Set Search Limits Around Current Line..." );
 const char* action::searchLimitsAroundLineStatusTip
     = QT_TR_NOOP( "Limits the search to N minutes before and after the current log line" );
 const char* action::findText = QT_TR_NOOP( "&Find..." );
 const char* action::findStatusTip = QT_TR_NOOP( "Find the text" );
-const char* action::clearLogText = QT_TR_NOOP( "Clear file..." );
+const char* action::clearLogText = QT_TR_NOOP( "Clear File..." );
 const char* action::clearLogStatusTip = QT_TR_NOOP( "Clear current file" );
-const char* action::openContainingFolderText = QT_TR_NOOP( "Open containing folder" );
+const char* action::openContainingFolderText = QT_TR_NOOP( "Open Containing Folder" );
 const char* action::openContainingFolderStatusTip
     = QT_TR_NOOP( "Open folder containing current file" );
-const char* action::openInEditorText = QT_TR_NOOP( "Open in editor" );
+const char* action::openInEditorText = QT_TR_NOOP( "Open in Editor" );
 const char* action::openInEditorStatusTip = QT_TR_NOOP( "Open current file in default editor" );
-const char* action::copyPathToClipboardText = QT_TR_NOOP( "Copy full path" );
+const char* action::copyPathToClipboardText = QT_TR_NOOP( "Copy Full Path" );
 const char* action::copyPathToClipboardStatusTip
     = QT_TR_NOOP( "Copy full path for file to clipboard" );
-const char* action::openClipboardText = QT_TR_NOOP( "Open from clipboard" );
+const char* action::openClipboardText = QT_TR_NOOP( "Open from Clipboard" );
 const char* action::openClipboardStatusTip = QT_TR_NOOP( "Open clipboard as log file" );
 const char* action::openUrlText = QT_TR_NOOP( "Open from URL..." );
 const char* action::openUrlStatusTip = QT_TR_NOOP( "Open URL as log file" );
@@ -88,12 +88,12 @@ const char* action::mergeLogFilesStatusTip
 const char* action::exportAsCsvText = QT_TR_NOOP( "Export as CSV..." );
 const char* action::exportAsCsvStatusTip
     = QT_TR_NOOP( "Export the Log Lines of the current tab to a CSV file" );
-const char* action::overviewVisibleText = QT_TR_NOOP( "Matches &overview" );
-const char* action::lineNumbersVisibleInMainText = QT_TR_NOOP( "Line &numbers in main view" );
+const char* action::overviewVisibleText = QT_TR_NOOP( "Matches &Overview" );
+const char* action::lineNumbersVisibleInMainText = QT_TR_NOOP( "Line &Numbers in Main View" );
 const char* action::lineNumbersVisibleInFilteredText
-    = QT_TR_NOOP( "Line &numbers in filtered view" );
+    = QT_TR_NOOP( "Line &Numbers in Filtered View" );
 const char* action::followText = QT_TR_NOOP( "&Follow File" );
-const char* action::wrapText = QT_TR_NOOP( "&Wrap text" );
+const char* action::wrapText = QT_TR_NOOP( "&Wrap Text" );
 const char* action::showValueNamesText = QT_TR_NOOP( "Show &Value Names" );
 const char* action::showValueNamesStatusTip
     = QT_TR_NOOP( "Show values of the Log Lines with their names from the Name Tables" );
@@ -104,7 +104,7 @@ const char* action::reloadText = QT_TR_NOOP( "&Reload" );
 const char* action::stopText = QT_TR_NOOP( "&Stop" );
 const char* action::optionsText = QT_TR_NOOP( "&Preferences..." );
 const char* action::optionsStatusTip = QT_TR_NOOP( "Show application settings dialog" );
-const char* action::editHighlightersText = QT_TR_NOOP( "Configure &highlighters..." );
+const char* action::editHighlightersText = QT_TR_NOOP( "Configure &Highlighters..." );
 const char* action::editHighlightersStatusTip = QT_TR_NOOP( "Show highlighters configuration" );
 const char* action::showDocumentationText = QT_TR_NOOP( "&Documentation..." );
 const char* action::showDocumentationStatusTip = QT_TR_NOOP( "Show documentation" );
@@ -112,29 +112,29 @@ const char* action::aboutText = QT_TR_NOOP( "&About" );
 const char* action::aboutStatusTip = QT_TR_NOOP( "Show the About box" );
 const char* action::aboutQtText = QT_TR_NOOP( "About &Qt" );
 const char* action::aboutQtStatusTip = QT_TR_NOOP( "Show the Qt library's About box" );
-const char* action::reportIssueText = QT_TR_NOOP( "Report issue..." );
+const char* action::reportIssueText = QT_TR_NOOP( "Report Issue..." );
 const char* action::reportIssueStatusTip = QT_TR_NOOP( "Report an issue on GitHub" );
-const char* action::generateDumpText = QT_TR_NOOP( "Generate crash dump" );
+const char* action::generateDumpText = QT_TR_NOOP( "Generate Crash Dump" );
 const char* action::generateDumpStatusTip = QT_TR_NOOP( "Generate diagnostic crash dump" );
 const char* action::showScratchPadText = QT_TR_NOOP( "Scratchpad" );
 const char* action::commandPaletteText = QT_TR_NOOP( "Command Palette..." );
 const char* action::commandPaletteStatusTip = QT_TR_NOOP( "Search and run any menu command" );
 const char* action::showScratchPadStatusTip = QT_TR_NOOP( "Show the scratchpad" );
-const char* action::addToFavoritesText = QT_TR_NOOP( "Add to favorites" );
-const char* action::removeFromFavoritesText = QT_TR_NOOP( "Remove from favorites..." );
-const char* action::selectOpenFileText = QT_TR_NOOP( "Switch to opened file..." );
-const char* action::predefinedFiltersDialogText = QT_TR_NOOP( "Predefined filters..." );
+const char* action::addToFavoritesText = QT_TR_NOOP( "Add to Favorites" );
+const char* action::removeFromFavoritesText = QT_TR_NOOP( "Remove from Favorites..." );
+const char* action::selectOpenFileText = QT_TR_NOOP( "Switch to Opened File..." );
+const char* action::predefinedFiltersDialogText = QT_TR_NOOP( "Predefined Filters..." );
 const char* action::predefinedFiltersDialogStatusTip
     = QT_TR_NOOP( "Show dialog to configure filters" );
-const char* action::importChipmunkFiltersText = QT_TR_NOOP( "Import Chipmunk filters..." );
+const char* action::importChipmunkFiltersText = QT_TR_NOOP( "Import Chipmunk Filters..." );
 const char* action::importChipmunkFiltersStatusTip
     = QT_TR_NOOP( "Import filters from a Chipmunk JSON export file" );
 const char* action::regexLabText = QT_TR_NOOP( "Regex Lab..." );
 const char* action::regexLabStatusTip
     = QT_TR_NOOP( "Test a pattern on Log Lines of the current tab before searching with it" );
-const char* action::showFiltersPanelText = QT_TR_NOOP( "Filters panel" );
+const char* action::showFiltersPanelText = QT_TR_NOOP( "Filters Panel" );
 const char* action::showFiltersPanelStatusTip = QT_TR_NOOP( "Show the filters panel" );
-const char* action::showValueNamesPanelText = QT_TR_NOOP( "Value Names tab" );
+const char* action::showValueNamesPanelText = QT_TR_NOOP( "Value Names Tab" );
 const char* action::showValueNamesPanelStatusTip
     = QT_TR_NOOP( "Show the Value Names tab of the sidebar" );
 const char* action::valueNamesDialogText = QT_TR_NOOP( "Value Names..." );

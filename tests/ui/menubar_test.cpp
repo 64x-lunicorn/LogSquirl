@@ -32,6 +32,7 @@
 #include "logmainview.h"
 #include "logtableview.h"
 #include "mainwindow.h"
+#include "menu_wording.h"
 #include "session.h"
 #include "shortcuts.h"
 #include "shown_widget.h"
@@ -55,7 +56,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <memory>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -135,12 +138,13 @@ struct ListedAction {
 // they were in. Entries made from data -- recent files, favorite files,
 // opened files, Highlighter Sets, Encodings other than Auto, data source
 // plugins -- are left out, and so is the Opened files submenu's own entry:
-// the submenu is filled once the window has a Theme or a Log File.
+// the submenu is filled once the window has a Theme or a Log File. Each is
+// named as it is since #891, in title case.
 const std::vector<ListedAction> actionsBefore892 = {
     // File
-    { "New window", ShortcutAction::MainWindowNewWindow },
+    { "New Window", ShortcutAction::MainWindowNewWindow },
     { "Open...", ShortcutAction::MainWindowOpenFile },
-    { "Open from clipboard", ShortcutAction::MainWindowOpenFromClipboard },
+    { "Open from Clipboard", ShortcutAction::MainWindowOpenFromClipboard },
     { "Open Command Output...", ShortcutAction::MainWindowOpenCommandOutput },
     { "Open from URL...", ShortcutAction::MainWindowOpenFromUrl },
     { "Clear List", nullptr },
@@ -155,19 +159,19 @@ const std::vector<ListedAction> actionsBefore892 = {
     { "Copy as Shown", nullptr },
     { "Select All", ShortcutAction::MainWindowSelectAll },
     { "Find...", ShortcutAction::MainWindowOpenQf },
-    { "Go to line...", ShortcutAction::LogViewJumpToLine },
-    { "Go to timestamp...", ShortcutAction::LogViewJumpToTimestamp },
-    { "Set search limits to time range...", ShortcutAction::LogViewSearchLimitsTimeRange },
-    { "Set search limits around current line...", ShortcutAction::LogViewSearchLimitsAroundLine },
-    { "Copy full path", ShortcutAction::MainWindowCopyPathToClipboard },
-    { "Open containing folder", ShortcutAction::MainWindowOpenContainingFolder },
-    { "Open in editor", ShortcutAction::MainWindowOpenInEditor },
-    { "Clear file...", ShortcutAction::MainWindowClearFile },
+    { "Go to Line...", ShortcutAction::LogViewJumpToLine },
+    { "Go to Timestamp...", ShortcutAction::LogViewJumpToTimestamp },
+    { "Set Search Limits to Time Range...", ShortcutAction::LogViewSearchLimitsTimeRange },
+    { "Set Search Limits Around Current Line...", ShortcutAction::LogViewSearchLimitsAroundLine },
+    { "Copy Full Path", ShortcutAction::MainWindowCopyPathToClipboard },
+    { "Open Containing Folder", ShortcutAction::MainWindowOpenContainingFolder },
+    { "Open in Editor", ShortcutAction::MainWindowOpenInEditor },
+    { "Clear File...", ShortcutAction::MainWindowClearFile },
     // View
-    { "Matches overview", nullptr },
-    { "Line numbers in main view", nullptr },
-    { "Line numbers in filtered view", nullptr },
-    { "Wrap text", ShortcutAction::MainWindowTextWrap },
+    { "Matches Overview", nullptr },
+    { "Line Numbers in Main View", nullptr },
+    { "Line Numbers in Filtered View", nullptr },
+    { "Wrap Text", ShortcutAction::MainWindowTextWrap },
     { "Show Value Names", ShortcutAction::MainWindowShowValueNames },
     { "Matches Only", nullptr },
     { "Follow File", ShortcutAction::MainWindowFollowFile },
@@ -175,28 +179,28 @@ const std::vector<ListedAction> actionsBefore892 = {
     { "Chart Panel", nullptr },
     { "Show Filter Frequency", nullptr },
     // Tools
-    { "Predefined filters...", nullptr },
+    { "Predefined Filters...", nullptr },
     { "Value Names...", nullptr },
-    { "Import Chipmunk filters...", nullptr },
+    { "Import Chipmunk Filters...", nullptr },
     { "Regex Lab...", nullptr },
     { "Manage Tab Groups...", nullptr },
     { "Scratchpad", ShortcutAction::MainWindowScratchpad },
-    { "Filters panel", nullptr },
-    { "Value Names tab", nullptr },
+    { "Filters Panel", nullptr },
+    { "Value Names Tab", nullptr },
     { "Command Palette...", ShortcutAction::MainWindowCommandPalette },
     // Highlighters
-    { "Configure highlighters...", nullptr },
+    { "Configure Highlighters...", nullptr },
     // Encoding
     { "Auto", nullptr },
     // Favorites
-    { "Add to favorites", nullptr },
-    { "Remove from favorites...", nullptr },
+    { "Add to Favorites", nullptr },
+    { "Remove from Favorites...", nullptr },
     // Plugins
     { "Plugin Management...", nullptr },
     // Help
     { "Documentation...", nullptr },
-    { "Report issue...", nullptr },
-    { "Generate crash dump", nullptr },
+    { "Report Issue...", nullptr },
+    { "Generate Crash Dump", nullptr },
     { "About Qt", nullptr },
     { "About", nullptr },
 };
@@ -394,6 +398,71 @@ FilteredView* shownFilteredView( const CrawlerWidget& crawler )
     return nullptr;
 }
 
+/// The menus of the menu bar and their submenus, each with its path.
+void collectMenus( QMenu& menu, const QString& path,
+                   std::vector<std::pair<QString, QMenu*>>& menus )
+{
+    menus.emplace_back( path, &menu );
+    for ( auto* action : menu.actions() ) {
+        if ( auto* submenu = action->menu() ) {
+            collectMenus( *submenu, path + u'/' + plain( submenu->title() ), menus );
+        }
+    }
+}
+
+std::vector<std::pair<QString, QMenu*>> menuBarMenus( MainWindow& window )
+{
+    std::vector<std::pair<QString, QMenu*>> menus;
+    for ( auto* top : window.menuBar()->actions() ) {
+        if ( auto* menu = top->menu() ) {
+            collectMenus( *menu, plain( menu->title() ), menus );
+        }
+    }
+    return menus;
+}
+
+/// Whether macOS moves the action to its application menu, by its role or by
+/// the words Qt reads the role from.
+bool movesToApplicationMenu( const QAction& action )
+{
+    switch ( action.menuRole() ) {
+    case QAction::AboutRole:
+    case QAction::AboutQtRole:
+    case QAction::PreferencesRole:
+    case QAction::QuitRole:
+        return true;
+    case QAction::TextHeuristicRole: {
+        const auto text = plain( action.text() ).toLower();
+        for ( const auto* word : { "about", "config", "options", "setup", "settings", "preferences",
+                                   "quit", "exit" } ) {
+            if ( text.startsWith( QLatin1String( word ) ) ) {
+                return true;
+            }
+        }
+        return false;
+    }
+    default:
+        return false;
+    }
+}
+
+/// A key of its own for every entry of the Shortcuts list.
+ShortcutAction::ConfiguredShortcuts distinctKeys()
+{
+    static const QStringList modifiers
+        = { "Ctrl+Alt+Shift+", "Ctrl+Alt+", "Ctrl+Shift+", "Alt+Shift+", "Ctrl+", "Alt+" };
+    constexpr int functionKeys = 35;
+    ShortcutAction::ConfiguredShortcuts keys;
+    int index = 0;
+    for ( const auto& entry : ShortcutAction::defaultShortcutList() ) {
+        REQUIRE( index / functionKeys < modifiers.size() );
+        keys[ entry.first ] = { modifiers.at( index / functionKeys )
+                                + QStringLiteral( "F%1" ).arg( index % functionKeys + 1 ) };
+        ++index;
+    }
+    return keys;
+}
+
 } // namespace
 
 SCENARIO( "No action of the menu bar is lost, and each keeps its shortcut", "[ui][menubar]" )
@@ -447,7 +516,7 @@ SCENARIO( "The menu bar is ordered by task in seven menus", "[ui][menubar]" )
         THEN( "the file actions are in the File menu" )
         {
             for ( const auto* text :
-                  { "Copy full path", "Open containing folder", "Open in editor", "Clear file...",
+                  { "Copy Full Path", "Open Containing Folder", "Open in Editor", "Clear File...",
                     "Open Session...", "Save Session As...", "Close", "Exit" } ) {
                 INFO( text );
                 CHECK( pathOf( entries, QString::fromLatin1( text ) ) == "File" );
@@ -458,9 +527,9 @@ SCENARIO( "The menu bar is ordered by task in seven menus", "[ui][menubar]" )
         THEN( "copy, select, find, Go to line and the Search Limits are in the Edit menu" )
         {
             for ( const auto* text :
-                  { "Copy", "Copy as Shown", "Select All", "Find...", "Go to line...",
-                    "Go to timestamp...", "Set search limits to time range...",
-                    "Set search limits around current line..." } ) {
+                  { "Copy", "Copy as Shown", "Select All", "Find...", "Go to Line...",
+                    "Go to Timestamp...", "Set Search Limits to Time Range...",
+                    "Set Search Limits Around Current Line..." } ) {
                 INFO( text );
                 CHECK( pathOf( entries, QString::fromLatin1( text ) ) == "Edit" );
             }
@@ -469,25 +538,25 @@ SCENARIO( "The menu bar is ordered by task in seven menus", "[ui][menubar]" )
         THEN( "the panels, the sidebar and Encoding are in the View menu" )
         {
             for ( const auto* text :
-                  { "Sidebar", "Filters panel", "Scratchpad", "Value Names tab", "Chart Panel",
-                    "Show Filter Frequency", "Show Value Names", "Wrap text", "Follow File",
-                    "Matches overview", "Reload" } ) {
+                  { "Sidebar", "Filters Panel", "Scratchpad", "Value Names Tab", "Chart Panel",
+                    "Show Filter Frequency", "Show Value Names", "Wrap Text", "Follow File",
+                    "Matches Overview", "Reload" } ) {
                 INFO( text );
                 CHECK( pathOf( entries, QString::fromLatin1( text ) ) == "View" );
             }
             CHECK( pathOf( entries, QStringLiteral( "Auto" ) ) == "View/Encoding" );
-            CHECK( pathOf( entries, QStringLiteral( "Opened files" ) ) == "View" );
+            CHECK( pathOf( entries, QStringLiteral( "Opened Files" ) ) == "View" );
             CHECK( pathOf( entries, QStringLiteral( "Encoding" ) ) == "View" );
         }
 
         THEN( "Highlighters, the dialogs, the Plugins and Options are in the Tools menu" )
         {
             CHECK( pathOf( entries, QStringLiteral( "Highlighters" ) ) == "Tools" );
-            CHECK( pathOf( entries, QStringLiteral( "Configure highlighters..." ) )
+            CHECK( pathOf( entries, QStringLiteral( "Configure Highlighters..." ) )
                    == "Tools/Highlighters" );
             CHECK( pathOf( entries, QStringLiteral( "Plugins" ) ) == "Tools" );
             for ( const auto* text :
-                  { "Predefined filters...", "Value Names...", "Import Chipmunk filters...",
+                  { "Predefined Filters...", "Value Names...", "Import Chipmunk Filters...",
                     "Regex Lab...", "Manage Tab Groups...", "Command Palette...",
                     "Preferences..." } ) {
                 INFO( text );
@@ -715,13 +784,111 @@ SCENARIO( "View > Sidebar is checked while the sidebar shows, as the toolbar but
 
         WHEN( "the Filters panel is shown from the View menu" )
         {
-            menuBarAction( *shown.window, QStringLiteral( "Filters panel" ) )->trigger();
+            menuBarAction( *shown.window, QStringLiteral( "Filters Panel" ) )->trigger();
             QCoreApplication::processEvents();
 
             THEN( "the sidebar shows, and View > Sidebar is checked" )
             {
                 REQUIRE( sidebar->isVisible() );
                 REQUIRE( viewSidebar->isChecked() );
+            }
+        }
+    }
+}
+
+// The menu bar names, cases and spells its entries one way (#891).
+SCENARIO( "The entries of the menu bar are named, cased and spelled one way", "[ui][menubar]" )
+{
+    GIVEN( "a shown window" )
+    {
+        const ShownWindow shown;
+        const auto entries = menuBarEntries( *shown.window );
+
+        THEN( "every top-level menu has a mnemonic, and so have Highlighters and Plugins" )
+        {
+            for ( auto* top : shown.window->menuBar()->actions() ) {
+                if ( auto* menu = top->menu() ) {
+                    INFO( menu->title().toStdString() );
+                    CHECK( menuwording::hasMnemonic( menu->title() ) );
+                }
+            }
+            for ( const auto* title : { "Highlighters", "Plugins" } ) {
+                INFO( title );
+                const auto found = entriesNamed( entries, QString::fromLatin1( title ) );
+                REQUIRE( found.size() == 1 );
+                REQUIRE( found.front().action->menu() != nullptr );
+                CHECK( menuwording::hasMnemonic( found.front().action->menu()->title() ) );
+            }
+        }
+
+        THEN( "no menu shows two separators in a row, nor does it on macOS once the entries "
+              "of the application menu are taken out" )
+        {
+            for ( const auto& [ path, menu ] : menuBarMenus( *shown.window ) ) {
+                INFO( path.toStdString() );
+                CHECK_FALSE( menuwording::hasSeparatorsInARow( *menu ) );
+
+                QList<const QAction*> moved;
+                for ( const auto* action : menu->actions() ) {
+                    if ( movesToApplicationMenu( *action ) ) {
+                        moved.append( action );
+                    }
+                }
+                CHECK_FALSE( menuwording::hasSeparatorsInARow( *menu, moved ) );
+            }
+        }
+
+        THEN( "every entry is in title case, and none ends in the one-character ellipsis" )
+        {
+            for ( const auto& entry : entries ) {
+                const auto text = entry.action->text();
+                INFO( ( entry.path + u'/' + text ).toStdString() );
+                CHECK_FALSE( menuwording::hasEllipsisCharacter( text ) );
+                // Entries made from data -- recent, favorite and opened files,
+                // Encodings, Highlighter Sets -- are named by it, and a
+                // placeholder in parentheses says there is none.
+                if ( entry.action->actionGroup() != nullptr || entry.text.startsWith( u'(' ) ) {
+                    continue;
+                }
+                CHECK( menuwording::isTitleCase( text ) );
+            }
+        }
+    }
+
+    GIVEN( "a key of its own for every entry of the Shortcuts list" )
+    {
+        const auto keys = distinctKeys();
+        const ConfiguredShortcuts configured( keys );
+
+        WHEN( "a window is shown" )
+        {
+            const ShownWindow shown;
+
+            THEN( "every entry of the menu bar with a key is named as its Shortcuts list entry, "
+                  "but for its mnemonic and the dots of a dialog" )
+            {
+                const auto& shortcutList = ShortcutAction::defaultShortcutList();
+                int named = 0;
+                for ( const auto& entry : menuBarEntries( *shown.window ) ) {
+                    const auto shortcuts = entry.action->shortcuts();
+                    if ( shortcuts.isEmpty() ) {
+                        continue;
+                    }
+                    INFO( ( entry.path + u'/' + entry.text ).toStdString() );
+                    const auto key = shortcuts.front().toString( QKeySequence::PortableText );
+                    const auto listed
+                        = std::find_if( keys.cbegin(), keys.cend(), [ &key ]( const auto& item ) {
+                              return QKeySequence( item.second.front() )
+                                         .toString( QKeySequence::PortableText )
+                                     == key;
+                          } );
+                    REQUIRE( listed != keys.cend() );
+                    CHECK( shortcutList.at( listed->first ).name
+                           == menuwording::actionName( entry.action->text() ) );
+                    ++named;
+                }
+                // Every entry the Shortcuts list gives keys to, not a few.
+                CHECK( named >= 30 );
             }
         }
     }

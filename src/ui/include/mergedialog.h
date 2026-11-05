@@ -37,7 +37,7 @@ struct MergeCandidate {
     QString toolTip;
 };
 
-// The dialog of Merge… in a tab's context menu (#571): the user checks which
+// The dialog of Merge... in a tab's context menu (#571): the user checks which
 // of the open Log Files take part, puts them in the order they are
 // concatenated in, and chooses whether duplicate lines are dropped. It
 // remembers nothing: every time it opens with the candidates in the order

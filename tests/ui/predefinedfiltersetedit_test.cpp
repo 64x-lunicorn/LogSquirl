@@ -21,10 +21,15 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <QAbstractButton>
 #include <QCheckBox>
+#include <QGroupBox>
+#include <QLabel>
+#include <QRegularExpression>
 #include <QSignalSpy>
 
 #include "predefinedfilters.h"
+#include "predefinedfiltersdialog.h"
 #include "predefinedfiltersetedit.h"
 #include "shown_widget.h"
 
@@ -48,6 +53,46 @@ SCENARIO( "Checking a Predefined Filter's Regex box is kept", "[ui][predefinedfi
         {
             CHECK( edit.filterSet().filters().front().useRegex );
             CHECK( changed.size() == 1 );
+        }
+    }
+}
+
+// The glossary calls a group of Predefined Filters a Filter Group, never a
+// filter set; so does the dialog that edits them (#891).
+SCENARIO( "The Predefined Filters dialog calls a group a Filter Group", "[ui][predefinedfilters]" )
+{
+    GIVEN( "the Predefined Filters dialog" )
+    {
+        PredefinedFiltersDialog dialog( QString{} );
+
+        THEN( "the editor's name field is labeled as the Filter Group's" )
+        {
+            REQUIRE( dialog.findChild<PredefinedFilterSetEdit*>() != nullptr );
+            const auto* label = dialog.findChild<PredefinedFilterSetEdit*>()->nameLabel;
+            CHECK( label->text() == QStringLiteral( "Filter Group name:" ) );
+        }
+
+        THEN( "no title, label, button or tooltip of it speaks of a set" )
+        {
+            static const QRegularExpression set( QStringLiteral( R"(\bsets?\b)" ),
+                                                 QRegularExpression::CaseInsensitiveOption );
+            QStringList texts{ dialog.windowTitle() };
+            for ( const auto* widget : dialog.findChildren<QWidget*>() ) {
+                texts << widget->windowTitle() << widget->toolTip();
+                if ( const auto* label = qobject_cast<const QLabel*>( widget ) ) {
+                    texts << label->text();
+                }
+                if ( const auto* box = qobject_cast<const QGroupBox*>( widget ) ) {
+                    texts << box->title();
+                }
+                if ( const auto* button = qobject_cast<const QAbstractButton*>( widget ) ) {
+                    texts << button->text();
+                }
+            }
+            for ( const auto& text : texts ) {
+                INFO( text.toStdString() );
+                CHECK_FALSE( set.match( text ).hasMatch() );
+            }
         }
     }
 }

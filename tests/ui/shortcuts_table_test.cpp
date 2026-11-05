@@ -420,8 +420,7 @@ TEST_CASE( "The Shortcuts list lists Merge Log Files, Export as CSV and the side
         for ( const auto& [ action, name ] :
               { std::pair{ ShortcutAction::MainWindowMergeLogFiles, "Merge Log Files" },
                 std::pair{ ShortcutAction::MainWindowExportAsCsv, "Export as CSV" },
-                std::pair{ ShortcutAction::MainWindowToggleSidebar,
-                           "Show or hide the sidebar" } } ) {
+                std::pair{ ShortcutAction::MainWindowToggleSidebar, "Sidebar" } } ) {
             INFO( action );
             const auto row = rowOf( table, action );
             REQUIRE( row >= 0 );
