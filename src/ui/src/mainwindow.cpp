@@ -112,6 +112,7 @@
 #include "firststartfileassociationsdialog.h"
 #include "highlightersdialog.h"
 #include "highlightersmenu.h"
+#include "highlightthisdialog.h"
 #include "indexcache.h"
 #include "instancehandover.h"
 #include "issuereporter.h"
@@ -2002,6 +2003,17 @@ void MainWindow::editHighlighters()
     dialog.exec();
 }
 
+void MainWindow::highlightThis( const QString& selectedText, const QString& logLine )
+{
+    HighlightThisDialog dialog( selectedText, logLine, this );
+    // The dialog reads the sets from the settings store, as the Highlighters
+    // dialog does; OK changed them, and every open Log File is recolored.
+    if ( dialog.exec() == QDialog::Accepted ) {
+        session_.applyChange( Changed::HighlighterSets );
+        updateHighlightersMenu();
+    }
+}
+
 void MainWindow::openRegexLab()
 {
     if ( regexLab_.isNull() ) {
@@ -2100,8 +2112,19 @@ void MainWindow::nameValue( const QString& logLine, qsizetype start, qsizetype l
     // Names dialog does: what it read is a change too, OK or Cancel.
     const auto& collection = ValueNamesCollection::get();
     const auto before = collection.generation();
-    NameValueDialog dialog( logLine, logsquirl::valuenames::LineRange{ start, length }, this );
-    const auto accepted = dialog.exec() == QDialog::Accepted;
+    // A value a rule of the user's own groups captures is named in its Name
+    // Table; a Team group's is not changed here, the menu does not offer it
+    // (#885).
+    const auto captured
+        = logsquirl::valuenames::capturedValueIn( collection.groups(), logLine, start, length );
+    if ( captured && captured->groupIndex >= collection.ownGroups().size() ) {
+        return;
+    }
+    const auto dialog
+        = captured ? std::make_unique<NameValueDialog>( logLine, *captured, this )
+                   : std::make_unique<NameValueDialog>(
+                         logLine, logsquirl::valuenames::LineRange{ start, length }, this );
+    const auto accepted = dialog->exec() == QDialog::Accepted;
     if ( collection.generation() != before ) {
         session_.applyChange( Changed::ValueNames );
     }
@@ -3229,6 +3252,8 @@ void MainWindow::connectFrontTab( CrawlerWidget* crawler )
         connect( crawler, &CrawlerWidget::loadingFinished, this,
                  &MainWindow::handleLoadingFinished ),
         connect( crawler, &CrawlerWidget::statusMessage, this, &MainWindow::showStatusMessage ),
+        connect( crawler, &CrawlerWidget::highlightThisRequested, this,
+                 &MainWindow::highlightThis ),
         connect( crawler, &CrawlerWidget::filteredViewChanged, this,
                  &MainWindow::handleFilteredViewChanged ),
     };

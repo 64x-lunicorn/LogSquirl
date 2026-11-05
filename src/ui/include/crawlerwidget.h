@@ -365,6 +365,9 @@ Q_SIGNALS:
                        LineLength nSymbols );
     // Sent up when user wants to save new predefined filter from current search
     void saveCurrentSearchAsPredefinedFilter( QString newFilter );
+    // Sent up when Highlight this... was chosen in the Text View or a
+    // Filtered View (#896), as AbstractLogView::highlightThisRequested.
+    void highlightThisRequested( const QString& selectedText, const QString& logLine );
 
     void sendToScratchpad( QString );
     void replaceDataInScratchpad( QString );

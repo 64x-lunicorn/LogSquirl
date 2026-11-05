@@ -652,3 +652,121 @@ TEST_CASE( "A Naming Group checked all over is the same group, every check set",
     CHECK( checked.id() == unchecked.id() );
     CHECK( checked.withEverythingChecked() == checked );
 }
+
+TEST_CASE( "The value a Naming Rule captures in a range of a Log Line is found, named or not",
+           "[valuenames][capturedvalue]" )
+{
+    const auto modem = group(
+        "Modem", { rule( "Esim", "EsimState=(\\d+)", { { "1", "EsimState" } } ) },
+        { table( "Other", {} ), table( "EsimState", { { "1", "Idle" }, { "[89]", "Ready" } } ) } );
+    const QString line = "modem EsimState=4 EsimState=9 done";
+    const auto four = line.indexOf( '4' );
+    const auto nine = line.indexOf( '9' );
+
+    SECTION( "a value no row of the table names" )
+    {
+        const auto captured = capturedValueIn( { modem }, line, four, 1 );
+        REQUIRE( captured.has_value() );
+        CHECK( captured->value == "4" );
+        CHECK( captured->start == four );
+        CHECK( captured->length == 1 );
+        CHECK( captured->groupIndex == 0 );
+        CHECK( captured->groupId == modem.id() );
+        CHECK( captured->rule == "Esim" );
+        CHECK( captured->table == "EsimState" );
+        CHECK_FALSE( captured->named() );
+    }
+
+    SECTION( "a Named Value, with the row that names it, a regex key" )
+    {
+        const auto captured = capturedValueIn( { modem }, line, nine, 1 );
+        REQUIRE( captured.has_value() );
+        CHECK( captured->value == "9" );
+        CHECK( captured->named() );
+        CHECK( captured->row == 1 );
+    }
+
+    SECTION( "of a range holding both, the last" )
+    {
+        const auto captured = capturedValueIn( { modem }, line, 0, line.size() );
+        REQUIRE( captured.has_value() );
+        CHECK( captured->value == "9" );
+    }
+
+    SECTION( "a range overlapping the value is enough" )
+    {
+        const auto key = line.indexOf( "EsimState=4" );
+        const auto captured = capturedValueIn( { modem }, line, key, four + 1 - key );
+        REQUIRE( captured.has_value() );
+        CHECK( captured->value == "4" );
+    }
+
+    SECTION( "none outside a capture, in an unchecked group or rule" )
+    {
+        CHECK_FALSE( capturedValueIn( { modem }, line, 0, 5 ).has_value() );
+        CHECK_FALSE( capturedValueIn( { modem }, line, four, 0 ).has_value() );
+
+        auto unchecked = modem;
+        unchecked.setEnabled( false );
+        CHECK_FALSE( capturedValueIn( { unchecked }, line, four, 1 ).has_value() );
+
+        auto uncheckedRule = modem;
+        auto rules = uncheckedRule.rules();
+        rules[ 0 ].enabled = false;
+        uncheckedRule.setRules( rules );
+        CHECK_FALSE( capturedValueIn( { uncheckedRule }, line, four, 1 ).has_value() );
+    }
+
+    SECTION( "a rule whose table has no rows captures all the same" )
+    {
+        const auto empty = group( "Empty", { rule( "Esim", "EsimState=(\\d+)", { { "1", "T" } } ) },
+                                  { table( "T", {} ) } );
+        const auto captured = capturedValueIn( { empty }, line, four, 1 );
+        REQUIRE( captured.has_value() );
+        CHECK( captured->table == "T" );
+        CHECK_FALSE( captured->named() );
+    }
+}
+
+TEST_CASE( "A value two Naming Rules capture follows the one the Text View shows",
+           "[valuenames][capturedvalue]" )
+{
+    const QString line = "EsimState=9";
+    const auto nine = line.indexOf( '9' );
+    const auto first = group( "First", { rule( "A", "=(\\d)", { { "1", "TA" } } ) },
+                              { table( "TA", { { "1", "one" } } ) } );
+    const auto second = group( "Second", { rule( "B", "(\\d)$", { { "1", "TB" } } ) },
+                               { table( "TB", { { "9", "nine" } } ) } );
+
+    SECTION( "the earlier rule, when neither names it" )
+    {
+        const auto unnamedSecond = group( "Second", { rule( "B", "(\\d)$", { { "1", "TB" } } ) },
+                                          { table( "TB", {} ) } );
+        const auto captured = capturedValueIn( { first, unnamedSecond }, line, nine, 1 );
+        REQUIRE( captured.has_value() );
+        CHECK( captured->groupIndex == 0 );
+        CHECK( captured->table == "TA" );
+    }
+
+    SECTION( "the one that names it, though it comes later" )
+    {
+        const auto captured = capturedValueIn( { first, second }, line, nine, 1 );
+        REQUIRE( captured.has_value() );
+        CHECK( captured->groupIndex == 1 );
+        CHECK( captured->groupId == second.id() );
+        CHECK( captured->table == "TB" );
+        CHECK( captured->named() );
+        CHECK( shownLine( line, ValueNamer{ { first, second } }.namedValues( line ) )
+               == "EsimState=nine(9)" );
+    }
+
+    SECTION( "the earlier one, when both name it" )
+    {
+        const auto namingFirst = group( "First", { rule( "A", "=(\\d)", { { "1", "TA" } } ) },
+                                        { table( "TA", { { "9", "neun" } } ) } );
+        const auto captured = capturedValueIn( { namingFirst, second }, line, nine, 1 );
+        REQUIRE( captured.has_value() );
+        CHECK( captured->groupIndex == 0 );
+        CHECK( captured->row == 0 );
+    }
+}

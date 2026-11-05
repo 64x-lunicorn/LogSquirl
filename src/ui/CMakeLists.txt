@@ -9,6 +9,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighterpresets.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighterset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersmenu.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightthisdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logtablehighlightdelegate.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfileview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logpresentation.h
@@ -132,6 +133,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightersmenu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightersetedit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighterset.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightthisdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/groupexchange.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/groupimportprompt.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/teamfolder.cpp

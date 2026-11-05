@@ -56,6 +56,15 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/logformat_no_plugins.cmake
 )
 
+# No source hides its strings from lupdate behind a tr() of its own (#911).
+add_test(
+    NAME tr_reaches_lupdate
+    COMMAND ${CMAKE_COMMAND}
+            -DSOURCES_DIR=${CMAKE_SOURCE_DIR}/src
+            -DTS_FILE=${CMAKE_SOURCE_DIR}/src/app/i18n/en.ts
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tr_reaches_lupdate.cmake
+)
+
 # The plugin developer guide shows the plugin API as its header declares it,
 # and its example plugin as the files the unit tests build and load (#598).
 add_test(

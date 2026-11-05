@@ -359,6 +359,13 @@ HighlighterSet HighlighterSet::withId( const QString& id ) const
 void HighlighterSet::addHighlighter( const Highlighter& highlighter )
 {
     highlighterList_.append( highlighter );
+    // The pattern compiled from the old list no longer fits it (#910).
+    compiledExpression_.reset();
+}
+
+const QList<Highlighter>& HighlighterSet::highlighters() const
+{
+    return highlighterList_;
 }
 
 QString HighlighterSet::id() const

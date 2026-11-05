@@ -83,6 +83,10 @@ namespace {
 enum RuleColumn { RuleName = 0, RuleRegex = 1, RuleTemplate = 2 };
 enum RowColumn { RowKey = 0, RowName = 1 };
 
+// Marks the item of a capture group's Name Table choice that makes a new
+// table: a table of the group may have that item's text as its name.
+constexpr int NewTableRole = Qt::UserRole + 1;
+
 QString separatorName( QChar separator )
 {
     if ( separator == QLatin1Char( '\t' ) ) {
@@ -1084,11 +1088,19 @@ void ValueNamesDialog::populateCaptureGroups()
             combo->addItem( chosen, chosen );
             index = combo->count() - 1;
         }
+        // After the group's tables: a table made for this capture group (#886).
+        combo->addItem( tr( "New Name Table..." ) );
+        combo->setItemData( combo->count() - 1, true, NewTableRole );
         combo->setCurrentIndex( std::max( index, 0 ) );
         combo->setEnabled( editable() );
         connect( combo, &QComboBox::currentIndexChanged, this,
                  [ this, combo, key = captureGroup.key, numbered = captureGroup.numbered ] {
-                     captureGroupTableChosen( key, numbered, combo->currentData().toString() );
+                     if ( combo->currentData( NewTableRole ).toBool() ) {
+                         newTableForCaptureGroup( key, numbered );
+                     }
+                     else {
+                         captureGroupTableChosen( key, numbered, combo->currentData().toString() );
+                     }
                  } );
         captureGroups_->setCellWidget( row, 1, combo );
     }
@@ -1112,6 +1124,30 @@ void ValueNamesDialog::captureGroupTableChosen( const QString& group, const QStr
         }
     } );
     updatePreview();
+}
+
+void ValueNamesDialog::newTableForCaptureGroup( const QString& group, const QString& numbered )
+{
+    auto* namingGroup = currentGroup();
+    if ( namingGroup == nullptr || !editable() ) {
+        return;
+    }
+    // Named after a named capture group, made unique; an unnamed one's
+    // table gets a new table's name.
+    NameTable table;
+    if ( !numbered.isEmpty() ) {
+        table.name = group;
+    }
+    const auto name = logsquirl::valuenames::addTable( *namingGroup, table );
+    captureGroupTableChosen( group, numbered, name );
+
+    // The combo box that chose it goes with the capture groups shown again:
+    // deleted later, as a table view's cell widgets are.
+    populateTables( static_cast<int>( namingGroup->tables().size() ) - 1 );
+    populateCaptureGroups();
+    // Its rows can be filled in at once, its name changed in its field.
+    tableName_->setFocus();
+    tableName_->selectAll();
 }
 
 // --- Name Tables ---

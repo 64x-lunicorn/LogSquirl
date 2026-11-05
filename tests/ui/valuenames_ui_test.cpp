@@ -980,6 +980,130 @@ SCENARIO( "The Value Names dialog names a Name Table in a field of its own",
     }
 }
 
+SCENARIO( "A Name Table is created while choosing it for a capture group",
+          "[ui][valuenames][valuenamesdialog]" )
+{
+    const StoredValueNamesGuard guard;
+    storeGroups( { exampleGroup() } );
+
+    GIVEN( "the dialog showing the example group, the rule BAP ECU selected" )
+    {
+        ValueNamesDialog dialog;
+        QSignalSpy changed( &dialog, &ValueNamesDialog::valueNamesChanged );
+        auto* rules = dialog.findChild<QTableWidget*>( QStringLiteral( "rulesTable" ) );
+        auto* tables = dialog.findChild<QListWidget*>( QStringLiteral( "tablesList" ) );
+        auto* tableName = dialog.findChild<QLineEdit*>( QStringLiteral( "tableName" ) );
+        auto* rows = dialog.findChild<QTableWidget*>( QStringLiteral( "rowsTable" ) );
+        auto* captureGroups = dialog.findChild<QTableWidget*>( QStringLiteral( "captureGroups" ) );
+        REQUIRE( rules != nullptr );
+        REQUIRE( tables != nullptr );
+        REQUIRE( tableName != nullptr );
+        REQUIRE( rows != nullptr );
+        REQUIRE( captureGroups != nullptr );
+        REQUIRE( captureGroups->rowCount() == 2 );
+
+        const auto choice = [ captureGroups ]( int row ) {
+            auto* combo = qobject_cast<QComboBox*>( captureGroups->cellWidget( row, 1 ) );
+            REQUIRE( combo != nullptr );
+            return combo;
+        };
+        const auto chooseNewTable = [ &choice ]( int row ) {
+            auto* combo = choice( row );
+            combo->setCurrentIndex( combo->findText( QStringLiteral( "New Name Table..." ) ) );
+        };
+
+        THEN( "the choice of every capture group lists New Name Table... after the tables" )
+        {
+            for ( int row = 0; row < captureGroups->rowCount(); ++row ) {
+                auto* combo = choice( row );
+                QStringList items;
+                for ( int index = 0; index < combo->count(); ++index ) {
+                    items.append( combo->itemText( index ) );
+                }
+                REQUIRE( items
+                         == QStringList{ QStringLiteral( "(none)" ), QStringLiteral( "ECU" ),
+                                         QStringLiteral( "Function" ), QStringLiteral( "Ids" ),
+                                         QStringLiteral( "New Name Table..." ) } );
+            }
+        }
+
+        WHEN( "New Name Table... is chosen for the unnamed capture group 2" )
+        {
+            showUntilExposed( dialog );
+            chooseNewTable( 1 );
+
+            THEN( "a table is created, used by the group and selected for editing" )
+            {
+                const auto& group = dialog.groups()[ 0 ];
+                REQUIRE( group.tables().size() == 4 );
+                REQUIRE( group.tables()[ 3 ].name == QStringLiteral( "Name Table 1" ) );
+                REQUIRE( group.tables()[ 3 ].rows.isEmpty() );
+                REQUIRE( group.rules()[ 0 ].tableFor( QStringLiteral( "2" ) )
+                         == QStringLiteral( "Name Table 1" ) );
+                REQUIRE( group.rules()[ 0 ].tableFor( QStringLiteral( "1" ) )
+                         == QStringLiteral( "ECU" ) );
+                REQUIRE( tables->currentRow() == 3 );
+                REQUIRE( tableName->text() == QStringLiteral( "Name Table 1" ) );
+                REQUIRE( dialog.focusWidget() == tableName );
+                REQUIRE( rows->rowCount() == 0 );
+                REQUIRE( choice( 1 )->currentText() == QStringLiteral( "Name Table 1" ) );
+                REQUIRE( choice( 0 )->currentText() == QStringLiteral( "ECU" ) );
+            }
+        }
+
+        WHEN( "a rule with the named capture group state chooses New Name Table..." )
+        {
+            rules->selectRow( 1 );
+            rules->item( 1, 1 )->setText( QStringLiteral( "state=(?<state>\\d+)" ) );
+            REQUIRE( captureGroups->rowCount() == 1 );
+            chooseNewTable( 0 );
+
+            THEN( "the table is named state and used by the group by its name" )
+            {
+                const auto& group = dialog.groups()[ 0 ];
+                REQUIRE( group.tables().size() == 4 );
+                REQUIRE( group.tables()[ 3 ].name == QStringLiteral( "state" ) );
+                REQUIRE( group.rules()[ 1 ].groupTables
+                         == QList<GroupTable>{
+                             { QStringLiteral( "state" ), QStringLiteral( "state" ) } } );
+                REQUIRE( tables->currentRow() == 3 );
+                REQUIRE( choice( 0 )->currentText() == QStringLiteral( "state" ) );
+            }
+        }
+
+        WHEN( "the name state is taken when the capture group state chooses New Name Table..." )
+        {
+            tables->item( 2 )->setText( QStringLiteral( "state" ) );
+            rules->selectRow( 1 );
+            rules->item( 1, 1 )->setText( QStringLiteral( "state=(?<state>\\d+)" ) );
+            chooseNewTable( 0 );
+
+            THEN( "the new table gets a name of its own" )
+            {
+                const auto& group = dialog.groups()[ 0 ];
+                REQUIRE( group.tables().size() == 4 );
+                REQUIRE( group.tables()[ 2 ].name == QStringLiteral( "state" ) );
+                REQUIRE( group.tables()[ 3 ].name == QStringLiteral( "state (2)" ) );
+                REQUIRE( group.rules()[ 1 ].tableFor( QStringLiteral( "state" ) )
+                         == QStringLiteral( "state (2)" ) );
+            }
+        }
+
+        WHEN( "a table created from the choice is followed by Cancel" )
+        {
+            chooseNewTable( 1 );
+            REQUIRE( dialog.groups()[ 0 ].tables().size() == 4 );
+            dialog.findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Cancel )->click();
+
+            THEN( "the collection is unchanged" )
+            {
+                REQUIRE( changed.count() == 0 );
+                REQUIRE( ValueNamesCollection::get().ownGroups()[ 0 ].sameAs( exampleGroup() ) );
+            }
+        }
+    }
+}
+
 SCENARIO( "The Value Names dialog edits the selected Naming Rule in fields of its own",
           "[ui][valuenames][valuenamesdialog]" )
 {

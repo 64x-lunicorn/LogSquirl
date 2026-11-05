@@ -254,6 +254,10 @@ private Q_SLOTS:
     // Asks for a command to run for its output (#575).
     void openCommandOutputDialog();
     void editHighlighters();
+    // Opens the dialog turning the text selected in the Log Line into a
+    // Highlighter, which Highlight this... of the tab in front asked for; OK
+    // recolors every open Log File (#896).
+    void highlightThis( const QString& selectedText, const QString& logLine );
     void editPredefinedFilters( const QString& newFilter = {} );
     // Opens the Value Names dialog (#647).
     void editValueNames();
