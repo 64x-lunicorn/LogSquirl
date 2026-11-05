@@ -512,6 +512,10 @@ public Q_SLOTS:
     // Show a Value Count of a capture group of the current Search in the chart
     // panel, over the Log Lines the Search matches.
     void countSearchGroupValues( int group );
+    // Shows the chart panel and opens the Chart Series dialog proposing a
+    // series of the number in the range of the raw Log Line, which Chart this
+    // value... of the Text View or a Filtered View asked for (#898).
+    void chartValue( const QString& logLine, qsizetype start, qsizetype length );
     // Start a Search for the value, as literal text.
     void searchForValue( const QString& value );
 

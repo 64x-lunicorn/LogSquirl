@@ -589,11 +589,15 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
                 // (#897).
                 textTopShown.insert( textTopShown.indexOf( "&Mark" ),
                                      "Add as Predefined Filter..." );
+                // and charts a number selected in it, first under More, the
+                // top level being full (#898).
+                auto textMoreShown = textMore;
+                textMoreShown.prepend( "Chart this value..." );
 
                 REQUIRE( entriesOf( *tableMenu ) == tableTop );
                 REQUIRE( moreEntriesOf( *tableMenu ) == tableMore );
                 REQUIRE( entriesOf( *textMenu ) == textTopShown );
-                REQUIRE( moreEntriesOf( *textMenu ) == textMore );
+                REQUIRE( moreEntriesOf( *textMenu ) == textMoreShown );
             }
 
             THEN( "each has at most 12 entries at its top level" )

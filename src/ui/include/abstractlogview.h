@@ -339,6 +339,10 @@ protected:
         std::optional<logsquirl::valuenames::CapturedValue> captured = std::nullopt;
     };
     std::optional<ValueToName> valueToNameAt( const QPoint& pos ) const;
+    // The text selected within a Log Line, as the raw Log Line and the range
+    // of it, a Named Value selected in part whole; none without such a
+    // selection.
+    std::optional<ValueToName> selectionInLogLine() const;
     // What the context menu's Export as CSV... does. Empty, and the menu
     // offers no such entry, unless the view can split its Log Lines into the
     // fields of a Log Format.
@@ -378,6 +382,9 @@ Q_SIGNALS:
     // Add as Predefined Filter... was chosen (#897): selectedText is the text
     // selected within a Log Line.
     void addAsPredefinedFilterRequested( const QString& selectedText );
+    // Chart this value... was chosen (#898): the number selected is the range
+    // [start, start + length) of logLine, the raw Log Line.
+    void chartThisValueRequested( const QString& logLine, qsizetype start, qsizetype length );
     // Sent up when the mouse is hovered over a line's margin
     void mouseHoveredOverLine( LineNumber line );
     // Sent up when the mouse leaves a line's margin

@@ -89,6 +89,7 @@
 #include "presentationmenu.h"
 
 #include "active_screen.h"
+#include "chartvalueproposal.h"
 #include "clipboard.h"
 #include "configuration.h"
 #include "highlighterset.h"
@@ -2590,6 +2591,22 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
                                        valueToName->length );
         }
     };
+    // The number selected as the menu opens, charted (#898).
+    std::optional<ValueToName> numberToChart;
+    if ( const auto selected = selectionInLogLine() ) {
+        if ( const auto number = logsquirl::chart::numberSelected(
+                 selected->logLine,
+                 logsquirl::valuenames::LineRange{ selected->start, selected->length } ) ) {
+            numberToChart = ValueToName{ selected->logLine, number->start, number->length };
+        }
+    }
+    report.selectionIsNumber = numberToChart.has_value();
+    entries.chartThisValue = [ this, numberToChart ]() {
+        if ( numberToChart.has_value() ) {
+            Q_EMIT chartThisValueRequested( numberToChart->logLine, numberToChart->start,
+                                            numberToChart->length );
+        }
+    };
     // The Log Lines the menu opens on: a right-click outside the selection
     // has selected the one under the pointer (#859).
     entries.plugins = pluginContextMenuEntries(
@@ -2615,6 +2632,25 @@ qsizetype rawCharacterAt( const logsquirl::vector<int>& displayColumns, qsizetyp
 
 } // namespace
 
+std::optional<AbstractLogView::ValueToName> AbstractLogView::selectionInLogLine() const
+{
+    if ( !selection_.isPortion() ) {
+        return std::nullopt;
+    }
+    // Never half a raw value: a Named Value selected in part is whole.
+    const auto line = selection_.getLines( *lines_ ).front();
+    const auto portion = selectionCoveringNamedValues().getPortionForLine( line );
+    if ( !portion.isValid() ) {
+        return std::nullopt;
+    }
+    auto text = lines_->logFile().getLineString( line );
+    const auto columns = rawToDisplayColumns( text );
+    const auto start = rawCharacterAt( columns, portion.startColumn().get() );
+    const auto end
+        = std::min( rawCharacterAt( columns, portion.endColumn().get() ) + 1, text.size() );
+    return ValueToName{ std::move( text ), start, std::max<qsizetype>( end - start, 0 ) };
+}
+
 std::optional<AbstractLogView::ValueToName>
 AbstractLogView::valueToNameAt( const QPoint& pos ) const
 {
@@ -2623,18 +2659,7 @@ AbstractLogView::valueToNameAt( const QPoint& pos ) const
     // characters (#883).
     std::optional<ValueToName> valueToName;
     if ( selection_.isPortion() ) {
-        // Never half a raw value: a Named Value selected in part is whole.
-        const auto line = selection_.getLines( *lines_ ).front();
-        const auto portion = selectionCoveringNamedValues().getPortionForLine( line );
-        if ( portion.isValid() ) {
-            auto text = lines_->logFile().getLineString( line );
-            const auto columns = rawToDisplayColumns( text );
-            const auto start = rawCharacterAt( columns, portion.startColumn().get() );
-            const auto end
-                = std::min( rawCharacterAt( columns, portion.endColumn().get() ) + 1, text.size() );
-            valueToName
-                = ValueToName{ std::move( text ), start, std::max<qsizetype>( end - start, 0 ) };
-        }
+        valueToName = selectionInLogLine();
     }
     else if ( logLineAtY( pos.y() ).has_value() ) {
         // The column a click there finds, a Named Value's start on one.

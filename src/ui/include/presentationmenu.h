@@ -105,6 +105,9 @@ public:
             bool teamGroup = false;
         };
         std::optional<CapturedValue> capturedValue;
+        // Whether the text selected within a Log Line is a number Chart this
+        // value... charts (#898).
+        bool selectionIsNumber = false;
     };
 
     // An entry a plugin added (#859).
@@ -169,6 +172,11 @@ public:
         // entries. Only for a Presentation drawn like the Text View; left
         // empty, the menu offers no Add as Predefined Filter...
         std::function<void()> addAsPredefinedFilter;
+        // Open the Chart Series dialog proposing a series of the number
+        // selected within a Log Line (#898), offered first under More: the
+        // top level is full. Only for a Presentation drawn like the Text
+        // View; left empty, the menu offers no Chart this value...
+        std::function<void()> chartThisValue;
         // The plugins' entries, in their order, below a separator at the end
         // of the menu, always enabled; without any, there is no separator.
         std::vector<PluginEntry> plugins;

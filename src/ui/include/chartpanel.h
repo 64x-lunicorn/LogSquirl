@@ -88,6 +88,11 @@ public:
     // match case as the Search does: matchCase is its Match case.
     void addFilterFrequencySeries( const QStringList& patterns, bool matchCase );
 
+    // Opens the Chart Series dialog with the series name and the pattern
+    // proposed, its capture group 1 the value, the X axis as for + Add Series;
+    // OK adds the series (#898).
+    void addProposedSeries( const QString& name, const QString& pattern );
+
     // Shows a Value Count of a Log Format field, in a tab of its own, and
     // starts counting. Nothing without a Log Format.
     void countFieldValues( const QString& fieldName );

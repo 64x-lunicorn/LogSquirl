@@ -307,6 +307,16 @@ void addMoreSubmenu( QMenu& menu, const Opened& opened )
 
     auto& more = *menu.addMenu( PresentationMenu::tr( "More" ) );
 
+    // A chart series of the number selected within a Log Line (#898).
+    if ( entries.chartThisValue ) {
+        auto* chartThisValue = addEntry( more, PresentationMenu::tr( "Chart this value..." ),
+                                         entries.chartThisValue );
+        chartThisValue->setStatusTip(
+            PresentationMenu::tr( "Chart the selected number in the Log Lines like this one" ) );
+        chartThisValue->setEnabled( opened.textWithinLogLine && report.selectionIsNumber );
+        more.addSeparator();
+    }
+
     addEntry( more,
               oneWholeLogLine ? PresentationMenu::tr( "Copy this line with line number" )
                               : PresentationMenu::tr( "Copy with line numbers" ),

@@ -34,6 +34,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/highlightersdialog_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/highlightthis_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/addpredefinedfilter_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/chartthisvalue_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/grouplist_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/dialog_queued_work_test.cpp
 

@@ -235,7 +235,9 @@ opens the same menu, sorted by how often its entries are used:
   *Add as Predefined Filter...*) and *Mark*.
 - Then the view's own entries: *Highlight this...* (in the main and the
   filtered view), *Highlighters* and *Color labels*.
-- **More** holds the rest: *Copy with line numbers*, the scratchpad entries,
+- **More** holds the rest: *Chart this value...* (in the main and the filtered
+  view, see [Charting a number of a line](#charting-a-number-of-a-line)),
+  *Copy with line numbers*, the scratchpad entries,
   *Find next* and *Find previous*, the search limits, *Set selection start* and
   *Set selection end*, *Save selected to file*, *Save to file*, *Export as
   CSV...* and *Save splitter position*.
@@ -1205,6 +1207,25 @@ opens the *Chart Series* dialog:
   group whose number is the Y value. Capture group 0 counts: every matching
   line adds a point with Y = 1, as does a line whose group holds no number.
 - *Color* of the series.
+
+#### Charting a number of a line
+
+Select a number in a line of the main or the filtered view, for example the
+`125` of `GET /api took 125 ms`, and choose *Chart this value...* under *More*
+in the context menu. It is enabled when the selection is a number and nothing
+else: whole or with a fraction, negative or not, not hexadecimal. The chart
+panel opens with the *Chart Series* dialog, which proposes:
+
+- a *Regex pattern (Y)* of the text before the number and any number in its
+  place, `took (-?\d+(?:\.\d+)?)`, so that it captures the number in every
+  line like the one you clicked; where that text comes earlier in the line,
+  the pattern takes more of the line, so that it captures the number you
+  selected;
+- *Capture group (Y)* 1, the number;
+- the word before the number as the *Name*, `took`.
+
+The X axis is set up as for *+ Add Series*. Edit what you like, and *OK* adds
+the series to the chart like any other.
 
 #### The X axis and time buckets
 

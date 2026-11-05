@@ -101,6 +101,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartseriesdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartwizarddialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/charttemplategenerator.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/chartvalueproposal.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/iconloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbarstyle.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/timenavigation.h
@@ -214,6 +215,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartseriesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartwizarddialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/charttemplategenerator.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/chartvalueproposal.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/iconloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbarstyle.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayfilepath.cpp

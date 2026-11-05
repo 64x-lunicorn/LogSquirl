@@ -84,6 +84,7 @@
 
 #include "crawlerwidget.h"
 
+#include "chartvalueproposal.h"
 #include "configuration.h"
 #include "dispatch_to.h"
 #include "fontutils.h"
@@ -1639,6 +1640,9 @@ void CrawlerWidget::setup()
     // Add as Predefined Filter..., as Highlight this... (#897).
     connect( logMainView_, &LogMainView::addAsPredefinedFilterRequested, this,
              &CrawlerWidget::addAsPredefinedFilterRequested );
+    // Chart this value... charts in this tab's chart panel (#898).
+    connect( logMainView_, &LogMainView::chartThisValueRequested, this,
+             &CrawlerWidget::chartValue );
     connect( logTableView_, &LogTableView::countValuesRequested, this,
              &CrawlerWidget::countFieldValues );
     // Matches Only and the Field Term of a cell (#798)
@@ -2003,6 +2007,20 @@ void CrawlerWidget::countSearchGroupValues( int group )
                                           tr( "group %1 of \"%2\"" ).arg( group ).arg( pattern ) );
 }
 
+void CrawlerWidget::chartValue( const QString& logLine, qsizetype start, qsizetype length )
+{
+    const auto proposal = logsquirl::chart::proposeChartValue(
+        logLine, logsquirl::valuenames::LineRange{ start, length } );
+    if ( !proposal.has_value() ) {
+        return;
+    }
+    if ( !chartPanel_->isVisible() ) {
+        toggleChartPanel();
+    }
+    chartPanel_->addProposedSeries(
+        proposal->seriesName.isEmpty() ? tr( "Value" ) : proposal->seriesName, proposal->pattern );
+}
+
 void CrawlerWidget::searchForValue( const QString& value )
 {
     // A literal Search for the value: not a logical combination, not
@@ -2058,6 +2076,7 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
              &CrawlerWidget::highlightThisRequested );
     connect( view, &FilteredView::addAsPredefinedFilterRequested, this,
              &CrawlerWidget::addAsPredefinedFilterRequested );
+    connect( view, &FilteredView::chartThisValueRequested, this, &CrawlerWidget::chartValue );
 
     connect( view, &FilteredView::mouseLeftHoveringZone, overviewWidget_,
              &OverviewWidget::removeHighlight );

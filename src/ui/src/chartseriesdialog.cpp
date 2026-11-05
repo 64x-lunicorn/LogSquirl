@@ -48,10 +48,12 @@ ChartSeriesDialog::ChartSeriesDialog( QWidget* parent )
     auto* form = new QFormLayout;
 
     nameEdit_ = new QLineEdit;
+    nameEdit_->setObjectName( QStringLiteral( "seriesName" ) );
     nameEdit_->setPlaceholderText( tr( "e.g. Response Time" ) );
     form->addRow( tr( "Name:" ), nameEdit_ );
 
     patternEdit_ = new QLineEdit;
+    patternEdit_->setObjectName( QStringLiteral( "seriesPattern" ) );
     patternEdit_->setPlaceholderText( tr( "e.g. duration=(\\d+\\.?\\d*)ms" ) );
     form->addRow( tr( "Regex pattern (Y):" ), patternEdit_ );
 
@@ -65,6 +67,7 @@ ChartSeriesDialog::ChartSeriesDialog( QWidget* parent )
     form->addRow( QString(), patternHint );
 
     captureGroupSpin_ = new QSpinBox;
+    captureGroupSpin_->setObjectName( QStringLiteral( "seriesCaptureGroup" ) );
     captureGroupSpin_->setMinimum( 0 );
     captureGroupSpin_->setMaximum( 20 );
     captureGroupSpin_->setValue( 1 );
