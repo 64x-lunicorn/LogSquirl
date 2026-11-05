@@ -93,6 +93,9 @@ public:
         // cursor, holds a value Name this value... names (#883), or one a
         // Naming Rule captures (#885).
         bool hasValueToName = false;
+        // Whether the text selected within a Log Line is a number Chart this
+        // value... charts (#898).
+        bool selectionIsNumber = false;
         // A value a Naming Rule of an enabled Naming Group captures there
         // (#885): the menu offers Name <value> in <table>... for it, or for a
         // Named Value Rename <table> <value>..., instead of Name this value...
@@ -105,9 +108,6 @@ public:
             bool teamGroup = false;
         };
         std::optional<CapturedValue> capturedValue;
-        // Whether the text selected within a Log Line is a number Chart this
-        // value... charts (#898).
-        bool selectionIsNumber = false;
     };
 
     // An entry a plugin added (#859).
