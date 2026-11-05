@@ -90,14 +90,18 @@
   *Filter Group* instead of filter set. (#891)
 - **A selection becomes a Predefined Filter**: the context menu of the Text
   View and the Filtered View offers *Add as Predefined Filter...* for text
-  selected in a Log Line; a compact dialog proposes a name and the escaped
-  selection as the pattern, adds it to the Default Filter Group or another
-  of yours, and can search with it at once. (#897)
+  selected in a Log Line; a compact dialog proposes a name no filter of the
+  group has and the selection as the pattern, as plain text, so the filter
+  finds it with *Use regex* on or off (*Regular expression* turns it into
+  the escaped regex), adds it to the Default Filter Group or another of
+  yours, and can search with it at once. (#897)
 - **A number becomes a chart series**: select a number in the Text View or
   the Filtered View and choose *More → Chart this value...*; the Chart
   Series dialog proposes a pattern that captures the number in Log Lines
-  like this one and the word before it as the series name, and OK shows the
-  series in the Chart Panel. (#898)
+  like this one, taking any earlier number it includes as any number, and
+  the word before it as the series name; OK adds the series and shows the
+  Chart Panel, Cancel leaves it as it was. *+ Add Series* starts a series in
+  the next color of the palette. (#898)
 
 ## Bug fixes
 
