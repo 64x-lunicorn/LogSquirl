@@ -791,6 +791,11 @@ void MainWindow::reTranslateUI()
     highlightersMenu->setTitle( transMenu( menu::highlightersTitle ) );
     favoritesMenu->setTitle( transMenu( menu::favoritesTitle ) );
     helpMenu->setTitle( transMenu( menu::helpTitle ) );
+    encodingMenu->setTitle( transMenu( menu::encodingTitle ) );
+    // Titled in the window's own context, where their translations are (#913).
+    recentFilesMenu->setTitle( tr( "Open Recent" ) );
+    pluginsMenu->setTitle( tr( "P&lugins" ) );
+    sourcesMenu->setTitle( tr( "&Sources" ) );
 
     // toolbar
     toolBar->setToolTip(
@@ -1511,7 +1516,8 @@ void MainWindow::createMenus()
     viewMenu->addAction( textWrapAction );
     viewMenu->addAction( showValueNamesAction );
     viewMenu->addAction( matchesOnlyAction );
-    viewMenu->addMenu( EncodingMenu::generate( encodingGroup, session_.fileAccessPolicy() ) );
+    encodingMenu = EncodingMenu::generate( encodingGroup, session_.fileAccessPolicy() );
+    viewMenu->addMenu( encodingMenu );
     viewMenu->addSeparator();
     viewMenu->addAction( followAction );
     viewMenu->addAction( reloadAction );

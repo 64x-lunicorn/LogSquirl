@@ -53,6 +53,7 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QTranslator>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -889,6 +890,89 @@ SCENARIO( "The entries of the menu bar are named, cased and spelled one way", "[
                 }
                 // Every entry the Shortcuts list gives keys to, not a few.
                 CHECK( named >= 30 );
+            }
+        }
+    }
+}
+
+namespace {
+
+/// A language in which every text is its source behind a marker: whatever
+/// is retitled from its translation source shows the marker.
+class MarkingTranslator : public QTranslator {
+public:
+    static QString marked( const QString& source )
+    {
+        return QStringLiteral( "[xx] " ) + source;
+    }
+
+    QString translate( const char* /*context*/, const char* sourceText,
+                       const char* /*disambiguation*/ = nullptr, int /*n*/ = -1 ) const override
+    {
+        if ( sourceText == nullptr || *sourceText == '\0' ) {
+            return {};
+        }
+        return marked( QString::fromUtf8( sourceText ) );
+    }
+
+    bool isEmpty() const override
+    {
+        return false;
+    }
+};
+
+/// The title of every menu and submenu of the menu bar, by path.
+std::vector<std::pair<QString, QString>> menuTitles( MainWindow& window )
+{
+    std::vector<std::pair<QString, QString>> titles;
+    for ( const auto& [ path, menu ] : menuBarMenus( window ) ) {
+        titles.emplace_back( path, menu->title() );
+    }
+    return titles;
+}
+
+} // namespace
+
+// A language change retitles every menu of the menu bar, the Plugins and
+// Sources menus and the Open Recent and Encoding submenus too (#913).
+SCENARIO( "A language change retitles every menu and submenu of the menu bar", "[ui][menubar]" )
+{
+    GIVEN( "a shown window" )
+    {
+        const ShownWindow shown;
+        const auto before = menuTitles( *shown.window );
+        REQUIRE( before.size() >= 7 );
+
+        WHEN( "the language changes" )
+        {
+            MarkingTranslator translator;
+            REQUIRE( QCoreApplication::installTranslator( &translator ) );
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::LanguageChange );
+            QCoreApplication::processEvents();
+
+            THEN( "every menu and submenu title is its translation" )
+            {
+                const auto after = menuTitles( *shown.window );
+                REQUIRE( after.size() == before.size() );
+                for ( std::size_t index = 0; index < before.size(); ++index ) {
+                    // The Encoding families are named by the Encodings they
+                    // hold, in no language.
+                    if ( before[ index ].first.startsWith( QStringLiteral( "View/Encoding/" ) ) ) {
+                        continue;
+                    }
+                    INFO( before[ index ].first.toStdString() );
+                    CHECK( after[ index ].second
+                           == MarkingTranslator::marked( before[ index ].second ) );
+                }
+            }
+
+            QCoreApplication::removeTranslator( &translator );
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::LanguageChange );
+            QCoreApplication::processEvents();
+
+            THEN( "going back retitles them as they were" )
+            {
+                CHECK( menuTitles( *shown.window ) == before );
             }
         }
     }

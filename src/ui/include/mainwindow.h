@@ -545,6 +545,7 @@ private:
     QMenu* pluginsMenu;
     QMenu* sourcesMenu;
     QMenu* helpMenu;
+    QMenu* encodingMenu = nullptr;
 
     PathLine* infoLine;
     // The Team Folder's state, quietly: shown only while there is a Team
