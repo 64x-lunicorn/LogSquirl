@@ -25,6 +25,7 @@
 #include <optional>
 #include <vector>
 
+#include <QCoreApplication>
 #include <QString>
 #include <QStringList>
 
@@ -51,6 +52,10 @@ class QWidget;
 // - the plugin block at the end: the entries plugins added.
 // The top level keeps at most 12 entries, the plugins' not counted.
 class PresentationMenu {
+    // Its strings are translated under its name; lupdate finds them as
+    // PresentationMenu::tr() (#911).
+    Q_DECLARE_TR_FUNCTIONS( PresentationMenu )
+
 public:
     // What the Presentation reports as its context menu opens.
     struct Report {

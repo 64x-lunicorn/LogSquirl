@@ -36,11 +36,6 @@
 
 namespace {
 
-QString tr( const char* text )
-{
-    return QCoreApplication::translate( "PresentationMenu", text );
-}
-
 // An entry calling action when chosen, if there is an action.
 QAction* addEntry( QMenu& menu, const QString& text, std::function<void()> action )
 {
@@ -78,7 +73,7 @@ void addColorLabels( QMenu& colorLabelsMenu, const PresentationMenu::Report& rep
                           }
                       } );
 
-    auto* noneAction = colorLabelsMenu.addAction( tr( "None" ) );
+    auto* noneAction = colorLabelsMenu.addAction( PresentationMenu::tr( "None" ) );
     noneAction->setActionGroup( colorLabelsActionGroup );
     noneAction->setCheckable( true );
     noneAction->setChecked( !currentLabel.has_value() );
@@ -108,7 +103,7 @@ void addColorLabels( QMenu& colorLabelsMenu, const PresentationMenu::Report& rep
         colorLabelAction->setIconVisibleInMenu( true );
     }
     colorLabelsMenu.addSeparator();
-    addEntry( colorLabelsMenu, tr( "Clear all" ), entries.clearColorLabels );
+    addEntry( colorLabelsMenu, PresentationMenu::tr( "Clear all" ), entries.clearColorLabels );
 }
 
 // The plugins' entries at the end of menu, each in the submenus its path
@@ -168,44 +163,56 @@ void addSelectionBlock( QMenu& menu, const Opened& opened )
     const auto& entries = opened.entries;
     const bool textWithinLogLine = opened.textWithinLogLine;
 
-    auto* copy = addEntry( menu, opened.oneWholeLogLine ? tr( "&Copy this line" ) : tr( "&Copy" ),
+    auto* copy = addEntry( menu,
+                           opened.oneWholeLogLine ? PresentationMenu::tr( "&Copy this line" )
+                                                  : PresentationMenu::tr( "&Copy" ),
                            entries.copy );
     copy->setEnabled( opened.hasSelection );
     if ( !opened.oneWholeLogLine ) {
-        copy->setStatusTip( tr( "Copy the selection" ) );
+        copy->setStatusTip( PresentationMenu::tr( "Copy the selection" ) );
     }
     if ( entries.copyAsShown ) {
-        auto* copyAsShown = addEntry( menu, tr( "Copy as shown" ), entries.copyAsShown );
-        copyAsShown->setStatusTip( tr( "Copy the selection as shown, with its Value Names" ) );
+        auto* copyAsShown
+            = addEntry( menu, PresentationMenu::tr( "Copy as shown" ), entries.copyAsShown );
+        copyAsShown->setStatusTip(
+            PresentationMenu::tr( "Copy the selection as shown, with its Value Names" ) );
         copyAsShown->setEnabled( opened.hasSelection && report.showsValueNames );
     }
 
     menu.addSeparator();
-    auto* replaceSearch = addEntry( menu, tr( "&Replace search" ), entries.replaceSearch );
-    replaceSearch->setStatusTip( tr( "Replace the search expression with the selection" ) );
+    auto* replaceSearch
+        = addEntry( menu, PresentationMenu::tr( "&Replace search" ), entries.replaceSearch );
+    replaceSearch->setStatusTip(
+        PresentationMenu::tr( "Replace the search expression with the selection" ) );
     replaceSearch->setEnabled( textWithinLogLine );
-    auto* addToSearch = addEntry( menu, tr( "&Add to search" ), entries.addToSearch );
-    addToSearch->setStatusTip( tr( "Add the selection to the current search" ) );
+    auto* addToSearch
+        = addEntry( menu, PresentationMenu::tr( "&Add to search" ), entries.addToSearch );
+    addToSearch->setStatusTip( PresentationMenu::tr( "Add the selection to the current search" ) );
     addToSearch->setEnabled( textWithinLogLine );
-    addEntry( menu, tr( "&Exclude from search" ),
+    addEntry( menu, PresentationMenu::tr( "&Exclude from search" ),
               [ textWithinLogLine, excludeFromSearch = entries.excludeFromSearch ]() {
                   if ( textWithinLogLine && excludeFromSearch ) {
                       excludeFromSearch();
                   }
               } )
-        ->setStatusTip( tr( "Excludes the selection from search" ) );
+        ->setStatusTip( PresentationMenu::tr( "Excludes the selection from search" ) );
     // The Table View's cell: the Search narrowed to the Log Lines whose
     // field has the cell's value, as a Field Term (#798).
     if ( entries.searchValueInColumn && !report.columnUnderCursor.isEmpty() ) {
-        addEntry( menu, tr( "Search this value in %1" ).arg( report.columnUnderCursor ),
+        addEntry( menu,
+                  PresentationMenu::tr( "Search this value in %1" ).arg( report.columnUnderCursor ),
                   entries.searchValueInColumn )
-            ->setStatusTip( tr( "Narrows the search to the lines whose %1 field has the value "
+            ->setStatusTip( PresentationMenu::tr(
+                                "Narrows the search to the lines whose %1 field has the value "
                                 "of this cell, as a logical combination" )
                                 .arg( report.columnUnderCursor ) );
     }
 
     menu.addSeparator();
-    addEntry( menu, report.hasUnmarkedLogLines ? tr( "&Mark" ) : tr( "Unmark" ), entries.mark )
+    addEntry( menu,
+              report.hasUnmarkedLogLines ? PresentationMenu::tr( "&Mark" )
+                                         : PresentationMenu::tr( "Unmark" ),
+              entries.mark )
         ->setEnabled( opened.hasSelection );
 
     // A Value Name made from the value the user points at (#883); one a
@@ -224,26 +231,31 @@ void addSelectionBlock( QMenu& menu, const Opened& opened )
         const auto table = shown( captured.table );
         QString text;
         if ( captured.teamGroup ) {
-            text = captured.named
-                       ? tr( "Rename %1 %2 (Team group, read-only)" ).arg( table, value )
-                       : tr( "Name %1 in %2 (Team group, read-only)" ).arg( value, table );
+            text = captured.named ? PresentationMenu::tr( "Rename %1 %2 (Team group, read-only)" )
+                                        .arg( table, value )
+                                  : PresentationMenu::tr( "Name %1 in %2 (Team group, read-only)" )
+                                        .arg( value, table );
         }
         else {
-            text = captured.named ? tr( "Rename %1 %2..." ).arg( table, value )
-                                  : tr( "Name %1 in %2..." ).arg( value, table );
+            text = captured.named ? PresentationMenu::tr( "Rename %1 %2..." ).arg( table, value )
+                                  : PresentationMenu::tr( "Name %1 in %2..." ).arg( value, table );
         }
         auto* nameValue = addEntry( menu, text, entries.nameValue );
         nameValue->setEnabled( !captured.teamGroup );
         nameValue->setStatusTip(
             captured.teamGroup
-                ? tr( "The Naming Rule is a Team group's: change its Name Table in the Value Names "
+                ? PresentationMenu::tr(
+                      "The Naming Rule is a Team group's: change its Name Table in the Value Names "
                       "dialog" )
-            : captured.named ? tr( "Change the name the Name Table gives this value" )
-                             : tr( "Add the value to the Name Table its Naming Rule uses" ) );
+            : captured.named
+                ? PresentationMenu::tr( "Change the name the Name Table gives this value" )
+                : PresentationMenu::tr( "Add the value to the Name Table its Naming Rule uses" ) );
     }
     else if ( entries.nameValue ) {
-        auto* nameValue = addEntry( menu, tr( "Name this value..." ), entries.nameValue );
-        nameValue->setStatusTip( tr( "Show this value of the Log Line as a name" ) );
+        auto* nameValue
+            = addEntry( menu, PresentationMenu::tr( "Name this value..." ), entries.nameValue );
+        nameValue->setStatusTip(
+            PresentationMenu::tr( "Show this value of the Log Line as a name" ) );
         nameValue->setEnabled( report.hasValueToName );
     }
 }
@@ -254,20 +266,21 @@ void addViewBlock( QMenu& menu, const Opened& opened )
 {
     // A Highlighter made from the text selected within a Log Line (#896).
     if ( opened.entries.highlightThis ) {
-        auto* highlightThis
-            = addEntry( menu, tr( "Highlight this..." ), opened.entries.highlightThis );
-        highlightThis->setStatusTip( tr( "Color the selected text with a new Highlighter" ) );
+        auto* highlightThis = addEntry( menu, PresentationMenu::tr( "Highlight this..." ),
+                                        opened.entries.highlightThis );
+        highlightThis->setStatusTip(
+            PresentationMenu::tr( "Color the selected text with a new Highlighter" ) );
         highlightThis->setEnabled( opened.textWithinLogLine
                                    && !opened.report.selectedText.isEmpty() );
     }
 
-    auto* highlightersMenu = new HighlightersMenu( tr( "Highlighters" ), &menu );
+    auto* highlightersMenu = new HighlightersMenu( PresentationMenu::tr( "Highlighters" ), &menu );
     highlightersMenu->createHighlightersMenu();
     highlightersMenu->populateHighlightersMenu();
     highlightersMenu->setApplyChange( opened.entries.highlightersChange );
     menu.addMenu( highlightersMenu );
 
-    auto* colorLabelsMenu = menu.addMenu( tr( "Color labels" ) );
+    auto* colorLabelsMenu = menu.addMenu( PresentationMenu::tr( "Color labels" ) );
     colorLabelsMenu->setEnabled( opened.textWithinLogLine || opened.oneWholeLogLine );
     if ( colorLabelsMenu->isEnabled() ) {
         addColorLabels( *colorLabelsMenu, opened.report, opened.entries );
@@ -282,32 +295,33 @@ void addMoreSubmenu( QMenu& menu, const Opened& opened )
     const auto& entries = opened.entries;
     const bool oneWholeLogLine = opened.oneWholeLogLine;
 
-    auto& more = *menu.addMenu( tr( "More" ) );
+    auto& more = *menu.addMenu( PresentationMenu::tr( "More" ) );
 
     addEntry( more,
-              oneWholeLogLine ? tr( "Copy this line with line number" )
-                              : tr( "Copy with line numbers" ),
+              oneWholeLogLine ? PresentationMenu::tr( "Copy this line with line number" )
+                              : PresentationMenu::tr( "Copy with line numbers" ),
               entries.copyWithLineNumbers )
         ->setEnabled( opened.hasSelection );
-    addEntry( more, tr( "Send to scratchpad" ), entries.sendToScratchpad )
+    addEntry( more, PresentationMenu::tr( "Send to scratchpad" ), entries.sendToScratchpad )
         ->setEnabled( opened.hasSelection );
-    addEntry( more, tr( "Replace scratchpad" ), entries.replaceScratchpad )
+    addEntry( more, PresentationMenu::tr( "Replace scratchpad" ), entries.replaceScratchpad )
         ->setEnabled( opened.hasSelection );
 
     more.addSeparator();
     // The shortcuts are the Text View's, shown there as a reminder; the Table
     // View does not bind them.
-    auto* findNext = addEntry( more, tr( "Find &next" ), entries.findNext );
+    auto* findNext = addEntry( more, PresentationMenu::tr( "Find &next" ), entries.findNext );
     if ( report.drawnLikeTextView ) {
         findNext->setShortcut( Qt::Key_Asterisk );
     }
-    findNext->setStatusTip( tr( "Find the next occurrence" ) );
+    findNext->setStatusTip( PresentationMenu::tr( "Find the next occurrence" ) );
     findNext->setEnabled( opened.textWithinLogLine );
-    auto* findPrevious = addEntry( more, tr( "Find &previous" ), entries.findPrevious );
+    auto* findPrevious
+        = addEntry( more, PresentationMenu::tr( "Find &previous" ), entries.findPrevious );
     if ( report.drawnLikeTextView ) {
-        findPrevious->setShortcut( QKeySequence( tr( "/" ) ) );
+        findPrevious->setShortcut( QKeySequence( PresentationMenu::tr( "/" ) ) );
     }
-    findPrevious->setStatusTip( tr( "Find the previous occurrence" ) );
+    findPrevious->setStatusTip( PresentationMenu::tr( "Find the previous occurrence" ) );
     findPrevious->setEnabled( opened.textWithinLogLine );
 
     more.addSeparator();
@@ -319,40 +333,41 @@ void addMoreSubmenu( QMenu& menu, const Opened& opened )
     // The Text View sets them only while one whole Log Line is selected.
     const bool canSetSearchLimit
         = searchLimitLine.has_value() && ( !report.drawnLikeTextView || oneWholeLogLine );
-    addEntry( more, tr( "Set search start" ),
+    addEntry( more, PresentationMenu::tr( "Set search start" ),
               [ searchLimitLine, setSearchStart = entries.setSearchStart ]() {
                   if ( searchLimitLine && setSearchStart ) {
                       setSearchStart( *searchLimitLine );
                   }
               } )
         ->setEnabled( canSetSearchLimit );
-    addEntry( more, tr( "Set search end" ),
+    addEntry( more, PresentationMenu::tr( "Set search end" ),
               [ searchLimitLine, setSearchEnd = entries.setSearchEnd ]() {
                   if ( searchLimitLine && setSearchEnd ) {
                       setSearchEnd( *searchLimitLine );
                   }
               } )
         ->setEnabled( canSetSearchLimit );
-    addEntry( more, tr( "Clear search limits" ), entries.clearSearchLimits );
+    addEntry( more, PresentationMenu::tr( "Clear search limits" ), entries.clearSearchLimits );
 
     if ( entries.setSelectionStart || entries.setSelectionEnd ) {
         more.addSeparator();
-        addEntry( more, tr( "Set selection start" ), entries.setSelectionStart )
+        addEntry( more, PresentationMenu::tr( "Set selection start" ), entries.setSelectionStart )
             ->setEnabled( oneWholeLogLine );
-        addEntry( more, tr( "Set selection end" ), entries.setSelectionEnd )
+        addEntry( more, PresentationMenu::tr( "Set selection end" ), entries.setSelectionEnd )
             ->setEnabled( oneWholeLogLine && report.selectionStartSet );
     }
 
     more.addSeparator();
-    addEntry( more, tr( "Save selected to file" ), entries.saveSelectedToFile )
+    addEntry( more, PresentationMenu::tr( "Save selected to file" ), entries.saveSelectedToFile )
         ->setEnabled( opened.hasSelection );
-    addEntry( more, tr( "Save to file" ), entries.saveToFile );
+    addEntry( more, PresentationMenu::tr( "Save to file" ), entries.saveToFile );
     if ( entries.exportAsCsv ) {
-        addEntry( more, tr( "Export as CSV..." ), entries.exportAsCsv );
+        addEntry( more, PresentationMenu::tr( "Export as CSV..." ), entries.exportAsCsv );
     }
 
     more.addSeparator();
-    addEntry( more, tr( "Save splitter position" ), entries.saveSplitterPosition );
+    addEntry( more, PresentationMenu::tr( "Save splitter position" ),
+              entries.saveSplitterPosition );
 }
 
 } // namespace
