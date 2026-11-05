@@ -207,6 +207,16 @@ void addSelectionBlock( QMenu& menu, const Opened& opened )
                                 "of this cell, as a logical combination" )
                                 .arg( report.columnUnderCursor ) );
     }
+    // A Predefined Filter made from the text selected within a Log Line
+    // (#897).
+    if ( entries.addAsPredefinedFilter ) {
+        auto* addAsPredefinedFilter
+            = addEntry( menu, PresentationMenu::tr( "Add as Predefined Filter..." ),
+                        entries.addAsPredefinedFilter );
+        addAsPredefinedFilter->setStatusTip(
+            PresentationMenu::tr( "Save the selection as a Predefined Filter" ) );
+        addAsPredefinedFilter->setEnabled( textWithinLogLine && !report.selectedText.isEmpty() );
+    }
 
     menu.addSeparator();
     addEntry( menu,

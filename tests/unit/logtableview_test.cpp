@@ -585,6 +585,10 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
                 // view's own entries (#896).
                 auto textTopShown = textTop;
                 textTopShown.insert( textTopShown.indexOf( "Highlighters" ), "Highlight this..." );
+                // and adds it as a Predefined Filter, with the Search entries
+                // (#897).
+                textTopShown.insert( textTopShown.indexOf( "&Mark" ),
+                                     "Add as Predefined Filter..." );
 
                 REQUIRE( entriesOf( *tableMenu ) == tableTop );
                 REQUIRE( moreEntriesOf( *tableMenu ) == tableMore );

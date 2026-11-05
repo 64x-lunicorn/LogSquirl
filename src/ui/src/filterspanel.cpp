@@ -203,8 +203,13 @@ void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
 
     updatingTree_ = false;
 
-    // Emit current selection if any pinned filters were auto-checked.
-    emitCurrentSelection();
+    // Emit current selection if any pinned filters were auto-checked, or
+    // one that was has gone. With none checked before or now, the Search is
+    // left as it is: refilling the tree after a filter was added replaced it
+    // with an empty one (#897).
+    if ( !pinnedFilterKeys_.isEmpty() ) {
+        emitCurrentSelection();
+    }
 }
 
 void FiltersPanel::onItemChanged( QTreeWidgetItem* item, int column )

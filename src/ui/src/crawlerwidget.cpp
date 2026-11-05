@@ -1371,6 +1371,12 @@ void CrawlerWidget::setSearchPatternFromPredefinedFilters( const QList<Predefine
     runEditedPattern( searchLine_->useFilters( filters ) );
 }
 
+void CrawlerWidget::searchWithPredefinedFilter( const PredefinedFilter& filter )
+{
+    searchLine_->useFilters( { filter } );
+    runEditedPattern( true );
+}
+
 void CrawlerWidget::addToSearch( const QString& searchString )
 {
     runEditedPattern( searchLine_->add( searchString ) );
@@ -1630,6 +1636,9 @@ void CrawlerWidget::setup()
     // offer (#896).
     connect( logMainView_, &LogMainView::highlightThisRequested, this,
              &CrawlerWidget::highlightThisRequested );
+    // Add as Predefined Filter..., as Highlight this... (#897).
+    connect( logMainView_, &LogMainView::addAsPredefinedFilterRequested, this,
+             &CrawlerWidget::addAsPredefinedFilterRequested );
     connect( logTableView_, &LogTableView::countValuesRequested, this,
              &CrawlerWidget::countFieldValues );
     // Matches Only and the Field Term of a cell (#798)
@@ -2047,6 +2056,8 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
     // Highlight this... of the Filtered View, as of the Text View (#896).
     connect( view, &FilteredView::highlightThisRequested, this,
              &CrawlerWidget::highlightThisRequested );
+    connect( view, &FilteredView::addAsPredefinedFilterRequested, this,
+             &CrawlerWidget::addAsPredefinedFilterRequested );
 
     connect( view, &FilteredView::mouseLeftHoveringZone, overviewWidget_,
              &OverviewWidget::removeHighlight );

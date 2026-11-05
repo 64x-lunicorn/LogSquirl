@@ -231,7 +231,8 @@ opens the same menu, sorted by how often its entries are used:
 
 - At the top, what you do with the selection: *Copy*, *Copy as shown*,
   *Replace search*, *Add to search*, *Exclude from search* (and, in the table
-  view, *Search this value in* the column) and *Mark*.
+  view, *Search this value in* the column; in the main and the filtered view,
+  *Add as Predefined Filter...*) and *Mark*.
 - Then the view's own entries: *Highlight this...* (in the main and the
   filtered view), *Highlighters* and *Color labels*.
 - **More** holds the rest: *Copy with line numbers*, the scratchpad entries,
@@ -534,6 +535,16 @@ double-clicking a filter or a group checks only that one.
 
 It is possible to save the current search pattern as a predefined filter with
 *Save as Filter* from the search input context menu.
+
+Text selected within a line of the main or the filtered view becomes a
+predefined filter with *Add as Predefined Filter...* in the context menu of the
+lines. The dialog proposes the selection, on one line and cut short when long,
+as the name, and the selection escaped as a regular expression as the pattern,
+so that the filter matches the selected text as it is; both can be edited. It
+adds the filter to the Default group unless you pick another of your own groups.
+With *Search with it now* checked, OK also makes the filter the search pattern
+of the tab and runs the search at once; a search line with *Use regex* off
+reads the pattern as plain text.
 
 Predefined filters are kept in filter groups. The dialog lists the groups
 (*New Filter Group*, *Delete Filter Group*, *Move Filter Group Up* and *Move

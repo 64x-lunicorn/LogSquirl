@@ -164,6 +164,11 @@ public:
         // Presentation drawn like the Text View; left empty, the menu offers
         // no Highlight this...
         std::function<void()> highlightThis;
+        // Open the dialog turning the text selected within a Log Line into a
+        // Predefined Filter (#897), offered with the selection's Search
+        // entries. Only for a Presentation drawn like the Text View; left
+        // empty, the menu offers no Add as Predefined Filter...
+        std::function<void()> addAsPredefinedFilter;
         // The plugins' entries, in their order, below a separator at the end
         // of the menu, always enabled; without any, there is no separator.
         std::vector<PluginEntry> plugins;

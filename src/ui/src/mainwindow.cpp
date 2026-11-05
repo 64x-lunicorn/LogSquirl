@@ -96,6 +96,7 @@
 
 #include "mainwindow.h"
 
+#include "addpredefinedfilterdialog.h"
 #include "archiveextraction.h"
 #include "chipmunkimporter.h"
 #include "clipboard.h"
@@ -2087,6 +2088,22 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
     dialog.exec();
 }
 
+void MainWindow::addAsPredefinedFilter( const QString& selectedText )
+{
+    AddPredefinedFilterDialog dialog( selectedText, this );
+    if ( dialog.exec() != QDialog::Accepted ) {
+        return;
+    }
+    // Saved as the Predefined Filters dialog saves them; only the Filters
+    // panel lists them.
+    filtersPanel_.refreshFilters();
+    if ( dialog.applyNow() ) {
+        if ( auto* crawler = currentCrawlerWidget() ) {
+            crawler->searchWithPredefinedFilter( dialog.filter() );
+        }
+    }
+}
+
 // Opens the Value Names dialog. OK and Apply change the Value Names
 // Collection, which every open Log File and every window is told of (#647).
 void MainWindow::editValueNames()
@@ -3260,6 +3277,8 @@ void MainWindow::connectFrontTab( CrawlerWidget* crawler )
         connect( crawler, &CrawlerWidget::statusMessage, this, &MainWindow::showStatusMessage ),
         connect( crawler, &CrawlerWidget::highlightThisRequested, this,
                  &MainWindow::highlightThis ),
+        connect( crawler, &CrawlerWidget::addAsPredefinedFilterRequested, this,
+                 &MainWindow::addAsPredefinedFilter ),
         connect( crawler, &CrawlerWidget::filteredViewChanged, this,
                  &MainWindow::handleFilteredViewChanged ),
     };

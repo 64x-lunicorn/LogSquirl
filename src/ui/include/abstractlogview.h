@@ -375,6 +375,9 @@ Q_SIGNALS:
     // within logLine, both expanded as the Highlighters are matched against
     // them.
     void highlightThisRequested( const QString& selectedText, const QString& logLine );
+    // Add as Predefined Filter... was chosen (#897): selectedText is the text
+    // selected within a Log Line.
+    void addAsPredefinedFilterRequested( const QString& selectedText );
     // Sent up when the mouse is hovered over a line's margin
     void mouseHoveredOverLine( LineNumber line );
     // Sent up when the mouse leaves a line's margin
@@ -472,6 +475,7 @@ private Q_SLOTS:
     void replaceSearch();
     void excludeFromSearch();
     void highlightThis();
+    void addAsPredefinedFilter();
     void findNextSelected();
     void findPreviousSelected();
     void copy();

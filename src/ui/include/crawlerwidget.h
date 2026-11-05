@@ -368,6 +368,9 @@ Q_SIGNALS:
     // Sent up when Highlight this... was chosen in the Text View or a
     // Filtered View (#896), as AbstractLogView::highlightThisRequested.
     void highlightThisRequested( const QString& selectedText, const QString& logLine );
+    // Sent up when Add as Predefined Filter... was chosen in the Text View or
+    // a Filtered View (#897), as AbstractLogView::addAsPredefinedFilterRequested.
+    void addAsPredefinedFilterRequested( const QString& selectedText );
 
     void sendToScratchpad( QString );
     void replaceDataInScratchpad( QString );
@@ -409,6 +412,10 @@ Q_SIGNALS:
 public Q_SLOTS:
     // Apply a list of predefined filters as the current search pattern.
     void setSearchPatternFromPredefinedFilters( const QList<PredefinedFilter>& filters );
+    // Runs the Search with the Predefined Filter as its pattern, whether or
+    // not the Search runs on a change of its pattern: the user asked for it
+    // (#897).
+    void searchWithPredefinedFilter( const PredefinedFilter& filter );
 
 private Q_SLOTS:
     // Offers a Value Count of each capture group of the current Search.

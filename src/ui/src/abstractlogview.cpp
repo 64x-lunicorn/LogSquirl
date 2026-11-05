@@ -1659,6 +1659,14 @@ void AbstractLogView::highlightThis()
     }
 }
 
+// Ask for a Predefined Filter of the text selected within a Log Line (#897)
+void AbstractLogView::addAsPredefinedFilter()
+{
+    if ( selection_.isPortion() ) {
+        Q_EMIT addAsPredefinedFilterRequested( getSelectedText() );
+    }
+}
+
 // Find next occurrence of the selected text (*)
 void AbstractLogView::findNextSelected()
 {
@@ -2556,6 +2564,7 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
     entries.addToSearch = [ this ]() { addToSearch(); };
     entries.excludeFromSearch = [ this ]() { excludeFromSearch(); };
     entries.highlightThis = [ this ]() { highlightThis(); };
+    entries.addAsPredefinedFilter = [ this ]() { addAsPredefinedFilter(); };
     entries.setSearchStart = [ this ]( LineNumber logLine ) { setSearchStart( logLine ); };
     entries.setSearchEnd = [ this ]( LineNumber logLine ) { setSearchEnd( logLine ); };
     entries.clearSearchLimits = [ this ]() { Q_EMIT clearSearchLimits(); };
