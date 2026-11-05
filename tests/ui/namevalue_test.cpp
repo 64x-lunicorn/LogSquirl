@@ -52,6 +52,7 @@
 #include "shown_widget.h"
 #include "test_policies.h"
 #include "test_utils.h"
+#include "valuenamer.h"
 #include "valuenames_fixture.h"
 #include "valuenamescollection.h"
 
@@ -928,6 +929,31 @@ SCENARIO( "A further value of an existing Naming Rule is named from its Log Line
                     groups[ 1 ].tables().front().rows
                     == QList<NameRow>{ NameRow{ QStringLiteral( "9" ), QStringLiteral( "Go" ) } } );
             }
+        }
+    }
+
+    WHEN( "the row naming the value moved after the menu looked it up" )
+    {
+        const auto line = QStringLiteral( "modem EsimState=9 done" );
+        const auto range = rangeOf( line, QStringLiteral( "9" ) );
+        const auto captured = logsquirl::valuenames::capturedValueIn(
+            ValueNamesCollection::get().groups(), line, range.start, range.length );
+        REQUIRE( captured.has_value() );
+        REQUIRE( captured->row == 0 );
+        auto moved = modem;
+        auto tables = moved.tables();
+        tables.front().rows.prepend( NameRow{ QStringLiteral( "1" ), QStringLiteral( "Idle" ) } );
+        moved.setTables( tables );
+        StoredValueNamesGuard::storeGroups(
+            { NamingGroup::createNewGroup( QStringLiteral( "Other" ) ), moved } );
+
+        NameValueDialog dialog( line, *captured );
+
+        THEN( "the dialog selects the row as the groups are now" )
+        {
+            auto* rows = childOf<QTableWidget>( dialog, QStringLiteral( "nameRows" ) );
+            REQUIRE( rows->rowCount() == 2 );
+            REQUIRE( rows->currentRow() == 1 );
         }
     }
 

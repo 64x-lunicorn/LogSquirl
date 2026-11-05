@@ -34,6 +34,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include "groupedits.h"
 #include "highlighteredit.h"
 #include "highlighterpresets.h"
 #include "highlighterset.h"
@@ -48,18 +49,15 @@ const HighlighterColorPreset& presetForNewHighlighter( qsizetype existingHighlig
                                                            % SoftHighlighterColorPresetCount ) ];
 }
 
-// A name for a new set none of the sets has.
+// A name for a new set none of the sets has, made unique as every group name
+// is.
 QString freeSetName( const QString& name, const QList<HighlighterSet>& sets )
 {
-    const auto taken = [ &sets ]( const QString& candidate ) {
-        return std::any_of( sets.cbegin(), sets.cend(),
-                            [ &candidate ]( const auto& set ) { return set.name() == candidate; } );
-    };
-    auto candidate = name;
-    for ( int number = 2; taken( candidate ); ++number ) {
-        candidate = QStringLiteral( "%1 %2" ).arg( name ).arg( number );
+    QStringList taken;
+    for ( const auto& set : sets ) {
+        taken.append( set.name() );
     }
-    return candidate;
+    return logsquirl::valuenames::freeName( name, taken );
 }
 
 QString colorStyle( const QColor& foreColor, const QColor& backColor )

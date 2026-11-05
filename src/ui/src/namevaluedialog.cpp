@@ -98,6 +98,12 @@ NameValueDialog::NameValueDialog( const QString& logLine, const CapturedValue& c
     }
     else {
         captured_ = captured;
+        // The row naming it as the groups are now: a sync may have moved it.
+        const auto now = logsquirl::valuenames::capturedValueIn( groups_, logLine, captured.start,
+                                                                 captured.length );
+        captured_->row = now && now->groupId == captured.groupId && now->table == captured.table
+                             ? now->row
+                             : -1;
         proposal_.value = captured.value;
         proposal_.valueRange = LineRange{ captured.start, captured.length };
         proposal_.pattern = rule->pattern;
