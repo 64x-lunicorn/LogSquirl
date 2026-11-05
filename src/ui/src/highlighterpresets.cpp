@@ -21,6 +21,8 @@
 
 #include <QColorDialog>
 #include <QCoreApplication>
+#include <QPainter>
+#include <QPixmap>
 
 namespace {
 const QColor SoftText( "#1B1B1B" );
@@ -94,4 +96,22 @@ void installHighlighterDialogColors()
     for ( int i = 0; i < static_cast<int>( colors.size() ); ++i ) {
         QColorDialog::setStandardColor( i, colors[ static_cast<size_t>( i ) ] );
     }
+}
+
+QIcon colorPresetIcon( const HighlighterColorPreset& preset, qreal devicePixelRatio )
+{
+    const QSize size( 30, 18 );
+    QPixmap pixmap( size * devicePixelRatio );
+    pixmap.setDevicePixelRatio( devicePixelRatio );
+    pixmap.fill( preset.backColor );
+
+    QPainter painter( &pixmap );
+    painter.setRenderHint( QPainter::TextAntialiasing );
+    QFont font = painter.font();
+    font.setPixelSize( 11 );
+    font.setBold( true );
+    painter.setFont( font );
+    painter.setPen( preset.foreColor );
+    painter.drawText( QRect( QPoint( 0, 0 ), size ), Qt::AlignCenter, QStringLiteral( "Aa" ) );
+    return QIcon( pixmap );
 }

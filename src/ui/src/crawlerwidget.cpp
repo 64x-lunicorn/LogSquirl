@@ -1626,6 +1626,10 @@ void CrawlerWidget::setup()
     // What the user does in either Presentation
     connectPresentation( logMainView_ );
     connectPresentation( logTableView_ );
+    // Highlight this..., which only the Text View and the Filtered Views
+    // offer (#896).
+    connect( logMainView_, &LogMainView::highlightThisRequested, this,
+             &CrawlerWidget::highlightThisRequested );
     connect( logTableView_, &LogTableView::countValuesRequested, this,
              &CrawlerWidget::countFieldValues );
     // Matches Only and the Field Term of a cell (#798)
@@ -2039,6 +2043,10 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
 
     connect( view, &FilteredView::mouseHoveredOverLine, this,
              &CrawlerWidget::mouseHoveredOverMatch );
+
+    // Highlight this... of the Filtered View, as of the Text View (#896).
+    connect( view, &FilteredView::highlightThisRequested, this,
+             &CrawlerWidget::highlightThisRequested );
 
     connect( view, &FilteredView::mouseLeftHoveringZone, overviewWidget_,
              &OverviewWidget::removeHighlight );

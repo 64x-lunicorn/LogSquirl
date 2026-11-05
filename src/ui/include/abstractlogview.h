@@ -371,6 +371,10 @@ Q_SIGNALS:
     // Sent up when the user wants to replace the search with the selection
     void replaceSearch( const QString& selection );
     void excludeFromSearch( const QString& selection );
+    // Highlight this... was chosen (#896): selectedText is the text selected
+    // within logLine, both expanded as the Highlighters are matched against
+    // them.
+    void highlightThisRequested( const QString& selectedText, const QString& logLine );
     // Sent up when the mouse is hovered over a line's margin
     void mouseHoveredOverLine( LineNumber line );
     // Sent up when the mouse leaves a line's margin
@@ -467,6 +471,7 @@ private Q_SLOTS:
     void addToSearch();
     void replaceSearch();
     void excludeFromSearch();
+    void highlightThis();
     void findNextSelected();
     void findPreviousSelected();
     void copy();

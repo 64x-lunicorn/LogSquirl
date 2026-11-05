@@ -112,6 +112,7 @@
 #include "firststartfileassociationsdialog.h"
 #include "highlightersdialog.h"
 #include "highlightersmenu.h"
+#include "highlightthisdialog.h"
 #include "indexcache.h"
 #include "instancehandover.h"
 #include "issuereporter.h"
@@ -2002,6 +2003,17 @@ void MainWindow::editHighlighters()
     dialog.exec();
 }
 
+void MainWindow::highlightThis( const QString& selectedText, const QString& logLine )
+{
+    HighlightThisDialog dialog( selectedText, logLine, this );
+    // The dialog reads the sets from the settings store, as the Highlighters
+    // dialog does; OK changed them, and every open Log File is recolored.
+    if ( dialog.exec() == QDialog::Accepted ) {
+        session_.applyChange( Changed::HighlighterSets );
+        updateHighlightersMenu();
+    }
+}
+
 void MainWindow::openRegexLab()
 {
     if ( regexLab_.isNull() ) {
@@ -3240,6 +3252,8 @@ void MainWindow::connectFrontTab( CrawlerWidget* crawler )
         connect( crawler, &CrawlerWidget::loadingFinished, this,
                  &MainWindow::handleLoadingFinished ),
         connect( crawler, &CrawlerWidget::statusMessage, this, &MainWindow::showStatusMessage ),
+        connect( crawler, &CrawlerWidget::highlightThisRequested, this,
+                 &MainWindow::highlightThis ),
         connect( crawler, &CrawlerWidget::filteredViewChanged, this,
                  &MainWindow::handleFilteredViewChanged ),
     };

@@ -232,7 +232,8 @@ opens the same menu, sorted by how often its entries are used:
 - At the top, what you do with the selection: *Copy*, *Copy as shown*,
   *Replace search*, *Add to search*, *Exclude from search* (and, in the table
   view, *Search this value in* the column) and *Mark*.
-- Then the view's own entries: *Highlighters* and *Color labels*.
+- Then the view's own entries: *Highlight this...* (in the main and the
+  filtered view), *Highlighters* and *Color labels*.
 - **More** holds the rest: *Copy with line numbers*, the scratchpad entries,
   *Find next* and *Find previous*, the search limits, *Set selection start* and
   *Set selection end*, *Save selected to file*, *Save to file*, *Export as
@@ -679,6 +680,15 @@ a color with a certain type of event.
 Highlighters are grouped into sets. Several sets can be active at once; they
 are switched on and off in the context menu or the `Tools->Highlighters` menu, where
 *None* switches them all off.
+
+To color some text of a line, select it in the main or the filtered view and
+choose *Highlight this...* in the context menu. The dialog proposes a
+highlighter whose pattern matches the selected text as it is (its special
+characters escaped) and shows the line as the highlighter colors it. Pick the
+colors, whether the whole line or only the matched text is colored, and the set
+it goes into: the active one by default, another of yours or a new one. *OK*
+adds the highlighter at the end of the set, switches the set on if it was off,
+and the views show it at once.
 
 Any number of highlighters can be defined in a single set.
 Highlighter configuration includes a regular expression to match

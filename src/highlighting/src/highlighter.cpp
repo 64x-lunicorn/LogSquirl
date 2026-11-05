@@ -361,6 +361,11 @@ void HighlighterSet::addHighlighter( const Highlighter& highlighter )
     highlighterList_.append( highlighter );
 }
 
+const QList<Highlighter>& HighlighterSet::highlighters() const
+{
+    return highlighterList_;
+}
+
 QString HighlighterSet::id() const
 {
     return id_;

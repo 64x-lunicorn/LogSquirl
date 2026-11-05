@@ -251,6 +251,15 @@ void addSelectionBlock( QMenu& menu, const Opened& opened )
 // shows the Log Lines (#894). An entry about the view goes here.
 void addViewBlock( QMenu& menu, const Opened& opened )
 {
+    // A Highlighter made from the text selected within a Log Line (#896).
+    if ( opened.entries.highlightThis ) {
+        auto* highlightThis
+            = addEntry( menu, tr( "Highlight this..." ), opened.entries.highlightThis );
+        highlightThis->setStatusTip( tr( "Color the selected text with a new Highlighter" ) );
+        highlightThis->setEnabled( opened.textWithinLogLine
+                                   && !opened.report.selectedText.isEmpty() );
+    }
+
     auto* highlightersMenu = new HighlightersMenu( tr( "Highlighters" ), &menu );
     highlightersMenu->createHighlightersMenu();
     highlightersMenu->populateHighlightersMenu();

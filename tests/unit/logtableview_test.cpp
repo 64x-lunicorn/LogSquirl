@@ -581,10 +581,14 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
                 tableMore.removeAll( "Set selection end" );
                 tableMore.insert( tableMore.indexOf( "Save splitter position" ),
                                   "Export as CSV..." );
+                // Only the Text View highlights the selection, first of the
+                // view's own entries (#896).
+                auto textTopShown = textTop;
+                textTopShown.insert( textTopShown.indexOf( "Highlighters" ), "Highlight this..." );
 
                 REQUIRE( entriesOf( *tableMenu ) == tableTop );
                 REQUIRE( moreEntriesOf( *tableMenu ) == tableMore );
-                REQUIRE( entriesOf( *textMenu ) == textTop );
+                REQUIRE( entriesOf( *textMenu ) == textTopShown );
                 REQUIRE( moreEntriesOf( *textMenu ) == textMore );
             }
 

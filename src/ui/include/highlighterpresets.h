@@ -22,6 +22,7 @@
 #include <array>
 
 #include <QColor>
+#include <QIcon>
 #include <QString>
 
 // A ready-made text and background color pair for a Highlighter. Every
@@ -49,3 +50,6 @@ const std::array<QColor, 48>& highlighterDialogColors();
 
 // Replaces the basic colors of QColorDialog with highlighterDialogColors().
 void installHighlighterDialogColors();
+
+// A preset's swatch: its background with sample text in its text color.
+QIcon colorPresetIcon( const HighlighterColorPreset& preset, qreal devicePixelRatio );

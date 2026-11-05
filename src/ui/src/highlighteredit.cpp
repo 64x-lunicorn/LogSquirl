@@ -25,7 +25,7 @@
 #include <QGridLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QPainter>
+#include <QPixmap>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QToolButton>
@@ -34,24 +34,6 @@
 #include "highlighterpresets.h"
 
 namespace {
-// A preset's swatch: its background with sample text in its text color.
-QIcon colorPresetIcon( const HighlighterColorPreset& preset, qreal devicePixelRatio )
-{
-    const QSize size( 30, 18 );
-    QPixmap pixmap( size * devicePixelRatio );
-    pixmap.setDevicePixelRatio( devicePixelRatio );
-    pixmap.fill( preset.backColor );
-
-    QPainter painter( &pixmap );
-    painter.setRenderHint( QPainter::TextAntialiasing );
-    QFont font = painter.font();
-    font.setPixelSize( 11 );
-    font.setBold( true );
-    painter.setFont( font );
-    painter.setPen( preset.foreColor );
-    painter.drawText( QRect( QPoint( 0, 0 ), size ), Qt::AlignCenter, QStringLiteral( "Aa" ) );
-    return QIcon( pixmap );
-}
 // What the Highlighter, with the pattern and options tested in the Regex Lab,
 // colors of a line (Highlighter::colorLine()): the whole line, or the
 // matches, as spans; nothing for a line it leaves alone. The Highlighter is

@@ -154,6 +154,11 @@ public:
         // Only for a Presentation drawn like the Text View; left empty, the
         // menu offers no Name this value...
         std::function<void()> nameValue;
+        // Open the dialog turning the text selected within a Log Line into a
+        // Highlighter (#896), offered with the view's own entries. Only for a
+        // Presentation drawn like the Text View; left empty, the menu offers
+        // no Highlight this...
+        std::function<void()> highlightThis;
         // The plugins' entries, in their order, below a separator at the end
         // of the menu, always enabled; without any, there is no separator.
         std::vector<PluginEntry> plugins;
