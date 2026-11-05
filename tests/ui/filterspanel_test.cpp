@@ -488,3 +488,55 @@ SCENARIO( "The Filters tab shows only one filter from its context menu and resto
         }
     }
 }
+
+SCENARIO( "Refreshing the Filters tab tells the Search of the checked filters only when there are "
+          "some",
+          "[filterspanel][refresh]" )
+{
+    // #914: a refresh with no filter checked replaced the Search pattern with
+    // an empty one.
+    FiltersPanelTestStateGuard stateGuard;
+    setupTestFilters();
+
+    FiltersPanel panel;
+    auto* tree = findTree( &panel );
+    REQUIRE( tree != nullptr );
+
+    GIVEN( "no filter checked" )
+    {
+        REQUIRE( countChecked( tree ) == 0 );
+        QSignalSpy spy( &panel, &FiltersPanel::filtersChanged );
+
+        WHEN( "the panel is refreshed" )
+        {
+            panel.refreshFilters();
+
+            THEN( "filtersChanged is not emitted" )
+            {
+                REQUIRE( spy.isEmpty() );
+            }
+        }
+    }
+
+    GIVEN( "a filter checked" )
+    {
+        auto* groupA = findGroup( tree, "GroupA" );
+        REQUIRE( groupA != nullptr );
+        invokeDoubleClick( &panel, groupA->child( 0 ) ); // "Error"
+        panel.flushPendingSaves();
+        QSignalSpy spy( &panel, &FiltersPanel::filtersChanged );
+
+        WHEN( "the panel is refreshed" )
+        {
+            panel.refreshFilters();
+
+            THEN( "filtersChanged is emitted with it" )
+            {
+                REQUIRE( spy.count() == 1 );
+                const auto filters = spy.at( 0 ).at( 0 ).value<QList<PredefinedFilter>>();
+                REQUIRE( filters.size() == 1 );
+                REQUIRE( filters[ 0 ].name == "Error" );
+            }
+        }
+    }
+}

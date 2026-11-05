@@ -55,6 +55,7 @@
 #include "mainwindow.h"
 #include "openlogfile.h"
 #include "predefinedfilters.h"
+#include "predefinedfiltersdialog.h"
 #include "searchlinewidget_access.h"
 #include "session.h"
 #include "shown_widget.h"
@@ -740,6 +741,59 @@ SCENARIO( "OK in the Add as Predefined Filter dialog adds the filter, and with a
             REQUIRE( CrawlerAccess::searchPattern( *shown.crawler )
                      == QStringLiteral( "ERROR|WARN" ) );
             REQUIRE( CrawlerAccess::matchCount( *shown.crawler ) == 2_lcount );
+        }
+    }
+}
+
+SCENARIO( "Refreshing the Filters panel with no filter checked leaves the Search pattern as it is",
+          "[ui][filterspanel][predefinedfilters]" )
+{
+    // #914: every refresh of the panel replaced the pattern with an empty one.
+    const KeptFilterGroups kept;
+    KeptFilterGroups::store( { groupOf( QStringLiteral( "Other" ), QStringLiteral( "WARN" ) ) } );
+
+    const AddFilterWindow shown;
+    CrawlerAccess::search( *shown.crawler, QStringLiteral( "ERROR" ) );
+    REQUIRE( CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount );
+
+    WHEN( "the Predefined Filters editor is opened and OK clicked without checking a filter" )
+    {
+        QAction* editorEntry = nullptr;
+        for ( auto* action : shown.window->findChildren<QAction*>() ) {
+            if ( action->text() == QStringLiteral( "Predefined Filters..." ) ) {
+                editorEntry = action;
+            }
+        }
+        REQUIRE( editorEntry != nullptr );
+        bool opened = false;
+        QTimer::singleShot( 0, [ & ] {
+            auto* dialog
+                = qobject_cast<PredefinedFiltersDialog*>( QApplication::activeModalWidget() );
+            REQUIRE( dialog != nullptr );
+            opened = true;
+            dialog->findChild<QDialogButtonBox*>()->button( QDialogButtonBox::Ok )->click();
+        } );
+        editorEntry->trigger();
+        REQUIRE( opened );
+        QTest::qWait( 100 );
+
+        THEN( "the Search pattern and its Matches are as they were" )
+        {
+            REQUIRE( CrawlerAccess::searchPattern( *shown.crawler ) == QStringLiteral( "ERROR" ) );
+            REQUIRE( CrawlerAccess::searchStopped( *shown.crawler ) );
+            REQUIRE( CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount );
+        }
+    }
+
+    WHEN( "the Filters panel is refreshed" )
+    {
+        shown.window->findChild<FiltersPanel*>()->refreshFilters();
+        QTest::qWait( 100 );
+
+        THEN( "the Search pattern is as it was" )
+        {
+            REQUIRE( CrawlerAccess::searchPattern( *shown.crawler ) == QStringLiteral( "ERROR" ) );
+            REQUIRE( CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount );
         }
     }
 }
