@@ -34,9 +34,33 @@ bool isWordCharacter( QChar character )
     return character.isLetterOrNumber() || character == u'_';
 }
 
-bool isDigit( QChar character )
+// Any decimal number: with a fraction or without, negative or not. The
+// selection is one, the Log Lines like the clicked one hold one where the
+// pattern captures the value and where it takes an earlier number.
+const QString& numberPattern()
 {
-    return character >= u'0' && character <= u'9';
+    static const auto pattern = QStringLiteral( "-?\\d+(?:\\.\\d+)?" );
+    return pattern;
+}
+
+// The text before the number as a regex: escaped, but any number in it, not
+// part of a word, is any number, as Log Lines like the clicked one hold other
+// numbers there (12:00:01, a=1).
+QString patternBefore( QStringView text )
+{
+    static const QRegularExpression numberInText( QStringLiteral( "(?<![\\w.])" )
+                                                  + numberPattern() );
+    QString pattern;
+    qsizetype from = 0;
+    auto numbers = numberInText.globalMatchView( text );
+    while ( numbers.hasNext() ) {
+        const auto number = numbers.next();
+        pattern += valuenames::escapedForRegex( text.mid( from, number.capturedStart() - from ) );
+        pattern += QStringLiteral( "(?:" ) + numberPattern() + u')';
+        from = number.capturedEnd();
+    }
+    pattern += valuenames::escapedForRegex( text.mid( from ) );
+    return pattern;
 }
 
 // Where the word before position starts, with what separates it from
@@ -95,20 +119,16 @@ std::optional<LineRange> numberSelected( QStringView line, LineRange selection )
         return std::nullopt;
     }
 
-    static const QRegularExpression number(
-        QRegularExpression::anchoredPattern( QStringLiteral( "-?\\d+(?:\\.\\d+)?" ) ) );
-    if ( !number.matchView( line.mid( start, end - start ) ).hasMatch() ) {
+    // Not part of a longer number or word: no digit or fraction right after
+    // it, a unit may follow, 12ms; no letter, digit or fraction right before.
+    static const QRegularExpression wholeNumber( numberPattern()
+                                                 + QStringLiteral( "(?!\\.?\\d)" ) );
+    const auto match = wholeNumber.matchView( line, start, QRegularExpression::NormalMatch,
+                                              QRegularExpression::AnchorAtOffsetMatchOption );
+    if ( !match.hasMatch() || match.capturedEnd() != end ) {
         return std::nullopt;
     }
-    // Not part of a longer number or word: no letter, digit or fraction right
-    // before it, no digit or fraction right after; a unit may follow, 12ms.
     if ( start > 0 && ( isWordCharacter( line[ start - 1 ] ) || line[ start - 1 ] == u'.' ) ) {
-        return std::nullopt;
-    }
-    if ( end < line.size()
-         && ( isDigit( line[ end ] )
-              || ( line[ end ] == u'.' && end + 1 < line.size()
-                   && isDigit( line[ end + 1 ] ) ) ) ) {
         return std::nullopt;
     }
     // -5 with only the 5 selected, but not the 5 of id-5.
@@ -129,11 +149,11 @@ std::optional<ChartValueProposal> proposeChartValue( QStringView line, LineRange
     const auto numberLength = number->length;
 
     // Any decimal number: the Log Lines like this one hold other numbers
-    // there, with a fraction or without, negative or not.
-    static const auto capture = QStringLiteral( "(-?\\d+(?:\\.\\d+)?)" );
+    // there.
+    const auto capture = u'(' + numberPattern() + u')';
     const auto patternFrom = [ & ]( qsizetype start, bool anchored ) {
         return ( anchored ? QStringLiteral( "^" ) : QString{} )
-               + valuenames::escapedForRegex( line.mid( start, numberStart - start ) ) + capture;
+               + patternBefore( line.mid( start, numberStart - start ) ) + capture;
     };
     // The chart reads the first match.
     const auto capturesNumber = [ & ]( const QString& pattern ) {

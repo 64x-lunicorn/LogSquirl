@@ -41,7 +41,8 @@ std::optional<valuenames::LineRange> numberSelected( QStringView line,
 // The chart series proposed for the number selected.
 struct ChartValueProposal {
     // A regex of one capture group, the number: any decimal number after the
-    // text before it in the line, escaped. That text is the word before the
+    // text before it in the line, escaped, any number in that text not part
+    // of a word taken as any number too. That text is the word before the
     // number and what separates them, or more of the Log Line where that
     // would capture an earlier number in it; the start of the Log Line, ^,
     // when the number starts it. In the line, its first match captures

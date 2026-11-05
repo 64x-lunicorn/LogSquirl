@@ -188,6 +188,72 @@ SCENARIO( "Chart this value... proposes a pattern capturing the number, and a se
             REQUIRE( capturedRange( proposal, line ) == selection );
             REQUIRE( proposal.seriesName == QStringLiteral( "a" ) );
         }
+
+        THEN( "it captures the value of a Log Line like it whose earlier numbers differ" )
+        {
+            CHECK( captured( proposal, QStringLiteral( "a=1 b=8 a=3" ) ) == QStringLiteral( "3" ) );
+            CHECK( captured( proposal, QStringLiteral( "a=5 b=-9 a=4.5" ) )
+                   == QStringLiteral( "4.5" ) );
+        }
+    }
+
+    GIVEN( "a number after another one in a Log Line led by a timestamp" )
+    {
+        const auto line = QStringLiteral( "12:00:01 3 4" );
+        const auto selection = LineRange{ line.lastIndexOf( u'4' ), 1 };
+        const auto proposal = proposalFor( line, selection );
+
+        THEN( "the pattern captures the selected one in the clicked Log Line" )
+        {
+            REQUIRE( capturedRange( proposal, line ) == selection );
+        }
+
+        THEN( "it captures the value of a Log Line like it at another time, with another number "
+              "before it" )
+        {
+            CHECK( captured( proposal, QStringLiteral( "12:00:02 5 6" ) )
+                   == QStringLiteral( "6" ) );
+            CHECK( captured( proposal, QStringLiteral( "13:59:59 10 -2.5" ) )
+                   == QStringLiteral( "-2.5" ) );
+        }
+    }
+
+    GIVEN( "a number right after a timestamp" )
+    {
+        const auto line = QStringLiteral( "12:00:01 42" );
+        const auto selection = rangeOf( line, QStringLiteral( "42" ) );
+        const auto proposal = proposalFor( line, selection );
+
+        THEN( "the pattern captures it, and the value of a Log Line like it at another time" )
+        {
+            REQUIRE( capturedRange( proposal, line ) == selection );
+            CHECK( captured( proposal, QStringLiteral( "12:00:02 7" ) ) == QStringLiteral( "7" ) );
+        }
+    }
+
+    GIVEN( "a word with digits in it in the text the pattern takes before the number" )
+    {
+        const auto line = QStringLiteral( "a=1 v2 a=2" );
+        const auto selection = LineRange{ line.lastIndexOf( u'2' ), 1 };
+        const auto proposal = proposalFor( line, selection );
+
+        THEN( "the word is kept as it is: a Log Line with another word there does not match" )
+        {
+            REQUIRE( capturedRange( proposal, line ) == selection );
+            CHECK( captured( proposal, QStringLiteral( "a=0 v2 a=8" ) ) == QStringLiteral( "8" ) );
+            CHECK_FALSE( capturedRange( proposal, QStringLiteral( "a=0 v3 a=8" ) ) );
+        }
+    }
+
+    GIVEN( "a number in a version string" )
+    {
+        const auto line = QStringLiteral( "v 1.5.6" );
+
+        THEN( "a part of it is no number" )
+        {
+            CHECK_FALSE( isNumber( line, rangeOf( line, QStringLiteral( "1.5" ) ) ) );
+            CHECK_FALSE( isNumber( line, rangeOf( line, QStringLiteral( "5.6" ) ) ) );
+        }
     }
 
     GIVEN( "a number the Log Line starts with" )
