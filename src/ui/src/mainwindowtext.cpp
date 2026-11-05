@@ -18,6 +18,9 @@ const char* menu::highlightersTitle = QT_TR_NOOP( "&Highlighters" );
 const char* menu::favoritesTitle = QT_TR_NOOP( "F&avorites" );
 const char* menu::helpTitle = QT_TR_NOOP( "&Help" );
 const char* menu::encodingTitle = QT_TR_NOOP( "E&ncoding" );
+const char* menu::recentFilesTitle = QT_TR_NOOP( "Open Recent" );
+const char* menu::pluginsTitle = QT_TR_NOOP( "P&lugins" );
+const char* menu::sourcesTitle = QT_TR_NOOP( "&Sources" );
 
 // toolbar
 const char* toolbar::toolbarTitle = QT_TR_NOOP( "&Toolbar" );
@@ -132,6 +135,11 @@ const char* action::importChipmunkFiltersStatusTip
 const char* action::regexLabText = QT_TR_NOOP( "Regex Lab..." );
 const char* action::regexLabStatusTip
     = QT_TR_NOOP( "Test a pattern on Log Lines of the current tab before searching with it" );
+const char* action::manageTabGroupsText = QT_TR_NOOP( "Manage Tab Groups..." );
+const char* action::manageTabGroupsStatusTip
+    = QT_TR_NOOP( "Rename, recolor, or delete tab groups" );
+const char* action::pluginManagementText = QT_TR_NOOP( "Plugin Management..." );
+const char* action::pluginManagementStatusTip = QT_TR_NOOP( "Manage, install, and update plugins" );
 const char* action::showFiltersPanelText = QT_TR_NOOP( "Filters Panel" );
 const char* action::showFiltersPanelStatusTip = QT_TR_NOOP( "Show the filters panel" );
 const char* action::showValueNamesPanelText = QT_TR_NOOP( "Value Names Tab" );
