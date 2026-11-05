@@ -84,6 +84,13 @@
   `QDragEnterEvent` constructor taking a `QPoint`, which Qt 6.12 deprecates.
   (#900)
 
+## Internal
+
+- **Instruction counts build the after side's dialogs**: moc and uic run in a
+  build of their own before the benchmarks, so a pull request that changes a
+  `.ui` file no longer links objects built against the before side's header,
+  which failed the link with an ODR error. (#909)
+
 # v26.12.0-beta1 (2026-11-02)
 
 ## Changes
