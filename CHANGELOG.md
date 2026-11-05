@@ -134,8 +134,6 @@
   filter checked, cleared the pattern in the Search Line. (#914)
 - **The Encoding menu is no longer leaked**: it is deleted with its
   window. (#916)
-- **The user guide lists Name this value...** among the top-level entries
-  of the context menu. (#917)
 
 ## Build and packaging
 
@@ -149,6 +147,11 @@
   and uic run in a build of their own before the code, so a pull request that
   changes a `.ui` file no longer links objects built against the before side's
   header, which failed the link with an ODR error. (#909)
+
+## Documentation
+
+- **The user guide lists Name this value...** among the top-level entries
+  of the context menu. (#917)
 
 # v26.12.0-beta1 (2026-11-02)
 
