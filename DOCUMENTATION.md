@@ -229,10 +229,12 @@ It is possible to quickly jump to a specific line using `Ctrl+L` shortcut.
 Right-clicking the lines of the main view, the filtered view or the table view
 opens the same menu, sorted by how often its entries are used:
 
-- At the top, what you do with the selection: *Copy*, *Copy as shown*,
-  *Replace search*, *Add to search*, *Exclude from search* (and, in the table
-  view, *Search this value in* the column; in the main and the filtered view,
-  *Add as Predefined Filter...*) and *Mark*.
+- At the top, what you do with the selection: *Copy*, *Copy as shown* (in the
+  main and the filtered view), *Replace search*, *Add to search*, *Exclude from
+  search* (and, in the table view, *Search this value in* the column; in the
+  main and the filtered view, *Add as Predefined Filter...*), *Mark* and, in
+  the main and the filtered view, *Name this value...* (see
+  [Value Names](#value-names)).
 - Then the view's own entries: *Highlight this...* (in the main and the
   filtered view), *Highlighters* and *Color labels*.
 - **More** holds the rest: *Chart this value...* (in the main and the filtered
