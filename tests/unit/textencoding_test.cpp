@@ -134,6 +134,27 @@ SCENARIO( "The Encoding menu offers the Encodings it always did", "[encoding][te
             owner.reset();
             CHECK( menu.isNull() );
         }
+
+        WHEN( "the Auto entry is given data and the menu is titled again" )
+        {
+            // The Auto entry and the System entry, the first two entries.
+            const auto entries = menu->actions();
+            REQUIRE( entries.size() > 2 );
+            auto* autoEntry = entries[ 0 ];
+            auto* systemEntry = entries[ 2 ];
+            REQUIRE( autoEntry->text() == EncodingMenu::autoEncodingText() );
+            const auto systemText = systemEntry->text();
+            REQUIRE( systemText.startsWith( QStringLiteral( "System (" ) ) );
+
+            autoEntry->setData( 106 );
+            EncodingMenu::retranslate( *menu );
+
+            THEN( "the Auto entry is still Auto, the System entry still System" )
+            {
+                CHECK( autoEntry->text() == EncodingMenu::autoEncodingText() );
+                CHECK( systemEntry->text() == systemText );
+            }
+        }
     }
 }
 

@@ -52,6 +52,11 @@ public:
         return QCoreApplication::translate( "EncodingMenu", family.toUtf8().constData() );
     }
 
+    // The object names of the Auto and the System entries of the menu, which
+    // retranslate() tells them apart by.
+    static constexpr auto AutoEntryName = "autoEncoding";
+    static constexpr auto SystemEntryName = "systemEncoding";
+
     // The "Auto" entry, offered by the menu and the Preferences dialog alike,
     // in the current language.
     static QString autoEncodingText()
@@ -76,6 +81,7 @@ public:
 
         // Auto is the one entry without an Encoding.
         auto autoEncoding = encodingsMenu->addAction( QString{} );
+        autoEncoding->setObjectName( QLatin1String( AutoEntryName ) );
         autoEncoding->setCheckable( true );
         autoEncoding->setActionGroup( actionGroup );
         autoEncoding->setChecked( defaultEncodingMib < 0 );
@@ -87,6 +93,7 @@ public:
         const auto* systemCodec = TextEncoding::forLocale();
 
         auto systemEncoding = encodingsMenu->addAction( QString{} );
+        systemEncoding->setObjectName( QLatin1String( SystemEntryName ) );
         systemEncoding->setCheckable( true );
         systemEncoding->setActionGroup( actionGroup );
         systemEncoding->setData( systemCodec->mibEnum() );
@@ -129,14 +136,16 @@ public:
             if ( entry->menu() != nullptr ) {
                 entry->menu()->setTitle( familyTitle( entry->data().toString() ) );
             }
-            else if ( !entry->data().isValid() ) {
+            else if ( entry->objectName() == QLatin1String( AutoEntryName ) ) {
                 entry->setText( autoEncodingText() );
                 entry->setStatusTip( QApplication::translate( "logsquirl::mainwindow::action",
                                                               action::autoEncodingStatusTip ) );
             }
-            else if ( const auto* system = TextEncoding::forMib( entry->data().toInt() ) ) {
-                entry->setText(
-                    QApplication::tr( "System (%1)" ).arg( system->name().constData() ) );
+            else if ( entry->objectName() == QLatin1String( SystemEntryName ) ) {
+                if ( const auto* system = TextEncoding::forMib( entry->data().toInt() ) ) {
+                    entry->setText(
+                        QApplication::tr( "System (%1)" ).arg( system->name().constData() ) );
+                }
             }
         }
     }
