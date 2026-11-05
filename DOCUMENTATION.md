@@ -1215,19 +1215,22 @@ opens the *Chart Series* dialog:
 Select a number in a line of the main or the filtered view, for example the
 `125` of `GET /api took 125 ms`, and choose *Chart this value...* under *More*
 in the context menu. It is enabled when the selection is a number and nothing
-else: whole or with a fraction, negative or not, not hexadecimal. The chart
-panel opens with the *Chart Series* dialog, which proposes:
+else: whole or with a fraction, negative or not, not hexadecimal. It opens the
+*Chart Series* dialog, which proposes:
 
 - a *Regex pattern (Y)* of the text before the number and any number in its
   place, `took (-?\d+(?:\.\d+)?)`, so that it captures the number in every
   line like the one you clicked; where that text comes earlier in the line,
   the pattern takes more of the line, so that it captures the number you
-  selected;
+  selected, with any other number it takes in as any number too: for the `2`
+  of `a=1 b=7 a=2`, `(?:-?\d+(?:\.\d+)?) a=(-?\d+(?:\.\d+)?)`, which captures
+  the `3` of `a=1 b=8 a=3` as well;
 - *Capture group (Y)* 1, the number;
 - the word before the number as the *Name*, `took`.
 
 The X axis is set up as for *+ Add Series*. Edit what you like, and *OK* adds
-the series to the chart like any other.
+the series to the chart like any other and opens the chart panel; *Cancel*
+leaves the chart panel as it was.
 
 #### The X axis and time buckets
 

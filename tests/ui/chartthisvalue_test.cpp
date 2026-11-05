@@ -356,14 +356,32 @@ SCENARIO( "Chart this value... opens the Chart Series dialog with the pattern an
 
     WHEN( "the dialog is cancelled" )
     {
+        REQUIRE_FALSE( chartPanel.isVisible() );
         auto& textView = CrawlerAccess::textView( *shown.crawler );
         selectText( textView, Number );
         const auto menu = ViewAccess::contextMenu( textView );
         chartInDialog( *menu, false );
 
-        THEN( "no series is added" )
+        THEN( "no series is added, and the Chart Panel stays hidden" )
         {
             REQUIRE( chartPanel.seriesDefinitions().isEmpty() );
+            REQUIRE_FALSE( chartPanel.isVisible() );
+        }
+    }
+
+    WHEN( "the dialog is cancelled with the Chart Panel shown" )
+    {
+        shown.crawler->toggleChartPanel();
+        REQUIRE( chartPanel.isVisible() );
+        auto& textView = CrawlerAccess::textView( *shown.crawler );
+        selectText( textView, Number );
+        const auto menu = ViewAccess::contextMenu( textView );
+        chartInDialog( *menu, false );
+
+        THEN( "the Chart Panel stays shown" )
+        {
+            REQUIRE( chartPanel.seriesDefinitions().isEmpty() );
+            REQUIRE( chartPanel.isVisible() );
         }
     }
 }

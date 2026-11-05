@@ -90,8 +90,8 @@ public:
 
     // Opens the Chart Series dialog with the series name and the pattern
     // proposed, its capture group 1 the value, the X axis as for + Add Series;
-    // OK adds the series (#898).
-    void addProposedSeries( const QString& name, const QString& pattern );
+    // OK adds the series (#898). Whether it was added.
+    bool addProposedSeries( const QString& name, const QString& pattern );
 
     // Shows a Value Count of a Log Format field, in a tab of its own, and
     // starts counting. Nothing without a Log Format.
@@ -131,6 +131,11 @@ private:
     void rebuildSeriesCombo();
     void rebuildTemplatesMenu();
     void addTemplateSeries( const QVector<ChartSeriesDefinition>& defs );
+
+    // Opens the Chart Series dialog filled with the series proposed, in the
+    // next color of the palette, the X axis from the Log Format; OK adds the
+    // series. Whether it was added.
+    bool addSeriesFromDialog( ChartSeriesDefinition proposed );
 
     // The series changed: extract them from the first Log Line.
     void seriesChanged();

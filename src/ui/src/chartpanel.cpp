@@ -320,22 +320,29 @@ QColor seriesColor( qsizetype seriesBefore )
 
 } // namespace
 
-void ChartPanel::addProposedSeries( const QString& name, const QString& pattern )
+bool ChartPanel::addProposedSeries( const QString& name, const QString& pattern )
 {
     ChartSeriesDefinition proposed;
     proposed.name = name;
     proposed.pattern = pattern;
     proposed.captureGroup = 1;
+    return addSeriesFromDialog( proposed );
+}
+
+bool ChartPanel::addSeriesFromDialog( ChartSeriesDefinition proposed )
+{
     proposed.color = seriesColor( series_.size() );
 
     ChartSeriesDialog dlg( this );
     dlg.setSeries( proposed );
     dlg.setFormatDefaults( format_ );
-    if ( dlg.exec() == QDialog::Accepted ) {
-        series_.append( dlg.series() );
-        rebuildSeriesCombo();
-        seriesChanged();
+    if ( dlg.exec() != QDialog::Accepted ) {
+        return false;
     }
+    series_.append( dlg.series() );
+    rebuildSeriesCombo();
+    seriesChanged();
+    return true;
 }
 
 void ChartPanel::addFilterFrequencySeries( const QStringList& patterns, bool matchCase )
@@ -368,13 +375,7 @@ void ChartPanel::addFilterFrequencySeries( const QStringList& patterns, bool mat
 
 void ChartPanel::addSeries()
 {
-    ChartSeriesDialog dlg( this );
-    dlg.setFormatDefaults( format_ );
-    if ( dlg.exec() == QDialog::Accepted ) {
-        series_.append( dlg.series() );
-        rebuildSeriesCombo();
-        seriesChanged();
-    }
+    addSeriesFromDialog( ChartSeriesDefinition{} );
 }
 
 void ChartPanel::addSeriesWizard()

@@ -2014,11 +2014,13 @@ void CrawlerWidget::chartValue( const QString& logLine, qsizetype start, qsizety
     if ( !proposal.has_value() ) {
         return;
     }
-    if ( !chartPanel_->isVisible() ) {
+    // The Chart Panel shows once the series is added: Cancel leaves it as it
+    // was.
+    const auto added = chartPanel_->addProposedSeries(
+        proposal->seriesName.isEmpty() ? tr( "Value" ) : proposal->seriesName, proposal->pattern );
+    if ( added && !chartPanel_->isVisible() ) {
         toggleChartPanel();
     }
-    chartPanel_->addProposedSeries(
-        proposal->seriesName.isEmpty() ? tr( "Value" ) : proposal->seriesName, proposal->pattern );
 }
 
 void CrawlerWidget::searchForValue( const QString& value )
