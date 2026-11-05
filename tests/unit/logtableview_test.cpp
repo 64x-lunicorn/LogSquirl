@@ -540,9 +540,9 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
             const auto tableMenu = tableView.createContextMenu( centerOfRow( tableView, 0 ) );
 
             THEN( "both put the selection's entries first, then the view's own, then More, in "
-                  "the same order; only the Text View copies as shown and lets a selection start "
-                  "and end be set, and only the Table View searches a cell's value in its column "
-                  "and exports as CSV" )
+                  "the same order; only the Text View copies as shown, names a value and lets a "
+                  "selection start and end be set, and only the Table View searches a cell's "
+                  "value in its column and exports as CSV" )
             {
                 // The menu opened on the timestamp cell of the first Row (#798).
                 const QStringList tableTop = {
@@ -557,9 +557,9 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
                     "More",
                 };
                 const QStringList textTop = {
-                    "&Copy this line", "Copy as shown",        "&Replace search",
-                    "&Add to search",  "&Exclude from search", "&Mark",
-                    "Highlighters",    "Color labels",         "More",
+                    "&Copy this line",      "Copy as shown", "&Replace search",    "&Add to search",
+                    "&Exclude from search", "&Mark",         "Name this value...", "Highlighters",
+                    "Color labels",         "More",
                 };
                 const QStringList textMore = {
                     "Copy this line with line number",

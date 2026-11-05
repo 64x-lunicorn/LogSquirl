@@ -24,6 +24,7 @@
 
 #include <utility>
 
+#include "groupedits.h"
 #include "uuid.h"
 
 namespace logsquirl::groupexchange {
@@ -115,7 +116,7 @@ ImportResult mergeImpl( QList<Group>& groups, const QList<Group>& imported, Impo
 
         switch ( answer ) {
         case ConflictAnswer::Replace: {
-            const auto name = firstFreeName( group.name(), namesOf( groups, existing ) );
+            const auto name = valuenames::freeName( group.name(), namesOf( groups, existing ) );
             group = group.withId( groups[ existing ].id() );
             group.setName( name );
             groups[ existing ] = group;
@@ -123,7 +124,7 @@ ImportResult mergeImpl( QList<Group>& groups, const QList<Group>& imported, Impo
             break;
         }
         case ConflictAnswer::KeepBoth: {
-            const auto name = firstFreeName( group.name(), namesOf( groups ) );
+            const auto name = valuenames::freeName( group.name(), namesOf( groups ) );
             group = group.withId( generateIdFromUuid() );
             group.setName( name );
             groups.append( group );
@@ -191,19 +192,6 @@ ImportResult importImpl( const ReadGroups<Group>& read, QList<Group>& groups,
 ConflictAnswer preselectedAnswer( ConflictKind kind )
 {
     return kind == ConflictKind::SameId ? ConflictAnswer::Replace : ConflictAnswer::KeepBoth;
-}
-
-QString firstFreeName( const QString& name, const QStringList& takenNames )
-{
-    if ( !takenNames.contains( name ) ) {
-        return name;
-    }
-    for ( int n = 2;; ++n ) {
-        const auto candidate = QStringLiteral( "%1 (%2)" ).arg( name ).arg( n );
-        if ( !takenNames.contains( candidate ) ) {
-            return candidate;
-        }
-    }
 }
 
 ImportSession::ImportSession( ConflictResolver resolver, QSet<QString> reservedIds )

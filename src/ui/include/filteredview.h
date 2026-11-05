@@ -94,6 +94,10 @@ public:
     // only when chosen. Their Log Line numbers and types are copied here, on
     // the UI thread; the text is read off it.
     void exportCsvTo( const CsvExportDialog::Choices& choices );
+    // Opens the dialog Export as CSV, and exports as chosen there: the
+    // context menu's entry and the window's File > Export as CSV... (#890).
+    // Nothing while the Log File has no Log Format recognized.
+    void exportAsCsv();
 
 protected:
     std::function<void()> exportAsCsvAction() override;
@@ -104,8 +108,6 @@ private:
     // Line exported, then every column of the Table View for format.
     std::vector<CsvColumn> csvColumns( const LogFormatDefinition* format,
                                        logsquirl::vector<AbstractLogData::LineType> types ) const;
-    // Opens the dialog Export as CSV, and exports as chosen there.
-    void exportAsCsv();
 
     LogFilteredData* logFilteredData_;
     std::function<RecognizedFormat()> recognizedFormat_;

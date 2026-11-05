@@ -20,6 +20,7 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 
 #include <QAbstractItemView>
 #include <QDialog>
@@ -102,11 +103,12 @@ private:
 };
 
 // The Value Names dialog (#647), built like the Predefined Filters Dialog:
-// the user's own Naming Groups on the left; on the right the selected
-// group's Naming Rules, which Name Table each capture group of the selected
-// rule uses, and the group's Name Tables with the rows of the selected one;
-// below, a preview line showing a sample Log Line with the group's Value
-// Names and what is wrong with the group.
+// the user's own Naming Groups on the left; on the right, in the order they
+// are filled in (#884), the selected group's Name Tables with the name and
+// rows of the selected one, then its Naming Rules with the fields of the
+// selected one and which Name Table each of its capture groups uses; below,
+// a preview line showing a sample Log Line with the group's Value Names and
+// what is wrong with the group.
 //
 // It edits a copy of the groups, checks included (a rule renamed keeps its
 // check). OK and Apply hand them to ValueNamesCollection, save it and,
@@ -121,6 +123,7 @@ class ValueNamesDialog : public QDialog {
 
 public:
     explicit ValueNamesDialog( QWidget* parent = nullptr );
+    ~ValueNamesDialog() override;
 
     // The groups as edited here.
     const QList<logsquirl::valuenames::NamingGroup>& groups() const
@@ -209,11 +212,16 @@ private Q_SLOTS:
     void moveRuleDown();
     void ruleSelected();
     void ruleEdited( QTableWidgetItem* item );
+    // The field of the selected rule's name, regex or template was edited.
+    void ruleFieldEdited( int column, const QString& text );
+    void ruleFieldFinished();
 
     void addTable();
     void removeTable();
     void tableSelected();
     void tableRenamed( QListWidgetItem* item );
+    void tableNameEdited( const QString& text );
+    void tableNameFinished();
     void caseSensitivityChanged( bool caseSensitive );
     void addRow();
     void removeRows();
@@ -241,6 +249,14 @@ private:
     changeTables( const std::function<void( QList<logsquirl::valuenames::NameTable>& )>& change );
     // Moves the selected rule by offset rows, if it stays in the list.
     void moveRule( int offset );
+    // Sets the name, regex or template of the rule in that row to the text,
+    // as far as the rule takes it; what it holds now.
+    QString editRule( int row, int column, QString text );
+    // Shows the selected rule in the fields below the rules.
+    void populateRuleFields();
+    // Renames the Name Table in that row, uniquely in the group, and the rules
+    // that use it follow; the name it has now.
+    QString renameTable( int row, const QString& text );
 
     // Whether the group shown may be changed: not a Team group while the
     // Team groups are read-only.
@@ -273,6 +289,10 @@ private:
     // Built from the group as last edited, all its rules checked.
     logsquirl::valuenames::ValueNamer previewNamer_;
     QStringList csvWarnings_;
+    // The selected rule as it was when its regex field was first edited:
+    // what the Name Tables of its capture groups are adapted from while the
+    // regex is typed, so that a group gone for a keystroke keeps its table.
+    std::optional<logsquirl::valuenames::NamingRule> regexEditStart_;
 
     // Left: the user's own groups and the Team groups.
     GroupList* groupList_ = nullptr;
@@ -294,9 +314,13 @@ private:
     QToolButton* removeRuleButton_ = nullptr;
     QToolButton* upRuleButton_ = nullptr;
     QToolButton* downRuleButton_ = nullptr;
+    QLineEdit* ruleName_ = nullptr;
+    QLineEdit* ruleRegex_ = nullptr;
+    QLineEdit* ruleTemplate_ = nullptr;
     QTableWidget* captureGroups_ = nullptr;
 
     QListWidget* tablesList_ = nullptr;
+    QLineEdit* tableName_ = nullptr;
     QToolButton* addTableButton_ = nullptr;
     QToolButton* removeTableButton_ = nullptr;
     QCheckBox* caseSensitive_ = nullptr;

@@ -30,8 +30,49 @@
   Filters and Value Names tabs offer *Show only this* and *Restore previous
   selection* in the context menu of a filter or Naming Rule, and their tool
   tips name the double-click that shows only one. (#889)
+- **A value is named from its Log Line**: select a value in the Text View or
+  a Filtered View, or right-click on it, and choose *Name this value...*. A
+  compact dialog proposes a Naming Rule with the value as its capture group
+  (`EsimState=9` gives `EsimState=(\d+)`), a Name Table named after the text
+  before the value with the value entered as a key, the template
+  `{name} ({value})` and a Naming Group; all can be edited, and a preview
+  shows the Log Line as it will look, warning when the regex does not match
+  it. OK adds the rule and the table to the group and turns *Show Value
+  Names* on in the tab. (#883)
+- **The Value Names dialog shows its parts in the order they are filled
+  in**: the Name Tables come before the Naming Rules; the selected Name Table
+  has a name field, and a new one is called *Name Table 1*, *Name Table 2*,
+  ... with its name field focused; the selected rule's name, regex and
+  template have fields of their own; every column of the rules can be
+  resized and *Template* shows `{name}({value})` in full; the capture groups
+  say their Name Table is a choice, and *Keys are case-sensitive* is no
+  longer cut off. (#884)
+- **Merge Log Files, Export as CSV and the Sidebar are in the menu bar**:
+  *File → Merge Log Files...* opens the Merge dialog of the tab bar, *File →
+  Export as CSV...* exports the current tab as its context menu does, and
+  *View → Sidebar* is checked while the sidebar shows, like the toolbar
+  button. All three can be given keys in the Shortcuts list. (#890)
+- **The Highlighters dialog shows the Highlighter list beside its form**:
+  below the set name, a set's Highlighters are listed on the left and the
+  selected Highlighter's fields on the right, instead of stacked under each
+  other, and both fit the dialog without scrolling. (#895)
+- **Preferences has one Search tab**: every search and indexing setting,
+  split between General and Advanced before, is on the new *Search* tab, and
+  the View tab's *Miscellaneous* box is gone: the context lines join the
+  search options, the ANSI color sequences the *Text* group and fast
+  scrolling a new *Scrolling* group. (#899)
 
 ## Bug fixes
+
+- **OK in Preferences keeps the default shortcuts**: pressing OK or Apply no
+  longer stores every shortcut, which gave menu actions empty extra
+  shortcuts, dropped a third default key (Copy on macOS) and kept later
+  changes of the default shortcuts from taking effect. Shortcuts stored this
+  way by an earlier version are cleaned up on the next OK. (#906)
+
+- **Closing the Value Names dialog with a name field in focus**: it no
+  longer finishes that field's editing after the dialog's groups are gone,
+  which read freed memory. (#908)
 
 - **Searching the Filters tab keeps the checks**: the filters the search
   hides keep their check and stay active, and come back checked when the
@@ -42,6 +83,13 @@
 - **LogSquirl builds with Qt 6.12**: it no longer uses `Q_OS_MAC` and the
   `QDragEnterEvent` constructor taking a `QPoint`, which Qt 6.12 deprecates.
   (#900)
+
+## Internal
+
+- **Instruction counts and Benchmarks build the after side's dialogs**: moc
+  and uic run in a build of their own before the code, so a pull request that
+  changes a `.ui` file no longer links objects built against the before side's
+  header, which failed the link with an ODR error. (#909)
 
 # v26.12.0-beta1 (2026-11-02)
 

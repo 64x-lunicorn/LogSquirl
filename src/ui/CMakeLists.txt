@@ -35,6 +35,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamescollection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamespanel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamesdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/namevaluedialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/teamgroupedits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/grouplist.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savelinesdialog.h
@@ -152,6 +153,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamescollection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamespanel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamesdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/namevaluedialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/grouplist.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/savelinesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewset.cpp

@@ -284,6 +284,18 @@ bool TabbedCrawlerWidget::holdsLogFile( int index ) const
     return qobject_cast<const CrawlerWidget*>( widget( index ) ) != nullptr;
 }
 
+void TabbedCrawlerWidget::tabInserted( int index )
+{
+    QTabWidget::tabInserted( index );
+    Q_EMIT tabsChanged();
+}
+
+void TabbedCrawlerWidget::tabRemoved( int index )
+{
+    QTabWidget::tabRemoved( index );
+    Q_EMIT tabsChanged();
+}
+
 QList<int> TabbedCrawlerWidget::logFileTabs() const
 {
     QList<int> tabs;

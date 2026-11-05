@@ -6,14 +6,18 @@
 # they show, the sidebar and the dialog the groups the user edits.
 add_library(
   logsquirl_valuenames STATIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/groupedits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/naminggroup.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/shownline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/nametablecsv.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamer.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/valueproposal.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/groupedits.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/naminggroup.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/nametablecsv.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/shownline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/valueproposal.cpp
 )
 
 target_include_directories(logsquirl_valuenames PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")

@@ -30,6 +30,10 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFile>
+#include <QFontMetrics>
+#include <QGroupBox>
+#include <QHash>
+#include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -37,11 +41,13 @@
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QSpinBox>
+#include <QSplitter>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
+#include <QTranslator>
 #include <QTreeWidget>
 
 #include <memory>
@@ -731,6 +737,397 @@ SCENARIO( "The Value Names dialog edits the Naming Groups", "[ui][valuenames][va
                 REQUIRE( changed.count() == 0 );
                 REQUIRE( ValueNamesCollection::get().ownGroups().size() == 1 );
             }
+        }
+    }
+}
+
+namespace {
+
+// The German of the dialog's labels and check boxes, as src/app/i18n/de.ts
+// has them, and as proposed for those it does not have yet: the tests do not
+// load the application's translations.
+class GermanLabels : public QTranslator {
+public:
+    bool isEmpty() const override
+    {
+        return false;
+    }
+
+    QString translate( const char* /*context*/, const char* sourceText,
+                       const char* /*disambiguation*/, int /*n*/ ) const override
+    {
+        // An empty translation keeps the English text.
+        return texts_.value( QString::fromUtf8( sourceText ) );
+    }
+
+private:
+    QHash<QString, QString> texts_{
+        { QStringLiteral( "Keys are case-sensitive" ),
+          QStringLiteral( "Groß-/Kleinschreibung der Schlüssel beachten" ) },
+        { QStringLiteral( "Choose the Name Table of each capture group:" ),
+          QStringLiteral( "Namenstabelle für jede Erfassungsgruppe wählen:" ) },
+        { QStringLiteral( "Template:" ), QStringLiteral( "Vorlage:" ) },
+        { QStringLiteral( "Name Tables" ), QStringLiteral( "Namenstabellen" ) },
+        { QStringLiteral( "Naming Rules" ), QStringLiteral( "Namensregeln" ) },
+        { QStringLiteral( "Preview" ), QStringLiteral( "Vorschau" ) },
+        { QStringLiteral( "Share with team" ), QStringLiteral( "Mit Team teilen" ) },
+        { QStringLiteral( "Export..." ), QStringLiteral( "Exportieren..." ) },
+        { QStringLiteral( "My Naming Groups" ), QStringLiteral( "Meine Namensgruppen" ) },
+    };
+};
+
+// Installs a translator for as long as it lives.
+class InstalledTranslator {
+public:
+    explicit InstalledTranslator( QTranslator* translator )
+        : translator_( translator )
+    {
+        if ( translator_ != nullptr ) {
+            QCoreApplication::installTranslator( translator_ );
+        }
+    }
+
+    ~InstalledTranslator()
+    {
+        if ( translator_ != nullptr ) {
+            QCoreApplication::removeTranslator( translator_ );
+        }
+    }
+
+    InstalledTranslator( const InstalledTranslator& ) = delete;
+    InstalledTranslator& operator=( const InstalledTranslator& ) = delete;
+
+private:
+    QTranslator* translator_;
+};
+
+// The texts of the labels and check boxes shown in the dialog that do not
+// fit: narrower or lower than their text needs, or reaching out of a widget
+// that holds them.
+QStringList cutOffTexts( QWidget& dialog )
+{
+    QStringList cut;
+    const auto check = [ &dialog, &cut ]( QWidget* widget, const QString& text, bool wraps ) {
+        if ( text.isEmpty() || !widget->isVisibleTo( &dialog ) ) {
+            return;
+        }
+        bool fits = wraps ? widget->height() >= widget->heightForWidth( widget->width() )
+                          : widget->width() >= widget->sizeHint().width();
+        for ( auto* inner = widget; fits && inner != &dialog; inner = inner->parentWidget() ) {
+            fits = inner->parentWidget()->rect().contains( inner->geometry() );
+        }
+        if ( !fits ) {
+            cut.append( text );
+        }
+    };
+    for ( auto* label : dialog.findChildren<QLabel*>() ) {
+        check( label, label->text(), label->wordWrap() );
+    }
+    for ( auto* box : dialog.findChildren<QCheckBox*>() ) {
+        check( box, box->text(), false );
+    }
+    return cut;
+}
+
+} // namespace
+
+SCENARIO( "The Value Names dialog shows its parts in the order they are filled in",
+          "[ui][valuenames][valuenamesdialog]" )
+{
+    const StoredValueNamesGuard guard;
+    storeGroups( { exampleGroup() } );
+
+    GIVEN( "the dialog showing the example group" )
+    {
+        ValueNamesDialog dialog;
+        auto* tablesBox = dialog.findChild<QGroupBox*>( QStringLiteral( "tablesBox" ) );
+        auto* rulesBox = dialog.findChild<QGroupBox*>( QStringLiteral( "rulesBox" ) );
+        REQUIRE( tablesBox != nullptr );
+        REQUIRE( rulesBox != nullptr );
+
+        THEN( "the Name Tables come before the Naming Rules" )
+        {
+            auto* parts = qobject_cast<QSplitter*>( tablesBox->parentWidget() );
+            REQUIRE( parts != nullptr );
+            REQUIRE( rulesBox->parentWidget() == parts );
+            REQUIRE( parts->indexOf( tablesBox ) < parts->indexOf( rulesBox ) );
+            showUntilExposed( dialog );
+            REQUIRE( tablesBox->geometry().bottom() < rulesBox->geometry().top() );
+        }
+    }
+}
+
+SCENARIO( "The Value Names dialog names a Name Table in a field of its own",
+          "[ui][valuenames][valuenamesdialog]" )
+{
+    const StoredValueNamesGuard guard;
+    storeGroups( { exampleGroup() } );
+
+    GIVEN( "the dialog showing the example group" )
+    {
+        ValueNamesDialog dialog;
+        auto* tables = dialog.findChild<QListWidget*>( QStringLiteral( "tablesList" ) );
+        auto* tableName = dialog.findChild<QLineEdit*>( QStringLiteral( "tableName" ) );
+        auto* rules = dialog.findChild<QTableWidget*>( QStringLiteral( "rulesTable" ) );
+        auto* captureGroups = dialog.findChild<QTableWidget*>( QStringLiteral( "captureGroups" ) );
+        REQUIRE( tables != nullptr );
+        REQUIRE( tableName != nullptr );
+        REQUIRE( tableName->text() == QStringLiteral( "ECU" ) );
+        tables->setCurrentRow( 2 );
+        REQUIRE( tableName->text() == QStringLiteral( "Ids" ) );
+
+        WHEN( "the selected table is renamed in its field, letter by letter" )
+        {
+            tableName->selectAll();
+            QTest::keyClicks( tableName, QStringLiteral( "Numbers" ) );
+
+            THEN( "the table, the list and the rule that uses it follow" )
+            {
+                const auto& group = dialog.groups()[ 0 ];
+                REQUIRE( group.tables()[ 2 ].name == QStringLiteral( "Numbers" ) );
+                REQUIRE( tables->item( 2 )->text() == QStringLiteral( "Numbers" ) );
+                REQUIRE( group.rules()[ 1 ].tableFor( QStringLiteral( "1" ) )
+                         == QStringLiteral( "Numbers" ) );
+                // The rule BAP ECU is selected; its tables are still ECU and Function.
+                REQUIRE( group.rules()[ 0 ].tableFor( QStringLiteral( "1" ) )
+                         == QStringLiteral( "ECU" ) );
+                rules->selectRow( 1 );
+                auto* combo = qobject_cast<QComboBox*>( captureGroups->cellWidget( 0, 1 ) );
+                REQUIRE( combo != nullptr );
+                REQUIRE( combo->currentText() == QStringLiteral( "Numbers" ) );
+            }
+        }
+
+        WHEN( "it is given the name of another table, and editing ends" )
+        {
+            tableName->setText( QStringLiteral( "ECU" ) );
+            Q_EMIT tableName->textEdited( tableName->text() );
+            const auto whileTyping = tableName->text();
+            Q_EMIT tableName->editingFinished();
+
+            THEN( "it gets a name of its own, and the field shows it once editing ends" )
+            {
+                REQUIRE( whileTyping == QStringLiteral( "ECU" ) );
+                REQUIRE( dialog.groups()[ 0 ].tables()[ 2 ].name == QStringLiteral( "ECU (2)" ) );
+                REQUIRE( dialog.groups()[ 0 ].tables()[ 0 ].name == QStringLiteral( "ECU" ) );
+                REQUIRE( dialog.groups()[ 0 ].rules()[ 1 ].tableFor( QStringLiteral( "1" ) )
+                         == QStringLiteral( "ECU (2)" ) );
+                REQUIRE( dialog.groups()[ 0 ].rules()[ 0 ].tableFor( QStringLiteral( "1" ) )
+                         == QStringLiteral( "ECU" ) );
+                REQUIRE( tableName->text() == QStringLiteral( "ECU (2)" ) );
+            }
+        }
+
+        WHEN( "a table is renamed in the list" )
+        {
+            tables->item( 2 )->setText( QStringLiteral( "Codes" ) );
+
+            THEN( "its field shows the new name" )
+            {
+                REQUIRE( tableName->text() == QStringLiteral( "Codes" ) );
+            }
+        }
+
+        WHEN( "two Name Tables are added" )
+        {
+            showUntilExposed( dialog );
+            toolButtonOf( dialog, QStringLiteral( "Add a Name Table" ) )->click();
+            const auto first = tableName->text();
+            toolButtonOf( dialog, QStringLiteral( "Add a Name Table" ) )->click();
+
+            THEN( "each gets a name of its own, and its name field the focus" )
+            {
+                const auto& added = dialog.groups()[ 0 ].tables();
+                REQUIRE( added.size() == 5 );
+                REQUIRE( added[ 3 ].name == QStringLiteral( "Name Table 1" ) );
+                REQUIRE( added[ 4 ].name == QStringLiteral( "Name Table 2" ) );
+                REQUIRE( first == QStringLiteral( "Name Table 1" ) );
+                REQUIRE( tableName->text() == QStringLiteral( "Name Table 2" ) );
+                REQUIRE( tableName->selectedText() == QStringLiteral( "Name Table 2" ) );
+                REQUIRE( dialog.focusWidget() == tableName );
+                REQUIRE( tables->currentRow() == 4 );
+            }
+        }
+
+        WHEN( "a new group gets a table by Paste, and another is added" )
+        {
+            toolButtonOf( dialog, QStringLiteral( "New Naming Group" ) )->click();
+            dialog.pasteRows( QStringLiteral( "1\tone\n" ) );
+            toolButtonOf( dialog, QStringLiteral( "Add a Name Table" ) )->click();
+
+            THEN( "they are Name Table 1 and Name Table 2" )
+            {
+                const auto& added = dialog.groups()[ 1 ].tables();
+                REQUIRE( added.size() == 2 );
+                REQUIRE( added[ 0 ].name == QStringLiteral( "Name Table 1" ) );
+                REQUIRE( added[ 1 ].name == QStringLiteral( "Name Table 2" ) );
+            }
+        }
+
+        WHEN( "the name field is emptied" )
+        {
+            tableName->setText( QString{} );
+            Q_EMIT tableName->textEdited( tableName->text() );
+            Q_EMIT tableName->editingFinished();
+
+            THEN( "the table gets a new table's name" )
+            {
+                REQUIRE( dialog.groups()[ 0 ].tables()[ 2 ].name
+                         == QStringLiteral( "Name Table 1" ) );
+                REQUIRE( tableName->text() == QStringLiteral( "Name Table 1" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "The Value Names dialog edits the selected Naming Rule in fields of its own",
+          "[ui][valuenames][valuenamesdialog]" )
+{
+    const StoredValueNamesGuard guard;
+    storeGroups( { exampleGroup() } );
+
+    GIVEN( "the dialog showing the example group, the rule BAP ECU selected" )
+    {
+        ValueNamesDialog dialog;
+        auto* rules = dialog.findChild<QTableWidget*>( QStringLiteral( "rulesTable" ) );
+        auto* ruleName = dialog.findChild<QLineEdit*>( QStringLiteral( "ruleName" ) );
+        auto* ruleRegex = dialog.findChild<QLineEdit*>( QStringLiteral( "ruleRegex" ) );
+        auto* ruleTemplate = dialog.findChild<QLineEdit*>( QStringLiteral( "ruleTemplate" ) );
+        auto* captureGroups = dialog.findChild<QTableWidget*>( QStringLiteral( "captureGroups" ) );
+        REQUIRE( rules != nullptr );
+        REQUIRE( ruleName != nullptr );
+        REQUIRE( ruleRegex != nullptr );
+        REQUIRE( ruleTemplate != nullptr );
+        const auto ecu = exampleGroup().rules()[ 0 ];
+        REQUIRE( ruleName->text() == ecu.name );
+        REQUIRE( ruleRegex->text() == ecu.pattern );
+        REQUIRE( ruleTemplate->text() == ecu.displayTemplate );
+
+        const auto edit = []( QLineEdit* field, const QString& text ) {
+            field->setText( text );
+            Q_EMIT field->textEdited( text );
+        };
+
+        WHEN( "the rule Id is selected" )
+        {
+            rules->selectRow( 1 );
+
+            THEN( "its fields show it" )
+            {
+                REQUIRE( ruleName->text() == QStringLiteral( "Id" ) );
+                REQUIRE( ruleRegex->text() == QStringLiteral( "id=(\\d+)" ) );
+            }
+        }
+
+        WHEN( "its name is typed as another rule's, and its template changed" )
+        {
+            edit( ruleName, QStringLiteral( "Id" ) );
+            edit( ruleTemplate, QStringLiteral( "{name}" ) );
+            Q_EMIT ruleName->editingFinished();
+
+            THEN( "the rule and its row in the table change, its name made unique" )
+            {
+                const auto& changed = dialog.groups()[ 0 ].rules()[ 0 ];
+                REQUIRE( changed.name == QStringLiteral( "Id (2)" ) );
+                REQUIRE( changed.displayTemplate == QStringLiteral( "{name}" ) );
+                REQUIRE( rules->item( 0, 0 )->text() == QStringLiteral( "Id (2)" ) );
+                REQUIRE( rules->item( 0, 2 )->text() == QStringLiteral( "{name}" ) );
+                REQUIRE( ruleName->text() == QStringLiteral( "Id (2)" ) );
+            }
+        }
+
+        WHEN( "its regex is typed through a state with one capture group" )
+        {
+            edit( ruleRegex, QStringLiteral( "BAP << ECU (0x[0-9A-F]{2})" ) );
+            REQUIRE( captureGroups->rowCount() == 1 );
+            edit( ruleRegex, QStringLiteral( "BAP << ECU (0x[0-9A-F]{2}) (0x[0-9A-F]{2})" ) );
+            Q_EMIT ruleRegex->editingFinished();
+
+            THEN( "the second capture group keeps its Name Table" )
+            {
+                REQUIRE( dialog.groups()[ 0 ].rules()[ 0 ].groupTables == ecu.groupTables );
+                REQUIRE( captureGroups->rowCount() == 2 );
+                REQUIRE( rules->item( 0, 1 )->text() == ruleRegex->text() );
+            }
+
+            AND_WHEN( "a capture group goes once editing ended" )
+            {
+                edit( ruleRegex, QStringLiteral( "BAP << ECU (0x[0-9A-F]{2})" ) );
+                Q_EMIT ruleRegex->editingFinished();
+                edit( ruleRegex, QStringLiteral( "BAP << ECU (0x[0-9A-F]{2}) (0x[0-9A-F]{2})" ) );
+
+                THEN( "its Name Table went with it" )
+                {
+                    REQUIRE( dialog.groups()[ 0 ]
+                                 .rules()[ 0 ]
+                                 .tableFor( QStringLiteral( "2" ) )
+                                 .isEmpty() );
+                }
+            }
+        }
+
+        WHEN( "the rule is edited in the table" )
+        {
+            rules->item( 0, 0 )->setText( QStringLiteral( "Ecu" ) );
+
+            THEN( "its field follows" )
+            {
+                REQUIRE( ruleName->text() == QStringLiteral( "Ecu" ) );
+            }
+        }
+
+        THEN( "a click on the selected rule edits it, as a double-click does" )
+        {
+            REQUIRE( rules->editTriggers().testFlag( QAbstractItemView::SelectedClicked ) );
+            REQUIRE( rules->editTriggers().testFlag( QAbstractItemView::DoubleClicked ) );
+        }
+    }
+}
+
+SCENARIO( "The Value Names dialog fits its texts at its default size",
+          "[ui][valuenames][valuenamesdialog]" )
+{
+    const StoredValueNamesGuard guard;
+    storeGroups( { exampleGroup() } );
+    const bool german = GENERATE( false, true );
+    GermanLabels germanLabels;
+    const InstalledTranslator installed( german ? &germanLabels : nullptr );
+
+    GIVEN( ( german ? "the dialog in German" : "the dialog in English" ) )
+    {
+        ValueNamesDialog dialog;
+        const auto defaultSize = dialog.size();
+        showUntilExposed( dialog );
+        auto* rules = dialog.findChild<QTableWidget*>( QStringLiteral( "rulesTable" ) );
+        REQUIRE( rules != nullptr );
+
+        THEN( "it keeps its default size, and no label or check box is cut off" )
+        {
+            INFO( "shown at " << dialog.width() << "x" << dialog.height() << ", minimum "
+                              << dialog.minimumSizeHint().width() << "x"
+                              << dialog.minimumSizeHint().height() );
+            REQUIRE( dialog.size() == defaultSize );
+            REQUIRE( cutOffTexts( dialog ) == QStringList{} );
+        }
+
+        THEN( "the Template column shows the default template in full" )
+        {
+            const auto needed
+                = rules->fontMetrics().horizontalAdvance( NamingRule::defaultTemplate() );
+            REQUIRE( rules->columnWidth( 2 ) >= needed + 12 );
+            const auto cell = rules->visualRect( rules->model()->index( 0, 2 ) );
+            // Inside the view, not scrolled out of it.
+            REQUIRE( cell.left() + needed + 12 <= rules->viewport()->width() );
+        }
+
+        THEN( "the user can resize the Regex and the Template columns" )
+        {
+            auto* header = rules->horizontalHeader();
+            REQUIRE( header->sectionResizeMode( 1 ) == QHeaderView::Interactive );
+            REQUIRE( header->sectionResizeMode( 2 ) == QHeaderView::Interactive );
+            const auto before = header->sectionSize( 1 );
+            header->resizeSection( 1, before + 40 );
+            REQUIRE( header->sectionSize( 1 ) == before + 40 );
         }
     }
 }

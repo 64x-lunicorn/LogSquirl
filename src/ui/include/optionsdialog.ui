@@ -56,6 +56,146 @@
          <widget class="QWidget" name="general_tabContents">
           <layout class="QVBoxLayout" name="verticalLayout_3">
            <item>
+            <widget class="QGroupBox" name="sessionBox">
+             <property name="title">
+              <string>Session options</string>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_2">
+              <item row="2" column="0">
+               <widget class="QCheckBox" name="minimizeToTrayCheckBox">
+                <property name="text">
+                 <string>Minimize to tray</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QCheckBox" name="loadLastSessionCheckBox">
+                <property name="text">
+                 <string>Load last session</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QCheckBox" name="followFileOnLoadCheckBox">
+                <property name="text">
+                 <string>Follow file on load</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QCheckBox" name="multipleWindowsCheckBox">
+                <property name="text">
+                 <string>Enable multiple windows</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QCheckBox" name="confirmTabCloseCheckBox">
+                <property name="text">
+                 <string>Confirm before closing tabs</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QCheckBox" name="showSplashScreenCheckBox">
+                <property name="text">
+                 <string>Show splash screen on startup</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QCheckBox" name="showDashboardCheckBox">
+                <property name="text">
+                 <string>Show dashboard on startup</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QLabel" name="showDashboardHintLabel">
+                <property name="text">
+                 <string>Applies to windows opened from now on</string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="versionCheckingBox">
+             <property name="title">
+              <string>Version checking options</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_7">
+              <item>
+               <widget class="QCheckBox" name="checkForNewVersionCheckBox">
+                <property name="text">
+                 <string>Check for new version</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="checkForBetaVersionCheckBox">
+                <property name="toolTip">
+                 <string>When enabled, checks for beta versions on every application start</string>
+                </property>
+                <property name="text">
+                 <string>Check for beta updates</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <spacer name="verticalSpacer">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>0</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="searchTab">
+      <attribute name="title">
+       <string>Search</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="searchTabScrollLayout">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QScrollArea" name="searchTabScrollArea">
+         <property name="frameShape">
+          <enum>QFrame::NoFrame</enum>
+         </property>
+         <property name="widgetResizable">
+          <bool>true</bool>
+         </property>
+         <widget class="QWidget" name="searchTabContents">
+          <layout class="QVBoxLayout" name="searchTabContentsLayout">
+           <item>
             <widget class="QGroupBox" name="searchBox">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -173,6 +313,29 @@
                </widget>
               </item>
               <item row="9" column="0">
+               <widget class="QLabel" name="contextLinesLabel">
+                <property name="text">
+                 <string>Context lines around matches (0 = off)</string>
+                </property>
+                <property name="buddy">
+                 <cstring>contextLinesSpinBox</cstring>
+                </property>
+               </widget>
+              </item>
+              <item row="9" column="1">
+               <widget class="QSpinBox" name="contextLinesSpinBox">
+                <property name="minimum">
+                 <number>0</number>
+                </property>
+                <property name="maximum">
+                 <number>50</number>
+                </property>
+                <property name="value">
+                 <number>0</number>
+                </property>
+               </widget>
+              </item>
+              <item row="10" column="0">
                <widget class="QLabel" name="label_4">
                 <property name="text">
                  <string>QuickFind search type: </string>
@@ -182,7 +345,7 @@
                 </property>
                </widget>
               </item>
-              <item row="9" column="1">
+              <item row="10" column="1">
                <widget class="QComboBox" name="quickFindSearchBox">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -192,7 +355,7 @@
                 </property>
                </widget>
               </item>
-              <item row="10" column="0">
+              <item row="11" column="0">
                <widget class="QLabel" name="quickFindColorLabel">
                 <property name="text">
                  <string>QuickFind match color:</string>
@@ -202,7 +365,7 @@
                 </property>
                </widget>
               </item>
-              <item row="10" column="1">
+              <item row="11" column="1">
                <widget class="QPushButton" name="quickFindColorButton">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -218,7 +381,7 @@
                 </property>
                </widget>
               </item>
-              <item row="11" column="0" colspan="2">
+              <item row="12" column="0" colspan="2">
                <widget class="QCheckBox" name="incrementalCheckBox">
                 <property name="layoutDirection">
                  <enum>Qt::LeftToRight</enum>
@@ -232,93 +395,203 @@
             </widget>
            </item>
            <item>
-            <widget class="QGroupBox" name="sessionBox">
+            <widget class="QGroupBox" name="perfBox">
              <property name="title">
-              <string>Session options</string>
+              <string>Indexing and search</string>
              </property>
-             <layout class="QGridLayout" name="gridLayout_2">
-              <item row="2" column="0">
-               <widget class="QCheckBox" name="minimizeToTrayCheckBox">
-                <property name="text">
-                 <string>Minimize to tray</string>
-                </property>
-               </widget>
+             <layout class="QVBoxLayout" name="verticalLayout_20">
+              <item>
+               <layout class="QVBoxLayout" name="verticalLayout_19">
+                <item>
+                 <layout class="QFormLayout" name="formLayout_2">
+                  <item row="0" column="0">
+                   <widget class="QLabel" name="regexpEngineLabel">
+                    <property name="text">
+                     <string>Regular expressions engine:</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="1">
+                   <widget class="QComboBox" name="regexpEngineComboBox">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="1" column="0">
+                   <widget class="QLabel" name="label_8">
+                    <property name="text">
+                     <string>Index file read buffer (Mib):</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="1" column="1">
+                   <widget class="QSpinBox" name="indexReadBufferSpinBox">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="maximum">
+                     <number>256</number>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="2" column="0">
+                   <widget class="QLabel" name="label_9">
+                    <property name="text">
+                     <string>Search read buffer (lines):</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="2" column="1">
+                   <widget class="QSpinBox" name="searchReadBufferSpinBox">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="suffix">
+                     <string/>
+                    </property>
+                    <property name="maximum">
+                     <number>100000</number>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="keepFileClosedCheckBox">
+                  <property name="toolTip">
+                   <string>File will be kept closed as much as possible. Affects only files opened after check state changed</string>
+                  </property>
+                  <property name="text">
+                   <string>Keep file closed (file reload required)</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="compressedIndexCheckBox">
+                  <property name="text">
+                   <string>Use compressed index (file reload required)</string>
+                  </property>
+                  <property name="checked">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="parallelSearchCheckBox">
+                  <property name="text">
+                   <string>Use parallel search</string>
+                  </property>
+                  <property name="checked">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="optimizeForNotLatinEncodingsCheckBox">
+                  <property name="text">
+                   <string>Optimize search for non-latin encodings</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
               </item>
-              <item row="0" column="0">
-               <widget class="QCheckBox" name="loadLastSessionCheckBox">
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="cachingBox">
+             <property name="title">
+              <string>Caching</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+             </property>
+             <property name="flat">
+              <bool>false</bool>
+             </property>
+             <layout class="QFormLayout" name="formLayout">
+              <property name="labelAlignment">
+               <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+              </property>
+              <item row="0" column="0" colspan="2">
+               <widget class="QCheckBox" name="searchResultsCacheCheckBox">
                 <property name="text">
-                 <string>Load last session</string>
+                 <string>Enable search results cache</string>
                 </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="QCheckBox" name="followFileOnLoadCheckBox">
-                <property name="text">
-                 <string>Follow file on load</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="1">
-               <widget class="QCheckBox" name="multipleWindowsCheckBox">
-                <property name="text">
-                 <string>Enable multiple windows</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="QCheckBox" name="confirmTabCloseCheckBox">
-                <property name="text">
-                 <string>Confirm before closing tabs</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="QCheckBox" name="showSplashScreenCheckBox">
-                <property name="text">
-                 <string>Show splash screen on startup</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="0">
-               <widget class="QCheckBox" name="showDashboardCheckBox">
-                <property name="text">
-                 <string>Show dashboard on startup</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="1">
-               <widget class="QLabel" name="showDashboardHintLabel">
-                <property name="text">
-                 <string>Applies to windows opened from now on</string>
-                </property>
-                <property name="wordWrap">
+                <property name="checked">
                  <bool>true</bool>
                 </property>
                </widget>
               </item>
-             </layout>
-            </widget>
-           </item>
-           <item>
-            <widget class="QGroupBox" name="versionCheckingBox">
-             <property name="title">
-              <string>Version checking options</string>
-             </property>
-             <layout class="QVBoxLayout" name="verticalLayout_7">
-              <item>
-               <widget class="QCheckBox" name="checkForNewVersionCheckBox">
+              <item row="1" column="0">
+               <widget class="QLabel" name="label_6">
                 <property name="text">
-                 <string>Check for new version</string>
+                 <string>Search cache size (lines):</string>
                 </property>
                </widget>
               </item>
-              <item>
-               <widget class="QCheckBox" name="checkForBetaVersionCheckBox">
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="searchCacheSpinBox">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="maximum">
+                 <number>10000000</number>
+                </property>
+                <property name="value">
+                 <number>100000</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0" colspan="2">
+               <widget class="QCheckBox" name="indexCacheCheckBox">
                 <property name="toolTip">
-                 <string>When enabled, checks for beta versions on every application start</string>
+                 <string>Cache file indexes to disk so re-opening a file skips indexing</string>
                 </property>
                 <property name="text">
-                 <string>Check for beta updates</string>
+                 <string>Enable index cache (persist indexes to disk)</string>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="indexCacheMaxSizeLabel">
+                <property name="text">
+                 <string>Index cache max size (MB):</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="indexCacheMaxSizeSpinBox">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimum">
+                 <number>10</number>
+                </property>
+                <property name="maximum">
+                 <number>10000</number>
+                </property>
+                <property name="value">
+                 <number>500</number>
                 </property>
                </widget>
               </item>
@@ -326,7 +599,7 @@
             </widget>
            </item>
            <item>
-            <spacer name="verticalSpacer">
+            <spacer name="searchTabVerticalSpacer">
              <property name="orientation">
               <enum>Qt::Vertical</enum>
              </property>
@@ -454,6 +727,55 @@
                   </property>
                  </widget>
                 </item>
+                <item>
+                 <layout class="QHBoxLayout" name="ansiColorSequencesLayout">
+                  <item>
+                   <widget class="QLabel" name="ansiColorSequencesLabel">
+                    <property name="text">
+                     <string>ANSI color sequences:</string>
+                    </property>
+                    <property name="buddy">
+                     <cstring>ansiColorSequencesComboBox</cstring>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QComboBox" name="ansiColorSequencesComboBox">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <item>
+                     <property name="text">
+                      <string>Show as text</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>Hide</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>Show colors</string>
+                     </property>
+                    </item>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <widget class="QLabel" name="ansiColorSequencesNoteLabel">
+                  <property name="text">
+                   <string>Hide and Show colors reduce search performance</string>
+                  </property>
+                  <property name="wordWrap">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
                </layout>
               </item>
              </layout>
@@ -560,60 +882,11 @@
             </widget>
            </item>
            <item>
-            <widget class="QGroupBox" name="viewOtherGroupBox">
+            <widget class="QGroupBox" name="scrollingGroupBox">
              <property name="title">
-              <string>Miscellaneous</string>
+              <string>Scrolling</string>
              </property>
-             <layout class="QVBoxLayout" name="verticalLayout_6">
-              <item>
-               <layout class="QHBoxLayout" name="ansiColorSequencesLayout">
-                <item>
-                 <widget class="QLabel" name="ansiColorSequencesLabel">
-                  <property name="text">
-                   <string>ANSI color sequences:</string>
-                  </property>
-                  <property name="buddy">
-                   <cstring>ansiColorSequencesComboBox</cstring>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QComboBox" name="ansiColorSequencesComboBox">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <item>
-                   <property name="text">
-                    <string>Show as text</string>
-                   </property>
-                  </item>
-                  <item>
-                   <property name="text">
-                    <string>Hide</string>
-                   </property>
-                  </item>
-                  <item>
-                   <property name="text">
-                    <string>Show colors</string>
-                   </property>
-                  </item>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <widget class="QLabel" name="ansiColorSequencesNoteLabel">
-                <property name="text">
-                 <string>Hide and Show colors reduce search performance</string>
-                </property>
-                <property name="wordWrap">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
+             <layout class="QVBoxLayout" name="scrollingLayout">
               <item>
                <widget class="QCheckBox" name="fastScrollEnabledCheckBox">
                 <property name="text">
@@ -640,30 +913,6 @@
                   </property>
                   <property name="value">
                    <number>5</number>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="contextLinesLayout">
-                <item>
-                 <widget class="QLabel" name="contextLinesLabel">
-                  <property name="text">
-                   <string>Context lines around matches (0 = off)</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QSpinBox" name="contextLinesSpinBox">
-                  <property name="minimum">
-                   <number>0</number>
-                  </property>
-                  <property name="maximum">
-                   <number>50</number>
-                  </property>
-                  <property name="value">
-                   <number>0</number>
                   </property>
                  </widget>
                 </item>
@@ -1169,210 +1418,6 @@
          </property>
          <widget class="QWidget" name="advanced_tabContents">
           <layout class="QVBoxLayout" name="verticalLayout_5">
-           <item>
-            <widget class="QGroupBox" name="perfBox">
-             <property name="title">
-              <string>Indexing and search</string>
-             </property>
-             <layout class="QVBoxLayout" name="verticalLayout_20">
-              <item>
-               <layout class="QVBoxLayout" name="verticalLayout_19">
-                <item>
-                 <layout class="QFormLayout" name="formLayout_2">
-                  <item row="0" column="0">
-                   <widget class="QLabel" name="regexpEngineLabel">
-                    <property name="text">
-                     <string>Regular expressions engine:</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="1">
-                   <widget class="QComboBox" name="regexpEngineComboBox">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="1" column="0">
-                   <widget class="QLabel" name="label_8">
-                    <property name="text">
-                     <string>Index file read buffer (Mib):</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="1" column="1">
-                   <widget class="QSpinBox" name="indexReadBufferSpinBox">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="maximum">
-                     <number>256</number>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="2" column="0">
-                   <widget class="QLabel" name="label_9">
-                    <property name="text">
-                     <string>Search read buffer (lines):</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="2" column="1">
-                   <widget class="QSpinBox" name="searchReadBufferSpinBox">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="suffix">
-                     <string/>
-                    </property>
-                    <property name="maximum">
-                     <number>100000</number>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="keepFileClosedCheckBox">
-                  <property name="toolTip">
-                   <string>File will be kept closed as much as possible. Affects only files opened after check state changed</string>
-                  </property>
-                  <property name="text">
-                   <string>Keep file closed (file reload required)</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="compressedIndexCheckBox">
-                  <property name="text">
-                   <string>Use compressed index (file reload required)</string>
-                  </property>
-                  <property name="checked">
-                   <bool>true</bool>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="parallelSearchCheckBox">
-                  <property name="text">
-                   <string>Use parallel search</string>
-                  </property>
-                  <property name="checked">
-                   <bool>true</bool>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="optimizeForNotLatinEncodingsCheckBox">
-                  <property name="text">
-                   <string>Optimize search for non-latin encodings</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-             </layout>
-            </widget>
-           </item>
-           <item>
-            <widget class="QGroupBox" name="cachingBox">
-             <property name="title">
-              <string>Caching</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-             </property>
-             <property name="flat">
-              <bool>false</bool>
-             </property>
-             <layout class="QFormLayout" name="formLayout">
-              <property name="labelAlignment">
-               <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-              </property>
-              <item row="0" column="0" colspan="2">
-               <widget class="QCheckBox" name="searchResultsCacheCheckBox">
-                <property name="text">
-                 <string>Enable search results cache</string>
-                </property>
-                <property name="checked">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="QLabel" name="label_6">
-                <property name="text">
-                 <string>Search cache size (lines):</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="QSpinBox" name="searchCacheSpinBox">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="maximum">
-                 <number>10000000</number>
-                </property>
-                <property name="value">
-                 <number>100000</number>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="0" colspan="2">
-               <widget class="QCheckBox" name="indexCacheCheckBox">
-                <property name="toolTip">
-                 <string>Cache file indexes to disk so re-opening a file skips indexing</string>
-                </property>
-                <property name="text">
-                 <string>Enable index cache (persist indexes to disk)</string>
-                </property>
-                <property name="checked">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="0">
-               <widget class="QLabel" name="indexCacheMaxSizeLabel">
-                <property name="text">
-                 <string>Index cache max size (MB):</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="1">
-               <widget class="QSpinBox" name="indexCacheMaxSizeSpinBox">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="minimum">
-                 <number>10</number>
-                </property>
-                <property name="maximum">
-                 <number>10000</number>
-                </property>
-                <property name="value">
-                 <number>500</number>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
            <item>
             <widget class="QGroupBox" name="loggingBox">
              <property name="title">

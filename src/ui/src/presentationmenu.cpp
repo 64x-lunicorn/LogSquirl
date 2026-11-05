@@ -207,6 +207,13 @@ void addSelectionBlock( QMenu& menu, const Opened& opened )
     menu.addSeparator();
     addEntry( menu, report.hasUnmarkedLogLines ? tr( "&Mark" ) : tr( "Unmark" ), entries.mark )
         ->setEnabled( opened.hasSelection );
+
+    // A Value Name made from the value the user points at (#883).
+    if ( entries.nameValue ) {
+        auto* nameValue = addEntry( menu, tr( "Name this value..." ), entries.nameValue );
+        nameValue->setStatusTip( tr( "Show this value of the Log Line as a name" ) );
+        nameValue->setEnabled( report.hasValueToName );
+    }
 }
 
 // Below the selection's entries: those of the view itself, how it colors and

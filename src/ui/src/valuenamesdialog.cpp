@@ -50,11 +50,13 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <utility>
 
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
 #endif
 
+#include "groupedits.h"
 #include "groupexchange.h"
 #include "groupimportprompt.h"
 #include "iconloader.h"
@@ -66,12 +68,15 @@
 
 using logsquirl::valuenames::CsvImportOptions;
 using logsquirl::valuenames::CsvImportWarning;
+using logsquirl::valuenames::freeName;
 using logsquirl::valuenames::GroupTable;
 using logsquirl::valuenames::NameRow;
 using logsquirl::valuenames::NameTable;
 using logsquirl::valuenames::NamingGroup;
 using logsquirl::valuenames::NamingRule;
 using logsquirl::valuenames::Problem;
+using logsquirl::valuenames::ruleNames;
+using logsquirl::valuenames::tableNames;
 
 namespace {
 
@@ -215,28 +220,6 @@ QList<GroupTable> adaptedGroupTables( const QList<GroupTable>& groupTables,
         adapted.append( GroupTable{ key, groupTable.table } );
     }
     return adapted;
-}
-
-QStringList ruleNames( const QList<NamingRule>& rules, int except )
-{
-    QStringList names;
-    for ( int index = 0; index < rules.size(); ++index ) {
-        if ( index != except ) {
-            names.append( rules[ index ].name );
-        }
-    }
-    return names;
-}
-
-QStringList tableNames( const QList<NameTable>& tables, int except )
-{
-    QStringList names;
-    for ( int index = 0; index < tables.size(); ++index ) {
-        if ( index != except ) {
-            names.append( tables[ index ].name );
-        }
-    }
-    return names;
 }
 
 QToolButton* toolButton( const QString& toolTip, QWidget* parent )
@@ -412,52 +395,21 @@ ValueNamesDialog::ValueNamesDialog( QWidget* parent )
     auto* parts = new QSplitter( Qt::Vertical, groupEditor_ );
     rightLayout->addWidget( parts, 1 );
 
-    // The Naming Rules, and the tables of the selected rule's capture groups.
-    auto* rulesBox = new QGroupBox( tr( "Naming Rules" ), parts );
-    auto* rulesLayout = new QHBoxLayout( rulesBox );
-    auto* rulesColumn = new QVBoxLayout;
-    rulesTable_ = new QTableWidget( 0, 3, rulesBox );
-    rulesTable_->setObjectName( QStringLiteral( "rulesTable" ) );
-    rulesTable_->setHorizontalHeaderLabels( { tr( "Name" ), tr( "Regex" ), tr( "Template" ) } );
-    rulesTable_->setSelectionBehavior( QAbstractItemView::SelectRows );
-    rulesTable_->setSelectionMode( QAbstractItemView::SingleSelection );
-    rulesTable_->horizontalHeader()->setSectionResizeMode( RuleRegex, QHeaderView::Stretch );
-    rulesTable_->verticalHeader()->hide();
-    editTriggers_ = rulesTable_->editTriggers();
-    rulesColumn->addWidget( rulesTable_ );
-    auto* ruleButtons = new QHBoxLayout;
-    addRuleButton_ = toolButton( tr( "Add a Naming Rule" ), rulesBox );
-    removeRuleButton_ = toolButton( tr( "Remove the Naming Rule" ), rulesBox );
-    upRuleButton_ = toolButton( tr( "Move up" ), rulesBox );
-    downRuleButton_ = toolButton( tr( "Move down" ), rulesBox );
-    for ( auto* button : { addRuleButton_, removeRuleButton_, upRuleButton_, downRuleButton_ } ) {
-        ruleButtons->addWidget( button );
-    }
-    ruleButtons->addStretch();
-    rulesColumn->addLayout( ruleButtons );
-    rulesLayout->addLayout( rulesColumn, 3 );
-
-    auto* captureColumn = new QVBoxLayout;
-    auto* captureLabel = new QLabel( tr( "Name Table of each capture group:" ), rulesBox );
-    captureLabel->setWordWrap( true );
-    captureColumn->addWidget( captureLabel );
-    captureGroups_ = new QTableWidget( 0, 2, rulesBox );
-    captureGroups_->setObjectName( QStringLiteral( "captureGroups" ) );
-    captureGroups_->setHorizontalHeaderLabels( { tr( "Capture group" ), tr( "Name Table" ) } );
-    captureGroups_->setEditTriggers( QAbstractItemView::NoEditTriggers );
-    captureGroups_->horizontalHeader()->setStretchLastSection( true );
-    captureGroups_->verticalHeader()->hide();
-    captureColumn->addWidget( captureGroups_ );
-    rulesLayout->addLayout( captureColumn, 2 );
-
-    // The Name Tables, and the rows of the selected one.
+    // The Name Tables, and the rows of the selected one: first, as a Naming
+    // Rule looks its values up in a table that is there.
     auto* tablesBox = new QGroupBox( tr( "Name Tables" ), parts );
+    tablesBox->setObjectName( QStringLiteral( "tablesBox" ) );
     auto* tablesLayout = new QHBoxLayout( tablesBox );
     auto* tablesColumn = new QVBoxLayout;
     tablesList_ = new QListWidget( tablesBox );
     tablesList_->setObjectName( QStringLiteral( "tablesList" ) );
-    tablesList_->setToolTip( tr( "Double-click a Name Table to rename it." ) );
     tablesColumn->addWidget( tablesList_ );
+    // The selected table's name, below the list.
+    auto* tableForm = new QFormLayout;
+    tableName_ = new QLineEdit( tablesBox );
+    tableName_->setObjectName( QStringLiteral( "tableName" ) );
+    tableForm->addRow( tr( "Name:" ), tableName_ );
+    tablesColumn->addLayout( tableForm );
     auto* tableButtons = new QHBoxLayout;
     addTableButton_ = toolButton( tr( "Add a Name Table" ), tablesBox );
     removeTableButton_ = toolButton( tr( "Remove the Name Table" ), tablesBox );
@@ -467,6 +419,8 @@ ValueNamesDialog::ValueNamesDialog( QWidget* parent )
     tablesColumn->addLayout( tableButtons );
     tablesLayout->addLayout( tablesColumn, 1 );
 
+    // How the selected table's keys match, and its rows. The check box has a
+    // row of its own, as wide as the rows, so that no language cuts it off.
     auto* rowsColumn = new QVBoxLayout;
     caseSensitive_ = new QCheckBox( tr( "Keys are case-sensitive" ), tablesBox );
     caseSensitive_->setObjectName( QStringLiteral( "caseSensitive" ) );
@@ -494,6 +448,88 @@ ValueNamesDialog::ValueNamesDialog( QWidget* parent )
     rowsColumn->addLayout( rowButtons );
     tablesLayout->addLayout( rowsColumn, 3 );
 
+    // The Naming Rules with the selected one's fields below them; beside,
+    // the tables of its capture groups.
+    auto* rulesBox = new QGroupBox( tr( "Naming Rules" ), parts );
+    rulesBox->setObjectName( QStringLiteral( "rulesBox" ) );
+    auto* rulesBoxLayout = new QHBoxLayout( rulesBox );
+    auto* rulesLayout = new QVBoxLayout;
+    rulesTable_ = new QTableWidget( 0, 3, rulesBox );
+    rulesTable_->setObjectName( QStringLiteral( "rulesTable" ) );
+    rulesTable_->setHorizontalHeaderLabels( { tr( "Name" ), tr( "Regex" ), tr( "Template" ) } );
+    rulesTable_->setSelectionBehavior( QAbstractItemView::SelectRows );
+    rulesTable_->setSelectionMode( QAbstractItemView::SingleSelection );
+    // Every column can be resized; the template, last, takes what is left,
+    // and starts wide enough for the default template.
+    auto* rulesHeader = rulesTable_->horizontalHeader();
+    rulesHeader->setSectionResizeMode( QHeaderView::Interactive );
+    rulesHeader->setStretchLastSection( true );
+    rulesTable_->setColumnWidth( RuleName, 110 );
+    rulesTable_->setColumnWidth( RuleRegex, 170 );
+    rulesTable_->setColumnWidth(
+        RuleTemplate,
+        rulesTable_->fontMetrics().horizontalAdvance( NamingRule::defaultTemplate() ) + 40 );
+    rulesTable_->verticalHeader()->hide();
+    // A click on the selected rule edits it, as a double-click does.
+    editTriggers_ = rulesTable_->editTriggers() | QAbstractItemView::SelectedClicked;
+    rulesTable_->setEditTriggers( editTriggers_ );
+    rulesLayout->addWidget( rulesTable_, 1 );
+    auto* ruleButtons = new QHBoxLayout;
+    addRuleButton_ = toolButton( tr( "Add a Naming Rule" ), rulesBox );
+    removeRuleButton_ = toolButton( tr( "Remove the Naming Rule" ), rulesBox );
+    upRuleButton_ = toolButton( tr( "Move up" ), rulesBox );
+    downRuleButton_ = toolButton( tr( "Move down" ), rulesBox );
+    for ( auto* button : { addRuleButton_, removeRuleButton_, upRuleButton_, downRuleButton_ } ) {
+        ruleButtons->addWidget( button );
+    }
+    ruleButtons->addStretch();
+    rulesLayout->addLayout( ruleButtons );
+
+    // The selected rule: name and template in a row, the regex, longer, in a
+    // row of its own.
+    auto* ruleForm = new QGridLayout;
+    ruleName_ = new QLineEdit( rulesBox );
+    ruleName_->setObjectName( QStringLiteral( "ruleName" ) );
+    ruleRegex_ = new QLineEdit( rulesBox );
+    ruleRegex_->setObjectName( QStringLiteral( "ruleRegex" ) );
+    ruleTemplate_ = new QLineEdit( rulesBox );
+    ruleTemplate_->setObjectName( QStringLiteral( "ruleTemplate" ) );
+    ruleTemplate_->setPlaceholderText( NamingRule::defaultTemplate() );
+    const auto fieldLabel = [ rulesBox ]( const QString& text, QLineEdit* field ) {
+        auto* label = new QLabel( text, rulesBox );
+        label->setBuddy( field );
+        return label;
+    };
+    ruleForm->addWidget( fieldLabel( tr( "Name:" ), ruleName_ ), 0, 0 );
+    ruleForm->addWidget( ruleName_, 0, 1 );
+    ruleForm->addWidget( fieldLabel( tr( "Template:" ), ruleTemplate_ ), 0, 2 );
+    ruleForm->addWidget( ruleTemplate_, 0, 3 );
+    ruleForm->addWidget( fieldLabel( tr( "Regex:" ), ruleRegex_ ), 1, 0 );
+    ruleForm->addWidget( ruleRegex_, 1, 1, 1, 3 );
+    ruleForm->setColumnStretch( 1, 1 );
+    ruleForm->setColumnStretch( 3, 1 );
+    rulesLayout->addLayout( ruleForm );
+    rulesBoxLayout->addLayout( rulesLayout, 3 );
+
+    // Which Name Table each capture group is looked up in: a choice per row.
+    auto* captureColumn = new QVBoxLayout;
+    auto* captureLabel
+        = new QLabel( tr( "Choose the Name Table of each capture group:" ), rulesBox );
+    captureLabel->setWordWrap( true );
+    captureColumn->addWidget( captureLabel );
+    captureGroups_ = new QTableWidget( 0, 2, rulesBox );
+    captureGroups_->setObjectName( QStringLiteral( "captureGroups" ) );
+    captureGroups_->setHorizontalHeaderLabels( { tr( "Capture group" ), tr( "Name Table" ) } );
+    captureGroups_->setEditTriggers( QAbstractItemView::NoEditTriggers );
+    captureGroups_->setSelectionMode( QAbstractItemView::NoSelection );
+    captureGroups_->setFocusPolicy( Qt::NoFocus );
+    captureGroups_->setShowGrid( false );
+    captureGroups_->horizontalHeader()->setSectionResizeMode( 0, QHeaderView::ResizeToContents );
+    captureGroups_->horizontalHeader()->setStretchLastSection( true );
+    captureGroups_->verticalHeader()->hide();
+    captureColumn->addWidget( captureGroups_ );
+    rulesBoxLayout->addLayout( captureColumn, 2 );
+
     // The preview of a sample Log Line, and the warnings.
     auto* previewBox = new QGroupBox( tr( "Preview" ), parts );
     auto* previewLayout = new QVBoxLayout( previewBox );
@@ -513,7 +549,7 @@ ValueNamesDialog::ValueNamesDialog( QWidget* parent )
     warnings_->setObjectName( QStringLiteral( "warnings" ) );
     previewLayout->addWidget( warnings_ );
 
-    parts->setStretchFactor( 0, 2 );
+    parts->setStretchFactor( 0, 3 );
     parts->setStretchFactor( 1, 3 );
     parts->setStretchFactor( 2, 1 );
     splitter->setStretchFactor( 0, 0 );
@@ -541,11 +577,22 @@ ValueNamesDialog::ValueNamesDialog( QWidget* parent )
     connect( rulesTable_, &QTableWidget::itemSelectionChanged, this,
              &ValueNamesDialog::ruleSelected );
     connect( rulesTable_, &QTableWidget::itemChanged, this, &ValueNamesDialog::ruleEdited );
+    for ( const auto& [ field, column ] :
+          { std::pair{ ruleName_, RuleName }, std::pair{ ruleRegex_, RuleRegex },
+            std::pair{ ruleTemplate_, RuleTemplate } } ) {
+        connect( field, &QLineEdit::textEdited, this,
+                 [ this, column ]( const QString& text ) { ruleFieldEdited( column, text ); } );
+        connect( field, &QLineEdit::editingFinished, this, &ValueNamesDialog::ruleFieldFinished );
+        field->installEventFilter( this );
+    }
 
     connect( addTableButton_, &QToolButton::clicked, this, &ValueNamesDialog::addTable );
     connect( removeTableButton_, &QToolButton::clicked, this, &ValueNamesDialog::removeTable );
     connect( tablesList_, &QListWidget::currentRowChanged, this, &ValueNamesDialog::tableSelected );
     connect( tablesList_, &QListWidget::itemChanged, this, &ValueNamesDialog::tableRenamed );
+    connect( tableName_, &QLineEdit::textEdited, this, &ValueNamesDialog::tableNameEdited );
+    connect( tableName_, &QLineEdit::editingFinished, this, &ValueNamesDialog::tableNameFinished );
+    tableName_->installEventFilter( this );
     connect( caseSensitive_, &QCheckBox::toggled, this, &ValueNamesDialog::caseSensitivityChanged );
     connect( addRowButton_, &QToolButton::clicked, this, &ValueNamesDialog::addRow );
     connect( removeRowButton_, &QToolButton::clicked, this, &ValueNamesDialog::removeRows );
@@ -564,6 +611,15 @@ ValueNamesDialog::ValueNamesDialog( QWidget* parent )
 
     loadIcons();
     Theme::whenApplied( this, [ this ] { loadIcons(); } );
+}
+
+ValueNamesDialog::~ValueNamesDialog()
+{
+    // ~QDialog hides the dialog after the groups are gone, which takes the
+    // focus from a field and finishes its editing.
+    for ( auto* field : { groupName_, ruleName_, ruleRegex_, ruleTemplate_, tableName_ } ) {
+        disconnect( field, &QLineEdit::editingFinished, this, nullptr );
+    }
 }
 
 void ValueNamesDialog::loadIcons()
@@ -699,7 +755,7 @@ void ValueNamesDialog::makeGroupNamesUnique()
             if ( name.isEmpty() ) {
                 name = tr( "New Naming Group" );
             }
-            name = logsquirl::groupexchange::firstFreeName( name, taken );
+            name = freeName( name, taken );
             taken.append( name );
             if ( name != group.name() ) {
                 group.setName( name );
@@ -720,8 +776,8 @@ void ValueNamesDialog::addGroup( GroupList::Section section )
             return;
         }
         auto& teamGroups = teamEdits_.groups();
-        teamGroups.append( NamingGroup::createNewGroup( logsquirl::groupexchange::firstFreeName(
-            tr( "New Naming Group" ), teamEdits_.names() ) ) );
+        teamGroups.append( NamingGroup::createNewGroup(
+            freeName( tr( "New Naming Group" ), teamEdits_.names() ) ) );
         groupList_->setTeamGroups( teamEdits_.names(), true );
         groupList_->setCurrent( section, static_cast<int>( teamGroups.size() ) - 1 );
         return;
@@ -731,8 +787,7 @@ void ValueNamesDialog::addGroup( GroupList::Section section )
     for ( const auto& group : groups_ ) {
         taken.append( group.name() );
     }
-    groups_.append( NamingGroup::createNewGroup(
-        logsquirl::groupexchange::firstFreeName( tr( "New Naming Group" ), taken ) ) );
+    groups_.append( NamingGroup::createNewGroup( freeName( tr( "New Naming Group" ), taken ) ) );
     populateGroups( static_cast<int>( groups_.size() ) - 1 );
 }
 
@@ -783,9 +838,11 @@ void ValueNamesDialog::populateRules( int selectRow )
     if ( selectRow >= 0 ) {
         rulesTable_->selectRow( selectRow );
     }
+    ruleRow_ = selectRow;
+    regexEditStart_.reset();
+    populateRuleFields();
     updating_ = false;
 
-    ruleRow_ = selectRow;
     populateCaptureGroups();
     updateButtons();
 }
@@ -797,6 +854,10 @@ void ValueNamesDialog::ruleSelected()
     }
     const auto selected = rulesTable_->selectionModel()->selectedRows();
     ruleRow_ = selected.isEmpty() ? -1 : selected.first().row();
+    regexEditStart_.reset();
+    updating_ = true;
+    populateRuleFields();
+    updating_ = false;
     populateCaptureGroups();
     updateButtons();
 }
@@ -806,8 +867,73 @@ void ValueNamesDialog::ruleEdited( QTableWidgetItem* item )
     if ( updating_ || item == nullptr ) {
         return;
     }
-    const auto row = item->row();
-    auto text = item->text();
+    // An edit in the table starts afresh from the rule as it is.
+    regexEditStart_.reset();
+    const auto text = editRule( item->row(), item->column(), item->text() );
+    updating_ = true;
+    if ( text != item->text() ) {
+        item->setText( text );
+    }
+    if ( item->row() == ruleRow_ ) {
+        populateRuleFields();
+    }
+    updating_ = false;
+}
+
+void ValueNamesDialog::ruleFieldEdited( int column, const QString& text )
+{
+    if ( updating_ || ruleRow_ < 0 ) {
+        return;
+    }
+    const auto row = ruleRow_;
+    // The regex is adapted from what it was when this edit began: a capture
+    // group gone for a few keystrokes keeps its Name Table.
+    if ( column == RuleRegex && !regexEditStart_.has_value() ) {
+        if ( const auto* group = currentGroup(); group != nullptr && row < group->rules().size() ) {
+            regexEditStart_ = group->rules()[ row ];
+        }
+    }
+    const auto stored = editRule( row, column, text );
+    updating_ = true;
+    if ( auto* item = rulesTable_->item( row, column ) ) {
+        item->setText( stored );
+    }
+    updating_ = false;
+}
+
+void ValueNamesDialog::ruleFieldFinished()
+{
+    regexEditStart_.reset();
+    // Ended by the dialog filling the fields itself: they show the rule.
+    if ( updating_ ) {
+        return;
+    }
+    // The field shows the rule as kept: a name made unique, the default
+    // template for none.
+    updating_ = true;
+    populateRuleFields();
+    updating_ = false;
+}
+
+void ValueNamesDialog::populateRuleFields()
+{
+    const auto* group = currentGroup();
+    const bool selected = group != nullptr && ruleRow_ >= 0 && ruleRow_ < group->rules().size();
+    const auto rule = selected ? group->rules()[ ruleRow_ ] : NamingRule{};
+    const auto fill = [ & ]( QLineEdit* field, const QString& text ) {
+        if ( field->text() != text ) {
+            field->setText( text );
+        }
+        field->setEnabled( selected );
+        field->setReadOnly( !editable() );
+    };
+    fill( ruleName_, selected ? rule.name : QString{} );
+    fill( ruleRegex_, selected ? rule.pattern : QString{} );
+    fill( ruleTemplate_, selected ? rule.displayTemplate : QString{} );
+}
+
+QString ValueNamesDialog::editRule( int row, int column, QString text )
+{
     bool patternChanged = false;
 
     changeRules( [ & ]( QList<NamingRule>& rules ) {
@@ -815,21 +941,23 @@ void ValueNamesDialog::ruleEdited( QTableWidgetItem* item )
             return;
         }
         auto& rule = rules[ row ];
-        switch ( item->column() ) {
+        switch ( column ) {
         case RuleName:
             // Its name is what the rule's check is kept by: unique in the group.
             text = text.trimmed();
             if ( text.isEmpty() ) {
                 text = tr( "Rule" );
             }
-            text = logsquirl::groupexchange::firstFreeName( text, ruleNames( rules, row ) );
+            text = freeName( text, ruleNames( rules, row ) );
             rule.name = text;
             break;
-        case RuleRegex:
+        case RuleRegex: {
             patternChanged = rule.pattern != text;
-            rule.groupTables = adaptedGroupTables( rule.groupTables, rule.pattern, text );
+            const auto& from = regexEditStart_.has_value() ? *regexEditStart_ : rule;
+            rule.groupTables = adaptedGroupTables( from.groupTables, from.pattern, text );
             rule.pattern = text;
             break;
+        }
         case RuleTemplate:
             if ( text.isEmpty() ) {
                 text = NamingRule::defaultTemplate();
@@ -841,31 +969,23 @@ void ValueNamesDialog::ruleEdited( QTableWidgetItem* item )
         }
     } );
 
-    if ( text != item->text() ) {
-        updating_ = true;
-        item->setText( text );
-        updating_ = false;
-    }
     if ( patternChanged && row == ruleRow_ ) {
         populateCaptureGroups();
     }
     updatePreview();
+    return text;
 }
 
 void ValueNamesDialog::addRule()
 {
     auto* group = currentGroup();
-    if ( group == nullptr ) {
+    if ( group == nullptr || !editable() ) {
         return;
     }
-    changeRules( []( QList<NamingRule>& rules ) {
-        NamingRule rule;
-        rule.name = logsquirl::groupexchange::firstFreeName( tr( "Rule" ), ruleNames( rules, -1 ) );
-        rules.append( rule );
-    } );
+    logsquirl::valuenames::addRule( *group, NamingRule{}, tr( "Rule" ) );
     const auto row = static_cast<int>( group->rules().size() ) - 1;
     populateRules( row );
-    rulesTable_->editItem( rulesTable_->item( row, RuleRegex ) );
+    ruleRegex_->setFocus();
     updatePreview();
 }
 
@@ -1034,18 +1154,65 @@ void ValueNamesDialog::tableRenamed( QListWidgetItem* item )
         return;
     }
     const auto row = tablesList_->row( item );
+    const auto name = renameTable( row, item->text() );
+    updating_ = true;
+    if ( name != item->text() ) {
+        item->setText( name );
+    }
+    if ( row == tableRow_ && tableName_->text() != name ) {
+        tableName_->setText( name );
+    }
+    updating_ = false;
+}
+
+void ValueNamesDialog::tableNameEdited( const QString& text )
+{
+    if ( updating_ || currentTable() == nullptr ) {
+        return;
+    }
+    // Renamed as it is typed: the list and the rules follow at once. The
+    // field shows what was typed until editing is finished.
+    const auto row = tableRow_;
+    const auto name = renameTable( row, text );
+    updating_ = true;
+    if ( auto* item = tablesList_->item( row ) ) {
+        item->setText( name );
+    }
+    updating_ = false;
+}
+
+void ValueNamesDialog::tableNameFinished()
+{
+    // The field shows the name as kept: unique in the group, never empty.
+    // Ended by the dialog filling the field itself, it shows that already.
+    if ( const auto* table = currentTable();
+         !updating_ && table != nullptr && tableName_->text() != table->name ) {
+        updating_ = true;
+        tableName_->setText( table->name );
+        updating_ = false;
+    }
+}
+
+QString ValueNamesDialog::renameTable( int row, const QString& text )
+{
     const auto* group = currentGroup();
     if ( group == nullptr || row < 0 || row >= group->tables().size() ) {
-        return;
+        return text;
+    }
+    if ( !editable() ) {
+        return group->tables()[ row ].name;
     }
 
     // Unique in the group: the rules find their tables by name.
-    auto name = item->text().trimmed();
+    auto name = text.trimmed();
     if ( name.isEmpty() ) {
-        name = tr( "Table" );
+        name = logsquirl::valuenames::newTableName( tableNames( group->tables(), row ) );
     }
-    name = logsquirl::groupexchange::firstFreeName( name, tableNames( group->tables(), row ) );
+    name = freeName( name, tableNames( group->tables(), row ) );
     const auto oldName = group->tables()[ row ].name;
+    if ( name == oldName ) {
+        return name;
+    }
 
     changeTables( [ & ]( QList<NameTable>& tables ) { tables[ row ].name = name; } );
     // The rules that used the table use it under its new name.
@@ -1059,31 +1226,24 @@ void ValueNamesDialog::tableRenamed( QListWidgetItem* item )
         }
     } );
 
-    if ( name != item->text() ) {
-        updating_ = true;
-        item->setText( name );
-        updating_ = false;
-    }
     populateCaptureGroups();
     updatePreview();
+    return name;
 }
 
 void ValueNamesDialog::addTable()
 {
-    const auto* group = currentGroup();
-    if ( group == nullptr ) {
+    auto* group = currentGroup();
+    if ( group == nullptr || !editable() ) {
         return;
     }
-    changeTables( []( QList<NameTable>& tables ) {
-        NameTable table;
-        table.name
-            = logsquirl::groupexchange::firstFreeName( tr( "Table" ), tableNames( tables, -1 ) );
-        tables.append( table );
-    } );
+    logsquirl::valuenames::addTable( *group, NameTable{} );
     const auto row = static_cast<int>( group->tables().size() ) - 1;
     populateTables( row );
     populateCaptureGroups();
-    tablesList_->editItem( tablesList_->item( row ) );
+    // Named at once, in the field beside the list.
+    tableName_->setFocus();
+    tableName_->selectAll();
     updatePreview();
 }
 
@@ -1131,6 +1291,9 @@ void ValueNamesDialog::populateRows()
         rowsTable_->setItem( row, RowKey, new QTableWidgetItem( rows[ row ].key ) );
         rowsTable_->setItem( row, RowName, new QTableWidgetItem( rows[ row ].name ) );
     }
+    tableName_->setText( table != nullptr ? table->name : QString{} );
+    tableName_->setEnabled( table != nullptr );
+    tableName_->setReadOnly( !editable() );
     caseSensitive_->setChecked( table != nullptr && table->caseSensitive );
     caseSensitive_->setEnabled( table != nullptr && editable() );
     rowsTable_->setEnabled( table != nullptr );
@@ -1208,8 +1371,9 @@ void ValueNamesDialog::importCsvText( const QString& text, const CsvImportOption
     if ( target == CsvImportTarget::NewTable || currentTable() == nullptr ) {
         changeTables( [ & ]( QList<NameTable>& tables ) {
             NameTable table;
-            table.name = logsquirl::groupexchange::firstFreeName(
-                newTableName.isEmpty() ? tr( "Table" ) : newTableName, tableNames( tables, -1 ) );
+            const auto taken = tableNames( tables );
+            table.name = newTableName.isEmpty() ? logsquirl::valuenames::newTableName( taken )
+                                                : freeName( newTableName, taken );
             table.caseSensitive = options.caseSensitive;
             table.rows = imported.rows;
             tables.append( table );
@@ -1248,8 +1412,7 @@ void ValueNamesDialog::pasteRows( const QString& text )
     if ( currentTable() == nullptr ) {
         changeTables( []( QList<NameTable>& tables ) {
             NameTable table;
-            table.name = logsquirl::groupexchange::firstFreeName( tr( "Table" ),
-                                                                  tableNames( tables, -1 ) );
+            table.name = logsquirl::valuenames::newTableName( tableNames( tables ) );
             tables.append( table );
         } );
         populateTables( static_cast<int>( group->tables().size() ) - 1 );
@@ -1386,11 +1549,22 @@ void ValueNamesDialog::showPreviewLine()
 
 bool ValueNamesDialog::eventFilter( QObject* watched, QEvent* event )
 {
-    // Enter in the sample Log Line is no OK.
-    if ( watched == previewInput_ && event->type() == QEvent::KeyPress ) {
+    // Enter in the sample Log Line is no OK; in the fields of a Name Table
+    // or a rule it ends the edit, and is no OK either.
+    if ( event->type() == QEvent::KeyPress ) {
         const auto key = static_cast<QKeyEvent*>( event )->key();
         if ( key == Qt::Key_Return || key == Qt::Key_Enter ) {
-            return true;
+            if ( watched == tableName_ ) {
+                tableNameFinished();
+                return true;
+            }
+            if ( watched == ruleName_ || watched == ruleRegex_ || watched == ruleTemplate_ ) {
+                ruleFieldFinished();
+                return true;
+            }
+            if ( watched == previewInput_ ) {
+                return true;
+            }
         }
     }
     return QDialog::eventFilter( watched, event );

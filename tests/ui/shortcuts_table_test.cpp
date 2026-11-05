@@ -38,6 +38,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <utility>
 
 // A shortcut is recorded in place by clicking its cell or pressing Enter on
 // it, without a button per cell (#263).
@@ -177,6 +178,40 @@ SCENARIO( "A shortcut is recorded by clicking its cell", "[ui][options][shortcut
                              == QKeySequence( Qt::CTRL | Qt::SHIFT | Qt::Key_K ) );
                     REQUIRE( QKeySequence( keys[ 0 ] ) == QKeySequence( defaultMark ) );
                 }
+            }
+        }
+
+        WHEN( "the dialog is confirmed without a shortcut changed" )
+        {
+            dialog.buttonBox->button( QDialogButtonBox::Ok )->click();
+
+            THEN( "no shortcut is stored, and every action keeps its default keys" )
+            {
+                REQUIRE( config.shortcuts().empty() );
+                for ( const auto& [ action, shortcut ] : ShortcutAction::defaultShortcutList() ) {
+                    INFO( action );
+                    auto defaultKeys = shortcut.keySequence;
+                    defaultKeys.removeAll( QString{} );
+                    REQUIRE( ShortcutAction::shortcutKeys( action, config.shortcuts() ).size()
+                             == defaultKeys.size() );
+                }
+            }
+        }
+
+        WHEN( "a default shortcut is cleared and the dialog is applied" )
+        {
+            selectCell( table, markRow, PrimaryColumn );
+            QTest::keyClick( table, Qt::Key_Delete );
+            QCoreApplication::processEvents();
+            dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
+
+            THEN( "only that action is stored, with no key and no empty shortcut" )
+            {
+                REQUIRE( config.shortcuts().size() == 1 );
+                REQUIRE( config.shortcuts().at( ShortcutAction::LogViewMark ).isEmpty() );
+                REQUIRE(
+                    ShortcutAction::shortcutKeys( ShortcutAction::LogViewMark, config.shortcuts() )
+                        .isEmpty() );
             }
         }
 
@@ -364,4 +399,52 @@ TEST_CASE( "Show Value Names has a default key of its own", "[ui][options][short
             CHECK_FALSE( shortcut.keySequence.contains( key ) );
         }
     }
+}
+
+// File > Merge Log Files..., File > Export as CSV... and View > Sidebar can be
+// given keys (#890): none by default, so none takes another command's.
+TEST_CASE( "The Shortcuts list lists Merge Log Files, Export as CSV and the sidebar",
+           "[ui][options][shortcuts]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    auto& config = Configuration::get();
+    const auto storedShortcuts = config.shortcuts();
+    config.setShortcuts( {} );
+
+    {
+        LogFormatCatalog catalog;
+        OptionsDialog dialog( catalog );
+        const auto* table = dialog.shortcutsTable;
+
+        for ( const auto& [ action, name ] :
+              { std::pair{ ShortcutAction::MainWindowMergeLogFiles, "Merge Log Files" },
+                std::pair{ ShortcutAction::MainWindowExportAsCsv, "Export as CSV" },
+                std::pair{ ShortcutAction::MainWindowToggleSidebar,
+                           "Show or hide the sidebar" } } ) {
+            INFO( action );
+            const auto row = rowOf( table, action );
+            REQUIRE( row >= 0 );
+            CHECK( table->item( row, 0 )->text() == QApplication::tr( name ) );
+            CHECK( shortcutIn( table, row, PrimaryColumn ).isEmpty() );
+            CHECK( shortcutIn( table, row, SecondaryColumn ).isEmpty() );
+        }
+    }
+
+    config.setShortcuts( storedShortcuts );
+}
+
+// Before only changed rows were stored, OK in the Options dialog stored every
+// row with both cells, an empty cell as an empty key. An empty key is no
+// shortcut, so such a stored row gives an action no empty shortcut.
+TEST_CASE( "A stored empty key gives an action no shortcut", "[ui][options][shortcuts]" )
+{
+    const ShortcutAction::ConfiguredShortcuts stored{
+        { ShortcutAction::MainWindowQuit, { "Ctrl+Q", "" } },
+        { ShortcutAction::MainWindowCloseAll, { "", "" } },
+    };
+
+    CHECK( ShortcutAction::shortcutKeys( ShortcutAction::MainWindowQuit, stored )
+           == QList<QKeySequence>{ QKeySequence( "Ctrl+Q" ) } );
+    CHECK( ShortcutAction::shortcutKeys( ShortcutAction::MainWindowCloseAll, stored ).isEmpty() );
 }

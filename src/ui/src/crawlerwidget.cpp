@@ -493,6 +493,19 @@ QString CrawlerWidget::searchLimitsByTimeUnavailableReason() const
     return timeNavigation_.searchLimitsByTimeUnavailableReason();
 }
 
+void CrawlerWidget::exportAsCsv()
+{
+    if ( !recognizedFormat_ ) {
+        return;
+    }
+    if ( filteredViewWasLastFocused() ) {
+        currentFilteredView()->exportAsCsv();
+    }
+    else {
+        logTableView_->exportAsCsv();
+    }
+}
+
 TimeNavigation::Source CrawlerWidget::timeNavigationSource() const
 {
     if ( !openLogFile_ ) {
@@ -1624,10 +1637,13 @@ void CrawlerWidget::setup()
     // Leaving following by moving away from the bottom, which both
     // Presentations let the user do (#543), asks the View Set, which owns
     // follow (#558). What only the Text View lets the user do: start
-    // following at the bottom, and zoom with the wheel.
+    // following at the bottom, zoom with the wheel, and Name this value...
+    // (#883), which the Filtered Views offer too.
     connect( logMainView_, &LogMainView::followModeChanged, this, &CrawlerWidget::followSet );
     connect( logTableView_, &LogTableView::followModeChanged, this, &CrawlerWidget::followSet );
     connect( logMainView_, &LogMainView::changeFontSize, this, &CrawlerWidget::changeFontSize );
+    connect( logMainView_, &LogMainView::nameValueRequested, this,
+             &CrawlerWidget::nameValueRequested );
 
     connect( this, &CrawlerWidget::textWrapSet, logMainView_, &LogMainView::textWrapSet );
     connect( this, &CrawlerWidget::valueNamesShownSet, logMainView_,
@@ -2039,6 +2055,7 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
     connect( this, &CrawlerWidget::valueNamesShownSet, view, &FilteredView::valueNamesShownSet );
 
     connect( view, &FilteredView::changeFontSize, this, &CrawlerWidget::changeFontSize );
+    connect( view, &FilteredView::nameValueRequested, this, &CrawlerWidget::nameValueRequested );
 
     connect( view, &FilteredView::exitView, logMainView_,
              QOverload<>::of( &LogMainView::setFocus ) );

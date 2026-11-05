@@ -70,7 +70,16 @@ valgrind --version
 configure_and_build() {
     echo "::group::Configure"
     # shellcheck disable=SC2086 # the options are a list of words
-    cmake -B "$build_root" $cmake_opts -DLOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON .
+    cmake -B "$build_root" $cmake_opts -DLOGSQUIRL_BENCHMARK_HEAP_COUNTS=ON \
+        -DCMAKE_GLOBAL_AUTOGEN_TARGET=ON .
+    echo "::endgroup::"
+
+    # AUTOUIC rewrites a changed ui_*.h during the build, after Ninja has
+    # decided what is out of date, so the objects that include it would keep
+    # the other side's (#909). Running moc and uic in a run of their own first
+    # lets the build see the new headers.
+    echo "::group::Generate"
+    cmake --build "$build_root" --target autogen
     echo "::endgroup::"
 
     # A target that does not build must not be counted from an earlier build in
