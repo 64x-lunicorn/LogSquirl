@@ -129,9 +129,8 @@ struct CapturedValue {
 // rule names wins over one it overlaps that no row names, whichever rule comes
 // first, and otherwise the earlier rule wins, as for ValueNamer. Of several
 // in the range, the last. None when no rule captures a value there.
-std::optional<CapturedValue> capturedValueIn( const QList<NamingGroup>& groups,
-                                              const QString& line, qsizetype start,
-                                              qsizetype length );
+std::optional<CapturedValue> capturedValueIn( const QList<NamingGroup>& groups, const QString& line,
+                                              qsizetype start, qsizetype length );
 
 // The Log Line as shown: every Named Value's raw range replaced by what it
 // shows. namedValues are those ValueNamer::namedValues gave for line.

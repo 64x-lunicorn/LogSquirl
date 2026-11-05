@@ -330,9 +330,8 @@ QList<NamedValue> ValueNamer::namedValues( const QString& line ) const
     return namedValues;
 }
 
-std::optional<CapturedValue> capturedValueIn( const QList<NamingGroup>& groups,
-                                              const QString& line, qsizetype start,
-                                              qsizetype length )
+std::optional<CapturedValue> capturedValueIn( const QList<NamingGroup>& groups, const QString& line,
+                                              qsizetype start, qsizetype length )
 {
     if ( length <= 0 || line.size() > ValueNamer::MaxLineLength ) {
         return std::nullopt;
@@ -369,10 +368,11 @@ std::optional<CapturedValue> capturedValueIn( const QList<NamingGroup>& groups,
                 const auto captureGroup = captureGroupIndex( regex, groupTable.group );
                 const auto* table = group.table( groupTable.table );
                 if ( captureGroup < 0 || table == nullptr
-                     || std::any_of( groupTables.cbegin(), groupTables.cend(),
-                                     [ captureGroup ]( const auto& taken ) {
-                                         return taken.first == captureGroup;
-                                     } ) ) {
+                     || std::any_of(
+                         groupTables.cbegin(), groupTables.cend(),
+                         [ captureGroup ]( const auto& taken ) {
+                             return taken.first == captureGroup;
+                         } ) ) {
                     continue;
                 }
                 groupTables.emplace_back( captureGroup, table );
@@ -388,11 +388,11 @@ std::optional<CapturedValue> capturedValueIn( const QList<NamingGroup>& groups,
                     captured.start = match.capturedStart( captureGroup );
                     captured.length = match.capturedLength( captureGroup );
                     if ( captured.start < 0 || captured.length == 0
-                         || std::any_of( named.cbegin(), named.cend(),
-                                         [ & ]( const CapturedValue& taken ) {
-                                             return overlap( taken, captured.start,
-                                                             captured.length );
-                                         } ) ) {
+                         || std::any_of(
+                             named.cbegin(), named.cend(),
+                             [ & ]( const CapturedValue& taken ) {
+                                 return overlap( taken, captured.start, captured.length );
+                             } ) ) {
                         continue;
                     }
                     captured.value = match.captured( captureGroup );

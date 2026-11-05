@@ -789,8 +789,8 @@ NamingGroup esimGroup()
     valuenamesfixture::NamingRule rule;
     rule.name = QStringLiteral( "EsimState" );
     rule.pattern = QStringLiteral( "EsimState=(\\d+)" );
-    rule.groupTables = { valuenamesfixture::GroupTable{ QStringLiteral( "1" ),
-                                                        QStringLiteral( "EsimState" ) } };
+    rule.groupTables
+        = { valuenamesfixture::GroupTable{ QStringLiteral( "1" ), QStringLiteral( "EsimState" ) } };
     rule.displayTemplate = QStringLiteral( "{name} ({value})" );
     modem.setRules( { rule } );
     NameTable esim;
@@ -808,9 +808,8 @@ std::unique_ptr<QMenu> menuOn( AbstractLogView& view, LineNumber line, const QSt
     const auto column = lines[ static_cast<int>( line.get() ) ].indexOf( text );
     REQUIRE( column >= 0 );
     view.selectAndDisplayLine( line );
-    return ViewAccess::contextMenu( view,
-                                    ViewAccess::pointOn( view, static_cast<int>( line.get() ),
-                                                         column ) );
+    return ViewAccess::contextMenu(
+        view, ViewAccess::pointOn( view, static_cast<int>( line.get() ), column ) );
 }
 
 } // namespace
@@ -820,8 +819,8 @@ SCENARIO( "A further value of an existing Naming Rule is named from its Log Line
 {
     const StoredValueNamesGuard guard;
     const auto modem = esimGroup();
-    StoredValueNamesGuard::storeGroups( { NamingGroup::createNewGroup( QStringLiteral( "Other" ) ),
-                                          modem } );
+    StoredValueNamesGuard::storeGroups(
+        { NamingGroup::createNewGroup( QStringLiteral( "Other" ) ), modem } );
     const NameValueWindow shown( CapturedLines );
     auto& textView = CrawlerAccess::textView( *shown.crawler );
     const auto NameFour = QStringLiteral( "Name 4 in EsimState..." );
@@ -925,9 +924,9 @@ SCENARIO( "A further value of an existing Naming Rule is named from its Log Line
                 const auto& groups = ValueNamesCollection::get().ownGroups();
                 REQUIRE( groups.size() == 2 );
                 REQUIRE( groups[ 1 ].rules() == modem.rules() );
-                REQUIRE( groups[ 1 ].tables().front().rows
-                         == QList<NameRow>{
-                             NameRow{ QStringLiteral( "9" ), QStringLiteral( "Go" ) } } );
+                REQUIRE(
+                    groups[ 1 ].tables().front().rows
+                    == QList<NameRow>{ NameRow{ QStringLiteral( "9" ), QStringLiteral( "Go" ) } } );
             }
         }
     }

@@ -2572,7 +2572,8 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
         const auto& collection = ValueNamesCollection::get();
         report.capturedValue = PresentationMenu::Report::CapturedValue{
             captured.value, captured.table, captured.named(),
-            captured.groupIndex >= collection.groups().size() - collection.teamGroupCount() };
+            captured.groupIndex >= collection.groups().size() - collection.teamGroupCount()
+        };
     }
     entries.nameValue = [ this, valueToName ]() {
         if ( valueToName.has_value() ) {

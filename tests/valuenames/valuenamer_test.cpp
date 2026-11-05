@@ -656,10 +656,9 @@ TEST_CASE( "A Naming Group checked all over is the same group, every check set",
 TEST_CASE( "The value a Naming Rule captures in a range of a Log Line is found, named or not",
            "[valuenames][capturedvalue]" )
 {
-    const auto modem
-        = group( "Modem", { rule( "Esim", "EsimState=(\\d+)", { { "1", "EsimState" } } ) },
-                 { table( "Other", {} ),
-                   table( "EsimState", { { "1", "Idle" }, { "[89]", "Ready" } } ) } );
+    const auto modem = group(
+        "Modem", { rule( "Esim", "EsimState=(\\d+)", { { "1", "EsimState" } } ) },
+        { table( "Other", {} ), table( "EsimState", { { "1", "Idle" }, { "[89]", "Ready" } } ) } );
     const QString line = "modem EsimState=4 EsimState=9 done";
     const auto four = line.indexOf( '4' );
     const auto nine = line.indexOf( '9' );

@@ -224,8 +224,9 @@ void addSelectionBlock( QMenu& menu, const Opened& opened )
         const auto table = shown( captured.table );
         QString text;
         if ( captured.teamGroup ) {
-            text = captured.named ? tr( "Rename %1 %2 (Team group, read-only)" ).arg( table, value )
-                                  : tr( "Name %1 in %2 (Team group, read-only)" ).arg( value, table );
+            text = captured.named
+                       ? tr( "Rename %1 %2 (Team group, read-only)" ).arg( table, value )
+                       : tr( "Name %1 in %2 (Team group, read-only)" ).arg( value, table );
         }
         else {
             text = captured.named ? tr( "Rename %1 %2..." ).arg( table, value )
