@@ -63,13 +63,16 @@ public:
     // Builds the Encoding menu, with the Encoding a Log File is read with by
     // default already checked. The Policy is passed in because this is a
     // static method: there is no instance to have been handed one, and the
-    // menu must not reach for the settings store itself.
-    static QMenu* generate( QActionGroup* actionGroup, const FileAccessPolicy& fileAccess )
+    // menu must not reach for the settings store itself. The menu is the
+    // owner's, and deleted with it: adding it to another menu does not hand
+    // it over (#916).
+    static QMenu* generate( QActionGroup* actionGroup, const FileAccessPolicy& fileAccess,
+                            QWidget* owner )
     {
         const auto supportedEncodings = EncodingMenu::supportedEncodings();
         const auto defaultEncodingMib = fileAccess.defaultEncodingMib;
 
-        QMenu* encodingsMenu = new QMenu();
+        QMenu* encodingsMenu = new QMenu( owner );
 
         // Auto is the one entry without an Encoding.
         auto autoEncoding = encodingsMenu->addAction( QString{} );

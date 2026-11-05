@@ -1029,3 +1029,29 @@ SCENARIO( "A language change retitles every menu and submenu of the menu bar", "
         }
     }
 }
+
+// The Encoding menu is owned, so it goes with the window (#916).
+SCENARIO( "The Encoding menu is destroyed with its window", "[ui][menubar][encoding]" )
+{
+    GIVEN( "a shown window and its Encoding menu" )
+    {
+        ShownWindow shown;
+        QPointer<QMenu> encodingMenu;
+        for ( const auto& [ path, menu ] : menuBarMenus( *shown.window ) ) {
+            if ( path == QStringLiteral( "View/Encoding" ) ) {
+                encodingMenu = menu;
+            }
+        }
+        REQUIRE( !encodingMenu.isNull() );
+
+        WHEN( "the window is destroyed" )
+        {
+            shown.window.reset();
+
+            THEN( "the Encoding menu is destroyed with it" )
+            {
+                CHECK( encodingMenu.isNull() );
+            }
+        }
+    }
+}

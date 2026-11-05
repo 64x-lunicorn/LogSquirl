@@ -21,6 +21,7 @@
 #include <catch2/generators/catch_generators.hpp>
 
 #include <QByteArray>
+#include <QPointer>
 #include <QString>
 
 #include <map>
@@ -30,6 +31,7 @@
 
 #include <QStringDecoder>
 #include <QStringEncoder>
+#include <QWidget>
 
 #include "configuration.h"
 #include "encodings.h"
@@ -113,7 +115,9 @@ SCENARIO( "The Encoding menu offers the Encodings it always did", "[encoding][te
         QActionGroup group( nullptr );
         FileAccessPolicy fileAccess;
         fileAccess.defaultEncodingMib = 106;
-        std::unique_ptr<QMenu> menu( EncodingMenu::generate( &group, fileAccess ) );
+        auto owner = std::make_unique<QWidget>();
+        QPointer<QMenu> menu( EncodingMenu::generate( &group, fileAccess, owner.get() ) );
+        REQUIRE( !menu.isNull() );
 
         THEN( "it has an entry for each Encoding of the list" )
         {
@@ -122,6 +126,13 @@ SCENARIO( "The Encoding menu offers the Encodings it always did", "[encoding][te
                 entries += static_cast<std::size_t>( submenu->actions().size() );
             }
             REQUIRE( entries == menuEncodingsAsBefore().size() );
+        }
+
+        THEN( "it is its owner's and destroyed with it (#916)" )
+        {
+            CHECK( menu->parent() == owner.get() );
+            owner.reset();
+            CHECK( menu.isNull() );
         }
     }
 }

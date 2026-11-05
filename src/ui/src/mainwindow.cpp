@@ -1530,7 +1530,7 @@ void MainWindow::createMenus()
     viewMenu->addAction( textWrapAction );
     viewMenu->addAction( showValueNamesAction );
     viewMenu->addAction( matchesOnlyAction );
-    encodingMenu = EncodingMenu::generate( encodingGroup, session_.fileAccessPolicy() );
+    encodingMenu = EncodingMenu::generate( encodingGroup, session_.fileAccessPolicy(), viewMenu );
     viewMenu->addMenu( encodingMenu );
     viewMenu->addSeparator();
     viewMenu->addAction( followAction );
