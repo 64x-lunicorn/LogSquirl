@@ -2592,19 +2592,18 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
         }
     };
     // The number selected as the menu opens, charted (#898).
-    std::optional<ValueToName> numberToChart;
-    if ( const auto selected = selectionInLogLine() ) {
-        if ( const auto number = logsquirl::chart::numberSelected(
-                 selected->logLine,
-                 logsquirl::valuenames::LineRange{ selected->start, selected->length } ) ) {
-            numberToChart = ValueToName{ selected->logLine, number->start, number->length };
+    std::optional<TextInLogLine> numberToChart;
+    if ( auto selected = selectionInLogLine() ) {
+        if ( const auto number
+             = logsquirl::chart::numberSelected( selected->logLine, selected->range ) ) {
+            numberToChart = TextInLogLine{ std::move( selected->logLine ), *number };
         }
     }
     report.selectionIsNumber = numberToChart.has_value();
     entries.chartThisValue = [ this, numberToChart ]() {
         if ( numberToChart.has_value() ) {
-            Q_EMIT chartThisValueRequested( numberToChart->logLine, numberToChart->start,
-                                            numberToChart->length );
+            Q_EMIT chartThisValueRequested( numberToChart->logLine, numberToChart->range.start,
+                                            numberToChart->range.length );
         }
     };
     // The Log Lines the menu opens on: a right-click outside the selection
@@ -2632,7 +2631,7 @@ qsizetype rawCharacterAt( const logsquirl::vector<int>& displayColumns, qsizetyp
 
 } // namespace
 
-std::optional<AbstractLogView::ValueToName> AbstractLogView::selectionInLogLine() const
+std::optional<AbstractLogView::TextInLogLine> AbstractLogView::selectionInLogLine() const
 {
     if ( !selection_.isPortion() ) {
         return std::nullopt;
@@ -2648,7 +2647,8 @@ std::optional<AbstractLogView::ValueToName> AbstractLogView::selectionInLogLine(
     const auto start = rawCharacterAt( columns, portion.startColumn().get() );
     const auto end
         = std::min( rawCharacterAt( columns, portion.endColumn().get() ) + 1, text.size() );
-    return ValueToName{ std::move( text ), start, std::max<qsizetype>( end - start, 0 ) };
+    return TextInLogLine{ std::move( text ), logsquirl::valuenames::LineRange{
+                                                 start, std::max<qsizetype>( end - start, 0 ) } };
 }
 
 std::optional<AbstractLogView::ValueToName>
@@ -2659,7 +2659,10 @@ AbstractLogView::valueToNameAt( const QPoint& pos ) const
     // characters (#883).
     std::optional<ValueToName> valueToName;
     if ( selection_.isPortion() ) {
-        valueToName = selectionInLogLine();
+        if ( auto selected = selectionInLogLine() ) {
+            valueToName = ValueToName{ std::move( selected->logLine ), selected->range.start,
+                                       selected->range.length };
+        }
     }
     else if ( logLineAtY( pos.y() ).has_value() ) {
         // The column a click there finds, a Named Value's start on one.

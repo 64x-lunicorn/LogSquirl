@@ -78,6 +78,7 @@
 #include "showncolumns.h"
 #include "shownline.h"
 #include "textviewscrolling.h"
+#include "valueproposal.h"
 #include "viewportlayout.h"
 #include "wrappedstring.h"
 
@@ -339,10 +340,14 @@ protected:
         std::optional<logsquirl::valuenames::CapturedValue> captured = std::nullopt;
     };
     std::optional<ValueToName> valueToNameAt( const QPoint& pos ) const;
-    // The text selected within a Log Line, as the raw Log Line and the range
-    // of it, a Named Value selected in part whole; none without such a
-    // selection.
-    std::optional<ValueToName> selectionInLogLine() const;
+    // A range of a raw Log Line, and the Log Line.
+    struct TextInLogLine {
+        QString logLine;
+        logsquirl::valuenames::LineRange range;
+    };
+    // The text selected within a Log Line, a Named Value selected in part
+    // whole; none without such a selection.
+    std::optional<TextInLogLine> selectionInLogLine() const;
     // What the context menu's Export as CSV... does. Empty, and the menu
     // offers no such entry, unless the view can split its Log Lines into the
     // fields of a Log Format.
