@@ -61,6 +61,27 @@
   the View tab's *Miscellaneous* box is gone: the context lines join the
   search options, the ANSI color sequences the *Text* group and fast
   scrolling a new *Scrolling* group. (#899)
+- **A further value of a Naming Rule is named from its Log Line**: on a
+  value an existing Naming Rule captures, the context menu of the Text View
+  and the Filtered View offers *Name 4 in EsimState...*, and on a Named
+  Value *Rename EsimState 9...*; both open the compact dialog on that rule's
+  Name Table, and OK adds or changes the row there instead of creating a new
+  rule. A Team group's rule shows the entry disabled and says why. (#885)
+- **A Name Table is created from a capture group's choice**: in the Value
+  Names dialog the Name Table choice of each capture group ends with *New
+  Name Table...*, which creates a table named after the capture group
+  (`(?<state>\d+)` gives `state`), assigns it and selects it, so its rows can
+  be filled in at once. (#886)
+- **Highlight this... turns a selection into a Highlighter**: the context
+  menu of the Text View and the Filtered View offers *Highlight this...* for
+  a selection; a compact dialog proposes the selected text, escaped, as the
+  pattern, lets you pick the colors, the whole line or only the match and
+  the Highlighter Set (the active one, or a new one), and previews the Log
+  Line; OK adds the Highlighter and the views recolor at once. (#896)
+- **The Highlighters dialog names a new set New Highlighter Set**: the
+  default name is translated and spelled as everywhere else, and the set
+  list's buttons and the Highlighter list's buttons no longer share a
+  tooltip. (#887)
 
 ## Bug fixes
 
@@ -77,6 +98,16 @@
 - **Searching the Filters tab keeps the checks**: the filters the search
   hides keep their check and stay active, and come back checked when the
   search is cleared. (#901)
+
+- **A Highlighter added to a set that has colored lines colors at once**: a
+  Highlighter Set no longer keeps the pattern it compiled before the
+  Highlighter was added, which ignored the new one and read past the end of
+  its match results. (#910)
+
+- **The context menu of the lines is translated**: the entries of the Text
+  View, Filtered View and Table View context menu (Copy, Mark, More, the
+  search entries and the rest) showed English in every language, because
+  their strings never reached the translation files. (#911)
 
 ## Build and packaging
 
