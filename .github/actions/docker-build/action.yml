@@ -51,7 +51,16 @@ runs:
     - name: configure
       shell: sh
       run: |
-        docker exec logsquirl_build /bin/bash -c "cmake -B /usr/local/$LOGSQUIRL_BUILD_ROOT $LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache /usr/local && sccache --zero-stats"
+        docker exec logsquirl_build /bin/bash -c "cmake -B /usr/local/$LOGSQUIRL_BUILD_ROOT $LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_GLOBAL_AUTOGEN_TARGET=ON /usr/local && sccache --zero-stats"
+
+    # moc and uic first, in a build of their own: AUTOUIC rewrites a changed
+    # ui_*.h after Ninja has decided what is out of date, so in a build_root
+    # that already built other code (the before side of the Benchmarks
+    # workflow) the objects that include it would keep the old one (#909).
+    - name: generate
+      shell: sh
+      run: |
+        docker exec logsquirl_build /bin/bash -c "cmake --build /usr/local/$LOGSQUIRL_BUILD_ROOT --target autogen"
 
     # TARGETS is split into words on purpose: one target per word.
     - name: build

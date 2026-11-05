@@ -232,7 +232,8 @@ opens the same menu, sorted by how often its entries are used:
 - At the top, what you do with the selection: *Copy*, *Copy as shown*,
   *Replace search*, *Add to search*, *Exclude from search* (and, in the table
   view, *Search this value in* the column) and *Mark*.
-- Then the view's own entries: *Highlighters* and *Color labels*.
+- Then the view's own entries: *Highlight this...* (in the main and the
+  filtered view), *Highlighters* and *Color labels*.
 - **More** holds the rest: *Copy with line numbers*, the scratchpad entries,
   *Find next* and *Find previous*, the search limits, *Set selection start* and
   *Set selection end*, *Save selected to file*, *Save to file*, *Export as
@@ -680,6 +681,15 @@ Highlighters are grouped into sets. Several sets can be active at once; they
 are switched on and off in the context menu or the `Tools->Highlighters` menu, where
 *None* switches them all off.
 
+To color some text of a line, select it in the main or the filtered view and
+choose *Highlight this...* in the context menu. The dialog proposes a
+highlighter whose pattern matches the selected text as it is (its special
+characters escaped) and shows the line as the highlighter colors it. Pick the
+colors, whether the whole line or only the matched text is colored, and the set
+it goes into: the active one by default, another of yours or a new one. *OK*
+adds the highlighter at the end of the set, switches the set on if it was off,
+and the views show it at once.
+
 Any number of highlighters can be defined in a single set.
 Highlighter configuration includes a regular expression to match
 as well as color options. Another option is to use plain text patterns
@@ -751,6 +761,29 @@ The colors that are used for text highlight can be configured from the color lab
 tab of highlighters configuration dialog.
 
 ### Value Names
+
+**Naming a value from its Log Line.** Select a value in the main view or a
+filtered view -- `EsimState=9`, or just the `9` -- or right-click on it without
+selecting anything, and choose *Name this value...* in the context menu. The
+dialog it opens proposes everything from the Log Line, and all of it can be
+changed:
+
+- the **Naming Rule**: a regex of the text around the value, with the value as
+  its capture group -- `EsimState=(\d+)` for `EsimState=9`. Hexadecimal
+  values (`0x1F`), negative ones (`-5`) and values with a fraction (`3.25`) are
+  captured as such, and regex characters in the text around them are escaped;
+- the **Name Table**: a new one named after the text before the value
+  (`EsimState`), or one the Naming Group already has;
+- the **Template**: `{name} ({value})`;
+- the **Naming Group**: one of your own, or a new one.
+
+Below, the table's rows can be edited; the value is already entered as a key,
+waiting for its name. The preview shows the Log Line you clicked as it will
+look, and warns when the regex does not match it -- OK is possible all the
+same. *OK* adds the Naming Rule and the Name Table to the group, checks the
+group, and turns *Show Value Names* on in the tab, so the Log Line shows the
+name at once. Everything else -- several capture groups, key regexes, CSV
+import, sharing -- is done in the *Value Names* dialog described below.
 
 Value Names show the raw values of a Log Line -- an ECU address, an error
 code, an ID -- with a name from a table, while the Log File itself is never
@@ -1088,7 +1121,8 @@ in the table view.
 
 #### Exporting as CSV
 
-Right-click the table and choose **More > Export as CSV...** to write the table to a
+Right-click the table and choose **More > Export as CSV...**, or choose
+**File > Export as CSV...**, to write the table to a
 file for a spreadsheet, pandas and the like. The main text view has no such
 entry; the filtered view has one
 ([Exporting the filtered view as CSV](#exporting-the-filtered-view-as-csv)).
@@ -1258,8 +1292,8 @@ following file mode is also disabled.
 
 ### Merging Log Files
 
-Right-click a tab and choose *Merge…* (offered while at least two files are
-open) to combine files into one merged tab. The dialog *Merge Log Files* lists
+Right-click a tab and choose *Merge…*, or choose *File > Merge Log Files...*
+(either offered while at least two files are open), to combine files into one merged tab. The dialog *Merge Log Files* lists
 every open file -- standard input, another merged tab and command output
 included -- in tab order, all checked. Uncheck the files to leave out, and put
 the others in the order they are written in: drag a file within the list, or
@@ -1414,7 +1448,13 @@ what the window shows in **View**, settings and dialogs in **Tools**.
   `Copy full path` (of the current file to the clipboard),
   `Open containing folder`, `Open in editor` (in the default editor of the
   system) and `Clear file...`, which asks first and then empties the file on
-  disk; this cannot be undone. Then `Close`, `Close All` and `Exit`.
+  disk; this cannot be undone. Then `Merge Log Files...` (see
+  [Merging Log Files](#merging-log-files); enabled while at least two files
+  are open) and `Export as CSV...`, which exports the current tab as its
+  context menu's entry does: the filtered view's lines when the filtered view
+  had the focus last, else the table view's rows (see
+  [Exporting as CSV](#exporting-as-csv); enabled while the current file has a
+  recognized format). Then `Close`, `Close All` and `Exit`.
 - **Edit**: `Copy`, `Copy as Shown` (see [Value Names](#value-names)),
   `Select All`, `Find...` (the QuickFind bar), `Go to line...` and
   `Go to timestamp...`, and the search limits
@@ -1423,7 +1463,8 @@ what the window shows in **View**, settings and dialogs in **Tools**.
   [Search limits by time](#search-limits-by-time)).
 - **View**: `Opened files` (see
   [Switching between opened files](#switching-between-opened-files)), then
-  the sidebar and the panels: `Sidebar`, `Filters panel`, `Scratchpad` (see
+  the sidebar and the panels: `Sidebar` (checked while the sidebar shows;
+  the toolbar's sidebar button is the same entry), `Filters panel`, `Scratchpad` (see
   [Scratchpad](#scratchpad)), `Value Names tab`, `Chart Panel` (see
   [Chart Panel](#chart-panel)) and `Show Filter Frequency`, which charts how
   often the current search matched, one series for every alternative of the
@@ -1529,30 +1570,6 @@ you chose it in. Without a data source plugin the menu says
 
 ### General
 
-#### Search options
-
-Determines which type of regular expression *logsquirl* will use when
-filtering lines for the bottom window, and when using QuickFind.
-
-*   Extended Regexp. The default, uses regular expressions similar to
-    those used by Perl
-*   Fixed Strings. Searches for the text exactly as it is written, no
-    character is special
-
-If incremental quickfind is selected, *logsquirl* will automatically restart
-quickfind search when the search pattern changes.
-
-Turning on highlight of matched text will cause the text that matched the
-search pattern to be highlighted in both main view and filtered view.
-Enabling color variation will cause the highlight color of different strings
-that match the same pattern be slightly different.
-
-Search size history controls the number of patterns that are saved for autocompletion
-in the search input box.
-
-Turning on option to run search on add or replace pattern will cause *logsquirl* to
-immediately perform search when pattern is update from context menu.
-
 #### Session options
 
 *   Load last session -- if enabled, *logsquirl* will reopen files that were
@@ -1597,6 +1614,61 @@ the same way by creating that file. A silent install (`/S`) leaves the file as i
 so an opt-out an administrator created survives silent upgrades. What the check sends is described in the
 [privacy policy](https://github.com/64x-lunicorn/LogSquirl/blob/master/PRIVACY.md).
 
+### Search
+
+The *Search* tab holds every setting of Search, QuickFind and indexing.
+
+#### Search options
+
+Determines which type of regular expression *logsquirl* will use when
+filtering lines for the bottom window, and when using QuickFind.
+
+*   Extended Regexp. The default, uses regular expressions similar to
+    those used by Perl
+*   Fixed Strings. Searches for the text exactly as it is written, no
+    character is special
+
+If incremental quickfind is selected, *logsquirl* will automatically restart
+quickfind search when the search pattern changes.
+
+Turning on highlight of matched text will cause the text that matched the
+search pattern to be highlighted in both main view and filtered view.
+Enabling color variation will cause the highlight color of different strings
+that match the same pattern be slightly different.
+
+Search size history controls the number of patterns that are saved for autocompletion
+in the search input box.
+
+Turning on option to run search on add or replace pattern will cause *logsquirl* to
+immediately perform search when pattern is update from context menu.
+
+*Context lines around matches* sets the number of [breadcrumbs](#breadcrumbs)
+shown before and after each match (5 by default, 0 turns them off).
+
+#### Indexing and search
+
+These options refer to the customization of performance related settings.
+
+*Regular expressions engine* chooses between Vectorscan, the default and the
+fastest, and Qt's engine, which understands every pattern, lookahead included,
+but is slower. Even with Vectorscan, a pattern it cannot handle is searched
+with Qt's engine.
+
+If parallel search is enabled, *logsquirl* will try to use several CPU cores
+for regular expression matching. This does not work with quickfind.
+
+*logsquirl* has several strategies for regular expression search based on file 
+encoding. By default, it is optimized for files with UTF8 or single-byte
+encodings. If most of the files are in multi-byte encodings then enabling
+search optimization for non-latin encodings could improve performance.
+
+#### Caching
+
+If search results cache is enabled, *logsquirl* will store numbers of lines
+that matched the search pattern in its memory. Repeating searches for the same
+pattern will not go through all files but will use cached line numbers
+instead.
+
 ### View
 
 #### Font
@@ -1610,6 +1682,35 @@ text rendering.
 
 Font size can be changed from either main or filtered view using `Ctrl+Mouse wheel`
 to zoom in/out.
+
+#### ANSI color sequences
+
+Some log files contain ANSI color codes to be displayed by terminals with
+color support: the output of `ls --color`, of a test runner or of a colored
+logger. *ANSI color sequences*, in the *Text* group, says what *logsquirl*
+does with them:
+
+- *Show as text* (the default) shows the escape sequences as characters, as
+  the file holds them.
+- *Hide* removes them from every line: the main and the filtered view show the
+  text without them, and Search, QuickFind, selection and copy work on that
+  text.
+- *Show colors* removes them as *Hide* does and paints the lines in the colors
+  they ask for, in the main and the filtered view. Foreground and background
+  colors are shown (the 16 basic colors, the 256-color palette and truecolor);
+  bold, underline and the other attributes are not. Each line starts in its
+  own colors. The 16 basic colors are the Theme's: Smyck and Smyck Light use
+  the SMYCK scheme's, the other Themes xterm's, and a foreground too faint to
+  read on its background is moved toward the Theme's text color. Text with
+  only a background color, where the Theme's text color is too faint to read
+  on it, is moved toward black or white instead. Highlighters, the search
+  highlight, Color Labels, QuickFind and the selection paint over the ANSI
+  colors. Search, QuickFind, selection and copy work exactly as under
+  *Hide*, and switching between the two reloads nothing and runs no search
+  again. The table view shows the text as under *Hide*, without ANSI colors.
+
+*Hide* and *Show colors* make regular expression search slower: every line is
+read without its sequences first.
 
 #### Style
 
@@ -1655,38 +1756,10 @@ bad on High DPI monitors. Usually, Qt detects the correct settings.
 However, these options may be useful, especially for non-integer
 scale factors manual overrides.
 
-#### Miscellaneous
+#### Scrolling
 
-*Context lines around matches* sets the number of [breadcrumbs](#breadcrumbs)
-shown before and after each match (5 by default, 0 turns them off). With
-*Enable fast scrolling with Alt key*, on by default, the mouse wheel scrolls
-*Fast scroll multiplier* times (5) as far while `Alt` is held.
-
-Some log files contain ANSI color codes to be displayed by terminals with
-color support: the output of `ls --color`, of a test runner or of a colored
-logger. *ANSI color sequences* says what *logsquirl* does with them:
-
-- *Show as text* (the default) shows the escape sequences as characters, as
-  the file holds them.
-- *Hide* removes them from every line: the main and the filtered view show the
-  text without them, and Search, QuickFind, selection and copy work on that
-  text.
-- *Show colors* removes them as *Hide* does and paints the lines in the colors
-  they ask for, in the main and the filtered view. Foreground and background
-  colors are shown (the 16 basic colors, the 256-color palette and truecolor);
-  bold, underline and the other attributes are not. Each line starts in its
-  own colors. The 16 basic colors are the Theme's: Smyck and Smyck Light use
-  the SMYCK scheme's, the other Themes xterm's, and a foreground too faint to
-  read on its background is moved toward the Theme's text color. Text with
-  only a background color, where the Theme's text color is too faint to read
-  on it, is moved toward black or white instead. Highlighters, the search
-  highlight, Color Labels, QuickFind and the selection paint over the ANSI
-  colors. Search, QuickFind, selection and copy work exactly as under
-  *Hide*, and switching between the two reloads nothing and runs no search
-  again. The table view shows the text as under *Hide*, without ANSI colors.
-
-*Hide* and *Show colors* make regular expression search slower: every line is
-read without its sequences first.
+With *Enable fast scrolling with Alt key*, on by default, the mouse wheel
+scrolls *Fast scroll multiplier* times (5) as far while `Alt` is held.
 
 ### File
 
@@ -1839,26 +1912,6 @@ the Finder with *Get Info*, *Open with* and *Change All...*. The page is
 available in LogSquirl.app only, not in a run of the executable outside it.
 
 ### Advanced options
-
-These options refer to the customization of performance related settings.
-
-*Regular expressions engine* chooses between Vectorscan, the default and the
-fastest, and Qt's engine, which understands every pattern, lookahead included,
-but is slower. Even with Vectorscan, a pattern it cannot handle is searched
-with Qt's engine.
-
-If parallel search is enabled, *logsquirl* will try to use several CPU cores
-for regular expression matching. This does not work with quickfind.
-
-*logsquirl* has several strategies for regular expression search based on file 
-encoding. By default, it is optimized for files with UTF8 or single-byte
-encodings. If most of the files are in multi-byte encodings then enabling
-search optimization for non-latin encodings could improve performance.
-
-If search results cache is enabled, *logsquirl* will store numbers of lines
-that matched the search pattern in its memory. Repeating searches for the same
-pattern will not go through all files but will use cached line numbers
-instead.
 
 In case there is an issue with *logsquirl*, logging can be enabled with
 a desired level of verbosity. Log files are saved to the `logs` folder of the

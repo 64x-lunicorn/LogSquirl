@@ -9,6 +9,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighterpresets.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighterset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersmenu.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightthisdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logtablehighlightdelegate.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfileview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logpresentation.h
@@ -35,6 +36,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamescollection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamespanel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuenamesdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/namevaluedialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/teamgroupedits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/grouplist.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savelinesdialog.h
@@ -131,6 +133,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightersmenu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightersetedit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighterset.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightthisdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/groupexchange.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/groupimportprompt.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/teamfolder.cpp
@@ -152,6 +155,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamescollection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamespanel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuenamesdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/namevaluedialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/grouplist.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/savelinesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewset.cpp

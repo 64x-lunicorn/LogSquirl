@@ -279,6 +279,10 @@ public:
     // Exports the Rows to a CSV file as chosen in that dialog: every Row in
     // its order, or the selected ones in the order shown.
     void exportCsvTo( const CsvExportDialog::Choices& choices );
+    // Opens the dialog Export as CSV, and exports as chosen there: the
+    // context menu's entry and the window's File > Export as CSV... (#890).
+    // Nothing without a Log Format.
+    void exportAsCsv();
 
     // SearchableWidgetInterface: QuickFind from quickFindStart(), over every
     // Log Line the Rows show, with the window's QuickFind pattern. Aborting an
@@ -402,8 +406,6 @@ private:
     void saveSelectedToFile();
     // Asks for a file, and saves the Log Lines of every Row to it.
     void saveToFile();
-    // Opens the dialog Export as CSV, and exports as chosen there.
-    void exportAsCsv();
     // The columns the CSV export offers: Line, then every column of the table
     // as the Column Layout shows them.
     std::vector<CsvColumn> csvColumns() const;

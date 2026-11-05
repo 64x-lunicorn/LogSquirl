@@ -21,12 +21,20 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <QAbstractButton>
 #include <QCoreApplication>
 #include <QDialogButtonBox>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QMap>
 #include <QPushButton>
+#include <QRect>
+#include <QStringList>
 #include <QTest>
+#include <QToolButton>
 
 #include "highlighter.h"
+#include "highlighteredit.h"
 #include "highlightersdialog.h"
 #include "highlighterset.h"
 #include "highlightersetedit.h"
@@ -55,7 +63,164 @@ private:
     QList<HighlighterSet> sets_;
 };
 
+// Where a widget sits in the dialog's own coordinates.
+QRect geometryIn( const QWidget& ancestor, const QWidget& widget )
+{
+    return { widget.mapTo( &ancestor, QPoint( 0, 0 ) ), widget.size() };
+}
+
 } // namespace
+
+// The right pane shows the Highlighter list and the selected Highlighter's
+// form side by side, under the set name (#895).
+SCENARIO( "The Highlighters dialog shows the Highlighter list beside its form",
+          "[ui][highlighters]" )
+{
+    const KeepHighlighterSets keep;
+    auto mine = HighlighterSet::createNewSet( "Mine" );
+    mine.addHighlighter( Highlighter( "ERROR", false, true, Qt::red, Qt::white ) );
+    mine.addHighlighter( Highlighter( "WARN", false, true, Qt::black, Qt::yellow ) );
+    HighlighterSetCollection::get().setHighlighterSets( { mine } );
+    HighlighterSetCollection::get().save();
+
+    GIVEN( "the Highlighters dialog at its default size with the user's set selected" )
+    {
+        HighlightersDialog dialog;
+        showUntilExposed( dialog );
+        dialog.groupList()->setCurrent( GroupList::Section::Own, 0 );
+        // The editor selects the first Highlighter once the event loop runs.
+        QCoreApplication::processEvents();
+
+        auto* setEdit = dialog.findChild<HighlighterSetEdit*>();
+        REQUIRE( setEdit != nullptr );
+        auto* form = setEdit->findChild<HighlighterEdit*>();
+        REQUIRE( form != nullptr );
+        const QWidget& list = *setEdit->highlighterListWidget;
+
+        const auto nameRect = geometryIn( dialog, *setEdit->nameEdit );
+        const auto listRect = geometryIn( dialog, list );
+        const auto formRect = geometryIn( dialog, *form );
+
+        THEN( "the list is left of the form, in the same row, below the set name" )
+        {
+            CHECK( listRect.right() < formRect.left() );
+            CHECK( listRect.top() < formRect.bottom() );
+            CHECK( formRect.top() < listRect.bottom() );
+            CHECK( nameRect.bottom() < listRect.top() );
+            CHECK( nameRect.bottom() < formRect.top() );
+        }
+
+        THEN( "list and form are fully visible without scrolling" )
+        {
+            const auto shown = dialog.rect();
+            CHECK( shown.contains( listRect ) );
+            CHECK( shown.contains( formRect ) );
+            CHECK( form->width() >= form->minimumSizeHint().width() );
+            CHECK( form->height() >= form->minimumSizeHint().height() );
+
+            const QList<const QWidget*> fields{
+                form->patternEdit,        form->testPatternButton, form->patternTypeComboBox,
+                form->ignoreCaseCheckBox, form->onlyMatchCheckBox, form->variateColorsCheckBox,
+                form->variationSpinBox,   form->foreColorButton,   form->backColorButton,
+            };
+            for ( const auto* field : fields ) {
+                INFO( field->objectName().toStdString() );
+                CHECK( field->isVisible() );
+                CHECK( formRect.contains( geometryIn( dialog, *field ) ) );
+                CHECK( field->width() >= field->minimumSizeHint().width() );
+                CHECK( field->height() >= field->minimumSizeHint().height() );
+            }
+
+            // Room for more than the two Highlighters of the set.
+            const auto* listWidget = setEdit->highlighterListWidget;
+            CHECK( listWidget->viewport()->height() >= 5 * listWidget->sizeHintForRow( 0 ) );
+        }
+
+        WHEN( "the selected Highlighter's pattern is typed in the form" )
+        {
+            REQUIRE( setEdit->highlighterListWidget->currentRow() == 0 );
+            form->patternEdit->setFocus();
+            QTest::keyClicks( form->patternEdit, "S" );
+
+            THEN( "the list shows the new pattern" )
+            {
+                CHECK( setEdit->highlighterListWidget->item( 0 )->text() == "ERRORS" );
+            }
+        }
+    }
+}
+
+// The set list's buttons and the Highlighter list's buttons each say what they
+// act on, and a new set is named like the glossary, through tr() (#887).
+SCENARIO( "The Highlighters dialog tells a Highlighter Set's buttons from a Highlighter's",
+          "[ui][highlighters]" )
+{
+    const KeepHighlighterSets keep;
+    auto mine = HighlighterSet::createNewSet( "Mine" );
+    mine.addHighlighter( Highlighter( "ERROR", false, true, Qt::red, Qt::white ) );
+    HighlighterSetCollection::get().setHighlighterSets( { mine } );
+    HighlighterSetCollection::get().save();
+
+    GIVEN( "the Highlighters dialog with the user's set selected" )
+    {
+        HighlightersDialog dialog;
+        showUntilExposed( dialog );
+        dialog.groupList()->setCurrent( GroupList::Section::Own, 0 );
+        QCoreApplication::processEvents();
+
+        auto* setEdit = dialog.findChild<HighlighterSetEdit*>();
+        REQUIRE( setEdit != nullptr );
+
+        THEN( "no two buttons share a tooltip" )
+        {
+            QMap<QString, QStringList> buttonsByToolTip;
+            for ( const auto* button : dialog.findChildren<QAbstractButton*>() ) {
+                if ( !button->toolTip().isEmpty() ) {
+                    buttonsByToolTip[ button->toolTip() ].append( button->objectName() );
+                }
+            }
+            REQUIRE_FALSE( buttonsByToolTip.isEmpty() );
+            for ( auto it = buttonsByToolTip.cbegin(); it != buttonsByToolTip.cend(); ++it ) {
+                INFO( it.key().toStdString() << ": " << it.value().join( ", " ).toStdString() );
+                CHECK( it.value().size() == 1 );
+            }
+        }
+
+        THEN( "the set list's buttons name the Highlighter Set" )
+        {
+            const auto* groups = dialog.groupList();
+            CHECK( groups->findChild<QToolButton*>( "groupNew" )->text() == "New Highlighter Set" );
+            CHECK( groups->findChild<QToolButton*>( "groupDelete" )->toolTip()
+                   == "Delete Highlighter Set" );
+            CHECK( groups->findChild<QToolButton*>( "groupUp" )->toolTip()
+                   == "Move Highlighter Set Up" );
+            CHECK( groups->findChild<QToolButton*>( "groupDown" )->toolTip()
+                   == "Move Highlighter Set Down" );
+        }
+
+        THEN( "the Highlighter list's buttons name the Highlighter" )
+        {
+            CHECK( setEdit->addHighlighterButton->toolTip() == "New Highlighter" );
+            CHECK( setEdit->removeHighlighterButton->toolTip() == "Delete Highlighter" );
+            CHECK( setEdit->upHighlighterButton->toolTip() == "Move Highlighter Up" );
+            CHECK( setEdit->downHighlighterButton->toolTip() == "Move Highlighter Down" );
+        }
+
+        WHEN( "a new Highlighter Set is added" )
+        {
+            dialog.groupList()->findChild<QToolButton*>( "groupNew" )->click();
+            QCoreApplication::processEvents();
+
+            THEN( "it is named New Highlighter Set, through tr()" )
+            {
+                const auto defaultName = HighlightersDialog::tr( "New Highlighter Set" );
+                CHECK( defaultName == "New Highlighter Set" );
+                CHECK( setEdit->nameEdit->text() == defaultName );
+                CHECK( dialog.groupList()->count( GroupList::Section::Own ) == 2 );
+            }
+        }
+    }
+}
 
 SCENARIO( "OK in the Highlighters dialog saves the selected set of the user's own",
           "[ui][highlighters]" )

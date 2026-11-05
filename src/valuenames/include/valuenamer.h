@@ -24,6 +24,7 @@
 #include <QStringView>
 
 #include <memory>
+#include <optional>
 
 #include "naminggroup.h"
 
@@ -96,6 +97,40 @@ public:
 private:
     std::shared_ptr<const CompiledRules> rules_;
 };
+
+// A value of a Log Line a Naming Rule captures for a Name Table, whether a row
+// of the table names it or not (#885): what the context menu's
+// "Name <value> in <table>..." and "Rename <table> <value>..." are about.
+struct CapturedValue {
+    // The raw range [start, start + length) of the Log Line, and its text.
+    qsizetype start = 0;
+    qsizetype length = 0;
+    QString value;
+    // The Naming Group's index in the groups looked at, and its id.
+    qsizetype groupIndex = -1;
+    QString groupId;
+    // The rule that captures it and the table it is looked up in.
+    QString rule;
+    QString table;
+    // The row of the table that names it, the first whose key matches; -1
+    // when none does.
+    int row = -1;
+
+    bool named() const
+    {
+        return row >= 0;
+    }
+
+    bool operator==( const CapturedValue& ) const = default;
+};
+
+// The value the enabled rules of the enabled groups capture in the range
+// [start, start + length) of the line, as the Text View shows it: a value a
+// rule names wins over one it overlaps that no row names, whichever rule comes
+// first, and otherwise the earlier rule wins, as for ValueNamer. Of several
+// in the range, the last. None when no rule captures a value there.
+std::optional<CapturedValue> capturedValueIn( const QList<NamingGroup>& groups, const QString& line,
+                                              qsizetype start, qsizetype length );
 
 // The Log Line as shown: every Named Value's raw range replaced by what it
 // shows. namedValues are those ValueNamer::namedValues gave for line.

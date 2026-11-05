@@ -22,8 +22,10 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
+#include <QCoreApplication>
 #include <QString>
 #include <QStringList>
 
@@ -50,6 +52,10 @@ class QWidget;
 // - the plugin block at the end: the entries plugins added.
 // The top level keeps at most 12 entries, the plugins' not counted.
 class PresentationMenu {
+    // Its strings are translated under its name; lupdate finds them as
+    // PresentationMenu::tr() (#911).
+    Q_DECLARE_TR_FUNCTIONS( PresentationMenu )
+
 public:
     // What the Presentation reports as its context menu opens.
     struct Report {
@@ -83,6 +89,22 @@ public:
         // the cell shows a value of a field (the Table View, #798); empty
         // elsewhere, and the menu offers no Search this value in <column>.
         QString columnUnderCursor;
+        // Whether the selection, or with no text selected the word under the
+        // cursor, holds a value Name this value... names (#883), or one a
+        // Naming Rule captures (#885).
+        bool hasValueToName = false;
+        // A value a Naming Rule of an enabled Naming Group captures there
+        // (#885): the menu offers Name <value> in <table>... for it, or for a
+        // Named Value Rename <table> <value>..., instead of Name this value...
+        struct CapturedValue {
+            QString value;
+            QString table;
+            // Whether a row of the table names it.
+            bool named = false;
+            // Whether the rule is a Team group's, which is not changed here.
+            bool teamGroup = false;
+        };
+        std::optional<CapturedValue> capturedValue;
     };
 
     // An entry a plugin added (#859).
@@ -132,6 +154,16 @@ public:
         // Only for a Presentation that shows Log Lines split into the fields
         // of a Log Format; left empty, the menu offers no Export as CSV.
         std::function<void()> exportAsCsv;
+        // Open the dialog naming the value of the selection or under the
+        // cursor (#883), or the one Report::capturedValue is about (#885).
+        // Only for a Presentation drawn like the Text View; left empty, the
+        // menu offers no Name this value...
+        std::function<void()> nameValue;
+        // Open the dialog turning the text selected within a Log Line into a
+        // Highlighter (#896), offered with the view's own entries. Only for a
+        // Presentation drawn like the Text View; left empty, the menu offers
+        // no Highlight this...
+        std::function<void()> highlightThis;
         // The plugins' entries, in their order, below a separator at the end
         // of the menu, always enabled; without any, there is no separator.
         std::vector<PluginEntry> plugins;

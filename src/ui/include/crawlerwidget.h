@@ -211,6 +211,13 @@ public:
     // The same for the Search Limits given as a time.
     QString searchLimitsByTimeUnavailableReason() const;
 
+    // The window's File > Export as CSV... (#890): what Export as CSV... in
+    // the context menu of the view last in focus does -- the Filtered View's
+    // when it was, else the Table View's, which holds every Row of the Log
+    // File whichever Presentation is shown. Nothing without a Log Format
+    // recognized, as the context menus then offer no such entry.
+    void exportAsCsv();
+
     bool isTextWrapEnabled() const;
     // Whether the View menu's Show Value Names is on for this tab (#647).
     bool isValueNamesShownSet() const;
@@ -358,9 +365,16 @@ Q_SIGNALS:
                        LineLength nSymbols );
     // Sent up when user wants to save new predefined filter from current search
     void saveCurrentSearchAsPredefinedFilter( QString newFilter );
+    // Sent up when Highlight this... was chosen in the Text View or a
+    // Filtered View (#896), as AbstractLogView::highlightThisRequested.
+    void highlightThisRequested( const QString& selectedText, const QString& logLine );
 
     void sendToScratchpad( QString );
     void replaceDataInScratchpad( QString );
+
+    // Sent up when Name this value... was chosen in the Text View or a
+    // Filtered View (#883), as AbstractLogView::nameValueRequested.
+    void nameValueRequested( const QString& logLine, qsizetype start, qsizetype length );
 
     // Sent when the data status (whether new not seen data are
     // available) has changed

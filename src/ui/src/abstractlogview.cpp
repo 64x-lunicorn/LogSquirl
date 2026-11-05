@@ -103,6 +103,7 @@
 #include "shortcuts.h"
 #include "theme.h"
 #include "valuenamescollection.h"
+#include "valueproposal.h"
 #include "wordrule.h"
 #include "wrappedstring.h"
 
@@ -1648,6 +1649,16 @@ void AbstractLogView::excludeFromSearch()
     }
 }
 
+// Ask for a Highlighter of the text selected within a Log Line (#896)
+void AbstractLogView::highlightThis()
+{
+    if ( selection_.isPortion() ) {
+        const auto line = selection_.getLines( *lines_ ).front();
+        Q_EMIT highlightThisRequested( getSelectedText(),
+                                       lines_->logFile().getExpandedLineString( line ) );
+    }
+}
+
 // Find next occurrence of the selected text (*)
 void AbstractLogView::findNextSelected()
 {
@@ -2544,6 +2555,7 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
     entries.replaceSearch = [ this ]() { replaceSearch(); };
     entries.addToSearch = [ this ]() { addToSearch(); };
     entries.excludeFromSearch = [ this ]() { excludeFromSearch(); };
+    entries.highlightThis = [ this ]() { highlightThis(); };
     entries.setSearchStart = [ this ]( LineNumber logLine ) { setSearchStart( logLine ); };
     entries.setSearchEnd = [ this ]( LineNumber logLine ) { setSearchEnd( logLine ); };
     entries.clearSearchLimits = [ this ]() { Q_EMIT clearSearchLimits(); };
@@ -2553,6 +2565,22 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
     entries.saveToFile = [ this ]() { saveToFile(); };
     entries.saveSelectedToFile = [ this ]() { saveSelectedToFile(); };
     entries.exportAsCsv = exportAsCsvAction();
+    const auto valueToName = valueToNameAt( pos );
+    report.hasValueToName = valueToName.has_value();
+    if ( valueToName.has_value() && valueToName->captured.has_value() ) {
+        const auto& captured = *valueToName->captured;
+        const auto& collection = ValueNamesCollection::get();
+        report.capturedValue = PresentationMenu::Report::CapturedValue{
+            captured.value, captured.table, captured.named(),
+            captured.groupIndex >= collection.groups().size() - collection.teamGroupCount()
+        };
+    }
+    entries.nameValue = [ this, valueToName ]() {
+        if ( valueToName.has_value() ) {
+            Q_EMIT nameValueRequested( valueToName->logLine, valueToName->start,
+                                       valueToName->length );
+        }
+    };
     // The Log Lines the menu opens on: a right-click outside the selection
     // has selected the one under the pointer (#859).
     entries.plugins = pluginContextMenuEntries(
@@ -2560,6 +2588,73 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
         report.textWithinLogLine ? std::optional( report.selectedText ) : std::nullopt );
 
     return PresentationMenu::create( this, report, entries );
+}
+
+namespace {
+
+// The character of the raw Log Line drawn at a display column, given the
+// display column each character starts at (rawToDisplayColumns()): a column
+// inside an expanded tab is the tab's, one past the end the line's length.
+qsizetype rawCharacterAt( const logsquirl::vector<int>& displayColumns, qsizetype displayColumn )
+{
+    const auto next = std::upper_bound(
+        displayColumns.begin(), displayColumns.end(),
+        static_cast<int>( std::min<qsizetype>( displayColumn, MaxExpandedLineLength ) ) );
+    return std::clamp<qsizetype>( std::distance( displayColumns.begin(), next ) - 1, 0,
+                                  static_cast<qsizetype>( displayColumns.size() ) - 1 );
+}
+
+} // namespace
+
+std::optional<AbstractLogView::ValueToName>
+AbstractLogView::valueToNameAt( const QPoint& pos ) const
+{
+    // The Naming Rule is matched against the raw Log Line, tabs included:
+    // what is pointed at, in display columns, is taken back to its raw
+    // characters (#883).
+    std::optional<ValueToName> valueToName;
+    if ( selection_.isPortion() ) {
+        // Never half a raw value: a Named Value selected in part is whole.
+        const auto line = selection_.getLines( *lines_ ).front();
+        const auto portion = selectionCoveringNamedValues().getPortionForLine( line );
+        if ( portion.isValid() ) {
+            auto text = lines_->logFile().getLineString( line );
+            const auto columns = rawToDisplayColumns( text );
+            const auto start = rawCharacterAt( columns, portion.startColumn().get() );
+            const auto end
+                = std::min( rawCharacterAt( columns, portion.endColumn().get() ) + 1, text.size() );
+            valueToName
+                = ValueToName{ std::move( text ), start, std::max<qsizetype>( end - start, 0 ) };
+        }
+    }
+    else if ( logLineAtY( pos.y() ).has_value() ) {
+        // The column a click there finds, a Named Value's start on one.
+        const auto position = logLineFilePosAt( pos );
+        auto text = lines_->logFile().getLineString( position.line() );
+        const auto column = rawCharacterAt( rawToDisplayColumns( text ), position.column().get() );
+        // Without a number there, the column alone: a Naming Rule may
+        // capture a word (#885).
+        const auto range = logsquirl::valuenames::valueTextAt( text, column )
+                               .value_or( logsquirl::valuenames::LineRange{ column, 1 } );
+        valueToName = ValueToName{ std::move( text ), range.start, range.length };
+    }
+    if ( !valueToName.has_value() ) {
+        return std::nullopt;
+    }
+
+    // A value a Naming Rule already captures is named in its Name Table
+    // (#885), whatever it is.
+    valueToName->captured = logsquirl::valuenames::capturedValueIn(
+        ValueNamesCollection::get().groups(), valueToName->logLine, valueToName->start,
+        valueToName->length );
+    if ( !valueToName->captured.has_value()
+         && !logsquirl::valuenames::valueIn(
+                 valueToName->logLine,
+                 logsquirl::valuenames::LineRange{ valueToName->start, valueToName->length } )
+                 .has_value() ) {
+        return std::nullopt;
+    }
+    return valueToName;
 }
 
 std::function<void()> AbstractLogView::exportAsCsvAction()

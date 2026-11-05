@@ -44,7 +44,7 @@
          </widget>
          <widget class="QGroupBox" name="groupBox">
           <property name="title">
-           <string>Highlighters set properties</string>
+           <string>Highlighter Set properties</string>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_2">
            <item>

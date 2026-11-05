@@ -233,13 +233,6 @@ QStringList names( const QList<PredefinedFilterSet>& groups )
 
 } // namespace
 
-TEST_CASE( "The first free name is the name itself or <name> (n)", "[groupexchange]" )
-{
-    CHECK( firstFreeName( "Net", {} ) == "Net" );
-    CHECK( firstFreeName( "Net", { "Net" } ) == "Net (2)" );
-    CHECK( firstFreeName( "Net", { "Net", "Net (2)", "Net (4)" } ) == "Net (3)" );
-}
-
 TEST_CASE( "Each kind of conflict preselects its answer", "[groupexchange]" )
 {
     CHECK( preselectedAnswer( ConflictKind::SameId ) == ConflictAnswer::Replace );

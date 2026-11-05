@@ -112,6 +112,7 @@
 #include "firststartfileassociationsdialog.h"
 #include "highlightersdialog.h"
 #include "highlightersmenu.h"
+#include "highlightthisdialog.h"
 #include "indexcache.h"
 #include "instancehandover.h"
 #include "issuereporter.h"
@@ -121,6 +122,7 @@
 #include "mainwindowtext.h"
 #include "menu.h"
 #include "mergecontroller.h"
+#include "namevaluedialog.h"
 #include "openfilehelper.h"
 #include "optionsdialog.h"
 #include "plaintext.h"
@@ -272,6 +274,14 @@ MainWindow::MainWindow( WindowSession session,
 
     sidebarDock_->hide();
 
+    // View > Sidebar and the toolbar button are checked while the sidebar
+    // shows, however it was shown or closed -- by them, its own close button,
+    // a panel's menu entry or a restored layout (#890). The dock's own toggle
+    // action follows whether it is hidden, which a minimized window is not.
+    toggleSidebarAction->setChecked( !sidebarDock_->isHidden() );
+    connect( sidebarDock_->toggleViewAction(), &QAction::toggled, toggleSidebarAction,
+             &QAction::setChecked );
+
     // The sidebar opens at the width the user left it at in this window, or
     // at a moderate share of the window, leaving the Log File the rest (#261).
     // Docked at its size hint it took almost half the window.
@@ -322,6 +332,10 @@ MainWindow::MainWindow( WindowSession session,
              &MainWindow::currentTabChanged );
     connect( &mainTabWidget_, &TabbedCrawlerWidget::mergeRequested, this,
              &MainWindow::openMergedFiles );
+    // As the tab bar offers Merge... only with two Log Files or more (#890).
+    connect( &mainTabWidget_, &TabbedCrawlerWidget::tabsChanged, this, [ this ] {
+        mergeLogFilesAction->setEnabled( mainTabWidget_.logFileTabs().size() > 1 );
+    } );
 
     // Establish the QuickFindWidget and mux ( to send requests from the
     // QFWidget to the right window )
@@ -854,6 +868,11 @@ void MainWindow::reTranslateUI()
     openCommandOutputAction->setText( transAction( action::openCommandOutputText ) );
     openCommandOutputAction->setStatusTip( transAction( action::openCommandOutputStatusTip ) );
 
+    mergeLogFilesAction->setText( transAction( action::mergeLogFilesText ) );
+    mergeLogFilesAction->setStatusTip( transAction( action::mergeLogFilesStatusTip ) );
+    exportAsCsvAction->setText( transAction( action::exportAsCsvText ) );
+    exportAsCsvAction->setStatusTip( transAction( action::exportAsCsvStatusTip ) );
+
     overviewVisibleAction->setText( transAction( action::overviewVisibleText ) );
 
     lineNumbersVisibleInMainAction->setText( transAction( action::lineNumbersVisibleInMainText ) );
@@ -1096,6 +1115,25 @@ void MainWindow::createActions()
     connect( openCommandOutputAction, &QAction::triggered, this,
              [ this ]( auto ) { this->openCommandOutputDialog(); } );
 
+    // The tab bar's Merge... and the context menu's Export as CSV..., in the
+    // File menu (#890).
+    mergeLogFilesAction = new QAction( tr( action::mergeLogFilesText ), this );
+    mergeLogFilesAction->setObjectName( "mergeLogFilesAction" );
+    mergeLogFilesAction->setStatusTip( tr( action::mergeLogFilesStatusTip ) );
+    mergeLogFilesAction->setEnabled( false );
+    connect( mergeLogFilesAction, &QAction::triggered, this,
+             [ this ]( auto ) { mainTabWidget_.chooseFilesToMerge(); } );
+
+    exportAsCsvAction = new QAction( tr( action::exportAsCsvText ), this );
+    exportAsCsvAction->setObjectName( "exportAsCsvAction" );
+    exportAsCsvAction->setStatusTip( tr( action::exportAsCsvStatusTip ) );
+    exportAsCsvAction->setEnabled( false );
+    connect( exportAsCsvAction, &QAction::triggered, this, [ this ]( auto ) {
+        if ( auto* crawler = currentCrawlerWidget() ) {
+            crawler->exportAsCsv();
+        }
+    } );
+
     overviewVisibleAction = new QAction( tr( action::overviewVisibleText ), this );
     overviewVisibleAction->setCheckable( true );
     overviewVisibleAction->setChecked( config.isOverviewVisible() );
@@ -1202,7 +1240,11 @@ void MainWindow::createActions()
              [ this ]( auto ) { this->showValueNamesPanel(); } );
 
     toggleSidebarAction = new QAction( tr( action::toggleSidebarText ), this );
+    toggleSidebarAction->setObjectName( "toggleSidebarAction" );
     toggleSidebarAction->setStatusTip( tr( action::toggleSidebarStatusTip ) );
+    // Checked while the sidebar shows, in the View menu and on the toolbar
+    // alike (#890); the sidebar's own state sets it.
+    toggleSidebarAction->setCheckable( true );
     connect( toggleSidebarAction, &QAction::triggered, this,
              [ this ]( auto ) { this->toggleSidebar(); } );
 
@@ -1343,6 +1385,9 @@ void MainWindow::updateShortcuts()
     setShortcuts( reloadAction, ShortcutAction::MainWindowReload );
     setShortcuts( stopAction, ShortcutAction::MainWindowStop );
     setShortcuts( showScratchPadAction, ShortcutAction::MainWindowScratchpad );
+    setShortcuts( mergeLogFilesAction, ShortcutAction::MainWindowMergeLogFiles );
+    setShortcuts( exportAsCsvAction, ShortcutAction::MainWindowExportAsCsv );
+    setShortcuts( toggleSidebarAction, ShortcutAction::MainWindowToggleSidebar );
     setShortcuts( commandPaletteAction, ShortcutAction::MainWindowCommandPalette );
     setShortcuts( selectOpenFileAction, ShortcutAction::MainWindowSelectOpenFile );
     setShortcuts( goToLineAction, ShortcutAction::LogViewJumpToLine );
@@ -1422,6 +1467,11 @@ void MainWindow::createMenus()
     fileMenu->addAction( openContainingFolderAction );
     fileMenu->addAction( openInEditorAction );
     fileMenu->addAction( clearLogAction );
+    fileMenu->addSeparator();
+
+    // What is made of the open Log Files (#890).
+    fileMenu->addAction( mergeLogFilesAction );
+    fileMenu->addAction( exportAsCsvAction );
     fileMenu->addSeparator();
 
     fileMenu->addAction( closeAction );
@@ -1521,6 +1571,11 @@ void MainWindow::setCurrentFileActionsEnabled( bool enabled )
     openContainingFolderAction->setEnabled( enabled );
     openInEditorAction->setEnabled( enabled );
     clearLogAction->setEnabled( enabled );
+    // Export as CSV... needs a Log Format besides: the tab's state enables it
+    // (updateMenuBarFromDocument()).
+    if ( !enabled ) {
+        exportAsCsvAction->setEnabled( false );
+    }
 }
 
 void MainWindow::createToolBars()
@@ -1948,6 +2003,17 @@ void MainWindow::editHighlighters()
     dialog.exec();
 }
 
+void MainWindow::highlightThis( const QString& selectedText, const QString& logLine )
+{
+    HighlightThisDialog dialog( selectedText, logLine, this );
+    // The dialog reads the sets from the settings store, as the Highlighters
+    // dialog does; OK changed them, and every open Log File is recolored.
+    if ( dialog.exec() == QDialog::Accepted ) {
+        session_.applyChange( Changed::HighlighterSets );
+        updateHighlightersMenu();
+    }
+}
+
 void MainWindow::openRegexLab()
 {
     if ( regexLab_.isNull() ) {
@@ -2038,6 +2104,34 @@ void MainWindow::editValueNames()
     connect( &dialog, &ValueNamesDialog::valueNamesChanged, this, applyIfChanged );
     dialog.exec();
     applyIfChanged();
+}
+
+void MainWindow::nameValue( const QString& logLine, qsizetype start, qsizetype length )
+{
+    // The dialog reads the groups from the settings store, as the Value
+    // Names dialog does: what it read is a change too, OK or Cancel.
+    const auto& collection = ValueNamesCollection::get();
+    const auto before = collection.generation();
+    // A value a rule of the user's own groups captures is named in its Name
+    // Table; a Team group's is not changed here, the menu does not offer it
+    // (#885).
+    const auto captured
+        = logsquirl::valuenames::capturedValueIn( collection.groups(), logLine, start, length );
+    if ( captured && captured->groupIndex >= collection.ownGroups().size() ) {
+        return;
+    }
+    const auto dialog
+        = captured ? std::make_unique<NameValueDialog>( logLine, *captured, this )
+                   : std::make_unique<NameValueDialog>(
+                         logLine, logsquirl::valuenames::LineRange{ start, length }, this );
+    const auto accepted = dialog->exec() == QDialog::Accepted;
+    if ( collection.generation() != before ) {
+        session_.applyChange( Changed::ValueNames );
+    }
+    // The tab in front, which asked, shows the value named at once.
+    if ( accepted ) {
+        showValueNamesAction->setChecked( true );
+    }
 }
 
 void MainWindow::applyValueNamesChange()
@@ -2871,6 +2965,7 @@ void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& fai
         const auto state = crawler->state();
         updateGoToTimestampAction( state );
         matchesOnlyAction->setEnabled( state.hasTableView );
+        exportAsCsvAction->setEnabled( state.hasTableView );
         changeMatchesOnly( state.matchesOnly );
 
         // Now everything is ready, we can finally show the file!
@@ -3149,6 +3244,7 @@ void MainWindow::connectFrontTab( CrawlerWidget* crawler )
         connect( crawler, &CrawlerWidget::saveCurrentSearchAsPredefinedFilter, this,
                  &MainWindow::newPredefinedFilterHandler ),
         connect( crawler, &CrawlerWidget::sendToScratchpad, this, &MainWindow::sendToScratchpad ),
+        connect( crawler, &CrawlerWidget::nameValueRequested, this, &MainWindow::nameValue ),
         connect( crawler, &CrawlerWidget::replaceDataInScratchpad, this,
                  &MainWindow::replaceDataInScratchpad ),
         connect( crawler, &CrawlerWidget::loadingProgressed, this,
@@ -3156,6 +3252,8 @@ void MainWindow::connectFrontTab( CrawlerWidget* crawler )
         connect( crawler, &CrawlerWidget::loadingFinished, this,
                  &MainWindow::handleLoadingFinished ),
         connect( crawler, &CrawlerWidget::statusMessage, this, &MainWindow::showStatusMessage ),
+        connect( crawler, &CrawlerWidget::highlightThisRequested, this,
+                 &MainWindow::highlightThis ),
         connect( crawler, &CrawlerWidget::filteredViewChanged, this,
                  &MainWindow::handleFilteredViewChanged ),
     };
@@ -3219,6 +3317,9 @@ void MainWindow::bringToFront()
 MainWindow::~MainWindow()
 {
     session_.removeWindow( this );
+
+    // Nothing is asked of the tab widget while it goes with the window.
+    disconnect( &mainTabWidget_, &TabbedCrawlerWidget::tabsChanged, this, nullptr );
 
     // A Conversion still under way gets no tab in a window that is gone.
     cancelConversions();
@@ -4055,6 +4156,8 @@ void MainWindow::updateMenuBarFromDocument( const CrawlerWidget::State& state )
     textWrapAction->setChecked( state.textWrap );
     showValueNamesAction->setChecked( state.valueNamesShown );
     matchesOnlyAction->setEnabled( state.hasTableView );
+    // The context menus offer Export as CSV... for a Log Format only.
+    exportAsCsvAction->setEnabled( state.hasTableView );
     changeMatchesOnly( state.matchesOnly );
     updateGoToTimestampAction( state );
 }

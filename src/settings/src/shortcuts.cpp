@@ -87,9 +87,14 @@ QList<QKeySequence> ShortcutAction::shortcutKeys( const std::string& action,
                           ? keysConfiguration->second
                           : ShortcutAction::defaultShortcutKeys( action );
 
+    // An empty key is an empty cell of the Shortcuts table, not a shortcut:
+    // stored empty keys leave the action with no shortcut, as registerShortcut does.
     QList<QKeySequence> shortcuts;
-    std::transform( keys.cbegin(), keys.cend(), std::back_inserter( shortcuts ),
-                    []( const QString& hotkeys ) { return QKeySequence( hotkeys ); } );
+    for ( const auto& hotkeys : keys ) {
+        if ( !hotkeys.isEmpty() ) {
+            shortcuts.append( QKeySequence( hotkeys ) );
+        }
+    }
 
     return shortcuts;
 }
@@ -312,6 +317,27 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
             MainWindowScratchpad,
             {
                 QApplication::tr( "Open scratchpad" ),
+                QStringList{},
+            },
+        },
+        {
+            MainWindowMergeLogFiles,
+            {
+                QApplication::tr( "Merge Log Files" ),
+                QStringList{},
+            },
+        },
+        {
+            MainWindowExportAsCsv,
+            {
+                QApplication::tr( "Export as CSV" ),
+                QStringList{},
+            },
+        },
+        {
+            MainWindowToggleSidebar,
+            {
+                QApplication::tr( "Show or hide the sidebar" ),
                 QStringList{},
             },
         },

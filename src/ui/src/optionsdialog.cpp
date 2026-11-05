@@ -1017,19 +1017,35 @@ void OptionsDialog::updateConfigFromDialog()
 
     config.setDefaultEncodingMib( encodingComboBox->currentData().toInt() );
 
+    // Only a row that differs from its default is stored, with the keys of
+    // its non-empty cells; a row whose default keys were all cleared is
+    // stored with no key. A row left at its default is not stored, so it
+    // keeps all of its default keys (the table shows two) and later changes
+    // of the default.
+    const auto& defaults = ShortcutAction::defaultShortcutList();
     auto shortcuts = config.shortcuts();
     for ( auto shortcutRow = 0; shortcutRow < shortcutsTable->rowCount(); ++shortcutRow ) {
         QStringList actionKeys;
+        for ( const auto column : { 1, 2 } ) {
+            const auto keySequence
+                = shortcutsTable->item( shortcutRow, column )->data( Qt::UserRole ).toString();
+            if ( !keySequence.isEmpty() ) {
+                actionKeys << keySequence;
+            }
+        }
 
-        auto primaryKeySequence
-            = shortcutsTable->item( shortcutRow, 1 )->data( Qt::UserRole ).toString();
-        auto secondaryKeySequence
-            = shortcutsTable->item( shortcutRow, 2 )->data( Qt::UserRole ).toString();
-        actionKeys << primaryKeySequence << secondaryKeySequence;
-
-        auto action
+        const auto action
             = shortcutsTable->item( shortcutRow, 0 )->data( Qt::UserRole ).toString().toStdString();
-        shortcuts[ action ] = actionKeys;
+        const auto defaultShortcut = defaults.find( action );
+        auto defaultKeys = defaultShortcut != defaults.end() ? defaultShortcut->second.keySequence
+                                                             : QStringList{};
+        defaultKeys.removeAll( QString{} );
+        if ( actionKeys == defaultKeys.mid( 0, 2 ) ) {
+            shortcuts.erase( action );
+        }
+        else {
+            shortcuts[ action ] = actionKeys;
+        }
     }
     config.setShortcuts( shortcuts );
 

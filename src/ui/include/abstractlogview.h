@@ -327,6 +327,18 @@ protected:
     // The context menu for the current selection, opened at pos in viewport
     // coordinates; built by PresentationMenu, and not yet shown.
     std::unique_ptr<QMenu> createContextMenu( const QPoint& pos );
+    // What Name this value... of the context menu opened at pos names
+    // (#883): the text selected within a Log Line, or with none the word
+    // under the cursor; as the Log Line and the range of it. None when that
+    // holds no value, and no Naming Rule captures one there (#885).
+    struct ValueToName {
+        QString logLine;
+        qsizetype start = 0;
+        qsizetype length = 0;
+        // The value a Naming Rule of the Naming Groups captures there.
+        std::optional<logsquirl::valuenames::CapturedValue> captured = std::nullopt;
+    };
+    std::optional<ValueToName> valueToNameAt( const QPoint& pos ) const;
     // What the context menu's Export as CSV... does. Empty, and the menu
     // offers no such entry, unless the view can split its Log Lines into the
     // fields of a Log Format.
@@ -359,6 +371,10 @@ Q_SIGNALS:
     // Sent up when the user wants to replace the search with the selection
     void replaceSearch( const QString& selection );
     void excludeFromSearch( const QString& selection );
+    // Highlight this... was chosen (#896): selectedText is the text selected
+    // within logLine, both expanded as the Highlighters are matched against
+    // them.
+    void highlightThisRequested( const QString& selectedText, const QString& logLine );
     // Sent up when the mouse is hovered over a line's margin
     void mouseHoveredOverLine( LineNumber line );
     // Sent up when the mouse leaves a line's margin
@@ -384,6 +400,10 @@ Q_SIGNALS:
     void addNextColorLabel();
     void clearColorLabels();
     void highlightersChange();
+    // Name this value... was chosen (#883): logLine is the raw Log Line,
+    // tabs not expanded, the range [start, start + length) of it what the user
+    // pointed at, in its characters, which holds a value.
+    void nameValueRequested( const QString& logLine, qsizetype start, qsizetype length );
 
 public Q_SLOTS:
     // Makes the widget select and display the passed Log Line, scrolling as
@@ -451,6 +471,7 @@ private Q_SLOTS:
     void addToSearch();
     void replaceSearch();
     void excludeFromSearch();
+    void highlightThis();
     void findNextSelected();
     void findPreviousSelected();
     void copy();

@@ -177,6 +177,9 @@ public:
     // Append a highlighter to this set.
     void addHighlighter( const Highlighter& highlighter );
 
+    // The Highlighters of this set, in their order.
+    const QList<Highlighter>& highlighters() const;
+
     // Returns weither the passed line match a filter of the set,
     // if so, it returns the fore/back colors the line should use.
     HighlighterMatchType matchLine( const QString& line, HighlightedMatchRanges& matches ) const;

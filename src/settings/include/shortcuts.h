@@ -73,6 +73,11 @@ struct ShortcutAction {
     static constexpr auto MainWindowReload = "mainwindow.reload";
     static constexpr auto MainWindowStop = "mainwindow.stop";
     static constexpr auto MainWindowScratchpad = "mainwindow.scratchpad";
+    // File > Merge Log Files..., File > Export as CSV... and View > Sidebar
+    // (#890); no keys by default.
+    static constexpr auto MainWindowMergeLogFiles = "mainwindow.merge_log_files";
+    static constexpr auto MainWindowExportAsCsv = "mainwindow.export_as_csv";
+    static constexpr auto MainWindowToggleSidebar = "mainwindow.toggle_sidebar";
     static constexpr auto MainWindowSelectOpenFile = "mainwindow.select_open_file";
     static constexpr auto MainWindowOpenContainingFolder = "mainwindow.open_containing_folder";
     static constexpr auto MainWindowOpenInEditor = "mainwindow.open_in_editor";

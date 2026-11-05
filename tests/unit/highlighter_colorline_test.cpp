@@ -95,3 +95,28 @@ SCENARIO( "A Highlighter colors a line as its Highlighter Set does", "[highlight
         }
     }
 }
+
+SCENARIO( "A Highlighter added to a Highlighter Set that has matched colors at once",
+          "[highlighters]" )
+{
+    GIVEN( "a Highlighter Set that has matched a Log Line" )
+    {
+        HighlighterSet set = HighlighterSet::createNewSet( QStringLiteral( "Set" ) );
+        set.addHighlighter( Highlighter( "error", false, false, Qt::black, Qt::red ) );
+        HighlightedMatchRanges ranges;
+        REQUIRE( set.matchLine( "warning: disk", ranges ) == HighlighterMatchType::NoMatch );
+
+        WHEN( "a Highlighter is added to it (#910)" )
+        {
+            set.addHighlighter( Highlighter( "warning", false, false, Qt::black, Qt::yellow ) );
+
+            THEN( "the next Log Line it matches is colored by the new Highlighter" )
+            {
+                CHECK( set.matchLine( "warning: disk", ranges )
+                       == HighlighterMatchType::LineMatch );
+                REQUIRE( ranges.matches().size() == 1 );
+                CHECK( ranges.front().backColor() == QColor( Qt::yellow ) );
+            }
+        }
+    }
+}

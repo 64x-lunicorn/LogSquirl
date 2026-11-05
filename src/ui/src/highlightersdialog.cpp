@@ -59,8 +59,6 @@
 #include "plaintext.h"
 #include "theme.h"
 
-static constexpr QLatin1String DEFAULT_NAME = QLatin1String( "New Highlighter set", 19 );
-
 // Construct the box, including a copy of the global highlighterSet
 // to handle ok/cancel/apply
 HighlightersDialog::HighlightersDialog( QWidget* parent )
@@ -240,17 +238,19 @@ void HighlightersDialog::addGroup( GroupList::Section section )
 {
     LOG_DEBUG << "addGroup()";
 
+    const auto defaultName = tr( "New Highlighter Set" );
+
     if ( section == GroupList::Section::Team ) {
         if ( !teamEdits_.isEditable() ) {
             return;
         }
-        teamEdits_.groups().append( HighlighterSet::createNewSet( DEFAULT_NAME ) );
+        teamEdits_.groups().append( HighlighterSet::createNewSet( defaultName ) );
         groupList_->setTeamGroups( teamEdits_.names(), true );
         groupList_->setCurrent( section, groupList_->count( section ) - 1 );
         return;
     }
 
-    highlighterSetCollection_.highlighters_.append( HighlighterSet::createNewSet( DEFAULT_NAME ) );
+    highlighterSetCollection_.highlighters_.append( HighlighterSet::createNewSet( defaultName ) );
     listOwnGroups();
     groupList_->setCurrent( section, groupList_->count( section ) - 1 );
 }
