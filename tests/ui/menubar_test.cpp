@@ -931,10 +931,43 @@ std::vector<std::pair<QString, QString>> menuTitles( MainWindow& window )
     return titles;
 }
 
+/// The text and status tip of an action of the menu bar, with its path.
+struct ActionWording {
+    QString path;
+    QString text;
+    QString statusTip;
+    // Named from what it stands for, in no language: a recent, opened or
+    // favorite file, a Highlighter Set or an Encoding.
+    bool namedFromData = false;
+
+    bool operator==( const ActionWording& ) const = default;
+};
+
+/// The wording of every action of the menu bar, submenus left out, in menu
+/// order.
+std::vector<ActionWording> actionWordings( MainWindow& window )
+{
+    std::vector<ActionWording> wordings;
+    for ( const auto& [ path, menu ] : menuBarMenus( window ) ) {
+        for ( const auto* action : menu->actions() ) {
+            if ( action->isSeparator() || action->menu() != nullptr ) {
+                continue;
+            }
+            // A file or a Highlighter Set is held by its path or id, an
+            // Encoding stands in a family submenu.
+            const bool namedFromData = action->data().typeId() == QMetaType::QString
+                                       || path.startsWith( QStringLiteral( "View/Encoding/" ) );
+            wordings.push_back( { path, action->text(), action->statusTip(), namedFromData } );
+        }
+    }
+    return wordings;
+}
+
 } // namespace
 
 // A language change retitles every menu of the menu bar, the Plugins and
-// Sources menus and the Open Recent and Encoding submenus too (#913).
+// Sources menus and the Open Recent and Encoding submenus too (#913), and
+// the Encoding families and every action of the menu bar (#915).
 SCENARIO( "A language change retitles every menu and submenu of the menu bar", "[ui][menubar]" )
 {
     GIVEN( "a shown window" )
@@ -942,6 +975,8 @@ SCENARIO( "A language change retitles every menu and submenu of the menu bar", "
         const ShownWindow shown;
         const auto before = menuTitles( *shown.window );
         REQUIRE( before.size() >= 7 );
+        const auto wordingsBefore = actionWordings( *shown.window );
+        REQUIRE( wordingsBefore.size() >= 40 );
 
         WHEN( "the language changes" )
         {
@@ -955,14 +990,30 @@ SCENARIO( "A language change retitles every menu and submenu of the menu bar", "
                 const auto after = menuTitles( *shown.window );
                 REQUIRE( after.size() == before.size() );
                 for ( std::size_t index = 0; index < before.size(); ++index ) {
-                    // The Encoding families are named by the Encodings they
-                    // hold, in no language.
-                    if ( before[ index ].first.startsWith( QStringLiteral( "View/Encoding/" ) ) ) {
-                        continue;
-                    }
                     INFO( before[ index ].first.toStdString() );
                     CHECK( after[ index ].second
                            == MarkingTranslator::marked( before[ index ].second ) );
+                }
+            }
+
+            THEN( "every action's text and status tip is its translation" )
+            {
+                const auto after = actionWordings( *shown.window );
+                REQUIRE( after.size() == wordingsBefore.size() );
+                for ( std::size_t index = 0; index < after.size(); ++index ) {
+                    const auto& was = wordingsBefore[ index ];
+                    INFO( ( was.path + u'/' + was.text ).toStdString() );
+                    if ( was.namedFromData ) {
+                        CHECK( after[ index ].text == was.text );
+                        continue;
+                    }
+                    if ( !was.text.isEmpty() ) {
+                        CHECK( after[ index ].text == MarkingTranslator::marked( was.text ) );
+                    }
+                    if ( !was.statusTip.isEmpty() ) {
+                        CHECK( after[ index ].statusTip
+                               == MarkingTranslator::marked( was.statusTip ) );
+                    }
                 }
             }
 
@@ -973,6 +1024,7 @@ SCENARIO( "A language change retitles every menu and submenu of the menu bar", "
             THEN( "going back retitles them as they were" )
             {
                 CHECK( menuTitles( *shown.window ) == before );
+                CHECK( actionWordings( *shown.window ) == wordingsBefore );
             }
         }
     }

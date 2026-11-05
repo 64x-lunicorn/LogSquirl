@@ -792,7 +792,8 @@ void MainWindow::reTranslateUI()
     highlightersMenu->setTitle( transMenu( menu::highlightersTitle ) );
     favoritesMenu->setTitle( transMenu( menu::favoritesTitle ) );
     helpMenu->setTitle( transMenu( menu::helpTitle ) );
-    encodingMenu->setTitle( transMenu( menu::encodingTitle ) );
+    // With its families and its Auto and System entries (#915).
+    EncodingMenu::retranslate( *encodingMenu );
     // Titled in the window's own context, where their translations are (#913).
     recentFilesMenu->setTitle( tr( "Open Recent" ) );
     pluginsMenu->setTitle( tr( "P&lugins" ) );
@@ -957,6 +958,18 @@ void MainWindow::reTranslateUI()
 
     regexLabAction->setText( transAction( action::regexLabText ) );
     regexLabAction->setStatusTip( transAction( action::regexLabStatusTip ) );
+
+    // In the window's own context, where their translations are (#915).
+    manageTabGroupsAction->setText( tr( "Manage Tab Groups..." ) );
+    manageTabGroupsAction->setStatusTip( tr( "Rename, recolor, or delete tab groups" ) );
+    pluginsAction->setText( tr( "Plugin Management..." ) );
+    pluginsAction->setStatusTip( tr( "Manage, install, and update plugins" ) );
+
+    // Built with their entries named in the language they were built in:
+    // built again, the None entry and the placeholder of an empty Sources
+    // menu follow the language (#915).
+    updateHighlightersMenu();
+    updateSourcesMenu();
 
     // trayIcon
     trayIcon_->setToolTip( QApplication::translate(

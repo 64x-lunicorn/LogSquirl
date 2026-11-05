@@ -37,6 +37,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QTranslator>
 #include <QTreeWidget>
 #include <QUrl>
 
@@ -274,6 +275,60 @@ SCENARIO( "The Options Dialog offers three ways to show ANSI color sequences",
                        == AnsiColorSequences::ShowColors );
             }
         }
+    }
+}
+
+namespace {
+
+/// A language in which every text is its source behind a marker.
+class MarkingTranslator : public QTranslator {
+public:
+    QString translate( const char* /*context*/, const char* sourceText,
+                       const char* /*disambiguation*/ = nullptr, int /*n*/ = -1 ) const override
+    {
+        if ( sourceText == nullptr || *sourceText == '\0' ) {
+            return {};
+        }
+        return QStringLiteral( "[xx] " ) + QString::fromUtf8( sourceText );
+    }
+
+    bool isEmpty() const override
+    {
+        return false;
+    }
+};
+
+} // namespace
+
+// The Auto entry of the default Encoding is translated, as the Encoding
+// menu's is (#915).
+SCENARIO( "The Options Dialog offers the Auto Encoding in the current language",
+          "[configuration][optionsdialog][encoding]" )
+{
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
+    ConfigurationRestorer restorer;
+
+    GIVEN( "a language" )
+    {
+        MarkingTranslator translator;
+        REQUIRE( QCoreApplication::installTranslator( &translator ) );
+
+        WHEN( "an Options Dialog is opened" )
+        {
+            Configuration::get() = Configuration{};
+            LogFormatCatalog catalog;
+            const OptionsDialog dialog( catalog );
+
+            THEN( "its first Encoding is Auto in that language" )
+            {
+                REQUIRE( dialog.encodingComboBox->count() > 1 );
+                CHECK( dialog.encodingComboBox->itemText( 0 ) == QStringLiteral( "[xx] Auto" ) );
+                CHECK( dialog.encodingComboBox->itemData( 0 ).toInt() == -1 );
+            }
+        }
+
+        QCoreApplication::removeTranslator( &translator );
     }
 }
 
