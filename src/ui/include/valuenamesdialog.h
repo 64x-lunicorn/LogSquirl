@@ -272,6 +272,9 @@ private:
     // The table of the selected rule's capture group, chosen in its row.
     void captureGroupTableChosen( const QString& group, const QString& numbered,
                                   const QString& table );
+    // New Name Table... chosen for the selected rule's capture group: a table
+    // named after the group if it is named, used by the group and selected.
+    void newTableForCaptureGroup( const QString& group, const QString& numbered );
     // Shows the warnings of a CSV import or a paste with the group's.
     void showCsvWarnings( const QList<logsquirl::valuenames::CsvImportWarning>& warnings );
     void loadIcons();
