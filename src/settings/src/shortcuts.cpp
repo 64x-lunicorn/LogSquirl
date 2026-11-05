@@ -161,7 +161,7 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             MainWindowMax,
             {
-                QApplication::tr( "Maximize window" ),
+                QApplication::tr( "Maximize Window" ),
                 QStringList{},
             },
         },
