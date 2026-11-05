@@ -112,6 +112,11 @@ public:
 
     bool hasSetByName( const QString& name ) const;
 
+    // Adds the filter at the end of the group of the id, or of the Default
+    // Filter Group when there is no such group: one the user chose may have
+    // gone meanwhile, the filter is not lost.
+    void addFilter( const QString& groupId, const PredefinedFilter& filter );
+
     // The Filter Groups the enabled plugins ship, each with its Source
     // (#865): read-only here and never stored, they come and go as plugins
     // are enabled and disabled. None of the filters below hold them. Whether

@@ -19,8 +19,6 @@
 
 #include "addpredefinedfilterdialog.h"
 
-#include <algorithm>
-
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -31,6 +29,10 @@
 #include <QRegularExpression>
 #include <QVBoxLayout>
 
+#include "groupedits.h"
+#include "predefinedfilters.h"
+#include "valueproposal.h"
+
 QString AddPredefinedFilterDialog::proposedName( const QString& selectedText )
 {
     auto name = selectedText.simplified();
@@ -40,38 +42,66 @@ QString AddPredefinedFilterDialog::proposedName( const QString& selectedText )
     return name;
 }
 
+namespace {
+
+// The names of a Filter Group's filters, held by its entry of the combo box.
+constexpr int FilterNamesRole = Qt::UserRole + 1;
+
+QStringList filterNames( const PredefinedFilterSet& group )
+{
+    QStringList names;
+    for ( const auto& filter : group.filters() ) {
+        names.append( filter.name );
+    }
+    return names;
+}
+
+} // namespace
+
 AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& selectedText, QWidget* parent )
     : QDialog( parent )
-    , groups_( PredefinedFiltersCollection::getSynced().filterSets() )
 {
     setWindowTitle( tr( "Add as Predefined Filter" ) );
 
     auto* form = new QFormLayout;
 
-    name_ = new QLineEdit( proposedName( selectedText ), this );
+    name_ = new QLineEdit( this );
     name_->setObjectName( QStringLiteral( "filterName" ) );
     name_->setToolTip( tr( "The name the Filters panel lists the Predefined Filter by" ) );
     form->addRow( tr( "Name:" ), name_ );
 
-    pattern_ = new QLineEdit( QRegularExpression::escape( selectedText ), this );
+    pattern_ = new QLineEdit( selectedText, this );
     pattern_->setObjectName( QStringLiteral( "filterPattern" ) );
-    pattern_->setToolTip( tr( "The regex of the Predefined Filter; proposed from the selection, "
-                              "it matches the selected text as it is" ) );
+    pattern_->setToolTip( tr( "What the Predefined Filter searches for; proposed from the "
+                              "selection, it finds the selected text as it is" ) );
     form->addRow( tr( "Pattern:" ), pattern_ );
+
+    regex_ = new QCheckBox( tr( "Regular expression" ), this );
+    regex_->setObjectName( QStringLiteral( "filterRegex" ) );
+    regex_->setToolTip( tr( "Read the pattern as a regular expression; checking it escapes the "
+                            "pattern so that it still finds the same text" ) );
+    form->addRow( QString{}, regex_ );
 
     // The user's own groups, the Default Filter Group chosen. The Team's and
     // the plugins' groups are not the user's to add to.
     group_ = new QComboBox( this );
     group_->setObjectName( QStringLiteral( "filterGroup" ) );
+    const auto groups = PredefinedFiltersCollection::getSynced().filterSets();
     int chosen = 0;
-    for ( int row = 0; row < groups_.size(); ++row ) {
-        group_->addItem( groups_[ row ].name(), groups_[ row ].id() );
-        if ( groups_[ row ].id() == defaultFilterSetId() ) {
+    for ( int row = 0; row < groups.size(); ++row ) {
+        group_->addItem( groups[ row ].name(), groups[ row ].id() );
+        group_->setItemData( row, filterNames( groups[ row ] ), FilterNamesRole );
+        if ( groups[ row ].id() == defaultFilterSetId() ) {
             chosen = row;
         }
     }
     group_->setCurrentIndex( chosen );
     form->addRow( tr( "Filter Group:" ), group_ );
+
+    // A name no filter of the group has: the Filters panel tells the filters
+    // of a group apart by their names.
+    name_->setText(
+        logsquirl::valuenames::freeName( proposedName( selectedText ), chosenGroupNames() ) );
 
     applyNow_ = new QCheckBox( tr( "Search with it now" ), this );
     applyNow_->setObjectName( QStringLiteral( "applyNow" ) );
@@ -90,6 +120,9 @@ AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& selectedTex
 
     connect( name_, &QLineEdit::textChanged, this, &AddPredefinedFilterDialog::updateState );
     connect( pattern_, &QLineEdit::textChanged, this, &AddPredefinedFilterDialog::updateState );
+    connect( regex_, &QCheckBox::toggled, this, &AddPredefinedFilterDialog::regexToggled );
+    connect( group_, &QComboBox::currentIndexChanged, this,
+             &AddPredefinedFilterDialog::updateState );
     connect( buttons_, &QDialogButtonBox::accepted, this, &AddPredefinedFilterDialog::accept );
     connect( buttons_, &QDialogButtonBox::rejected, this, &AddPredefinedFilterDialog::reject );
     updateState();
@@ -101,12 +134,17 @@ AddPredefinedFilterDialog::AddPredefinedFilterDialog( const QString& selectedTex
 
 PredefinedFilter AddPredefinedFilterDialog::filter() const
 {
-    return PredefinedFilter{ name_->text().trimmed(), pattern_->text(), true };
+    return PredefinedFilter{ name_->text().trimmed(), pattern_->text(), regex_->isChecked() };
 }
 
 QString AddPredefinedFilterDialog::chosenGroupId() const
 {
     return group_->currentData().toString();
+}
+
+QStringList AddPredefinedFilterDialog::chosenGroupNames() const
+{
+    return group_->currentData( FilterNamesRole ).toStringList();
 }
 
 bool AddPredefinedFilterDialog::applyNow() const
@@ -119,43 +157,42 @@ QString AddPredefinedFilterDialog::warning() const
     return warning_->text();
 }
 
+void AddPredefinedFilterDialog::regexToggled( bool regex )
+{
+    if ( regex ) {
+        plainPattern_ = pattern_->text();
+        pattern_->setText( logsquirl::valuenames::escapedForRegex( plainPattern_ ) );
+    }
+    // Unless the regex was edited, it was plain text before.
+    else if ( pattern_->text() == logsquirl::valuenames::escapedForRegex( plainPattern_ ) ) {
+        pattern_->setText( plainPattern_ );
+    }
+    updateState();
+}
+
 void AddPredefinedFilterDialog::updateState()
 {
-    const QRegularExpression regex( pattern_->text() );
+    const auto name = name_->text().trimmed();
     QString warning;
     if ( pattern_->text().isEmpty() ) {
         warning = tr( "The pattern is empty." );
     }
-    else if ( !regex.isValid() ) {
+    else if ( const QRegularExpression regex( pattern_->text() );
+              regex_->isChecked() && !regex.isValid() ) {
         warning = tr( "The regex is not valid: %1" ).arg( regex.errorString() );
+    }
+    else if ( chosenGroupNames().contains( name ) ) {
+        warning = tr( "The Filter Group already has a filter named \"%1\"." ).arg( name );
     }
     warning_->setText( warning );
     warning_->setVisible( !warning.isEmpty() );
-    buttons_->button( QDialogButtonBox::Ok )
-        ->setEnabled( warning.isEmpty() && !name_->text().trimmed().isEmpty() );
+    buttons_->button( QDialogButtonBox::Ok )->setEnabled( warning.isEmpty() && !name.isEmpty() );
 }
 
 void AddPredefinedFilterDialog::accept()
 {
     auto& collection = PredefinedFiltersCollection::get();
-    // Setting the groups makes sure the Default Filter Group is among them.
-    collection.setFilterSets( collection.filterSets() );
-    auto groups = collection.filterSets();
-
-    // A group the user chose may have gone meanwhile: the filter is not lost,
-    // it goes into the Default Filter Group.
-    const auto byId = []( const QString& id ) {
-        return [ id ]( const PredefinedFilterSet& group ) { return group.id() == id; };
-    };
-    auto chosen = std::find_if( groups.begin(), groups.end(), byId( chosenGroupId() ) );
-    if ( chosen == groups.end() ) {
-        chosen = std::find_if( groups.begin(), groups.end(), byId( defaultFilterSetId() ) );
-    }
-    if ( chosen != groups.end() ) {
-        chosen->addFilter( filter() );
-    }
-
-    collection.setFilterSets( groups );
+    collection.addFilter( chosenGroupId(), filter() );
     collection.save();
     QDialog::accept();
 }

@@ -19,11 +19,13 @@
 
 // Add as Predefined Filter... (#897): the context menu of the Text View and
 // the Filtered View offers it for text selected within a Log Line, the dialog
-// it opens proposes a name and the escaped selection as the pattern in the
-// Default Filter Group, and OK adds the Predefined Filter; with apply now the
-// Search runs with it.
+// it opens proposes a name and the selection as the pattern in the Default
+// Filter Group, as plain text or, with Regular expression, escaped as a regex,
+// and OK adds the Predefined Filter; with apply now the Search runs with it,
+// and finds the selection with Use regex on or off.
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <QAction>
 #include <QApplication>
@@ -98,6 +100,11 @@ struct CrawlerWidget::access_by<AddPredefinedFilterTest> {
         return SearchLineAccess::stopButton( *crawler.searchLine_ )->isHidden();
     }
 
+    static QToolButton* useRegexpButton( const CrawlerWidget& crawler )
+    {
+        return SearchLineAccess::useRegexpButton( *crawler.searchLine_ );
+    }
+
     static LinesCount matchCount( const CrawlerWidget& crawler )
     {
         return crawler.openLogFile_->filteredData()->getNbLine();
@@ -126,6 +133,10 @@ const auto TheLogLine = QStringLiteral( "modem a.b[1] ERROR done" );
 // A Log Line the pattern would match, were its dots and brackets read as a
 // regex: only the escaped pattern tells the two apart.
 const auto LookalikeLogLine = QStringLiteral( "modem axb1 WARN done" );
+// A selection of two words, and the Log Line it is in.
+const auto TwoWords = QStringLiteral( "connection refused" );
+const auto TwoWordsLogLine = QStringLiteral( "peer connection refused by host" );
+const auto TwoWordsLine = 3_lnum;
 
 // The Filter Groups, stored again as they were when this goes.
 class KeptFilterGroups {
@@ -214,7 +225,8 @@ struct AddFilterWindow {
         const auto path = dir.filePath( QStringLiteral( "filters.log" ) );
         QFile file( path );
         REQUIRE( file.open( QIODevice::WriteOnly ) );
-        file.write( ( TheLogLine + u'\n' + LookalikeLogLine + QStringLiteral( "\nother line\n" ) )
+        file.write( ( TheLogLine + u'\n' + LookalikeLogLine + QStringLiteral( "\nother line\n" )
+                      + TwoWordsLogLine + u'\n' )
                         .toUtf8() );
         file.close();
 
@@ -252,6 +264,14 @@ void selectText( AbstractLogView& view, LineNumber line = 0_lnum )
     const auto start = TheLogLine.indexOf( SelectedText );
     ViewAccess::selectPortion( view, line, LineColumn{ start },
                                LineColumn{ start + SelectedText.size() - 1 } );
+}
+
+// Selects the two words within their Log Line of the Text View.
+void selectTwoWords( AbstractLogView& view )
+{
+    const auto start = TwoWordsLogLine.indexOf( TwoWords );
+    ViewAccess::selectPortion( view, TwoWordsLine, LineColumn{ start },
+                               LineColumn{ start + TwoWords.size() - 1 } );
 }
 
 // Chooses Add as Predefined Filter... of the menu, and in the dialog it opens
@@ -357,8 +377,8 @@ SCENARIO( "The name proposed for a Predefined Filter is the selection, on one li
     CHECK( name.endsWith( QStringLiteral( "..." ) ) );
 }
 
-SCENARIO( "The Add as Predefined Filter dialog proposes the escaped selection in the Default "
-          "Filter Group",
+SCENARIO( "The Add as Predefined Filter dialog proposes the selection as plain text in the "
+          "Default Filter Group",
           "[ui][predefinedfilters][addpredefinedfilter]" )
 {
     const KeptFilterGroups kept;
@@ -371,17 +391,20 @@ SCENARIO( "The Add as Predefined Filter dialog proposes the escaped selection in
 
         AddPredefinedFilterDialog dialog( SelectedText );
         showUntilExposed( dialog );
+        auto* pattern = childOf<QLineEdit>( dialog, QStringLiteral( "filterPattern" ) );
+        auto* regex = childOf<QCheckBox>( dialog, QStringLiteral( "filterRegex" ) );
 
-        THEN( "it proposes the selection, escaped, as the pattern, and a name from it" )
+        THEN( "it proposes the selection as the pattern, not as a regex, and a name from it" )
         {
-            REQUIRE( childOf<QLineEdit>( dialog, QStringLiteral( "filterPattern" ) )->text()
-                     == EscapedText );
+            REQUIRE( pattern->text() == SelectedText );
+            REQUIRE_FALSE( regex->isChecked() );
             REQUIRE( childOf<QLineEdit>( dialog, QStringLiteral( "filterName" ) )->text()
                      == SelectedText );
             const auto filter = dialog.filter();
-            REQUIRE( filter.pattern == EscapedText );
+            REQUIRE( filter.pattern == SelectedText );
             REQUIRE( filter.name == SelectedText );
-            REQUIRE( filter.useRegex );
+            REQUIRE_FALSE( filter.useRegex );
+            REQUIRE( okButton( dialog )->isEnabled() );
         }
 
         THEN( "the Default Filter Group is chosen, and every group of the user's is offered" )
@@ -399,15 +422,49 @@ SCENARIO( "The Add as Predefined Filter dialog proposes the escaped selection in
             REQUIRE_FALSE( dialog.applyNow() );
         }
 
-        WHEN( "the pattern is edited into an invalid regex" )
+        WHEN( "Regular expression is checked" )
         {
-            childOf<QLineEdit>( dialog, QStringLiteral( "filterPattern" ) )
-                ->setText( QStringLiteral( "a(" ) );
+            regex->setChecked( true );
 
-            THEN( "it warns, and OK is disabled" )
+            THEN( "the pattern is the selection escaped as a regex, which the filter is" )
             {
-                REQUIRE_FALSE( dialog.warning().isEmpty() );
-                REQUIRE_FALSE( okButton( dialog )->isEnabled() );
+                REQUIRE( pattern->text() == EscapedText );
+                REQUIRE( dialog.filter().pattern == EscapedText );
+                REQUIRE( dialog.filter().useRegex );
+                REQUIRE( okButton( dialog )->isEnabled() );
+            }
+
+            AND_WHEN( "it is unchecked again" )
+            {
+                regex->setChecked( false );
+
+                THEN( "the pattern is the selection again" )
+                {
+                    REQUIRE( pattern->text() == SelectedText );
+                    REQUIRE_FALSE( dialog.filter().useRegex );
+                }
+            }
+
+            AND_WHEN( "the pattern is edited into an invalid regex" )
+            {
+                pattern->setText( QStringLiteral( "a(" ) );
+
+                THEN( "it warns, and OK is disabled" )
+                {
+                    REQUIRE_FALSE( dialog.warning().isEmpty() );
+                    REQUIRE_FALSE( okButton( dialog )->isEnabled() );
+                }
+            }
+        }
+
+        WHEN( "the pattern is edited into what would be an invalid regex, read as plain text" )
+        {
+            pattern->setText( QStringLiteral( "a(" ) );
+
+            THEN( "OK is enabled: plain text needs no valid regex" )
+            {
+                REQUIRE( dialog.warning().isEmpty() );
+                REQUIRE( okButton( dialog )->isEnabled() );
             }
         }
 
@@ -430,9 +487,23 @@ SCENARIO( "The Add as Predefined Filter dialog proposes the escaped selection in
                 const auto filters = storedGroup( defaultFilterSetId() ).filters();
                 REQUIRE( filters.size() == defaultFilters + 1 );
                 REQUIRE( filters.back().name == SelectedText );
+                REQUIRE( filters.back().pattern == SelectedText );
+                REQUIRE_FALSE( filters.back().useRegex );
+                REQUIRE( storedGroup( other.id() ).filters().size() == 1 );
+            }
+        }
+
+        WHEN( "Regular expression is checked and OK is clicked" )
+        {
+            regex->setChecked( true );
+            clickOk( dialog );
+
+            THEN( "the Predefined Filter is stored as the escaped regex" )
+            {
+                const auto filters = storedGroup( defaultFilterSetId() ).filters();
+                REQUIRE( filters.size() == defaultFilters + 1 );
                 REQUIRE( filters.back().pattern == EscapedText );
                 REQUIRE( filters.back().useRegex );
-                REQUIRE( storedGroup( other.id() ).filters().size() == 1 );
             }
         }
 
@@ -450,7 +521,7 @@ SCENARIO( "The Add as Predefined Filter dialog proposes the escaped selection in
                 const auto filters = storedGroup( other.id() ).filters();
                 REQUIRE( filters.size() == 2 );
                 REQUIRE( filters.back().name == QStringLiteral( "Modem index" ) );
-                REQUIRE( filters.back().pattern == EscapedText );
+                REQUIRE( filters.back().pattern == SelectedText );
                 REQUIRE( storedGroup( defaultFilterSetId() ).filters().size() == defaultFilters );
             }
         }
@@ -466,6 +537,88 @@ SCENARIO( "The Add as Predefined Filter dialog proposes the escaped selection in
             }
         }
     }
+}
+
+SCENARIO( "The Add as Predefined Filter dialog keeps the names of a Filter Group's filters "
+          "apart",
+          "[ui][predefinedfilters][addpredefinedfilter]" )
+{
+    const KeptFilterGroups kept;
+
+    GIVEN( "a Default Filter Group with a filter named as the selection, and another group "
+           "without" )
+    {
+        const auto other = groupOf( QStringLiteral( "Other" ), QStringLiteral( "WARN" ) );
+        KeptFilterGroups::store( { other } );
+        auto& collection = PredefinedFiltersCollection::getSynced();
+        collection.addFilter( defaultFilterSetId(),
+                              PredefinedFilter{ SelectedText, QStringLiteral( "x" ), false } );
+        collection.save();
+
+        AddPredefinedFilterDialog dialog( SelectedText );
+        showUntilExposed( dialog );
+        auto* name = childOf<QLineEdit>( dialog, QStringLiteral( "filterName" ) );
+        auto* groups = childOf<QComboBox>( dialog, QStringLiteral( "filterGroup" ) );
+
+        THEN( "it proposes the name numbered, which no filter of the group has" )
+        {
+            REQUIRE( name->text() == SelectedText + QStringLiteral( " (2)" ) );
+            REQUIRE( okButton( dialog )->isEnabled() );
+            REQUIRE( dialog.warning().isEmpty() );
+        }
+
+        WHEN( "the name is edited into the name the group has" )
+        {
+            name->setText( SelectedText );
+
+            THEN( "OK is disabled, and the dialog says why" )
+            {
+                REQUIRE_FALSE( okButton( dialog )->isEnabled() );
+                REQUIRE( dialog.warning().contains( SelectedText ) );
+                REQUIRE( childOf<QLabel>( dialog, QStringLiteral( "warning" ) )->isVisible() );
+            }
+
+            AND_WHEN( "the other group is chosen" )
+            {
+                groups->setCurrentIndex( groups->findText( QStringLiteral( "Other" ) ) );
+
+                THEN( "OK is enabled again: that group has no filter of the name" )
+                {
+                    REQUIRE( okButton( dialog )->isEnabled() );
+                    REQUIRE( dialog.warning().isEmpty() );
+                }
+            }
+        }
+
+        WHEN( "the name is edited into the other group's filter's name and that group chosen" )
+        {
+            name->setText( QStringLiteral( "Other" ) );
+            groups->setCurrentIndex( groups->findText( QStringLiteral( "Other" ) ) );
+
+            THEN( "OK is disabled" )
+            {
+                REQUIRE_FALSE( okButton( dialog )->isEnabled() );
+            }
+        }
+    }
+}
+
+SCENARIO( "A filter added to a Filter Group that has gone goes into the Default Filter Group",
+          "[ui][predefinedfilters][addpredefinedfilter]" )
+{
+    const KeptFilterGroups kept;
+    KeptFilterGroups::store( {} );
+    const auto defaultFilters = storedGroup( defaultFilterSetId() ).filters().size();
+
+    auto& collection = PredefinedFiltersCollection::getSynced();
+    collection.addFilter(
+        QStringLiteral( "no such group" ),
+        PredefinedFilter{ QStringLiteral( "kept" ), QStringLiteral( "x" ), false } );
+    collection.save();
+
+    const auto filters = storedGroup( defaultFilterSetId() ).filters();
+    REQUIRE( filters.size() == defaultFilters + 1 );
+    REQUIRE( filters.back().name == QStringLiteral( "kept" ) );
 }
 
 SCENARIO( "OK in the Add as Predefined Filter dialog adds the filter, and with apply now the "
@@ -493,12 +646,76 @@ SCENARIO( "OK in the Add as Predefined Filter dialog adds the filter, and with a
         {
             const auto filters = storedGroup( defaultFilterSetId() ).filters();
             REQUIRE( filters.size() == 1 );
-            REQUIRE( filters.front().pattern == EscapedText );
+            REQUIRE( filters.front().pattern == SelectedText );
             REQUIRE( listsFilter( *filtersTree, SelectedText ) );
         }
 
-        THEN( "the Search runs with it, and finds the Log Line and not the lookalike" )
+        THEN( "the Search, reading regexes, runs with it escaped, and finds the Log Line and not "
+              "the lookalike" )
         {
+            REQUIRE( CrawlerAccess::useRegexpButton( *shown.crawler )->isChecked() );
+            REQUIRE( waitUiState( [ & ] {
+                return CrawlerAccess::searchPattern( *shown.crawler ) == EscapedText
+                       && CrawlerAccess::searchStopped( *shown.crawler )
+                       && CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount;
+            } ) );
+        }
+    }
+
+    WHEN( "the selection is added with apply now while the Search reads plain text" )
+    {
+        CrawlerAccess::useRegexpButton( *shown.crawler )->setChecked( false );
+        selectText( textView );
+        const auto menu = ViewAccess::contextMenu( textView );
+        addInDialog( *menu, []( AddPredefinedFilterDialog& dialog ) {
+            childOf<QCheckBox>( dialog, QStringLiteral( "applyNow" ) )->setChecked( true );
+        } );
+
+        THEN( "the Search runs with the selection as it is, and finds the Log Line and not the "
+              "lookalike" )
+        {
+            REQUIRE_FALSE( CrawlerAccess::useRegexpButton( *shown.crawler )->isChecked() );
+            REQUIRE( waitUiState( [ & ] {
+                return CrawlerAccess::searchPattern( *shown.crawler ) == SelectedText
+                       && CrawlerAccess::searchStopped( *shown.crawler )
+                       && CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount;
+            } ) );
+        }
+    }
+
+    WHEN( "two words are added with apply now, the Search reading regexes or plain text" )
+    {
+        const bool regexSearch = GENERATE( true, false );
+        CrawlerAccess::useRegexpButton( *shown.crawler )->setChecked( regexSearch );
+        selectTwoWords( textView );
+        const auto menu = ViewAccess::contextMenu( textView );
+        addInDialog( *menu, []( AddPredefinedFilterDialog& dialog ) {
+            childOf<QCheckBox>( dialog, QStringLiteral( "applyNow" ) )->setChecked( true );
+        } );
+
+        THEN( "the Search finds their Log Line" )
+        {
+            REQUIRE( storedGroup( defaultFilterSetId() ).filters().front().pattern == TwoWords );
+            REQUIRE( waitUiState( [ & ] {
+                return CrawlerAccess::searchStopped( *shown.crawler )
+                       && CrawlerAccess::matchCount( *shown.crawler ) == 1_lcount;
+            } ) );
+        }
+    }
+
+    WHEN( "the selection is added as a regex with apply now" )
+    {
+        selectText( textView );
+        const auto menu = ViewAccess::contextMenu( textView );
+        addInDialog( *menu, []( AddPredefinedFilterDialog& dialog ) {
+            childOf<QCheckBox>( dialog, QStringLiteral( "filterRegex" ) )->setChecked( true );
+            childOf<QCheckBox>( dialog, QStringLiteral( "applyNow" ) )->setChecked( true );
+        } );
+
+        THEN( "the Search runs with the escaped regex, and finds the Log Line and not the "
+              "lookalike" )
+        {
+            REQUIRE( storedGroup( defaultFilterSetId() ).filters().front().useRegex );
             REQUIRE( waitUiState( [ & ] {
                 return CrawlerAccess::searchPattern( *shown.crawler ) == EscapedText
                        && CrawlerAccess::searchStopped( *shown.crawler )

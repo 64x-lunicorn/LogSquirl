@@ -543,12 +543,16 @@ It is possible to save the current search pattern as a predefined filter with
 Text selected within a line of the main or the filtered view becomes a
 predefined filter with *Add as Predefined Filter...* in the context menu of the
 lines. The dialog proposes the selection, on one line and cut short when long,
-as the name, and the selection escaped as a regular expression as the pattern,
-so that the filter matches the selected text as it is; both can be edited. It
-adds the filter to the Default group unless you pick another of your own groups.
-With *Search with it now* checked, OK also makes the filter the search pattern
-of the tab and runs the search at once; a search line with *Use regex* off
-reads the pattern as plain text.
+as the name, numbered `(2)`, `(3)` and so on when the group has a filter of
+that name, and the selection as the pattern, as plain text: the filter finds
+the selected text as it is whether *Use regex* of the search line is on or off.
+Checking *Regular expression* turns the pattern into the selection escaped as
+a regular expression, `a\.b\[1\]` for `a.b[1]`, to edit into one; the dialog
+then checks that it is valid. Both name and pattern can be edited. It adds the
+filter to the Default group unless you pick another of your own groups; *OK*
+is disabled, with the reason below the fields, while the group has a filter of
+the name. With *Search with it now* checked, OK also makes the filter the
+search pattern of the tab and runs the search at once.
 
 Predefined filters are kept in filter groups. The dialog lists the groups
 (*New Filter Group*, *Delete Filter Group*, *Move Filter Group Up* and *Move
