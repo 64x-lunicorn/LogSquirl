@@ -23,6 +23,7 @@
 #include <QRegularExpression>
 
 #include <algorithm>
+#include <map>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -327,6 +328,118 @@ QList<NamedValue> ValueNamer::namedValues( const QString& line ) const
     std::sort( namedValues.begin(), namedValues.end(),
                []( const NamedValue& a, const NamedValue& b ) { return a.start < b.start; } );
     return namedValues;
+}
+
+std::optional<CapturedValue> capturedValueIn( const QList<NamingGroup>& groups,
+                                              const QString& line, qsizetype start,
+                                              qsizetype length )
+{
+    if ( length <= 0 || line.size() > ValueNamer::MaxLineLength ) {
+        return std::nullopt;
+    }
+
+    const auto overlap = []( const CapturedValue& value, qsizetype otherStart,
+                             qsizetype otherLength ) {
+        return value.start < otherStart + otherLength && otherStart < value.start + value.length;
+    };
+
+    // Every capture in the order ValueNamer looks at them: a named one takes
+    // its range, as there, and an unnamed one takes none.
+    std::vector<CapturedValue> named;
+    std::vector<CapturedValue> unnamed;
+    for ( qsizetype groupIndex = 0; groupIndex < groups.size(); ++groupIndex ) {
+        const auto& group = groups[ groupIndex ];
+        if ( !group.isEnabled() ) {
+            continue;
+        }
+        std::map<QString, CompiledTable> tables;
+        for ( const auto& rule : group.rules() ) {
+            if ( !rule.enabled ) {
+                continue;
+            }
+            const auto regex = ruleRegex( rule.pattern );
+            if ( !regex.isValid() ) {
+                continue;
+            }
+            std::vector<std::pair<int, const NameTable*>> groupTables;
+            for ( const auto& groupTable : rule.groupTables ) {
+                if ( groupTable.table.isEmpty() ) {
+                    continue;
+                }
+                const auto captureGroup = captureGroupIndex( regex, groupTable.group );
+                const auto* table = group.table( groupTable.table );
+                if ( captureGroup < 0 || table == nullptr
+                     || std::any_of( groupTables.cbegin(), groupTables.cend(),
+                                     [ captureGroup ]( const auto& taken ) {
+                                         return taken.first == captureGroup;
+                                     } ) ) {
+                    continue;
+                }
+                groupTables.emplace_back( captureGroup, table );
+            }
+            std::sort( groupTables.begin(), groupTables.end(),
+                       []( const auto& a, const auto& b ) { return a.first < b.first; } );
+
+            auto matches = regex.globalMatch( line );
+            while ( matches.hasNext() ) {
+                const auto match = matches.next();
+                for ( const auto& [ captureGroup, table ] : groupTables ) {
+                    CapturedValue captured;
+                    captured.start = match.capturedStart( captureGroup );
+                    captured.length = match.capturedLength( captureGroup );
+                    if ( captured.start < 0 || captured.length == 0
+                         || std::any_of( named.cbegin(), named.cend(),
+                                         [ & ]( const CapturedValue& taken ) {
+                                             return overlap( taken, captured.start,
+                                                             captured.length );
+                                         } ) ) {
+                        continue;
+                    }
+                    captured.value = match.captured( captureGroup );
+                    captured.groupIndex = groupIndex;
+                    captured.groupId = group.id();
+                    captured.rule = rule.name;
+                    captured.table = table->name;
+                    const auto& compiled = tables.try_emplace( table->name, *table ).first->second;
+                    if ( compiled.nameFor( captured.value ).has_value() ) {
+                        // The row that names it: the first whose key matches.
+                        for ( int row = 0; row < table->rows.size(); ++row ) {
+                            const auto key
+                                = keyRegex( table->rows[ row ].key, table->caseSensitive );
+                            if ( key.isValid() && key.match( captured.value ).hasMatch() ) {
+                                captured.row = row;
+                                break;
+                            }
+                        }
+                        named.push_back( std::move( captured ) );
+                    }
+                    else {
+                        unnamed.push_back( std::move( captured ) );
+                    }
+                }
+            }
+        }
+    }
+
+    // As shown: the named ones, and the unnamed ones none of them overlaps,
+    // an earlier one winning over a later one it overlaps.
+    auto shown = named;
+    for ( auto& captured : unnamed ) {
+        if ( std::none_of( shown.cbegin(), shown.cend(), [ & ]( const CapturedValue& taken ) {
+                 return overlap( taken, captured.start, captured.length );
+             } ) ) {
+            shown.push_back( std::move( captured ) );
+        }
+    }
+
+    std::optional<CapturedValue> last;
+    for ( auto& captured : shown ) {
+        if ( overlap( captured, start, length )
+             && ( !last.has_value() || captured.start > last->start ) ) {
+            last = std::move( captured );
+        }
+    }
+    return last;
 }
 
 QString shownLine( QStringView line, const QList<NamedValue>& namedValues )

@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include <QString>
@@ -84,8 +85,21 @@ public:
         // elsewhere, and the menu offers no Search this value in <column>.
         QString columnUnderCursor;
         // Whether the selection, or with no text selected the word under the
-        // cursor, holds a value Name this value... names (#883).
+        // cursor, holds a value Name this value... names (#883), or one a
+        // Naming Rule captures (#885).
         bool hasValueToName = false;
+        // A value a Naming Rule of an enabled Naming Group captures there
+        // (#885): the menu offers Name <value> in <table>... for it, or for a
+        // Named Value Rename <table> <value>..., instead of Name this value...
+        struct CapturedValue {
+            QString value;
+            QString table;
+            // Whether a row of the table names it.
+            bool named = false;
+            // Whether the rule is a Team group's, which is not changed here.
+            bool teamGroup = false;
+        };
+        std::optional<CapturedValue> capturedValue;
     };
 
     // An entry a plugin added (#859).
@@ -136,8 +150,9 @@ public:
         // of a Log Format; left empty, the menu offers no Export as CSV.
         std::function<void()> exportAsCsv;
         // Open the dialog naming the value of the selection or under the
-        // cursor (#883). Only for a Presentation drawn like the Text View;
-        // left empty, the menu offers no Name this value...
+        // cursor (#883), or the one Report::capturedValue is about (#885).
+        // Only for a Presentation drawn like the Text View; left empty, the
+        // menu offers no Name this value...
         std::function<void()> nameValue;
         // The plugins' entries, in their order, below a separator at the end
         // of the menu, always enabled; without any, there is no separator.

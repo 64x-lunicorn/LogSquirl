@@ -208,8 +208,39 @@ void addSelectionBlock( QMenu& menu, const Opened& opened )
     addEntry( menu, report.hasUnmarkedLogLines ? tr( "&Mark" ) : tr( "Unmark" ), entries.mark )
         ->setEnabled( opened.hasSelection );
 
-    // A Value Name made from the value the user points at (#883).
-    if ( entries.nameValue ) {
+    // A Value Name made from the value the user points at (#883); one a
+    // Naming Rule captures already is named in its Name Table (#885).
+    if ( entries.nameValue && report.capturedValue ) {
+        const auto& captured = *report.capturedValue;
+        // Shown as text: an & is no mnemonic, a long value is cut short.
+        const auto shown = []( QString text ) {
+            constexpr qsizetype MaxShown = 32;
+            if ( text.size() > MaxShown ) {
+                text = text.left( MaxShown - 3 ) + QStringLiteral( "..." );
+            }
+            return text.replace( u'&', QStringLiteral( "&&" ) );
+        };
+        const auto value = shown( captured.value );
+        const auto table = shown( captured.table );
+        QString text;
+        if ( captured.teamGroup ) {
+            text = captured.named ? tr( "Rename %1 %2 (Team group, read-only)" ).arg( table, value )
+                                  : tr( "Name %1 in %2 (Team group, read-only)" ).arg( value, table );
+        }
+        else {
+            text = captured.named ? tr( "Rename %1 %2..." ).arg( table, value )
+                                  : tr( "Name %1 in %2..." ).arg( value, table );
+        }
+        auto* nameValue = addEntry( menu, text, entries.nameValue );
+        nameValue->setEnabled( !captured.teamGroup );
+        nameValue->setStatusTip(
+            captured.teamGroup
+                ? tr( "The Naming Rule is a Team group's: change its Name Table in the Value Names "
+                      "dialog" )
+            : captured.named ? tr( "Change the name the Name Table gives this value" )
+                             : tr( "Add the value to the Name Table its Naming Rule uses" ) );
+    }
+    else if ( entries.nameValue ) {
         auto* nameValue = addEntry( menu, tr( "Name this value..." ), entries.nameValue );
         nameValue->setStatusTip( tr( "Show this value of the Log Line as a name" ) );
         nameValue->setEnabled( report.hasValueToName );

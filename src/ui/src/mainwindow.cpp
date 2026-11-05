@@ -2100,8 +2100,19 @@ void MainWindow::nameValue( const QString& logLine, qsizetype start, qsizetype l
     // Names dialog does: what it read is a change too, OK or Cancel.
     const auto& collection = ValueNamesCollection::get();
     const auto before = collection.generation();
-    NameValueDialog dialog( logLine, logsquirl::valuenames::LineRange{ start, length }, this );
-    const auto accepted = dialog.exec() == QDialog::Accepted;
+    // A value a rule of the user's own groups captures is named in its Name
+    // Table; a Team group's is not changed here, the menu does not offer it
+    // (#885).
+    const auto captured
+        = logsquirl::valuenames::capturedValueIn( collection.groups(), logLine, start, length );
+    if ( captured && captured->groupIndex >= collection.ownGroups().size() ) {
+        return;
+    }
+    const auto dialog
+        = captured ? std::make_unique<NameValueDialog>( logLine, *captured, this )
+                   : std::make_unique<NameValueDialog>(
+                         logLine, logsquirl::valuenames::LineRange{ start, length }, this );
+    const auto accepted = dialog->exec() == QDialog::Accepted;
     if ( collection.generation() != before ) {
         session_.applyChange( Changed::ValueNames );
     }

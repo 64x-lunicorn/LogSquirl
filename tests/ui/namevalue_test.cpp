@@ -237,11 +237,12 @@ struct NameValueWindow {
     CrawlerWidget* crawler = nullptr;
 };
 
-// Chooses Name this value... of the menu, and in the dialog it opens does
-// what fill does, then clicks OK.
-void nameInDialog( QMenu& menu, const std::function<void( NameValueDialog& )>& fill )
+// Chooses Name this value..., or the entry of that text, of the menu, and in
+// the dialog it opens does what fill does, then clicks OK.
+void nameInDialog( QMenu& menu, const std::function<void( NameValueDialog& )>& fill,
+                   const QString& entryText = NameThisValue )
 {
-    auto* entry = contextMenuEntry( menu, NameThisValue );
+    auto* entry = contextMenuEntry( menu, entryText );
     REQUIRE( entry != nullptr );
     REQUIRE( entry->isEnabled() );
     bool opened = false;
@@ -769,6 +770,237 @@ SCENARIO( "Name this value... names a new table Name Table N when no text comes 
                 REQUIRE( childOf<QLineEdit>( dialog, QStringLiteral( "newTableName" ) )->text()
                          == QStringLiteral( "Name Table 1" ) );
             }
+        }
+    }
+}
+
+namespace {
+
+// The Log Lines of a Naming Rule's values: 4 is not named, 9 is Ready, and
+// EsimMode no rule captures.
+const auto CapturedLines = QStringLiteral( "modem EsimState=4 done\n"
+                                           "modem EsimState=9 done\n"
+                                           "modem EsimMode=4 done\n" );
+
+// The group whose rule captures EsimState's values, its table naming 9.
+NamingGroup esimGroup()
+{
+    auto modem = NamingGroup::createNewGroup( QStringLiteral( "Modem" ) );
+    valuenamesfixture::NamingRule rule;
+    rule.name = QStringLiteral( "EsimState" );
+    rule.pattern = QStringLiteral( "EsimState=(\\d+)" );
+    rule.groupTables = { valuenamesfixture::GroupTable{ QStringLiteral( "1" ),
+                                                        QStringLiteral( "EsimState" ) } };
+    rule.displayTemplate = QStringLiteral( "{name} ({value})" );
+    modem.setRules( { rule } );
+    NameTable esim;
+    esim.name = QStringLiteral( "EsimState" );
+    esim.rows = { NameRow{ QStringLiteral( "9" ), QStringLiteral( "Ready" ) } };
+    modem.setTables( { esim } );
+    return modem;
+}
+
+// The context menu of the Text View opened on the first character of text in
+// the Log Line, nothing selected within it.
+std::unique_ptr<QMenu> menuOn( AbstractLogView& view, LineNumber line, const QString& text )
+{
+    const auto lines = CapturedLines.split( u'\n' );
+    const auto column = lines[ static_cast<int>( line.get() ) ].indexOf( text );
+    REQUIRE( column >= 0 );
+    view.selectAndDisplayLine( line );
+    return ViewAccess::contextMenu( view,
+                                    ViewAccess::pointOn( view, static_cast<int>( line.get() ),
+                                                         column ) );
+}
+
+} // namespace
+
+SCENARIO( "A further value of an existing Naming Rule is named from its Log Line",
+          "[ui][valuenames][namevalue][capturedvalue]" )
+{
+    const StoredValueNamesGuard guard;
+    const auto modem = esimGroup();
+    StoredValueNamesGuard::storeGroups( { NamingGroup::createNewGroup( QStringLiteral( "Other" ) ),
+                                          modem } );
+    const NameValueWindow shown( CapturedLines );
+    auto& textView = CrawlerAccess::textView( *shown.crawler );
+    const auto NameFour = QStringLiteral( "Name 4 in EsimState..." );
+    const auto RenameNine = QStringLiteral( "Rename EsimState 9..." );
+
+    WHEN( "the menu opens on a value the rule captures and its table does not name" )
+    {
+        const auto menu = menuOn( textView, 0_lnum, QStringLiteral( "4" ) );
+
+        THEN( "it offers to name it in that table, instead of Name this value..." )
+        {
+            REQUIRE( contextMenuEntry( *menu, NameFour ) != nullptr );
+            REQUIRE( contextMenuEntry( *menu, NameFour )->isEnabled() );
+            REQUIRE( contextMenuEntry( *menu, NameThisValue ) == nullptr );
+            REQUIRE( entriesOf( *menu ).size() <= MaxTopLevelEntries );
+        }
+
+        AND_WHEN( "the value is named in the dialog the entry opens, and OK is clicked" )
+        {
+            bool fixed = false;
+            int valueRow = -1;
+            nameInDialog(
+                *menu,
+                [ & ]( NameValueDialog& dialog ) {
+                    fixed = !childOf<QComboBox>( dialog, QStringLiteral( "namingGroup" ) )
+                                 ->isEnabled()
+                            && childOf<QComboBox>( dialog, QStringLiteral( "nameTable" ) )
+                                       ->currentText()
+                                   == QStringLiteral( "EsimState" )
+                            && !childOf<QComboBox>( dialog, QStringLiteral( "nameTable" ) )
+                                    ->isEnabled()
+                            && childOf<QLineEdit>( dialog, QStringLiteral( "rulePattern" ) )
+                                   ->isReadOnly();
+                    auto* rows = childOf<QTableWidget>( dialog, QStringLiteral( "nameRows" ) );
+                    REQUIRE( rows->rowCount() == 2 );
+                    REQUIRE( rows->item( 1, 0 )->text() == QStringLiteral( "4" ) );
+                    valueRow = rows->currentRow();
+                    setName( dialog, 1, QStringLiteral( "Off" ) );
+                },
+                NameFour );
+
+            THEN( "the dialog showed the rule and its table, the value a new key" )
+            {
+                REQUIRE( fixed );
+                REQUIRE( valueRow == 1 );
+            }
+
+            THEN( "one row is added to that table, and no rule or table is created" )
+            {
+                const auto& groups = ValueNamesCollection::get().ownGroups();
+                REQUIRE( groups.size() == 2 );
+                REQUIRE( groups[ 0 ].rules().isEmpty() );
+                REQUIRE( groups[ 0 ].tables().isEmpty() );
+                REQUIRE( groups[ 1 ].rules() == modem.rules() );
+                REQUIRE( groups[ 1 ].tables().size() == 1 );
+                REQUIRE( groups[ 1 ].tables().front().rows
+                         == QList<NameRow>{
+                             NameRow{ QStringLiteral( "9" ), QStringLiteral( "Ready" ) },
+                             NameRow{ QStringLiteral( "4" ), QStringLiteral( "Off" ) } } );
+            }
+
+            THEN( "the Log Line shows the name at once" )
+            {
+                REQUIRE( waitUiState( [ & ] { return textView.showsValueNames(); } ) );
+                textView.selectAndDisplayLine( 0_lnum );
+                REQUIRE( textView.getSelectedTextAsShown()
+                         == QStringLiteral( "modem EsimState=Off (4) done" ) );
+            }
+        }
+    }
+
+    WHEN( "the menu opens on a Named Value" )
+    {
+        const auto menu = menuOn( textView, 1_lnum, QStringLiteral( "9" ) );
+
+        THEN( "it offers to rename it" )
+        {
+            REQUIRE( contextMenuEntry( *menu, RenameNine ) != nullptr );
+            REQUIRE( contextMenuEntry( *menu, RenameNine )->isEnabled() );
+            REQUIRE( contextMenuEntry( *menu, NameThisValue ) == nullptr );
+        }
+
+        AND_WHEN( "the name is changed in the dialog the entry opens, and OK is clicked" )
+        {
+            int rowCount = 0;
+            int valueRow = -1;
+            nameInDialog(
+                *menu,
+                [ & ]( NameValueDialog& dialog ) {
+                    auto* rows = childOf<QTableWidget>( dialog, QStringLiteral( "nameRows" ) );
+                    rowCount = rows->rowCount();
+                    valueRow = rows->currentRow();
+                    setName( dialog, 0, QStringLiteral( "Go" ) );
+                },
+                RenameNine );
+
+            THEN( "the dialog had that row selected, and OK changed its name" )
+            {
+                REQUIRE( rowCount == 1 );
+                REQUIRE( valueRow == 0 );
+                const auto& groups = ValueNamesCollection::get().ownGroups();
+                REQUIRE( groups.size() == 2 );
+                REQUIRE( groups[ 1 ].rules() == modem.rules() );
+                REQUIRE( groups[ 1 ].tables().front().rows
+                         == QList<NameRow>{
+                             NameRow{ QStringLiteral( "9" ), QStringLiteral( "Go" ) } } );
+            }
+        }
+    }
+
+    WHEN( "the menu opens on the Named Value selected" )
+    {
+        const auto range = rangeOf( QStringLiteral( "modem EsimState=9 done" ),
+                                    QStringLiteral( "EsimState=9" ) );
+        ViewAccess::selectPortion( textView, 1_lnum, LineColumn{ range.start },
+                                   LineColumn{ range.end() - 1 } );
+        const auto menu
+            = ViewAccess::contextMenu( textView, ViewAccess::pointOn( textView, 1, 0 ) );
+
+        THEN( "it offers to rename it too" )
+        {
+            REQUIRE( contextMenuEntry( *menu, RenameNine ) != nullptr );
+        }
+    }
+
+    WHEN( "the menu opens on a value no rule captures" )
+    {
+        const auto menu = menuOn( textView, 2_lnum, QStringLiteral( "4" ) );
+
+        THEN( "it still offers Name this value..." )
+        {
+            REQUIRE( contextMenuEntry( *menu, NameThisValue ) != nullptr );
+            REQUIRE( contextMenuEntry( *menu, NameThisValue )->isEnabled() );
+            REQUIRE( contextMenuEntry( *menu, NameFour ) == nullptr );
+        }
+    }
+
+    WHEN( "the rule is unchecked" )
+    {
+        auto groups = ValueNamesCollection::get().ownGroups();
+        auto rules = groups[ 1 ].rules();
+        rules[ 0 ].enabled = false;
+        groups[ 1 ].setRules( rules );
+        ValueNamesCollection::get().setGroups( groups );
+        const auto menu = menuOn( textView, 0_lnum, QStringLiteral( "4" ) );
+
+        THEN( "the value is one no rule captures" )
+        {
+            REQUIRE( contextMenuEntry( *menu, NameThisValue ) != nullptr );
+        }
+    }
+}
+
+SCENARIO( "A value a Team group's Naming Rule captures is not named from the context menu",
+          "[ui][valuenames][namevalue][capturedvalue]" )
+{
+    const StoredValueNamesGuard guard;
+    StoredValueNamesGuard::storeGroups( {} );
+    const NameValueWindow shown( CapturedLines );
+    ValueNamesCollection::get().setTeamGroups( { esimGroup() } );
+    auto& textView = CrawlerAccess::textView( *shown.crawler );
+
+    WHEN( "the menu opens on a value the rule captures, or on a Named Value" )
+    {
+        const auto four = menuOn( textView, 0_lnum, QStringLiteral( "4" ) );
+        const auto nine = menuOn( textView, 1_lnum, QStringLiteral( "9" ) );
+
+        THEN( "the entry says the group is read-only, and is disabled" )
+        {
+            const auto* nameFour = contextMenuEntry(
+                *four, QStringLiteral( "Name 4 in EsimState (Team group, read-only)" ) );
+            REQUIRE( nameFour != nullptr );
+            REQUIRE_FALSE( nameFour->isEnabled() );
+            REQUIRE( contextMenuEntry( *four, NameThisValue ) == nullptr );
+
+            const auto* renameNine = contextMenuEntry(
+                *nine, QStringLiteral( "Rename EsimState 9 (Team group, read-only)" ) );
+            REQUIRE( renameNine != nullptr );
+            REQUIRE_FALSE( renameNine->isEnabled() );
         }
     }
 }

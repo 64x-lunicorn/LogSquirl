@@ -35,11 +35,13 @@
 #include "valuenamer.h"
 #include "valuenamescollection.h"
 
+using logsquirl::valuenames::CapturedValue;
 using logsquirl::valuenames::LineRange;
 using logsquirl::valuenames::NameRow;
 using logsquirl::valuenames::NameTable;
 using logsquirl::valuenames::NamingGroup;
 using logsquirl::valuenames::NamingProposal;
+using logsquirl::valuenames::NamingRule;
 using logsquirl::valuenames::RuleWithTable;
 
 namespace {
@@ -66,7 +68,57 @@ NameValueDialog::NameValueDialog( const QString& logLine, LineRange selection, Q
           logsquirl::valuenames::proposeNaming( logLine, selection ).value_or( NamingProposal{} ) )
     , groups_( ValueNamesCollection::getSynced().ownGroups() )
 {
-    setWindowTitle( tr( "Name This Value" ) );
+    build();
+}
+
+NameValueDialog::NameValueDialog( const QString& logLine, const CapturedValue& captured,
+                                  QWidget* parent )
+    : QDialog( parent )
+    , logLine_( logLine )
+    , groups_( ValueNamesCollection::getSynced().ownGroups() )
+{
+    // The rule and the table, as the groups are now.
+    const NamingRule* rule = nullptr;
+    for ( const auto& group : groups_ ) {
+        if ( group.id() != captured.groupId || group.table( captured.table ) == nullptr ) {
+            continue;
+        }
+        for ( const auto& groupRule : group.rules() ) {
+            if ( groupRule.name == captured.rule ) {
+                rule = &groupRule;
+                break;
+            }
+        }
+    }
+
+    if ( rule == nullptr ) {
+        proposal_ = logsquirl::valuenames::proposeNaming(
+                        logLine, LineRange{ captured.start, captured.length } )
+                        .value_or( NamingProposal{} );
+    }
+    else {
+        captured_ = captured;
+        proposal_.value = captured.value;
+        proposal_.valueRange = LineRange{ captured.start, captured.length };
+        proposal_.pattern = rule->pattern;
+        proposal_.tableName = captured.table;
+        proposal_.key = logsquirl::valuenames::escapedForRegex( captured.value );
+        proposal_.displayTemplate = rule->displayTemplate;
+    }
+    build();
+}
+
+void NameValueDialog::build()
+{
+    if ( !captured_ ) {
+        setWindowTitle( tr( "Name This Value" ) );
+    }
+    else if ( captured_->named() ) {
+        setWindowTitle( tr( "Rename %1 %2" ).arg( captured_->table, captured_->value ) );
+    }
+    else {
+        setWindowTitle( tr( "Name %1 in %2" ).arg( captured_->value, captured_->table ) );
+    }
 
     auto* form = new QFormLayout;
 
@@ -148,15 +200,27 @@ NameValueDialog::NameValueDialog( const QString& logLine, LineRange selection, Q
     layout->addLayout( form );
     layout->addWidget( buttons );
 
-    // The group that has a table of the name proposed, else the first one.
+    // The group of the rule that captures the value, else the group that has
+    // a table of the name proposed, else the first one.
     int groupRow = groups_.isEmpty() ? 0 : -1;
     for ( int row = 0; row < groups_.size() && groupRow < 0; ++row ) {
-        if ( groups_[ row ].table( proposal_.tableName ) != nullptr ) {
+        if ( captured_ ? groups_[ row ].id() == captured_->groupId
+                       : groups_[ row ].table( proposal_.tableName ) != nullptr ) {
             groupRow = row;
         }
     }
     group_->setCurrentIndex( groupRow < 0 ? 0 : groupRow );
     groupChosen();
+
+    // The rule and its table are those of the group: only the rows change.
+    if ( captured_ ) {
+        group_->setEnabled( false );
+        newGroupName_->hide();
+        table_->setEnabled( false );
+        newTableName_->hide();
+        pattern_->setReadOnly( true );
+        template_->setReadOnly( true );
+    }
 
     connect( group_, &QComboBox::currentIndexChanged, this, &NameValueDialog::groupChosen );
     connect( table_, &QComboBox::currentIndexChanged, this, &NameValueDialog::tableChosen );
@@ -229,10 +293,14 @@ void NameValueDialog::populateRows()
         }
     }
 
-    // The value, as a key waiting for its name, unless a row has its key.
+    // The value, as a key waiting for its name, unless a row has its key or,
+    // for a Named Value, is the one naming it.
     const auto valueKey = logsquirl::valuenames::keyIdentity( proposal_.key, caseSensitive );
     auto valueRow = -1;
-    for ( int index = 0; index < rows.size(); ++index ) {
+    if ( captured_ && tableName == captured_->table && captured_->row < rows.size() ) {
+        valueRow = captured_->row;
+    }
+    for ( int index = 0; index < rows.size() && valueRow < 0; ++index ) {
         if ( logsquirl::valuenames::keyIdentity( rows[ index ].key, caseSensitive ) == valueKey ) {
             valueRow = index;
             break;
@@ -277,6 +345,23 @@ void NameValueDialog::removeRow()
     updatePreview();
 }
 
+QList<NameRow> NameValueDialog::editedRows() const
+{
+    QList<NameRow> rows;
+    for ( int row = 0; row < rows_->rowCount(); ++row ) {
+        const auto* key = rows_->item( row, RowKey );
+        const auto* name = rows_->item( row, RowName );
+        NameRow nameRow{ key != nullptr ? key->text() : QString{},
+                         name != nullptr ? name->text() : QString{} };
+        // A row left blank is none.
+        if ( nameRow.key.isEmpty() && nameRow.name.isEmpty() ) {
+            continue;
+        }
+        rows.append( nameRow );
+    }
+    return rows;
+}
+
 RuleWithTable NameValueDialog::ruleWithTable() const
 {
     RuleWithTable added;
@@ -289,17 +374,7 @@ RuleWithTable NameValueDialog::ruleWithTable() const
             added.table.caseSensitive = table->caseSensitive;
         }
     }
-    for ( int row = 0; row < rows_->rowCount(); ++row ) {
-        const auto* key = rows_->item( row, RowKey );
-        const auto* name = rows_->item( row, RowName );
-        NameRow nameRow{ key != nullptr ? key->text() : QString{},
-                         name != nullptr ? name->text() : QString{} };
-        // A row left blank is none.
-        if ( nameRow.key.isEmpty() && nameRow.name.isEmpty() ) {
-            continue;
-        }
-        added.table.rows.append( nameRow );
-    }
+    added.table.rows = editedRows();
 
     added.rule.name = added.table.name;
     added.rule.pattern = pattern_->text();
@@ -316,6 +391,19 @@ RuleWithTable NameValueDialog::ruleWithTable() const
 NamingGroup NameValueDialog::groupAfter() const
 {
     const auto row = chosenGroup();
+    // A value an existing rule captures: the rows of its table, nothing else.
+    if ( captured_ && row >= 0 ) {
+        auto group = groups_[ row ];
+        auto tables = group.tables();
+        for ( auto& table : tables ) {
+            if ( table.name == captured_->table ) {
+                table.rows = editedRows();
+                break;
+            }
+        }
+        group.setTables( tables );
+        return group;
+    }
     auto group = row >= 0 ? groups_[ row ]
                           : NamingGroup::createNewGroup( newGroupName_->text().trimmed() );
     // What is named shows at once: the group is checked, as the new rule is.

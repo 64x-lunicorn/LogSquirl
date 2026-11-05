@@ -19,12 +19,15 @@
 
 #pragma once
 
+#include <optional>
+
 #include <QDialog>
 #include <QList>
 #include <QString>
 
 #include "groupedits.h"
 #include "naminggroup.h"
+#include "valuenamer.h"
 #include "valueproposal.h"
 
 class QComboBox;
@@ -45,6 +48,12 @@ class QTableWidget;
 // group -- the operation the Value Names dialog's Add buttons use -- checks
 // the group, and saves ValueNamesCollection. Showing Value Names in the tab
 // is the caller's.
+//
+// Opened on a value a Naming Rule of the user's own groups already captures
+// (#885), by "Name <value> in <table>..." or "Rename <table> <value>...", it
+// shows that rule and its Name Table, with the value entered as a new key or,
+// for a Named Value, the row naming it selected; only the rows are edited,
+// and OK changes them in that table, adding no rule and no table.
 class NameValueDialog : public QDialog {
     Q_OBJECT
 
@@ -52,6 +61,13 @@ public:
     // selection is the range of the Log Line the user pointed at; it holds a
     // value (logsquirl::valuenames::valueIn()).
     NameValueDialog( const QString& logLine, logsquirl::valuenames::LineRange selection,
+                     QWidget* parent = nullptr );
+
+    // captured is what logsquirl::valuenames::capturedValueIn() found in the
+    // Log Line among ValueNamesCollection::groups(), of one of the user's own
+    // groups. When the group, its rule or its table is gone meanwhile, the
+    // dialog proposes a new rule for the value as the other constructor does.
+    NameValueDialog( const QString& logLine, const logsquirl::valuenames::CapturedValue& captured,
                      QWidget* parent = nullptr );
 
     // The Log Line of the preview as it will be shown, without its markup.
@@ -70,6 +86,10 @@ public Q_SLOTS:
     void accept() override;
 
 private:
+    // The widgets, once proposal_, groups_ and captured_ are set.
+    void build();
+    // The rows as edited, a row left blank left out.
+    QList<logsquirl::valuenames::NameRow> editedRows() const;
     // The row of groups_ chosen, -1 for a new group.
     int chosenGroup() const;
     // The chosen group as OK makes it, in a copy: what the preview shows.
@@ -88,6 +108,8 @@ private:
     logsquirl::valuenames::NamingProposal proposal_;
     // The user's own groups, as read when the dialog opened.
     QList<logsquirl::valuenames::NamingGroup> groups_;
+    // The value an existing rule captures, of groups_, when opened on one.
+    std::optional<logsquirl::valuenames::CapturedValue> captured_;
     QString shownPreview_;
 
     QComboBox* group_ = nullptr;

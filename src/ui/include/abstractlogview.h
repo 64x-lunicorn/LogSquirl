@@ -330,11 +330,13 @@ protected:
     // What Name this value... of the context menu opened at pos names
     // (#883): the text selected within a Log Line, or with none the word
     // under the cursor; as the Log Line and the range of it. None when that
-    // holds no value.
+    // holds no value, and no Naming Rule captures one there (#885).
     struct ValueToName {
         QString logLine;
         qsizetype start = 0;
         qsizetype length = 0;
+        // The value a Naming Rule of the Naming Groups captures there.
+        std::optional<logsquirl::valuenames::CapturedValue> captured = std::nullopt;
     };
     std::optional<ValueToName> valueToNameAt( const QPoint& pos ) const;
     // What the context menu's Export as CSV... does. Empty, and the menu

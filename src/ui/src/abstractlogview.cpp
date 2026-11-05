@@ -2556,6 +2556,13 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
     entries.exportAsCsv = exportAsCsvAction();
     const auto valueToName = valueToNameAt( pos );
     report.hasValueToName = valueToName.has_value();
+    if ( valueToName.has_value() && valueToName->captured.has_value() ) {
+        const auto& captured = *valueToName->captured;
+        const auto& collection = ValueNamesCollection::get();
+        report.capturedValue = PresentationMenu::Report::CapturedValue{
+            captured.value, captured.table, captured.named(),
+            captured.groupIndex >= collection.groups().size() - collection.teamGroupCount() };
+    }
     entries.nameValue = [ this, valueToName ]() {
         if ( valueToName.has_value() ) {
             Q_EMIT nameValueRequested( valueToName->logLine, valueToName->start,
@@ -2613,13 +2620,23 @@ AbstractLogView::valueToNameAt( const QPoint& pos ) const
         const auto position = logLineFilePosAt( pos );
         auto text = lines_->logFile().getLineString( position.line() );
         const auto column = rawCharacterAt( rawToDisplayColumns( text ), position.column().get() );
-        if ( const auto range = logsquirl::valuenames::valueTextAt( text, column ) ) {
-            valueToName = ValueToName{ std::move( text ), range->start, range->length };
-        }
+        // Without a number there, the column alone: a Naming Rule may
+        // capture a word (#885).
+        const auto range = logsquirl::valuenames::valueTextAt( text, column )
+                               .value_or( logsquirl::valuenames::LineRange{ column, 1 } );
+        valueToName = ValueToName{ std::move( text ), range.start, range.length };
+    }
+    if ( !valueToName.has_value() ) {
+        return std::nullopt;
     }
 
-    if ( !valueToName.has_value()
-         || !logsquirl::valuenames::valueIn(
+    // A value a Naming Rule already captures is named in its Name Table
+    // (#885), whatever it is.
+    valueToName->captured = logsquirl::valuenames::capturedValueIn(
+        ValueNamesCollection::get().groups(), valueToName->logLine, valueToName->start,
+        valueToName->length );
+    if ( !valueToName->captured.has_value()
+         && !logsquirl::valuenames::valueIn(
                  valueToName->logLine,
                  logsquirl::valuenames::LineRange{ valueToName->start, valueToName->length } )
                  .has_value() ) {
