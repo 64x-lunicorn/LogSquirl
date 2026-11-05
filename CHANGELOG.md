@@ -82,6 +82,22 @@
   default name is translated and spelled as everywhere else, and the set
   list's buttons and the Highlighter list's buttons no longer share a
   tooltip. (#887)
+- **Menu entries are named one way**: the menu bar and the tab bar menu use
+  title case and three dots for every entry that opens a dialog, each
+  command in the Shortcuts list is named as in its menu (*Go to Line*
+  instead of *Jump to line*), the Sources menu and the Highlighters and
+  Plugins submenus have a mnemonic, and the Predefined Filters editor says
+  *Filter Group* instead of filter set. (#891)
+- **A selection becomes a Predefined Filter**: the context menu of the Text
+  View and the Filtered View offers *Add as Predefined Filter...* for text
+  selected in a Log Line; a compact dialog proposes a name and the escaped
+  selection as the pattern, adds it to the Default Filter Group or another
+  of yours, and can search with it at once. (#897)
+- **A number becomes a chart series**: select a number in the Text View or
+  the Filtered View and choose *More → Chart this value...*; the Chart
+  Series dialog proposes a pattern that captures the number in Log Lines
+  like this one and the word before it as the series name, and OK shows the
+  series in the Chart Panel. (#898)
 
 ## Bug fixes
 
@@ -108,6 +124,18 @@
   View, Filtered View and Table View context menu (Copy, Mark, More, the
   search entries and the rest) showed English in every language, because
   their strings never reached the translation files. (#911)
+- **Every menu follows a language change**: the Plugins, Sources and
+  Encoding menus, *File → Open Recent*, *Manage Tab Groups...*, *Plugin
+  Management...*, the *None* entry of Highlighters and the empty Sources menu
+  kept the previous language until a restart; the Encoding families and the
+  *Auto* encoding in Preferences are translated now. (#913, #915)
+- **Refreshing the Filters panel keeps the Search pattern**: OK in the
+  Predefined Filters editor, or any other refresh of the panel with no
+  filter checked, cleared the pattern in the Search Line. (#914)
+- **The Encoding menu is no longer leaked**: it is deleted with its
+  window. (#916)
+- **The user guide lists Name this value...** among the top-level entries
+  of the context menu. (#917)
 
 ## Build and packaging
 
