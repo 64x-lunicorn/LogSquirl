@@ -4,4 +4,6 @@
 # every image a new inputs hash and therefore a fresh build (new OS packages)
 # under a new tag. The scheduled run of the Docker Images workflow bumps it and
 # opens a pull request; nothing CI uses changes until that PR is merged.
+# The Ubuntu images run apt-get upgrade, as the Fedora and Oracle ones run
+# dnf update, so a refresh also updates the base image's own packages.
 2026-11-01
