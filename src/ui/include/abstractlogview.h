@@ -78,6 +78,7 @@
 #include "showncolumns.h"
 #include "shownline.h"
 #include "textviewscrolling.h"
+#include "valueproposal.h"
 #include "viewportlayout.h"
 #include "wrappedstring.h"
 
@@ -339,6 +340,14 @@ protected:
         std::optional<logsquirl::valuenames::CapturedValue> captured = std::nullopt;
     };
     std::optional<ValueToName> valueToNameAt( const QPoint& pos ) const;
+    // A range of a raw Log Line, and the Log Line.
+    struct TextInLogLine {
+        QString logLine;
+        logsquirl::valuenames::LineRange range;
+    };
+    // The text selected within a Log Line, a Named Value selected in part
+    // whole; none without such a selection.
+    std::optional<TextInLogLine> selectionInLogLine() const;
     // What the context menu's Export as CSV... does. Empty, and the menu
     // offers no such entry, unless the view can split its Log Lines into the
     // fields of a Log Format.
@@ -375,6 +384,12 @@ Q_SIGNALS:
     // within logLine, both expanded as the Highlighters are matched against
     // them.
     void highlightThisRequested( const QString& selectedText, const QString& logLine );
+    // Add as Predefined Filter... was chosen (#897): selectedText is the text
+    // selected within a Log Line.
+    void addAsPredefinedFilterRequested( const QString& selectedText );
+    // Chart this value... was chosen (#898): the number selected is the range
+    // [start, start + length) of logLine, the raw Log Line.
+    void chartThisValueRequested( const QString& logLine, qsizetype start, qsizetype length );
     // Sent up when the mouse is hovered over a line's margin
     void mouseHoveredOverLine( LineNumber line );
     // Sent up when the mouse leaves a line's margin
@@ -472,6 +487,7 @@ private Q_SLOTS:
     void replaceSearch();
     void excludeFromSearch();
     void highlightThis();
+    void addAsPredefinedFilter();
     void findNextSelected();
     void findPreviousSelected();
     void copy();

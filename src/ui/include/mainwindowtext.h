@@ -16,6 +16,10 @@ extern const char* highlightersTitle;
 extern const char* favoritesTitle;
 extern const char* helpTitle;
 extern const char* encodingTitle;
+// Submenus of the File and Tools menus, and the Sources menu (#913).
+extern const char* recentFilesTitle;
+extern const char* pluginsTitle;
+extern const char* sourcesTitle;
 } // namespace menu
 
 namespace toolbar {
@@ -114,6 +118,10 @@ extern const char* importChipmunkFiltersText;
 extern const char* importChipmunkFiltersStatusTip;
 extern const char* regexLabText;
 extern const char* regexLabStatusTip;
+extern const char* manageTabGroupsText;
+extern const char* manageTabGroupsStatusTip;
+extern const char* pluginManagementText;
+extern const char* pluginManagementStatusTip;
 extern const char* showFiltersPanelText;
 extern const char* showFiltersPanelStatusTip;
 extern const char* showValueNamesPanelText;

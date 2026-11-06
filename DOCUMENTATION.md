@@ -229,12 +229,17 @@ It is possible to quickly jump to a specific line using `Ctrl+L` shortcut.
 Right-clicking the lines of the main view, the filtered view or the table view
 opens the same menu, sorted by how often its entries are used:
 
-- At the top, what you do with the selection: *Copy*, *Copy as shown*,
-  *Replace search*, *Add to search*, *Exclude from search* (and, in the table
-  view, *Search this value in* the column) and *Mark*.
+- At the top, what you do with the selection: *Copy*, *Copy as shown* (in the
+  main and the filtered view), *Replace search*, *Add to search*, *Exclude from
+  search* (and, in the table view, *Search this value in* the column; in the
+  main and the filtered view, *Add as Predefined Filter...*), *Mark* and, in
+  the main and the filtered view, *Name this value...* (see
+  [Value Names](#value-names)).
 - Then the view's own entries: *Highlight this...* (in the main and the
   filtered view), *Highlighters* and *Color labels*.
-- **More** holds the rest: *Copy with line numbers*, the scratchpad entries,
+- **More** holds the rest: *Chart this value...* (in the main and the filtered
+  view, see [Charting a number of a line](#charting-a-number-of-a-line)),
+  *Copy with line numbers*, the scratchpad entries,
   *Find next* and *Find previous*, the search limits, *Set selection start* and
   *Set selection end*, *Save selected to file*, *Save to file*, *Export as
   CSV...* and *Save splitter position*.
@@ -287,7 +292,7 @@ default) it searches as you type.
 
 #### Go to timestamp
 
-`Edit->Go to timestamp...` (`Ctrl+Shift+L`, configurable) jumps to a point in
+`Edit->Go to Timestamp...` (`Ctrl+Shift+L`, configurable) jumps to a point in
 time instead of a line number. Type a time such as `14:02` or `14:02:30.250`,
 optionally after a date (`2026-09-23 14:02`); without a date, the date of the
 line you are at is used. The view goes to the first line whose timestamp is at
@@ -312,11 +317,11 @@ Two more `Edit` actions set the search limits from times instead of from log
 lines, for when you know the window of an incident but not its first and last
 line:
 
-- `Set search limits to time range...` (`Ctrl+Alt+T`, configurable) asks for a
-  start and an end time, typed as for *Go to timestamp*. The search is limited
+- `Set Search Limits to Time Range...` (`Ctrl+Alt+T`, configurable) asks for a
+  start and an end time, typed as for *Go to Timestamp*. The search is limited
   to the lines from the first one at or after the start up to, but not
   including, the first one at or after the end.
-- `Set search limits around current line...` (`Ctrl+Alt+W`, configurable)
+- `Set Search Limits Around Current Line...` (`Ctrl+Alt+W`, configurable)
   limits the search to N minutes before and after the line you are at. You
   choose N; it is remembered for the next time.
 
@@ -326,7 +331,7 @@ with *Set search start* and *Set search end*: they do not move when the file
 grows or is reloaded, and *Clear search limits* removes them. Lines without a
 timestamp, such as stack traces, stay with the line before them. If the time
 range lies entirely before or after the log file, or holds no line, you are
-told so and the limits stay as they were. Like *Go to timestamp*, the actions
+told so and the limits stay as they were. Like *Go to Timestamp*, the actions
 need a Log File with a recognized Log Format that has a timestamp field and are
 disabled, with a tooltip saying why, otherwise.
 
@@ -513,7 +518,7 @@ exploring.
 #### Switching between opened files
 
 Switching from one opened file to another can be done from the
-`View->Opened files` menu or by using the `Ctrl+Shift+O` shortcut 
+`View->Opened Files` menu or by using the `Ctrl+Shift+O` shortcut 
 which displays special dialogue to choose between opened files.
 
 ### Encodings
@@ -534,6 +539,20 @@ double-clicking a filter or a group checks only that one.
 
 It is possible to save the current search pattern as a predefined filter with
 *Save as Filter* from the search input context menu.
+
+Text selected within a line of the main or the filtered view becomes a
+predefined filter with *Add as Predefined Filter...* in the context menu of the
+lines. The dialog proposes the selection, on one line and cut short when long,
+as the name, numbered `(2)`, `(3)` and so on when the group has a filter of
+that name, and the selection as the pattern, as plain text: the filter finds
+the selected text as it is whether *Use regex* of the search line is on or off.
+Checking *Regular expression* turns the pattern into the selection escaped as
+a regular expression, `a\.b\[1\]` for `a.b[1]`, to edit into one; the dialog
+then checks that it is valid. Both name and pattern can be edited. It adds the
+filter to the Default group unless you pick another of your own groups; *OK*
+is disabled, with the reason below the fields, while the group has a filter of
+the name. With *Search with it now* checked, OK also makes the filter the
+search pattern of the tab and runs the search at once.
 
 Predefined filters are kept in filter groups. The dialog lists the groups
 (*New Filter Group*, *Delete Filter Group*, *Move Filter Group Up* and *Move
@@ -559,7 +578,7 @@ same id or name exists (see [Using highlighters](#using-highlighters)). A group
 that carries the id of the Default group never replaces your Default group; it
 arrives as a group of its own.
 
-*Test…* next to the filter buttons opens the [Regex Lab](#regex-lab) with the
+*Test...* next to the filter buttons opens the [Regex Lab](#regex-lab) with the
 pattern of the selected filter, on the Log Lines of the tab in front (or on
 pasted text while no file is open). The Lab reads the pattern exactly as the search
 line of the tab in front reads it once the filter is used there: with the
@@ -648,7 +667,7 @@ lines and stops after two seconds, saying at which line it stopped. A line
 longer than 10000 characters is shown and marked only that far; whether it
 matches is still decided on the whole line. Typing starts a new evaluation that
 replaces the one running, and closing the window stops it. The Lab never
-changes a search, a highlighter or a filter by itself: opened with *Test…* from
+changes a search, a highlighter or a filter by itself: opened with *Test...* from
 the editor of a [highlighter](#using-highlighters) or a [predefined
 filter](#predefined-filters), it writes the pattern back only on *Apply*.
 
@@ -705,7 +724,7 @@ parts of the matching line are highlighted.
 It is possible to set a color variance. In that case different strings
 that match the same regular expression will have slightly different color.
 
-*Test…* next to a highlighter's pattern opens the [Regex Lab](#regex-lab) with
+*Test...* next to a highlighter's pattern opens the [Regex Lab](#regex-lab) with
 that pattern, on the Log Lines of the tab in front (or on pasted text while no
 file is open). The Lab marks what the highlighter would color, in its text and
 background colors: each whole matching line for a highlighter that colors the
@@ -808,7 +827,7 @@ color of the text, and hovering over it tells where its name came from, as in
 
 **Showing and hiding them.** *View → Show Value Names* (`Ctrl+Shift+N`,
 `Cmd+Shift+N` on macOS) shows or hides them in the main view and every
-filtered view of the current tab, the way *Wrap text* does; every tab keeps its
+filtered view of the current tab, the way *Wrap Text* does; every tab keeps its
 own. A tab starts as *Show Value Names on file open* says, in the *View* tab of
 *Tools → Preferences...* (see [View](#view) under [Settings](#settings)). With Value Names hidden, or no Naming Rule enabled,
 nothing is looked up, and the views are as fast as without them.
@@ -842,7 +861,7 @@ Names...*, opens the *Value Names* dialog. On the left are the Naming Groups,
 which can be added, deleted and moved up or down (see
 [Predefined filters](#predefined-filters) for the list all three group dialogs
 share); every group needs a name of
-its own. *View → Value Names tab* shows the tab. On the right, for the selected group:
+its own. *View → Value Names Tab* shows the tab. On the right, for the selected group:
 
 - **Naming Rules**, each with a *Name*, a *Regex* and a *Template*. The
   template says how a named value is shown: `{name}` is the name and `{value}`
@@ -917,7 +936,7 @@ level, body, and any custom fields defined by the format).
 
 Enable auto-detection in **Options → Log Formats → "Auto-detect log format
 (table view)"**. The same tab shows a scrollable list of all available format
-definitions and provides an "Open Formats Folder…" button to quickly access
+definitions and provides an "Open Formats Folder..." button to quickly access
 the user formats directory. The list's *Source* column tells where each
 format comes from: *Built-in* for one shipped with *logsquirl*, *User* for a
 file in your formats folder, or the name of the plugin that ships it.
@@ -1051,7 +1070,7 @@ press Esc to stop a sort under way and keep the previous order. There is no
 limit on the size of the file; the time grows with it.
 
 A row stays its line of the file, sorted or not: the selection, marks,
-matches, *Go to line*, *Go to timestamp*, QuickFind and the chart's *Show
+matches, *Go to Line*, *Go to Timestamp*, QuickFind and the chart's *Show
 this line* all land on the same line. `[` and `]` go to the previous and
 the next marked row in the order shown, that is up and down the table, and
 `{` and `}` to the previous and the next matching row. *Copy*
@@ -1074,7 +1093,7 @@ replaces it, and it turns itself off when the search is cleared; without a
 search there is nothing to narrow to, and it stays off. It composes with the
 sort order: Matches Only decides which rows there are, the sort order their
 order, and switching either does not touch the other. A row stays its line
-of the file: the selection, *Go to line*, QuickFind, *Copy* and the next and
+of the file: the selection, *Go to Line*, QuickFind, *Copy* and the next and
 previous match (and mark) address the lines shown. Matches Only belongs to
 the table view of the tab, for as long as the tab is open: it is not kept
 per format or in the session, and switching it on from the *View* menu shows
@@ -1195,6 +1214,28 @@ opens the *Chart Series* dialog:
   line adds a point with Y = 1, as does a line whose group holds no number.
 - *Color* of the series.
 
+#### Charting a number of a line
+
+Select a number in a line of the main or the filtered view, for example the
+`125` of `GET /api took 125 ms`, and choose *Chart this value...* under *More*
+in the context menu. It is enabled when the selection is a number and nothing
+else: whole or with a fraction, negative or not, not hexadecimal. It opens the
+*Chart Series* dialog, which proposes:
+
+- a *Regex pattern (Y)* of the text before the number and any number in its
+  place, `took (-?\d+(?:\.\d+)?)`, so that it captures the number in every
+  line like the one you clicked; where that text comes earlier in the line,
+  the pattern takes more of the line, so that it captures the number you
+  selected, with any other number it takes in as any number too: for the `2`
+  of `a=1 b=7 a=2`, `(?:-?\d+(?:\.\d+)?) a=(-?\d+(?:\.\d+)?)`, which captures
+  the `3` of `a=1 b=8 a=3` as well;
+- *Capture group (Y)* 1, the number;
+- the word before the number as the *Name*, `took`.
+
+The X axis is set up as for *+ Add Series*. Edit what you like, and *OK* adds
+the series to the chart like any other and opens the chart panel; *Cancel*
+leaves the chart panel as it was.
+
 #### The X axis and time buckets
 
 The X axis is the line number unless *X-Axis (custom)* is checked. Then a
@@ -1236,7 +1277,7 @@ with the file and restored with it.
 of the same name is replaced. *Load Preset* replaces the series of the chart
 with those of a preset, and *Delete Preset* deletes one without asking.
 
-*Export…* writes the current series to a JSON file and *Import…* adds the
+*Export...* writes the current series to a JSON file and *Import...* adds the
 series of such a file to the chart, so a set of series can be shared. The file
 is a list of series:
 
@@ -1292,7 +1333,7 @@ following file mode is also disabled.
 
 ### Merging Log Files
 
-Right-click a tab and choose *Merge…*, or choose *File > Merge Log Files...*
+Right-click a tab and choose *Merge...*, or choose *File > Merge Log Files...*
 (either offered while at least two files are open), to combine files into one merged tab. The dialog *Merge Log Files* lists
 every open file -- standard input, another merged tab and command output
 included -- in tab order, all checked. Uncheck the files to leave out, and put
@@ -1316,9 +1357,9 @@ its tab or the window closes; it is not restored with the session.
 
 Every file opens in a tab of its own. Its context menu closes it, the others,
 those to its left or right, or all, copies the file's full path and opens its
-folder. *Rename tab* gives the tab a name of your own instead of the file name;
+folder. *Rename Tab...* gives the tab a name of your own instead of the file name;
 the name belongs to the file's path and comes back whenever that file is opened,
-until *Reset tab name*. The tab of a file that exists only while *logsquirl*
+until *Reset Tab Name*. The tab of a file that exists only while *logsquirl*
 runs -- standard input, a command's output, a merged tab, a data source, the
 clipboard -- keeps its name until it closes. The icon of a tab shows when its
 file has new lines, and when those lines hold new matches.
@@ -1440,14 +1481,14 @@ whole list, with what the entries not explained elsewhere do.
 The menus are ordered by task: the file in **File**, the lines in **Edit**,
 what the window shows in **View**, settings and dialogs in **Tools**.
 
-- **File**: `New window`, `Open...`, `Open from clipboard`,
+- **File**: `New Window`, `Open...`, `Open from Clipboard`,
   `Open Command Output...` (see [Command output](#command-output)) and
   `Open from URL...` (see [Opening files](#opening-files)), `Open Recent`
   with `Clear List`, `Open Session...` and `Save Session As...` (see
   [Session files](#session-files)), then what is done with the current file:
-  `Copy full path` (of the current file to the clipboard),
-  `Open containing folder`, `Open in editor` (in the default editor of the
-  system) and `Clear file...`, which asks first and then empties the file on
+  `Copy Full Path` (of the current file to the clipboard),
+  `Open Containing Folder`, `Open in Editor` (in the default editor of the
+  system) and `Clear File...`, which asks first and then empties the file on
   disk; this cannot be undone. Then `Merge Log Files...` (see
   [Merging Log Files](#merging-log-files); enabled while at least two files
   are open) and `Export as CSV...`, which exports the current tab as its
@@ -1456,27 +1497,27 @@ what the window shows in **View**, settings and dialogs in **Tools**.
   [Exporting as CSV](#exporting-as-csv); enabled while the current file has a
   recognized format). Then `Close`, `Close All` and `Exit`.
 - **Edit**: `Copy`, `Copy as Shown` (see [Value Names](#value-names)),
-  `Select All`, `Find...` (the QuickFind bar), `Go to line...` and
-  `Go to timestamp...`, and the search limits
-  `Set search limits to time range...` and
-  `Set search limits around current line...` (see
+  `Select All`, `Find...` (the QuickFind bar), `Go to Line...` and
+  `Go to Timestamp...`, and the search limits
+  `Set Search Limits to Time Range...` and
+  `Set Search Limits Around Current Line...` (see
   [Search limits by time](#search-limits-by-time)).
-- **View**: `Opened files` (see
+- **View**: `Opened Files` (see
   [Switching between opened files](#switching-between-opened-files)), then
   the sidebar and the panels: `Sidebar` (checked while the sidebar shows;
-  the toolbar's sidebar button is the same entry), `Filters panel`, `Scratchpad` (see
-  [Scratchpad](#scratchpad)), `Value Names tab`, `Chart Panel` (see
+  the toolbar's sidebar button is the same entry), `Filters Panel`, `Scratchpad` (see
+  [Scratchpad](#scratchpad)), `Value Names Tab`, `Chart Panel` (see
   [Chart Panel](#chart-panel)) and `Show Filter Frequency`, which charts how
   often the current search matched, one series for every alternative of the
   search pattern (it does nothing while the search line is empty). Then
-  `Matches overview`, `Line numbers in main view`,
-  `Line numbers in filtered view`, `Wrap text`, `Show Value Names` (see
+  `Matches Overview`, `Line Numbers in Main View`,
+  `Line Numbers in Filtered View`, `Wrap Text`, `Show Value Names` (see
   [Value Names](#value-names)), `Matches Only`, the `Encoding` submenu (see
   [Encodings](#encodings)), `Follow File` and `Reload`.
 - **Tools**: the `Highlighters` submenu, with the list of highlighter sets to
-  activate and `Configure highlighters...` (see
-  [Using highlighters](#using-highlighters)), `Predefined filters...`,
-  `Import Chipmunk filters...`, `Value Names...` (see
+  activate and `Configure Highlighters...` (see
+  [Using highlighters](#using-highlighters)), `Predefined Filters...`,
+  `Import Chipmunk Filters...`, `Value Names...` (see
   [Value Names](#value-names)), `Regex Lab...` (see [Regex Lab](#regex-lab)),
   `Manage Tab Groups...` (see [Tab groups](#tab-groups)) and
   `Command Palette...` (`Ctrl+Shift+P`, `Cmd+Shift+P` on macOS), which lists
@@ -1485,16 +1526,16 @@ what the window shows in **View**, settings and dialogs in **Tools**.
   submenu, with the items plugins add and `Plugin Management...` (see
   [Plugins](#plugins)), and `Preferences...` (see [Settings](#settings); on
   macOS it is in the application menu).
-- **Favorites**: `Add to favorites` and `Remove from favorites...`, followed by
+- **Favorites**: `Add to Favorites` and `Remove from Favorites...`, followed by
   the favorite files, which open when chosen.
 - **Sources**: see [Plugins](#plugins).
-- **Help**: `Documentation...` (this guide), `Report issue...` (opens a bug
-  report on GitHub), `Generate crash dump` (after a confirmation, shuts
+- **Help**: `Documentation...` (this guide), `Report Issue...` (opens a bug
+  report on GitHub), `Generate Crash Dump` (after a confirmation, shuts
   *logsquirl* down and produces a diagnostic crash dump, see
   [Crash reporting](#crash-reporting)), `About Qt` and `About`.
 
 The toolbar has the buttons `Open`, `Reload`, `Follow File` and
-`Add to favorites`, the information about the current file (size, modification
+`Add to Favorites`, the information about the current file (size, modification
 date, encoding and the line number of the selection), `Stop` to stop a running
 load, and a button that shows or hides the sidebar.
 
@@ -1529,7 +1570,7 @@ is fetched when the dialog opens; if that fails, the error is shown in the
 status line at the bottom. Menu items that a UI extension plugin adds appear
 in `Tools->Plugins`, above `Plugin Management...`. A UI extension plugin can
 also go to a line of the tab in front -- it is selected and scrolled into view
-as with *Go to line* -- and read the lines you selected there; a selection
+as with *Go to Line* -- and read the lines you selected there; a selection
 within a line counts as the whole line.
 
 The official plugins are [Android Logcat](https://github.com/64x-lunicorn/LogSquirl-Logcat),
@@ -1588,7 +1629,7 @@ you chose it in. Without a data source plugin the menu says
     first. The question has a "Don't ask again" box; this option turns it back
     on.
 *   Enable multiple windows -- if enabled *logsquirl* will allow opening
-    more than one main window using `File->New window`. In this mode last
+    more than one main window using `File->New Window`. In this mode last
     closed windows will be saved to open session on next *logsquirl* start.
     When exiting *logsquirl* using `File->Exit` all windows are saved and
     will be reopened.

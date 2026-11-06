@@ -1840,7 +1840,7 @@
            <item>
             <widget class="QPushButton" name="openFormatsFolderButton">
              <property name="text">
-              <string>Open Formats Folder…</string>
+              <string>Open Formats Folder...</string>
              </property>
             </widget>
            </item>

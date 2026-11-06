@@ -56,7 +56,7 @@ public:
     // Emitted when multiple tabs should be closed at once (indices in order).
     Q_SIGNAL void bulkTabCloseRequested( QList<int> indices );
 
-    // Emitted when the user confirms Merge… in a tab's context menu: the
+    // Emitted when the user confirms Merge... in a tab's context menu: the
     // paths of the Log Files checked in its dialog, in the order chosen there
     // (#571). `dedup` is true when duplicate lines are to be dropped.
     Q_SIGNAL void mergeRequested( QStringList filePaths, bool dedup );

@@ -84,6 +84,7 @@
 
 #include "crawlerwidget.h"
 
+#include "chartvalueproposal.h"
 #include "configuration.h"
 #include "dispatch_to.h"
 #include "fontutils.h"
@@ -1371,6 +1372,12 @@ void CrawlerWidget::setSearchPatternFromPredefinedFilters( const QList<Predefine
     runEditedPattern( searchLine_->useFilters( filters ) );
 }
 
+void CrawlerWidget::searchWithPredefinedFilter( const PredefinedFilter& filter )
+{
+    searchLine_->useFilters( { filter } );
+    runEditedPattern( true );
+}
+
 void CrawlerWidget::addToSearch( const QString& searchString )
 {
     runEditedPattern( searchLine_->add( searchString ) );
@@ -1630,6 +1637,12 @@ void CrawlerWidget::setup()
     // offer (#896).
     connect( logMainView_, &LogMainView::highlightThisRequested, this,
              &CrawlerWidget::highlightThisRequested );
+    // Add as Predefined Filter..., as Highlight this... (#897).
+    connect( logMainView_, &LogMainView::addAsPredefinedFilterRequested, this,
+             &CrawlerWidget::addAsPredefinedFilterRequested );
+    // Chart this value... charts in this tab's chart panel (#898).
+    connect( logMainView_, &LogMainView::chartThisValueRequested, this,
+             &CrawlerWidget::chartValue );
     connect( logTableView_, &LogTableView::countValuesRequested, this,
              &CrawlerWidget::countFieldValues );
     // Matches Only and the Field Term of a cell (#798)
@@ -1994,6 +2007,22 @@ void CrawlerWidget::countSearchGroupValues( int group )
                                           tr( "group %1 of \"%2\"" ).arg( group ).arg( pattern ) );
 }
 
+void CrawlerWidget::chartValue( const QString& logLine, qsizetype start, qsizetype length )
+{
+    const auto proposal = logsquirl::chart::proposeChartValue(
+        logLine, logsquirl::valuenames::LineRange{ start, length } );
+    if ( !proposal.has_value() ) {
+        return;
+    }
+    // The Chart Panel shows once the series is added: Cancel leaves it as it
+    // was.
+    const auto added = chartPanel_->addProposedSeries(
+        proposal->seriesName.isEmpty() ? tr( "Value" ) : proposal->seriesName, proposal->pattern );
+    if ( added && !chartPanel_->isVisible() ) {
+        toggleChartPanel();
+    }
+}
+
 void CrawlerWidget::searchForValue( const QString& value )
 {
     // A literal Search for the value: not a logical combination, not
@@ -2047,6 +2076,9 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
     // Highlight this... of the Filtered View, as of the Text View (#896).
     connect( view, &FilteredView::highlightThisRequested, this,
              &CrawlerWidget::highlightThisRequested );
+    connect( view, &FilteredView::addAsPredefinedFilterRequested, this,
+             &CrawlerWidget::addAsPredefinedFilterRequested );
+    connect( view, &FilteredView::chartThisValueRequested, this, &CrawlerWidget::chartValue );
 
     connect( view, &FilteredView::mouseLeftHoveringZone, overviewWidget_,
              &OverviewWidget::removeHighlight );

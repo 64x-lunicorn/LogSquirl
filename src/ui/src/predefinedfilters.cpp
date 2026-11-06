@@ -185,6 +185,23 @@ bool PredefinedFiltersCollection::hasSetByName( const QString& name ) const
                         [ &name ]( const auto& s ) { return s.name() == name; } );
 }
 
+void PredefinedFiltersCollection::addFilter( const QString& groupId,
+                                             const PredefinedFilter& filter )
+{
+    ensureDefaultSet();
+    const auto byId = []( const QString& id ) {
+        return [ id ]( const PredefinedFilterSet& set ) { return set.id() == id; };
+    };
+    auto group = std::find_if( filterSets_.begin(), filterSets_.end(), byId( groupId ) );
+    if ( group == filterSets_.end() ) {
+        group
+            = std::find_if( filterSets_.begin(), filterSets_.end(), byId( defaultFilterSetId() ) );
+    }
+    if ( group != filterSets_.end() ) {
+        group->addFilter( filter );
+    }
+}
+
 QList<PluginGroup<PredefinedFilterSet>> PredefinedFiltersCollection::pluginFilterGroups() const
 {
     return pluginGroups_;

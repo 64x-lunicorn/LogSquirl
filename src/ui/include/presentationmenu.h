@@ -93,6 +93,9 @@ public:
         // cursor, holds a value Name this value... names (#883), or one a
         // Naming Rule captures (#885).
         bool hasValueToName = false;
+        // Whether the text selected within a Log Line is a number Chart this
+        // value... charts (#898).
+        bool selectionIsNumber = false;
         // A value a Naming Rule of an enabled Naming Group captures there
         // (#885): the menu offers Name <value> in <table>... for it, or for a
         // Named Value Rename <table> <value>..., instead of Name this value...
@@ -164,6 +167,16 @@ public:
         // Presentation drawn like the Text View; left empty, the menu offers
         // no Highlight this...
         std::function<void()> highlightThis;
+        // Open the dialog turning the text selected within a Log Line into a
+        // Predefined Filter (#897), offered with the selection's Search
+        // entries. Only for a Presentation drawn like the Text View; left
+        // empty, the menu offers no Add as Predefined Filter...
+        std::function<void()> addAsPredefinedFilter;
+        // Open the Chart Series dialog proposing a series of the number
+        // selected within a Log Line (#898), offered first under More: the
+        // top level is full. Only for a Presentation drawn like the Text
+        // View; left empty, the menu offers no Chart this value...
+        std::function<void()> chartThisValue;
         // The plugins' entries, in their order, below a separator at the end
         // of the menu, always enabled; without any, there is no separator.
         std::vector<PluginEntry> plugins;

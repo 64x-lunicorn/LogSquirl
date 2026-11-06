@@ -55,8 +55,8 @@ TabGroupManagerDialog::TabGroupManagerDialog( QWidget* parent )
 
     // -- Button row --
     auto* buttonLayout = new QHBoxLayout();
-    renameButton_ = new QPushButton( tr( "Rename…" ), this );
-    changeColorButton_ = new QPushButton( tr( "Change Color…" ), this );
+    renameButton_ = new QPushButton( tr( "Rename..." ), this );
+    changeColorButton_ = new QPushButton( tr( "Change Color..." ), this );
     deleteButton_ = new QPushButton( tr( "Delete" ), this );
     auto* closeButton = new QPushButton( tr( "Close" ), this );
 

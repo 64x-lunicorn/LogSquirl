@@ -121,11 +121,11 @@ ChartPanel::ChartPanel( QWidget* parent )
 
     toolBar_->addSeparator();
 
-    exportPresetAction_ = toolBar_->addAction( tr( "Export…" ) );
+    exportPresetAction_ = toolBar_->addAction( tr( "Export..." ) );
     exportPresetAction_->setToolTip( tr( "Export current series to a JSON file" ) );
     connect( exportPresetAction_, &QAction::triggered, this, &ChartPanel::exportPreset );
 
-    importPresetAction_ = toolBar_->addAction( tr( "Import…" ) );
+    importPresetAction_ = toolBar_->addAction( tr( "Import..." ) );
     importPresetAction_->setToolTip( tr( "Import series from a JSON file" ) );
     connect( importPresetAction_, &QAction::triggered, this, &ChartPanel::importPreset );
 
@@ -304,17 +304,50 @@ void ChartPanel::setSeriesDefinitions( const QVector<ChartSeriesDefinition>& def
     extraction_.setSeries( series_ );
 }
 
-void ChartPanel::addFilterFrequencySeries( const QStringList& patterns, bool matchCase )
+namespace {
+
+// The color a series added with others before it gets, from a palette.
+QColor seriesColor( qsizetype seriesBefore )
 {
-    // Predefined palette for auto-assigned colors.
     static const QColor palette[] = {
         QColor( "#e6194b" ), QColor( "#3cb44b" ), QColor( "#4363d8" ), QColor( "#f58231" ),
         QColor( "#911eb4" ), QColor( "#42d4f4" ), QColor( "#f032e6" ), QColor( "#bfef45" ),
         QColor( "#fabebe" ), QColor( "#469990" ),
     };
-    constexpr int paletteSize = sizeof( palette ) / sizeof( palette[ 0 ] );
+    constexpr qsizetype paletteSize = sizeof( palette ) / sizeof( palette[ 0 ] );
+    return palette[ seriesBefore % paletteSize ];
+}
 
-    auto colorIdx = static_cast<int>( series_.size() );
+} // namespace
+
+bool ChartPanel::addProposedSeries( const QString& name, const QString& pattern )
+{
+    ChartSeriesDefinition proposed;
+    proposed.name = name;
+    proposed.pattern = pattern;
+    proposed.captureGroup = 1;
+    return addSeriesFromDialog( proposed );
+}
+
+bool ChartPanel::addSeriesFromDialog( ChartSeriesDefinition proposed )
+{
+    proposed.color = seriesColor( series_.size() );
+
+    ChartSeriesDialog dlg( this );
+    dlg.setSeries( proposed );
+    dlg.setFormatDefaults( format_ );
+    if ( dlg.exec() != QDialog::Accepted ) {
+        return false;
+    }
+    series_.append( dlg.series() );
+    rebuildSeriesCombo();
+    seriesChanged();
+    return true;
+}
+
+void ChartPanel::addFilterFrequencySeries( const QStringList& patterns, bool matchCase )
+{
+    auto colorIdx = series_.size();
     for ( const auto& pat : patterns ) {
         if ( pat.trimmed().isEmpty() ) {
             continue;
@@ -322,7 +355,7 @@ void ChartPanel::addFilterFrequencySeries( const QStringList& patterns, bool mat
         ChartSeriesDefinition def;
         def.id = QUuid::createUuid().toString( QUuid::WithoutBraces );
         def.name = tr( "Filter: %1" ).arg( pat );
-        def.color = palette[ colorIdx % paletteSize ];
+        def.color = seriesColor( colorIdx );
         def.pattern = pat;
         def.captureGroup = 0; // count mode: Y = 1 per match
         def.matchCase = matchCase;
@@ -342,13 +375,7 @@ void ChartPanel::addFilterFrequencySeries( const QStringList& patterns, bool mat
 
 void ChartPanel::addSeries()
 {
-    ChartSeriesDialog dlg( this );
-    dlg.setFormatDefaults( format_ );
-    if ( dlg.exec() == QDialog::Accepted ) {
-        series_.append( dlg.series() );
-        rebuildSeriesCombo();
-        seriesChanged();
-    }
+    addSeriesFromDialog( ChartSeriesDefinition{} );
 }
 
 void ChartPanel::addSeriesWizard()

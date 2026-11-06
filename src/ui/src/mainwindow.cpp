@@ -96,6 +96,7 @@
 
 #include "mainwindow.h"
 
+#include "addpredefinedfilterdialog.h"
 #include "archiveextraction.h"
 #include "chipmunkimporter.h"
 #include "clipboard.h"
@@ -791,6 +792,11 @@ void MainWindow::reTranslateUI()
     highlightersMenu->setTitle( transMenu( menu::highlightersTitle ) );
     favoritesMenu->setTitle( transMenu( menu::favoritesTitle ) );
     helpMenu->setTitle( transMenu( menu::helpTitle ) );
+    recentFilesMenu->setTitle( transMenu( menu::recentFilesTitle ) );
+    pluginsMenu->setTitle( transMenu( menu::pluginsTitle ) );
+    sourcesMenu->setTitle( transMenu( menu::sourcesTitle ) );
+    // With its families and its Auto and System entries (#915).
+    EncodingMenu::retranslate( *encodingMenu );
 
     // toolbar
     toolBar->setToolTip(
@@ -951,6 +957,17 @@ void MainWindow::reTranslateUI()
 
     regexLabAction->setText( transAction( action::regexLabText ) );
     regexLabAction->setStatusTip( transAction( action::regexLabStatusTip ) );
+
+    manageTabGroupsAction->setText( transAction( action::manageTabGroupsText ) );
+    manageTabGroupsAction->setStatusTip( transAction( action::manageTabGroupsStatusTip ) );
+    pluginsAction->setText( transAction( action::pluginManagementText ) );
+    pluginsAction->setStatusTip( transAction( action::pluginManagementStatusTip ) );
+
+    // Built with their entries named in the language they were built in:
+    // built again, the None entry and the placeholder of an empty Sources
+    // menu follow the language (#915).
+    updateHighlightersMenu();
+    updateSourcesMenu();
 
     // trayIcon
     trayIcon_->setToolTip( QApplication::translate(
@@ -1314,13 +1331,13 @@ void MainWindow::createActions()
     connect( regexLabAction, &QAction::triggered, this,
              [ this ]( auto ) { this->openRegexLab(); } );
 
-    manageTabGroupsAction = new QAction( tr( "Manage Tab Groups..." ), this );
-    manageTabGroupsAction->setStatusTip( tr( "Rename, recolor, or delete tab groups" ) );
+    manageTabGroupsAction = new QAction( tr( action::manageTabGroupsText ), this );
+    manageTabGroupsAction->setStatusTip( tr( action::manageTabGroupsStatusTip ) );
     connect( manageTabGroupsAction, &QAction::triggered, this,
              [ this ]( auto ) { this->manageTabGroups(); } );
 
-    pluginsAction = new QAction( tr( "Plugin Management..." ), this );
-    pluginsAction->setStatusTip( tr( "Manage, install, and update plugins" ) );
+    pluginsAction = new QAction( tr( action::pluginManagementText ), this );
+    pluginsAction->setStatusTip( tr( action::pluginManagementStatusTip ) );
     connect( pluginsAction, &QAction::triggered, this, &MainWindow::showPluginDialog );
 
     updateShortcuts();
@@ -1449,7 +1466,7 @@ void MainWindow::createMenus()
     fileMenu->addAction( openClipboardAction );
     fileMenu->addAction( openCommandOutputAction );
     fileMenu->addAction( openUrlAction );
-    recentFilesMenu = fileMenu->addMenu( tr( "Open Recent" ) );
+    recentFilesMenu = fileMenu->addMenu( tr( menu::recentFilesTitle ) );
     for ( auto i = 0u; i < recentFileActions.size(); ++i ) {
         recentFilesMenu->addAction( recentFileActions[ i ] );
     }
@@ -1511,7 +1528,8 @@ void MainWindow::createMenus()
     viewMenu->addAction( textWrapAction );
     viewMenu->addAction( showValueNamesAction );
     viewMenu->addAction( matchesOnlyAction );
-    viewMenu->addMenu( EncodingMenu::generate( encodingGroup, session_.fileAccessPolicy() ) );
+    encodingMenu = EncodingMenu::generate( encodingGroup, session_.fileAccessPolicy(), viewMenu );
+    viewMenu->addMenu( encodingMenu );
     viewMenu->addSeparator();
     viewMenu->addAction( followAction );
     viewMenu->addAction( reloadAction );
@@ -1535,7 +1553,7 @@ void MainWindow::createMenus()
     toolsMenu->addAction( commandPaletteAction );
     toolsMenu->addSeparator();
 
-    pluginsMenu = toolsMenu->addMenu( tr( "Plugins" ) );
+    pluginsMenu = toolsMenu->addMenu( tr( menu::pluginsTitle ) );
     // Plugin-contributed actions are inserted at the top (before this separator)
     // by the Plugin UI Port (PluginUiAdapter).  Management actions live below the separator.
     pluginMenuSeparator_ = pluginsMenu->addSeparator();
@@ -1548,7 +1566,7 @@ void MainWindow::createMenus()
     favoritesMenu = menuBar()->addMenu( tr( menu::favoritesTitle ) );
     favoritesMenu->setToolTipsVisible( true );
 
-    sourcesMenu = menuBar()->addMenu( tr( "Sources" ) );
+    sourcesMenu = menuBar()->addMenu( tr( menu::sourcesTitle ) );
     updateSourcesMenu();
 
     helpMenu = menuBar()->addMenu( tr( menu::helpTitle ) );
@@ -2079,6 +2097,22 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
              [ this ]() { filtersPanel_.refreshFilters(); } );
 
     dialog.exec();
+}
+
+void MainWindow::addAsPredefinedFilter( const QString& selectedText )
+{
+    AddPredefinedFilterDialog dialog( selectedText, this );
+    if ( dialog.exec() != QDialog::Accepted ) {
+        return;
+    }
+    // Saved as the Predefined Filters dialog saves them; only the Filters
+    // panel lists them.
+    filtersPanel_.refreshFilters();
+    if ( dialog.applyNow() ) {
+        if ( auto* crawler = currentCrawlerWidget() ) {
+            crawler->searchWithPredefinedFilter( dialog.filter() );
+        }
+    }
 }
 
 // Opens the Value Names dialog. OK and Apply change the Value Names
@@ -3254,6 +3288,8 @@ void MainWindow::connectFrontTab( CrawlerWidget* crawler )
         connect( crawler, &CrawlerWidget::statusMessage, this, &MainWindow::showStatusMessage ),
         connect( crawler, &CrawlerWidget::highlightThisRequested, this,
                  &MainWindow::highlightThis ),
+        connect( crawler, &CrawlerWidget::addAsPredefinedFilterRequested, this,
+                 &MainWindow::addAsPredefinedFilter ),
         connect( crawler, &CrawlerWidget::filteredViewChanged, this,
                  &MainWindow::handleFilteredViewChanged ),
     };

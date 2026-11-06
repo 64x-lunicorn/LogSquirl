@@ -34,7 +34,7 @@
      </widget>
      <widget class="QGroupBox" name="editGroupBox">
       <property name="title">
-       <string>Filter group properties</string>
+       <string>Filter Group properties</string>
       </property>
       <layout class="QVBoxLayout" name="editLayout">
        <item>

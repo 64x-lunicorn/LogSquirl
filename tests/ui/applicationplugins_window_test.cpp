@@ -140,7 +140,7 @@ QString logFileTabText( const MainWindow& window )
 QAction* pluginMenuAction( const MainWindow& window, const QString& text )
 {
     for ( const auto* menu : window.findChildren<QMenu*>() ) {
-        if ( menu->title() != QStringLiteral( "Plugins" ) ) {
+        if ( QString( menu->title() ).remove( u'&' ) != QStringLiteral( "Plugins" ) ) {
             continue;
         }
         for ( auto* action : menu->actions() ) {
@@ -845,7 +845,7 @@ void installLifecycleProbe( const QString& root )
 QAction* sourcesMenuAction( const MainWindow& window, const QString& text )
 {
     for ( const auto* menu : window.findChildren<QMenu*>() ) {
-        if ( menu->title() != QStringLiteral( "Sources" ) ) {
+        if ( QString( menu->title() ).remove( u'&' ) != QStringLiteral( "Sources" ) ) {
             continue;
         }
         for ( auto* action : menu->actions() ) {

@@ -208,7 +208,7 @@ void OptionsDialog::setupStyles()
 void OptionsDialog::setupEncodings()
 {
     const auto availableEncodings = EncodingMenu::supportedEncodings();
-    encodingComboBox->addItem( "Auto", -1 );
+    encodingComboBox->addItem( EncodingMenu::autoEncodingText(), -1 );
 
     std::map<QString, int> allMibs;
 

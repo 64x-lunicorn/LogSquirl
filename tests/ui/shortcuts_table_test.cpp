@@ -381,6 +381,23 @@ TEST_CASE( "The select-lines commands are named after their direction", "[ui][op
     CHECK( down->second.keySequence == QStringList{ "Shift+Down" } );
 }
 
+// The window commands, which no menu entry names, are cased as the menu
+// entries are: Full Screen, Maximize Window, Minimize Window (#891).
+TEST_CASE( "The window commands of the Shortcuts list are in title case",
+           "[ui][options][shortcuts]" )
+{
+    const auto& shortcuts = ShortcutAction::defaultShortcutList();
+    for ( const auto& [ action, name ] :
+          { std::pair{ ShortcutAction::MainWindowFullScreen, "Full Screen" },
+            std::pair{ ShortcutAction::MainWindowMax, "Maximize Window" },
+            std::pair{ ShortcutAction::MainWindowMin, "Minimize Window" } } ) {
+        INFO( action );
+        const auto shortcut = shortcuts.find( action );
+        REQUIRE( shortcut != shortcuts.end() );
+        CHECK( shortcut->second.name == name );
+    }
+}
+
 // Show Value Names switches them per tab, like Wrap text (#647). Its key is
 // one no other command has by default.
 TEST_CASE( "Show Value Names has a default key of its own", "[ui][options][shortcuts]" )
@@ -420,8 +437,7 @@ TEST_CASE( "The Shortcuts list lists Merge Log Files, Export as CSV and the side
         for ( const auto& [ action, name ] :
               { std::pair{ ShortcutAction::MainWindowMergeLogFiles, "Merge Log Files" },
                 std::pair{ ShortcutAction::MainWindowExportAsCsv, "Export as CSV" },
-                std::pair{ ShortcutAction::MainWindowToggleSidebar,
-                           "Show or hide the sidebar" } } ) {
+                std::pair{ ShortcutAction::MainWindowToggleSidebar, "Sidebar" } } ) {
             INFO( action );
             const auto row = rowOf( table, action );
             REQUIRE( row >= 0 );

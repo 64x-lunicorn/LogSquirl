@@ -1681,10 +1681,10 @@ SCENARIO( "What the Value Names dialog and tab change reaches the views of a win
         REQUIRE( tabs->indexOf( panel ) == 2 );
         REQUIRE( tabs->tabText( 2 ) == QStringLiteral( "Value Names" ) );
 
-        WHEN( "Tools -> Value Names tab is chosen" )
+        WHEN( "View -> Value Names Tab is chosen" )
         {
             tabs->setCurrentIndex( 0 );
-            shown.action( QStringLiteral( "Value Names tab" ) )->trigger();
+            shown.action( QStringLiteral( "Value Names Tab" ) )->trigger();
 
             THEN( "the sidebar shows the tab" )
             {

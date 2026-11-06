@@ -105,49 +105,49 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             MainWindowNewWindow,
             {
-                QApplication::tr( "Open new window" ),
+                QApplication::tr( "New Window" ),
                 QStringList{},
             },
         },
         {
             MainWindowOpenFile,
             {
-                QApplication::tr( "Open file" ),
+                QApplication::tr( "Open" ),
                 getKeyBindings( QKeySequence::Open ),
             },
         },
         {
             MainWindowCloseFile,
             {
-                QApplication::tr( "Close file" ),
+                QApplication::tr( "Close" ),
                 getKeyBindings( QKeySequence::Close ),
             },
         },
         {
             MainWindowCloseAll,
             {
-                QApplication::tr( "Close all files" ),
+                QApplication::tr( "Close All" ),
                 QStringList{},
             },
         },
         {
             MainWindowSelectAll,
             {
-                QApplication::tr( "Select all" ),
+                QApplication::tr( "Select All" ),
                 QStringList{ "Ctrl+A" },
             },
         },
         {
             MainWindowCopy,
             {
-                QApplication::tr( "Copy selection to clipboard" ),
+                QApplication::tr( "Copy" ),
                 getKeyBindings( QKeySequence::Copy ),
             },
         },
         {
             MainWindowQuit,
             {
-                QApplication::tr( "Exit application" ),
+                QApplication::tr( "Exit" ),
                 QStringList{ "Ctrl+Q" },
             },
         },
@@ -161,7 +161,7 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             MainWindowMax,
             {
-                QApplication::tr( "Maximize window" ),
+                QApplication::tr( "Maximize Window" ),
                 QStringList{},
             },
         },
@@ -182,7 +182,7 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             MainWindowOpenQf,
             {
-                QApplication::tr( "Open quick find" ),
+                QApplication::tr( "Find" ),
                 getKeyBindings( QKeySequence::Find ),
             },
         },
@@ -210,63 +210,63 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             MainWindowClearFile,
             {
-                QApplication::tr( "Clear file" ),
+                QApplication::tr( "Clear File" ),
                 QStringList{ getKeyBindings( QKeySequence::Cut ) },
             },
         },
         {
             MainWindowOpenContainingFolder,
             {
-                QApplication::tr( "Open containing folder" ),
+                QApplication::tr( "Open Containing Folder" ),
                 QStringList{},
             },
         },
         {
             MainWindowOpenInEditor,
             {
-                QApplication::tr( "Open file in editor" ),
+                QApplication::tr( "Open in Editor" ),
                 QStringList{},
             },
         },
         {
             MainWindowCopyPathToClipboard,
             {
-                QApplication::tr( "Copy file path to clipboard" ),
+                QApplication::tr( "Copy Full Path" ),
                 QStringList{},
             },
         },
         {
             MainWindowOpenFromClipboard,
             {
-                QApplication::tr( "Paste text from clipboard" ),
+                QApplication::tr( "Open from Clipboard" ),
                 getKeyBindings( QKeySequence::Paste ),
             },
         },
         {
             MainWindowOpenFromUrl,
             {
-                QApplication::tr( "Open file from URL" ),
+                QApplication::tr( "Open from URL" ),
                 QStringList{},
             },
         },
         {
             MainWindowOpenSession,
             {
-                QApplication::tr( "Open session" ),
+                QApplication::tr( "Open Session" ),
                 QStringList{},
             },
         },
         {
             MainWindowSaveSessionAs,
             {
-                QApplication::tr( "Save session as" ),
+                QApplication::tr( "Save Session As" ),
                 QStringList{},
             },
         },
         {
             MainWindowOpenCommandOutput,
             {
-                QApplication::tr( "Open command output" ),
+                QApplication::tr( "Open Command Output" ),
                 QStringList{},
             },
         },
@@ -280,7 +280,7 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             MainWindowFollowFile,
             {
-                QApplication::tr( "Monitor file changes" ),
+                QApplication::tr( "Follow File" ),
                 { { QKeySequence( Qt::Key_F ).toString(),
                     QKeySequence( Qt::Key_F10 ).toString() } },
             },
@@ -288,21 +288,21 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             MainWindowTextWrap,
             {
-                QApplication::tr( "Toggle text wrap" ),
+                QApplication::tr( "Wrap Text" ),
                 QStringList{ QKeySequence( Qt::Key_W ).toString() },
             },
         },
         {
             MainWindowShowValueNames,
             {
-                QApplication::tr( "Toggle Value Names" ),
+                QApplication::tr( "Show Value Names" ),
                 QStringList{ QKeySequence( Qt::CTRL | Qt::SHIFT | Qt::Key_N ).toString() },
             },
         },
         {
             MainWindowReload,
             {
-                QApplication::tr( "Reload file" ),
+                QApplication::tr( "Reload" ),
                 QStringList{ getKeyBindings( QKeySequence::Refresh ) },
             },
         },
@@ -316,7 +316,7 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             MainWindowScratchpad,
             {
-                QApplication::tr( "Open scratchpad" ),
+                QApplication::tr( "Scratchpad" ),
                 QStringList{},
             },
         },
@@ -337,14 +337,14 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             MainWindowToggleSidebar,
             {
-                QApplication::tr( "Show or hide the sidebar" ),
+                QApplication::tr( "Sidebar" ),
                 QStringList{},
             },
         },
         {
             MainWindowSelectOpenFile,
             {
-                QApplication::tr( "Switch to file" ),
+                QApplication::tr( "Switch to Opened File" ),
                 QStringList{ "Ctrl+Shift+O" },
             },
         },
@@ -563,7 +563,7 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             LogViewJumpToLine,
             {
-                QApplication::tr( "Jump to line" ),
+                QApplication::tr( "Go to Line" ),
                 QStringList{ "Ctrl+L" },
             },
         },
@@ -577,21 +577,21 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
         {
             LogViewJumpToTimestamp,
             {
-                QApplication::tr( "Jump to timestamp" ),
+                QApplication::tr( "Go to Timestamp" ),
                 QStringList{ "Ctrl+Shift+L" },
             },
         },
         {
             LogViewSearchLimitsTimeRange,
             {
-                QApplication::tr( "Set search limits to a time range" ),
+                QApplication::tr( "Set Search Limits to Time Range" ),
                 QStringList{ "Ctrl+Alt+T" },
             },
         },
         {
             LogViewSearchLimitsAroundLine,
             {
-                QApplication::tr( "Set search limits around the current line" ),
+                QApplication::tr( "Set Search Limits Around Current Line" ),
                 QStringList{ "Ctrl+Alt+W" },
             },
         },

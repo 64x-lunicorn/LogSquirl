@@ -10,6 +10,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighterset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersmenu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightthisdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/addpredefinedfilterdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logtablehighlightdelegate.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfileview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logpresentation.h
@@ -100,6 +101,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartseriesdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartwizarddialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/charttemplategenerator.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/chartvalueproposal.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/iconloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbarstyle.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/timenavigation.h
@@ -134,6 +136,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightersetedit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighterset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightthisdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/addpredefinedfilterdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/groupexchange.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/groupimportprompt.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/teamfolder.cpp
@@ -212,6 +215,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartseriesdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartwizarddialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/charttemplategenerator.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/chartvalueproposal.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/iconloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbarstyle.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayfilepath.cpp

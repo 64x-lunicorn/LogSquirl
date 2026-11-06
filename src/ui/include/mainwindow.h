@@ -259,6 +259,11 @@ private Q_SLOTS:
     // recolors every open Log File (#896).
     void highlightThis( const QString& selectedText, const QString& logLine );
     void editPredefinedFilters( const QString& newFilter = {} );
+    // Opens the dialog turning the text selected in a Log Line into a
+    // Predefined Filter, which Add as Predefined Filter... of the tab in
+    // front asked for; OK lists it in the Filters panel and, with apply now,
+    // runs the Search of that tab with it (#897).
+    void addAsPredefinedFilter( const QString& selectedText );
     // Opens the Value Names dialog (#647).
     void editValueNames();
     // Opens the dialog naming the value in the range of the Log Line, which
@@ -545,6 +550,7 @@ private:
     QMenu* pluginsMenu;
     QMenu* sourcesMenu;
     QMenu* helpMenu;
+    QMenu* encodingMenu = nullptr;
 
     PathLine* infoLine;
     // The Team Folder's state, quietly: shown only while there is a Team

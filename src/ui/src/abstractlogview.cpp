@@ -89,6 +89,7 @@
 #include "presentationmenu.h"
 
 #include "active_screen.h"
+#include "chartvalueproposal.h"
 #include "clipboard.h"
 #include "configuration.h"
 #include "highlighterset.h"
@@ -1659,6 +1660,14 @@ void AbstractLogView::highlightThis()
     }
 }
 
+// Ask for a Predefined Filter of the text selected within a Log Line (#897)
+void AbstractLogView::addAsPredefinedFilter()
+{
+    if ( selection_.isPortion() ) {
+        Q_EMIT addAsPredefinedFilterRequested( getSelectedText() );
+    }
+}
+
 // Find next occurrence of the selected text (*)
 void AbstractLogView::findNextSelected()
 {
@@ -2556,6 +2565,7 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
     entries.addToSearch = [ this ]() { addToSearch(); };
     entries.excludeFromSearch = [ this ]() { excludeFromSearch(); };
     entries.highlightThis = [ this ]() { highlightThis(); };
+    entries.addAsPredefinedFilter = [ this ]() { addAsPredefinedFilter(); };
     entries.setSearchStart = [ this ]( LineNumber logLine ) { setSearchStart( logLine ); };
     entries.setSearchEnd = [ this ]( LineNumber logLine ) { setSearchEnd( logLine ); };
     entries.clearSearchLimits = [ this ]() { Q_EMIT clearSearchLimits(); };
@@ -2579,6 +2589,21 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
         if ( valueToName.has_value() ) {
             Q_EMIT nameValueRequested( valueToName->logLine, valueToName->start,
                                        valueToName->length );
+        }
+    };
+    // The number selected as the menu opens, charted (#898).
+    std::optional<TextInLogLine> numberToChart;
+    if ( auto selected = selectionInLogLine() ) {
+        if ( const auto number
+             = logsquirl::chart::numberSelected( selected->logLine, selected->range ) ) {
+            numberToChart = TextInLogLine{ std::move( selected->logLine ), *number };
+        }
+    }
+    report.selectionIsNumber = numberToChart.has_value();
+    entries.chartThisValue = [ this, numberToChart ]() {
+        if ( numberToChart.has_value() ) {
+            Q_EMIT chartThisValueRequested( numberToChart->logLine, numberToChart->range.start,
+                                            numberToChart->range.length );
         }
     };
     // The Log Lines the menu opens on: a right-click outside the selection
@@ -2606,6 +2631,26 @@ qsizetype rawCharacterAt( const logsquirl::vector<int>& displayColumns, qsizetyp
 
 } // namespace
 
+std::optional<AbstractLogView::TextInLogLine> AbstractLogView::selectionInLogLine() const
+{
+    if ( !selection_.isPortion() ) {
+        return std::nullopt;
+    }
+    // Never half a raw value: a Named Value selected in part is whole.
+    const auto line = selection_.getLines( *lines_ ).front();
+    const auto portion = selectionCoveringNamedValues().getPortionForLine( line );
+    if ( !portion.isValid() ) {
+        return std::nullopt;
+    }
+    auto text = lines_->logFile().getLineString( line );
+    const auto columns = rawToDisplayColumns( text );
+    const auto start = rawCharacterAt( columns, portion.startColumn().get() );
+    const auto end
+        = std::min( rawCharacterAt( columns, portion.endColumn().get() ) + 1, text.size() );
+    return TextInLogLine{ std::move( text ), logsquirl::valuenames::LineRange{
+                                                 start, std::max<qsizetype>( end - start, 0 ) } };
+}
+
 std::optional<AbstractLogView::ValueToName>
 AbstractLogView::valueToNameAt( const QPoint& pos ) const
 {
@@ -2614,17 +2659,9 @@ AbstractLogView::valueToNameAt( const QPoint& pos ) const
     // characters (#883).
     std::optional<ValueToName> valueToName;
     if ( selection_.isPortion() ) {
-        // Never half a raw value: a Named Value selected in part is whole.
-        const auto line = selection_.getLines( *lines_ ).front();
-        const auto portion = selectionCoveringNamedValues().getPortionForLine( line );
-        if ( portion.isValid() ) {
-            auto text = lines_->logFile().getLineString( line );
-            const auto columns = rawToDisplayColumns( text );
-            const auto start = rawCharacterAt( columns, portion.startColumn().get() );
-            const auto end
-                = std::min( rawCharacterAt( columns, portion.endColumn().get() ) + 1, text.size() );
-            valueToName
-                = ValueToName{ std::move( text ), start, std::max<qsizetype>( end - start, 0 ) };
+        if ( auto selected = selectionInLogLine() ) {
+            valueToName = ValueToName{ std::move( selected->logLine ), selected->range.start,
+                                       selected->range.length };
         }
     }
     else if ( logLineAtY( pos.y() ).has_value() ) {
