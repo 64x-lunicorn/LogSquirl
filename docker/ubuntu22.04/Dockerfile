@@ -15,6 +15,7 @@ FROM ubuntu:jammy@sha256:5ec03bb3441e8b0bf3b4f9cd4629a1ae763010dc3035bb8da3ae6cf
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -y && \
+    apt-get upgrade -y && \
     apt-get install --no-install-recommends build-essential gcc-12 g++-12 \
                     python3 python3-pip python-is-python3 \
                     libboost-dev libicu-dev libssl-dev libcurl4-openssl-dev \

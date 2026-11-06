@@ -5,6 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # valgrind: the Instruction Counts workflow counts the benchmarks' instructions
 # under Callgrind, and the benchmarks build their counting with its headers (#671).
 RUN apt-get update -y && \
+    apt-get upgrade -y && \
     apt-get install --no-install-recommends build-essential python3 python3-pip python-is-python3 \
                     libboost-dev libicu-dev libssl-dev libcurl4-openssl-dev \
                     ragel ninja-build zlib1g-dev git pkg-config \

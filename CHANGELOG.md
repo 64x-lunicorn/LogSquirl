@@ -151,6 +151,12 @@
   and uic run in a build of their own before the code, so a pull request that
   changes a `.ui` file no longer links objects built against the before side's
   header, which failed the link with an ODR error. (#909)
+- **The Ubuntu build images update their base packages**: they run
+  `apt-get upgrade`, as the Fedora and Oracle images run `dnf update`, so a
+  refresh no longer keeps the base image's apt 2.4.14 (CVE-2026-109518). The
+  vulnerability scan reads "Affected status is unknown for versions before
+  Qt X" like "Affected status unknown before Qt X" and no longer reports Qt
+  6.11.3 as possibly affected by CVE-2026-107479, which it fixes. (#919)
 
 ## Documentation
 
