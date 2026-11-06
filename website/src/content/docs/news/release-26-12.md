@@ -1,22 +1,76 @@
 ---
-title: Version 26.12.0-beta1
-description: Table View Sort Order and Column Layout, field terms in Search, Matches Only, next and previous Match, plugins in the context menu and reading Log Lines, fields and Marks, 17 security fixes, 18 bug fixes.
+title: Version 26.12.0-beta2
+description: A menu bar ordered by task, a shorter context menu, Name this value, Highlight this, Add as Predefined Filter and Chart this value from a selection, one Search tab in Preferences, one Group List, 8 bug fixes.
 release:
-  version: 26.12.0-beta1
-  date: 2026-11-02
+  version: 26.12.0-beta2
+  date: 2026-11-06
   channel: beta
 ---
 
-The Table View sorts its Rows by a column, hides and reorders its columns and keeps that layout per Log
-Format. A Search can match the text of one field alone, and the table can show only the Rows that match.
-`}` and `{` jump between Matches. Plugins add items to the context menu of the Log Lines, read the Log
-Lines, fields and Marks of any open Log File, and ship Log Formats, Predefined Filters and Highlighter Sets;
-converter plugins run in the background and can claim a file by its content. A security review brought 17
-fixes, among them for archives and plugin downloads. 18 bug fixes.
+The second beta of 26.12 reworks the menus: the menu bar is ordered by task, the context menu of the Log
+Lines shows what you do with a selection first, and a value or a selection in a Log Line becomes a Named
+Value, a Highlighter, a Predefined Filter or a chart series in one compact dialog. Preferences gathers every
+Search setting on one tab, and the group dialogs share one Group List. 8 bug fixes.
 
 This is a beta. Install it next to a stable version only if you want to try these changes early.
 
-### Table View
+### Menus
+
+- **The menu bar is ordered by task**: Seven menus instead of ten. The file actions are in *File*, the
+  Search Limits in *Edit*, the panels, the sidebar and *Encoding* in *View*, and *Highlighters*, the plugins'
+  items, *Plugin Management* and *Preferences* in *Tools*. Every action keeps its shortcut.
+- **In the menu bar too**: *File → Merge Log Files...*, *File → Export as CSV...* and *View → Sidebar*, all
+  three ready for keys of your own in the Shortcuts list.
+- **The context menu of the Log Lines is shorter**: In the Text View, the Filtered View and the Table View
+  it shows Copy, the Search entries and Mark first, then Highlighters and Color Labels; the rarely used
+  entries are under *More*.
+- **Named one way**: Entries that open a dialog end in three dots, menus use title case, and each command
+  in the Shortcuts list is named as in its menu.
+- **Translated throughout**: The context menu of the Log Lines and every menu follow the chosen language,
+  also right after a change of language.
+
+### From a selection
+
+- **Name this value...**: Select or right-click a value in the Text View or a Filtered View. A compact dialog
+  proposes a Naming Rule that captures it, a Name Table with the value as a key, a template and a Naming
+  Group, and previews the Log Line. On a value an existing Naming Rule captures, the menu offers to name or
+  rename it in that rule's Name Table instead.
+- **Highlight this...**: Turns a selection into a Highlighter, with its colors, the whole line or only the
+  Match, and the Highlighter Set to add it to; the views recolor at once.
+- **Add as Predefined Filter...**: Turns a selection into a Predefined Filter of the Filter Group you choose,
+  and can search with it right away.
+- **Chart this value...**: Under *More*, turns a selected number into a chart series that captures the
+  number in Log Lines like this one, and shows the Chart Panel.
+
+### Dialogs
+
+- **One Search tab in Preferences**: Every Search and indexing setting is on the new *Search* tab, and the
+  dialog fits a 1366 x 768 screen, each tab scrolling when it needs to.
+- **One Group List**: The Predefined Filters, Highlighters and Value Names dialogs list your own groups, the
+  Team groups and the Plugin groups as sections of one list, with the same buttons.
+- **Value Names in the order you fill them in**: Name Tables come before Naming Rules, and a capture group's
+  Name Table choice ends with *New Name Table...*.
+- **Highlighters side by side**: A set's Highlighters are listed beside the selected Highlighter's fields.
+- **Show only this** in the Filters and Value Names tabs of the sidebar is in the context menu, with *Restore
+  previous selection* to undo it.
+
+### Bug fixes
+
+8 fixes, among them: OK in Preferences keeps the default shortcuts, searching the Filters tab keeps the
+filters checked, a Highlighter added to a set colors at once, refreshing the Filters panel keeps the Search
+pattern, and closing the Value Names dialog with a name field in focus no longer reads freed memory.
+
+LogSquirl also builds with Qt 6.12.
+
+The complete list is in the release notes on GitHub.
+
+### Already in 26.12.0-beta1
+
+Sort Order and Column Layout in the Table View, Field Terms in a Search, Matches Only, next and previous
+Match, plugins in the context menu and reading Log Lines, fields and Marks, 17 security fixes and 18 bug
+fixes.
+
+#### Table View
 
 - **Sort Order**: A click on a column header sorts the Rows by that column, a second click the other way
   round, a third restores Log Line order. Numbers sort as numbers, the timestamp by its Timestamp, the Δt
@@ -29,7 +83,7 @@ This is a beta. Install it next to a stable version only if you want to try thes
   moves its column, and *Reset columns* restores the Log Format's order. Which columns are shown, in which
   order and how wide is kept per Log Format, also after a restart.
 
-### Search
+#### Search
 
 - **Field terms**: In the logical combination, `Protocol:"DNS"` matches the text of that field of the tab's
   Log Format alone, not the whole line. Field terms combine with plain sub-patterns and `not(...)`, work in
@@ -42,7 +96,7 @@ This is a beta. Install it next to a stable version only if you want to try thes
 - **As fast as before**: A Search without field terms runs at its old speed, and the benchmarks now time
   field term Searches and sorting too.
 
-### Log Formats
+#### Log Formats
 
 - **Recognized as it grows**: A Log File too short to be recognized is tried again with each load that
   brings more lines, up to 50 lines, so a file opened with only a header line shows its Table View once its
@@ -51,7 +105,7 @@ This is a beta. Install it next to a stable version only if you want to try thes
   Format Catalog while the plugin is enabled. The Log Formats page in the options shows each format's
   *Source*: *Built-in*, *User* or the plugin's name.
 
-### Plugins
+#### Plugins
 
 - **Context menu items**: A plugin adds items to the context menu of the Text View, the Table View and the
   Filtered View, optionally in submenus, and learns the Log File, the selected lines and any selected word
@@ -75,7 +129,7 @@ This is a beta. Install it next to a stable version only if you want to try thes
 - **Compatible**: The plugin API grows compatibly; plugins built for an earlier API load unchanged. The
   plugin SDK guide and its example plugin show the new functions.
 
-### Security
+#### Security
 
 A security review of LogSquirl brought 17 fixes:
 
@@ -90,7 +144,7 @@ A security review of LogSquirl brought 17 fixes:
 - **Robustness**: Overlong and pathological Log Lines are bounded and no longer stall the views, a
   corrupted Index Cache entry is dropped, and a Search never outlives its Log File.
 
-### Bug fixes
+#### Bug fixes
 
 18 fixes, among them: `open_file` called from a plugin's worker thread opens the file on the UI thread, a
 UTF-16 Log File no longer breaks a line inside two characters, a tar.zst or tar.lz4 archive extracts its
@@ -101,4 +155,4 @@ when they close.
 The crash reporter is sentry-native 0.17.4 and archives are read by KArchive 6.31.0. The build images
 stop trusting a compromised emSign certificate when they download Qt.
 
-The complete list is in the release notes on GitHub.
+The complete list is in the release notes of 26.12.0-beta1 on GitHub.

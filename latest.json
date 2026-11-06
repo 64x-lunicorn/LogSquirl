@@ -96,6 +96,10 @@
     {
       "version": "26.12.0-beta1",
       "description": "Table View Sort Order and Column Layout, field terms in Search, Matches Only, next and previous Match, plugins in the context menu and reading Log Lines, fields and Marks, 17 security fixes, 18 bug fixes"
+    },
+    {
+      "version": "26.12.0-beta2",
+      "description": "Menu bar by task, shorter context menu, Name this value, Highlight this, Add as Predefined Filter, Chart this value, one Search tab in Preferences, one Group List, 8 bug fixes"
     }
   ],
   "stable_version": "26.10.0",
