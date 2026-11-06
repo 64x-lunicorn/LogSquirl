@@ -1,4 +1,4 @@
-# Unreleased
+# v26.12.0-beta2 (2026-11-06)
 
 ## Changes
 
@@ -110,20 +110,16 @@
   shortcuts, dropped a third default key (Copy on macOS) and kept later
   changes of the default shortcuts from taking effect. Shortcuts stored this
   way by an earlier version are cleaned up on the next OK. (#906)
-
 - **Closing the Value Names dialog with a name field in focus**: it no
   longer finishes that field's editing after the dialog's groups are gone,
   which read freed memory. (#908)
-
 - **Searching the Filters tab keeps the checks**: the filters the search
   hides keep their check and stay active, and come back checked when the
   search is cleared. (#901)
-
 - **A Highlighter added to a set that has colored lines colors at once**: a
   Highlighter Set no longer keeps the pattern it compiled before the
   Highlighter was added, which ignored the new one and read past the end of
   its match results. (#910)
-
 - **The context menu of the lines is translated**: the entries of the Text
   View, Filtered View and Table View context menu (Copy, Mark, More, the
   search entries and the rest) showed English in every language, because
