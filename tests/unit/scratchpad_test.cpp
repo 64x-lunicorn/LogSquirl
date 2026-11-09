@@ -27,6 +27,7 @@
 #include "scratchpad.h"
 
 #include <QAction>
+#include <QCoreApplication>
 #include <QDomDocument>
 #include <QLabel>
 #include <QLineEdit>
@@ -38,6 +39,7 @@
 #include <QTextCursor>
 #include <QToolBar>
 #include <QToolTip>
+#include <QTranslator>
 
 namespace {
 
@@ -623,5 +625,57 @@ SCENARIO( "The Scratchpad has no status bar", "[scratchpad][layout]" )
         {
             REQUIRE( pad.status() == "Copied to clipboard" );
         }
+    }
+}
+
+namespace {
+
+/// A language that knows only the texts lupdate files under the context the
+/// Scratchpad's time labels belong to, each as its source behind a marker.
+class DateTimeBoxTranslator : public QTranslator {
+public:
+    QString translate( const char* context, const char* sourceText,
+                       const char* /*disambiguation*/ = nullptr, int /*n*/ = -1 ) const override
+    {
+        if ( context == nullptr || sourceText == nullptr
+             || QLatin1String( context ) != QLatin1String( "logsquirl::DateTimeBox" ) ) {
+            return {};
+        }
+        return QStringLiteral( "[xx] " ) + QString::fromUtf8( sourceText );
+    }
+
+    bool isEmpty() const override
+    {
+        return false;
+    }
+};
+
+} // namespace
+
+// The Time and TimeZone labels are looked up in the context the translation
+// files carry them in, not in QFormLayout's (#930).
+SCENARIO( "The Scratchpad's Time and TimeZone labels follow the language", "[scratchpad][i18n]" )
+{
+    GIVEN( "a language" )
+    {
+        DateTimeBoxTranslator translator;
+        REQUIRE( QCoreApplication::installTranslator( &translator ) );
+
+        WHEN( "a Scratchpad is opened" )
+        {
+            const ScratchPad pad;
+
+            THEN( "its Time and TimeZone labels are in that language" )
+            {
+                QStringList labels;
+                for ( const auto* label : pad.findChildren<QLabel*>() ) {
+                    labels.append( label->text() );
+                }
+                CHECK( labels.contains( QStringLiteral( "[xx] Time" ) ) );
+                CHECK( labels.contains( QStringLiteral( "[xx] TimeZone" ) ) );
+            }
+        }
+
+        QCoreApplication::removeTranslator( &translator );
     }
 }

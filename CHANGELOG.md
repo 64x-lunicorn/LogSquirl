@@ -10,6 +10,8 @@
   to clipboard* or *Empty transformation* shows as a tooltip at the button.
   The Scratchpad's buttons, field labels, messages and tab names are
   translated. (#925)
+- **The Scratchpad's Time and TimeZone labels are translated**: they showed
+  English in every language although their translations existed. (#930)
 
 # v26.12.0-beta2 (2026-11-06)
 
