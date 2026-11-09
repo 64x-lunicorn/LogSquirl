@@ -1441,39 +1441,9 @@ Voulez-vous le remplacer ?</translation>
 <context>
     <name>FiltersPanel</name>
     <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="48"/>
+        <location filename="../../ui/src/filterspanel.cpp" line="37"/>
         <source>Search filters...</source>
         <translation>Rechercher des filtres...</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="71"/>
-        <source>Select All</source>
-        <translation>Tout sélectionner</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="72"/>
-        <source>Deselect All</source>
-        <translation>Tout désélectionner</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="73"/>
-        <source>Edit...</source>
-        <translation>Modifier...</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="153"/>
-        <source>Shipped by the plugin %1</source>
-        <translation>Fourni par le plugin %1</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="156"/>
-        <source>%1 (Team)</source>
-        <translation>%1 (équipe)</translation>
-    </message>
-    <message>
-        <location filename="../../ui/src/filterspanel.cpp" line="158"/>
-        <source>A Team group, shared through the Team Folder</source>
-        <translation>Un groupe d&apos;équipe, partagé via le dossier d&apos;équipe</translation>
     </message>
 </context>
 <context>
@@ -5260,6 +5230,39 @@ Redémarrez LogSquirl pour réessayer.</translation>
         <location filename="../../ui/src/sessionfile.cpp" line="89"/>
         <source>This session file was saved by a newer LogSquirl.</source>
         <translation>Ce fichier de session a été enregistré par une version plus récente de LogSquirl.</translation>
+    </message>
+</context>
+<context>
+    <name>SidebarTab</name>
+    <message>
+        <location filename="../../ui/src/sidebartab.cpp" line="88"/>
+        <source>Select All</source>
+        <translation>Tout sélectionner</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/sidebartab.cpp" line="89"/>
+        <source>Deselect All</source>
+        <translation>Tout désélectionner</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/sidebartab.cpp" line="90"/>
+        <source>Edit...</source>
+        <translation>Modifier...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/sidebartab.cpp" line="127"/>
+        <source>Shipped by the plugin %1</source>
+        <translation>Fourni par le plugin %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/sidebartab.cpp" line="130"/>
+        <source>%1 (Team)</source>
+        <translation>%1 (équipe)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/sidebartab.cpp" line="132"/>
+        <source>A Team group, shared through the Team Folder</source>
+        <translation>Un groupe d&apos;équipe, partagé via le dossier d&apos;équipe</translation>
     </message>
 </context>
 <context>

@@ -19,15 +19,11 @@
 
 #include "filterspanel.h"
 
-#include <QApplication>
-#include <QHBoxLayout>
-#include <QHeaderView>
-#include <QLabel>
+#include <QSettings>
+#include <QTimer>
 
 #include "containers.h"
-#include "log.h"
 #include "persistentinfo.h"
-#include "soloselection.h"
 
 static constexpr const char* PinnedSettingsKey = "PinnedFilters";
 
@@ -38,51 +34,18 @@ static QString pinKey( const QString& groupId, const QString& filterName )
 }
 
 FiltersPanel::FiltersPanel( QWidget* parent )
-    : QWidget( parent )
+    : SidebarTab( tr( "Search filters..." ), parent )
 {
-    auto* mainLayout = new QVBoxLayout( this );
-    mainLayout->setContentsMargins( 6, 6, 6, 6 );
-
-    // Search box
-    searchBox_ = new QLineEdit( this );
-    searchBox_->setPlaceholderText( tr( "Search filters..." ) );
-    searchBox_->setClearButtonEnabled( true );
-    mainLayout->addWidget( searchBox_ );
-
-    // Tree widget with groups
-    filterTree_ = new QTreeWidget( this );
-    filterTree_->setHeaderHidden( true );
-    filterTree_->setRootIsDecorated( true );
-
-    mainLayout->addWidget( filterTree_ );
-
-    // "Show only this" and the way back (#889); the units are the filters.
-    solo_ = new SoloSelection( filterTree_, []( const QTreeWidgetItem* item ) {
-        if ( item->parent() == nullptr ) {
-            return QString{};
+    // A check the user changed: the Search's filters follow, and are saved.
+    connect( this, &SidebarTab::checksChanged, this, &FiltersPanel::emitCurrentSelection );
+    // The search shows other filters: the Search is told the checked ones
+    // again, as when the search built the tree anew (beta2).
+    connect( this, &SidebarTab::searchChanged, this, [ this ] {
+        if ( !pinnedFilterKeys_.isEmpty() ) {
+            emitCurrentSelection();
         }
-        return pinKey( item->data( 0, Qt::UserRole + 1 ).toString(),
-                       item->data( 0, Qt::UserRole ).toString() );
     } );
-    connect( solo_, &SoloSelection::checksChanged, this, &FiltersPanel::emitCurrentSelection );
-
-    // Buttons row
-    auto* buttonsLayout = new QHBoxLayout;
-    selectAllButton_ = new QPushButton( tr( "Select All" ), this );
-    deselectAllButton_ = new QPushButton( tr( "Deselect All" ), this );
-    editFiltersButton_ = new QPushButton( tr( "Edit..." ), this );
-    buttonsLayout->addWidget( selectAllButton_ );
-    buttonsLayout->addWidget( deselectAllButton_ );
-    buttonsLayout->addStretch();
-    buttonsLayout->addWidget( editFiltersButton_ );
-    mainLayout->addLayout( buttonsLayout );
-
-    // Debounce timer: when a group checkbox is toggled, Qt fires itemChanged
-    // for every child individually. This timer coalesces those into one emission.
-    debounceTimer_ = new QTimer( this );
-    debounceTimer_->setSingleShot( true );
-    debounceTimer_->setInterval( 0 );
-    connect( debounceTimer_, &QTimer::timeout, this, &FiltersPanel::emitCurrentSelection );
+    connect( this, &SidebarTab::editRequested, this, &FiltersPanel::editFiltersRequested );
 
     // Debounce timer for persisting pinned filters — avoids synchronous disk
     // writes on every checkbox click.
@@ -91,21 +54,13 @@ FiltersPanel::FiltersPanel( QWidget* parent )
     saveTimer_->setInterval( 500 );
     connect( saveTimer_, &QTimer::timeout, this, &FiltersPanel::savePinnedFiltersNow );
 
-    connect( searchBox_, &QLineEdit::textChanged, this, &FiltersPanel::onSearchTextChanged );
-    connect( filterTree_, &QTreeWidget::itemChanged, this, &FiltersPanel::onItemChanged );
-    connect( filterTree_, &QTreeWidget::itemDoubleClicked, this,
-             &FiltersPanel::onItemDoubleClicked );
-    connect( selectAllButton_, &QPushButton::clicked, this, &FiltersPanel::selectAll );
-    connect( deselectAllButton_, &QPushButton::clicked, this, &FiltersPanel::deselectAll );
-    connect( editFiltersButton_, &QPushButton::clicked, this, &FiltersPanel::editFiltersRequested );
-
     loadPinnedFilters();
     refreshFilters();
 }
 
 void FiltersPanel::showEvent( QShowEvent* event )
 {
-    QWidget::showEvent( event );
+    SidebarTab::showEvent( event );
     if ( filtersDirty_ ) {
         refreshFilters();
     }
@@ -121,7 +76,15 @@ void FiltersPanel::refreshFilters()
     }
     allFilterSets_.append( teamFilterSets_ );
     rebuildFilterIndex();
-    populateTree( allFilterSets_ );
+    setGroups( shownGroups() );
+
+    // Emit current selection if any pinned filters were auto-checked, or
+    // one that was has gone. With none checked before or now, the Search is
+    // left as it is: refilling the tree after a filter was added replaced it
+    // with an empty one (#897).
+    if ( !pinnedFilterKeys_.isEmpty() ) {
+        emitCurrentSelection();
+    }
     filtersDirty_ = false;
 }
 
@@ -131,142 +94,36 @@ void FiltersPanel::setTeamGroups( const QList<PredefinedFilterSet>& groups )
     refreshFilters();
 }
 
-void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
+QList<SidebarTab::Group> FiltersPanel::shownGroups() const
 {
-    updatingTree_ = true;
-    filterTree_->clear();
-
-    const auto searchText = searchBox_ ? searchBox_->text().trimmed() : QString{};
+    QList<SidebarTab::Group> groups;
+    groups.reserve( allFilterSets_.size() );
 
     // The plugins' groups come after the user's own, and the Team groups last.
-    const auto firstTeamGroup = sets.size() - teamFilterSets_.size();
+    const auto firstTeamGroup = allFilterSets_.size() - teamFilterSets_.size();
     const auto firstPluginGroup = firstTeamGroup - pluginFilterGroups_.size();
-    for ( qsizetype index = 0; index < sets.size(); ++index ) {
-        const auto& set = sets[ index ];
-        auto* groupItem = new QTreeWidgetItem( filterTree_ );
-        groupItem->setText( 0, set.name() );
-        groupItem->setToolTip( 0, SoloSelection::doubleClickHint() );
+    for ( qsizetype index = 0; index < allFilterSets_.size(); ++index ) {
+        const auto& set = allFilterSets_[ index ];
+        SidebarTab::Group group;
+        group.name = set.name();
         if ( index >= firstPluginGroup && index < firstTeamGroup ) {
-            const auto& pluginName = pluginFilterGroups_[ index - firstPluginGroup ].pluginName;
-            groupItem->setText( 0, pluginGroupShownName( set.name(), pluginName ) );
-            groupItem->setToolTip( 0, SoloSelection::toolTipWithHint(
-                                          tr( "Shipped by the plugin %1" ).arg( pluginName ) ) );
+            group.kind = SidebarTab::Group::Kind::Plugin;
+            group.pluginName = pluginFilterGroups_[ index - firstPluginGroup ].pluginName;
         }
         else if ( index >= firstTeamGroup ) {
-            groupItem->setText( 0, tr( "%1 (Team)" ).arg( set.name() ) );
-            groupItem->setToolTip( 0, SoloSelection::toolTipWithHint(
-                                          tr( "A Team group, shared through the Team Folder" ) ) );
+            group.kind = SidebarTab::Group::Kind::Team;
         }
-        groupItem->setFlags( groupItem->flags() | Qt::ItemIsAutoTristate
-                             | Qt::ItemIsUserCheckable );
-        // Store group id for later retrieval.
-        groupItem->setData( 0, Qt::UserRole, set.id() );
-
-        bool anyChildVisible = false;
-
+        // A Filter Group without filters is no check of its own: no key.
         for ( const auto& filter : set.filters() ) {
-            // Apply search filter across group name, filter name, and pattern.
-            // A filter the search does not show is hidden, and keeps its check
-            // (#901).
-            const bool shown = searchText.isEmpty()
-                               || set.name().contains( searchText, Qt::CaseInsensitive )
-                               || filter.name.contains( searchText, Qt::CaseInsensitive )
-                               || filter.pattern.contains( searchText, Qt::CaseInsensitive );
-
-            auto* childItem = new QTreeWidgetItem( groupItem );
-
-            if ( filter.name != filter.pattern && !filter.name.isEmpty() ) {
-                childItem->setText( 0, filter.name + QString::fromUtf8( "  \u2014  " )
-                                           + filter.pattern );
-            }
-            else {
-                childItem->setText( 0, filter.pattern );
-            }
-            childItem->setToolTip( 0, SoloSelection::toolTipWithHint( filter.pattern ) );
-            childItem->setFlags( childItem->flags() | Qt::ItemIsUserCheckable );
-
-            // Store filter name and group id for retrieval.
-            childItem->setData( 0, Qt::UserRole, filter.name );
-            childItem->setData( 0, Qt::UserRole + 1, set.id() );
-
-            const bool isPinned = pinnedFilterKeys_.contains( pinKey( set.id(), filter.name ) );
-            childItem->setCheckState( 0, isPinned ? Qt::Checked : Qt::Unchecked );
-            childItem->setHidden( !shown );
-
-            anyChildVisible = anyChildVisible || shown;
+            const auto key = pinKey( set.id(), filter.name );
+            group.entries.append( { .key = key,
+                                    .name = filter.name,
+                                    .pattern = filter.pattern,
+                                    .checked = pinnedFilterKeys_.contains( key ) } );
         }
-
-        // Hide the group entirely if no children matched the search.
-        groupItem->setHidden( !anyChildVisible && !searchText.isEmpty() );
-        groupItem->setExpanded( true );
+        groups.append( std::move( group ) );
     }
-
-    updatingTree_ = false;
-
-    // Emit current selection if any pinned filters were auto-checked, or
-    // one that was has gone. With none checked before or now, the Search is
-    // left as it is: refilling the tree after a filter was added replaced it
-    // with an empty one (#897).
-    if ( !pinnedFilterKeys_.isEmpty() ) {
-        emitCurrentSelection();
-    }
-}
-
-void FiltersPanel::onItemChanged( QTreeWidgetItem* item, int column )
-{
-    Q_UNUSED( column );
-    Q_UNUSED( item );
-    if ( updatingTree_ ) {
-        return;
-    }
-
-    // Don't emit immediately — start/restart the debounce timer so that
-    // a group toggle (which fires once per child) results in a single emission.
-    debounceTimer_->start();
-}
-
-void FiltersPanel::onItemDoubleClicked( QTreeWidgetItem* item, int column )
-{
-    Q_UNUSED( column );
-    if ( !item ) {
-        return;
-    }
-
-    // Solo: only the filter double-clicked, or the filters of the group, stay
-    // checked across all groups; emitCurrentSelection() follows.
-    solo_->showOnly( item );
-}
-
-void FiltersPanel::onSearchTextChanged( const QString& text )
-{
-    Q_UNUSED( text );
-    populateTree( allFilterSets_ );
-}
-
-void FiltersPanel::selectAll()
-{
-    setShownChecked( Qt::Checked );
-}
-
-void FiltersPanel::deselectAll()
-{
-    setShownChecked( Qt::Unchecked );
-}
-
-void FiltersPanel::setShownChecked( Qt::CheckState state )
-{
-    // What the search hides keeps its check (#901).
-    updatingTree_ = true;
-    for ( int g = 0; g < filterTree_->topLevelItemCount(); ++g ) {
-        auto* groupItem = filterTree_->topLevelItem( g );
-        for ( int c = 0; c < groupItem->childCount(); ++c ) {
-            if ( !groupItem->child( c )->isHidden() ) {
-                groupItem->child( c )->setCheckState( 0, state );
-            }
-        }
-    }
-    updatingTree_ = false;
-    emitCurrentSelection();
+    return groups;
 }
 
 void FiltersPanel::rebuildFilterIndex()
@@ -285,23 +142,13 @@ void FiltersPanel::emitCurrentSelection()
     QList<PredefinedFilter> selected;
     QSet<QString> checkedKeys;
 
-    for ( int g = 0; g < filterTree_->topLevelItemCount(); ++g ) {
-        const auto* groupItem = filterTree_->topLevelItem( g );
-        const auto groupId = groupItem->data( 0, Qt::UserRole ).toString();
+    for ( const auto& key : SidebarTab::checkedKeys() ) {
+        checkedKeys.insert( key );
 
-        for ( int c = 0; c < groupItem->childCount(); ++c ) {
-            const auto* childItem = groupItem->child( c );
-            if ( childItem->checkState( 0 ) == Qt::Checked ) {
-                const auto filterName = childItem->data( 0, Qt::UserRole ).toString();
-                const auto key = pinKey( groupId, filterName );
-                checkedKeys.insert( key );
-
-                // O(1) lookup via pre-built index.
-                const auto it = filterIndex_.constFind( key );
-                if ( it != filterIndex_.constEnd() ) {
-                    selected.append( it.value() );
-                }
-            }
+        // O(1) lookup via pre-built index.
+        const auto it = filterIndex_.constFind( key );
+        if ( it != filterIndex_.constEnd() ) {
+            selected.append( it.value() );
         }
     }
 
@@ -310,7 +157,6 @@ void FiltersPanel::emitCurrentSelection()
 
     Q_EMIT filtersChanged( selected );
 }
-
 void FiltersPanel::savePinnedFilters()
 {
     // Schedule a debounced write instead of flushing to disk immediately.

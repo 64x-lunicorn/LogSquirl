@@ -1,3 +1,16 @@
+# Unreleased
+
+## Internal
+
+- **The Filters tab of the sidebar is built on a shared sidebar tab module**:
+  `SidebarTab` lays out the search field, the tree of groups with their
+  checks and the Select All, Deselect All and Edit... buttons, and owns the
+  search, Show only this and the "(Team)" and plugin names; the Filters tab
+  hands it its groups and turns the checks into the Search's filters. It
+  lays its rows out again when shown, so rows filled before the tab was
+  placed in the sidebar get the Theme's padding. The Value Names tab follows.
+  (#923)
+
 # v26.12.0-beta2 (2026-11-06)
 
 ## Changes
