@@ -23,7 +23,6 @@
 #include <QShortcut>
 #include <QWidget>
 
-#include "logsquirl_version.h"
 #include "releasepages.h"
 #include "shortcuts.h"
 
@@ -362,7 +361,7 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
             {
                 //: %1 is the version, e.g. 26.12
                 QApplication::tr( "What's New in %1" )
-                    .arg( logsquirl::versioncheck::versionMonth( logsquirlVersion() ) ),
+                    .arg( logsquirl::versioncheck::runningVersionMonth() ),
                 QStringList{},
             },
         },

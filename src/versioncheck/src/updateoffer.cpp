@@ -47,27 +47,25 @@ bool isPrerelease( const QString& releaseName )
 }
 
 // An update is only offered for a page below ReleasePagesPrefix (#222, ADR
-// 0005).
-constexpr auto ReleasePagesPath = "/64x-lunicorn/LogSquirl/releases/";
-
-// The url must begin with exactly the prefix, and what a browser makes of it
-// must still be a page below the prefix: no user info, port, dot segments,
-// backslashes or characters a strict parser rejects.
+// 0005). The url must begin with exactly the prefix, and what a browser makes
+// of it must still be a page below the prefix: the prefix's scheme, host and
+// path, and no user info, port, dot segments, backslashes or characters a
+// strict parser rejects.
 bool isReleasePage( const QString& url )
 {
     if ( !url.startsWith( QLatin1String( ReleasePagesPrefix ) ) ) {
         return false;
     }
 
+    static const QUrl prefix( QLatin1String( ReleasePagesPrefix ), QUrl::StrictMode );
     const QUrl parsed( url, QUrl::StrictMode );
-    if ( !parsed.isValid() || parsed.scheme() != QLatin1String( "https" )
-         || parsed.host() != QLatin1String( "github.com" ) || !parsed.userInfo().isEmpty()
-         || parsed.port() != -1 ) {
+    if ( !parsed.isValid() || parsed.scheme() != prefix.scheme() || parsed.host() != prefix.host()
+         || !parsed.userInfo().isEmpty() || parsed.port() != -1 ) {
         return false;
     }
 
     const auto path = parsed.path( QUrl::FullyDecoded );
-    if ( !path.startsWith( QLatin1String( ReleasePagesPath ) ) || path.contains( u'\\' ) ) {
+    if ( !path.startsWith( prefix.path() ) || path.contains( u'\\' ) ) {
         return false;
     }
     const auto segments = path.split( u'/' );

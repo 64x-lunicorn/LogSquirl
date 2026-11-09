@@ -919,8 +919,7 @@ void MainWindow::reTranslateUI()
     projectPageAction->setStatusTip( transAction( action::projectPageStatusTip ) );
 
     whatsNewAction->setText(
-        transAction( action::whatsNewText )
-            .arg( logsquirl::versioncheck::versionMonth( logsquirlVersion() ) ) );
+        transAction( action::whatsNewText ).arg( logsquirl::versioncheck::runningVersionMonth() ) );
     whatsNewAction->setStatusTip( transAction( action::whatsNewStatusTip ) );
 
     aboutAction->setText( transAction( action::aboutText ) );
@@ -1244,14 +1243,11 @@ void MainWindow::createActions()
         QDesktopServices::openUrl( QUrl( logsquirl::versioncheck::ProjectPageUrl ) );
     } );
 
-    whatsNewAction
-        = new QAction( tr( action::whatsNewText )
-                           .arg( logsquirl::versioncheck::versionMonth( logsquirlVersion() ) ),
-                       this );
+    whatsNewAction = new QAction(
+        tr( action::whatsNewText ).arg( logsquirl::versioncheck::runningVersionMonth() ), this );
     whatsNewAction->setStatusTip( tr( action::whatsNewStatusTip ) );
     connect( whatsNewAction, &QAction::triggered, this, []( auto ) {
-        QDesktopServices::openUrl(
-            QUrl( logsquirl::versioncheck::releaseNotesUrl( logsquirlVersion() ) ) );
+        QDesktopServices::openUrl( QUrl( logsquirl::versioncheck::runningReleaseNotesUrl() ) );
     } );
 
     aboutAction = new QAction( tr( action::aboutText ), this );
