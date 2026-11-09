@@ -37,14 +37,10 @@ FiltersPanel::FiltersPanel( QWidget* parent )
     : SidebarTab( tr( "Search filters..." ), parent )
 {
     // A check the user changed: the Search's filters follow, and are saved.
+    // The search of the tab only shows other filters and keeps the checks:
+    // the Search is not told again, which re-set its pattern on every key
+    // (#928).
     connect( this, &SidebarTab::checksChanged, this, &FiltersPanel::emitCurrentSelection );
-    // The search shows other filters: the Search is told the checked ones
-    // again, as when the search built the tree anew (beta2).
-    connect( this, &SidebarTab::searchChanged, this, [ this ] {
-        if ( !pinnedFilterKeys_.isEmpty() ) {
-            emitCurrentSelection();
-        }
-    } );
     connect( this, &SidebarTab::editRequested, this, &FiltersPanel::editFiltersRequested );
 
     // Debounce timer for persisting pinned filters — avoids synchronous disk
@@ -56,14 +52,6 @@ FiltersPanel::FiltersPanel( QWidget* parent )
 
     loadPinnedFilters();
     refreshFilters();
-}
-
-void FiltersPanel::showEvent( QShowEvent* event )
-{
-    SidebarTab::showEvent( event );
-    if ( filtersDirty_ ) {
-        refreshFilters();
-    }
 }
 
 void FiltersPanel::refreshFilters()
@@ -85,7 +73,6 @@ void FiltersPanel::refreshFilters()
     if ( !pinnedFilterKeys_.isEmpty() ) {
         emitCurrentSelection();
     }
-    filtersDirty_ = false;
 }
 
 void FiltersPanel::setTeamGroups( const QList<PredefinedFilterSet>& groups )

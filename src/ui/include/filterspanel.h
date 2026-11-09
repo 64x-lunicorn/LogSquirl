@@ -22,7 +22,6 @@
 #include <QHash>
 #include <QList>
 #include <QSet>
-#include <QShowEvent>
 #include <QString>
 
 #include "plugingroup.h"
@@ -72,9 +71,6 @@ Q_SIGNALS:
     // Emitted when the user clicks the "Edit Filters" button.
     void editFiltersRequested();
 
-protected:
-    void showEvent( QShowEvent* event ) override;
-
 private:
     // The groups of allFilterSets_ as the SidebarTab shows them, with the
     // pinned filters checked.
@@ -97,6 +93,4 @@ private:
 
     // Debounce timer for persisting pinned filters to disk.
     QTimer* saveTimer_{ nullptr };
-
-    bool filtersDirty_{ true };
 };

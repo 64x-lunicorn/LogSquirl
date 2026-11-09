@@ -8,6 +8,12 @@
   buttons. Its search now matches a Naming Rule's name and regex, and shows
   a rule named like its regex by the regex alone, as the Filters tab does.
   (#924)
+- **Typing in the Filters tab's search no longer re-sends the checked
+  filters**: with filters checked, every key typed into the search field of
+  the Filters tab set the Search pattern again from them, moving the focus to
+  the Search line and, with the Search run on a change of its pattern,
+  starting the Search again. The search only shows other filters now;
+  checking or unchecking one still updates the Search at once. (#928)
 
 ## Internal
 
