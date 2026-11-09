@@ -18,24 +18,36 @@
  */
 
 #include "crawlerwidget.h"
+#include "filterspanel.h"
 #include "infoline.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
+#include "naminggroup.h"
+#include "predefinedfilters.h"
 #include "session.h"
 #include "shown_widget.h"
 #include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
+#include "theme.h"
+#include "valuenamescollection.h"
+#include "valuenamespanel.h"
 
 #include <QComboBox>
 #include <QDir>
 #include <QDockWidget>
+#include <QFontInfo>
 #include <QFontMetrics>
+#include <QLayout>
 #include <QLineEdit>
+#include <QPushButton>
+#include <QTabWidget>
 #include <QTemporaryFile>
 #include <QTest>
+#include <QTreeWidget>
 #include <QUuid>
 
+#include <algorithm>
 #include <memory>
 
 #include <catch2/catch_test_macros.hpp>
@@ -222,5 +234,166 @@ SCENARIO( "The sidebar opens at the width the user dragged it to", "[ui][sidebar
     REQUIRE( std::abs( second.sidebar->width() - DraggedWidth ) <= 2 );
 
     second.mainWindow->close();
+    QTest::qWait( 50 );
+}
+
+namespace {
+
+using logsquirl::valuenames::NamingGroup;
+using logsquirl::valuenames::NamingRule;
+
+// The Predefined Filters and the Naming Groups, replaced for as long as this
+// lives and restored, with what is stored of them, when it goes.
+class StoredGroupsGuard {
+public:
+    StoredGroupsGuard()
+        : filterSets_( PredefinedFiltersCollection::getSynced().filterSets() )
+        , namingGroups_( ValueNamesCollection::get().ownGroups() )
+        , teamNamingGroups_( ValueNamesCollection::get().groups().mid(
+              ValueNamesCollection::get().ownGroups().size() ) )
+    {
+    }
+
+    ~StoredGroupsGuard()
+    {
+        auto& filters = PredefinedFiltersCollection::getSynced();
+        filters.setFilterSets( filterSets_ );
+        filters.save();
+        auto& valueNames = ValueNamesCollection::get();
+        valueNames.setTeamGroups( teamNamingGroups_ );
+        valueNames.setGroups( namingGroups_ );
+        valueNames.save();
+    }
+
+    StoredGroupsGuard( const StoredGroupsGuard& ) = delete;
+    StoredGroupsGuard& operator=( const StoredGroupsGuard& ) = delete;
+
+private:
+    QList<PredefinedFilterSet> filterSets_;
+    QList<NamingGroup> namingGroups_;
+    QList<NamingGroup> teamNamingGroups_;
+};
+
+// What the user sees of a tab of the sidebar: where its search field, rows
+// and buttons are and how they look.
+struct TabLook {
+    QMargins margins;
+    int spacing = 0;
+    QRect searchField;
+    QString treeFont;
+    int indentation = 0;
+    // Per row, in tree order: its left edge and height.
+    QList<int> rowLefts;
+    QList<int> rowHeights;
+    // The buttons, left to right: their texts and places.
+    QStringList buttonTexts;
+    QList<QRect> buttons;
+
+    bool operator==( const TabLook& ) const = default;
+};
+
+TabLook lookOf( QWidget& tab )
+{
+    TabLook look;
+    REQUIRE( tab.layout() != nullptr );
+    look.margins = tab.layout()->contentsMargins();
+    look.spacing = tab.layout()->spacing();
+
+    auto* searchField = tab.findChild<QLineEdit*>();
+    REQUIRE( searchField != nullptr );
+    look.searchField = searchField->geometry();
+
+    auto* tree = tab.findChild<QTreeWidget*>();
+    REQUIRE( tree != nullptr );
+    look.treeFont = QFontInfo( tree->font() ).family() + QStringLiteral( " " )
+                    + QString::number( QFontInfo( tree->font() ).pixelSize() );
+    look.indentation = tree->indentation();
+    for ( int g = 0; g < tree->topLevelItemCount(); ++g ) {
+        const auto* group = tree->topLevelItem( g );
+        look.rowLefts.append( tree->visualItemRect( group ).left() );
+        look.rowHeights.append( tree->visualItemRect( group ).height() );
+        for ( int e = 0; e < group->childCount(); ++e ) {
+            look.rowLefts.append( tree->visualItemRect( group->child( e ) ).left() );
+            look.rowHeights.append( tree->visualItemRect( group->child( e ) ).height() );
+        }
+    }
+
+    auto buttons = tab.findChildren<QPushButton*>();
+    std::sort( buttons.begin(), buttons.end(),
+               []( const QPushButton* a, const QPushButton* b ) { return a->x() < b->x(); } );
+    for ( const auto* button : buttons ) {
+        look.buttonTexts.append( button->text() );
+        look.buttons.append( button->geometry() );
+    }
+    return look;
+}
+
+} // namespace
+
+SCENARIO( "The Filters tab and the Value Names tab of the sidebar look alike",
+          "[ui][sidebar][look]" )
+{
+    // #924: the Value Names tab, filled before the window placed it in the
+    // sidebar, showed its rows without the Theme's padding.
+    Theme::apply( Theme::defaultTheme() );
+    const StoredGroupsGuard guard;
+
+    // The same group in both tabs: Default with Error — ERROR and Warn — WARN.
+    // The Filters tab always has its Default Filter Group.
+    auto& filters = PredefinedFiltersCollection::getSynced();
+    filters.setFilterSets( {} );
+    filters.setFilters( { { "Error", "ERROR", true }, { "Warn", "WARN", true } } );
+    filters.save();
+
+    auto namingGroup = NamingGroup::createNewGroup( QStringLiteral( "Default" ) );
+    NamingRule error;
+    error.name = QStringLiteral( "Error" );
+    error.pattern = QStringLiteral( "ERROR" );
+    NamingRule warn;
+    warn.name = QStringLiteral( "Warn" );
+    warn.pattern = QStringLiteral( "WARN" );
+    namingGroup.setRules( { error, warn } );
+    auto& valueNames = ValueNamesCollection::get();
+    valueNames.setTeamGroups( {} );
+    valueNames.setGroups( { namingGroup } );
+    valueNames.save();
+
+    const auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    Window window{ appSession, newWindowId() };
+    window.showSidebar();
+
+    auto* filtersTab = window.mainWindow->findChild<FiltersPanel*>();
+    auto* valueNamesTab = window.mainWindow->findChild<ValueNamesPanel*>();
+    REQUIRE( filtersTab != nullptr );
+    REQUIRE( valueNamesTab != nullptr );
+    auto* tabs = window.mainWindow->findChild<QTabWidget*>();
+    REQUIRE( tabs != nullptr );
+    REQUIRE( tabs->indexOf( filtersTab ) >= 0 );
+    REQUIRE( tabs->indexOf( valueNamesTab ) >= 0 );
+
+    tabs->setCurrentWidget( filtersTab );
+    QTest::qWait( 50 );
+    const auto filtersLook = lookOf( *filtersTab );
+    tabs->setCurrentWidget( valueNamesTab );
+    QTest::qWait( 50 );
+    const auto valueNamesLook = lookOf( *valueNamesTab );
+
+    // Three rows, padded by the Theme as the default style's rows are not.
+    REQUIRE( filtersLook.rowHeights.size() == 3 );
+    REQUIRE( filtersLook.rowHeights[ 1 ] > QFontMetrics( filtersTab->font() ).height() + 2 );
+
+    CHECK( valueNamesLook.rowHeights == filtersLook.rowHeights );
+    CHECK( valueNamesLook.rowLefts == filtersLook.rowLefts );
+    CHECK( valueNamesLook.indentation == filtersLook.indentation );
+    CHECK( valueNamesLook.margins == filtersLook.margins );
+    CHECK( valueNamesLook.spacing == filtersLook.spacing );
+    CHECK( valueNamesLook.searchField == filtersLook.searchField );
+    CHECK( valueNamesLook.treeFont == filtersLook.treeFont );
+    CHECK( valueNamesLook.buttonTexts == filtersLook.buttonTexts );
+    CHECK( valueNamesLook.buttons == filtersLook.buttons );
+    REQUIRE( valueNamesLook == filtersLook );
+
+    window.mainWindow.reset();
     QTest::qWait( 50 );
 }

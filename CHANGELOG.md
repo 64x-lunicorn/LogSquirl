@@ -30,6 +30,18 @@
 - **The Value Names dialog keeps its group list visible**: dragging the
   splitter stops at the group list's minimum width, as in the Predefined
   Filters and Highlighters dialogs, instead of hiding the list. (#926)
+- **The Value Names tab of the sidebar looks like the Filters tab again**:
+  its rows are as tall as those of the Filters tab, and it is built on the
+  same sidebar tab module, so the two share their search field, tree and
+  buttons. Its search now matches a Naming Rule's name and regex, and shows
+  a rule named like its regex by the regex alone, as the Filters tab does.
+  (#924)
+- **Typing in the Filters tab's search no longer re-sends the checked
+  filters**: with filters checked, every key typed into the search field of
+  the Filters tab set the Search pattern again from them, moving the focus to
+  the Search line and, with the Search run on a change of its pattern,
+  starting the Search again. The search only shows other filters now;
+  checking or unchecking one still updates the Search at once. (#928)
 - **The Welcome Dashboard follows a language change**: after switching the
   language in Preferences, its buttons, card titles, empty lists, drop hint,
   footer links and star request are shown in the new language at once,
@@ -46,6 +58,17 @@
   Shortcuts list does, without the mnemonic in any form, with the ampersand
   kept and without the dots of an entry that opens a dialog (*Open* instead
   of *Open...*). (#937)
+
+## Internal
+
+- **The Filters tab of the sidebar is built on a shared sidebar tab module**:
+  `SidebarTab` lays out the search field, the tree of groups with their
+  checks and the Select All, Deselect All and Edit... buttons, and owns the
+  search, Show only this and the "(Team)" and plugin names; the Filters tab
+  hands it its groups and turns the checks into the Search's filters. It
+  lays its rows out again when shown, so rows filled before the tab was
+  placed in the sidebar get the Theme's padding. The Value Names tab follows.
+  (#923)
 
 # v26.12.0-beta2 (2026-11-06)
 

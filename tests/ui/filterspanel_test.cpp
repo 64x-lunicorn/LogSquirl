@@ -363,12 +363,42 @@ SCENARIO( "The search of the Filters tab keeps the checks of the filters it hide
 
         WHEN( "the search shows Debug only" )
         {
+            searchBox->setText( QStringLiteral( "debu" ) );
             searchBox->setText( QStringLiteral( "debug" ) );
+            QCoreApplication::processEvents();
 
-            THEN( "Error is still an active filter" )
+            THEN( "the Search is not handed the same filters again, key by key" )
             {
-                REQUIRE( !spy.isEmpty() );
-                REQUIRE( spy.last().at( 0 ).value<QList<PredefinedFilter>>().size() == 2 );
+                // #928: every key re-set the Search pattern, and with the
+                // Search run on a change of it restarted the Search.
+                REQUIRE( spy.isEmpty() );
+                REQUIRE( countChecked( tree ) == 2 );
+            }
+
+            AND_WHEN( "Debug, shown, is unchecked" )
+            {
+                findGroup( tree, "GroupB" )->child( 0 )->setCheckState( 0, Qt::Unchecked );
+                QCoreApplication::processEvents();
+
+                THEN( "the Search is told at once of Error, which the search hides" )
+                {
+                    REQUIRE( spy.count() == 1 );
+                    const auto filters = spy.last().at( 0 ).value<QList<PredefinedFilter>>();
+                    REQUIRE( filters.size() == 1 );
+                    REQUIRE( filters[ 0 ].name == "Error" );
+                }
+
+                AND_WHEN( "it is checked again" )
+                {
+                    findGroup( tree, "GroupB" )->child( 0 )->setCheckState( 0, Qt::Checked );
+                    QCoreApplication::processEvents();
+
+                    THEN( "the Search is told at once of both" )
+                    {
+                        REQUIRE( spy.count() == 2 );
+                        REQUIRE( spy.last().at( 0 ).value<QList<PredefinedFilter>>().size() == 2 );
+                    }
+                }
             }
 
             AND_WHEN( "Deselect All is clicked and the search is cleared" )
