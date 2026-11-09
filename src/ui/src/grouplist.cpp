@@ -129,7 +129,9 @@ GroupList::GroupList( GroupKind kind, QWidget* parent )
     tree_->setItemsExpandable( false );
     tree_->setIndentation( 12 );
     tree_->setSelectionMode( QAbstractItemView::SingleSelection );
-    tree_->setSizePolicy( QSizePolicy::MinimumExpanding, QSizePolicy::Expanding );
+    // Narrower than its size hint when the dialog wants it so: the tree never
+    // makes the list wider than its rows of buttons (#922).
+    tree_->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
     layout->addWidget( tree_ );
     sectionItem( Section::Own, true );
 
@@ -156,15 +158,20 @@ GroupList::GroupList( GroupKind kind, QWidget* parent )
     copyButton_ = new QPushButton( tr( "Copy to my groups" ), this );
     copyButton_->setObjectName( QStringLiteral( "groupCopy" ) );
     copyButton_->setToolTip( tr( "Adds a copy of the selected group to your own." ) );
+    // The buttons in short rows, so that the list needs no more width than
+    // its widest row or group name (#922).
     auto* buttons = new QHBoxLayout;
     buttons->setSpacing( 6 );
     for ( auto* button : { newButton_, deleteButton_, upButton_, downButton_ } ) {
         buttons->addWidget( button );
     }
     buttons->addStretch();
-    buttons->addWidget( shareButton_ );
-    buttons->addWidget( copyButton_ );
     layout->addLayout( buttons );
+    auto* teamButtons = new QHBoxLayout;
+    teamButtons->addWidget( shareButton_ );
+    teamButtons->addWidget( copyButton_ );
+    teamButtons->addStretch();
+    layout->addLayout( teamButtons );
 
     exportButton_ = new QPushButton( tr( "Export..." ), this );
     exportButton_->setObjectName( QStringLiteral( "exportGroup" ) );

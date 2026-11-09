@@ -29,6 +29,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSignalSpy>
+#include <QSplitter>
 #include <QTest>
 #include <QToolButton>
 #include <QTreeWidget>
@@ -405,4 +406,94 @@ TEST_CASE( "The three dialogs list their groups in the Group List", "[ui][groupl
     filters.showTeamGroups( { PredefinedFilterSet::createNewSet( "Theirs" ) }, true );
     CHECK( filters.groupList()->count( Section::Team ) == 1 );
     QCoreApplication::processEvents();
+}
+
+namespace {
+
+// The Group List of a shown dialog, all its buttons shown, is narrow at its
+// narrowest with every button whole, and the selected group's side gets the
+// rest of the dialog's default width (#922).
+void checkNarrowGroupList( QDialog& dialog, GroupList& list )
+{
+    // Every button shown: changeable Team groups and a plugin's group.
+    list.setTeamGroups( { "Shared" }, true );
+    list.setPluginGroups( QList<PluginGroup<PredefinedFilterSet>>{
+        { PredefinedFilterSet::createNewSet( "Crashes" ), "Shipping" } } );
+
+    QSplitter* splitter = nullptr;
+    QWidget* listSide = &list;
+    while ( listSide->parentWidget() != nullptr ) {
+        splitter = qobject_cast<QSplitter*>( listSide->parentWidget() );
+        if ( splitter != nullptr ) {
+            break;
+        }
+        listSide = listSide->parentWidget();
+    }
+    REQUIRE( splitter != nullptr );
+    REQUIRE( splitter->indexOf( listSide ) == 0 );
+    auto* groupSide = splitter->widget( 1 );
+    REQUIRE( groupSide != nullptr );
+
+    showUntilExposed( dialog );
+    QCoreApplication::processEvents();
+
+    // At the default size the selected group's side is the wider one and
+    // shows its fields uncut.
+    INFO( "list side " << listSide->width() << " px, group side " << groupSide->width() << " px" );
+    CHECK( groupSide->width() > listSide->width() );
+    CHECK( groupSide->width() >= groupSide->minimumSizeHint().width() );
+    CHECK( listSide->width() <= 400 );
+
+    // The list can be made narrow.
+    INFO( "minimum width of the list " << list.minimumSizeHint().width()
+                                       << " px, of its side of the splitter "
+                                       << listSide->minimumSizeHint().width() << " px" );
+    CHECK( list.minimumSizeHint().width() <= 300 );
+    CHECK( listSide->minimumSizeHint().width() <= 320 );
+
+    // The splitter pushed all the way left stops at the list's minimum
+    // width: the list never collapses (#926).
+    const auto narrowest = listSide->minimumSizeHint().width();
+    splitter->setSizes( { 0, splitter->width() } );
+    QCoreApplication::processEvents();
+    CHECK_FALSE( splitter->childrenCollapsible() );
+    CHECK( list.isVisible() );
+    CHECK( listSide->width() >= narrowest );
+    CHECK( listSide->width() <= 320 );
+
+    // At its narrowest, every button is shown whole.
+    const QList<QAbstractButton*> buttons{ list.newButton(),    list.deleteButton(),
+                                           list.upButton(),     list.downButton(),
+                                           list.shareButton(),  list.copyButton(),
+                                           list.exportButton(), list.importButton() };
+    for ( auto* button : buttons ) {
+        INFO( button->objectName().toStdString()
+              << ": " << button->width() << " px wide, needs " << button->sizeHint().width()
+              << " px, at x " << button->x() );
+        CHECK( button->isVisible() );
+        CHECK( button->width() >= button->sizeHint().width() );
+        CHECK( button->x() >= 0 );
+        CHECK( button->geometry().right() < list.width() );
+    }
+}
+
+} // namespace
+
+TEST_CASE( "The Group List is narrow in every dialog, its buttons whole", "[ui][grouplist]" )
+{
+    SECTION( "Predefined Filters" )
+    {
+        PredefinedFiltersDialog dialog;
+        checkNarrowGroupList( dialog, *dialog.groupList() );
+    }
+    SECTION( "Highlighters" )
+    {
+        HighlightersDialog dialog;
+        checkNarrowGroupList( dialog, *dialog.groupList() );
+    }
+    SECTION( "Value Names" )
+    {
+        ValueNamesDialog dialog;
+        checkNarrowGroupList( dialog, *dialog.groupList() );
+    }
 }
