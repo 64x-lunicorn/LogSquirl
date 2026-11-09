@@ -20,34 +20,30 @@
 #pragma once
 
 #include <QHash>
-#include <QLineEdit>
-#include <QPushButton>
+#include <QList>
 #include <QSet>
-#include <QSettings>
-#include <QShowEvent>
-#include <QTimer>
-#include <QTreeWidget>
-#include <QTreeWidgetItem>
-#include <QVBoxLayout>
-#include <QWidget>
+#include <QString>
 
+#include "plugingroup.h"
 #include "predefinedfilters.h"
+#include "sidebartab.h"
 
-class SoloSelection;
+class QTimer;
 
-// Widget that displays all predefined filters grouped into expandable tree items.
-// Users can check/uncheck individual filters or entire groups (tri-state).
-// Pinned filters persist across sessions. Selected filters are emitted via signal.
+// The sidebar's Filters tab: all Predefined Filters grouped into expandable
+// tree items, built on the SidebarTab (#923). Users can check/uncheck
+// individual filters or entire groups (tri-state). Checked ("pinned") filters
+// persist across sessions. Selected filters are emitted via signal.
 // A double-click on a filter or group, or "Show only this" of its context
 // menu, checks only it; "Restore previous selection" brings back the checks
 // from before (#889).
-class FiltersPanel : public QWidget {
+class FiltersPanel : public SidebarTab {
     Q_OBJECT
 
 public:
     explicit FiltersPanel( QWidget* parent = nullptr );
 
-    ~FiltersPanel() = default;
+    ~FiltersPanel() override = default;
     FiltersPanel( const FiltersPanel& ) = delete;
     FiltersPanel& operator=( const FiltersPanel& ) = delete;
 
@@ -75,33 +71,15 @@ Q_SIGNALS:
     // Emitted when the user clicks the "Edit Filters" button.
     void editFiltersRequested();
 
-private Q_SLOTS:
-    void onItemChanged( QTreeWidgetItem* item, int column );
-    void onItemDoubleClicked( QTreeWidgetItem* item, int column );
-    void onSearchTextChanged( const QString& text );
-    void selectAll();
-    void deselectAll();
-
-protected:
-    void showEvent( QShowEvent* event ) override;
-
 private:
-    void populateTree( const QList<PredefinedFilterSet>& sets );
+    // The groups of allFilterSets_ as the SidebarTab shows them, with the
+    // pinned filters checked.
+    QList<SidebarTab::Group> shownGroups() const;
     void rebuildFilterIndex();
     void emitCurrentSelection();
-    // Checks or unchecks the filters the search shows.
-    void setShownChecked( Qt::CheckState state );
     void savePinnedFilters();
     void savePinnedFiltersNow();
     void loadPinnedFilters();
-
-    QLineEdit* searchBox_{ nullptr };
-    QTreeWidget* filterTree_{ nullptr };
-    // "Show only this" and the way back.
-    SoloSelection* solo_{ nullptr };
-    QPushButton* selectAllButton_{ nullptr };
-    QPushButton* deselectAllButton_{ nullptr };
-    QPushButton* editFiltersButton_{ nullptr };
 
     QList<PredefinedFilterSet> allFilterSets_;
     QList<PredefinedFilterSet> teamFilterSets_;
@@ -113,13 +91,6 @@ private:
     // Fast lookup: pinKey(groupId, filterName) → PredefinedFilter.
     QHash<QString, PredefinedFilter> filterIndex_;
 
-    // Debounce timer — batches rapid itemChanged signals (e.g. group toggle)
-    // into a single emitCurrentSelection() call.
-    QTimer* debounceTimer_{ nullptr };
-
     // Debounce timer for persisting pinned filters to disk.
     QTimer* saveTimer_{ nullptr };
-
-    bool updatingTree_{ false };
-    bool filtersDirty_{ true };
 };
