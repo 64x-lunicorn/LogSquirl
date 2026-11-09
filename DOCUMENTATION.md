@@ -121,7 +121,10 @@ dropped on it to open them. Selecting a file in a card opens it.
 A quiet line at its bottom edge links to the project: *GitHub* opens
 LogSquirl's repository, *Report an Issue* does what `Help->Report Issue...`
 does, and *Documentation* shows this documentation, as
-`Help->Documentation...` does.
+`Help->Documentation...` does. Once LogSquirl has been used for at least two
+weeks and 20 starts, a line above it asks once for a star on GitHub; following
+its link or closing it with its close button hides it for good, and the dates
+and starts it counts stay in your settings.
 
 ## Exploring log files
 

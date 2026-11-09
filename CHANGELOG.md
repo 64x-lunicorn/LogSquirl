@@ -13,6 +13,12 @@
   the bottom edge of the Dashboard, in the Theme's secondary text color,
   links to LogSquirl on GitHub, to reporting an issue and to the
   documentation. It stays at the bottom when the window is resized. (#933)
+- **The Dashboard asks once for a star on GitHub**: after at least two weeks
+  and 20 starts of LogSquirl, a line above the Dashboard's footer asks for a
+  star on GitHub, with a link to the repository and a close button. Following
+  the link or closing the line hides it for good, also after an update. The
+  first start and the number of starts are kept in your settings only and are
+  never sent anywhere. (#934)
 
 ## Bug fixes
 

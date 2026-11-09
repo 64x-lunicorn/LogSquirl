@@ -5036,12 +5036,12 @@ Restart LogSquirl to try again.</source>
         <translation>B</translation>
     </message>
     <message>
-        <location filename="../main.cpp" line="335"/>
+        <location filename="../main.cpp" line="341"/>
         <source>Loading settings...</source>
         <translation>正在加载设置...</translation>
     </message>
     <message>
-        <location filename="../main.cpp" line="340"/>
+        <location filename="../main.cpp" line="346"/>
         <source>Restoring session...</source>
         <translation>正在恢复会话...</translation>
     </message>
@@ -6259,67 +6259,77 @@ Without a date, %1 is used.</source>
 <context>
     <name>WelcomeDashboard</name>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="206"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="230"/>
         <source>Open File</source>
         <translation>打开文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="213"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="237"/>
         <source>Load Session</source>
         <translation>加载会话</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="222"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="246"/>
         <source>Recent Files</source>
         <translation>最近打开的文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="223"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="247"/>
         <source>Favorites</source>
         <translation>收藏</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="224"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="248"/>
         <source>Plugins</source>
         <translation>插件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="239"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="263"/>
         <source>Drop log files here to open them</source>
         <translation>将日志文件拖放到此处即可打开</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="282"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="306"/>
         <source>LogSquirl is open source</source>
         <translation>LogSquirl 是开源软件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="284"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="308"/>
         <source>Report an Issue</source>
         <translation>报告问题</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="285"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="309"/>
         <source>Documentation</source>
         <translation>文档</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="349"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="373"/>
+        <source>Find LogSquirl useful? A star on GitHub helps others find it.</source>
+        <translation>觉得 LogSquirl 有用吗？在 GitHub 上点个星标，能帮助其他人找到它。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="375"/>
+        <source>Dismiss</source>
+        <translation>忽略</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="443"/>
         <source>No recent files</source>
         <translation>没有最近打开的文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="375"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="469"/>
         <source>No favorites</source>
         <translation>没有收藏</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="397"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="491"/>
         <source>No plugins available</source>
         <translation>没有可用的插件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="407"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="501"/>
         <source>No plugins installed</source>
         <translation>没有已安装的插件</translation>
     </message>

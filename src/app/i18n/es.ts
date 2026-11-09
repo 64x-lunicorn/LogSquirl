@@ -5037,12 +5037,12 @@ Reinicie LogSquirl para volver a intentarlo.</translation>
         <translation>B</translation>
     </message>
     <message>
-        <location filename="../main.cpp" line="335"/>
+        <location filename="../main.cpp" line="341"/>
         <source>Loading settings...</source>
         <translation>Cargando configuración...</translation>
     </message>
     <message>
-        <location filename="../main.cpp" line="340"/>
+        <location filename="../main.cpp" line="346"/>
         <source>Restoring session...</source>
         <translation>Restaurando sesión...</translation>
     </message>
@@ -6261,67 +6261,77 @@ Sin fecha, se usa %1.</translation>
 <context>
     <name>WelcomeDashboard</name>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="206"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="230"/>
         <source>Open File</source>
         <translation>Abrir archivo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="213"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="237"/>
         <source>Load Session</source>
         <translation>Cargar sesión</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="222"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="246"/>
         <source>Recent Files</source>
         <translation>Archivos recientes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="223"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="247"/>
         <source>Favorites</source>
         <translation>Favoritos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="224"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="248"/>
         <source>Plugins</source>
         <translation>Plugins</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="239"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="263"/>
         <source>Drop log files here to open them</source>
         <translation>Suelte archivos de registro aquí para abrirlos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="282"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="306"/>
         <source>LogSquirl is open source</source>
         <translation>LogSquirl es de código abierto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="284"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="308"/>
         <source>Report an Issue</source>
         <translation>Reportar problema</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="285"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="309"/>
         <source>Documentation</source>
         <translation>Documentación</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="349"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="373"/>
+        <source>Find LogSquirl useful? A star on GitHub helps others find it.</source>
+        <translation>¿Le resulta útil LogSquirl? Una estrella en GitHub ayuda a que otros lo encuentren.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="375"/>
+        <source>Dismiss</source>
+        <translation>Descartar</translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="443"/>
         <source>No recent files</source>
         <translation>No hay archivos recientes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="375"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="469"/>
         <source>No favorites</source>
         <translation>No hay favoritos</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="397"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="491"/>
         <source>No plugins available</source>
         <translation>No hay plugins disponibles</translation>
     </message>
     <message>
-        <location filename="../../ui/src/welcomedashboard.cpp" line="407"/>
+        <location filename="../../ui/src/welcomedashboard.cpp" line="501"/>
         <source>No plugins installed</source>
         <translation>No hay plugins instalados</translation>
     </message>

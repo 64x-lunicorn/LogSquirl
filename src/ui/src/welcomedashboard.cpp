@@ -27,6 +27,7 @@
 #include "pluginhost.h"
 #include "recentfiles.h"
 #include "releasepages.h"
+#include "starrequest.h"
 #include "theme.h"
 
 #include <QDesktopServices>
@@ -37,13 +38,17 @@
 #include <QFont>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QMimeData>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QStringList>
+#include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
+
+#include <utility>
 
 #include <QPixmap>
 
@@ -69,6 +74,23 @@ const QString kLinkButtonStyle
 /// handled in code, never opened as URLs.
 const QString kReportIssueLink = QStringLiteral( "logsquirl:report-issue" );
 const QString kDocumentationLink = QStringLiteral( "logsquirl:documentation" );
+
+/// The image a Theme's CloseIcon Token names: the path in its "url(...)".
+QString closeIconPath( const Theme& theme )
+{
+    auto value = theme.value( StyleToken::CloseIcon ).trimmed();
+    if ( value.startsWith( QStringLiteral( "url(" ) ) && value.endsWith( u')' ) ) {
+        value = value.mid( 4, value.size() - 5 ).trimmed();
+    }
+    return value;
+}
+
+/// A rich-text link drawn in color, not in the palette's link color.
+QString coloredLink( const QString& target, const QString& color, const QString& text )
+{
+    return QStringLiteral( "<a href=\"%1\" style=\"color:%2\">%3</a>" )
+        .arg( target, color, text.toHtmlEscaped() );
+}
 
 /// Gives label the Theme's secondary text color.
 void markAsSecondaryText( QLabel* label )
@@ -139,10 +161,12 @@ WelcomeDashboard::WelcomeDashboard( QWidget* parent )
 {
     setAcceptDrops( true );
     buildUi();
-    // The plugin status colors and the footer's link color come from Tokens.
+    // The plugin status colors, the footer's link color and the star
+    // request's link color and close icon come from Tokens.
     Theme::whenApplied( this, [ this ] {
         refresh();
         updateFooterLinks();
+        updateStarRequest();
     } );
 }
 
@@ -265,6 +289,7 @@ void WelcomeDashboard::buildUi()
     footerLayout_->addWidget( footerLinks_ );
     outerLayout->addWidget( footer );
     updateFooterLinks();
+    buildStarRequest();
 
     updateTitleFonts();
 }
@@ -275,8 +300,7 @@ void WelcomeDashboard::updateFooterLinks()
     // own, so each names the secondary text color of the rest of the line.
     const auto color = Theme::active().color( ColorToken::SecondaryText ).name( QColor::HexRgb );
     const auto link = [ &color ]( const QString& target, const QString& text ) {
-        return QStringLiteral( "<a href=\"%1\" style=\"color:%2\">%3</a>" )
-            .arg( target, color, text.toHtmlEscaped() );
+        return coloredLink( target, color, text );
     };
     const QStringList parts = {
         tr( "LogSquirl is open source" ).toHtmlEscaped(),
@@ -298,6 +322,75 @@ void WelcomeDashboard::activateFooterLink( const QString& target )
     else if ( target == QString( logsquirl::versioncheck::ProjectPageUrl ) ) {
         QDesktopServices::openUrl( QUrl( target ) );
     }
+}
+
+void WelcomeDashboard::buildStarRequest()
+{
+    auto* footer = footerLayout_->parentWidget();
+    starRequest_ = new QWidget( footer );
+    starRequest_->setObjectName( QStringLiteral( "dashboardStarRequest" ) );
+    auto* line = new QHBoxLayout( starRequest_ );
+    line->setContentsMargins( 0, 0, 0, 0 );
+    line->setSpacing( 6 );
+    line->addStretch();
+
+    starRequestText_ = new QLabel( starRequest_ );
+    starRequestText_->setObjectName( QStringLiteral( "dashboardStarRequestText" ) );
+    markAsSecondaryText( starRequestText_ );
+    starRequestText_->setAlignment( Qt::AlignCenter );
+    starRequestText_->setTextFormat( Qt::RichText );
+    starRequestText_->setTextInteractionFlags( Qt::LinksAccessibleByMouse
+                                               | Qt::LinksAccessibleByKeyboard );
+    connect( starRequestText_, &QLabel::linkActivated, this, [ this ]( const QString& target ) {
+        if ( target == QString( logsquirl::versioncheck::ProjectPageUrl ) ) {
+            QDesktopServices::openUrl( QUrl( target ) );
+        }
+        dismissStarRequest();
+    } );
+    line->addWidget( starRequestText_ );
+
+    starRequestClose_ = new QToolButton( starRequest_ );
+    starRequestClose_->setObjectName( QStringLiteral( "dashboardStarRequestClose" ) );
+    starRequestClose_->setAutoRaise( true );
+    starRequestClose_->setCursor( Qt::PointingHandCursor );
+    starRequestClose_->setIconSize( QSize( 10, 10 ) );
+    connect( starRequestClose_, &QToolButton::clicked, this,
+             &WelcomeDashboard::dismissStarRequest );
+    line->addWidget( starRequestClose_ );
+    line->addStretch();
+
+    starRequest_->hide();
+    footerLayout_->insertWidget( 0, starRequest_ );
+    updateStarRequest();
+}
+
+void WelcomeDashboard::updateStarRequest()
+{
+    const auto& theme = Theme::active();
+    const auto color = theme.color( ColorToken::SecondaryText ).name( QColor::HexRgb );
+    starRequestText_->setText(
+        coloredLink( QString( logsquirl::versioncheck::ProjectPageUrl ), color,
+                     tr( "Find LogSquirl useful? A star on GitHub helps others find it." ) ) );
+    starRequestClose_->setIcon( QIcon( closeIconPath( theme ) ) );
+    const auto dismiss = tr( "Dismiss" );
+    starRequestClose_->setToolTip( dismiss );
+    starRequestClose_->setAccessibleName( dismiss );
+}
+
+void WelcomeDashboard::refreshStarRequest()
+{
+    starRequest_->setVisible( StarRequest::dueOn( today_() ) );
+}
+
+void WelcomeDashboard::dismissStarRequest()
+{
+    StarRequest::dismissForGood();
+    starRequest_->hide();
+}
+
+void WelcomeDashboard::setToday( std::function<QDate()> today )
+{
+    today_ = std::move( today );
 }
 
 void WelcomeDashboard::updateTitleFonts()
@@ -336,6 +429,7 @@ void WelcomeDashboard::refresh()
     refreshRecentFiles();
     refreshFavorites();
     refreshPluginStatus();
+    refreshStarRequest();
 }
 
 void WelcomeDashboard::refreshRecentFiles()

@@ -20,10 +20,14 @@
 #ifndef LOGSQUIRL_WELCOMEDASHBOARD_H
 #define LOGSQUIRL_WELCOMEDASHBOARD_H
 
+#include <QDate>
 #include <QList>
 #include <QWidget>
 
+#include <functional>
+
 class QLabel;
+class QToolButton;
 class QVBoxLayout;
 
 namespace logsquirl::plugins {
@@ -36,6 +40,8 @@ class PluginHost;
 /// Displays the application logo, version info, quick-action buttons, cards
 /// for recent files, favorites and plugin status in one column, keyboard
 /// shortcut hints, and a footer with links to the project at its bottom edge.
+/// Once LogSquirl has been used for a while, a line above the footer asks for
+/// a star on GitHub until the user follows its link or closes it (#934).
 /// Emits signals when the user clicks an item so MainWindow can open files.
 class WelcomeDashboard : public QWidget {
     Q_OBJECT
@@ -52,6 +58,10 @@ public:
     /// dashboard. Must be called before the first refresh().
     void setPlugins( const logsquirl::plugins::PluginCatalog* catalog,
                      const logsquirl::plugins::PluginHost* host );
+
+    /// Where refresh() takes the day from to decide whether to ask for a
+    /// star: the system's date unless a test hands in its own.
+    void setToday( std::function<QDate()> today );
 
 Q_SIGNALS:
     /// Emitted when the user clicks a recent or favorite file entry.
@@ -97,6 +107,18 @@ private:
     /// Do what the footer's link to target stands for.
     void activateFooterLink( const QString& target );
 
+    /// Build the line asking for a star, hidden, above the footer's links.
+    void buildStarRequest();
+
+    /// Write the star request's text and close icon in the Theme's colors.
+    void updateStarRequest();
+
+    /// Show the star request when it is due today, hide it otherwise.
+    void refreshStarRequest();
+
+    /// The user followed the star request's link or closed it: never again.
+    void dismissStarRequest();
+
     QVBoxLayout* recentFilesLayout_ = nullptr;
     QVBoxLayout* favoritesLayout_ = nullptr;
     QVBoxLayout* pluginStatusLayout_ = nullptr;
@@ -108,6 +130,12 @@ private:
     /// at index 0.
     QVBoxLayout* footerLayout_ = nullptr;
     QLabel* footerLinks_ = nullptr;
+
+    /// The line asking for a star, at index 0 of the footer while it is there.
+    QWidget* starRequest_ = nullptr;
+    QLabel* starRequestText_ = nullptr;
+    QToolButton* starRequestClose_ = nullptr;
+    std::function<QDate()> today_ = [] { return QDate::currentDate(); };
 
     const logsquirl::plugins::PluginCatalog* pluginCatalog_ = nullptr;
     const logsquirl::plugins::PluginHost* pluginHost_ = nullptr;

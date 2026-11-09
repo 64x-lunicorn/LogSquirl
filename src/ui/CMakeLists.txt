@@ -93,6 +93,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mergecontroller.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mergedialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/welcomedashboard.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/starrequest.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartseries.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartextraction.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartplot.h
@@ -208,6 +209,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mergecontroller.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mergedialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/welcomedashboard.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/starrequest.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartextraction.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartplot.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartwidget.cpp
