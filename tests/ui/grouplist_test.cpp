@@ -451,11 +451,17 @@ void checkNarrowGroupList( QDialog& dialog, GroupList& list )
     CHECK( list.minimumSizeHint().width() <= 300 );
     CHECK( listSide->minimumSizeHint().width() <= 320 );
 
-    // At its narrowest, every button is shown whole.
+    // The splitter pushed all the way left stops at the list's minimum
+    // width: the list never collapses (#926).
     const auto narrowest = listSide->minimumSizeHint().width();
-    splitter->setSizes( { narrowest, splitter->width() - narrowest } );
+    splitter->setSizes( { 0, splitter->width() } );
     QCoreApplication::processEvents();
+    CHECK_FALSE( splitter->childrenCollapsible() );
+    CHECK( list.isVisible() );
+    CHECK( listSide->width() >= narrowest );
     CHECK( listSide->width() <= 320 );
+
+    // At its narrowest, every button is shown whole.
     const QList<QAbstractButton*> buttons{ list.newButton(),    list.deleteButton(),
                                            list.upButton(),     list.downButton(),
                                            list.shareButton(),  list.copyButton(),

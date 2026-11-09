@@ -381,6 +381,9 @@ ValueNamesDialog::ValueNamesDialog( QWidget* parent )
 
     auto* mainLayout = new QVBoxLayout( this );
     auto* splitter = new QSplitter( Qt::Horizontal, this );
+    // Like the other dialogs of groups: the splitter stops at the Group
+    // List's minimum width rather than hiding it (#926).
+    splitter->setChildrenCollapsible( false );
     mainLayout->addWidget( splitter, 1 );
 
     // --- Left: the Naming Groups ---

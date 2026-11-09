@@ -7,6 +7,9 @@
   Move up and Move down; Share with team and Copy to my groups; Export... and
   Import...), so the list no longer needs about 510 px and the selected
   group's side gets the rest of the dialog. (#922)
+- **The Value Names dialog keeps its group list visible**: dragging the
+  splitter stops at the group list's minimum width, as in the Predefined
+  Filters and Highlighters dialogs, instead of hiding the list. (#926)
 
 # v26.12.0-beta2 (2026-11-06)
 
