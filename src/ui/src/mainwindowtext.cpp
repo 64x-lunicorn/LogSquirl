@@ -115,8 +115,7 @@ const char* action::projectPageText = QT_TR_NOOP( "LogSquirl on GitHub" );
 const char* action::projectPageStatusTip = QT_TR_NOOP( "Open the LogSquirl project on GitHub" );
 //: %1 is the version, e.g. 26.12
 const char* action::whatsNewText = QT_TR_NOOP( "What's New in %1..." );
-const char* action::whatsNewStatusTip
-    = QT_TR_NOOP( "Show the release notes of this version on GitHub" );
+const char* action::whatsNewStatusTip = QT_TR_NOOP( "Show what is new in this version" );
 const char* action::aboutText = QT_TR_NOOP( "&About" );
 const char* action::aboutStatusTip = QT_TR_NOOP( "Show the About box" );
 const char* action::aboutQtText = QT_TR_NOOP( "About &Qt" );

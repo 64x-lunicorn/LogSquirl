@@ -82,3 +82,33 @@ TEST_CASE( "What's New is named with the version's month", "[releasepages]" )
     CHECK( versionMonth( "26.7.0.741" ) == "26.07" );
     CHECK( versionMonth( "dev" ) == "dev" );
 }
+
+TEST_CASE( "A month that is not 1 to 12 is no month", "[releasepages]" )
+{
+    SECTION( "the first and the last month are months" )
+    {
+        CHECK( versionMonth( "26.1.0.5" ) == "26.01" );
+        CHECK( versionMonth( "26.01.0.5" ) == "26.01" );
+        CHECK( versionMonth( "26.12.0.5" ) == "26.12" );
+        CHECK( releaseNotesUrl( "26.1.0.5" ) == monthPage( "26-01" ) );
+        CHECK( releaseNotesUrl( "26.12.0-beta1" ) == monthPage( "26-12" ) );
+    }
+
+    SECTION( "month 0 and months from 13 on name no month and open the overview" )
+    {
+        for ( const auto* version :
+              { "26.0.0.5", "26.00.0.5", "26.13.0.5", "26.20.0-beta1", "26.99.0" } ) {
+            INFO( version );
+            CHECK( versionMonth( version ) == QString( version ) );
+            CHECK( releaseNotesUrl( version ) == Overview );
+        }
+    }
+}
+
+TEST_CASE( "The pages of the repository lie below its root", "[releasepages]" )
+{
+    using namespace logsquirl::versioncheck;
+    CHECK( QString( ProjectPageUrl ) == "https://github.com/64x-lunicorn/LogSquirl" );
+    CHECK( QString( ReleasesOverviewUrl ) == Overview );
+    CHECK( QString( ReleasePagesPrefix ) == Overview + u'/' );
+}

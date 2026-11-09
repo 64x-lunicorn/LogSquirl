@@ -19,6 +19,8 @@
 
 #include "releasepages.h"
 
+#include "logsquirl_version.h"
+
 #include <QRegularExpression>
 
 namespace logsquirl::versioncheck {
@@ -27,10 +29,11 @@ namespace {
 
 // A build YY.MM.PATCH.BUILD, or a release's name YY.MM.PATCH with an
 // optional pre-release suffix, as .github/scripts/releases.py reads tags.
+// Its month is 1 to 12, written with one digit or two.
 QRegularExpressionMatch parse( const QString& version )
 {
     static const QRegularExpression versionPattern( QStringLiteral(
-        R"(^([0-9]{2})\.([0-9]{1,2})\.[0-9]+(?:\.([0-9]+)|-(?:alpha|beta|rc)\.?[0-9]+)?$)" ) );
+        R"(^([0-9]{2})\.(0?[1-9]|1[0-2])\.[0-9]+(?:\.([0-9]+)|-(?:alpha|beta|rc)\.?[0-9]+)?$)" ) );
     return versionPattern.match( version );
 }
 
@@ -59,6 +62,16 @@ QString releaseNotesUrl( const QString& version )
     }
     return QLatin1String( WebsiteUrl ) + QStringLiteral( "/news/release-" ) + monthOf( match, u'-' )
            + u'/';
+}
+
+QString runningVersionMonth()
+{
+    return versionMonth( logsquirlVersion() );
+}
+
+QString runningReleaseNotesUrl()
+{
+    return releaseNotesUrl( logsquirlVersion() );
 }
 
 } // namespace logsquirl::versioncheck

@@ -1109,6 +1109,16 @@ SCENARIO( "The Help menu opens LogSquirl on GitHub and the running version's rel
             CHECK( entries.at( documentation + 2 ) == whatsNew );
         }
 
+        THEN( "each says in its status tip what it shows, What's New without naming a site" )
+        {
+            CHECK(
+                menuBarAction( *shown.window, QStringLiteral( "LogSquirl on GitHub" ) )->statusTip()
+                == QStringLiteral( "Open the LogSquirl project on GitHub" ) );
+            // A shipped build opens the website, a build of one's own GitHub.
+            CHECK( menuBarAction( *shown.window, whatsNew )->statusTip()
+                   == QStringLiteral( "Show what is new in this version" ) );
+        }
+
         THEN( "each is listed in the Shortcuts list under its menu name, without a key" )
         {
             const auto& shortcutList = ShortcutAction::defaultShortcutList();
