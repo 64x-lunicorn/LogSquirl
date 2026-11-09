@@ -26,14 +26,25 @@ namespace logsquirl::menuentry {
 
 QString withoutMnemonic( const QString& text )
 {
-    // Written after the name with the space before it, if any: "(&O)".
-    static const QRegularExpression mnemonicAfter( QStringLiteral( "\\s*\\(&[^&]\\)" ) );
-    auto result = text;
-    result.remove( mnemonicAfter );
-    // A doubled '&' is the character itself.
-    result.replace( QStringLiteral( "&&" ), QStringLiteral( "\x01" ) );
-    result.remove( u'&' );
-    result.replace( u'\x01', u'&' );
+    // Written after the name with the space before it, if any, in ASCII or
+    // in full-width parentheses: "(&O)", "（&O）".
+    static const QRegularExpression mnemonicAfter(
+        QStringLiteral( "\\s*(?:\\(&[^&]\\)|\uFF08&[^&]\uFF09)" ) );
+    const auto name = QString( text ).remove( mnemonicAfter );
+
+    // A single '&' marks the mnemonic and is dropped; a doubled one is the
+    // character itself.
+    QString result;
+    result.reserve( name.size() );
+    for ( qsizetype i = 0; i < name.size(); ++i ) {
+        if ( name.at( i ) != u'&' ) {
+            result.append( name.at( i ) );
+        }
+        else if ( i + 1 < name.size() && name.at( i + 1 ) == u'&' ) {
+            result.append( u'&' );
+            ++i;
+        }
+    }
     return result;
 }
 

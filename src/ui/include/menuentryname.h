@@ -29,7 +29,8 @@ namespace logsquirl::menuentry {
 
 // The text without its mnemonic marker: a single '&' is dropped, a doubled
 // one is the character itself, and a mnemonic written after the text, as a
-// Chinese entry writes it ("(&O)"), is dropped with its parentheses.
+// Chinese entry writes it ("(&O)", or in full-width parentheses "（&O）"), is
+// dropped with its parentheses.
 QString withoutMnemonic( const QString& text );
 
 // The name of the command of the entry: its text without the mnemonic and

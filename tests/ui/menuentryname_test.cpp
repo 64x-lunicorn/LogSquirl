@@ -35,12 +35,23 @@ TEST_CASE( "A menu entry's text without its mnemonic", "[ui][menuentry][palette]
     // As a Chinese entry writes its mnemonic, after the name.
     CHECK( withoutMnemonic( QStringLiteral( "关闭(&C)" ) ) == QStringLiteral( "关闭" ) );
     CHECK( withoutMnemonic( QStringLiteral( "打开(&O)..." ) ) == QStringLiteral( "打开..." ) );
+    // Or in full-width parentheses.
+    CHECK( withoutMnemonic( QStringLiteral( "打开（&O）" ) ) == QStringLiteral( "打开" ) );
+    CHECK( withoutMnemonic( QStringLiteral( "打开 （&O）..." ) ) == QStringLiteral( "打开..." ) );
+    CHECK( withoutMnemonic( QStringLiteral( "关闭（&&C）" ) ) == QStringLiteral( "关闭（&C）" ) );
     // A doubled '&' is the character itself.
     CHECK( withoutMnemonic( QStringLiteral( "Save && &Reload" ) )
            == QStringLiteral( "Save & Reload" ) );
     CHECK( withoutMnemonic( QStringLiteral( "Copy (&&C)" ) ) == QStringLiteral( "Copy (&C)" ) );
     CHECK( withoutMnemonic( QStringLiteral( "Plain text" ) ) == QStringLiteral( "Plain text" ) );
     CHECK( withoutMnemonic( QString{} ).isEmpty() );
+    // A '&' at the end, or a run of three, keeps what it doubles.
+    CHECK( withoutMnemonic( QStringLiteral( "Tom &" ) ) == QStringLiteral( "Tom " ) );
+    CHECK( withoutMnemonic( QStringLiteral( "A &&&B" ) ) == QStringLiteral( "A &B" ) );
+    // A character the old code held its place with stays as it is.
+    const QString controlCharacter( QChar( 0x01 ) );
+    CHECK( withoutMnemonic( controlCharacter + QStringLiteral( "&&b" ) )
+           == controlCharacter + QStringLiteral( "&b" ) );
 }
 
 TEST_CASE( "A menu entry's command name", "[ui][menuentry][palette]" )
@@ -49,6 +60,7 @@ TEST_CASE( "A menu entry's command name", "[ui][menuentry][palette]" )
     CHECK( commandName( QStringLiteral( "&Find…" ) ) == QStringLiteral( "Find" ) );
     CHECK( commandName( QStringLiteral( "关闭(&C)" ) ) == QStringLiteral( "关闭" ) );
     CHECK( commandName( QStringLiteral( "打开(&O)..." ) ) == QStringLiteral( "打开" ) );
+    CHECK( commandName( QStringLiteral( "打开（&O）…" ) ) == QStringLiteral( "打开" ) );
     CHECK( commandName( QStringLiteral( "Save && &Reload" ) )
            == QStringLiteral( "Save & Reload" ) );
     CHECK( commandName( QStringLiteral( "Plain text" ) ) == QStringLiteral( "Plain text" ) );
